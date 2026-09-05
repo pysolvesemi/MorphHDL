@@ -1,0 +1,298 @@
+diff --git a/core/src/main/scala/spinal/core/ElabBalancedReduction.scala b/core/src/main/scala/spinal/core/ElabBalancedReduction.scala
+index 5b8fe69f2..ee16d6bef 100644
+--- a/core/src/main/scala/spinal/core/ElabBalancedReduction.scala
++++ b/core/src/main/scala/spinal/core/ElabBalancedReduction.scala
+@@ -18,7 +18,9 @@ object ElabBalancedReduction {
+     ): T
+   }
+ 
+-  private val backend = ScopeProperty[Backend](null)
++  private val backend = new ScopeProperty[Backend] {
++    override def default: Backend = null
++  }
+ 
+   /** The restoration must also run after rejected callbacks and nested scopes. */
+   private[spinal] def withBackend[A](value: Backend)(body: => A): A = {
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
+index 7f77b3560..6f22e9855 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
+@@ -13,7 +13,7 @@ private[spinal] final case class UnvalidatedBalancedCallback(
+     operands: Vector[Data],
+     result: Data,
+     declarations: Vector[BaseType],
+-    assignments: Vector[DataAssignmentStatement]
++    assignments: Vector[AssignmentStatement]
+ )
+ 
+ private[spinal] final case class UnvalidatedBalancedRow(
+@@ -42,7 +42,7 @@ private[spinal] final case class UnvalidatedBalancedReduction[T <: Data](
+ private[spinal] object TypedBalancedReductionCapture {
+   private final case class Snapshot(
+       declarations: Vector[BaseType],
+-      assignments: Vector[(DataAssignmentStatement, Expression, BaseType)],
++      assignments: Vector[(AssignmentStatement, Expression, Expression, BaseType)],
+       children: Vector[Component]
+   )
+ 
+@@ -51,11 +51,11 @@ private[spinal] object TypedBalancedReductionCapture {
+ 
+   private def snapshot(owner: Component): Snapshot = {
+     val declarations = ArrayBuffer.empty[BaseType]
+-    val assignments = ArrayBuffer.empty[(DataAssignmentStatement, Expression, BaseType)]
++    val assignments = ArrayBuffer.empty[(AssignmentStatement, Expression, Expression, BaseType)]
+     owner.dslBody.walkStatements {
+       case value: BaseType => declarations += value
+-      case value: DataAssignmentStatement =>
+-        assignments += ((value, value.source, value.finalTarget))
++      case value: AssignmentStatement =>
++        assignments += ((value, value.source, value.target, value.finalTarget))
+       case _ =>
+     }
+     Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector)
+@@ -83,7 +83,7 @@ private[spinal] object TypedBalancedReductionCapture {
+     if (vector.vec.size != shape.carrierCapacity)
+       fail("CAPTURE-CAPACITY", "the retained native carrier capacity has changed")
+ 
+-    vector.vec.foreach { element =>
++    def validateInputShape(): Unit = vector.vec.foreach { element =>
+       val leaves = element.flatten.toVector
+       val paths = element.flattenLocalName.toVector
+       if (leaves.size != shape.elementLeaves.size || paths.size != leaves.size)
+@@ -94,11 +94,14 @@ private[spinal] object TypedBalancedReductionCapture {
+         if ((leaf.component ne owner) ||
+             (leaf.getTypeObject.asInstanceOf[AnyRef] ne expected.typeObject) ||
+             Option(path).getOrElse("") != expected.path ||
++            BigInt(leaf.getBitsWidth) != expected.width.default ||
+             !ElabInt.equivalentExactFunction(width, expected.width))
+           fail("CAPTURE-SHAPE-CHANGED", "a carrier leaf lost its exact owner, type, path or width authority")
+       }
+     }
+ 
++    validateInputShape()
++
+     val rows = ArrayBuffer.empty[UnvalidatedBalancedRow]
+     var ordinal = 0
+     var pending: Option[UnvalidatedBalancedCallback] = None
+@@ -113,9 +116,12 @@ private[spinal] object TypedBalancedReductionCapture {
+       if (before.children.size != after.children.size ||
+           before.children.zip(after.children).exists { case (a, b) => a ne b })
+         fail("CALLBACK-HIERARCHY", "a callback must not create or replace child components")
+-      before.assignments.foreach { case (statement, source, target) =>
++      if (before.declarations.exists(value => !after.declarations.exists(_ eq value)))
++        fail("CALLBACK-MUTATION", "a callback removed an existing native declaration")
++      before.assignments.foreach { case (statement, source, targetExpression, target) =>
+         if (!after.assignments.exists(_._1 eq statement) ||
+-            (statement.source ne source) || (statement.finalTarget ne target))
++            (statement.source ne source) || (statement.target ne targetExpression) ||
++            (statement.finalTarget ne target))
+           fail("CALLBACK-MUTATION", "a callback changed or removed an existing native assignment")
+       }
+       val declarations = after.declarations.filterNot(value => before.declarations.exists(_ eq value))
+@@ -123,6 +129,7 @@ private[spinal] object TypedBalancedReductionCapture {
+         .filterNot(value => before.assignments.exists(_._1 eq value))
+       if (assignments.exists(statement => !declarations.exists(_ eq statement.finalTarget)))
+         fail("CALLBACK-EXTERNAL-WRITE", "a callback assigned an input or another pre-existing signal")
++      validateInputShape()
+       val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments)
+       ordinal += 1
+       captured
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureTests.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureTests.scala
+index 80123e3ea..a52d21c7a 100644
+--- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureTests.scala
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureTests.scala
+@@ -16,14 +16,14 @@ class TypedBalancedReductionCaptureTests extends AnyFunSuite {
+   ): UnvalidatedBalancedReduction[UInt] = {
+     var captured: UnvalidatedBalancedReduction[UInt] = null
+     val directory = Files.createTempDirectory("morphhdl-reduction-capture-")
++    val width = HdlInt.param("WIDTH", defaultWidth, 1, 32)
++    val size = HdlInt.param("COUNT", count, 1, maximum)
+     SpinalConfig(targetDirectory = directory.toString, headerWithDate = false, headerWithRepoHash = false)
+       .generateVerilog(new Component {
+         val io = new Bundle {
+           val packed = in Bits(defaultWidth * maximum bits)
+           val result = out UInt(defaultWidth bits)
+         }
+-        val width = HdlInt.param("WIDTH", defaultWidth, 1, 32)
+-        val size = HdlInt.param("COUNT", count, 1, maximum)
+         val words = Vec(UInt(width bits), size)
+         for (index <- 0 until maximum)
+           words.vec(index) := io.packed(index * defaultWidth, defaultWidth bits).asUInt
+@@ -90,7 +90,8 @@ class TypedBalancedReductionCaptureTests extends AnyFunSuite {
+   test("register level bridges are captured as native statements rather than reauthored RTL") {
+     val record = inspect(pipeline = true)
+     assert(record.rows.forall(_.bridge.declarations.exists(_.isReg)))
+-    assert(record.rows.forall(_.bridge.assignments.nonEmpty))
++    assert(record.rows.forall(_.bridge.assignments.exists(_.isInstanceOf[DataAssignmentStatement])))
++    assert(record.rows.forall(_.bridge.assignments.exists(_.isInstanceOf[InitAssignmentStatement])))
+     assert(record.rows.count(_.operator.nonEmpty) == 4)
+   }
+ 
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureSafetyTests.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureSafetyTests.scala
+new file mode 100644
+index 000000000..36e0bf388
+--- /dev/null
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureSafetyTests.scala
+@@ -0,0 +1,162 @@
++package spinal.core.internals
++
++import java.nio.file.Files
++import org.scalatest.funsuite.AnyFunSuite
++import spinal.core._
++import spinal.lib._
++import morphhdl.frontend.HdlInt
++
++/** Rejection is tested at the native boundary, never through a mock RTL tree. */
++class TypedBalancedReductionCaptureSafetyTests extends AnyFunSuite {
++  private def native[T <: Data]: ElabBalancedReduction.Native[T] =
++    (values, operation, bridge) =>
++      new TraversableOnceAnyPimped[T](values).reduceBalancedTree(operation, bridge)
++
++  private def reject(code: String)(build: => Component): Unit = {
++    val error = intercept[Exception] {
++      SpinalConfig(targetDirectory = Files.createTempDirectory("reduce-capture-rejection-").toString)
++        .generateVerilog(build)
++    }
++    def detail(error: Throwable): String =
++      if (error == null) "" else Option(error.getMessage).getOrElse("") + "\n" + detail(error.getCause)
++    assert(detail(error).contains(code), detail(error))
++  }
++
++  private class Inputs extends Component {
++    val input = in Bits(15 bits)
++    val words = Vec(UInt(5 bits), HdlInt.param("COUNT", 3, 1, 3))
++    for (i <- 0 until 3) words.vec(i) := input(i * 5, 5 bits).asUInt
++  }
++
++  test("operator writes to an existing input are rejected") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-EXTERNAL-WRITE") {
++      new Inputs {
++        TypedBalancedReductionCapture(words,
++          (a: UInt, b: UInt) => { a := b; a + b },
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("bridge writes to an existing signal are rejected") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-EXTERNAL-WRITE") {
++      new Inputs {
++        val external = UInt(5 bits)
++        external := 0
++        TypedBalancedReductionCapture(words, (a: UInt, b: UInt) => a + b,
++          (value: UInt, _: Int) => { external := value; value }, native[UInt])
++      }
++    }
++  }
++
++  test("replacement of an existing native assignment is rejected") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-MUTATION") {
++      new Inputs {
++        val assignment = words.vec.head.dlcLast.asInstanceOf[DataAssignmentStatement]
++        TypedBalancedReductionCapture(words,
++          (a: UInt, b: UInt) => { assignment.source = b; a + b },
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("a callback cannot create child hierarchy") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-HIERARCHY") {
++      new Inputs {
++        TypedBalancedReductionCapture(words,
++          (a: UInt, b: UInt) => {
++            val child = new Component { val result = out UInt(5 bits); result := 0 }
++            a + b
++          }, (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("a callback cannot return a foreign component's native data") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-RESULT") {
++      new Inputs {
++        val child = new Component { val result = out UInt(5 bits); result := 0 }
++        TypedBalancedReductionCapture(words, (_: UInt, _: UInt) => child.result,
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("a callback cannot return null") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-RESULT") {
++      new Inputs {
++        TypedBalancedReductionCapture(words, (_: UInt, _: UInt) => null.asInstanceOf[UInt],
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("capture requires the exact typed Vec shape rather than a concrete lookalike") {
++    reject("MORPH-REDUCE-BALANCED-CAPTURE-SHAPE-MISSING") {
++      new Component {
++        val words = Vec(UInt(5 bits), 3)
++        words.foreach(_ := 0)
++        TypedBalancedReductionCapture(words, (a: UInt, b: UInt) => a + b,
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("capture is confined to the exact owning component") {
++    reject("MORPH-REDUCE-BALANCED-CAPTURE-OWNER") {
++      new Inputs {
++        val child = new Component {
++          TypedBalancedReductionCapture(words, (a: UInt, b: UInt) => a + b,
++            (value: UInt, _: Int) => value, native[UInt])
++        }
++      }
++    }
++  }
++
++  test("null dispatch dependencies fail before entering the native kernel") {
++    val error = intercept[IllegalArgumentException] {
++      TypedBalancedReductionCapture[UInt](null, null, null, null)
++    }
++    assert(error.getMessage.contains("MORPH-REDUCE-BALANCED-CAPTURE-NULL"))
++  }
++
++  test("the native width guard rejects carrier width mutation before capture") {
++    reject("getWidth result differ from last call") {
++      new Inputs {
++        words.vec.head.setWidth(6)
++        TypedBalancedReductionCapture(words, (a: UInt, b: UInt) => a + b,
++          (value: UInt, _: Int) => value, native[UInt])
++      }
++    }
++  }
++
++  test("a bridge cannot add an initializer to an existing register") {
++    reject("MORPH-REDUCE-BALANCED-CALLBACK-EXTERNAL-WRITE") {
++      new Inputs {
++        val existing = Reg(UInt(5 bits))
++        existing := 0
++        TypedBalancedReductionCapture(words, (a: UInt, b: UInt) => a + b,
++          (value: UInt, _: Int) => { existing.init(U(1, 5 bits)); value }, native[UInt])
++      }
++    }
++  }
++
++  test("patched concrete Vec routing emits byte-identical RTL to the original helper") {
++    final class Parity(usePatched: Boolean, count: Int) extends Component {
++      setDefinitionName("ConcreteReductionParity")
++      val io = new Bundle { val input = in Vec(UInt(5 bits), count); val result = out UInt(5 bits) }
++      val op: (UInt, UInt) => UInt = (a, b) => a + b
++      val bridge: (UInt, Int) => UInt = (value, _) => RegNext(value) init U(0, 5 bits)
++      io.result := (if (usePatched) io.input.reduceBalancedTree(op, bridge)
++        else new TraversableOnceAnyPimped[UInt](io.input.vec).reduceBalancedTree(op, bridge))
++    }
++    def generate(patched: Boolean, count: Int): Array[Byte] = {
++      val root = Files.createTempDirectory("reduce-concrete-parity-")
++      SpinalConfig(targetDirectory = root.toString, headerWithDate = false, headerWithRepoHash = false)
++        .generateVerilog(new Parity(patched, count))
++      Files.readAllBytes(root.resolve("ConcreteReductionParity.v"))
++    }
++    for (count <- Vector(1, 2, 3, 5, 8, 9, 16, 17))
++      assert(generate(false, count).sameElements(generate(true, count)), s"concrete native RTL changed at count=$count")
++  }
++}

@@ -59,8 +59,6 @@ def main():
         '    }\n')
     if authoritative not in (ROOT / UTILS).read_text():
         raise RuntimeError('the authoritative native reduction algorithm was changed')
-    # Retain all five existing Gray-code/reset edits, inserting exactly one
-    # new reviewed reduction-routing edit at its original source position.
     insertion_byte = len(old_utils[:insertion].encode())
     insertion_index = sum(e['approved_span']['start'] < insertion_byte for e in old_utils_entry['edits'])
     if any(e['approved_span']['start'] <= insertion_byte < e['approved_span']['end'] for e in old_utils_entry['edits']):
@@ -79,6 +77,12 @@ def main():
             raise RuntimeError(f'refusing to overwrite existing implementation: {destination}')
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes((STAGING / template).read_bytes())
+    # Exact corrective patch was compiled locally from current source; it adds
+    # target/initializer mutation checks and the independent safety suite.
+    patch = STAGING / 'capture-fixes.patch'
+    git('apply', '--check', str(patch))
+    git('apply', str(patch))
+    safety = 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCaptureSafetyTests.scala'
 
     fields = ('id', 'kind', 'owner', 'reason', 'required_exact_text')
     files = []
@@ -109,7 +113,7 @@ def main():
     policy = dict(schema_version=1, repository=manifest['repository'], baseline_commit=manifest['baseline']['commit'],
                   files=sorted(files, key=lambda item: item['path']))
     POLICY.write_text(json.dumps(policy, indent=2) + '\n')
-    git('add', NATIVE, UTILS, LIB, *[v for v in destinations.values() if v != NATIVE], str(POLICY.relative_to(ROOT)))
+    git('add', NATIVE, UTILS, LIB, safety, *[v for v in destinations.values() if v != NATIVE], str(POLICY.relative_to(ROOT)))
     git('commit', '-m', '59b: retain typed Vec receiver and capture authoritative native callback graphs')
     subprocess.run(['python3', 'morphhdl/scripts/check-native-source-preservation.py',
                     '--generate-template', str(POLICY.relative_to(ROOT)), '--output', str(MANIFEST.relative_to(ROOT)), '--force'],
