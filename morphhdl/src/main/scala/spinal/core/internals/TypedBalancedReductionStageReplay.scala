@@ -34,6 +34,10 @@ private[spinal] object TypedBalancedReductionStageReplay {
     val operatorClass: Option[Class[_]] = stages.flatMap(_.operators).headOption.map(_.operatorClass)
 
     def requireFreshness(): Unit = {
+      if (ParameterizedVec.shapeOf(captured.vector).forall(_ ne captured.shape) ||
+          captured.vector.vec.size != inputs.size ||
+          captured.vector.vec.zip(inputs).exists { case (value, proof) => value ne proof.value })
+        fail("SHAPE-CHANGED", "the exact captured receiver or its shape changed after certification")
       inputs.foreach(_.requireFreshness())
       observations.foreach(_.requireUnchanged())
       resultEvidence.requireFreshness()
@@ -108,6 +112,13 @@ private[spinal] object TypedBalancedReductionStageReplay {
     val operators = mutable.Map.empty[Int, TypedBalancedReductionOperatorReplay.Proof]
     val bridges = mutable.Map.empty[Int, TypedBalancedReductionBridgeReplay.Proof]
 
+    def statements(): Vector[Statement] = {
+      val result = ArrayBuffer.empty[Statement]
+      vector.component.dslBody.walkStatements(result += _)
+      result.toVector
+    }
+    var previousStatements = statements()
+
     def evidenceOf(data: Data): Evidence = data match {
       case scalar: BaseType =>
         Option(values.get(scalar)).getOrElse(fail("PROVENANCE", "callback operand is not an exact prior certified result or input"))
@@ -116,6 +127,16 @@ private[spinal] object TypedBalancedReductionStageReplay {
 
     val captured = TypedBalancedReductionCapture(vector, op, bridge, native,
       (callback: UnvalidatedBalancedCallback) => {
+        // Declaration/assignment-only capture must not silently discard an
+        // assertion, memory or other statement-producing callback effect.
+        val currentStatements = statements()
+        if (previousStatements.exists(old => !currentStatements.exists(_ eq old)))
+          fail("STATEMENT-EFFECT", "callback removed a pre-existing native statement")
+        val added = currentStatements.filterNot(value => previousStatements.exists(_ eq value))
+        if (added.exists(value => !callback.declarations.exists(_ eq value) &&
+            !callback.assignments.exists(_ eq value)))
+          fail("STATEMENT-EFFECT", "callback created a statement outside its recorded scalar data graph")
+        previousStatements = currentStatements
         observations.foreach(_.requireUnchanged())
         val evidence = callback.operands.size match {
           case 2 =>

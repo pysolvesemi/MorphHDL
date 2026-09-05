@@ -88,6 +88,11 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
       val certificate = capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(0, 5 bits))
       assert(certificate.stages.forall(_.registerCountPerRow == 1))
       assert(certificate.replay(words.vec.toVector).isReg)
+      assert(certificate.captured.rows.head.operator.get.result.asInstanceOf[UInt].fixedWidth == 5)
+      val width = ElabInt.literal(5).expression
+      assert(TypedBalancedReductionValueEvidence.preservesFixedWidth(-1, 5, width))
+      assert(!TypedBalancedReductionValueEvidence.preservesFixedWidth(-1, 6, width))
+      assert(!TypedBalancedReductionValueEvidence.preservesFixedWidth(5, -1, width))
     }
   }
 
@@ -164,9 +169,11 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
     }
   }
 
-  test("a RegNext clone with only a fixed witness is not symbolic bridge evidence") {
+  test("native HardType cannot freeze a certified symbolic source width to its default") {
     withUInt() { words =>
-      code("BRIDGE-WIDTH") {
+      val width = ParameterizedWidth.expressionOf(words.vec.head).get
+      assert(!TypedBalancedReductionValueEvidence.preservesFixedWidth(-1, 5, width))
+      code("REPLAY-STALE-GRAPH") {
         capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(0))
       }
     }
@@ -235,12 +242,15 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
     }
   }
 
-  test("empty and out-of-domain native replay sizes fail before replaying any body") {
+  test("empty sizes and unrecorded native statement effects cannot acquire stage permission") {
     withUInt() { words =>
       val certificate = capture(words)
       code("STAGE-COUNT") { certificate.replay(Vector.empty) }
       code("STAGE-COUNT") { certificate.replay(words.vec.toVector :+ words.vec.head) }
       code("STAGE-COUNT") { certificate.latencyFor(6) }
+      code("STAGE-STATEMENT-EFFECT") {
+        capture(words, (a: UInt, b: UInt) => { spinal.core.assert(a === b); a + b })
+      }
     }
   }
 

@@ -13,6 +13,15 @@ private[spinal] object TypedBalancedReductionValueEvidence {
   private val scalarClasses: Set[Class[_]] =
     Set(classOf[Bool], classOf[Bits], classOf[UInt], classOf[SInt])
 
+  /** HardType fixes a driven source before cloning it. Materializing a
+    * proved constant width preserves its meaning, but freezing a symbolic
+    * width to its default does not. No other width-policy edit is admitted.
+    */
+  def preservesFixedWidth(before: Int, after: Int,
+      width: ElaborationIntegerExpression): Boolean =
+    before == after || (before == -1 && width.parameters.isEmpty &&
+      width.generateIndex.isEmpty && BigInt(after) == width.default)
+
   private def sameWidthIdentity(a: Option[ElaborationIntegerExpression],
       b: Option[ElaborationIntegerExpression]): Boolean = (a, b) match {
     case (None, None) => true
@@ -39,7 +48,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
       if ((value.component ne owner) || (value.parentScope ne scope) ||
           (value.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
           (value.clockDomain ne clock) || value.isReg != register || value.isAnalog ||
-          value.hasTag(tagAutoResize) || currentFixed != fixed ||
+          value.hasTag(tagAutoResize) || !preservesFixedWidth(fixed, currentFixed, width) ||
           BigInt(value.getBitsWidth) != width.default ||
           !sameWidthIdentity(ParameterizedWidth.expressionOf(value), retained))
         fail("the certified native value changed its owner, type or width")

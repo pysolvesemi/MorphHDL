@@ -193,7 +193,8 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           val nowFixed = leaf match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
           if ((leaf.component ne owner) || leaf.isReg || !leaf.isDirectionLess ||
               (leaf.parentScope ne parent) || leaf.hasTag(tagAutoResize) ||
-              (leaf.getTypeObject.asInstanceOf[AnyRef] ne kind) || nowFixed != fixed ||
+              (leaf.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
+              !TypedBalancedReductionValueEvidence.preservesFixedWidth(fixed, nowFixed, width) ||
               !same(assignmentsOf(owner, leaf), all) ||
               (assignment.source ne source) || (assignment.target ne leaf) ||
               (assignment.parentScope ne owner.dslBody) ||
