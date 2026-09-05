@@ -39,11 +39,16 @@ object MorphHdlSignednessAnalysis {
       details: Vector[Any], owners: Vector[AnyRef]
   )
   private final case class Entry(subject: AnyRef, shape: Shape, fact: Fact)
+  private final case class Root(subject: AnyRef, use: Use)
+  private val replayUseOrder: Vector[Use] = Vector(
+    DeclarationUse, ExpressionUse, MemoryElementUse, AggregateUse, TemporaryUse
+  )
 
   final class Snapshot private[MorphHdlSignednessAnalysis] (
       private val entries: Vector[Entry],
       private val indices: IdentityHashMap[AnyRef, java.lang.Integer],
-      private val widths: Vector[ElaborationIntegerExpression]
+      private val widths: Vector[ElaborationIntegerExpression],
+      private val capturedUses: IdentityHashMap[AnyRef, Set[Use]]
   ) {
     /** Immutable observations for inspection/replay; these are not use evidence. */
     val facts: Vector[Fact] = entries.map(_.fact)
@@ -60,7 +65,11 @@ object MorphHdlSignednessAnalysis {
         }
         s"width.$index(default=${width.default},min=${width.minimum},max=${width.maximum},roots=$roots)"
       }
-      (domains ++ facts.map(_.toString)).mkString("\n") + "\n"
+      val roles = entries.map { entry =>
+        val present = Option(capturedUses.get(entry.subject)).getOrElse(Set.empty[Use])
+        s"use.${entry.fact.id}(${replayUseOrder.filter(present).mkString(",")})"
+      }
+      (domains ++ roles ++ facts.map(_.toString)).mkString("\n") + "\n"
     }
 
     private def entry(subject: AnyRef): Entry = {
@@ -91,28 +100,49 @@ object MorphHdlSignednessAnalysis {
       entry(subject)
     }
 
-    def expression(subject: Expression): Evidence = {
+    private def requireRole(subject: AnyRef, use: Use): Unit = {
       check(subject)
+      if (!Option(capturedUses.get(subject)).exists(_.contains(use)))
+        reject("USE-ROLE", "this graph object was not captured in the requested occurrence role")
+      // A previously indexed memory template or detached declaration is not an
+      // emitted declaration. Verify actual scope membership, not just an owner
+      // pointer. Role facts are not supplied by callers or inferred from type.
+      if (use == DeclarationUse || use == MemoryElementUse) {
+        val declaration = subject.asInstanceOf[DeclarationStatement]
+        val scope = declaration.parentScope
+        var present = false
+        if (scope != null) scope.foreachStatements(statement =>
+          if (statement eq declaration) present = true)
+        if (!present) reject("USE-ROLE", "declaration no longer occurs in its captured native scope")
+      }
+    }
+
+    def expression(subject: Expression): Evidence = {
+      requireRole(subject, ExpressionUse)
       new Evidence(this, subject, ExpressionUse, null, -1)
     }
     def declaration(subject: BaseType): Evidence = {
-      check(subject)
+      requireRole(subject, DeclarationUse)
       new Evidence(this, subject, DeclarationUse, null, -1)
     }
+    /** Reserved for an exact emitter wrapper plan. A pre-emission graph alone
+      * cannot prove that any expression becomes a temporary, so 60b captures no
+      * TemporaryUse and this request fails closed. Never guess from TypeSInt.
+      */
     def temporary(subject: Expression): Evidence = {
-      check(subject)
+      requireRole(subject, TemporaryUse)
       new Evidence(this, subject, TemporaryUse, null, -1)
     }
     def memoryElement(subject: Mem[_]): Evidence = {
-      check(subject)
+      requireRole(subject, MemoryElementUse)
       new Evidence(this, subject, MemoryElementUse, null, -1)
     }
     def aggregate(subject: MultiData): Evidence = {
-      check(subject)
+      requireRole(subject, AggregateUse)
       new Evidence(this, subject, AggregateUse, null, -1)
     }
     def castOperand(parent: Expression, slot: Int): Evidence = {
-      check(parent)
+      requireRole(parent, ExpressionUse)
       val operands = expressionChildren(parent)
       if (slot < 0 || slot >= operands.size)
         reject("OPERAND-SLOT", "cast operand index is outside the exact expression")
@@ -128,12 +158,14 @@ object MorphHdlSignednessAnalysis {
       if ((evidence.subject ne subject) || evidence.use != use)
         reject("USE-IDENTITY", "evidence is not for this exact object and use role")
       if (use == CastOperandUse) {
-        check(evidence.parent)
+        requireRole(evidence.parent, ExpressionUse)
+        requireRole(subject, ExpressionUse)
         val operands = expressionChildren(evidence.parent)
         if (evidence.slot < 0 || evidence.slot >= operands.size ||
             (operands(evidence.slot) ne subject))
           reject("OPERAND-IDENTITY", "cast use no longer denotes the captured operand edge")
       }
+      if (use != CastOperandUse) requireRole(subject, use)
       val fact = check(subject).fact
       if (use == TemporaryUse) fact.copy(value = fact.intent,
         requirements = (fact.requirements :+ TargetDeclarationMode).distinct)
@@ -218,7 +250,7 @@ object MorphHdlSignednessAnalysis {
   /** Unit/compiler utility for exact expression roots, not a rendered-HDL parser. */
   def expressions(roots: Vector[Expression]): Snapshot = {
     if (roots == null || roots.exists(_ == null)) reject("NULL-SUBJECT", "expression roots must not contain null")
-    build(roots.map(_.asInstanceOf[AnyRef]))
+    build(roots.map(root => Root(root, ExpressionUse)))
   }
 
   /** Capture all declarations, memory elements, aggregate ancestors and all
@@ -226,20 +258,21 @@ object MorphHdlSignednessAnalysis {
     */
   def capture(top: Component): Snapshot = {
     if (top == null) reject("NULL-TOP", "capture needs an elaborated component")
-    val roots = ArrayBuffer.empty[AnyRef]
+    val roots = ArrayBuffer.empty[Root]
     val aggregates = new IdentityHashMap[MultiData, java.lang.Boolean]()
     def parents(data: Data): Unit = data.parent match {
       case aggregate: MultiData if aggregates.put(aggregate, java.lang.Boolean.TRUE) == null =>
-        roots += aggregate
+        roots += Root(aggregate, AggregateUse)
         parents(aggregate)
       case _ => ()
     }
     def component(value: Component): Unit = {
       value.dslBody.walkStatements {
-        case memory: Mem[_] => roots += memory
-        case base: BaseType => roots += base; parents(base)
-        case expression: Expression => roots += expression
-        case statement => statement.foreachExpression(expression => if (expression != null) roots += expression)
+        case memory: Mem[_] => roots += Root(memory, MemoryElementUse)
+        case base: BaseType => roots += Root(base, DeclarationUse); parents(base)
+        case expression: Expression => roots += Root(expression, ExpressionUse)
+        case statement => statement.foreachExpression(expression =>
+          if (expression != null) roots += Root(expression, ExpressionUse))
       }
       value.children.foreach(component)
     }
@@ -472,7 +505,7 @@ object MorphHdlSignednessAnalysis {
     case _ => reject("UNSUPPORTED-SUBJECT", "only exact native declarations, aggregates and expressions are admitted")
   }
 
-  private def build(roots: Vector[AnyRef]): Snapshot = {
+  private def build(roots: Vector[Root]): Snapshot = {
     val indices = new IdentityHashMap[AnyRef, java.lang.Integer]()
     val entries = ArrayBuffer.empty[Entry]
     val widthIndices = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Integer]()
@@ -568,7 +601,29 @@ object MorphHdlSignednessAnalysis {
       entries(id) = Entry(subject, shape, fact)
       fact
     }
-    roots.foreach(visit)
-    new Snapshot(entries.toVector, indices, widths.toVector)
+    roots.foreach(root => visit(root.subject))
+    val capturedUses = new IdentityHashMap[AnyRef, Set[Use]]()
+    def mark(subject: AnyRef, use: Use): Boolean = {
+      val previous = Option(capturedUses.get(subject)).getOrElse(Set.empty[Use])
+      capturedUses.put(subject, previous + use)
+      !previous.contains(use)
+    }
+    def markExpression(expression: Expression): Unit = {
+      if (mark(expression, ExpressionUse)) expressionChildren(expression).foreach(markExpression)
+    }
+    // Only graph roots and real expression edges grant use roles. Shape-only
+    // dependencies (notably Mem.wordTypeLeaves) are indexed for facts but do not
+    // acquire declaration/expression/temporary evidence merely by being indexed.
+    roots.foreach { root =>
+      root.use match {
+        case ExpressionUse => markExpression(root.subject.asInstanceOf[Expression])
+        case DeclarationUse =>
+          mark(root.subject, DeclarationUse)
+          markExpression(root.subject.asInstanceOf[Expression])
+        case MemoryElementUse | AggregateUse => mark(root.subject, root.use)
+        case _ => reject("USE-ROLE", "unsupported role at native graph capture")
+      }
+    }
+    new Snapshot(entries.toVector, indices, widths.toVector, capturedUses)
   }
 }

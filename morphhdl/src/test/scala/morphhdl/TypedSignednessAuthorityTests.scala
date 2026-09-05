@@ -208,7 +208,8 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
       val disguised = binary(new Operator.SInt.Add {}, sint(), sint())
       assert(fact(disguised).value == Unknown)
       val snapshot = expressions(Vector(fake))
-      rejected("UNKNOWN-FACT")(snapshot.requireKnown(fake, snapshot.temporary(fake), TemporaryUse))
+      rejected("UNKNOWN-FACT")(snapshot.requireKnown(fake, snapshot.expression(fake), ExpressionUse))
+      rejected("USE-ROLE")(snapshot.temporary(fake))
     }
   }
 
@@ -544,7 +545,7 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
         assert(f.value == BooleanValue)
         assert(f.requirements.contains(UnknownSemantics))
         rejected("UNKNOWN-FACT")(snapshot.requireKnown(expression, snapshot.expression(expression), ExpressionUse))
-        rejected("UNKNOWN-FACT")(snapshot.requireKnown(expression, snapshot.temporary(expression), TemporaryUse))
+        rejected("USE-ROLE")(snapshot.temporary(expression))
       }
     }
   }

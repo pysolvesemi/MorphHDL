@@ -106,4 +106,44 @@ final class TypedSignednessResumeTests extends AnyFunSuite {
     }
   }
 
+
+  test("memory templates cannot obtain declaration, expression or temporary occurrence evidence") {
+    directory { root =>
+      var dut: SIntSignedVerilogBaselineFixture.Top = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.phasesInserters += install { snapshot =>
+        val memory = dut.sequential.signedMemory
+        val template = memory.wordTypeLeaves.head
+        assert(snapshot.validate(memory, snapshot.memoryElement(memory), MemoryElementUse).value == SignedScalar)
+        rejected("USE-ROLE")(snapshot.declaration(template))
+        rejected("USE-ROLE")(snapshot.expression(template))
+        rejected("USE-ROLE")(snapshot.temporary(template))
+        assert(snapshot.requireKnown(dut.left, snapshot.declaration(dut.left), DeclarationUse).value == SignedScalar)
+        rejected("USE-ROLE")(snapshot.temporary(dut.left))
+      }
+      SpinalVerilog(config) { dut = SIntSignedVerilogBaselineFixture.fixed(); dut }
+    }
+  }
+
+  test("expression-only snapshots cannot manufacture declaration or unplanned temporary roles") {
+    directory { root =>
+      var input: SInt = null
+      val config = SpinalConfig(targetDirectory = root.toString)
+      config.phasesInserters += install { snapshot =>
+        val expressionSnapshot = expressions(Vector(input))
+        val ref = expressionSnapshot.expression(input)
+        assert(expressionSnapshot.requireKnown(input, ref, ExpressionUse).value == SignedScalar)
+        rejected("USE-ROLE")(expressionSnapshot.declaration(input))
+        rejected("USE-ROLE")(expressionSnapshot.temporary(input))
+        assert(snapshot.requireKnown(input, snapshot.declaration(input), DeclarationUse).value == SignedScalar)
+        assert(snapshot.replay != expressionSnapshot.replay)
+      }
+      SpinalVerilog(config)(new Component {
+        val a = in(SInt(8 bits)); val b = out(SInt(8 bits))
+        b := a
+        input = a
+      })
+    }
+  }
+
 }

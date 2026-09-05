@@ -72,7 +72,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in (('TypedSignednessAuthorityTests', 26), ('TypedSignednessResumeTests', 3)):
+          for name, count in (('TypedSignednessAuthorityTests', 26), ('TypedSignednessResumeTests', 5)):
               paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(paths) == 1, 'missing or ambiguous signedness suite: ' + name
               suite = ET.parse(paths[0]).getroot()

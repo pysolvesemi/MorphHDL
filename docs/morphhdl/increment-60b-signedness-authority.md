@@ -112,7 +112,7 @@ or cast removal. An explicit, valid declaration-mode proof is still future work.
 The observer rechecks its final phase position when it runs, rejecting later
 phase-plan edits that move it away from the validated pre-emission boundary.
 
-The focused suites contain 29 tests, including real scalar declarations and
+The focused suites contain 31 tests, including real scalar declarations and
 feedback registers at widths 1, 5, 8 and 32; same-spelling independent symbolic
 roots; typed resize; nested Bundle/Vec geometry; memory templates; negative
 identity/role/slot/staleness cases; and unchanged native/MorphVerilog output.
@@ -137,3 +137,26 @@ ordinals, so distinct parameter domains do not silently yield identical reports.
 Capture requires ordered normalization, cross-clock checking, allocation and
 emission, rejects a second observer, and rechecks the exact final boundary when
 executed. These checks affect only the opt-in analysis and leave RTL untouched.
+
+## Graph-derived occurrence roles
+
+Being present in the fact index does not establish a declaration or temporary
+occurrence. The snapshot separately records which roles led to capture: direct
+native declarations, native memory declarations, aggregate ancestors and real
+expression edges. Memory word templates are shape-only dependencies and cannot
+obtain declaration or expression evidence merely because their type was indexed.
+An expression-only snapshot does not grant declaration evidence even for a node
+that is declared in another snapshot. Declaration and memory-element uses also
+validate actual native scope membership, not only the object's owner pointer.
+Role observations are included in deterministic replay.
+
+This pre-emission analysis has no exact emitter wrapper plan yet. TemporaryUse
+therefore remains reserved and fails closed with USE-ROLE for every request in
+60b, rather than labeling arbitrary expressions as emitted temporaries. Future
+60c wrapper integration must introduce exact occurrence evidence before using
+that role. No existing target declarations, casts or publication are changed.
+
+Two review regressions demonstrate memory-template and expression-only role
+forgery rejection, while preserving valid scalar and memory uses. Existing
+unknown-expression checks still require UNKNOWN-FACT through ExpressionUse;
+unplanned temporary requests now fail earlier at their factory with USE-ROLE.
