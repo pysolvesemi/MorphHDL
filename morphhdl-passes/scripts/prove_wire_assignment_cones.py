@@ -13,6 +13,10 @@ Each assertion cone is extracted independently AFTER folding all assumptions
 into the sequential graph. Byte-identical normalized AIGs may share one proof
 within this invocation only. The proof rebuilds that cone, writes a matching
 snapshot, and runs PDR in the SAME ABC process (rereading changes ABC ordering).
+Before DCH, both extraction and proof explicitly read an identical retained
+canonical AIG. Canonicalization bijectively renames unconstrained inputs and
+paired latch inputs/outputs only after constraints are folded and all latch
+initial values are zero. Every canonical snapshot is checked and hashed.
 If normalization drops a constant output, the original single-output cone is
 proved instead. An exact zero-state, zero-gate false output is certified directly
 from its retained AIG, because ABC PDR does not verify trivial invariants in all
@@ -139,6 +143,19 @@ def _single(path: Path, allow_zero: bool = False) -> dict[str, int]:
     return header
 
 
+def zero_initialized_single(path: Path) -> dict[str, int]:
+    """Require the canonicalizer's single-output, all-zero initial-state boundary."""
+    header = _single(path)
+    with path.open("rb") as handle:
+        handle.readline()
+        for _ in range(header["L"]):
+            line = handle.readline(512)
+            match = re.fullmatch(rb"(0|[1-9][0-9]*)(?: 0)?\n", line)
+            if match is None or int(match[1]) > 2 * header["M"] + 1:
+                raise ConeProofError(f"canonical AIG has malformed or nonzero latch initialization: {path}")
+    return header
+
+
 def constant_false_certificate(path: Path) -> dict[str, Any] | None:
     """Certify only an exact unconstrained, zero-state, zero-gate false AIG.
 
@@ -178,12 +195,22 @@ def property_stem(index: int) -> str:
     return f"property-{index:04d}"
 
 
+def canonical_name(index: int, proof: bool) -> str:
+    return property_stem(index) + ("-canonical-proof.aig" if proof else "-canonical-extract.aig")
+
+
+def normalization_commands(index: int, sequential: bool, proof: bool) -> str:
+    canonical = canonical_name(index, proof)
+    return ("&get; &trim -o; &put" + ("; scorr" if sequential else "")
+            + f"; dc2; &get; &w -u {canonical}; read_aiger {canonical}; dch; dc2")
+
+
 def cone_commands(index: int, normalize: bool, sequential: bool = True) -> str:
     commands = f"read_aiger full.aig; fold; strash; cone -s -O {index}"
     if sequential:
         commands += "; scleanup"
     if normalize:
-        commands += "; &get; &trim -o; &put" + ("; scorr" if sequential else "") + "; dc2"
+        commands += "; " + normalization_commands(index, sequential, True)
     return commands
 
 
@@ -195,18 +222,18 @@ def isolation_script(index: int) -> str:
 def extraction_script(index: int, sequential: bool = True) -> str:
     stem = property_stem(index)
     return (cone_commands(index, False, sequential)
-            + f"; write_aiger -u {stem}-original.aig; &get; &trim -o; &put"
-            + ("; scorr" if sequential else "") + "; dc2"
+            + f"; write_aiger -u {stem}-original.aig; "
+            + normalization_commands(index, sequential, False)
             + f"; write_aiger -u {stem}-normalized.aig\n")
 
 
 def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True) -> str:
-    # Structural flop priorities change PDR's search order only. The retained
-    # formula, explicit clocks, initial state, assumptions and timeout remain
-    # unchanged; pinned ABC otherwise struggles with the largest ready cone.
+    # Monolithic CNF, structural flop priorities and stronger generalization
+    # change PDR's search only. The retained formula, explicit clocks, initial
+    # state, assumptions and timeout remain unchanged.
     return (cone_commands(index, normalize, sequential)
             + f"; write_aiger -u {property_stem(index)}-proven.aig"
-            + f"; pdr -y -T {timeout} -v -d -I {property_stem(index)}-invariant.pla\n")
+            + f"; pdr -m -y -r -T {timeout} -v -d -I {property_stem(index)}-invariant.pla\n")
 
 
 def _command(root: Path, name: str, argv: list[str], deadline: float) -> None:
@@ -330,6 +357,9 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
         sequential = raw_header["L"] > 0
         _text(root, stem + "-extract.abc", extraction_script(index, sequential))
         _validate_command(root, stem + "-extract", ["yosys-abc", "-f", stem + "-extract.abc"])
+        canonical = root / canonical_name(index, False)
+        zero_initialized_single(canonical)
+        artifacts[canonical.name] = digest(canonical)
         use_normalized = use_normalized_formula(
             root / (stem + "-original.aig"), root / (stem + "-normalized.aig"))
         selected = stem + ("-normalized.aig" if use_normalized else "-original.aig")
@@ -360,6 +390,12 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
                 _single(root / (stem + "-proven.aig"))
                 if (root / (stem + "-proven.aig")).read_bytes() != formula:
                     raise ConeProofError("proved snapshot differs from the extracted formula")
+                if use_normalized:
+                    proof_canonical = root / canonical_name(index, True)
+                    zero_initialized_single(proof_canonical)
+                    if proof_canonical.read_bytes() != canonical.read_bytes():
+                        raise ConeProofError("proof canonical snapshot differs from extraction")
+                    artifacts[proof_canonical.name] = digest(proof_canonical)
                 validate_pdr_log(output)
                 artifacts[stem + "-invariant.txt"] = _validate_invariant(root, stem)
                 for suffix in ("-prove.abc", "-proven.aig"):
@@ -418,6 +454,8 @@ def run_proof(directory: Path, miter_top: str, scalar_miter_text: str,
             script = stem + "-extract.abc"
             (root / script).write_text(extraction_script(index, sequential), encoding="utf-8")
             _command(root, stem + "-extract", ["yosys-abc", "-f", script], deadline)
+            canonical = root / canonical_name(index, False)
+            zero_initialized_single(canonical)
             use_normalized = use_normalized_formula(
                 root / (stem + "-original.aig"), root / (stem + "-normalized.aig"))
             formula_path = root / (stem + ("-normalized.aig" if use_normalized else "-original.aig"))
@@ -438,6 +476,11 @@ def run_proof(directory: Path, miter_top: str, scalar_miter_text: str,
             _single(root / (stem + "-proven.aig"))
             if (root / (stem + "-proven.aig")).read_bytes() != formula:
                 raise ConeProofError("proved snapshot differs from the extracted formula")
+            if use_normalized:
+                proof_canonical = root / canonical_name(index, True)
+                zero_initialized_single(proof_canonical)
+                if proof_canonical.read_bytes() != canonical.read_bytes():
+                    raise ConeProofError("proof canonical snapshot differs from extraction")
             validate_pdr_log((root / (stem + "-prove.log")).read_text(encoding="utf-8"))
             _retain_invariant(root, stem)
             representatives[sha] = formula

@@ -44,8 +44,11 @@ class ConeEvidenceTests(unittest.TestCase):
             elif name.endswith("-extract"):
                 (root / (stem + "-original.aig")).write_bytes(original)
                 (root / (stem + "-normalized.aig")).write_bytes(normalized)
+                (root / cone.canonical_name(index, False)).write_bytes(b"aig 1 1 0 1 0\n0\nc")
             elif name.endswith("-prove"):
                 (root / (stem + "-proven.aig")).write_bytes(original if index == 0 else normalized)
+                if index != 0:
+                    (root / cone.canonical_name(index, True)).write_bytes(b"aig 1 1 0 1 0\n0\nc")
                 text = GOOD_LOG
                 (root / (stem + "-invariant.pla")).write_text(
                     "# synthetic timestamp\n.i 0\n.o 1\n.p 0\n.e\n")
@@ -101,6 +104,23 @@ class ConeEvidenceTests(unittest.TestCase):
     def test_proved_snapshot_must_equal_extracted_formula(self):
         path = self.root / "property-0001-proven.aig"
         path.write_bytes(path.read_bytes() + b"changed")
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_duplicate_property_still_requires_canonical_snapshot(self):
+        (self.root / cone.canonical_name(2, False)).unlink()
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_proof_canonical_snapshot_must_match_extraction(self):
+        (self.root / cone.canonical_name(1, True)).write_bytes(b"aig 1 1 0 1 0\n1\nc")
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_nonzero_canonical_initial_state_rejected_even_for_duplicate(self):
+        (self.root / cone.canonical_name(2, False)).write_bytes(b"aig 1 0 1 1 0\n0 1\n0\nc")
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_canonical_write_without_matching_read_rejected(self):
+        path = self.root / "property-0001-prove.abc"
+        path.write_text(path.read_text().replace("read_aiger property-0001-canonical-proof.aig; ", ""))
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_source_changed_rejected(self):
@@ -216,7 +236,22 @@ class ConeParsingTests(unittest.TestCase):
         for commands in (cone.extraction_script(0), cone.proof_script(0, True, 10)):
             self.assertIn("&get; &trim -o; &put", commands)
             self.assertNotIn("; trim", commands)
-        self.assertIn("pdr -y -T 10 -v -d -I", cone.proof_script(0, True, 10))
+            self.assertIn("; dch; dc2", commands)
+        for proof, commands in ((False, cone.extraction_script(0)), (True, cone.proof_script(0, True, 10))):
+            name = cone.canonical_name(0, proof)
+            self.assertIn(f"dc2; &get; &w -u {name}; read_aiger {name}; dch", commands)
+        self.assertIn("pdr -m -y -r -T 10 -v -d -I", cone.proof_script(0, True, 10))
+
+    def test_canonical_initial_state_requires_zero_for_every_latch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "model.aig"
+            for latch in (b"0\n", b"0 0\n", b"2 0\n"):
+                path.write_bytes(b"aig 1 0 1 1 0\n" + latch + b"0\nc")
+                self.assertEqual(cone.zero_initialized_single(path)["L"], 1)
+            for latch in (b"0 1\n", b"0 2\n", b"4\n", b"\n", b"0"):
+                path.write_bytes(b"aig 1 0 1 1 0\n" + latch + b"0\nc")
+                with self.subTest(latch=latch):
+                    with self.assertRaises(cone.ConeProofError): cone.zero_initialized_single(path)
 
 
 class ConstantFalseEvidenceTests(unittest.TestCase):
@@ -241,6 +276,7 @@ class ConstantFalseEvidenceTests(unittest.TestCase):
         elif name.endswith("-extract"):
             for suffix in ("original", "normalized"):
                 (root / f"property-0000-{suffix}.aig").write_bytes(b"aig 3 3 0 1 0\n0\nc")
+            (root / cone.canonical_name(0, False)).write_bytes(b"aig 3 3 0 1 0\n0\nc")
         else:
             raise AssertionError("constant-false certificate must not invoke a solver")
         (root / (name + ".log")).write_text("synthetic extraction fixture\n")
