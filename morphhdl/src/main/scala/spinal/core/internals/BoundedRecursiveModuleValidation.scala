@@ -38,6 +38,22 @@ private[spinal] object BoundedRecursiveModuleValidation {
   private def validateOwner(owner: Component): Vector[BlackBox] = {
     val ownerName = Option(owner.definitionName).getOrElse("")
     if (ownerName.isEmpty) return Vector.empty
+    ParameterizedStructure.regionsOf(owner)
+      .flatMap(ParameterizedStructure.allBlocks)
+      .flatMap(_.children)
+      .collect { case reference: BlackBox => reference }
+      .foreach { reference =>
+        if (
+          !owner.children.exists(_ eq reference) ||
+          (reference.parent ne owner) || !reference.isBlackBox ||
+          reference.definitionName != ownerName
+        )
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RECURSION-REFERENCE-IDENTITY-MISMATCH",
+            "captured recursive reference no longer identifies its exact direct owning module",
+            None
+          )
+      }
     val selfReferences = owner.children.toVector.collect {
       case blackBox: BlackBox
           if blackBox.isBlackBox && blackBox.definitionName == ownerName => blackBox
@@ -94,18 +110,6 @@ private[spinal] object BoundedRecursiveModuleValidation {
 
     val classified = integerBindings.map { binding =>
       val role = s"recursive generic '${binding.name}' of '$ownerName'"
-      val domain = ElabInt.requireAuthoritativeIntegerDomain(
-        binding.expression,
-        role,
-        "SPINAL-PARAMETERIZED-VERILOG-RECURSION-EXACT-DOMAIN-REQUIRED",
-        requireExactExtrema = false
-      ).getOrElse {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-METRIC-MISSING",
-          s"$role lost its exact declaration root",
-          binding.sourceLocation
-        )
-      }
       // A provisional expression table is insufficient: the surviving child
       // itself must be owned by the narrowing generate branch. This catches
       // a projected N-1 expression escaping to an unconditional self-instance.
@@ -121,6 +125,25 @@ private[spinal] object BoundedRecursiveModuleValidation {
           s"$role has no exact final-owner evaluation",
           binding.sourceLocation
         )
+      }
+      val retainedDomain = binding.expression.exactDomain.get
+      val domain = ElaborationDomainContext.withAdmitted(
+        retainedDomain.root,
+        evaluation.rootValues,
+        binding.sourceLocation
+      ) {
+        ElabInt.requireAuthoritativeIntegerDomain(
+          binding.expression,
+          role,
+          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-EXACT-DOMAIN-REQUIRED",
+          requireExactExtrema = false
+        ).getOrElse {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-RECURSION-METRIC-MISSING",
+            s"$role lost its exact declaration root",
+            binding.sourceLocation
+          )
+        }
       }
       (binding, domain, classify(binding, domain, evaluation))
     }

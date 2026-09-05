@@ -445,12 +445,28 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     val bindings = retained.collect {
       case value: ParameterizedBlackBoxIntegerGeneric
           if value.expression.parameters.nonEmpty =>
-        ElabInt.requireAuthoritativeIntegerDomain(
-          value.expression,
-          s"BlackBox integer generic '${value.name}' of instance '$instanceName'",
-          "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",
-          requireExactExtrema = false
+        val role = s"BlackBox integer generic '${value.name}' of instance '$instanceName'"
+        val ownerEvaluation = ParameterizedStructure.projectedChildEvaluationOf(
+          parent, blackBox, value.expression, role, value.sourceLocation
         )
+        def validateIntegerDomain(): Unit = {
+          ElabInt.requireAuthoritativeIntegerDomain(
+            value.expression,
+            role,
+            "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",
+            requireExactExtrema = false
+          )
+          ()
+        }
+        ownerEvaluation match {
+          case Some(evaluation) =>
+            ElaborationDomainContext.withAdmitted(
+              value.expression.exactDomain.get.root,
+              evaluation.rootValues,
+              value.sourceLocation
+            )(validateIntegerDomain())
+          case None => validateIntegerDomain()
+        }
         value.name -> ExpressionBinding(value.expression)
       case value: ParameterizedBlackBoxBooleanGeneric
           if value.expression.parameters.nonEmpty =>

@@ -15,6 +15,7 @@ REQUIRED_FILES = (
     "morphhdl/scripts/check-increment-59a-recursive-module.py",
     "morphhdl/scripts/prove-increment-59a-recursive-module.sh",
     "morphhdl/src/main/scala/spinal/core/internals/BoundedRecursiveModuleValidation.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
     "morphhdl/src/test/scala/morphhdl/BoundedRecursivePowerTests.scala",
     "morphhdl/src/test/scala/nativeapplication/BoundedRecursivePowerFixture.scala",
