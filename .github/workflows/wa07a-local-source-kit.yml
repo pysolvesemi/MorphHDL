@@ -1,4 +1,4 @@
-name: WA-07a local formal tool kit
+name: WA-07a exact root compiler kit
 on:
   push:
     branches: [agent/wa-07a-local-source-kit]
@@ -7,55 +7,58 @@ permissions:
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
       - uses: actions/checkout@v4
-      - name: Export installed formal drivers and libraries
+        with:
+          ref: d5e91a5e0bfe7fa856a3d3efee11b186963a49a4
+      - name: Compile the exact root and native witness sources
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p tool-export/root
-          export root="$PWD/tool-export/root"
+          mkdir -p compiler-export
+          sbt -batch '++2.12.18' \
+            'set morph / Test / unmanagedSourceDirectories ++= Seq(file("morphhdl-passes/src/main/scala"), file("morphhdl-passes/examples"))' \
+            'morph / Test / compile' \
+            'show morph / Test / fullClasspath' \
+            'show idslplugin / Compile / packageBin' \
+            'show morphplugin / Compile / packageBin' 2>&1 | tee compiler-export/compile.log
+          git rev-parse HEAD > compiler-export/source-commit.txt
+      - name: Export immutable classpath entries with fingerprints
+        shell: bash
+        run: |
           python3 - <<'PY'
-          import hashlib, json, os, re, shutil, subprocess
+          import hashlib,json,re,shutil,subprocess,tarfile
           from pathlib import Path
-          root = Path(os.environ['root'])
-          copied = {}
-          def copy(path):
-              path = Path(path)
-              if not path.is_file(): return
-              target = root / str(path).lstrip('/')
-              target.parent.mkdir(parents=True, exist_ok=True)
-              shutil.copy2(path, target, follow_symlinks=True)
-              copied[str(path)] = hashlib.sha256(target.read_bytes()).hexdigest()
-          versions = {}
-          for name in ('sby', 'yices-smt2', 'yosys-smtbmc', 'yosys-witness'):
-              source = shutil.which(name)
-              assert source, name
-              copy(source)
-              copy(Path(source).resolve())
-              result = subprocess.run(['ldd', str(Path(source).resolve())], capture_output=True, text=True)
-              for path in re.findall(r'(/[^\s()]+)', result.stdout): copy(path)
-          for base in ('/opt', '/usr/local', '/usr/share'):
-              for directory, dirs, files in os.walk(base):
-                  for name in files:
-                      if (name.startswith('sby_') and name.endswith('.py')) or name in ('smtio.py', 'ywio.py'):
-                          copy(Path(directory) / name)
-          for name, arg in (('yosys','-V'),('sby','-h'),('yices-smt2','--version')):
-              result = subprocess.run([name,arg], capture_output=True, text=True)
-              assert result.returncode == 0, (name,result.stderr)
-              versions[name] = result.stdout + result.stderr
-          assert any('sby_core.py' in p for p in copied), copied
-          Path('tool-export/sha256.json').write_text(json.dumps(copied, indent=2, sort_keys=True)+'\n')
-          Path('tool-export/tool-versions.json').write_text(json.dumps(versions, indent=2, sort_keys=True)+'\n')
+          out=Path('compiler-export')
+          log=re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', (out/'compile.log').read_text())
+          paths=list(dict.fromkeys(re.findall(r'Attributed\((/[^\n)]+)\)',log)))
+          assert paths and any('/morphhdl/target/' in p for p in paths), paths
+          for p in paths: assert Path(p).exists(), p
+          extra=[]
+          for folder in ('idslplugin','morphplugin'):
+              candidates=list(Path(folder,'target','scala-2.12').glob('*.jar'))
+              assert candidates, folder
+              extra.extend(str(p.resolve()) for p in candidates)
+          manifest={}
+          with tarfile.open(out/'exact-root-classpath.tar.gz','w:gz') as archive:
+              for i,path in enumerate(paths+extra):
+                  path=Path(path)
+                  name=f'entry-{i:03d}' + ('.jar' if path.is_file() else '')
+                  archive.add(path,arcname=name)
+                  manifest[name]={'source':str(path),'classpath':i<len(paths),'files':{}}
+                  members=[path] if path.is_file() else sorted(p for p in path.rglob('*') if p.is_file())
+                  for p in members:
+                      key='.' if p==path else p.relative_to(path).as_posix()
+                      manifest[name]['files'][key]=hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'manifest.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n')
           PY
-          tar -C tool-export/root -czf tool-export/wa07a-formal-tools.tar.gz .
-          rm -rf tool-export/root
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: wa07a-formal-tool-kit
-          path: tool-export
+          name: wa07a-exact-root-d5e91a5e0
+          path: compiler-export
           if-no-files-found: error
           retention-days: 3
