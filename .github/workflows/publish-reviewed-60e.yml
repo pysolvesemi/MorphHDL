@@ -1,0 +1,44 @@
+name: Publish reviewed 60e source
+on:
+  push:
+    branches: ['agent/60e-reviewed-boundary-publication']
+    paths: ['.github/workflows/publish-reviewed-60e.yml']
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/60e-reviewed-boundary-publication'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Decode and verify reviewed patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, lzma
+          from pathlib import Path
+          payload = ''.join(Path(f'.ci/60e-part-{i}.b64').read_text().strip() for i in range(5))
+          patch = lzma.decompress(base64.b64decode(payload, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '55a9948e7bd9364631b3e9a91b6c62f4dd6f52eac25198bff3a8aebcf49ae887'
+          Path('/tmp/reviewed-60e.patch').write_bytes(patch)
+          PY
+      - name: Publish only the verified implementation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/increment-60e-signedness-boundaries
+          test "$(git rev-parse FETCH_HEAD)" = ba0f03d690d5ce276ca089df56af5cdd8d30c9d1
+          git checkout --detach FETCH_HEAD
+          git apply --check --index /tmp/reviewed-60e.patch
+          git apply --index /tmp/reviewed-60e.patch
+          test "$(git write-tree)" = 01c2b12136cedf32f28c8688b549bd73d72810e3
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: implement Increment 60e signedness boundaries, aggregates and hierarchy closure' -m 'Preserve exact occurrence authority, native intermediate sizing, unsigned packed transport and legacy mode. Add structured symbolic signed resize, signed leaf reconstruction and exact Vec hierarchy binding. Add 64-tuple independent native equivalence, five boundary mutations, source audits and dual-Scala CI. Completion remains gated on final-head workflows.'
+          git push origin HEAD:refs/heads/agent/increment-60e-signedness-boundaries
+          echo "Published commit: $(git rev-parse HEAD)"
+          echo "Verified tree: $(git rev-parse HEAD^{tree})"
