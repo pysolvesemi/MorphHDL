@@ -668,7 +668,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   witnesses, recognize component/source/emitted signal names, or add a
   component-specific RTL implementation.
 
-- [ ] **Increment 59a — Bounded recursive Verilog module generation and proof**
+- [x] **Increment 59a — Bounded recursive Verilog module generation and proof**
 
   **Dependencies:** Increment 59 implemented and merged.
 

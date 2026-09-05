@@ -2,9 +2,25 @@
 
 ## Status
 
-Implementation target for the `parameterized-verilog` branch. The roadmap
-checkbox remains open until the exact final branch head passes every gate in the
-Increment 59a workflow.
+Implemented and qualified on September 5, 2026. Canonical workflow run
+`33949941835` passed every job on implementation commit
+`71512c6e68f994cb4a918e67338c43f67ea9da91`, including both Scala 2.12.18 and
+2.13.12 full SBT/Mill suites, compatibility, deterministic publication, strict
+Verilog-2001 tools, independent equivalence, mutation and inherited formal gates.
+The completion record changes only this document and the 59a roadmap checkbox;
+its exact final head is subject to the same pre-merge workflow. Increment 59b
+remains unchecked and is not implemented here.
+
+The two Scala lanes emit byte-identical `bounded_recursive_power.v` with SHA-256
+`43c2848534227810471ef32425dddd3f363b539ae8337faa81058b64d559f152`.
+Each lane checks all 256 inputs for every exponent 0 through 8, proves nine
+specializations against separately elaborated SpinalVerilog oracles, and
+requires a real counterexample for the synthesizable recursive-binding
+mutation. Yosys 0.41 produces one flattened top containing 834 mapped primitive
+cells, no recursive cells and no unresolved modules. Icarus 11.0 and Verilator
+4.228 provide the qualified simulation/parser and lint checks respectively.
+These results cover the declared finite modular-power matrix, not arbitrary
+recursion or every synthesis tool.
 
 ## Goal
 
