@@ -1,91 +1,61 @@
-name: WA-07a reviewed staging and local formal kit
+name: WA-07a local formal tool kit
 on:
   push:
     branches: [agent/wa-07a-local-source-kit]
 permissions:
-  contents: write
+  contents: read
 jobs:
-  stage:
+  export:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
       - uses: actions/checkout@v4
-      - name: Decode the reviewed patch and verify exact bytes
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import base64, hashlib, lzma, os
-          from pathlib import Path
-          text = ''.join(Path(f'wa07a-patch-part-{i}.b64').read_text().strip() for i in (1,2,3))
-          patch = lzma.decompress(base64.b64decode(text, validate=True))
-          assert hashlib.sha256(patch).hexdigest() == '00b68c16a1f971b3e356994863f16378a4438ed1ec58835179b7105e2bf4db6c'
-          Path(os.environ['RUNNER_TEMP'], 'reviewed.patch').write_bytes(patch)
-          PY
-      - uses: actions/checkout@v4
-        with:
-          ref: 5b8a5c12944e55766e83802fd073b8e5a817e251
-          fetch-depth: 0
-      - name: Apply only the reviewed isolated pass changes and validate contracts
+      - name: Export installed formal drivers and libraries
         shell: bash
         run: |
           set -euo pipefail
-          git apply --check "$RUNNER_TEMP/reviewed.patch"
-          git apply --index "$RUNNER_TEMP/reviewed.patch"
-          git diff --cached --name-only > "$RUNNER_TEMP/changed.txt"
+          mkdir -p tool-export/root
+          export root="$PWD/tool-export/root"
           python3 - <<'PY'
-          import os
+          import hashlib, json, os, re, shutil, subprocess
           from pathlib import Path
-          paths = Path(os.environ['RUNNER_TEMP'], 'changed.txt').read_text().splitlines()
-          assert len(paths) == 16, paths
-          assert all(p.startswith('morphhdl-passes/') or p == '.github/workflows/morphhdl-passes.yml' for p in paths), paths
+          root = Path(os.environ['root'])
+          copied = {}
+          def copy(path):
+              path = Path(path)
+              if not path.is_file(): return
+              target = root / str(path).lstrip('/')
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(path, target, follow_symlinks=True)
+              copied[str(path)] = hashlib.sha256(target.read_bytes()).hexdigest()
+          versions = {}
+          for name in ('sby', 'yices-smt2', 'yosys-smtbmc', 'yosys-witness'):
+              source = shutil.which(name)
+              assert source, name
+              copy(source)
+              copy(Path(source).resolve())
+              result = subprocess.run(['ldd', str(Path(source).resolve())], capture_output=True, text=True)
+              for path in re.findall(r'(/[^\s()]+)', result.stdout): copy(path)
+          for base in ('/opt', '/usr/local', '/usr/share'):
+              for directory, dirs, files in os.walk(base):
+                  for name in files:
+                      if (name.startswith('sby_') and name.endswith('.py')) or name in ('smtio.py', 'ywio.py'):
+                          copy(Path(directory) / name)
+          for name, arg in (('yosys','-V'),('sby','-h'),('yices-smt2','--version')):
+              result = subprocess.run([name,arg], capture_output=True, text=True)
+              assert result.returncode == 0, (name,result.stderr)
+              versions[name] = result.stdout + result.stderr
+          assert any('sby_core.py' in p for p in copied), copied
+          Path('tool-export/sha256.json').write_text(json.dumps(copied, indent=2, sort_keys=True)+'\n')
+          Path('tool-export/tool-versions.json').write_text(json.dumps(versions, indent=2, sort_keys=True)+'\n')
           PY
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
-          for script in morphhdl-passes/scripts/check-wa*.py; do
-            python3 "$script" --self-test
-            python3 "$script"
-          done
-          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
-          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
-          git diff --cached --check
-          git config user.name 'pysolvesemi'
-          git config user.email 'pysolvesemi@gmail.com'
-          git commit -m 'feat(passes): close WA-07a native proof integration and dependency contracts'
-          git rev-parse HEAD > "$RUNNER_TEMP/staged-commit.txt"
-          git rev-parse HEAD^ > "$RUNNER_TEMP/staged-parent.txt"
-          git diff-tree --no-commit-id --name-only -r HEAD > "$RUNNER_TEMP/staged-files.txt"
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          tmp = Path(os.environ['RUNNER_TEMP'])
-          files = tmp.joinpath('staged-files.txt').read_text().splitlines()
-          tmp.joinpath('staged-sha256.json').write_text(json.dumps({p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files}, indent=2, sort_keys=True)+'\n')
-          PY
-          git push origin HEAD:refs/heads/agent/wa-07a-reviewed-stage
-      - name: Export installed formal drivers for local checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/formal-kit"
-          cd "$RUNNER_TEMP/formal-kit"
-          for name in sby yices-smt2 yosys-smtbmc yosys-witness; do
-            source="$(command -v "$name")"
-            cp --parents -L "$source" .
-            real="$(readlink -f "$source")"
-            cp --parents -L "$real" .
-            ldd "$real" 2>/dev/null | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r library; do cp --parents -L "$library" .; done || true
-          done
-          find /opt /usr/local -type f \( -name 'sby_*.py' -o -name 'smtio.py' -o -name 'ywio.py' \) -exec cp --parents '{}' . \;
-          tar -czf "$RUNNER_TEMP/wa07a-formal-tools.tar.gz" .
+          tar -C tool-export/root -czf tool-export/wa07a-formal-tools.tar.gz .
+          rm -rf tool-export/root
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: wa07a-reviewed-stage-evidence
-          path: |
-            ${{ runner.temp }}/staged-commit.txt
-            ${{ runner.temp }}/staged-parent.txt
-            ${{ runner.temp }}/staged-files.txt
-            ${{ runner.temp }}/staged-sha256.json
-            ${{ runner.temp }}/wa07a-formal-tools.tar.gz
+          name: wa07a-formal-tool-kit
+          path: tool-export
+          if-no-files-found: error
           retention-days: 3
