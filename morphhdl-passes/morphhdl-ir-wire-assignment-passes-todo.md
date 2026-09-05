@@ -333,7 +333,7 @@ WA-04 or WA-05 can remove an alias.
   Bound the standalone workspace to the stable canonical MorphHDL-owned IR
   after external parameterization/capture and before Verilog lowering. Added a
   read-only identity-indexed adapter exposing declarations, drivers, references,
-  packed types, parameter domains, naming provenance, observability, source locations and
+  packed types, parameter domains, naming provenance, source locations and
   observability metadata required by the bounded alias contract. Added
   fail-closed diagnostics, cross-Scala tests, and mutation-tested guards against
   generated-Verilog parsing, emitted-name matching, Spinal implementation
