@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "7d4be7634d6f491fcc44b78f0d8b656708a11557"
+      "approved_tree": "0dcc94109df857257054c33960d1f1a7495b8b2f"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "73d90dacb0d3e276a6bed8670b4b38915fc488bb"
+      "approved_tree": "97b8429fd9de997b9cea442de810fbb4565909aa"
     },
     {
       "path": "scalaplugin/src/main",
@@ -299,6 +299,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabBalancedReduction.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Neutral scoped callback dispatch with exception-safe restoration and exact symbolic Vec receiver retention; no reduction algorithm or RTL implementation.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElabBalancedReduction.scala",
+        "mode": "100644",
+        "blob": "ee16d6befac65463de815814ffe41191a9ee993c",
+        "sha256": "69092bf003bde2452dac45fd081cce23105df003bf153f7d7166b25a9b5350c2"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ElabInt.scala",
@@ -2285,6 +2302,52 @@
             {
               "side": "approved",
               "text": "{\n    val prefix = node match {\n      case memory: Mem[_] => declarationPrefix(memory, MemoryElementDeclaration)\n      case _ => \"\"\n    }\n    prefix + s\"[${node.getWidth - 1}:0]\"\n  }",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+      "baseline": {
+        "path": "lib/src/main/scala/spinal/lib.scala",
+        "mode": "100644",
+        "blob": "7b5004195a4e028241978d9e715eb9411775339a",
+        "sha256": "65d050bc73cafa041643aea95598a7ccbab98c969941f18e0b001647e72e6f85"
+      },
+      "approved": {
+        "path": "lib/src/main/scala/spinal/lib.scala",
+        "mode": "100644",
+        "blob": "a8f474cb6a1737dc544dc096f419edae060eba56",
+        "sha256": "e3e2d93389b1be7ca2b9f93232001f32fbd86fb5bf9e7834ac8ba8f41f9811b3"
+      },
+      "edits": [
+        {
+          "id": "reduce-balanced-receiver-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.traversableOncePimped",
+          "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+          "baseline_span": {
+            "start": 1458,
+            "end": 1468,
+            "sha256": "9e604160f9c5aa2cbbad5b03ca2cce654d759b7779d6fc9f131e2333ab38551b"
+          },
+          "approved_span": {
+            "start": 1458,
+            "end": 1495,
+            "sha256": "ca7cdb0e4f7ba1cc45d41304041f727a9b2f764778e28125cdaaad18106fb5c1"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.sourceSeq(that)",
               "count": 1
             }
           ]
@@ -5000,9 +5063,10 @@
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 59b: native balanced-reduction capture boundary"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations.",
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
@@ -5012,8 +5076,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Utils.scala",
         "mode": "100644",
-        "blob": "8bca54bbf29f9fed58c10ed2e32e4401c08862c7",
-        "sha256": "e3cd9d17da89197e37db7e53d27d8a9197f89ed5939c9b19f2c33aa70844ef79"
+        "blob": "5837a8c3afed5c5875566fdd5fda17c84dd19c64",
+        "sha256": "86c03ec53eb11e0d056849186819ae5967a3dfe528f99aa7c38de2d93ff5a2d0"
       },
       "edits": [
         {
@@ -5091,6 +5155,29 @@
           ]
         },
         {
+          "id": "reduce-balanced-dispatch-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.TraversableOncePimped.reduceBalancedTree",
+          "reason": "Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
+          "baseline_span": {
+            "start": 33451,
+            "end": 33666,
+            "sha256": "5ab931831da6fab59a29fc6d654c6271d4a328ca794a01e72d7581f2f28f15e6"
+          },
+          "approved_span": {
+            "start": 35160,
+            "end": 35518,
+            "sha256": "806517d9a61e0f54be1a7398885d587acb29235a93c2b6222a9900e20a82746e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.reduce[T]",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "clockdomain-buffered-reset-uncached-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.ClockDomainPimped owner-local buffered reset",
@@ -5101,8 +5188,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 45549,
-            "end": 46187,
+            "start": 45692,
+            "end": 46330,
             "sha256": "db8c059ba13becf9a69b765671ab93ca691b57ed43400bd91e280e83572d75a9"
           },
           "required_exact_text": [
@@ -5129,8 +5216,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 46833,
-            "end": 47064,
+            "start": 46976,
+            "end": 47207,
             "sha256": "6a833d45da718dfe77b9c35cb6688f085e3f6eeec59d1f40dd769c77eef44256"
           },
           "required_exact_text": [

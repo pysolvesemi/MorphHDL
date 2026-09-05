@@ -41,7 +41,7 @@ package object lib  {
   implicit def AnyPimpedDef[T <: Any](that: T) : AnyPimped[T] = new AnyPimped(that)
 
   //implicit def easyStream[T <: Bundle](that: Stream[T]) = that.data
-  implicit def traversableOncePimped[T <: Data](that: TraversableOnce[T]) : TraversableOncePimped[T]= new TraversableOncePimped[T](that.toSeq)
+  implicit def traversableOncePimped[T <: Data](that: TraversableOnce[T]) : TraversableOncePimped[T]= new TraversableOncePimped[T](ElabBalancedReduction.sourceSeq(that))
   implicit def traversableOnceBoolPimped(that: TraversableOnce[Bool]) : TraversableOnceBoolPimped = new TraversableOnceBoolPimped(that.toSeq)
   implicit def traversableOnceAnyPimped[T <: Any](that: TraversableOnce[T]) : TraversableOnceAnyPimped[T] = new TraversableOnceAnyPimped(that.toSeq)
   implicit def traversableOnceAnyTuplePimped[T <: Any, T2 <: Any](that: TraversableOnce[(T, T2)]) : TraversableOnceAnyTuplePimped[T, T2] = new TraversableOnceAnyTuplePimped(that.toSeq)

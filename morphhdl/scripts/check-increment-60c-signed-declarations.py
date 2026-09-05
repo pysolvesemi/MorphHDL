@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 BASE = "d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0"
+QUALIFIED_60C = "75e581592334e2e596f6e1043beb9596cc20a99b"
 TOP = "SignedDeclarations"
 WIDTHS = (1, 5, 8, 32)
 
@@ -31,11 +32,26 @@ def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
-    native = set(git("diff", "--name-only", BASE, "HEAD", "--", "core/src/main", "lib/src/main",
-                     "idslplugin/src/main", "sim/src/main").splitlines())
+    roots = ("core/src/main", "lib/src/main", "idslplugin/src/main", "sim/src/main")
+    native = set(git("diff", "--name-only", BASE, "HEAD", "--", *roots).splitlines())
     expected = {"core/src/main/scala/spinal/core/internals/VerilogBase.scala",
                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"}
-    require(native == expected, "native declaration hook scope changed: " + str(native))
+    if native != expected:
+        # Later increments may add independently reviewed native entry points.
+        # Freeze the actual 60c hooks instead of treating every subsequent
+        # native edit as if it were part of the declaration-only increment.
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60C, "HEAD"],
+                       cwd=root, check=True)
+        historical = set(git("diff", "--name-only", BASE, QUALIFIED_60C,
+                             "--", *roots).splitlines())
+        require(historical == expected, "qualified 60c native delta changed: " + str(historical))
+        require(not git("diff", "--name-only", QUALIFIED_60C, "HEAD", "--", *sorted(expected)).strip(),
+                "native 60c declaration hooks changed after their frozen qualification")
+        # Never accept an arbitrary extra native path merely because the two
+        # frozen hooks are intact. The canonical guard checks every reviewed
+        # production root, byte span, blob, root tree and dirty native file.
+        subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                       cwd=root, check=True)
     emitter = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
     old = git("show", BASE + ":" + emitter)
     new = (root / emitter).read_text()
