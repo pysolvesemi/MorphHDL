@@ -108,7 +108,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionPublicationTests',3), ('TypedBalancedReductionCallbackPolicyTests',12), ('TypedBalancedReductionPublicationSafetyTests',7), ('FiniteAffineVecReadTests',7)]:
+          for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',12), ('TypedBalancedReductionPublicationSafetyTests',7), ('FiniteAffineVecReadTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()
