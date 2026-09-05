@@ -140,6 +140,10 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
 
+      - name: Test pending-proof activation and bounded deterministic scheduling
+        shell: bash
+        run: python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+
   contracts:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
     needs: boundary
@@ -248,6 +252,8 @@ jobs:
           python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
             --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
             --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
+            --prove-pending WA-07 \
+            --formal-jobs 4 \
             --check-determinism
           git diff --exit-code -- .
 
