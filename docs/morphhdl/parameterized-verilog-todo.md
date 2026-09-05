@@ -712,8 +712,12 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   tree `668b1446e0d58574baac1381072bf01cf297df1e`. The qualified safe-graph scope,
   source-bound dual-Scala proofs and explicit rejected cases are recorded in
   [the 59b completion record](increment-59b-parameterized-reduce-balanced-tree.md).
-  The documentation-only completion commit requires fresh applicable CI before
-  merge; completion does not claim that PR #157 has merged.
+  Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` passed its CI.
+  The later integration of merged 60e base `dc8cab41cf3fd41b026ba7359f30cb596b14d015`
+  requires fresh combined-head CI on [PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157)
+  before merge; the checkbox and qualified safe-graph scope remain unchanged.
+  Historical completion evidence does not claim the new combined head is qualified
+  or that PR #157 has merged.
 
 - [ ] **Increment 60 — Native signed `SInt` Verilog**
 

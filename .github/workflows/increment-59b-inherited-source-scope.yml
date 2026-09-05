@@ -7,6 +7,7 @@ on:
       - '.github/workflows/increment-59b-inherited-source-scope.yml'
       - 'morphhdl/scripts/check-increment-60c-signed-declarations.py'
       - 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py'
+      - 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py'
       - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
       - 'morphhdl/contracts/**'
   pull_request:
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/increment-59b-inherited-source-scope.yml'
       - 'morphhdl/scripts/check-increment-60c-signed-declarations.py'
       - 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py'
+      - 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py'
       - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
       - 'morphhdl/contracts/**'
   workflow_dispatch:

@@ -12,6 +12,7 @@ from pathlib import Path
 BASE = "d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0"
 QUALIFIED_60C = "75e581592334e2e596f6e1043beb9596cc20a99b"
 QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
+QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 TOP = "SignedDeclarations"
 WIDTHS = (1, 5, 8, 32)
 
@@ -54,6 +55,9 @@ def source_scope(root: Path) -> None:
         if subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60D, "HEAD"],
                           cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
             qualified = QUALIFIED_60D
+        if subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60E, "HEAD"],
+                          cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            qualified = QUALIFIED_60E
         require(not git("diff", "--name-only", qualified, "HEAD", "--", *sorted(expected)).strip(),
                 "native signed declaration/cast hooks changed after their frozen qualification")
         # Never accept an arbitrary extra native path merely because the two
@@ -80,7 +84,12 @@ def source_scope(root: Path) -> None:
     old = git("show", BASE + ":" + fallback)
     needle = r"\\s*(\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
     replacement = r"\\s*((?:signed\\s+)?\\[[^\\]]+\\])?\\s*([A-Za-z_][A-Za-z0-9_$]*)"
-    require(old.count(needle) == 2 and old.replace(needle, replacement) == (root / fallback).read_text(),
+    restored_fallback = (root / fallback).read_text()
+    boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+    if boundary_checker.is_file():
+        boundary = pure.load(boundary_checker, "boundary_scope")
+        restored_fallback = boundary.restore_60d_source(root, fallback, restored_fallback)
+    require(old.count(needle) == 2 and old.replace(needle, replacement) == restored_fallback,
             "fallback change exceeds preserving the graph-owned declaration section")
     for name in ("MorphHdlSignedDeclarationPolicy.scala",):
         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()

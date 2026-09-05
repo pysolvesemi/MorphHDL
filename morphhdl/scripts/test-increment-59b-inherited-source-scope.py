@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "morphhdl/scripts/check-increment-60c-signed-declarations.py"
 QUALIFIED = "75e581592334e2e596f6e1043beb9596cc20a99b"
 QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
+QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
+QUALIFIED_59B = "b0a4388e3babbc01500a620eefe6c0965e9e6343"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('scope_checker', sys.argv[2])
@@ -34,24 +36,34 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def checked(root: Path, label: str, expected: str | None = None) -> dict:
+def checked(root: Path, label: str, expected: str | None = None,
+            boundary_expected: str | None = None, boundary_only: bool = False) -> dict:
     checkers = [(CHECKER, "immutable oracle PASS")]
     pure_checker = CHECKER.with_name("check-increment-60d-pure-sint-casts.py")
     if (root / "morphhdl/scripts" / pure_checker.name).is_file():
         checkers.append((pure_checker, "independent oracle scope PASS"))
+    boundary_checker = CHECKER.with_name("check-increment-60e-signedness-boundaries.py")
+    if (root / "morphhdl/scripts" / boundary_checker.name).is_file():
+        checkers.append((boundary_checker, "generic boundaries PASS"))
+    if boundary_only:
+        checkers = [(checker, marker) for checker, marker in checkers if checker == boundary_checker]
+        if not checkers:
+            raise RuntimeError("boundary mutation fixture has no 60e checker")
     evidence = []
     # Check each inherited gate independently. An early 60c rejection must not
     # hide a weakened or broken 60d guard on the same negative fixture.
     for checker, marker in checkers:
+        rejection = boundary_expected if checker == boundary_checker and boundary_expected else expected
         result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(checker)],
                                 text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 timeout=120, check=False)
-        if expected is None:
+        if rejection is None:
             if result.returncode or marker not in result.stdout:
                 raise RuntimeError(label + " " + checker.name + " did not pass:\n" + result.stdout)
-        elif not result.returncode or expected not in result.stdout:
-            raise RuntimeError(label + " " + checker.name + " did not fail for " + expected + ":\n" + result.stdout)
-        evidence.append({"checker": checker.name, "exit_code": result.returncode})
+        elif not result.returncode or rejection not in result.stdout:
+            raise RuntimeError(label + " " + checker.name + " did not fail for " + rejection + ":\n" + result.stdout)
+        evidence.append({"checker": checker.name, "exit_code": result.returncode,
+                         "expected_rejection": rejection})
     print("PASS:", label, "[" + (expected or "accepted") + "]")
     return {"case": label, "expected_rejection": expected, "checks": evidence}
 
@@ -65,14 +77,18 @@ def commit_fixture(root: Path, path: str) -> None:
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "combined approved 59b and frozen 60c/60d source")]
+    records = [checked(ROOT, "combined approved 59b and frozen 60c/60d/60e source")]
     cases = (
         ("historical", QUALIFIED, None),
         ("historical-60d", QUALIFIED_60D, None),
+        ("historical-60e", QUALIFIED_60E, None),
+        ("historical-59b", QUALIFIED_59B, None),
         ("changed-hook", head, "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
         ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
         ("dirty-extension", head, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
+        ("changed-boundary-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-vec", head, "unreviewed source change outside 60e spans"),
     )
     with tempfile.TemporaryDirectory(prefix="morphhdl-59b-source-scope-") as temporary:
         for label, revision, error in cases:
@@ -102,7 +118,25 @@ def main() -> None:
                         raise RuntimeError("the reviewed 59b native dispatcher is missing")
                     with (fixture / path).open("a") as stream:
                         stream.write("\n// Deliberate uncommitted extension mutation.\n")
-                records.append(checked(fixture, label, error))
+                elif label == "changed-boundary-printer":
+                    path = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
+                    source = (fixture / path).read_text()
+                    before = '    val sign = if (verilogBase.literalIsSigned(e)) "s" else ""'
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 60e literal printer span is missing")
+                    (fixture / path).write_text(source.replace(before, before + ' + "corrupt"'))
+                    commit_fixture(fixture, path)
+                elif label == "changed-vec":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala"
+                    with (fixture / path).open("a") as stream:
+                        stream.write("\n// Deliberate unreviewed combined Vec mutation.\n")
+                    commit_fixture(fixture, path)
+                boundary_error = None
+                if label in ("changed-hook", "changed-printer"):
+                    boundary_error = "unreviewed source change outside 60e spans"
+                elif label == "changed-boundary-printer":
+                    boundary_error = "missing/duplicate 60e span"
+                records.append(checked(fixture, label, error, boundary_error, label == "changed-vec"))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:
@@ -110,7 +144,7 @@ def main() -> None:
     output = ROOT / "target/increment-59b-source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: three positive and four exact negative inherited source-scope cases")
+    print("PASS: five positive and six exact negative inherited source-scope cases")
 
 
 if __name__ == "__main__":

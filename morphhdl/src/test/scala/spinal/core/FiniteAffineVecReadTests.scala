@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import scala.sys.process.{Process, ProcessLogger}
 import org.scalatest.funsuite.AnyFunSuite
-import morphhdl.MorphVerilog
+import morphhdl.{MorphSignedCasts, MorphVerilog}
 import morphhdl.frontend.HdlInt
 
 private object FiniteAffineVecReadFixture {
@@ -55,6 +55,20 @@ class FiniteAffineVecReadTests extends AnyFunSuite {
     val count = parameter("COUNT", 2, 1, 4)
     val depth = parameter("DEPTH", 4, 2, 8)
     reject(new Selection(count, depth, 2, 0), "SPINAL-ELAB-FINITE-AFFINE-ROOT-MISMATCH")
+  }
+
+  test("signed boundary mode preserves affine pair comparisons over packed slices") {
+    val directory = Files.createTempDirectory("finite-affine-pairs-signed-")
+    val width = parameter("WIDTH", 5, 1, 8)
+    val count = parameter("COUNT", 3, 2, 9)
+    MorphVerilog(MorphSignedCasts.enable(config(directory)))(new PairMinimum(width, count))
+    val rtl = new String(Files.readAllBytes(directory.resolve("design.v")), StandardCharsets.UTF_8)
+    assert(rtl.contains("$signed(source["), rtl)
+    if (available("iverilog") && available("vvp")) {
+      Vector((1, 3), (5, 5), (8, 9)).foreach { case (w, n) =>
+        simulatePairs(directory, w, n)
+      }
+    }
   }
 
   test("affine Vec read proves every logical depth beyond matching extrema") {

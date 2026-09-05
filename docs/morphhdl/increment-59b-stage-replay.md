@@ -5,9 +5,14 @@
 Whole-stage replay is qualified on source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7`
 (tree `668b1446e0d58574baac1381072bf01cf297df1e`) on both supported Scala lanes and
 feeds the separate parameterized publication backend. A stage certificate alone
-remains insufficient permission to publish. The existing 59b checkbox is complete;
-the documentation-only completion commit requires fresh applicable CI before
-merge. No merge is claimed. See
+remains insufficient permission to publish. The existing 59b checkbox is complete.
+Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` passed CI, including
+both Scala lanes of stage run
+[33986577388](https://github.com/pysolvesemi/MorphHDL/actions/runs/33986577388).
+The later integration of merged 60e base `dc8cab41cf3fd41b026ba7359f30cb596b14d015`
+requires fresh combined-head CI on
+[PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) before merge. No result
+for the new combined head or merge is claimed by those historical runs. See
 [increment-59b-publication.md](increment-59b-publication.md) for the additional
 callback-code and template-handoff obligations. The publication path currently
 requires native component scope; outer typed generate/capture owners are rejected.
@@ -133,5 +138,6 @@ probe graph is removed. Symbolic pair loops, odd-tail blocks and inactive-stage
 bypasses contain the native emitted scalar bodies. See the publication document
 for that path and its separate passing 32-specialization formal gate. All
 applicable executed source-qualification and inherited gates passed; skipped
-cases are not counted as passing. The documentation-only completion head still
-requires its own fresh applicable CI and final PR-head verification before merge.
+cases are not counted as passing. The completed 59b head subsequently passed CI.
+Fresh applicable CI and final PR-head verification are now required for the later
+60e reconciliation; historical stage proofs cannot substitute for that check.

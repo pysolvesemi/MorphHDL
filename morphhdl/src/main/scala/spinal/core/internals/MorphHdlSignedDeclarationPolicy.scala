@@ -26,12 +26,9 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
     val fact = (occurrence.role, occurrence.subject) match {
       case (FunctionResultDeclaration, value: BaseType) =>
         val result = snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
-        // Native constant-process functions currently retain concrete literal
-        // sizing and result-wrapper widths. Signed declarations alone cannot
-        // repair parameter-dependent return sizing. Require exact fixed width
-        // until the typed literal/resize boundary is qualified; never freeze a
-        // default witness or change implicit extension at publication.
-        if (result.intent == SignedScalar && result.width != Fixed(result.nativeBits))
+        // Declaration-only mode keeps the 60c guard. Boundary mode supplies
+        // both exact function/result ranges and signed literal interpretation.
+        if (!eliminatePureCasts && result.intent == SignedScalar && result.width != Fixed(result.nativeBits))
           throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-FUNCTION-WIDTH-UNSUPPORTED",
             "native constant-process SInt functions require an exact fixed result width")
         result
@@ -72,39 +69,19 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
           expression.getTypeObject == TypeUInt || expression.getTypeObject == TypeBits =>
         val evidence = snapshot.expression(expression)
         val fact = snapshot.validate(expression, evidence, ExpressionUse)
-        final case class Range(text: String, minimum: BigInt, maximum: BigInt,
-            default: BigInt, symbolic: Boolean)
-        def combine(parts: Vector[Width])(f: (Range, Range) => Range): Option[Range] = {
-          val values = parts.map(render)
-          if (values.isEmpty || values.exists(_.isEmpty)) None else Some(values.map(_.get).reduce(f))
-        }
-        def render(width: Width): Option[Range] = width match {
-          case Fixed(bits) => Some(Range(bits.toString, bits, bits, bits, false))
-          case Retained(key) =>
-            val value = snapshot.widthSource(expression, evidence, ExpressionUse, key)
-            Some(Range(value.verilog, value.minimum, value.maximum, value.default, value.parameterRoots.nonEmpty))
-          case Sum(parts) => combine(parts)((a, b) => Range(s"(${a.text} + ${b.text})",
-            a.minimum + b.minimum, a.maximum + b.maximum, a.default + b.default, a.symbolic || b.symbolic))
-          case Product(parts) => combine(parts)((a, b) => {
-            val bounds = Vector(a.minimum*b.minimum, a.minimum*b.maximum, a.maximum*b.minimum, a.maximum*b.maximum)
-            Range(s"(${a.text} * ${b.text})", bounds.min, bounds.max, a.default*b.default, a.symbolic || b.symbolic)
-          })
-          case Maximum(parts) => combine(parts)((a, b) => if (a == b) a else
-            Range(s"((${a.text} > ${b.text}) ? ${a.text} : ${b.text})",
-              a.minimum.max(b.minimum), a.maximum.max(b.maximum), a.default.max(b.default), a.symbolic || b.symbolic))
-          case Minimum(parts) => combine(parts)((a, b) => if (a == b) a else
-            Range(s"((${a.text} < ${b.text}) ? ${a.text} : ${b.text})",
-              a.minimum.min(b.minimum), a.maximum.min(b.maximum), a.default.min(b.default), a.symbolic || b.symbolic))
-          case Difference(left, right) => for (a <- render(left); b <- render(right)) yield
-            Range(s"(${a.text} - ${b.text})", a.minimum-b.maximum, a.maximum-b.minimum,
-              a.default-b.default, a.symbolic || b.symbolic)
-          case _ => None
-        }
-        render(fact.width) match {
-          case Some(range) if range.minimum > 0 && range.default == fact.nativeBits =>
-            if (range.symbolic) Some(s"[${range.text}-1:0]") else None
-          case _ => reject("expression wrapper has no exact positive logical width over its parameter domain")
-        }
+        val range = MorphHdlSignedWidth.resolve(snapshot, expression, evidence, ExpressionUse)
+        if (range.symbolic) Some(s"[${range.text}-1:0]") else None
+      case _ => None
+    }
+  }
+
+  override def functionRange(occurrence: DeclarationOccurrence): Option[String] = {
+    if (occurrence == null || (occurrence.emitter ne emitter) || occurrence.role != FunctionResultDeclaration)
+      reject("function range needs its exact native declaration occurrence")
+    occurrence.subject match {
+      case value: SInt if eliminatePureCasts =>
+        val range = MorphHdlSignedWidth.resolve(snapshot, value, snapshot.declaration(value), DeclarationUse)
+        if (range.symbolic) Some(s"[${range.text}-1:0]") else None
       case _ => None
     }
   }
@@ -114,6 +91,48 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
 
   override def elideSignedCast(occurrence: SignedCastOccurrence): Boolean =
     castPolicy.exists(_.elide(occurrence))
+
+  override def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = {
+    if (occurrence == null || (occurrence.emitter ne emitter))
+      reject("literal occurrence belongs to another emitter")
+    if (!eliminatePureCasts) return false
+    val literal = occurrence.literal
+    if (literal.getClass != classOf[SIntLiteral]) return false
+    val fact = snapshot.validate(literal, snapshot.expression(literal), ExpressionUse)
+    if (fact.intent != SignedScalar || fact.rule != morphhdl.analysis.SignednessFacts.Literal || fact.nativeBits <= 0)
+      reject("signed literal requires an exact normalized scalar SInt carrier")
+    !literal.hasPoison()
+  }
+
+  override def signedResize(occurrence: SignedResizeOccurrence): Option[String] = {
+    if (occurrence == null || (occurrence.emitter ne emitter))
+      reject("resize occurrence belongs to another emitter")
+    if (!eliminatePureCasts) return None
+    val resize = occurrence.resize
+    if (resize.getClass != classOf[ResizeSInt])
+      reject("signed resize needs an exact native SInt resize")
+    snapshot.validateCastOperand(resize, 0, snapshot.castOperand(resize, 0))
+    val target = MorphHdlSignedWidth.resolve(snapshot, resize, snapshot.expression(resize), ExpressionUse)
+    val source = MorphHdlSignedWidth.resolve(snapshot, resize.input, snapshot.expression(resize.input), ExpressionUse)
+    if (!target.symbolic && !source.symbolic) return None
+    if (occurrence.inputReferenceRole.isEmpty)
+      throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-RESIZE-REFERENCE-UNSUPPORTED",
+        "symbolic signed resize requires a native scalar reference or materialized expression wrapper")
+    val input = occurrence.inputText
+    val to = target.text
+    val from = source.text
+    // Both sides are sized explicitly. The concatenation is unsigned transport;
+    // a scalar SInt destination/wrapper reconstructs its signed interpretation.
+    // min() keeps the select in range; max() keeps replication non-negative,
+    // even where independent parameter domains cross widening and narrowing.
+    val selected = if (target.maximum <= source.minimum) to
+      else if (target.minimum >= source.maximum) from else s"(($to < $from) ? $to : $from)"
+    if (target.maximum <= source.minimum) Some(s"$input[$to-1:0]")
+    else {
+      val extra = s"(($to > $from) ? ($to - $from) : 0)"
+      Some(s"{{$extra{$input[$from-1]}}, $input[$selected-1:0]}")
+    }
+  }
 
   override def unsignedTransport(expression: Expression): Boolean = expression match {
     case _: CastSIntToBits | _: CastSIntToUInt =>

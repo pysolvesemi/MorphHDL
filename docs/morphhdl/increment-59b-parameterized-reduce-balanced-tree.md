@@ -2,10 +2,11 @@
 
 ## Status and dependency
 
-**Increment 59b is implemented and its source qualification is complete for the
-documented safe-graph subset. The controlling roadmap checkbox is checked.
-This documentation-only completion commit must pass its fresh applicable CI
-before PR #157 may merge. No merge is claimed here.**
+**Increment 59b remains complete and checked for its qualified safe-graph subset.
+The completion head passed CI. The subsequent integration of merged 60e requires
+fresh combined-head CI on [PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157)
+before merge; historical qualification does not qualify that integration by itself.
+No merge of PR #157 is claimed here.**
 
 Work began from merged Increment 59a at
 `2be259338b87ecc30b44e47498f7f09c368e50d0` on `parameterized-verilog`.
@@ -182,9 +183,9 @@ cancelled checks never count as proof or as a valid mutation counterexample.
 
 All applicable executed source-qualification gates passed. This statement does
 not count expected skips, environmental exclusions, cancellations or timeouts as
-passes. It records qualification of the exact implementation source above; the
-subsequent documentation-only completion commit still needs its own fresh
-applicable CI before merge.
+passes. It records qualification of the exact implementation source above.
+The subsequent completion head also passed CI, as recorded below. Neither
+result substitutes for fresh CI after the later 60e base integration.
 
 | Qualification | Result per Scala lane |
 | --- | --- |
@@ -223,11 +224,32 @@ candidate bytes per lane and one candidate reused across all 32 specializations;
 remote artifact payload hashes were not independently inspected or compared
 between lanes.
 
-The implementation head has 51 workflow runs: all 44 executed workflows passed;
+The `ebc33b9e` implementation head had 51 workflow runs: all 44 executed workflows passed;
 seven historical increment/workspace workflows were skipped by their existing
 branch-scope conditions. All currently applicable native-source, retirement,
 signedness and other inherited gates passed. These seven scope skips are not
 counted as passing tests or proofs.
+
+### Completed 59b head and later 60e integration
+
+Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` passed 39 workflows;
+eight expected scope skips remained skips. Its parameterized publication and
+stage runs passed on both Scala lanes:
+
+- Publication: [33986577359](https://github.com/pysolvesemi/MorphHDL/actions/runs/33986577359).
+- Native stage/bridge replay: [33986577388](https://github.com/pysolvesemi/MorphHDL/actions/runs/33986577388).
+- Mill compatibility: [33986577378](https://github.com/pysolvesemi/MorphHDL/actions/runs/33986577378),
+  1,433 passed tests per lane; externally gated cases remain excluded from passes.
+
+While that qualification was running, `parameterized-verilog` advanced to merged Increment
+60e at `dc8cab41cf3fd41b026ba7359f30cb596b14d015` through PR #160. Reconciling that base
+changes the combined source and inherited signedness boundaries. The qualified
+59b checkbox and safe-graph scope remain intact, but the reconciliation must pass
+fresh applicable CI on the current head of
+[PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) before merge. The run
+references above belong to the historical 59b completion head and are not a claim
+that the later combined head has passed. The final integration commit and its
+CI results are tracked on PR #157.
 
 ### Historical verified checkpoints
 
@@ -252,14 +274,16 @@ counted as passing tests or proofs.
 Later commits need their own exact-head evidence. These historical records
 must not be presented as completed qualification of a different head.
 
-## Completion commit and merge boundary
+## 60e integration and final PR merge boundary
 
 The safe-graph subset satisfies the existing 59b roadmap contract. The unsupported
 width, widening, callback, aggregate and nested-owner cases documented above
 remain fail-closed; marking 59b complete does not expand that supported scope.
 
-The completion commit changes only documentation and the existing 59b checkbox.
-Publish that commit, wait for its fresh applicable CI and verify the final PR
-head before merging into `parameterized-verilog`. Source-qualification success
-does not authorize bypassing a required completion-head gate. No merge is claimed
+The 59b completion commit passed CI against its original base; the integration
+branch advanced before merge. Complete the 60e reconciliation, require fresh
+applicable CI for that combined head, and verify
+[PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) against the current
+`parameterized-verilog` base before merging. Historical source and completion
+results do not bypass any required integration-head gate. No merge is claimed
 by this document.

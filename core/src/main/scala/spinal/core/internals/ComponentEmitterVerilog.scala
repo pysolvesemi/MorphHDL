@@ -1695,7 +1695,7 @@ end
       emitExpression(func.input)
   }
 
-  def operatorImplResizeSigned(func: Resize): String = {
+  def operatorImplResizeSigned(func: Resize): String = verilogBase.emitSignedResize(this, func).getOrElse {
     if(func.size < func.input.getWidth)
       s"${emitExpression(func.input)}[${func.size-1}:0]"
     else if(func.size > func.input.getWidth)
@@ -1729,10 +1729,11 @@ end
   }
 
   def emitBitVectorLiteral(e: BitVectorLiteral): String = {
+    val sign = if (verilogBase.literalIsSigned(e)) "s" else ""
     if(e.getWidth > 4 && !e.hasPoison()){
-      s"${e.getWidth}'h${e.hexString(e.getWidth,false)}"
+      s"${e.getWidth}'${sign}h${e.hexString(e.getWidth,false)}"
     } else {
-      s"${e.getWidth}'b${e.getBitsStringOn(e.getWidth,if(spinalConfig.dontCareGenAsZero) '0' else 'x')}"
+      s"${e.getWidth}'${sign}b${e.getBitsStringOn(e.getWidth,if(spinalConfig.dontCareGenAsZero) '0' else 'x')}"
     }
   }
 

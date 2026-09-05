@@ -5,8 +5,11 @@
 Implementation source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7` (tree
 `668b1446e0d58574baac1381072bf01cf297df1e`) is qualified on Scala 2.12.18 and 2.13.12
 for the documented safe-graph subset. The existing 59b checkbox is complete.
-**The documentation-only completion commit must pass its fresh applicable CI
-before PR #157 may merge. This document does not claim a merge.**
+Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` also passed its CI.
+The later integration of merged 60e base `dc8cab41cf3fd41b026ba7359f30cb596b14d015`
+requires fresh combined-head CI on
+[PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) before merge. Historical
+qualification does not establish that new result. No merge is claimed.
 
 `MorphVerilog` scopes `TypedBalancedReductionBackend` around native elaboration,
 including native retries, and installs its pre-normalization phase handoff.
@@ -198,10 +201,15 @@ and [33983118357](https://github.com/pysolvesemi/MorphHDL/actions/runs/339831183
 Concrete stage proof remains a separate evidence scope from parameterized proof.
 
 All applicable executed source-qualification gates passed; environmental skips
-are not passes. The documentation-only completion commit still needs fresh
-applicable CI and final PR-head verification before merge. The main 59b document
-records the operator and Mill compatibility references and preserves the explicit
-unsupported scope.
+are not passes. Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` then
+passed its CI, including dual-Scala publication run
+[33986577359](https://github.com/pysolvesemi/MorphHDL/actions/runs/33986577359).
+These are historical results. The later reconciliation with merged 60e base
+`dc8cab41cf3fd41b026ba7359f30cb596b14d015` requires fresh applicable CI at the current
+[PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) head before merge.
+The main 59b document records the full completion-head references and preserves
+the explicit unsupported scope; those results do not by themselves qualify the
+new combined source.
 
 Publication safety tests also require rejection before host-state callback effects,
 pre-handoff graph mutation rejection, exact singleton callback bypass, generated

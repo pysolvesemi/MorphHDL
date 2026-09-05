@@ -69,6 +69,10 @@ object VerilogBase {
       val operand: Expression
   ) {
     def component: Component = printer.component
+    def isSignedLiteral: Boolean = operand match {
+      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)
+      case _ => false
+    }
     def referenceRole: Option[DeclarationRole] = {
       if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)
       else operand match {
@@ -79,11 +83,29 @@ object VerilogBase {
     }
   }
 
+  final class SignedLiteralOccurrence private[VerilogBase] (
+      val emitter: VerilogBase,
+      val literal: BitVectorLiteral
+  )
+
+  final class SignedResizeOccurrence private[VerilogBase] (
+      val emitter: VerilogBase,
+      val printer: ComponentEmitterVerilog,
+      val resize: Resize
+  ) {
+    def inputReferenceRole: Option[DeclarationRole] =
+      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole
+    def inputText: String = printer.emitExpression(resize.input)
+  }
+
   trait DeclarationPolicy {
     def signed(occurrence: DeclarationOccurrence): Boolean
     def wrapperRange(occurrence: DeclarationOccurrence): Option[String]
     def unsignedTransport(expression: Expression): Boolean
     def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false
+    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false
+    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None
+    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None
   }
 }
 
@@ -110,6 +132,17 @@ trait VerilogBase extends VhdlVerilogBase{
       "a signed cast occurrence must belong to this native emitter")
     declarationPolicy != null && declarationPolicy.elideSignedCast(
       new SignedCastOccurrence(this, printer, parent, slot, operand))
+  }
+
+  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =
+    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))
+
+  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,
+      resize: Resize): Option[String] = {
+    require(printer != null && printer.usesVerilogBase(this),
+      "a signed resize occurrence must belong to this native emitter")
+    if (declarationPolicy == null) None
+    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))
   }
 
   private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =
@@ -235,8 +268,12 @@ trait VerilogBase extends VhdlVerilogBase{
   def emitType(e: Expression): String =
     declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
 
-  def emitFunctionType(e: BaseType): String =
-    declarationPrefix(e, FunctionResultDeclaration) + emitUnqualifiedType(e)
+  def emitFunctionType(e: BaseType): String = {
+    val prefix = declarationPrefix(e, FunctionResultDeclaration)
+    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(
+      new DeclarationOccurrence(this, e, FunctionResultDeclaration))
+    prefix + range.getOrElse(emitUnqualifiedType(e))
+  }
 
   private def emitUnqualifiedType(e: Expression): String = e.getTypeObject match {
     case `TypeBool` => ""
