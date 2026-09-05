@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 40
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,14 +42,41 @@ jobs:
           git diff --stat '${{ github.sha }}' HEAD
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-production-retirement.py
+      - name: Verify pinned SBT launcher and use the available Maven Central endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.2'
+          dir="$GITHUB_WORKSPACE/target/increment-59b-capture/bootstrap"
+          mkdir -p "$dir"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib
+          import re
+          from pathlib import Path
+          root = Path('target/increment-59b-capture/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected), 'invalid upstream launcher checksum'
+          actual = hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest()
+          assert actual == expected.lower(), 'SBT launcher checksum mismatch'
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
       - name: Dual Scala native callback capture and inherited oracle contracts
         shell: bash
         run: |
           set -euo pipefail
+          export COURSIER_CACHE="$GITHUB_WORKSPACE/target/coursier-cache"
+          bootstrap="$GITHUB_WORKSPACE/target/increment-59b-capture/bootstrap"
           for scala in 2.12.18 2.13.12; do
             output="$GITHUB_WORKSPACE/target/increment-59b-capture/$scala"
             mkdir -p "$output"
-            sbt -batch "++$scala" \
+            java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+              -Dsbt.boot.directory="$GITHUB_WORKSPACE/target/sbt-boot" \
+              -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+              -jar "$bootstrap/sbt-launch.jar" "++$scala" \
               'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
               "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/a" \
               "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/b" \
@@ -92,10 +121,11 @@ jobs:
           root = Path.cwd()
           output = root / 'target/increment-59b-capture/compiler-only.tar.gz'
           with tarfile.open(output, 'w:gz') as archive:
-              # Only public dependency JARs and generated class files are retained.
-              # No home-directory configuration, Git config, token, or credentials.
-              for jar in sorted(Path('/sbt/.cache/coursier/v1').rglob('*.jar')):
-                  archive.add(jar, arcname='dependencies/' + str(jar.relative_to('/sbt/.cache/coursier/v1')), recursive=False)
+              # Retain only dependency JARs and generated classes, never home
+              # configuration, Git config, tokens, or other credentials.
+              for name, cache in [('coursier', root / 'target/coursier-cache'), ('sbt-boot', root / 'target/sbt-boot')]:
+                  for jar in sorted(cache.rglob('*.jar')):
+                      archive.add(jar, arcname='dependencies/' + name + '/' + str(jar.relative_to(cache)), recursive=False)
               for module in ('core','lib','sim','idslplugin','idslpayload','morphplugin','morphruntime','morphir','paramrtl','frontend','backends/verilog','morphhdl'):
                   target = root / module / 'target'
                   if target.is_dir():
