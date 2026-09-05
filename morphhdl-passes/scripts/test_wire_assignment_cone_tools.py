@@ -48,7 +48,7 @@ def require_counterexample(directory: Path, source: str, count: int = 1) -> dict
     prepare(directory)
     try:
         cones.run_proof(directory, TOP, source, count, 60)
-    except cones.ConeProofError:
+    except cones.ConeProofError as error:
         matches = []
         for logfile in sorted((directory / "cone-proof").rglob("*.log")):
             text = logfile.read_text(encoding="utf-8", errors="replace")
@@ -56,7 +56,14 @@ def require_counterexample(directory: Path, source: str, count: int = 1) -> dict
             matches.extend({"log": str(logfile.relative_to(directory)),
                             "output": int(output), "frame": int(frame)}
                            for output, frame in found)
-        assert matches, "control failed without an actual solver counterexample"
+        if not matches:
+            compile_log = directory / "cone-proof" / "compile.log"
+            tail = ("\n".join(compile_log.read_text(encoding="utf-8", errors="replace").splitlines()[-30:])
+                    if compile_log.is_file() else "<compile log was not created>")
+            raise AssertionError(
+                f"control failed without an actual solver counterexample: {error}\n"
+                f"Retained compiler log: {compile_log}\n{tail}"
+            ) from error
         return {"status": "EXPECTED_FAIL", "counterexamples": matches}
     raise AssertionError("reachable counterexample was incorrectly proved safe")
 
@@ -87,7 +94,10 @@ def main() -> int:
     def wrong_clock(top: str) -> str:
         script = original_compile(top)
         assert script.count("clk2fflogic") == 1
-        return script.replace("clk2fflogic", "formalff -clk2ff")
+        # Discard the DUT's explicit edge before normal preparation. Keep
+        # clk2fflogic itself: Yosys 0.41 also uses it to lower $check cells,
+        # and a frontend error is not the required solver counterexample.
+        return script.replace("clk2fflogic", "formalff -clk2ff\nclk2fflogic")
 
     with patch.object(cones, "compile_script", side_effect=wrong_clock):
         controls["incorrect_clock_lowering"] = require_counterexample(
