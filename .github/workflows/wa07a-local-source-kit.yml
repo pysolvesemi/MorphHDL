@@ -1,0 +1,27 @@
+name: WA-07a local source kit
+on:
+  push:
+    branches: [agent/wa-07a-local-source-kit]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a803483dabdfa60b027336943f274c33830a9ee1
+      - name: Archive the exact implementation checkpoint
+        run: |
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/wa07a-source.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/source-commit.txt"
+          sha256sum "$RUNNER_TEMP/wa07a-source.tar.gz" > "$RUNNER_TEMP/source-sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wa07a-source-a803483
+          path: |
+            ${{ runner.temp }}/wa07a-source.tar.gz
+            ${{ runner.temp }}/source-commit.txt
+            ${{ runner.temp }}/source-sha256.txt
+          retention-days: 3
