@@ -3,24 +3,20 @@ package spinal.core.internals
 import java.util.IdentityHashMap
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
+import TypedBalancedReductionValueEvidence.Evidence
 
 /** Replay of an exact, closed, width-preserving native operator body.
-  *
   * This is one obligation of balanced-stage publication, NOT permission to
   * publish a reduction. It does not certify a Scala closure, invoke callbacks,
-  * construct a tree, or implement Verilog operators. The only new expression
-  * is a fresh instance of the exact admitted native expression class, rebound
-  * to checked operands through the inherited native wrapping algorithm.
+  * construct a tree, or implement Verilog operators.
   */
 private[spinal] object TypedBalancedReductionOperatorReplay {
   private def fail(code: String, detail: String): Nothing =
     throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-$code: $detail")
 
-  /** Exact classes, not subclasses, names, sampled values or emitted text.
-    * Each admitted primitive is associative and commutative for equal positive
-    * widths. Addition is modular at that width; widening addition is not this
-    * profile. Comparators/muxes, casts, resizes, literals and state need their
-    * own proof and are intentionally not admitted by this table.
+  /** Exact native classes, never names, subclasses, sampled values or text.
+    * All admitted primitives are associative/commutative at equal positive
+    * widths. Addition is modular; widening operations need a different proof.
     */
   private val constructors: Map[Class[_], () => BinaryOperator] = Map(
     classOf[Operator.Bool.And] -> (() => new Operator.Bool.And),
@@ -49,75 +45,80 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
   private def assignmentsOf(owner: Component, target: BaseType): Vector[AssignmentStatement] = {
     val values = ArrayBuffer.empty[AssignmentStatement]
     owner.dslBody.walkStatements {
-      case assignment: AssignmentStatement if assignment.finalTarget eq target =>
-        values += assignment
+      case assignment: AssignmentStatement if assignment.finalTarget eq target => values += assignment
       case _ =>
     }
     values.toVector
   }
 
-  private def checkOperand(
-      value: BaseType,
-      owner: Component,
-      kind: AnyRef,
-      width: ElaborationIntegerExpression
-  ): Unit = {
+  private def checkOperand(value: BaseType, owner: Component, kind: AnyRef,
+      width: ElaborationIntegerExpression): Unit = {
     if (value == null || (value.component ne owner) ||
         (value.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
-        value.hasTag(tagAutoResize) ||
-        BigInt(value.getBitsWidth) != width.default ||
+        value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||
         !ElabInt.equivalentExactFunction(widthOf(value), width))
       fail("REPLAY-OPERAND-SHAPE", "operand must retain the exact owner, type and typed width authority")
   }
 
   final class Proof private[TypedBalancedReductionOperatorReplay] (
       val operatorClass: Class[_],
+      val nativeResult: BaseType,
+      val resultWidth: ElaborationIntegerExpression,
       private val owner: Component,
       private val kind: AnyRef,
-      private val width: ElaborationIntegerExpression,
       private val reverseOperands: Boolean,
       private val constructor: () => BinaryOperator,
       private val guards: Vector[() => Unit]
   ) {
     def validateFreshness(): Unit = guards.foreach(_.apply())
 
-    /** Replay one body, not a whole tree. Never re-execute the Scala callback. */
+    /** Replay one native body without invoking its Scala callback. */
     def replay(left: BaseType, right: BaseType): BaseType = {
       validateFreshness()
       if (Component.current ne owner)
         fail("REPLAY-OWNER", "native graph replay must remain in its exact owning component")
-      checkOperand(left, owner, kind, width)
-      checkOperand(right, owner, kind, width)
+      checkOperand(left, owner, kind, resultWidth)
+      checkOperand(right, owner, kind, resultWidth)
       val a = if (reverseOperands) right else left
       val b = if (reverseOperands) left else right
       val expression = constructor()
       if (expression.getClass != operatorClass)
         fail("REPLAY-CONSTRUCTOR", "native expression constructor changed its exact class")
       val result = a.wrapBinaryOperator(b, expression)
-      // This is the proved native result shape, not width reconstruction from
-      // a witness. Keep its original declaration root for a subsequent replay.
       result match {
-        case bits: BitVector if width.parameters.nonEmpty =>
-          ParameterizedWidth.attach(bits, ElabInt.fromExpression(width).bits)
+        case bits: BitVector if resultWidth.parameters.nonEmpty =>
+          ParameterizedWidth.attach(bits, ElabInt.fromExpression(resultWidth).bits)
         case _ =>
       }
       result
     }
   }
 
-  /** Certify one scalar body from actual native callback evidence.
-    * All callback-local declarations/assignments must be consumed. Transparent
-    * aliases may be removed only when their width is inferred or retains the
-    * same authoritative expression; equal concrete widths are not evidence.
-    */
-  def certify(callback: UnvalidatedBalancedCallback): Proof = {
-    if (callback == null || callback.operands.size != 2 ||
+  private def scalarOperands(callback: UnvalidatedBalancedCallback): Vector[BaseType] = {
+    if (callback == null || callback.operands == null || callback.operands.size != 2 ||
         callback.operands.exists(_ == null) || callback.result == null)
       fail("REPLAY-BODY-ARITY", "operator proof requires two non-null scalar operands and a result")
-    val operands = callback.operands.map {
+    callback.operands.map {
       case value: BaseType => value
       case _ => fail("REPLAY-BODY-SHAPE", "composite callback bodies require a separate leaf-layout proof")
     }
+  }
+
+  /** Existing entry point: the two inputs carry direct native width evidence. */
+  def certify(callback: UnvalidatedBalancedCallback): Proof = {
+    val operands = scalarOperands(callback)
+    certify(callback, operands.map(TypedBalancedReductionValueEvidence.input))
+  }
+
+  /** Whole-stage counterpart. An intermediate width is transferred by an
+    * earlier opaque proof whose exact result identity must match this input.
+    * No registry annotation is manufactured from equal default widths.
+    */
+  def certify(callback: UnvalidatedBalancedCallback, inputEvidence: Vector[Evidence]): Proof = {
+    val operands = scalarOperands(callback)
+    if (inputEvidence == null || inputEvidence.size != 2 || inputEvidence.exists(_ == null))
+      fail("REPLAY-INPUT-EVIDENCE", "operator proof requires two complete native input certificates")
+    operands.zip(inputEvidence).foreach { case (value, evidence) => evidence.requireValue(value) }
     val result = callback.result match {
       case value: BaseType => value
       case _ => fail("REPLAY-BODY-SHAPE", "operator result must be one native scalar")
@@ -128,18 +129,23 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     val kind = operands.head.getTypeObject.asInstanceOf[AnyRef]
     if (!((kind eq TypeBool) || (kind eq TypeBits) || (kind eq TypeUInt) || (kind eq TypeSInt)))
       fail("REPLAY-BODY-TYPE", "operator proof requires Bool, Bits, UInt or SInt")
-    val width = widthOf(operands.head)
+    val width = inputEvidence.head.width
     ElabInt.requireAuthoritativeIntegerDomain(width, "balanced operator width",
       "MORPH-REDUCE-BALANCED-REPLAY-WIDTH-AUTHORITY", requireExactExtrema = false)
     if (width.minimum < 1)
       fail("REPLAY-BODY-WIDTH", "operator width must remain positive over its complete domain")
-    operands.foreach(checkOperand(_, owner, kind, width))
+    inputEvidence.foreach { evidence =>
+      if ((evidence.owner ne owner) || (evidence.kind ne kind) ||
+          !ElabInt.equivalentExactFunction(evidence.width, width))
+        fail("REPLAY-OPERAND-SHAPE", "certified operands must share exact native type and width authority")
+    }
     if (operands(0) eq operands(1))
       fail("REPLAY-BODY-OPERANDS", "a reduction pair must retain two distinct operand identities")
 
     val declarations = callback.declarations
     val recordedAssignments = callback.assignments
-    if (declarations.exists(_ == null) || recordedAssignments.exists(_ == null))
+    if (declarations == null || recordedAssignments == null ||
+        declarations.exists(_ == null) || recordedAssignments.exists(_ == null))
       fail("REPLAY-BODY-EVIDENCE", "native body evidence contains null")
     val seen = new IdentityHashMap[BaseType, java.lang.Boolean]()
     declarations.foreach { value =>
@@ -155,7 +161,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     val consumedAssignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
     val visiting = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val guards = ArrayBuffer.empty[() => Unit]
-    operands.foreach { value => guards += (() => checkOperand(value, owner, kind, width)) }
+    inputEvidence.foreach { evidence => guards += (() => evidence.requireFreshness()) }
 
     def expand(value: Expression): Expression = value match {
       case leaf: BaseType if operands.exists(_ eq leaf) => leaf
@@ -223,7 +229,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           (native.getTypeObject.asInstanceOf[AnyRef] ne kind))
         fail("REPLAY-STALE-GRAPH", "native primitive operands changed after certification")
     })
-    new Proof(native.getClass, owner, kind, width, reverse,
+    new Proof(native.getClass, result, width, owner, kind, reverse,
       constructors(native.getClass), guards.toVector)
   }
 }
