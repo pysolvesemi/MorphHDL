@@ -43,7 +43,9 @@ private[spinal] object TypedBalancedReductionStageReplay {
       resultEvidence.requireFreshness()
     }
 
+    /** Pipeline depth in enabled sampling edges of the one certified clock domain. */
     def latencyFor(count: Int): Int = {
+      requireFreshness()
       if (!admittedCounts.contains(count)) fail("COUNT", "count is outside the exact captured domain")
       val depth = (BigInt(count) - 1).bitLength
       stages.take(depth).map(_.registerCountPerRow).sum
@@ -160,6 +162,9 @@ private[spinal] object TypedBalancedReductionStageReplay {
         fail("BRIDGE-NONUNIFORM", "every pair and odd tail at one level must have identical bridge behavior")
       new Stage(geometry, rowOperators, rowBridges)
     }
+    val clocks = captured.rows.flatMap(_.bridge.declarations.filter(_.isReg).map(_.clockDomain))
+    if (clocks.nonEmpty && clocks.exists(_ ne clocks.head))
+      fail("CLOCK-NONUNIFORM", "fixed enabled-edge latency requires one exact clock domain across all stages and register chains")
     val allOperators = stages.flatMap(_.operators)
     if (allOperators.nonEmpty && allOperators.exists(_.operatorClass != allOperators.head.operatorClass))
       fail("OPERATOR-NONUNIFORM", "the whole native tree must use one certified associative primitive")

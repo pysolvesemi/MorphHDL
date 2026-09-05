@@ -8,7 +8,6 @@ import importlib.util
 import itertools
 import json
 import random
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -43,10 +42,13 @@ def instances(case: dict, mutation: bool = False) -> list[str]:
         bindings += [f'.{name}({prefix}_{name})' for name in H.OUTPUTS]
         lines += [f"{case[role + '_module']} {prefix}({', '.join(bindings)});"]
     if mutation:
+        # Match the native CE-before-SYNC-reset control precedence. Only
+        # the extra observed data cycle is mutated, not the reset policy.
         lines += [f'reg [{width-1}:0] checked_sum;',
                   'always @(posedge clk) begin',
-                  '  if (reset) checked_sum <= 0;',
-                  '  else if (enable) checked_sum <= c_uAdd;', 'end']
+                  '  if (enable) begin',
+                  '    if (reset) checked_sum <= 0;',
+                  '    else checked_sum <= c_uAdd;', '  end', 'end']
     else:
         lines += [f'wire [{width-1}:0] checked_sum = c_uAdd;']
     return lines
@@ -70,7 +72,8 @@ def simulation_bench(case: dict) -> str:
     lines = ['`timescale 1ns/1ps', 'module tb;', 'reg clk, reset, enable;',
              f'reg [{width*count-1}:0] dataIn;', f'reg [{count-1}:0] boolIn;']
     lines += instances(case)
-    lines += ['initial begin', 'clk=0; reset=1; enable=0; dataIn=0; boolIn=0; #2; clk=1; #1; clk=0; #1;']
+    # Native synchronous reset is sampled only on an enabled edge.
+    lines += ['initial begin', 'clk=0; reset=1; enable=1; dataIn=0; boolIn=0; #2; clk=1; #1; clk=0; #1;']
     zero = dict.fromkeys(H.OUTPUTS, 0)
     history = [zero.copy() for _ in range(delay)]
 
@@ -92,17 +95,19 @@ def simulation_bench(case: dict) -> str:
             index = (tick // 11) % count
             words = tuple(mask if i == index else 0 for i in range(count))
             flags = 1 << index
-        reset = int(tick in (17, 55, 111))
-        enable = int(tick % 5 != 0 and not 30 <= tick < 37 and not reset)
+        # Each in-flight reset first coincides with enable=0 (hold), then
+        # enable=1 (reset). Long stalls and ordinary disabled edges also run.
+        reset = int(tick in (17, 18, 55, 56, 111, 112))
+        enable = int(tick % 5 != 0 and not 30 <= tick < 37 and tick not in (17, 55, 111))
         value = H.expected(words, flags, width)
         packed = sum(word << (i * width) for i, word in enumerate(words))
         lines += [f"reset={reset}; enable={enable}; dataIn={width*count}'h{packed:x}; boolIn={count}'h{flags:x}; #2;"]
         compare(value if not delay else history[-1], 'before-edge', tick)
         lines += ['clk=1; #1;']
-        if delay:
+        if delay and enable:
             if reset:
                 history = [zero.copy() for _ in range(delay)]
-            elif enable:
+            else:
                 history = [value] + history[:-1]
         compare(value if not delay else history[-1], 'after-edge', tick)
         lines += ['clk=0; #1;']
@@ -162,11 +167,11 @@ def qualify(root: Path, duplicate: Path) -> None:
         top = work / 'miter.v'
         top.write_text(miter(case))
         setup = design_script(paths + [top])
-        # A reset edge establishes the all-zero sequential state even when
-        # enable is low. No initial-state correlation is required for this
-        # reset-entry check. Subsequent induction starts in that reset state.
+        # An ENABLED reset edge establishes zero sequential state from any
+        # initial state. Subsequent induction starts in that reset state and
+        # leaves both reset and enable unconstrained on every later edge.
         script = work / 'reset-entry.ys'
-        script.write_text(setup + 'sat -seq 2 -set-at 1 reset 1 -set-at 1 enable 0 -prove bad 0 -prove-skip 1 -verify -timeout 60\n')
+        script.write_text(setup + 'sat -seq 2 -set-at 1 reset 1 -set-at 1 enable 1 -prove bad 0 -prove-skip 1 -verify -timeout 60\n')
         entry = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'reset-entry.log')
         if H.PASS not in entry:
             raise RuntimeError('reset-entry proof missing definitive SUCCESS: ' + label)
@@ -194,7 +199,7 @@ def qualify(root: Path, duplicate: Path) -> None:
         raise RuntimeError('extra-latency mutation did not produce a real counterexample')
     H.require_counterexample_vcd(trace)
     (root / 'evidence.json').write_text(json.dumps(dict(scope='concrete-native-stage-replay',
-        parameterized_tree_formal='not-run', reset_model='synchronous active-high reset dominates enable',
+        parameterized_tree_formal='not-run', reset_model='native CE gates synchronous active-high reset',
         configurations=results, mutation='extra enabled cycle, counterexample bad=1'), indent=2) + '\n')
     print('PASS: all 96 native stage shapes, 14 outputs, reset-entry proofs, unbounded induction and latency mutation', flush=True)
 
