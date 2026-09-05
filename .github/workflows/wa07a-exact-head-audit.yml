@@ -1,32 +1,63 @@
-name: WA-07a exact head audit
+name: WA-07a checked clock-model repair
 on:
   push:
     branches: [agent/wa-07a-exact-head-audit]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  export:
+  stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
       - uses: actions/checkout@v4
+      - name: Decode exact reviewed repair
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,lzma,os
+          from pathlib import Path
+          data=lzma.decompress(base64.b64decode(Path('clock-model.patch.b64').read_text(),validate=True))
+          assert hashlib.sha256(data).hexdigest()=='ced103c95903f237069801e714cd8c837a522ca916a73a28b4d49ed8f1f063c8'
+          Path(os.environ['RUNNER_TEMP'],'clock-model.patch').write_bytes(data)
+          PY
+      - uses: actions/checkout@v4
         with:
-          ref: d5e91a5e0bfe7fa856a3d3efee11b186963a49a4
-      - name: Archive exact checked-out tree and shell source
+          ref: e682b73f1f6764cd9c47fb9d7364b44c0ba12ba0
+          fetch-depth: 0
+      - name: Verify tree and exercise every contract plus actual clock controls
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p audit
-          git archive --format=tar.gz HEAD > audit/source.tar.gz
-          git rev-parse HEAD > audit/commit.txt
-          git rev-parse HEAD^{tree} > audit/tree.txt
-          git ls-tree -r HEAD > audit/git-tree.txt
-          sha256sum audit/source.tar.gz > audit/archive-sha256.txt
-          grep -Rn -- '--prove-pending' morphhdl-passes .github/workflows/morphhdl-passes.yml > audit/prove-pending-locations.txt || test "$?" -eq 1
-          find morphhdl-passes/scripts -type f -print0 | sort -z | xargs -0 sha256sum > audit/script-sha256.txt
+          git apply --check "$RUNNER_TEMP/clock-model.patch"
+          git apply --index "$RUNNER_TEMP/clock-model.patch"
+          test "$(git write-tree)" = cc95fd9c360b48589e5f54426606738ed1547f55
+          test "$(git diff --cached --name-only | wc -l)" -eq 7
+          for script in morphhdl-passes/scripts/check-wa*.py; do
+            python3 "$script" --self-test
+            python3 "$script"
+          done
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+          python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py
+          git diff --cached --check
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git commit -m 'fix(passes): require reachable clocked comparisons and sequential mutation controls'
+          mkdir -p clock-repair-result
+          git rev-parse HEAD > clock-repair-result/commit.txt
+          git rev-parse HEAD^ > clock-repair-result/parent.txt
+          git rev-parse HEAD^{tree} > clock-repair-result/tree.txt
+          git show --stat --oneline HEAD > clock-repair-result/changes.txt
+          git push origin HEAD:refs/heads/agent/wa-07a-clock-model-stage
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: wa07a-exact-d5-source
-          path: audit
+          name: wa07a-clock-model-repair
+          path: |
+            clock-repair-result
+            morphhdl-passes/build/wa07a-clock-model
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
