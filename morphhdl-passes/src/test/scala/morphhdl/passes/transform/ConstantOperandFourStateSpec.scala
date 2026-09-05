@@ -196,7 +196,7 @@ final class ConstantOperandFourStateSpec extends AnyFunSuite with Matchers {
       s"module miter(input wire [3:0] a, input wire p, output wire ok);\n$body\nassign ok = $checks;\nendmodule\n"
     } else {
       val checks = values.indices.map { i =>
-        s"if (before_$i !== after_$i) begin $$display(\"WA07A_MISMATCH ${values(i).label} a=%b p=%b before=%b after=%b\", a, p, before_$i, after_$i); $$finish; end"
+        s"""if (before_$i !== after_$i) begin $$display("WA07A_MISMATCH ${values(i).label} a=%b p=%b before=%b after=%b", a, p, before_$i, after_$i); $$finish; end"""
       }.mkString("\n")
       s"""module tb;
 reg [3:0] a;
