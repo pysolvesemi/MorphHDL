@@ -27,17 +27,53 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
-      - name: Compile exact source and retain compiler inputs
+      - name: Retain repository objects and HDL tools for offline source validation
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/increment-60e
           git rev-parse HEAD > target/increment-60e/head.txt
           git archive HEAD | gzip > target/increment-60e/source.tar.gz
-          sbt -batch "++${{ matrix.scala }}" "morph/Test/compile" "show morph/Test/fullClasspath" > target/increment-60e/compile.log 2>&1 || { tail -n 220 target/increment-60e/compile.log; exit 1; }
+          git bundle create target/increment-60e/repository.bundle HEAD
           python3 - <<'PY'
           from pathlib import Path
-          import os, re, tarfile
+          import re, shutil, subprocess, tarfile
+          paths = set()
+          for tool in ('iverilog', 'vvp', 'verilator', 'verilator_bin', 'yosys', 'yosys-abc', 'abc', 'z3'):
+              found = shutil.which(tool)
+              if not found:
+                  continue
+              p = Path(found)
+              paths.add(p)
+              paths.add(p.resolve())
+              result = subprocess.run(['ldd', str(p.resolve())], capture_output=True, text=True)
+              for name in re.findall(r'(/[^\s()]+)', result.stdout):
+                  q = Path(name)
+                  if q.is_file():
+                      paths.add(q)
+                      paths.add(q.resolve())
+          for name in ('/usr/lib/x86_64-linux-gnu/ivl', '/usr/lib/ivl', '/usr/local/lib/ivl', '/usr/share/yosys', '/usr/local/share/yosys', '/usr/share/verilator', '/usr/local/share/verilator'):
+              p = Path(name)
+              if p.exists():
+                  paths.add(p)
+          with tarfile.open('target/increment-60e/hdl-tools.tar.gz', 'w:gz') as archive:
+              for p in sorted(paths):
+                  archive.add(p, arcname=str(p).lstrip('/'))
+          PY
+      - name: Compile exact source and retain compiler inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Retry transport failures without treating them as compiler success.
+          success=0
+          for attempt in 1 2 3; do
+            if sbt -batch "++${{ matrix.scala }}" "morph/Test/compile" "show morph/Test/fullClasspath" > target/increment-60e/compile.log 2>&1; then success=1; break; fi
+            tail -n 80 target/increment-60e/compile.log
+          done
+          test "$success" = 1
+          python3 - <<'PY'
+          from pathlib import Path
+          import re, tarfile
           root = Path('target/increment-60e')
           paths = re.findall(r'Attributed\(([^\n]+)\)', (root / 'compile.log').read_text())
           assert paths and all(Path(p).exists() for p in paths), paths
@@ -50,12 +86,14 @@ jobs:
                       archive.add(p, arcname=str(p).lstrip('/'))
                       seen.add(str(p))
               # Only dependency JARs, never cache configuration or credentials.
-              for base in (Path.home() / '.cache/coursier', Path.home() / '.sbt', Path.home() / '.ivy2', Path('/tmp/morphhdl-cache')):
+              for base in (Path('/sbt'), Path.home() / '.cache/coursier', Path.home() / '.sbt', Path.home() / '.ivy2', Path('/tmp/morphhdl-cache')):
                   if base.exists():
                       for p in sorted(base.rglob('*.jar')):
                           if str(p) not in seen:
                               archive.add(p, arcname=str(p).lstrip('/'))
                               seen.add(str(p))
+              for p in sorted(Path('morphplugin/target').rglob('*.jar')):
+                  archive.add(p, arcname=str(p))
           PY
       - name: Retain exact-head source and compilation evidence
         if: always()
