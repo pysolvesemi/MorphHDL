@@ -1,0 +1,32 @@
+name: WA-07a exact head audit
+on:
+  push:
+    branches: [agent/wa-07a-exact-head-audit]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: d5e91a5e0bfe7fa856a3d3efee11b186963a49a4
+      - name: Archive exact checked-out tree and shell source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit
+          git archive --format=tar.gz HEAD > audit/source.tar.gz
+          git rev-parse HEAD > audit/commit.txt
+          git rev-parse HEAD^{tree} > audit/tree.txt
+          git ls-tree -r HEAD > audit/git-tree.txt
+          sha256sum audit/source.tar.gz > audit/archive-sha256.txt
+          grep -Rn -- '--prove-pending' morphhdl-passes .github/workflows/morphhdl-passes.yml > audit/prove-pending-locations.txt || test "$?" -eq 1
+          find morphhdl-passes/scripts -type f -print0 | sort -z | xargs -0 sha256sum > audit/script-sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wa07a-exact-d5-source
+          path: audit
+          if-no-files-found: error
+          retention-days: 3
