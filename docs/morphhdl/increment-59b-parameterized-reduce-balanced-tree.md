@@ -46,9 +46,12 @@ The finite schedule has at most `ceil(log2(maximumCount))` metadata entries.
 Each entry retains symbolic input count, complete pair count, output count,
 active-stage predicate and odd-tail predicate. A default count of one does
 not remove stages needed by larger legal overrides. Stage input count is
-`1 + (N - 1) / 2^level`; output count uses `input / 2 + input % 2` to avoid
-overflow at `Int.MaxValue`. Each stage is derived directly from the original
-count so expression text does not grow exponentially.
+`1 + (N - 1) / 2^level`; output count uses `1 + (input - 1) / 2` to avoid
+overflow at `Int.MaxValue` and preserve exact interval extrema. Summing separate
+pair/remainder maxima would overstate an even-bound domain. Each stage is
+derived directly from the original count so expression text does not grow
+exponentially. The tests cover every count in domains with maxima 2 through 32,
+as well as the largest positive concrete Int and invalid non-default values.
 
 This is publication metadata, not a second reduction implementation: it does
 not invoke callbacks, construct a native operator graph, emit operation-specific

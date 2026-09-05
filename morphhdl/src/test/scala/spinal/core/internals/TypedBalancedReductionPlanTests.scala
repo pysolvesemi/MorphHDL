@@ -51,15 +51,20 @@ class TypedBalancedReductionPlanTests extends AnyFunSuite {
     }
   }
 
-  test("one symbolic plan covers every admitted count without witness specialization") {
-    val count = parameter(5)
-    val plan = TypedBalancedReductionPlan(count)
-    assert(plan.stages.size == 5)
-    for (n <- 1 to 17) check(plan, n)
-    plan.stages.foreach { stage =>
-      for (value <- Vector(stage.inputCount, stage.pairCount, stage.outputCount)) {
-        assert(value.parameters.size == 1)
-        assert(value.parameters.head eq count.parameters.head)
+  test("symbolic plans retain exact values roots and extrema for odd and even bounds") {
+    for (maximum <- 2 to 32) {
+      val count = parameter(math.min(5, maximum), maximum = maximum)
+      val plan = TypedBalancedReductionPlan(count)
+      assert(plan.stages.size == BigInt(maximum - 1).bitLength)
+      for (n <- 1 to maximum) check(plan, n)
+      plan.stages.foreach { stage =>
+        for (value <- Vector(stage.inputCount, stage.pairCount, stage.outputCount)) {
+          assert(value.parameters.size == 1)
+          assert(value.parameters.head eq count.parameters.head)
+          val values = (1 to maximum).map(n => at(value, n))
+          assert(value.expression.minimum == values.min)
+          assert(value.expression.maximum == values.max)
+        }
       }
     }
   }
@@ -92,15 +97,17 @@ class TypedBalancedReductionPlanTests extends AnyFunSuite {
     val plan = TypedBalancedReductionPlan(ElabInt.literal(Int.MaxValue))
     assert(plan.stages.size == 31)
     check(plan, Int.MaxValue)
-    assert(at(plan.stages.head.outputCount, Int.MaxValue) == BigInt(1) << 30)
+    assert(at(plan.stages.head.outputCount, Int.MaxValue) == (BigInt(1) << 30))
     assert(plan.stages.map(_.inputCount.toString.length).max < 200)
   }
 
-  test("empty negative and null counts fail before stage construction") {
-    for (count <- Vector(ElabInt.literal(0), ElabInt.literal(-1), null)) {
+  test("invalid domains fail even when the default count is legal") {
+    for (count <- Vector(ElabInt.literal(0), ElabInt.literal(-1),
+                         parameter(5) - 1, parameter(5) - 2, null)) {
       val error = intercept[IllegalArgumentException] { TypedBalancedReductionPlan(count) }
       assert(error.getMessage.contains("MORPH-REDUCE-BALANCED-DOMAIN-INVALID"))
     }
+    intercept[IllegalArgumentException] { TypedBalancedReductionPlan.forVec(null) }
   }
 
   test("non-canonical parameter-free expression summaries are not authority") {

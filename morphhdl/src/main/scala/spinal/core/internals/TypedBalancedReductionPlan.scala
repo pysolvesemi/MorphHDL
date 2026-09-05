@@ -62,8 +62,10 @@ private[spinal] object TypedBalancedReductionPlan {
         level = level,
         inputCount = inputs,
         pairCount = pairs,
-        // Unlike (inputs + 1) / 2, this cannot overflow at Int.MaxValue.
-        outputCount = pairs + remainder,
+        // Positive-domain ceil-halving is monotonic and overflow-safe. Unlike
+        // pairs + remainder it also keeps exact interval extrema: their maxima
+        // need not occur at the same admitted count when the upper bound is even.
+        outputCount = (inputs - 1) / 2 + 1,
         active = active,
         hasOddTail = active && remainder.elabEq(1)
       )
