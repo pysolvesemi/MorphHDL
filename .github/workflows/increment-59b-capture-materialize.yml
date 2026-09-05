@@ -7,6 +7,7 @@ on:
       - '.github/workflows/increment-59b-capture-materialize.yml'
       - 'morphhdl/implementation/increment-59b/**'
       - 'morphhdl/scripts/apply-increment-59b-capture.py'
+      - 'morphhdl/contracts/.gitignore'
 
 permissions:
   contents: write
@@ -50,6 +51,7 @@ jobs:
               'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
               "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/a" \
               "morph/Test/runMain nativeapplication.ReduceBalancedTreeNativeOracleArtifactWriter $output/b" \
+              'show morph/Test/fullClasspath' \
               > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
             python3 - <<'PY'
           from pathlib import Path
@@ -75,6 +77,37 @@ jobs:
           test -z "$(git status --porcelain --untracked-files=no)"
           git push origin "HEAD:refs/heads/$branch"
           echo "Published capture checkpoint $(git rev-parse HEAD). Replay and formal certification remain incomplete." >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain source and compiler-only diagnostics for disconnected reproduction
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59b-capture"
+          mkdir -p "$output"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          git bundle create "$output/source.bundle" HEAD
+          python3 - <<'PY'
+          from pathlib import Path
+          import tarfile
+          root = Path.cwd()
+          output = root / 'target/increment-59b-capture/compiler-only.tar.gz'
+          with tarfile.open(output, 'w:gz') as archive:
+              # Only public dependency JARs and generated class files are retained.
+              # No home-directory configuration, Git config, token, or credentials.
+              for jar in sorted(Path('/sbt/.cache/coursier/v1').rglob('*.jar')):
+                  archive.add(jar, arcname='dependencies/' + str(jar.relative_to('/sbt/.cache/coursier/v1')), recursive=False)
+              for module in ('core','lib','sim','idslplugin','idslpayload','morphplugin','morphruntime','morphir','paramrtl','frontend','backends/verilog','morphhdl'):
+                  target = root / module / 'target'
+                  if target.is_dir():
+                      for scala in sorted(target.glob('scala-*')):
+                          for name in ('classes', 'test-classes', 'src_managed'):
+                              directory = scala / name
+                              if directory.is_dir():
+                                  archive.add(directory, arcname='repository/' + str(directory.relative_to(root)))
+                          for jar in sorted(scala.glob('*.jar')):
+                              archive.add(jar, arcname='repository/' + str(jar.relative_to(root)), recursive=False)
+          print('Compiler-only archive bytes:', output.stat().st_size)
+          PY
       - name: Retain exact local implementation and test evidence
         if: always()
         uses: actions/upload-artifact@v4
