@@ -1,0 +1,96 @@
+name: 60c isolated validation kit
+on:
+  push:
+    branches: [agent/60c-resume-validation-kit]
+    paths: ['.github/workflows/60c-resume-validation-kit.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile the exact checkpoint and export only compiler products and public tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/60c-kit
+          sbt -batch '++2.12.18' 'morph/Test/compile' 'show morph/Test/fullClasspath' 'show morph/Test/scalacOptions' > target/60c-kit/build.log 2>&1 || { tail -n 180 target/60c-kit/build.log; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, os, re, shutil, subprocess, tarfile
+          root = Path.cwd()
+          out = root / 'target/60c-kit'
+          kit = out / 'kit'
+          kit.mkdir()
+          text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', (out/'build.log').read_text())
+          paths = list(dict.fromkeys(re.findall(r'Attributed\(([^\n)]+)\)', text)))
+          assert len(paths) > 10, text[-10000:]
+          cp = []
+          for i, value in enumerate(paths):
+              src = Path(value)
+              dst = kit / 'classpath' / ('%03d-' % i + src.name)
+              dst.parent.mkdir(exist_ok=True)
+              if src.is_dir(): shutil.copytree(src, dst)
+              else: shutil.copyfile(src, dst)
+              cp.append(str(dst.relative_to(kit)))
+          (kit/'classpath.json').write_text(json.dumps(cp))
+          plugins = []
+          for module in ('idslplugin', 'morphplugin'):
+              matches = list((root/module/'target/scala-2.12').glob('*.jar'))
+              assert len(matches) == 1, matches
+              dst = kit / (module+'.jar')
+              shutil.copyfile(matches[0], dst)
+              plugins.append(dst.name)
+          (kit/'plugins.json').write_text(json.dumps(plugins))
+          binaries = []
+          meta = {}
+          for name in ('iverilog', 'vvp', 'yosys', 'yosys-abc', 'verilator', 'verilator_bin'):
+              path = shutil.which(name)
+              if not path: continue
+              src = Path(path).resolve()
+              dst = kit/'bin'/name
+              dst.parent.mkdir(exist_ok=True)
+              shutil.copy2(src, dst)
+              binaries.append(dst)
+              meta[name] = str(src)
+          candidates = {}
+          for prefix in [Path('/usr'), Path('/usr/local'), Path('/opt')] + [Path(p).parent.parent for p in meta.values()]:
+              for relative, target in [('share/yosys','share/yosys'), ('share/verilator','share/verilator'), ('lib/ivl','lib/ivl'), ('lib/x86_64-linux-gnu/ivl','lib/ivl')]:
+                  src = prefix/relative
+                  if src.is_dir(): candidates.setdefault(target, src)
+          for target, src in candidates.items():
+              dst = kit/target
+              shutil.copytree(src, dst, dirs_exist_ok=True)
+              for path in dst.rglob('*'):
+                  if path.is_file() and (os.access(path, os.X_OK) or path.suffix in ('.vpi','.vpl','.tgt','.so')): binaries.append(path)
+          for binary in binaries:
+              result = subprocess.run(['ldd',str(binary)],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+              for path in re.findall(r'(?:=>\s+|^\s*)(/[^\s]+)',result.stdout,re.M):
+                  src = Path(path)
+                  if src.is_file():
+                      dst=kit/'runtime-libs'/src.name
+                      dst.parent.mkdir(exist_ok=True)
+                      if not dst.exists(): shutil.copy2(src,dst)
+          (kit/'tools.json').write_text(json.dumps(meta,indent=2))
+          (kit/'source-commit.txt').write_text(subprocess.check_output(['git','rev-parse','HEAD'],text=True))
+          (kit/'manifest.json').write_text(json.dumps({str(p.relative_to(kit)):hashlib.sha256(p.read_bytes()).hexdigest() for p in kit.rglob('*') if p.is_file()},indent=2))
+          with tarfile.open(out/'compiler-and-tools.tar.gz','w:gz') as archive: archive.add(kit,arcname='kit')
+          print(meta)
+          print('Compiler entries',len(cp),'kit bytes',(out/'compiler-and-tools.tar.gz').stat().st_size)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60c-resume-compiler-tools
+          path: |
+            target/60c-kit/build.log
+            target/60c-kit/compiler-and-tools.tar.gz
+          retention-days: 7
