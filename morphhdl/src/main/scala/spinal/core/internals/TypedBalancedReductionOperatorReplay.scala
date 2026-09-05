@@ -93,7 +93,15 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
       val expression = constructor()
       if (expression.getClass != operatorClass)
         fail("REPLAY-CONSTRUCTOR", "native expression constructor changed its exact class")
-      a.wrapBinaryOperator(b, expression)
+      val result = a.wrapBinaryOperator(b, expression)
+      // This is the proved native result shape, not width reconstruction from
+      // a witness. Keep its original declaration root for a subsequent replay.
+      result match {
+        case bits: BitVector if width.parameters.nonEmpty =>
+          ParameterizedWidth.attach(bits, ElabInt.fromExpression(width).bits)
+        case _ =>
+      }
+      result
     }
   }
 
@@ -162,9 +170,10 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           fail("REPLAY-BODY-STATE", "operator locals must be same-type root-scope combinational declarations")
         val fixed = leaf match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
         val retained = ParameterizedWidth.expressionOf(leaf)
-        if (retained.exists(value => !ElabInt.equivalentExactFunction(value, width)) ||
+        if ((fixed >= 0 && BigInt(fixed) != width.default) ||
+            retained.exists(value => !ElabInt.equivalentExactFunction(value, width)) ||
             (width.parameters.nonEmpty && fixed >= 0 && retained.isEmpty))
-          fail("REPLAY-FIXED-WIDTH", "a fixed native width cannot stand in for a symbolic operand width")
+          fail("REPLAY-FIXED-WIDTH", "local width must preserve the complete operand width, not truncate or specialize its witness")
         val all = assignmentsOf(owner, leaf)
         if (all.size != 1 || !recordedAssignments.exists(_ eq all.head))
           fail("REPLAY-BODY-DRIVER", "each local requires exactly its one captured full-object driver")
