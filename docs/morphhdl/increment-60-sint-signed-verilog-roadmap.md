@@ -1,6 +1,6 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a baseline qualified; 60b through 60g remain unchecked.
+**Status:** 60a and 60b qualified; 60c through 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -119,7 +119,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   `docs/morphhdl/parameterized-verilog-todo.md` only after Increment 59 is
   present and `[x]` on the merged base.
 
-- [ ] **Increment 60b — Typed declaration and expression signedness authority**
+- [x] **Increment 60b — Typed declaration and expression signedness authority**
 
   **Dependencies:** Increment 60a implemented and merged.
 
@@ -130,6 +130,10 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   comparison, shifts, muxes, casts, resize, concatenation, selection, memory
   reads and hierarchy boundaries. Validate that every emitted declaration and
   every cast-elimination decision maps back to exact graph identity.
+
+  Implemented by the [exact graph signedness analysis](increment-60b-signedness-authority.md).
+  Both Scala lanes qualify exact use identity, conservative transfer, deterministic
+  replay and byte-identical observer-enabled output against the sealed 60a oracle.
 
   This increment must not change published Verilog yet. It supplies unit tests,
   fail-closed diagnostics and deterministic replay for the signedness analysis.
