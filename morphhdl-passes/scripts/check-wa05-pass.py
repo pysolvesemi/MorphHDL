@@ -340,7 +340,7 @@ def check_repository(root: Path) -> list[str]:
         "ExplicitNamedWireAliasSourceTag",
         "directNamedAlias",
         'setName("popPayloadNamedAlias")',
-        "directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))",
+        "expressionUnnamedAlias(directNamedAlias(directUnnamedAlias(popPayloadSource)))",
     )
     failures.extend(require_markers(
         paths["witness"].relative_to(root), witness_text, witness_markers,

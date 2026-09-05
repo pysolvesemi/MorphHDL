@@ -55,8 +55,11 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   // test-only WA-04 and WA-05 bridges can prove exact same-component identity.
   val popPayloadSource = Bits(width bits)
   popPayloadSource := fifo.io.pop.payload
+  // Keep the expression temporary nearest the public receiver. Earlier direct
+  // alias stages only rewrite its inputs; the expression stage must perform
+  // the final inlining itself instead of relying on a removable alias receiver.
   io.pop.payload :=
-    directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))
+    expressionUnnamedAlias(directNamedAlias(directUnnamedAlias(popPayloadSource)))
 
   fifo.io.flush := io.flush
   io.occupancy := fifo.io.occupancy.resized
