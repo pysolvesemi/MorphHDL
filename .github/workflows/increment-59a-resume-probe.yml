@@ -50,7 +50,7 @@ jobs:
             iverilog -g2001 -s Top$n -o top$n.vvp power.v top$n.v
             verilator --lint-only --language 1364-2001 -Wno-fatal --top-module Top$n power.v top$n.v > verilator$n.log 2>&1
             timeout 120 yosys -Q -ql synth$n.log -p "read_verilog -defer power.v top$n.v; hierarchy -simcheck -top Top$n; synth -top Top$n -flatten; check -assert; select -assert-none t:Power; write_json synth$n.json"
-            timeout 120 yosys -Q -ql formal$n.log -p "read_verilog -defer power.v miter$n.v; hierarchy -simcheck -top Miter$n; proc; flatten; opt; check -assert; sat -verify -prove mismatch 0 -set-def-inputs -show x,y"
+            timeout 120 yosys -Q -ql formal$n.log -p "read_verilog -defer power.v miter$n.v; hierarchy -simcheck -top Miter$n; proc; flatten; opt; check -assert; sat -verify -prove mismatch 0 -set-def-inputs -show-inputs -show-outputs"
             echo "PASS: self-recursion N=$n parsing, lint, full synthesis and SAT equivalence"
           done
           python3 - <<'PY'
@@ -65,29 +65,10 @@ jobs:
               print(f'N={n}: one flattened module, {len(cells)} mapped primitive cells, no unresolved/self-recursive cells')
           print('RECURSIVE SYNTHESIS PREFLIGHT PASS')
           PY
-      - name: Inspect exact structural relocation boundaries
-        if: always()
+      - name: Retain diagnostics on failure
+        if: failure()
         shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          targets = {
-              'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala': ['canonicalOf(', 'BlackBox', 'childRanges', 'instanceRange', 'private def planBlock'],
-              'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala': ['blackBox', 'rewriteBlackBox', 'isBlackBox'],
-              'core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala': ['def recordsOf', 'IntegerGeneric', 'def record'],
-              'morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala': ['STRUCTURAL-BLACKBOX', 'def projectedChildEvaluationOf'],
-              'morphhdl/src/main/scala/spinal/core/internals/MorphHdlCanonicalIrProducer.scala': ['BlackBox', 'canonicalOf']
-          }
-          for name, patterns in targets.items():
-              print('\n=== '+name+' ===')
-              lines=Path(name).read_text().splitlines()
-              selected=set()
-              for i,line in enumerate(lines):
-                  if any(pattern in line for pattern in patterns):
-                      selected.update(range(max(0,i-12), min(len(lines),i+35)))
-              for i in sorted(selected):
-                  print(f'{i+1}: {lines[i]}')
-          PY
+        run: tail -n 60 probe-artifacts/*.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
