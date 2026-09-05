@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -70,6 +71,90 @@ class OrderedWorkerTests(unittest.TestCase):
             with self.subTest(jobs=jobs), self.assertRaisesRegex(gate.ValidationError, "injected"):
                 gate.run_bounded_ordered(list(range(6)), jobs, task)
 
+    def assert_later_failure_stops_submission_and_drains(self, scheduler):
+        first_started = threading.Event()
+        release_first = threading.Event()
+        first_drained = threading.Event()
+        scheduler_observed_failure = threading.Event()
+        scheduler_checkpoint = threading.Event()
+        scheduler_finished = threading.Event()
+        submitted = []
+        failures = []
+
+        class ObservedExecutor(ThreadPoolExecutor):
+            def submit(self, fn, item):
+                submitted.append(item)
+                if len(submitted) > 2:
+                    scheduler_checkpoint.set()
+                future = super().submit(fn, item)
+                if item == 1:
+                    original_result = future.result
+                    original_exception = future.exception
+
+                    def observe(method, *args, **kwargs):
+                        if future.done():
+                            scheduler_observed_failure.set()
+                            scheduler_checkpoint.set()
+                        return method(*args, **kwargs)
+
+                    future.result = lambda *args, **kwargs: observe(original_result, *args, **kwargs)
+                    future.exception = lambda *args, **kwargs: observe(original_exception, *args, **kwargs)
+                return future
+
+        def task(item):
+            if item == 0:
+                first_started.set()
+                try:
+                    if not release_first.wait(10):
+                        raise AssertionError("test did not release first worker")
+                finally:
+                    first_drained.set()
+            elif item == 1:
+                if not first_started.wait(10):
+                    raise AssertionError("first worker did not start")
+                raise gate.ValidationError("later binding failed")
+            return item
+
+        def run():
+            try:
+                scheduler(list(range(8)), 2, task)
+            except BaseException as error:
+                failures.append(error)
+            finally:
+                scheduler_finished.set()
+
+        with patch.object(gate, "ThreadPoolExecutor", ObservedExecutor):
+            runner = threading.Thread(target=run)
+            runner.start()
+            try:
+                self.assertTrue(scheduler_checkpoint.wait(10), "scheduler never checked failure or submitted work")
+                self.assertTrue(
+                    scheduler_observed_failure.is_set(),
+                    "failure must be observed before waiting for the first binding or submitting more work",
+                )
+                self.assertEqual(submitted, [0, 1])
+                self.assertFalse(scheduler_finished.is_set(), "running worker must drain before return")
+            finally:
+                release_first.set()
+                runner.join(10)
+            self.assertFalse(runner.is_alive(), "scheduler did not drain and terminate")
+        self.assertTrue(first_drained.is_set())
+        self.assertEqual(submitted, [0, 1])
+        self.assertEqual(len(failures), 1)
+        self.assertIsInstance(failures[0], gate.ValidationError)
+        self.assertEqual(str(failures[0]), "later binding failed")
+
+    def test_completed_failure_stops_submission_without_waiting_for_earlier_binding(self):
+        self.assert_later_failure_stops_submission_and_drains(gate.run_bounded_ordered)
+
+    def test_scheduler_regression_rejects_old_eager_ordered_map(self):
+        def old_scheduler(items, jobs, task):
+            with gate.ThreadPoolExecutor(max_workers=jobs) as executor:
+                return list(executor.map(task, items))
+
+        with self.assertRaisesRegex(AssertionError, "failure must be observed"):
+            self.assert_later_failure_stops_submission_and_drains(old_scheduler)
+
     def test_invalid_worker_limits_are_rejected_even_with_no_tasks(self):
         for jobs in (0, -1, True, 1.5):
             with self.subTest(jobs=jobs), self.assertRaises(gate.ValidationError):
@@ -119,6 +204,25 @@ class PendingProofTests(unittest.TestCase):
             "inputs": (), "outputs": (), "simulations": (),
             "clock": "clk", "reset": "reset",
         }
+
+    def test_preflight_failure_removes_stale_pass_without_discarding_failure_logs(self):
+        output = self.root / "proof-output"
+        output.mkdir()
+        status = output / "gate-status.json"
+        gate.write_json(status, {"status": "PASS"})
+        retained_log = output / "prior-proof.log"
+        retained_log.write_text("retained diagnostic\n")
+        with contextlib.redirect_stderr(io.StringIO()) as errors:
+            result = gate.main([
+                "--repo-root", str(self.root),
+                "--shared-witness", str(self.witness),
+                "--manifest", str(self.root / "missing-manifest.json"),
+                "--output", str(output),
+            ])
+        self.assertEqual(result, 1)
+        self.assertIn("unable to load JSON", errors.getvalue())
+        self.assertFalse(status.exists())
+        self.assertEqual(retained_log.read_text(), "retained diagnostic\n")
 
     def test_explicit_pending_requires_both_new_slots_and_keeps_completed_slots(self):
         before = self.roadmap.read_bytes()
@@ -199,6 +303,7 @@ class PendingProofTests(unittest.TestCase):
     def test_all_five_full_domains_and_artifacts_match_between_worker_counts(self):
         visited = []
         lock = threading.Lock()
+        progress = io.StringIO()
 
         def simulated_proof(*args):
             binding, directory = args[6], args[11]
@@ -212,13 +317,20 @@ class PendingProofTests(unittest.TestCase):
         with patch.object(gate, "strict_design_checks", return_value={"mock": "PASS"}), \
              patch.object(gate, "run_mutation_control", return_value={"status": "EXPECTED_FAIL", "mock": True}), \
              patch.object(gate, "run_formal_binding", side_effect=simulated_proof), \
-             contextlib.redirect_stdout(io.StringIO()):
+             contextlib.redirect_stdout(progress):
             serial = gate.run_shared_witness(self.root, self.shared, self.witness, self.root / "serial", 1, ["WA-07"])
             parallel = gate.run_shared_witness(self.root, self.shared, self.witness, self.root / "parallel", 4, ["WA-07"])
         self.assertEqual(serial, parallel)
         expected = gate.parameter_bindings(self.shared["domains"])
         self.assertEqual(len(expected), 512)
         self.assertEqual(len(visited), 2 * 5 * 512)
+        binding_progress = [line for line in progress.getvalue().splitlines()
+                            if line.startswith("Proved ") and "DEPTH-" in line]
+        self.assertEqual(len(binding_progress), len(visited))
+        for slot in parallel["future_pass_slots"]:
+            for binding in expected:
+                line = f"Proved {slot['pass_id']}: {gate.binding_key(binding)} PASS (shard 1/1)"
+                self.assertEqual(binding_progress.count(line), 2)
         self.assertEqual(len({entry[3] for entry in visited}), len(visited))
         for slot in parallel["future_pass_slots"]:
             self.assertEqual(slot["binding_count"], 512)

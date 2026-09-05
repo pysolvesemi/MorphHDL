@@ -73,6 +73,7 @@ class AggregationTests(unittest.TestCase):
         inputs = [{'name': 'clk', 'width': 1}, {'name': 'reset', 'width': 1}, {'name': 'd', 'width': 1}]
         outputs = [{'name': 'q', 'width': 1}]
         self.shared = {'domains': {'WIDTH': (1, 2, 3, 4), 'DEPTH': (1,)},
+                       'reference_top': 'SyntheticShared',
                        'inputs': inputs, 'outputs': outputs, 'clock': 'clk', 'reset': 'reset',
                        'common_capture': 'common-pre-pass/reference.v', 'simulations': []}
         self.slots = []
@@ -86,6 +87,7 @@ class AggregationTests(unittest.TestCase):
             source = self.root / f'generic-{index}.v'
             source.write_text('// synthetic generic fixture\n')
             cases.append({'id': f'generic-{index}', 'inputs': inputs, 'outputs': outputs,
+                          'reference_top': 'SyntheticReference', 'candidate_top': 'SyntheticCandidate',
                           'clock': 'clk' if index else None, 'reset': 'reset' if index else None,
                           'domains': {'WIDTH': (1,)}, 'reference': source, 'candidate': source,
                           'engine': 'abc pdr', 'timeout_seconds': 120, 'simulations': []})
@@ -102,6 +104,18 @@ class AggregationTests(unittest.TestCase):
         self.write(directory / 'candidate.v', candidate.read_text())
         prefix = 'Wa03Mutation' if mutation else 'Wa03'
         top = 'Wa03MutationMiter' if mutation else 'Wa03EquivalenceMiter'
+        for stem in ('reference', 'candidate'):
+            source_top = case.get(stem + '_top', case['reference_top'])
+            prepared_top = prefix + stem.title() + 'Prepared'
+            script = directory / f'prepare-{stem}.ys'
+            self.write(script, aggregate.preparation_script(source_top, prepared_top, binding, stem))
+            rtlil = directory / f'{stem}.il'
+            self.write(rtlil, f'# synthetic RTLIL, NOT a proof: {stem} {binding} {prepared_top}\n')
+            gate.write_json(directory / f'prepare-{stem}-evidence.json', {
+                'schema_version': 1, 'source_top': source_top, 'prepared_top': prepared_top,
+                'binding': dict(sorted(binding.items())),
+                'source_sha256': gate.sha256_file(directory / f'{stem}.v'),
+                'script_sha256': gate.sha256_file(script), 'rtlil_sha256': gate.sha256_file(rtlil)})
         self.write(directory / 'miter.v', gate.generated_miter(case['inputs'], case['outputs'], binding,
             prefix + 'ReferencePrepared', prefix + 'CandidatePrepared', top,
             case['clock'], case['reset'], mutation))
@@ -110,15 +124,22 @@ class AggregationTests(unittest.TestCase):
             'smtbmc yices' if mutation else case.get('engine', 'abc pdr'),
             120 if mutation else case.get('timeout_seconds', 600), depth=3 if mutation else None))
         self.write(directory / 'proof/status', ('FAIL' if mutation else 'PASS') + ' 0 1\n')
+        self.solver_inputs(directory, 'proof')
         if mutation:
             self.write(directory / 'proof/engine_0/trace.vcd', '$comment synthetic unit record $end\n')
         else:
             self.write(directory / 'reachability.sby', gate.sby_configuration(top, 'PASS', 'cover',
                 'smtbmc yices', 120, depth=4))
             self.write(directory / 'reachability/status', 'PASS 0 1\n')
+            self.solver_inputs(directory, 'reachability')
             self.write(directory / 'reachability/engine_0/trace.vcd', '$comment synthetic unit record $end\n')
             gate.write_json(directory / 'reachability-evidence.json',
                 {'status': 'PASS', 'comparison_region_reached': True, 'cover_trace_count': 1})
+
+    def solver_inputs(self, directory, stem):
+        self.write(directory / stem / 'config.sby', (directory / f'{stem}.sby').read_text())
+        for name in ('reference.il', 'candidate.il', 'miter.v'):
+            self.write(directory / stem / 'src' / name, (directory / name).read_text())
 
     def mutation(self, directory, case, reference, candidate):
         binding = gate.parameter_bindings(case['domains'])[0]
@@ -253,6 +274,60 @@ class AggregationTests(unittest.TestCase):
                 with self.assertRaises(gate.ValidationError): self.run_gate()
             path.write_bytes(original)
 
+    def test_prepared_rtlil_cannot_change_with_correct_verilog_and_pass_status(self):
+        for stem in ('reference', 'candidate'):
+            path = self.binding_path() / f'{stem}.il'
+            original = path.read_bytes()
+            with self.subTest(stem=stem):
+                path.write_text('# a different netlist despite unchanged source Verilog\n')
+                with self.assertRaisesRegex(gate.ValidationError, 'RTLIL provenance'):
+                    self.run_gate()
+            path.write_bytes(original)
+
+    def test_wrong_parameter_preparation_is_rejected_with_matching_fingerprints(self):
+        directory = self.binding_path()
+        script = directory / 'prepare-reference.ys'
+        script.write_text(script.read_text().replace('chparam -set WIDTH 1 ', 'chparam -set WIDTH 2 '))
+        ledger = directory / 'prepare-reference-evidence.json'
+        evidence = gate.load_json(ledger)
+        evidence['script_sha256'] = gate.sha256_file(script)
+        gate.write_json(ledger, evidence)
+        with self.assertRaisesRegex(gate.ValidationError, 'preparation or parameter binding'):
+            self.run_gate()
+
+    def test_missing_generation_fingerprint_is_rejected(self):
+        (self.binding_path() / 'prepare-candidate-evidence.json').unlink()
+        with self.assertRaises(gate.ValidationError):
+            self.run_gate()
+
+    def test_stale_solver_inputs_are_rejected_for_proof_and_reachability(self):
+        for work in ('proof', 'reachability'):
+            for name in ('reference.il', 'candidate.il', 'miter.v'):
+                path = self.binding_path() / work / 'src' / name
+                original = path.read_bytes()
+                with self.subTest(work=work, name=name):
+                    path.write_text('// a retained solver run for different inputs\n')
+                    with self.assertRaisesRegex(gate.ValidationError, 'solver input'):
+                        self.run_gate()
+                path.write_bytes(original)
+
+    def test_stale_solver_configuration_is_rejected(self):
+        for work in ('proof', 'reachability'):
+            path = self.binding_path() / work / 'config.sby'
+            original = path.read_bytes()
+            with self.subTest(work=work):
+                path.write_text(path.read_text().replace('multiclock on', 'multiclock off'))
+                with self.assertRaisesRegex(gate.ValidationError, 'retained solver configuration'):
+                    self.run_gate()
+            path.write_bytes(original)
+
+    def test_symlinked_repeated_run_cannot_count_as_independent_evidence(self):
+        repeated = self.shards / 'shard-0/run-b'
+        shutil.rmtree(repeated)
+        repeated.symlink_to('run-a', target_is_directory=True)
+        with self.assertRaisesRegex(gate.ValidationError, 'independent repeated runs'):
+            self.run_gate()
+
     def test_missing_functional_mutation_counterexample_is_rejected(self):
         path = self.binding_path().parent / 'mutation-control/proof/engine_0/trace.vcd'
         path.unlink()
@@ -263,6 +338,14 @@ class AggregationTests(unittest.TestCase):
         self.run_gate()
         self.summary_mutation('status', 'FAIL')
         with self.assertRaises(gate.ValidationError): self.run_gate()
+        self.assertFalse((self.output / 'gate-status.json').exists())
+
+    def test_cli_preflight_failure_removes_previous_pass(self):
+        self.run_gate()
+        argv = ['aggregate', '--repo-root', str(self.root), '--shards', str(self.shards),
+                '--output', str(self.output)]
+        with patch('sys.argv', argv), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(aggregate.main(), 1)
         self.assertFalse((self.output / 'gate-status.json').exists())
 
     def test_artifact_modification_outside_summary_is_detected_by_determinism(self):

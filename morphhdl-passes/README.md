@@ -381,3 +381,15 @@ Run `python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v` to test
 partitioning and fail-closed aggregation. These synthetic metadata mutation tests
 are not substitutes for actual RTL proofs. The default command without shard
 options still proves the entire domain in one process.
+
+The runner submits at most the worker count of binding proofs, checks completed
+failures before submitting replacements, drains already-running work, and emits
+binding progress while retaining manifest order in its results. A failed
+preflight removes a stale gate status without deleting previous diagnostics.
+
+Each successful Yosys preparation records the input, preparation script and
+RTLIL hashes. Aggregation checks those records, the exact parameter bindings,
+and the configuration and input copies retained by SBY for equivalence,
+reachability and mutation runs. Repeated-run evidence cannot be a symlink to
+the first run. These checks detect stale or altered workflow artifacts; they
+do not replace solver execution or permit partial-domain qualification.

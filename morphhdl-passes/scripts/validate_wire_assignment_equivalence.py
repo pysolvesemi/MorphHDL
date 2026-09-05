@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence, TypeVar
@@ -94,7 +94,11 @@ def run_bounded_ordered(
 ) -> list[ResultT]:
     """Run independent proofs with bounded workers, returning manifest order.
 
-    A task exception propagates; it is never converted to a successful result.
+    At most ``jobs`` tasks are submitted at once. Completed failures are checked
+    before collecting successes or submitting replacements, so an earlier slow
+    binding cannot hide a later failure behind manifest-order result collection.
+    A task exception propagates after already-running tasks have been drained;
+    it is never converted to a successful result.
     Each task owns its binding-specific directory and uses subprocess cwd,
     never a process-wide chdir. One worker is the serial reference behavior.
     """
@@ -102,7 +106,35 @@ def run_bounded_ordered(
     if jobs == 1:
         return [task(item) for item in items]
     with ThreadPoolExecutor(max_workers=jobs) as executor:
-        return list(executor.map(task, items))
+        pending = {}
+        results = {}
+        next_index = 0
+        try:
+            while next_index < len(items) or pending:
+                while next_index < len(items) and len(pending) < jobs:
+                    # Recheck between submissions: a completed failure must be
+                    # observed before filling a free worker with another proof.
+                    if any(future.done() for future in pending):
+                        break
+                    future = executor.submit(task, items[next_index])
+                    pending[future] = next_index
+                    next_index += 1
+                wait(pending, return_when=FIRST_COMPLETED)
+                ready = sorted(
+                    (future for future in pending if future.done()),
+                    key=pending.__getitem__,
+                )
+                for future in ready:
+                    if future.exception() is not None:
+                        future.result()  # Re-raise the original worker failure.
+                for future in ready:
+                    results[pending.pop(future)] = future.result()
+            return [results[index] for index in range(len(items))]
+        finally:
+            # Running subprocess owners finish normally before executor exit.
+            # Work that has not started is cancelled; no replacement is queued.
+            for future in pending:
+                future.cancel()
 
 
 def select_proof_bindings(
@@ -711,6 +743,15 @@ def prepare_leg(
     )
     if not output.is_file() or output.stat().st_size == 0:
         raise ValidationError(f"Yosys did not publish prepared {stem} RTLIL")
+    write_json(directory / f"prepare-{stem}-evidence.json", {
+        "schema_version": 1,
+        "source_top": source_top,
+        "prepared_top": prepared_top,
+        "binding": dict(sorted(binding.items())),
+        "source_sha256": sha256_file(local_source),
+        "script_sha256": sha256_file(script),
+        "rtlil_sha256": sha256_file(output),
+    })
     return output
 
 
@@ -1070,7 +1111,7 @@ def run_generic_case(
     ]
 
     def prove(binding: Mapping[str, int]) -> dict[str, Any]:
-        return run_formal_binding(
+        proof = run_formal_binding(
             case["reference"],
             case["candidate"],
             case["reference_top"],
@@ -1084,6 +1125,8 @@ def run_generic_case(
             case["timeout_seconds"],
             case_root / "formal" / binding_key(binding),
         )
+        print(f"Proved {case['id']}: {binding_key(binding)} PASS", flush=True)
+        return proof
 
     proofs = run_bounded_ordered(all_bindings, formal_jobs, prove)
     evidence = {
@@ -1285,6 +1328,11 @@ def run_shared_witness(
             )
 
             write_json(pass_directory / binding_key(binding) / "binding-evidence.json", proof)
+            print(
+                f"Proved {slot['pass_id']}: {binding_key(binding)} PASS "
+                f"(shard {shard_index + 1}/{shard_count})",
+                flush=True,
+            )
             return proof
 
         proofs = run_bounded_ordered(selected_bindings, formal_jobs, prove)
@@ -1575,6 +1623,8 @@ def main(argv: Iterable[str] = sys.argv[1:]) -> int:
         ).resolve()
         if output == repo_root or repo_root not in output.parents:
             raise ValidationError("WA-03 output must stay inside the repository workspace")
+        # A failed preflight must not leave an earlier run's success marker.
+        (output / "gate-status.json").unlink(missing_ok=True)
 
         raw_manifest = load_json(manifest_path)
         manifest = validate_manifest(repo_root, manifest_path, raw_manifest)

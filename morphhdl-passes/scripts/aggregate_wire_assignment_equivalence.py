@@ -54,14 +54,78 @@ def check_legality(evidence: Mapping[str, Any], case: Mapping[str, Any], *, gene
             "missing, reordered or failed representative simulations")
 
 
+def preparation_script(source_top: str, prepared_top: str,
+                       binding: Mapping[str, int], stem: str) -> str:
+    """The canonical preparation whose output is consumed by SBY."""
+    return "\n".join((
+        f"read_verilog -defer {stem}.v", *gate.parameter_commands(binding, source_top),
+        f"hierarchy -check -top {source_top}", "flatten", "proc", "opt_clean",
+        "memory_dff", "memory_collect", "opt_clean", "check -assert",
+        f"rename -top {prepared_top}", f"write_rtlil {stem}.il", "",
+    ))
+
+
+def check_prepared_leg(directory: Path, case: Mapping[str, Any], binding: Mapping[str, int],
+                       stem: str, digest: str, prepared_top: str) -> None:
+    source = directory / f"{stem}.v"
+    require(source.is_file() and gate.sha256_file(source) == digest,
+            f"{directory}: stale or changed {stem} RTL")
+    source_top = case.get(f"{stem}_top", case["reference_top"])
+    script = directory / f"prepare-{stem}.ys"
+    require(read_text(script) == preparation_script(source_top, prepared_top, binding, stem),
+            f"{directory}: changed {stem} preparation or parameter binding")
+    rtlil = directory / f"{stem}.il"
+    require(rtlil.is_file() and rtlil.stat().st_size > 0,
+            f"{directory}: missing prepared {stem} RTLIL")
+    expected = {"schema_version": 1, "source_top": source_top,
+                "prepared_top": prepared_top, "binding": dict(sorted(binding.items())),
+                "source_sha256": digest, "script_sha256": gate.sha256_file(script),
+                "rtlil_sha256": gate.sha256_file(rtlil)}
+    require(gate.load_json(directory / f"prepare-{stem}-evidence.json") == expected,
+            f"{directory}: stale or changed prepared {stem} RTLIL provenance")
+
+
+def configuration_sections(configuration: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {}
+    current = None
+    for line in configuration.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            require(line not in sections, "duplicate solver configuration section")
+            current = sections.setdefault(line, [])
+        else:
+            require(current is not None, "solver configuration data precedes its section")
+            current.append(line)
+    return sections
+
+
+def check_solver_inputs(directory: Path, work: Path, configuration: str) -> None:
+    """Bind retained status to SBY's copied inputs, not just neighbouring files.
+
+    Preparation fingerprints are recorded by the trusted workflow immediately
+    after Yosys completes. This checks artifact integrity; it is not a solver
+    replay or an attestation against deliberately fabricated evidence.
+    """
+    expected = configuration_sections(configuration)
+    actual = configuration_sections(read_text(work / "config.sby"))
+    require(actual.keys() == expected.keys() and all(
+                actual[key] == value for key, value in expected.items() if key != "[files]"),
+            f"{work}: retained solver configuration changed")
+    for name in ("reference.il", "candidate.il", "miter.v"):
+        copied = work / "src" / name
+        require(copied.is_file() and gate.sha256_file(copied) == gate.sha256_file(directory / name),
+                f"{work}: stale or changed solver input {name}")
+
+
 def check_tool_proof(directory: Path, case: Mapping[str, Any], binding: Mapping[str, int],
                      reference_sha: str, candidate_sha: str, *, mutation: bool = False) -> None:
     """Read the actual solver records, rather than accepting an aggregate count."""
-    for stem, digest in (("reference", reference_sha), ("candidate", candidate_sha)):
-        path = directory / f"{stem}.v"
-        require(path.is_file() and gate.sha256_file(path) == digest,
-                f"{directory}: stale or changed {stem} RTL")
     prefix = "Wa03Mutation" if mutation else "Wa03"
+    for stem, digest in (("reference", reference_sha), ("candidate", candidate_sha)):
+        check_prepared_leg(directory, case, binding, stem, digest,
+                           prefix + stem.title() + "Prepared")
     top = "Wa03MutationMiter" if mutation else "Wa03EquivalenceMiter"
     expected_miter = gate.generated_miter(
         case["inputs"], case["outputs"], binding, prefix + "ReferencePrepared",
@@ -76,6 +140,7 @@ def check_tool_proof(directory: Path, case: Mapping[str, Any], binding: Mapping[
     require(read_text(directory / "proof.sby") == configuration,
             f"{directory}: solver configuration or clock model changed")
     status = gate.read_sby_status(directory, "proof", "FAIL" if mutation else "PASS")
+    check_solver_inputs(directory, status.work_directory, configuration)
     if mutation:
         require(nonempty_traces(status.work_directory) > 0,
                 f"{directory}: mutation has no retained counterexample")
@@ -84,6 +149,7 @@ def check_tool_proof(directory: Path, case: Mapping[str, Any], binding: Mapping[
     require(read_text(directory / "reachability.sby") == cover,
             f"{directory}: comparison reachability configuration changed")
     reachability = gate.read_sby_status(directory, "reachability", "PASS")
+    check_solver_inputs(directory, reachability.work_directory, cover)
     require(nonempty_traces(reachability.work_directory) > 0,
             f"{directory}: comparison reachability has no retained trace")
     evidence = gate.load_json(directory / "reachability-evidence.json")
@@ -138,6 +204,8 @@ def aggregate(root: Path, shard_root: Path, output: Path, shard_count: int,
     deterministic_sets = []
     for folder in folders:
         require(not folder.is_symlink(), f"{folder}: symlinked shard artifacts are not accepted")
+        require(not any(path.is_symlink() for path in folder.rglob("*")),
+                f"{folder}: symlinked evidence cannot establish independent repeated runs")
         summary = gate.load_json(folder / "gate-status.json")
         require(summary.get("status") == "SHARD_PASS" and summary.get("determinism_checked") is True,
                 f"{folder}: incomplete shard or repeated proof")
