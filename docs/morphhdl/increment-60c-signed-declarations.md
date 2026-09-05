@@ -1,7 +1,8 @@
 # Increment 60c — Native signed declarations with casts retained
 
-Status: implementation checkpoint; qualification pending. The child checkbox
-and parent Increment 60 remain open.
+Status: 60c qualified. Native signed declarations remain an explicit opt-in,
+and existing expression casts are retained. Parent Increment 60 and children
+60d through 60g remain open.
 
 ## Explicit publication mode
 
@@ -128,15 +129,6 @@ sequential cell connections, not a blacklist of failed signals. Every matched
 state bit and output must still be proven, with zero unproven cells. The negative
 result mutation must also produce a genuine SAT counterexample.
 
-Local resume validation passed all 74 tests across six focused suites (13 new
-declaration tests, 31 signedness tests and 30 inherited front-door/handoff/BlackBox
-tests). Fresh-JVM repeated RTL was byte-identical. Strict tools and equivalence
-passed for the independent native matrix and function fixture, and the complete
-sealed 60a fixture passed against the signed candidate at WIDTH=8. These local
-results are an implementation checkpoint, not a substitute for both fresh CI
-Scala lanes and the exact integrated final-head inherited gates. The completion
-checkbox remains open pending those gates.
-
 The native no-sensitivity function fallback is qualified only for exact fixed
 SInt result widths. Parameter-dependent result and literal sizing is not proved
 by changing declarations. The opt-in mode rejects that case at a native-owned
@@ -144,3 +136,58 @@ FunctionResultDeclaration occurrence before publishing any candidate. It must
 not retain a concrete-width function beneath a symbolic output or silently
 change its implicit extension. Mode-off emission is unchanged. A regression
 checks this diagnostic and verifies that no failed candidate file is published.
+
+## Qualified implementation and retained evidence
+
+Implementation head: `a0c45ca7b51740f272771f23b8f6f8c2844993ec`, integrated with
+`parameterized-verilog` at `2be259338b87ecc30b44e47498f7f09c368e50d0` in PR #155.
+The completion change is documentation-only; it does not alter the qualified
+implementation, fixtures, oracle, tool pins or proof scripts.
+
+[Dedicated qualification run 33964956846](https://github.com/pysolvesemi/MorphHDL/actions/runs/33964956846)
+passed both Scala 2.12.18 and 2.13.12 lanes. Each lane passed all 74 tests across
+six suites, with no failures, errors or skipped tests: 13 declaration tests,
+26 typed-signedness authority tests, five signedness-resume tests, 14 single-source
+tests, 12 canonical-handoff tests and four typed BlackBox tests.
+
+The retained artifacts prove the following for that implementation:
+
+- All 12 generated Verilog files are byte-identical between fresh JVM runs.
+  The emitted RTL is also byte-identical across the two Scala lanes.
+- Strict Icarus Verilog-2001 parsing and simulation, Verilator lint and Yosys
+  synthesis pass. The one parameterized signed candidate is specialized without
+  regeneration and is sequentially equivalent to the independently elaborated
+  native references at WIDTH 1, 5, 8 and 32.
+- The fixed native function result has its own independent equivalence proof.
+  The complete sealed 60a fixture is also equivalent to the signed candidate at
+  WIDTH 8, without changing the baseline source or its immutable checks.
+- The deliberate negative-result mutation produces a genuine solver
+  counterexample, not a parser error, timeout or missing tool.
+
+Artifact ZIP SHA-256 digests, verified against GitHub metadata:
+
+| Scala lane | Artifact ID | SHA-256 |
+| --- | --- | --- |
+| 2.12.18 | 9969156591 | `c706b53b5433e7f67236ed497e8ae3ccc698cedd4533e1578fbbb8d7204f3253` |
+| 2.13.12 | 9969167443 | `6a81e9432d0c4b7a2f134e422be37a46b77397d20a3e1192dcfdc42ba586ab7f` |
+
+Both source archives identify the exact implementation head above. Reconstructing
+the source tree, including the recorded CocotbLib submodule entry, reproduces
+GitHub tree `2f74620d7ef3ee9c37a4cf064ec592855c2af64c` exactly. Current RTL
+from the 2.12 artifact was independently requalified locally with Icarus 11.0,
+Verilator 4.228 and Yosys 0.41, including the unchanged 60a checker and live
+mutations. This recheck used the current generated RTL, not older compiled
+MorphHDL classes from the saved tool bundle.
+
+The inherited baseline run 33964956822 passed both compiler lanes and strict
+Verilog-2001 architecture contracts. The inherited native StreamFifo formal run
+33964956815 passed both Scala lanes, including eight positive depth/helper proofs
+and two live mutation counterexamples per lane. Its first Scala 2.13 attempt
+stopped before compilation/tests because Maven reset a Coursier dependency
+download; the missing proof-artifact error was secondary. A targeted retry passed
+without changing any source, proof setting, tool pin or timeout.
+
+All 30 executed pull-request workflows at the implementation head passed; seven
+other workflows were skipped by their existing scope conditions, not counted as
+passing tests. The documentation-only completion head is subject to its own
+fresh required checks before merge. Parent Increment 60 remains unchecked.

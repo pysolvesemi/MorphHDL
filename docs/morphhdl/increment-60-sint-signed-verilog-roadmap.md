@@ -1,23 +1,22 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a and 60b qualified; 60c through 60g remain unchecked.
+**Status:** 60a through 60c qualified; 60d through 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
 **Dependency:** Increment 59 must be implemented, reviewed and merged before
-Increment 60a starts. This file reserves Increment 60 while the independently
-owned Increment 59 BlackBox work is still in flight. Creating this roadmap does
-not start or complete Increment 60.
+Increment 60a starts. The child sequence below is serial. Completion of an
+individual child does not complete parent Increment 60.
 
 **Primary target:** MorphHDL single-source, strict IEEE 1364-2001 Verilog
 publication. Ordinary `SpinalVerilog` output remains upstream-compatible and
 byte-for-byte unchanged by default unless a later, separately reviewed opt-in
 configuration is approved.
 
-## Current-state finding
+## Original baseline finding
 
-Current MorphHDL does **not** implement native signed declarations for `SInt`.
-The reviewed paths show all of the following:
+Before Increment 60c, MorphHDL did **not** implement native signed declarations
+for `SInt`. The baseline paths reviewed for this roadmap showed the following:
 
 - `core/src/main/scala/spinal/core/internals/VerilogBase.scala` renders
   `TypeSInt` with the same packed range spelling as `TypeUInt`; it does not add
@@ -32,9 +31,12 @@ The reviewed paths show all of the following:
 - `morphhdl/examples/contracts/symbolic_data_shapes.v` consequently declares
   `SInt` ports, internal wires and registers as unsigned packed vectors.
 
-Therefore parameterized `SInt` widths are retained today, but native Verilog
-signedness is not. A deep signed expression can still contain repeated or
-nested `$signed(...)` calls.
+At that baseline, parameterized `SInt` widths were retained, but native Verilog
+signedness was not. Increment 60c now provides explicit opt-in signed
+declarations through `MorphSignedDeclarations.enable(config)`, with the
+[qualified scope and retained boundaries](increment-60c-signed-declarations.md)
+documented separately. Existing expression casts remain unchanged; removing
+redundant or nested `$signed(...)` calls is still Increment 60d.
 
 ## Goal
 
@@ -140,7 +142,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   A text parser, emitted-name table or blanket `TypeSInt` string replacement is
   not an acceptable substitute.
 
-- [ ] **Increment 60c — Native signed declarations with casts retained**
+- [x] **Increment 60c — Native signed declarations with casts retained**
 
   **Dependencies:** Increment 60b implemented and merged.
 
@@ -157,6 +159,14 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   they represent exactly one scalar `SInt`. Prove strict Verilog-2001 parser,
   lint and synthesis acceptance before any cast is removed. With the mode off,
   ordinary `SpinalVerilog` must remain byte-identical to its baseline.
+
+  Implemented and qualified by the [native signed-declaration mode](increment-60c-signed-declarations.md).
+  Both Scala lanes pass declaration, identity and isolation regressions; strict
+  Verilog-2001 tool checks; independent-reference equivalence at WIDTH 1/5/8/32;
+  the sealed 60a oracle; and a genuine mutation counterexample. Native function
+  fallback results require exact fixed widths; parameter-dependent result sizing
+  fails closed until the later literal/resize boundary is qualified. This does
+  not close 60d cast elimination or 60e aggregate/boundary work.
 
 - [ ] **Increment 60d — Pure-`SInt` redundant cast elimination**
 
