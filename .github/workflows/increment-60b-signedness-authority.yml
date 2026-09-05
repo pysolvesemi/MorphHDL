@@ -24,6 +24,10 @@ concurrency:
 
 jobs:
   qualify:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-60b-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b'))
     name: Signedness authority Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -63,6 +67,16 @@ jobs:
             "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/a" \
             "morph/Test/runMain nativeapplication.SIntSignedVerilogNestedArtifactWriter $output/b" \
             > "$output/sbt.log" 2>&1 || { tail -n 200 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          paths = list(Path('morphhdl/target').rglob('*TypedSignednessAuthorityTests.xml'))
+          assert len(paths) == 1, 'missing or ambiguous signedness suite execution report'
+          suite = ET.parse(paths[0]).getroot()
+          assert int(suite.get('tests', '0')) >= 19, 'signedness suite did not execute fully'
+          assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
+          print('Signedness suite executed:', suite.attrib)
+          PY
           for file in sint_cast_heavy_fixed.v sint_cast_heavy_parameterized.v sint_cast_heavy_nested.v; do
             cmp "$output/a/$file" "$output/b/$file"
             cmp "$output/a/$file" "morphhdl/examples/contracts/sint-baseline/$file"
@@ -73,6 +87,28 @@ jobs:
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/check-increment-60a-sint-baseline.py target/increment-60b/a
+      - name: Retain Scala compiler inputs for reproducible offline diagnosis
+        if: always() && matrix.scala == '2.13.12'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import tarfile
+          root = Path.cwd()
+          output = root / 'target/increment-60b/offline-scala.tar.gz'
+          output.parent.mkdir(parents=True, exist_ok=True)
+          with tarfile.open(output, 'w:gz') as tar:
+              for path in sorted(root.glob('**/target/scala-2.13/classes')):
+                  tar.add(path, arcname='repo/' + str(path.relative_to(root)))
+              for path in sorted(root.glob('**/target/scala-2.13/test-classes')):
+                  tar.add(path, arcname='repo/' + str(path.relative_to(root)))
+              paths = sorted(Path('/sbt/.cache/coursier').rglob('*.jar'))
+              paths = [p for p in paths if '_2.12' not in str(p) and '/2.12.' not in str(p)]
+              for number, path in enumerate(paths):
+                  tar.add(path, arcname='jars/%04d-%s' % (number, path.name))
+          print('Offline compiler inputs:', output.stat().st_size, 'bytes')
+          PY
       - name: Retain exact-head diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -8,7 +8,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import morphhdl.MorphVerilog
 import morphhdl.frontend.HdlInt
 import morphhdl.analysis.SignednessFacts
-import morphhdl.analysis.SignednessFacts.{Cast => CastRule, Resize => ResizeRule, _}
+import morphhdl.analysis.SignednessFacts.{Cast => CastRule, Resize => ResizeRule, Mux => MuxRule, _}
 import spinal.core._
 import MorphHdlSignednessAnalysis._
 import nativeapplication.{SIntSignedVerilogBaselineFixture, SIntSignedVerilogBaselineArtifactWriter}
@@ -57,6 +57,9 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
   private def unary[T <: UnaryOperator](x: T, a: Expression, bits: Int = 8): T = {
     x.source = a.asInstanceOf[x.T]; sized(x, bits)
   }
+  private def constant[T <: ConstantOperator](x: T, a: Expression, bits: Int = 8): T = {
+    x.source = a.asInstanceOf[x.T]; sized(x, bits)
+  }
   private def fact(x: Expression): Fact = {
     val snapshot = expressions(Vector(x))
     snapshot.validate(x, snapshot.expression(x), ExpressionUse)
@@ -72,7 +75,7 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
       val inputs = Vector(left, right)
       val signed = SignednessFacts.transfer(Arithmetic, SignedScalar, inputs)
       assert((signed == SignedScalar) == (left == SignedScalar && right == SignedScalar))
-      val mux = SignednessFacts.transfer(Mux, SignedScalar, inputs)
+      val mux = SignednessFacts.transfer(MuxRule, SignedScalar, inputs)
       assert((mux == SignedScalar) == (left == SignedScalar && right == SignedScalar))
       assert(SignednessFacts.transfer(Comparison, BooleanValue, inputs) == BooleanValue)
       assert(SignednessFacts.transfer(Concatenation, SignedScalar, inputs) == UnsignedAggregate)
@@ -131,8 +134,8 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
   test("fixed and dynamic shifts use the left operand, not the amount") {
     inNativeContext {
       val a = sint()
-      assert(fact(unary(new Operator.SInt.ShiftRightByIntFixedWidth(2), a)).value == SignedScalar)
-      val shrinking = unary(new Operator.SInt.ShiftRightByInt(2), a, 6)
+      assert(fact(constant(new Operator.SInt.ShiftRightByIntFixedWidth(2), a)).value == SignedScalar)
+      val shrinking = constant(new Operator.SInt.ShiftRightByInt(2), a, 6)
       assert(fact(shrinking).width == Maximum(Vector(Fixed(0), Difference(Fixed(8), Fixed(2)))))
       assert(fact(binary(new Operator.SInt.ShiftRightByUInt, a, uint(2, 2))).value == SignedScalar)
       val growing = binary(new Operator.SInt.ShiftLeftByUInt, a, uint(2, 2), 11)
@@ -206,6 +209,14 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
       assert(fact(disguised).value == Unknown)
       val snapshot = expressions(Vector(fake))
       rejected("UNKNOWN-FACT")(snapshot.requireKnown(fake, snapshot.temporary(fake), TemporaryUse))
+    }
+  }
+
+  test("missing operands are rejected rather than inferred from the remaining operand") {
+    inNativeContext {
+      val malformed = sized(new Operator.SInt.Add, 8)
+      malformed.left = sint()
+      rejected("NULL-OPERAND")(expressions(Vector(malformed)))
     }
   }
 
@@ -311,6 +322,14 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
         val readFact = snapshot.validate(read, snapshot.expression(read), ExpressionUse)
         assert(readFact.value == UnsignedScalar)
         assert(readFact.requirements.contains(MemoryTransport))
+        val previousEvidence = snapshot.expression(read)
+        read.addTag(AllowMixedWidth)
+        rejected("STALE-EVIDENCE")(snapshot.validate(read, previousEvidence, ExpressionUse))
+        val mixedSnapshot = expressions(Vector(read))
+        assert(mixedSnapshot.validate(read, mixedSnapshot.expression(read), ExpressionUse).width == UnknownWidth)
+        rejected("UNKNOWN-FACT")(mixedSnapshot.requireKnown(read, mixedSnapshot.expression(read), ExpressionUse))
+        read.removeTag(AllowMixedWidth)
+        assert(snapshot.validate(read, previousEvidence, ExpressionUse) == readFact)
         for (port <- Vector(dut.child.dout, dut.external.dout)) {
           val f = snapshot.validate(port, snapshot.declaration(port), DeclarationUse)
           assert(f.value == SignedScalar)

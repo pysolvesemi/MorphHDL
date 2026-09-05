@@ -3,7 +3,7 @@ package spinal.core.internals
 import java.util.IdentityHashMap
 import scala.collection.mutable.ArrayBuffer
 import morphhdl.analysis.SignednessFacts
-import morphhdl.analysis.SignednessFacts.{Cast => CastRule, Resize => ResizeRule, _}
+import morphhdl.analysis.SignednessFacts.{Cast => CastRule, Resize => ResizeRule, Literal => LiteralRule, Mux => MuxRule, _}
 import spinal.core._
 
 final class MorphHdlSignednessException(val code: String, detail: String)
@@ -121,7 +121,8 @@ object MorphHdlSignednessAnalysis {
           reject("OPERAND-IDENTITY", "cast use no longer denotes the captured operand edge")
       }
       val fact = check(subject).fact
-      if (use == TemporaryUse) fact.copy(value = fact.intent) else fact
+      if (use == TemporaryUse) fact.copy(value = fact.intent,
+        requirements = (fact.requirements :+ TargetDeclarationMode).distinct) else fact
     }
 
     def validateCastOperand(parent: Expression, slot: Int, evidence: Evidence): Fact = {
@@ -190,6 +191,7 @@ object MorphHdlSignednessAnalysis {
       value.dslBody.walkStatements {
         case memory: Mem[_] => roots += memory
         case base: BaseType => roots += base; parents(base)
+        case expression: Expression => roots += expression
         case statement => statement.foreachExpression(expression => if (expression != null) roots += expression)
       }
       value.children.foreach(component)
@@ -233,7 +235,10 @@ object MorphHdlSignednessAnalysis {
     case _: BaseType => Vector.empty // A reference is a terminal, not its driver.
     case _ =>
       val result = ArrayBuffer.empty[Expression]
-      expression.foreachExpression(child => if (child != null) result += child)
+      expression.foreachExpression { child =>
+        if (child == null) reject("NULL-OPERAND", "a graph expression contains an uninitialized operand")
+        result += child
+      }
       result.toVector
   }
 
@@ -297,7 +302,7 @@ object MorphHdlSignednessAnalysis {
   private def primitiveRule(expression: Expression): Rule = expression match {
     case _: BaseType => Reference
     case other if !reviewedExpressions.contains(other.getClass) => Unsupported
-    case _: SIntLiteral | _: UIntLiteral | _: BitsLiteral | _: BoolLiteral => Literal
+    case _: SIntLiteral | _: UIntLiteral | _: BitsLiteral | _: BoolLiteral => LiteralRule
     case _: Operator.SInt.Minus | _: Operator.SInt.Not | _: Operator.UInt.Not | _: Operator.Bits.Not => Unary
     case _: Operator.BitVector.Add | _: Operator.BitVector.Sub | _: Operator.BitVector.Mul |
          _: Operator.BitVector.Div | _: Operator.BitVector.Mod | _: Operator.BitVector.And |
@@ -309,7 +314,7 @@ object MorphHdlSignednessAnalysis {
          _: Operator.Bool.Equal | _: Operator.Bool.NotEqual | _: Operator.Bool.EqualSim |
          _: Operator.BitVector.orR | _: Operator.BitVector.andR | _: Operator.BitVector.xorR => Logical
     case _: Operator.BitVector.ShiftOperator => Shift
-    case _: BinaryMultiplexer | _: Multiplexer => Mux
+    case _: BinaryMultiplexer | _: Multiplexer => MuxRule
     case _: CastBitsToSInt | _: CastUIntToSInt | _: CastSIntToBits | _: CastUIntToBits |
          _: CastBitsToUInt | _: CastSIntToUInt | _: CastBoolToBits => CastRule
     case _: spinal.core.internals.Resize => ResizeRule
@@ -372,10 +377,11 @@ object MorphHdlSignednessAnalysis {
         case access: BitVectorRangedAccessFloating => Vector(access.size)
         case access: BitVectorBitAccessFixed => Vector(access.bitId)
         case resize: spinal.core.internals.Resize => Vector(resize.size)
+        case port: MemPortStatement => Vector(port.hasTag(AllowMixedWidth))
         case _ => Vector.empty
       }
       val owners = expression match {
-        case base: BaseType => Vector(base.component, base.parentScope, base.parent)
+        case base: BaseType => Vector(base.component, base.parentScope, base.parent, base.component.parent)
         case port: MemPortStatement => Vector(port.mem, port.parentScope)
         case _ => Vector.empty
       }
@@ -445,8 +451,9 @@ object MorphHdlSignednessAnalysis {
         case _: Operator.BitVector.ShiftLeftByUInt => UnknownWidth
         case _: Operator.BitVector.ShiftOperator => leftWidth
         case port: MemPortStatement if shape.rule == MemoryRead =>
-          if (shape.nativeBits == port.mem.getWidth) visit(port.mem).width else UnknownWidth
-        case _ if shape.rule == Arithmetic || shape.rule == Mux => Maximum(widthsOfChildren)
+          if (!port.hasTag(AllowMixedWidth) && shape.nativeBits == port.mem.getWidth)
+            visit(port.mem).width else UnknownWidth
+        case _ if shape.rule == Arithmetic || shape.rule == MuxRule => Maximum(widthsOfChildren)
         case _ if shape.rule == Unary => leftWidth
         case _ if shape.rule == Unsupported => UnknownWidth
         case _ => baseWidth
@@ -458,7 +465,7 @@ object MorphHdlSignednessAnalysis {
       }
       if (shape.rule == ResizeRule && leftWidth == width && width != UnknownWidth)
         value = valueChildren.headOption.map(_.value).getOrElse(Unknown)
-      if (Set[Rule](Arithmetic, Unary, Shift, Mux).contains(shape.rule) && value != shape.kind)
+      if (Set[Rule](Arithmetic, Unary, Shift, MuxRule).contains(shape.rule) && value != shape.kind)
         value = Unknown
       if (shape.rule == Reference || shape.rule == Aggregate) value = shape.kind
       val hierarchy = subject match {
