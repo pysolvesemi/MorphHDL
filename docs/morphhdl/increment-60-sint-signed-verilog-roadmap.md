@@ -1,6 +1,6 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60d qualified; 60e through 60g remain unchecked.
+**Status:** 60a through 60e qualified; 60f and 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -199,7 +199,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   widening and `cutLongExpressions=false` still fail closed. This does not close
   60e boundary minimization or the 60f/60g rollout gates.
 
-- [ ] **Increment 60e — Signedness boundaries, aggregates and hierarchy closure**
+- [x] **Increment 60e — Signedness boundaries, aggregates and hierarchy closure**
 
   **Dependencies:** Increment 60d implemented and merged.
 
@@ -220,6 +220,14 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
 
   Implementation and exact boundary/proof contracts are recorded in
   [the 60e closure record](increment-60e-signedness-boundaries.md).
+  Both Scala lanes pass all 139 tests across ten suites without skips, including
+  the inherited Vec formal suite. All 64 independent native-reference tuples
+  pass strict Verilog-2001 tools, simulation and equivalence; five boundary
+  mutations produce genuine SAT counterexamples. Fresh generation reproduces
+  all 70 new and 29 inherited RTL files in each lane. The inherited 60d/60a
+  qualification and native source audits also pass. Signed resize, reconstructed
+  Vec leaves and hierarchy boundaries remain explicitly opt-in. Parent 60 and
+  the separate 60f/60g rollout gates remain unchecked.
 
 - [ ] **Increment 60f — Equivalence, compatibility and tool-matrix closure**
 

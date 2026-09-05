@@ -1,5 +1,8 @@
 # Increment 60e — Signedness boundaries, aggregates and hierarchy closure
 
+Status: 60e qualified. Boundary cleanup remains explicitly opt-in; parent
+Increment 60 and children 60f and 60g remain unchecked.
+
 ## Scope and mode
 
 This increment extends the explicit `MorphSignedCasts.enable(config)` mode.
@@ -145,6 +148,67 @@ sbt -batch '++2.13.12' \
   'morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter target/60e'
 python3 morphhdl/scripts/check-increment-60e-signedness-boundaries.py target/60e
 ```
+
+## Qualified implementation and retained evidence
+
+Implementation head: `df7483f6f14271d2f453a48d0489c1f70a137f8b`, based on merged
+60d at `6c2d0027c36076942c03bd2a4f6d4df1b7934962`, in
+[PR #160](https://github.com/pysolvesemi/MorphHDL/pull/160). Its source tree is
+`01c2b12136cedf32f28c8688b549bd73d72810e3`. This completion change updates only
+this record and the child roadmap. Executable source, fixtures, sealed oracles,
+proof settings, tool pins and native-change manifests are unchanged.
+
+All 32 successful PR workflows and both push workflows completed at the implementation
+head. Seven PR workflows were skipped by their existing scope conditions and
+are not counted as passing tests. No failed, cancelled, queued or running
+workflow remained. The completed implementation review had no inline findings
+or unresolved review threads.
+
+Workflow success does not imply that every inherited optional job ran. The
+baseline and Mill main suites passed 671 tests per lane while cancelling eight
+environment-gated legacy formal tests. The Increment 59 workflow ran routing
+only at this head; typed BlackBox coexistence is instead exercised by the
+dedicated 60e tests and live external-boundary proof below.
+
+[Dedicated PR run 33982394560](https://github.com/pysolvesemi/MorphHDL/actions/runs/33982394560)
+and [push run 33982373328](https://github.com/pysolvesemi/MorphHDL/actions/runs/33982373328)
+passed both Scala lanes. The PR job logs identify the exact implementation head
+and report the following tests, all with zero failures, errors or skips:
+
+| Suite | Tests per Scala lane |
+| --- | ---: |
+| Signedness boundaries | 15 |
+| Pure SInt cast cleanup | 13 |
+| Signed declaration publication | 13 |
+| Typed signedness authority | 26 |
+| Signedness resume and stale-evidence checks | 5 |
+| Single-source Verilog | 14 |
+| Canonical IR handoff | 12 |
+| Typed BlackBox generic binding | 4 |
+| Typed parameterized Vec | 35 |
+| Typed Vec formal equivalence | 2 |
+| **Total** | **139** |
+
+Each lane verified byte-identical fresh generation for all 70 new and 29
+inherited RTL files. The logs confirm strict parsing, simulation, lint,
+synthesis and independent equivalence for all 64 tuples, all five genuine
+boundary mutation counterexamples, and the complete inherited 60d/60a checks.
+The exact 60e/60d/60c source guards and native source/overlay audits were also
+rerun successfully on the recovered implementation checkout.
+
+GitHub retains the PR evidence under these artifact identifiers and reported
+ZIP digests:
+
+| Scala lane | Artifact ID | SHA-256 reported by GitHub |
+| --- | --- | --- |
+| 2.12.18 | 9974278817 | `9ba01b71f1ead17a1cb2f454b2d002d45016b1f7762c675350fb1b45dcaa8aae` |
+| 2.13.12 | 9974231373 | `827d59aadd3a4039a6eb2ce8b6244be520fa5b5d53da8cae8b08aac946783904` |
+
+This completion record is supported by the workflow logs and source audits.
+Artifact download returned HTTP 403 in the continuation environment, so this
+record does not claim a new local ZIP digest verification, extracted-proof
+audit or cross-Scala byte comparison. Final completion-head checks must pass
+before merge; their result is recorded on PR #160.
 
 ## Remaining gates
 
