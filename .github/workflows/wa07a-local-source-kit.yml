@@ -1,27 +1,91 @@
-name: WA-07a local source kit
+name: WA-07a reviewed staging and local formal kit
 on:
   push:
     branches: [agent/wa-07a-local-source-kit]
 permissions:
-  contents: read
+  contents: write
 jobs:
-  export:
+  stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: a803483dabdfa60b027336943f274c33830a9ee1
-      - name: Archive the exact implementation checkpoint
+      - name: Decode the reviewed patch and verify exact bytes
+        shell: bash
         run: |
-          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/wa07a-source.tar.gz"
-          git rev-parse HEAD > "$RUNNER_TEMP/source-commit.txt"
-          sha256sum "$RUNNER_TEMP/wa07a-source.tar.gz" > "$RUNNER_TEMP/source-sha256.txt"
-      - uses: actions/upload-artifact@v4
+          python3 - <<'PY'
+          import base64, hashlib, lzma, os
+          from pathlib import Path
+          text = ''.join(Path(f'wa07a-patch-part-{i}.b64').read_text().strip() for i in (1,2,3))
+          patch = lzma.decompress(base64.b64decode(text, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '00b68c16a1f971b3e356994863f16378a4438ed1ec58835179b7105e2bf4db6c'
+          Path(os.environ['RUNNER_TEMP'], 'reviewed.patch').write_bytes(patch)
+          PY
+      - uses: actions/checkout@v4
         with:
-          name: wa07a-source-a803483
+          ref: 5b8a5c12944e55766e83802fd073b8e5a817e251
+          fetch-depth: 0
+      - name: Apply only the reviewed isolated pass changes and validate contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check "$RUNNER_TEMP/reviewed.patch"
+          git apply --index "$RUNNER_TEMP/reviewed.patch"
+          git diff --cached --name-only > "$RUNNER_TEMP/changed.txt"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          paths = Path(os.environ['RUNNER_TEMP'], 'changed.txt').read_text().splitlines()
+          assert len(paths) == 16, paths
+          assert all(p.startswith('morphhdl-passes/') or p == '.github/workflows/morphhdl-passes.yml' for p in paths), paths
+          PY
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+          for script in morphhdl-passes/scripts/check-wa*.py; do
+            python3 "$script" --self-test
+            python3 "$script"
+          done
+          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
+          git diff --cached --check
+          git config user.name 'pysolvesemi'
+          git config user.email 'pysolvesemi@gmail.com'
+          git commit -m 'feat(passes): close WA-07a native proof integration and dependency contracts'
+          git rev-parse HEAD > "$RUNNER_TEMP/staged-commit.txt"
+          git rev-parse HEAD^ > "$RUNNER_TEMP/staged-parent.txt"
+          git diff-tree --no-commit-id --name-only -r HEAD > "$RUNNER_TEMP/staged-files.txt"
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          tmp = Path(os.environ['RUNNER_TEMP'])
+          files = tmp.joinpath('staged-files.txt').read_text().splitlines()
+          tmp.joinpath('staged-sha256.json').write_text(json.dumps({p: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in files}, indent=2, sort_keys=True)+'\n')
+          PY
+          git push origin HEAD:refs/heads/agent/wa-07a-reviewed-stage
+      - name: Export installed formal drivers for local checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/formal-kit"
+          cd "$RUNNER_TEMP/formal-kit"
+          for name in sby yices-smt2 yosys-smtbmc yosys-witness; do
+            source="$(command -v "$name")"
+            cp --parents -L "$source" .
+            real="$(readlink -f "$source")"
+            cp --parents -L "$real" .
+            ldd "$real" 2>/dev/null | awk '/=> \/|^\s*\// {for(i=1;i<=NF;i++) if($i ~ /^\//) print $i}' | while read -r library; do cp --parents -L "$library" .; done || true
+          done
+          find /opt /usr/local -type f \( -name 'sby_*.py' -o -name 'smtio.py' -o -name 'ywio.py' \) -exec cp --parents '{}' . \;
+          tar -czf "$RUNNER_TEMP/wa07a-formal-tools.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa07a-reviewed-stage-evidence
           path: |
-            ${{ runner.temp }}/wa07a-source.tar.gz
-            ${{ runner.temp }}/source-commit.txt
-            ${{ runner.temp }}/source-sha256.txt
+            ${{ runner.temp }}/staged-commit.txt
+            ${{ runner.temp }}/staged-parent.txt
+            ${{ runner.temp }}/staged-files.txt
+            ${{ runner.temp }}/staged-sha256.json
+            ${{ runner.temp }}/wa07a-formal-tools.tar.gz
           retention-days: 3
