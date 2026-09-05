@@ -24,10 +24,8 @@ concurrency:
 
 jobs:
   qualify:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      startsWith(github.head_ref || github.ref_name, 'agent/increment-60b-') ||
-      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b'))
+    # Path filters select regression inputs; commit-message text is not a gate.
+    # The checker separately seals the original introduction's exclusive scope.
     name: Signedness authority Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -49,6 +47,7 @@ jobs:
           set -euo pipefail
           mkdir -p target/increment-60b
           git archive HEAD | gzip > target/increment-60b/source.tar.gz
+          python3 morphhdl/scripts/test-increment-60b-source-scope.py -v
           python3 morphhdl/scripts/check-increment-60b-signedness-authority.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
