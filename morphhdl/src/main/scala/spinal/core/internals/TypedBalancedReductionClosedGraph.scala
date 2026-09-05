@@ -52,6 +52,10 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     classOf[CastBitsToSInt], classOf[CastSIntToUInt], classOf[CastUIntToSInt],
     classOf[CastBoolToBits], classOf[ResizeBits], classOf[ResizeUInt], classOf[ResizeSInt],
     classOf[MultiplexerBool], classOf[MultiplexerBits], classOf[MultiplexerUInt], classOf[MultiplexerSInt],
+    // Native Mux/min/max use a binary mux, distinct from indexed multi-way muxes.
+    // foreachExpression exposes the condition and both arms for full freezing.
+    classOf[BinaryMultiplexerBool], classOf[BinaryMultiplexerBits],
+    classOf[BinaryMultiplexerUInt], classOf[BinaryMultiplexerSInt],
     classOf[BitsLiteral], classOf[UIntLiteral], classOf[SIntLiteral], classOf[BoolLiteral]
   )
   private val leafClasses: Set[Class[_]] = Set(classOf[Bits], classOf[UInt], classOf[SInt], classOf[Bool])
@@ -196,7 +200,7 @@ private[spinal] object TypedBalancedReductionClosedGraph {
           else fail("EXTERNAL-READ", "callback expression reads data other than its operands or local declarations")
         case _ =>
           if (!expressionClasses.contains(value.getClass))
-            fail("EXPRESSION", "native expression class is not in the reviewed closed-graph subset")
+            fail("EXPRESSION", s"native expression class '${value.getClass.getName}' is not in the reviewed closed-graph subset")
           val children = ArrayBuffer.empty[Expression]
           value.foreachExpression(children += _)
           children.toVector
