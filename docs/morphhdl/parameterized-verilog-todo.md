@@ -689,7 +689,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   admit arbitrary runtime recursion, cyclic hardware, unbounded elaboration or
   tool-portable recursion beyond the explicitly qualified tool matrix.
 
-- [ ] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
+- [x] **Increment 59b — Typed parameterized Vec reduceBalancedTree**
 
   **Dependencies:** Increment 59a implemented and merged.
 
@@ -707,6 +707,13 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   mutation, dual-Scala and inherited compatibility gates. Fail closed for an
   empty domain, non-associative/unsupported side effects, ambiguous shapes or a
   topology whose finite bound cannot be proven.
+
+  **Completion evidence:** implementation source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7`,
+  tree `668b1446e0d58574baac1381072bf01cf297df1e`. The qualified safe-graph scope,
+  source-bound dual-Scala proofs and explicit rejected cases are recorded in
+  [the 59b completion record](increment-59b-parameterized-reduce-balanced-tree.md).
+  The documentation-only completion commit requires fresh applicable CI before
+  merge; completion does not claim that PR #157 has merged.
 
 - [ ] **Increment 60 — Native signed `SInt` Verilog**
 

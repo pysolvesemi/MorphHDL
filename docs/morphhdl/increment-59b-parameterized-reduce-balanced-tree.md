@@ -2,9 +2,10 @@
 
 ## Status and dependency
 
-**Implemented publication path; final qualification is in progress. The controlling
-roadmap checkbox remains unchecked. PR #157 must remain unmerged until the final
-combined head passes every applicable gate.**
+**Increment 59b is implemented and its source qualification is complete for the
+documented safe-graph subset. The controlling roadmap checkbox is checked.
+This documentation-only completion commit must pass its fresh applicable CI
+before PR #157 may merge. No merge is claimed here.**
 
 Work began from merged Increment 59a at
 `2be259338b87ecc30b44e47498f7f09c368e50d0` on `parameterized-verilog`.
@@ -20,13 +21,11 @@ callbacks and every native row, builds distinct native scalar templates, and
 places their native RTL inside symbolic balanced stages. It does not substitute
 an operation-specific tree or emit its own arithmetic or register process.
 
-Frozen implementation source `13967f2c51c808bea29037b9562dd5506457cd24`
-passed the canonical SBT suite locally: 133 tests on each of Scala 2.12.18 and
-2.13.12. Both lanes also passed the stronger 32-specialization publication
-matrix with five outputs and independently unconstrained unsigned, signed,
-Bits and Bool inputs. Strict tools, full synthesis, simulation, reset-entry
-proofs, unbounded equivalence and two actual generated-RTL mutation controls
-passed. Final PR CI remains pending; these local results do not authorize merge.
+Qualified implementation source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7` has source tree
+`668b1446e0d58574baac1381072bf01cf297df1e`. Both supported Scala lanes passed the focused
+source tests and parameterized publication, operator, stage and applicable
+inherited gates. Expected environmental skips are not counted as passes.
+The complete evidence and source-bound run references are recorded below.
 
 The publication architecture and supported scope are specified in
 [increment-59b-publication.md](increment-59b-publication.md). Separate native
@@ -175,50 +174,60 @@ profile. Their evidence files deliberately retain different scopes.
 Missing tools, errors, timeouts, UNKNOWN, absent success markers and skipped or
 cancelled checks never count as proof or as a valid mutation counterexample.
 
-### Frozen-source local qualification; PR CI pending
+### Qualified implementation source and evidence
 
-The following local results qualify implementation commit
-`13967f2c51c808bea29037b9562dd5506457cd24`. They include the latest anchor-policy
-and nested-owner rejection tests. They are canonical SBT and tool-backed local
-results, not completed GitHub PR CI.
+- Source commit: `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7`.
+- Source tree: `668b1446e0d58574baac1381072bf01cf297df1e`.
+- Scala lanes: 2.12.18 and 2.13.12.
 
-| Qualification | Scala 2.12.18 | Scala 2.13.12 |
-| --- | --- | --- |
-| Canonical SBT tests | 133 passed | 133 passed |
-| Same-candidate WIDTH/COUNT specializations | 32 passed, five outputs each | 32 passed, five outputs each |
-| Independent simulation cycles across the matrix | 5,586 passed | 5,586 passed |
-| Strict Verilog-2001 compilation/lint and full synthesis | Passed for every candidate/reference specialization | Passed for every candidate/reference specialization |
-| Reset-entry formal proofs | 32 passed | 32 passed |
-| Unbounded temporal-induction proofs | 32 passed | 32 passed |
-| Generated pair-operand mutation | Counterexample with bad=1 | Counterexample with bad=1 |
-| Generated cross-Vec source-binding mutation | Counterexample with bad=1 | Counterexample with bad=1 |
+All applicable executed source-qualification gates passed. This statement does
+not count expected skips, environmental exclusions, cancellations or timeouts as
+passes. It records qualification of the exact implementation source above; the
+subsequent documentation-only completion commit still needs its own fresh
+applicable CI before merge.
 
-The unsigned, signed, Bits and Bool packed Vec inputs are independent in the
-formal miters and simulation stimulus. The signed and Bits reductions are not
-tied to the unsigned input; the registered UInt reduction intentionally uses
-the same unsigned Vec as its combinational counterpart. The cross-Vec mutation
-replaces the signed reduction's source with the unsigned Vec and must therefore
-be observable. The evidence scope is `parameterized-native-balanced-publication`,
-with candidate WIDTH=5/COUNT=1 defaults.
+| Qualification | Result per Scala lane |
+| --- | --- |
+| Focused source tests | 133 passed, including callback policy, graph/width/owner safety and native compatibility. |
+| Parameterized publication | One candidate at 32 WIDTH/COUNT specializations, five outputs each, with independently unconstrained unsigned, signed, Bits and Bool Vec inputs. |
+| Publication simulation and strict tools | 5,586 simulation cycles; strict Verilog-2001 compilation/lint and full synthesis passed across the matrix. |
+| Publication formal proof | 32 reset-entry proofs and 32 unbounded temporal-induction proofs passed. |
+| Publication RTL mutations | Changed pair operand and changed cross-Vec source binding each produced a real counterexample with bad=1. |
+| Native operator replay | 23 tests and 32 concrete configurations with 18 outputs; independent simulation, strict tools, full synthesis, equality proof, determinism and a real mutation trace. |
+| Native whole-stage replay | 96 concrete configurations with 18 outputs; deterministic A/B generation, strict tools, full synthesis, reset-entry and unbounded proofs, and an extra-enabled-cycle mutation with bad=1. |
+| Mill compatibility | 1,433 tests passed; eight external-environment-gated cases are explicitly excluded from the pass count. |
 
-Both repeated generations in both Scala lanes produced the same candidate bytes.
-All four candidate artifacts have SHA-256:
+The unsigned, signed, Bits and Bool inputs are independent in the publication
+miters and simulation stimulus. Only the registered UInt reduction intentionally
+shares the unsigned Vec with the combinational UInt result. The cross-Vec
+mutation replaces the signed reduction's source with the unsigned Vec, proving
+that an incorrect binding is observable. Concrete operator/stage evidence is
+kept separate from `parameterized-native-balanced-publication` evidence.
+
+The qualified local A/B publication generations on both Scala lanes produced
+four candidate artifacts with SHA-256:
 
 `6a47e29b6bcbb7a109f36da64ba586d9e1c7d757340d150d7b53d7d5c9e5db64`
 
-The expanded local Scala 2.12 concrete whole-stage matrix also completed: all
-96 shapes with 18 outputs passed deterministic repeated generation, strict tools,
-full synthesis, reset-entry proof, unbounded induction and a real extra-enabled-
-cycle mutation with bad=1. This has scope `concrete-native-stage-replay` and is
-separate from parameterized-candidate evidence. The Scala 2.13 stage CI gate
-remains pending.
+| Source qualification | PR run | Push run |
+| --- | --- | --- |
+| Parameterized publication | [33983120584](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120584) | [33983118307](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983118307) |
+| Native stage/bridge replay | [33983120710](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120710) | [33983118357](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983118357) |
+| Native operator replay | [33983120547](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120547) | — |
+| Mill compatibility | [33983120751](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120751) | — |
 
-The earlier local Scala 2.12 operator checkpoint passed all 23 operator tests
-and 32 concrete replay configurations with 18 outputs, including independent
-simulation, strict tools, synthesis, deterministic generation and a mutation
-counterexample. Its source hashes and evidence remain under
-`target/local-59b-operator-2.12/`. That historical concrete-operator result must
-not be substituted for the frozen-source publication proofs above.
+Publication PR artifact metadata identifies `9974706211` for Scala 2.12.18
+and `9974714093` for Scala 2.13.12 at the qualified source head. The checksum
+above belongs to the local artifacts. CI independently requires identical A/B
+candidate bytes per lane and one candidate reused across all 32 specializations;
+remote artifact payload hashes were not independently inspected or compared
+between lanes.
+
+The implementation head has 51 workflow runs: all 44 executed workflows passed;
+seven historical increment/workspace workflows were skipped by their existing
+branch-scope conditions. All currently applicable native-source, retirement,
+signedness and other inherited gates passed. These seven scope skips are not
+counted as passing tests or proofs.
 
 ### Historical verified checkpoints
 
@@ -243,13 +252,14 @@ not be substituted for the frozen-source publication proofs above.
 Later commits need their own exact-head evidence. These historical records
 must not be presented as completed qualification of a different head.
 
-## Remaining completion work
+## Completion commit and merge boundary
 
-1. Complete final PR CI for both supported Scala versions, retaining the
-   frozen-source local evidence and requalifying any implementation changes.
-2. Complete every remaining expanded native operator/stage and inherited
-   compatibility gate, including the pending Scala 2.13 stage qualification.
-3. Reconcile any newer integration changes and pass every applicable native
-   source, retirement, inherited signedness, determinism and strict tool gate.
-4. Record exact-head CI evidence. Only then mark the existing 59b roadmap item
-   complete and merge that qualified head into `parameterized-verilog`.
+The safe-graph subset satisfies the existing 59b roadmap contract. The unsupported
+width, widening, callback, aggregate and nested-owner cases documented above
+remain fail-closed; marking 59b complete does not expand that supported scope.
+
+The completion commit changes only documentation and the existing 59b checkbox.
+Publish that commit, wait for its fresh applicable CI and verify the final PR
+head before merging into `parameterized-verilog`. Source-qualification success
+does not authorize bypassing a required completion-head gate. No merge is claimed
+by this document.

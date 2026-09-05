@@ -2,11 +2,11 @@
 
 ## Status and public entry
 
-Frozen implementation commit `13967f2c51c808bea29037b9562dd5506457cd24` has
-passed 133 canonical SBT tests and the complete stronger 32-specialization
-hardware/formal matrix locally on each of Scala 2.12.18 and 2.13.12. Final PR
-CI and remaining qualification gates are pending.
-**59b remains unchecked and is not ready to merge until those gates pass.**
+Implementation source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7` (tree
+`668b1446e0d58574baac1381072bf01cf297df1e`) is qualified on Scala 2.12.18 and 2.13.12
+for the documented safe-graph subset. The existing 59b checkbox is complete.
+**The documentation-only completion commit must pass its fresh applicable CI
+before PR #157 may merge. This document does not claim a merge.**
 
 `MorphVerilog` scopes `TypedBalancedReductionBackend` around native elaboration,
 including native retries, and installs its pre-normalization phase handoff.
@@ -161,13 +161,14 @@ can expose an incorrect source binding. Tool errors, timeouts, UNKNOWN or missin
 success markers cannot satisfy either positive proof or mutation requirements.
 A focused `--case` run deliberately emits no complete qualification evidence.
 
-## Frozen-source local evidence
+## Source-bound completion evidence
 
 The full evidence scope is `parameterized-native-balanced-publication`, separate
 from `concrete-native-operator-replay` and `concrete-native-stage-replay`.
-For commit `13967f2c51c808bea29037b9562dd5506457cd24`, canonical SBT passed 133
-tests on each of Scala 2.12.18 and 2.13.12, including public-helper generation,
-callback policy, anchor-policy and nested-owner safety tests.
+For source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7` and tree
+`668b1446e0d58574baac1381072bf01cf297df1e`, 133 focused source tests passed on each
+of Scala 2.12.18 and 2.13.12, including public-helper generation, callback policy,
+anchor-policy and nested-owner safety tests.
 
 Each Scala lane passed all 32 specializations with five outputs, 5,586 independent
 simulation cycles across the matrix, strict Verilog-2001 compilation/lint, full
@@ -176,17 +177,31 @@ The unsigned, signed, Bits and Bool inputs were independently unconstrained in
 formal. Both actual-RTL mutation controls produced bad=1 counterexamples in
 each lane: changed pair operand and changed cross-Vec source binding.
 
-Two independent generations in each Scala lane produced byte-identical candidate
-RTL. All four candidate artifacts have SHA-256:
+Qualified local A/B generation in each Scala lane produced byte-identical
+candidate RTL. All four local candidate artifacts have SHA-256:
 
 `6a47e29b6bcbb7a109f36da64ba586d9e1c7d757340d150d7b53d7d5c9e5db64`
 
-The separate expanded concrete-stage qualification passed locally on Scala 2.12:
-96 shapes, 18 outputs, deterministic regeneration, strict tools/synthesis,
-reset-entry and unbounded proofs, and an extra-cycle mutation counterexample.
-The Scala 2.13 stage gate remains pending. These completed local results are not
-completed PR CI. All applicable final-head CI and inherited gates remain required
-before 59b can be marked complete or merged.
+The publication PR run [33983120584](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120584)
+and push run [33983118307](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983118307)
+retain the source-bound dual-Scala publication qualification. PR artifact metadata
+identifies `9974706211` (Scala 2.12.18) and `9974714093` (Scala 2.13.12) at the
+qualified source head. CI checks byte-identical A/B candidates within each lane
+and reuses one candidate across all 32 specializations. The checksum above is
+local evidence; remote payload hashes were not independently inspected or
+compared across Scala lanes. The separate
+concrete-stage matrix passed all 96 shapes with 18 outputs per lane, including
+deterministic A/B generation, strict tools/synthesis, reset-entry and unbounded
+proofs and a real extra-enabled-cycle mutation counterexample. Its PR/push runs
+are [33983120710](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120710)
+and [33983118357](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983118357).
+Concrete stage proof remains a separate evidence scope from parameterized proof.
+
+All applicable executed source-qualification gates passed; environmental skips
+are not passes. The documentation-only completion commit still needs fresh
+applicable CI and final PR-head verification before merge. The main 59b document
+records the operator and Mill compatibility references and preserves the explicit
+unsupported scope.
 
 Publication safety tests also require rejection before host-state callback effects,
 pre-handoff graph mutation rejection, exact singleton callback bypass, generated

@@ -2,10 +2,12 @@
 
 ## Status
 
-Whole-stage replay is implemented and now feeds the separate parameterized
-publication backend. A stage certificate alone remains insufficient permission
-to publish. Final combined-head qualification is in progress; the controlling
-59b checkbox remains unchecked. See
+Whole-stage replay is qualified on source `ebc33b9ef065b5591c419f15b1bc9b3085ee6aa7`
+(tree `668b1446e0d58574baac1381072bf01cf297df1e`) on both supported Scala lanes and
+feeds the separate parameterized publication backend. A stage certificate alone
+remains insufficient permission to publish. The existing 59b checkbox is complete;
+the documentation-only completion commit requires fresh applicable CI before
+merge. No merge is claimed. See
 [increment-59b-publication.md](increment-59b-publication.md) for the additional
 callback-code and template-handoff obligations. The publication path currently
 requires native component scope; outer typed generate/capture owners are rejected.
@@ -106,9 +108,14 @@ Errors, timeouts, UNKNOWN and missing success markers are not passing evidence.
 These artifacts retain `scope: concrete-native-stage-replay` and
 `parameterized_tree_formal: not-run`. They qualify native stage/bridge replay;
 the separate publication matrix qualifies one actual parameterized candidate.
-Expanded 18-output stage results and final-head CI must be recorded only after
-they finish successfully. Earlier 14-output checkpoint results do not prove the
-expanded matrix.
+The expanded matrix passed all 96 shapes with 18 outputs on both Scala 2.12.18
+and 2.13.12, including deterministic A/B generation, strict tools and full
+synthesis, reset-entry and unbounded temporal proofs, and a genuine extra-enabled-
+cycle counterexample showing bad=1. Source-bound evidence is retained in PR run
+[33983120710](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983120710)
+and push run [33983118357](https://github.com/pysolvesemi/MorphHDL/actions/runs/33983118357).
+These expanded results supersede the older 14-output checkpoint for this source;
+they do not change the separate scope of the parameterized publication proof.
 
 ## Publication boundary
 
@@ -124,5 +131,7 @@ normalization, with operand naming/preservation/full-driver policies checked at
 both handoff and publication. Only those distinct templates enter native emission; the carrier
 probe graph is removed. Symbolic pair loops, odd-tail blocks and inactive-stage
 bypasses contain the native emitted scalar bodies. See the publication document
-for that path and its separate 32-specialization formal gate. Final integration
-and inherited compatibility gates remain required before 59b is complete.
+for that path and its separate passing 32-specialization formal gate. All
+applicable executed source-qualification and inherited gates passed; skipped
+cases are not counted as passing. The documentation-only completion head still
+requires its own fresh applicable CI and final PR-head verification before merge.
