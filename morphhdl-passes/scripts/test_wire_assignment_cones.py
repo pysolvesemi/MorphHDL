@@ -206,7 +206,9 @@ class ConeParsingTests(unittest.TestCase):
 
     def test_no_init_or_clock_weakening(self):
         script = cone.compile_script("Probe")
-        self.assertIn("setattr -set keep 1 t:$assert t:$assume", script)
+        keep = "setattr -set keep 1 t:$assert t:$assume t:$check"
+        self.assertIn(keep, script)
+        self.assertLess(script.index(keep), script.index("prep -top"))
         self.assertLess(script.index("clk2fflogic"), script.index("formalff -ff2anyinit"))
         self.assertLess(script.index("formalff -ff2anyinit"), script.index("opt -full -keepdc"))
         self.assertNotIn("formalff -clk2ff", script)

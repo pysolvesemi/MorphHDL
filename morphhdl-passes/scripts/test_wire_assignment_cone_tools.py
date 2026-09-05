@@ -35,11 +35,13 @@ def prepare(directory: Path) -> None:
             f"autoidx 1\nmodule \\{name}Unused\nend\n", encoding="utf-8")
 
 
-def prove(directory: Path, source: str, count: int = 1) -> dict:
+def prove(directory: Path, source: str, count: int = 1, *, assumptions: int | None = None) -> dict:
     prepare(directory)
-    result = cones.run_proof(directory, TOP, source, count, 60)
+    result = cones.run_proof(directory, TOP, source, count, 60,
+                             expected_assumption_count=assumptions)
     assert result["status"] == "PASS", result
-    validated = cones.validate_proof(directory, TOP, source, count, 60)
+    validated = cones.validate_proof(directory, TOP, source, count, 60,
+                                     expected_assumption_count=assumptions)
     assert validated["status"] == "PASS", validated
     return result
 
@@ -90,6 +92,36 @@ def main() -> int:
     controls["explicit_clock"] = prove(output / "explicit-clock", clock_sensitive)
 
     original_compile = cones.compile_script
+
+    # Preserve every formal statement even when its condition is repeated.
+    # Yosys 0.41 emits $check cells and copies their attributes when lowering
+    # them; omitting keep on that representation lets opt_merge lose coverage.
+    duplicate_formal = miter("""
+  always @* begin assume(data); assume(data); assert(data); assert(data); end
+""", clocked=False)
+    controls["duplicate_formal_properties"] = prove(
+        output / "duplicate-formal-properties", duplicate_formal, 2, assumptions=2)
+
+    def missing_formal_keep(top: str) -> str:
+        script = original_compile(top)
+        keep = "setattr -set keep 1 t:$assert t:$assume t:$check\n"
+        assert script.count(keep) == 1
+        return script.replace(keep, "")
+
+    loss_directory = output / "missing-formal-keep"
+    prepare(loss_directory)
+    with patch.object(cones, "compile_script", side_effect=missing_formal_keep):
+        try:
+            cones.run_proof(loss_directory, TOP, duplicate_formal, 2, 60,
+                            expected_assumption_count=2)
+        except cones.ConeProofError as error:
+            assert str(error) == "full AIG assertion/assumption counts do not match the complete miter", error
+            header = cones.aiger_header(loss_directory / "cone-proof" / "full.aig")
+            assert header["B"] == 1 and header["C"] == 1, header
+            controls["missing_formal_keep"] = {
+                "status": "REJECTED_PROPERTY_LOSS", "full_aiger_header": header}
+        else:
+            raise AssertionError("merged formal properties incorrectly passed exact coverage")
 
     def wrong_clock(top: str) -> str:
         script = original_compile(top)

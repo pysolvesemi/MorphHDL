@@ -89,7 +89,7 @@ def compile_script(miter_top: str) -> str:
     return f"""read_rtlil ../reference.il
 read_rtlil ../candidate.il
 read_verilog -formal scalar-miter.v
-setattr -set keep 1 t:$assert t:$assume
+setattr -set keep 1 t:$assert t:$assume t:$check
 prep -top {miter_top} -flatten
 memory_map
 clk2fflogic
