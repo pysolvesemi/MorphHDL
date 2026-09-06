@@ -1,8 +1,10 @@
 # Increment 59c — Named field vectors
 
-Status: implementation and qualification in progress. This record defines the
-publication contract and its validation requirements; it does not mark 59c
-complete. The controlling checklist is
+Status: implementation and local qualification complete on
+[PR 163](https://github.com/pysolvesemi/MorphHDL/pull/163). Passing final-head CI
+remains required before merge. The completion checkbox is recorded on the PR
+branch; the integration branch receives it when the PR merges. The controlling
+checklist is
 [the parameterized-Verilog roadmap](parameterized-verilog-todo.md).
 
 ## Select the interface
@@ -137,12 +139,22 @@ and two-axis dynamic replacement in that order. Later active writes win for
 their selected leaves, including when several forms select the same element.
 A rejected dynamic address leaves earlier assignments in force.
 
+A separate journal retains completed native write calls. Before pruning or
+choosing publication owners, the publisher requires an exact one-to-one match
+between that journal and retained indexed-write operations, including the
+selected scalar identities. Removing a forwarding parent therefore cannot hide
+its decoder or freeze a nested axis at the finite carrier size. Journal entries
+store the selected leaf and operation; read-only snapshots reconstruct the
+owner. The stored entries therefore do not add an explicit reference to their
+own weak-key Vec.
+
 Direct writes into a nested `Reg(Vec(...))` retain the exact common clock edge
 and user enable. A disabled or out-of-range write holds the complete prior
-state. This support retains the inherited admission boundary for initialization,
-reset and additional clock-enable wrappers; unsupported state controls fail
-closed. Captured forwarding metadata does not replace the native assignment
-algorithm or authorize altered decoder, source, target or condition identities.
+state. Direct nested indexed writes require one common clock domain without
+register initialization, reset, soft reset or an implicit clock-enable wrapper.
+Authored `when` enables remain supported. Other state controls fail closed.
+Captured forwarding metadata does not replace the native assignment algorithm
+or authorize altered decoder, source, target or condition identities.
 
 Combining native scalar processes into one field-vector process requires a
 separate dependency check. If an indexed write or its condition reads the
@@ -194,33 +206,85 @@ frontend or on the selected publication profile.
 ## Qualification and evidence
 
 The implementation includes interface and compatibility contracts in
-`NamedFieldVecTests`, nested write contracts in `NamedFieldVecNestedWriteTests`, naming collision controls in `NamedFieldVecCollisionTests`,
+`NamedFieldVecTests`, nested write contracts in `NamedFieldVecNestedWriteTests`,
+naming collision controls in `NamedFieldVecCollisionTests`,
 direct child/register contracts in `NamedFieldVecHierarchyTests`, and packed
 copy provenance controls in `NamedFieldPackedAliasTests`. `TypedVecShapeTests`
 and `ParameterizedVerilogFieldLayoutTests` cover recursive geometry and packing.
 `StructuralIdentityAdversarialTests` covers captured conditional/static writes,
-assignment priority and feedback rejection. The fixture source in
+forwarding-journal completeness, assignment priority and feedback rejection.
+The fixture source in
 `NamedFieldVecFixture` supplies candidates and independent ordinary
 `SpinalVerilog` references; storage qualification includes a directly connected
 enabled register. The executable runner is
 `morphhdl/scripts/check-increment-59c-named-field-vectors.py`.
+
+The qualified production checkpoint is
+`3166ddbde97047b45f5ca48abf9ac6e1ec75aabe`. Both local HDL matrices, source audits,
+current source-mutation controls, both complete Scala 2.12 and 2.13 inherited CI
+regression lanes, the 59c contract lanes and repeated generation passed at that
+checkpoint. The subsequent qualification-runner scheduling change described
+below changes no production RTL. Passing CI at the final PR head is the
+remaining merge requirement; checkpoint results do not claim that pending
+final-head CI has passed.
+
+The 60f Scala 2.12 CI job `101559393764` and Scala 2.13 job `101559393811` each
+passed all 1,813 tests below without failures, errors or skipped tests. Each
+lane's MorphHDL run contributed 1,022 tests across 97 suites. All seven
+formal-enable flags were logged as `1`, so the eight optional cases cancelled
+by the earlier broad run executed in CI. The complete 60f workflow, including
+cross-Scala determinism, passed in run `34060256475`.
+
+| CI project | Passed tests per Scala lane |
+| --- | ---: |
+| MorphHDL | 1,022 |
+| Parameterized RTL | 234 |
+| Frontend | 257 |
+| Verilog backend | 148 |
+| MorphIR | 32 |
+| Morph plugin | 16 |
+| Core | 5 |
+| Isolated passes | 99 |
+| Total | 1,813 |
+
+The separate Scala 2.12 formal run passed 126 tests across ten suites with no
+cancellations. The local Scala 2.13 contract run passed 197 tests across eleven
+suites with no skipped tests; the PR's Scala 2.13 contract and repeated-generation
+step also passed. These local and 59c-specific checks supplement the complete
+dual-Scala inherited CI result above.
+
+The Mill Scala 2.12 run passed 1,014 tests with eight optional formal
+cancellations. Those cancellations contribute no formal proof evidence; formal
+closure comes from the enabled, zero-skip runs recorded above.
 
 Required closure evidence is tracked below. A source fixture or a planned gate
 is not evidence that its executable run passed.
 
 | Gate | Required evidence | Current status |
 | --- | --- | --- |
-| Dual Scala lanes | Shape, naming, access, nested dimensions, cloning, registers, hierarchy, Stream/Flow and concrete parity contracts | Pending final-head results |
-| Interface compatibility | Named and explicit legacy layouts, scalar Vecs and ordinary Bundle outputs; deterministic repeat generation | Pending final-head results |
-| Independent specialization equivalence | One COUNT=1-default candidate per static topology/profile; separately elaborated native references and wiring-only interface adapters | Pending final-head results |
-| Scalar matrix | WIDTH in `{1, 5, 8, 32}` and COUNT in `{1, 2, 3, 5, 8, 9, 16, 17}`, with independent unequal field widths | Pending final-head results |
-| Nested and stateful extensions | Independent inner dimensions, count-one and odd shapes, nested access and packing, conditional/static writes, enabled registers and separate child/Vec bindings | Pending final-head results |
-| Direct nested register writes | Eight independent configurations, sixteen layout specializations, complete FF inventory and common-state inductive preservation | Pending final-head results |
-| Tools | Icarus simulation, strict Verilog-2001 parsing, Verilator lint and full Yosys synthesis | Pending final-head results |
-| Mutation controls | Real counterexamples for field swaps, reversed element order, wrong offsets and wrong hierarchy/cross-Vec binding, nested write gates/bounds and register enable/axis binding | Pending final-head results |
-| Inherited admission and safety | Existing illegal-domain, ambiguous-width, foreign-write, partial-driver, unknown-effect and graph-mutation rejection controls | Pending final-head results |
-| Native source audit | Exact reviewed file hashes and changed spans; no unreviewed native algorithm changes | Pending settled-source refresh and final-head audit |
-| Shared publication source review | Exact 59c overlap reversal followed by all original signedness source checks and genuine source mutation rejections | Pending settled-source refresh and final-head audit |
+| Dual Scala lanes | Shape, naming, access, nested dimensions, cloning, registers, hierarchy, Stream/Flow and concrete parity contracts | Complete Scala 2.12 and 2.13 inherited CI passed: 1,813 tests per lane, including MorphHDL 1,022 tests / 97 suites; 59c contracts, repeated generation and inherited cross-Scala determinism passed |
+| Inherited opt-in formal lane | All seven formal-enable flags set under Scala 2.12 | Full inherited CI passed with zero skips; the separate 126-test / 10-suite formal run also passed without cancellations |
+| Interface compatibility | Named and explicit legacy layouts, scalar Vecs and ordinary Bundle outputs; deterministic repeat generation | Passed locally for both supported layouts; main and register generation repeated deterministically |
+| Independent specialization equivalence | One COUNT=1-default candidate per static topology/profile; separately elaborated native references and wiring-only interface adapters | Passed locally: 216 main and 16 separate register layout specializations |
+| Scalar matrix | WIDTH in `{1, 5, 8, 32}` and COUNT in `{1, 2, 3, 5, 8, 9, 16, 17}`, with independent unequal field widths | Passed all declared main-matrix cases |
+| Nested and stateful extensions | Independent inner dimensions, count-one and odd shapes, nested access and packing, conditional/static writes, enabled registers and separate child/Vec bindings | Passed the complete local main matrix and separate nested-register matrix |
+| Direct nested register writes | Eight independent configurations, sixteen layout specializations, complete FF inventory and common-state inductive preservation | Passed at the published checkpoint: 16 layouts, 1,536 samples, 64 warmup edges and two genuine SAT/VCD mutation counterexamples |
+| Tools | Icarus simulation, strict Verilog-2001 parsing, Verilator lint and full Yosys synthesis | Passed every local qualified case with Yosys 0.41, Verilator 5.020 and Icarus 12 |
+| Mutation controls | Real counterexamples for field swaps, reversed element order, wrong offsets and wrong hierarchy/cross-Vec binding, nested write gates/bounds and register enable/axis binding | Passed: 11 main and two separate register mutations produced verified SAT counterexamples and VCD traces |
+| Inherited admission and safety | Existing illegal-domain, ambiguous-width, foreign-write, partial-driver, unknown-effect and graph-mutation rejection controls | Complete Scala 2.12 and 2.13 inherited CI passed at the published checkpoint |
+| Native source audit | Exact reviewed file hashes and changed spans; no unreviewed native algorithm changes | Passed at the published checkpoint: 43 approved native paths and 224 reviewed spans |
+| Shared publication source review | Exact 59c reversal, inherited source checks and source mutation rejection | Passed at the published checkpoint: 12 files / 222 spans, 77 review controls, two current positives and 20 current negative controls |
+| Final-head CI | All required workflows passing at the final PR head before merge | Required merge gate; results in [PR 163](https://github.com/pysolvesemi/MorphHDL/pull/163) |
+
+At `3166ddb`, the main ledger passed all 216 layout specializations, 46,976
+simulation samples and 11 genuine SAT/VCD mutation counterexamples. All 1,877
+nested proof partitions passed: 720 named-layout partitions and 1,157 legacy
+partitions, covering exactly 21,240 canonical output bits per layout across the
+nested matrix. The longest partition process took 19.544 seconds and the longest
+preparation took 19.736 seconds. The complete main run took 50 minutes 19.7
+seconds. Candidate and reference generation repeated deterministically. The
+separate register ledger below adds 16 layout specializations and two mutation
+counterexamples; these remain distinct qualification ledgers.
 
 `NamedFieldNestedRegisterArtifactWriter` and
 `check-increment-59c-nested-register-writes.py` provide a separate register
@@ -233,8 +297,17 @@ cell, then checks writes, enable holds and full-width invalid addresses against
 an independent Python state update. Both enable and axis mutations must produce
 real SAT counterexamples whose before/after states validate the intended fault.
 
+At `3166ddb`, the complete separate register ledger passed all 16 layout
+specializations, 1,536 simulation samples and 64 warmup edges. Complete
+flip-flop inventory checks and common-state inductive preservation passed;
+both enable and axis mutations produced verified SAT counterexamples and VCD
+traces. Candidate and reference generation repeated deterministically. The run
+used Yosys 0.41, Verilator 5.020 and Icarus 12 and completed in 37.968 seconds.
+This result closes the standalone nested-register matrix. Both local HDL
+matrices are complete; passing final-head CI remains required before merge.
+
 Nested combinational equivalence is the conjunction of a complete, ordered
-cover of canonical output bits. The named layout proves each field port; the
+cover of canonical output bits. The named layout proves each output port; the
 legacy layout proves consecutive chunks of at most 32 bits. Each case prepares
 one immutable RTLIL checkpoint from the unchanged candidate/reference miter,
 then removes unrelated outputs and reduces unused widths for each proof. Every
@@ -243,11 +316,19 @@ The ledger rejects missing, duplicate, reordered or incorrectly sized partitions
 and records the checkpoint and source hashes. Timeouts remain failures: each
 solver has 120 seconds and each tool invocation has 180 seconds.
 
-The runner preserves manifest order at every worker count. Access cases with
-at least 1,024 payload bits reserve the complete worker budget because measured
-synthesis memory for one such case can exceed 3.5 GiB. Other cases may run
-concurrently. The workflow allows 75 minutes for the enlarged complete matrix;
-this does not extend any individual proof or tool deadline.
+The runner preserves manifest result order at every worker count. A scheduling
+follow-up after the qualified checkpoint adds FIFO worker admission: later
+lightweight cases cannot bypass an earlier case waiting for the complete worker
+budget. Access cases with `COUNT * pixel_bits >= 1024` and nested cases with
+`COUNT * (3 + INNER * pixel_bits) >= 1024` reserve that complete budget. Here
+`pixel_bits` is the sum of the independent pixel-field widths, and the nested
+three-bit tag belongs to each outer record. Only the largest nested case in the
+declared matrix meets its threshold. This bounds concurrent synthesis memory;
+other cases may share the budget. Scheduler self-tests pass, including the
+ordering control that rejects the previous bypass behavior. This follow-up
+changes no production RTL, proof inputs or tool deadlines, and final-head CI
+remains its merge gate. The workflow allows 75 minutes for the complete matrix;
+each individual proof and tool deadline remains unchanged.
 
 Inputs must drive fields, elements and distinct Vecs independently. References
 must assert native scalar kinds and exact result widths without adapting away
@@ -264,32 +345,57 @@ source is committed and clean. The guard must reproduce the committed manifest
 byte for byte. The old typed-overlay file and 59b capture-review snapshot remain
 historical records.
 
-`increment-59c-source-review.json` records the complete eight-file production
-delta and the inherited 60e checker adapter as exact before/after byte spans
-against merged base `d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a`. The two explicitly
-added production files carry their complete source and must be absent from the
-baseline. `check-increment-59c-source-review.py` checks the exact changed-file
-inventory, every changed span and every unchanged byte between them.
+`increment-59c-source-review.json` records the exact 59c delta against the
+merged 59d/59e/59f baseline
+`99b6017d7ac69112a088680457029623620224d3`. Its 12 files comprise eight production
+files and four checker adapters: the 59f source-scope checker, the 60e signedness
+checker, the 60f artifact-inventory checker and the 60f equivalence-closure
+checker. The review contains 222 exact before/after byte spans. The two added
+production files carry their complete source and must be absent from that
+baseline. Every unchanged gap and tail must remain byte-identical to the
+baseline; reviewed sources must also be regular, non-executable and uniquely
+tracked. The checker pins the manifest SHA-256, so changing a source and its
+review together does not authorize an unreviewed change.
 
-Two external publication files overlap the qualified signedness work. The
-inherited 60e restoration removes only their reviewed 59c changes before running
-its original exact 60e reversal. The 60f source gate also requires the complete
-reviewed 59c production delta to restore its original qualification-only source
-state; it admits no unknown production files. The original 60c/60d/60e
-baselines, signed printer checks and independent oracle checks remain in force.
-The frozen 60f suite identities remain required alongside the explicitly named
-59c test suites.
+The 59c layer is reversed before inherited 59d/59e/59f publisher, width and
+packing checks. Their frozen manifests and source hashes remain unchanged.
+The complete current source union, canonical native audit, original signed
+printer checks and independent oracle checks remain mandatory. The 60f gate
+also runs the original 60c/60d/60e qualification-only checks on their frozen
+completed tree. Its inherited suite identities and exact test-count obligations
+remain required alongside six explicitly named 59c suites; each new suite has
+a missing-suite rejection control.
 
-Source-review self-tests validate mutation rejection against the saved review
-snapshot; a separate plain invocation is required to check the current source.
-`test-increment-59c-inherited-source-scope.py` also runs the complete 60f source
-gate on temporary worktrees, including the historical 60f state, the exact
-successor and modified or missing source/checker/oracle files. It leaves the
-working branch unchanged and runs the original 59b source-scope controls with
-their existing negative expectations. An evolving implementation must fail the
-source review until its reviewed spans have been refreshed.
+At the published checkpoint, the plain source-review check, canonical native
+audit and complete 60f source gate passed. The source-review self-test passed
+12 reviewed-snapshot reversals and 77 mutation rejections. It exercises the
+direct review parser and reversal logic; production loading still enforces the
+manifest pin.
+
+`test-increment-59c-inherited-source-scope.py` passed two current-source positives
+and 20 exact current-source rejections. These include changed or missing core
+and helper sources, all four checker-adapter branches, a paired source/manifest
+forgery, unknown production paths, sealed oracle/checker changes, and live
+59d backend, 59e composite-replay and 59f capture-schema mutations. The latter
+three reach the original inherited source-hash checks after 59c restoration.
+Each case records its source HEAD and scope; the final ledger identifies the
+published checkpoint. Temporary worktrees leave the working branch unchanged.
+
+Historical controls have a separate scope. Unchanged fixtures at the frozen
+`99b6017` tree retain 59b's six positives and 19 negatives, 59d's seven positives
+and 26 negatives, and 59f's eight positives and 122 negatives. The 60f historical
+fixture also passed its two-positive/ten-negative contract. These replays test
+the frozen mutation targets and original diagnostics; their negative counts
+are not current 59c mutation evidence. The final current fixture repeats its
+built-in historical 60f/59b checks, while the unchanged standalone 59d/59f
+historical runs remain separately recorded from the preceding audited
+checkpoint.
 
 This increment qualifies named interfaces and access independently of the
 composite-reduction work in 59e. Cross-feature combinations remain the 59i
-integration scope. The roadmap checkbox remains unchecked until implementation,
-review and every applicable final-head gate are complete.
+integration scope. The PR branch records completed implementation and local
+qualification against production checkpoint `3166ddb`. The named and supported
+legacy matrices, deterministic generation, required local simulation, synthesis,
+proof, mutation and source-review checks are complete. [PR 163](https://github.com/pysolvesemi/MorphHDL/pull/163)
+must pass all required CI at its final head before merge; the integration
+roadmap receives this completion record and checkbox only through that merge.

@@ -702,6 +702,37 @@ def qualify_case(case, root, replay, layouts):
     return evidence
 
 
+class WeightedWorkerBudget:
+    """Admit complete case budgets in FIFO order without starving a waiter."""
+    def __init__(self, capacity):
+        from collections import deque
+        from threading import Condition
+        self.capacity = capacity
+        self.condition = Condition()
+        self.used = 0
+        self.waiters = deque()
+
+    def acquire(self, required):
+        ticket = object()
+        with self.condition:
+            self.waiters.append(ticket)
+            try:
+                self.condition.wait_for(lambda: self.waiters[0] is ticket and
+                                        self.used + required <= self.capacity)
+            except BaseException:
+                self.waiters.remove(ticket)
+                self.condition.notify_all()
+                raise
+            self.waiters.popleft()
+            self.used += required
+            self.condition.notify_all()
+
+    def release(self, required):
+        with self.condition:
+            self.used -= required
+            self.condition.notify_all()
+
+
 def ordered_results(function, items, jobs, cost=None):
     """Bound concurrent memory costs and yield every result in input order."""
     if not 1 <= jobs <= 8:
@@ -713,22 +744,16 @@ def ordered_results(function, items, jobs, cost=None):
     if jobs == 1:
         yield from map(function, items)
         return
-    from threading import Condition
-    budget, used = Condition(), 0
+    budget = WeightedWorkerBudget(jobs)
 
     def run(item, required):
-        nonlocal used
-        # Acquire a whole case budget atomically. Taking several semaphore
-        # permits one at a time could deadlock two simultaneous heavy cases.
-        with budget:
-            budget.wait_for(lambda: used + required <= jobs)
-            used += required
+        # Acquire every required slot atomically. FIFO admission keeps a new
+        # ordinary case from repeatedly bypassing an older exclusive case.
+        budget.acquire(required)
         try:
             return function(item)
         finally:
-            with budget:
-                used -= required
-                budget.notify_all()
+            budget.release(required)
 
     workers = ThreadPoolExecutor(max_workers=jobs)
     try:
@@ -749,10 +774,14 @@ def ordered_results(function, items, jobs, cost=None):
 
 
 def case_worker_cost(case, jobs):
-    # Measured large Access synthesis approaches 3.6 GiB per process. Keep the
-    # two widest/deepest fixtures exclusive on smaller CI runners while other
-    # independent cases retain the requested concurrency.
-    return jobs if case['kind'] == 'access' and pixel_bits(case) * case['count'] >= 1024 else 1
+    # Measured synthesis peaks approach 3.6 GiB for large Access cases and
+    # 7.852 GiB for the largest nested legacy carrier. Keep these cases
+    # exclusive while the other independent cases retain normal concurrency.
+    if case['kind'] == 'access' and pixel_bits(case) * case['count'] >= 1024:
+        return jobs
+    if case['kind'] == 'nested' and case['count'] * (3 + case['inner'] * pixel_bits(case)) >= 1024:
+        return jobs
+    return 1
 
 
 def check_case_evidence(case, layouts, records):
@@ -910,6 +939,72 @@ def stem(case):
     return f'{case["kind"]}_w{case["width"]}_b{case["blue_width"]}_n{case["count"]}_i{case["inner"]}'
 
 
+def fifo_budget_self_test():
+    from threading import Condition, Event, Thread
+
+    heavy_waiting = Event()
+    class ObservedCondition(Condition):
+        def wait(self, timeout=None):
+            # Observation only: preserve the real lock/wait behavior. Before
+            # the later caller starts, only the heavy caller can be waiting.
+            heavy_waiting.set()
+            return super().wait(timeout)
+
+    budget = WeightedWorkerBudget(2)
+    budget.condition = ObservedCondition()
+    budget.acquire(1)
+    admitted, failures = [], []
+
+    def heavy():
+        try:
+            budget.acquire(2)
+            admitted.append('heavy')
+            budget.release(2)
+        except BaseException as error:
+            failures.append(error)
+
+    def later_ordinary():
+        try:
+            # Hold the same real condition lock across releasing the old
+            # ordinary lease and requesting a new one. This deterministically
+            # reproduces a finishing worker reacquiring before a notified
+            # heavy waiter can run; no sleep or scheduling guess is required.
+            with budget.condition:
+                budget.release(1)
+                budget.acquire(1)
+                admitted.append('later-ordinary')
+                budget.release(1)
+        except BaseException as error:
+            failures.append(error)
+
+    older = Thread(target=heavy, daemon=True)
+    older.start()
+    assert heavy_waiting.wait(timeout=5), 'heavy case did not wait for the existing ordinary lease'
+    later = Thread(target=later_ordinary, daemon=True)
+    later.start()
+    later.join(timeout=5)
+    older.join(timeout=5)
+    assert not later.is_alive() and not older.is_alive(), 'FIFO admission failed to make progress'
+    assert not failures, failures
+    assert admitted == ['heavy', 'later-ordinary'], ('queued heavy case was bypassed', admitted)
+
+
+def nested_memory_budget_self_test():
+    largest = dict(kind='nested', width=32, blue_width=7, count=5, inner=3)
+    assert case_worker_cost(largest, 2) == 2
+    assert case_worker_cost(dict(largest, count=3), 2) == 1
+    assert case_worker_cost(dict(largest, inner=2), 2) == 1
+    assert case_worker_cost(largest, 1) == 1
+    # Valid positive dimensions at 1023 and 1024 total packed bits isolate
+    # the exact threshold and ensure every row's three tag bits are counted.
+    assert case_worker_cost(dict(kind='nested', width=32, blue_width=25, count=11, inner=1), 2) == 1
+    assert case_worker_cost(dict(kind='nested', width=28, blue_width=4, count=16, inner=1), 2) == 2
+    selected = [(w, b, n, i) for (w, b), n, i in itertools.product(
+        ((1, 5), (5, 3), (8, 1), (32, 7)), (1, 3, 5), (1, 2, 3))
+        if case_worker_cost(dict(kind='nested', width=w, blue_width=b, count=n, inner=i), 2) == 2]
+    assert selected == [(32, 7, 5, 3)], selected
+
+
 def scheduler_self_test():
     from threading import Barrier, Event, Lock
 
@@ -995,7 +1090,7 @@ def scheduler_self_test():
     assert case_worker_cost(heavy, 2) == 2
     assert case_worker_cost(dict(heavy, count=16), 2) == 2
     assert case_worker_cost(dict(heavy, count=9), 2) == 1
-    assert case_worker_cost(dict(heavy, kind='nested'), 2) == 1
+    assert case_worker_cost(dict(heavy, kind='streams'), 2) == 1
     assert case_worker_cost(heavy, 1) == 1
 
     case = dict(kind='access', width=5, blue_width=3, count=3, inner=1)
@@ -1152,6 +1247,8 @@ def partition_self_test():
 
 def self_test():
     scheduler_self_test()
+    fifo_budget_self_test()
+    nested_memory_budget_self_test()
     nested_oracle_self_test()
     partition_self_test()
     for kind, width, blue, count, inner in [('access', 5, 3, 3, 1), ('nested', 5, 3, 3, 2), ('nested', 1, 5, 1, 3),
