@@ -115,4 +115,130 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       assert(Writer.canonicalHeader("// user comment\n" + header + body) == "// user comment\n" + header + body)
     }
   }
+
+
+  // Unlike the sealed writers, rollout tests start with a genuinely neutral
+  // config. No opt-out helper or environment default participates in this leg.
+  private def fresh(path: Path): SpinalConfig = {
+    Files.createDirectories(path.getParent)
+    val result = SpinalConfig(targetDirectory = path.getParent.toString)
+    result.netlistFileName = path.getFileName.toString
+    result
+  }
+
+  for (width <- Vector(1, 5, 8, 32)) {
+    test(s"60g default and explicit minimal casts agree at default WIDTH=$width without config mutation") {
+      directory { root =>
+        def parameter = HdlInt.param("WIDTH", default = width, min = 1, max = 32)
+        val config = fresh(root.resolve("default.v"))
+        val inserters = config.phasesInserters.toVector
+        val flags = config.flags.toSet
+        morphhdl.MorphVerilog(config)(new nativeapplication.PureSIntCastFixture.Top(parameter))
+        val default = read(root.resolve("default.v"))
+        assert(config.phasesInserters.toVector == inserters)
+        assert(config.flags.toSet == flags)
+        assert(!MorphSignedDeclarations.isEnabled(config))
+        morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(root.resolve("explicit.v"))))(
+          new nativeapplication.PureSIntCastFixture.Top(parameter))
+        morphhdl.MorphVerilog(MorphSignedDeclarations.disable(fresh(root.resolve("legacy.v"))))(
+          new nativeapplication.PureSIntCastFixture.Top(parameter))
+        assert(default == read(root.resolve("explicit.v")))
+        assert(casts(default) == 0, "pure signed operations must not retain redundant casts")
+        assert(signedDeclaration.findFirstIn(default).nonEmpty)
+        val legacy = read(root.resolve("legacy.v"))
+        assert(signedDeclaration.findFirstIn(legacy).isEmpty)
+        assert(casts(legacy) > 0)
+        for (name <- Vector("clk", "enable", "amount", "less", "lessEqual", "greater", "greaterEqual", "nestedLess"))
+          assert(port(default, name) == port(legacy, name), name)
+        // Reusing exactly the same caller config must not inherit a prior mode.
+        morphhdl.MorphVerilog(config)(new nativeapplication.PureSIntCastFixture.Top(parameter))
+        assert(read(root.resolve("default.v")) == default)
+      }
+    }
+  }
+
+  test("60g explicit disable and declaration-only selections survive copies and re-enabling") {
+    directory { root =>
+      def parameter = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
+      val selections = Vector[(String, SpinalConfig => SpinalConfig)](
+        "legacy" -> MorphSignedDeclarations.disable _,
+        "legacy-again" -> ((c: SpinalConfig) => MorphSignedDeclarations.disable(MorphSignedDeclarations.disable(c))),
+        "declarations" -> MorphSignedDeclarations.enable _,
+        "casts-off" -> MorphSignedCasts.disable _,
+        "cleanup-off" -> ((c: SpinalConfig) => MorphSignedCasts.disable(MorphSignedCasts.enable(c))),
+        "re-enabled" -> ((c: SpinalConfig) => MorphSignedCasts.enable(MorphSignedDeclarations.disable(c))),
+        "cleanup-again" -> ((c: SpinalConfig) => MorphSignedCasts.enable(MorphSignedCasts.enable(c))),
+        "default" -> ((c: SpinalConfig) => c))
+      val generated = selections.map { case (name, select) =>
+        val base = fresh(root.resolve(name + ".v"))
+        val value = select(base)
+        assert(base.phasesInserters.isEmpty, "selecting a mode mutated the original config")
+        val copied = value.copy(phasesInserters = value.phasesInserters.clone(), flags = value.flags.clone())
+        morphhdl.MorphVerilog(copied)(new nativeapplication.PureSIntCastFixture.Top(parameter))
+        name -> read(root.resolve(name + ".v"))
+      }.toMap
+      assert(generated("legacy") == generated("legacy-again"))
+      assert(generated("declarations") == generated("casts-off"))
+      assert(generated("declarations") == generated("cleanup-off"))
+      assert(generated("default") == generated("re-enabled"))
+      assert(generated("default") == generated("cleanup-again"))
+      assert(casts(generated("declarations")) == casts(generated("legacy")))
+      assert(signedDeclaration.findFirstIn(generated("declarations")).nonEmpty)
+      assert(signedDeclaration.findFirstIn(generated("legacy")).isEmpty)
+      assert(casts(generated("default")) == 0)
+    }
+  }
+
+  test("60g default publication leaves native Verilog and VHDL bytes unchanged in the same session") {
+    directory { root =>
+      def dut = new SIntSignedDeclarationsFixture.Direct(HdlInt.literal(5))
+      val neutral = fresh(root.resolve("native-before.v"))
+      SpinalVerilog(neutral)(dut)
+      val native = read(root.resolve("native-before.v"))
+      SpinalVhdl(fresh(root.resolve("native-before.vhd")))(dut)
+      val vhdl = read(root.resolve("native-before.vhd"))
+      morphhdl.MorphVerilog(neutral.copy(netlistFileName = "morph.v"))(dut)
+      assert(read(root.resolve("morph.v")).contains("wire signed"))
+      SpinalVerilog(neutral.copy(netlistFileName = "native-after.v"))(dut)
+      SpinalVhdl(fresh(root.resolve("native-after.vhd")))(dut)
+      assert(read(root.resolve("native-after.v")) == native)
+      assert(read(root.resolve("native-after.vhd")) == vhdl)
+      assert(neutral.phasesInserters.isEmpty)
+    }
+  }
+
+  test("60g default retains real mixed-type boundaries and is shared by tryGenerate and canonical IR") {
+    directory { root =>
+      def parameter = HdlInt.param("WIDTH", default = 1, min = 1, max = 32)
+      def dut = new nativeapplication.PureSIntCastFixture.Boundaries(parameter)
+      morphhdl.MorphVerilog(fresh(root.resolve("default.v")))(dut)
+      val default = read(root.resolve("default.v"))
+      assert(signedDeclaration.findFirstIn(default).nonEmpty)
+      assert(casts(default) > 0, "real boundaries must not be erased")
+      assert(!default.contains("$signed($signed("))
+      val result = morphhdl.MorphVerilog.tryGenerate(fresh(root.resolve("try.v")))(dut)
+      assert(result.isRight)
+      morphhdl.MorphVerilog.generateWithCanonicalIr(fresh(root.resolve("canonical.v")))(dut)
+      assert(default == read(root.resolve("try.v")))
+      assert(default == read(root.resolve("canonical.v")))
+      morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(root.resolve("explicit.v"))))(dut)
+      assert(default == read(root.resolve("explicit.v")))
+    }
+  }
+
+  test("60g null options fail before elaboration without changing later publication") {
+    intercept[IllegalArgumentException](MorphSignedDeclarations.enable(null))
+    intercept[IllegalArgumentException](MorphSignedDeclarations.disable(null))
+    intercept[IllegalArgumentException](MorphSignedCasts.enable(null))
+    intercept[IllegalArgumentException](MorphSignedCasts.disable(null))
+    var invoked = false
+    val result = morphhdl.MorphVerilog.tryGenerate(null: SpinalConfig) {
+      invoked = true
+      new Component {}
+    }
+    assert(result.isLeft)
+    assert(!invoked)
+    assert(!MorphSignedDeclarations.isEnabled(null))
+    assert(!MorphSignedCasts.isEnabled(null))
+  }
 }
