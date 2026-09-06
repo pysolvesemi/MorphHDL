@@ -70,12 +70,12 @@ object TypedBalancedReductionCompositeArtifactWriter {
   private val countedDefaults = Vector("U_W" -> 5, "S_W" -> 5, "BITS_W" -> 5, "TAG_W" -> 5,
     "INNER" -> 1, "GRID_R" -> 1, "GRID_C" -> 1, "COUNT" -> 1)
 
-  def countedCandidate(directory: Path): Path = {
+  def countedCandidate(directory: Path, maximum: Int = 17): Path = {
     val w = countedWidthRoots.map(name => HdlInt.param(name, 5, 1, 32))
     MorphVerilog(config(directory, countedModule + ".v")) {
       val hardware = new BalancedCompositeCountedHardware(w(0), w(1), w(2), w(3),
         HdlInt.param("INNER", 1, 1, 3), HdlInt.param("GRID_R", 1, 1, 3),
-        HdlInt.param("GRID_C", 1, 1, 3), HdlInt.param("COUNT", 1, 1, 17))
+        HdlInt.param("GRID_C", 1, 1, 3), HdlInt.param("COUNT", 1, 1, maximum))
       recordNativeShapes(countedModule, Vector("countedIn" -> hardware.records),
         Vector("countedResult" -> hardware.result))
       hardware
@@ -85,8 +85,9 @@ object TypedBalancedReductionCompositeArtifactWriter {
     result
   }
 
-  private def countedEntries(root: Path): Vector[String] = {
-    val candidate = countedCandidate(root.resolve("counted-candidate"))
+  private def countedEntries(root: Path, emitCandidate: Boolean = true): Vector[String] = {
+    val candidate = if (emitCandidate) countedCandidate(root.resolve("counted-candidate"))
+      else root.resolve("counted-candidate").resolve(countedModule + ".v")
     val shapes = Vector((1, 2, 3, Vector(1, 1, 1, 1)), (2, 3, 1, Vector(5, 7, 3, 2)),
       (3, 1, 2, Vector(8, 4, 9, 6)))
     val cases = shapes.flatMap { case (inner, rows, columns, widths) =>
@@ -139,10 +140,29 @@ object TypedBalancedReductionCompositeArtifactWriter {
       candidate(Paths.get(args(1)).toAbsolutePath.normalize(), maximum)
       return
     }
-    require(args.length == 1, "provide one composite balanced-reduction artifact directory")
-    val root = Paths.get(args(0)).toAbsolutePath.normalize()
+    if ((args.length == 2 || args.length == 3) && args(0) == "--counted-candidate-only") {
+      val maximum = if (args.length == 3) args(2).toInt else 17
+      require(maximum >= 1 && maximum <= 17, "diagnostic counted candidate maximum must be between 1 and 17")
+      countedCandidate(Paths.get(args(1)).toAbsolutePath.normalize(), maximum)
+      return
+    }
+    if (args.length == 4 && args(0) == "--oracle-only") {
+      val width = args(2).toInt
+      val count = args(3).toInt
+      require(width >= 1 && width <= 32 && count >= 1 && count <= 17, "native diagnostic geometry is outside the candidate domain")
+      val directory = Paths.get(args(1)).toAbsolutePath.normalize()
+      val module = s"BalancedCompositeNative_base_w${width}_n$count"
+      config(directory, module + ".v").generateVerilog {
+        new BalancedCompositeNativeOracle(width, width, width, width, width, width, width, width, width, width, count, module)
+      }
+      return
+    }
+    val oraclesOnly = args.length == 2 && args(0) == "--oracles-only"
+    require(args.length == 1 || oraclesOnly, "provide one artifact directory, or --oracles-only and one diagnostic directory")
+    val root = Paths.get(if (oraclesOnly) args(1) else args(0)).toAbsolutePath.normalize()
     Files.createDirectories(root)
-    val emitted = candidate(root.resolve("candidate"))
+    val emitted = if (oraclesOnly) root.resolve("candidate").resolve(candidateModule + ".v")
+      else candidate(root.resolve("candidate"))
     val cases = (for {
       width <- Vector(1, 5, 8, 32)
       count <- nativeCounts
@@ -198,7 +218,13 @@ object TypedBalancedReductionCompositeArtifactWriter {
       val parameters = (widthRoots.zip(w) :+ ("COUNT" -> count)).map { case (name, value) => quoted(name) + ":" + value }.mkString("{", ",", "}")
       s"""    {"label":${quoted(label)},"profile":${quoted(profile)},"width":$width,"count":$count,"parameters":$parameters,"inputs":[${inputs.mkString(",")}],"outputs":[${outputs.mkString(",")}],"input_leaf_shapes":$inputShapes,"output_leaf_shapes":$shapes,"recursive_result_shapes":$recursiveShapes,"candidate_module":${quoted(candidateModule)},"candidate_rtl":${quoted(relative(root, emitted))},"reference_module":${quoted(module)},"reference_rtl":${quoted(relative(root, directory.resolve(module + ".v")))}}"""
     }
-    val nested = countedEntries(root)
+    val nested = countedEntries(root, emitCandidate = !oraclesOnly)
+    if (oraclesOnly) {
+      val summary = s"""{"scope":"native-oracle-only","configurations":${entries.size + nested.size}}
+"""
+      Files.write(root.resolve("native-oracle-only.json"), summary.getBytes(StandardCharsets.UTF_8))
+      return
+    }
     val countedDefaultJson = countedDefaults.map { case (name, value) => quoted(name) + ":" + value }.mkString("{", ",", "}")
     val defaults = (widthRoots.map(_ -> 5) :+ ("COUNT" -> 1)).map { case (name, value) => quoted(name) + ":" + value }.mkString("{", ",", "}")
     val manifest = "{\n  \"scope\":\"parameterized-native-composite-balanced-reduction\",\n" +

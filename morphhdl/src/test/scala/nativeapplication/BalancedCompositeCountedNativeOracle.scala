@@ -26,7 +26,7 @@ final class BalancedCompositeCountedNativeOracle(uw: Int, sw: Int, bw: Int,
     value
   }
   val result = words.reduceBalancedTree((a: NativeBalancedCompositeCountedRecord, b: NativeBalancedCompositeCountedRecord) =>
-    Mux(a.key <= b.key, a, b))
+    Mux(a.key <= b.key, a, b)).setName("nativeCountedReductionValue")
   val key = out(UInt(uw bits)).setName("countedResult_key")
   val tag = out(Bits(tw bits)).setName("countedResult_tag")
   val samples = out(Bits((uw + sw + bw + 1) * inner bits)).setName("countedResult_samples")

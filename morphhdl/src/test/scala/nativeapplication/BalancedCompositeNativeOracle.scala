@@ -69,7 +69,7 @@ final class BalancedCompositeNativeOracle(rw: Int, gw: Int, bw: Int, keyWidth: I
   val rgbMax = out(NativeBalancedCompositeRgb(rw, gw, bw)).setName("rgbMax")
   val selected = out(NativeBalancedCompositeRecord(keyWidth, tagWidth, coordWidth)).setName("selected")
   val complexResult = out(NativeBalancedCompositeComplex(complexWidth)).setName("complexResult")
-  val nestedResult = NativeBalancedCompositeNested(uw, sw, bitsWidth, tagWidth)
+  val nestedResult = NativeBalancedCompositeNested(uw, sw, bitsWidth, tagWidth).setName("nativeNestedReductionValue")
   // Wiring-only adapter for the candidate's existing packed nested Vec boundary.
   val nestedTagOut = out(Bits(tagWidth bits)).setName("nestedResult_tag")
   val nestedUnsignedOut = out(UInt(uw bits)).setName("nestedResult_payload_unsigned")
