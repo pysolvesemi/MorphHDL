@@ -1,21 +1,29 @@
 package spinal.core.internals
 
+import java.util.IdentityHashMap
 import java.util.regex.{Matcher, Pattern}
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
-/** Generic balanced topology around certified, natively emitted scalar bodies.
+/** Generic balanced topology around certified, natively emitted Data bodies.
   * No operator syntax, register process or reset/enable rule is emitted here.
   */
 object TypedBalancedReductionBackend {
   private object StorageKey
-  private final class Storage { val records = ArrayBuffer.empty[Record] }
+  private final class Storage {
+    val records = ArrayBuffer.empty[Record]
+    val recursiveTransport = new IdentityHashMap[Vec[_], java.lang.Boolean]()
+  }
   private final case class Body(block: ParameterizedStructuralBlock,
-      left: BaseType, right: Option[BaseType], result: BaseType,
+      left: Data, right: Option[Data], result: Data,
       observations: Vector[TypedBalancedReductionClosedGraph.Observation])
   private final case class Stage(geometry: TypedBalancedReductionStage, pair: Body, tail: Body)
-  private final case class Record(vector: Vec[BaseType], shape: ParameterizedVecShape,
-      input: Bits, output: BaseType, plan: TypedBalancedReductionPlan,
+  private final case class ReplayStage(geometry: TypedBalancedReductionStage,
+      operation: (Data, Data) => Data, bridge: Data => Data)
+  private final case class ReplayCapture(captured: UnvalidatedBalancedReduction[Data],
+      stages: Vector[ReplayStage], requireFreshness: () => Unit)
+  private final case class Record(vector: Vec[Data], shape: ParameterizedVecShape,
+      input: Bits, output: Data, plan: TypedBalancedReductionPlan,
       stages: Vector[Stage], ordinal: Int,
       outputObservation: TypedBalancedReductionClosedGraph.Observation) {
     var handedOff = false
@@ -26,8 +34,27 @@ object TypedBalancedReductionBackend {
   private def records(component: Component): Vector[Record] =
     component.userCache.get(StorageKey).map(_.asInstanceOf[Storage].records.toVector).getOrElse(Vector.empty)
 
+  /** Read-only ownership evidence. Only private certified-template creation
+    * can enter this registry; ordinary application Vecs cannot opt out of
+    * native Vec publication and lineage checks.
+    */
+  private[internals] def ownsRecursiveTransport(vector: Vec[_]): Boolean =
+    vector != null && vector.component != null &&
+      vector.component.userCache.get(StorageKey)
+        .exists(_.asInstanceOf[Storage].recursiveTransport.containsKey(vector))
+
+  private def claimRecursiveTransport(value: Data): Unit = {
+    val owner = Component.current
+    val storage = owner.userCache(StorageKey).asInstanceOf[Storage]
+    val vectors = ParameterizedVecElementLayout.nestedVectors(value)
+    if (vectors.exists(vector => (vector.component ne owner) ||
+        vector.asInstanceOf[Data].flatten.exists(_.isIo)))
+      fail("RECURSIVE-TRANSPORT-OWNER", "certified transport can own only exact internal replay vectors")
+    vectors.foreach(vector => storage.recursiveTransport.put(vector, java.lang.Boolean.TRUE))
+  }
+
   private def validateNativeAnchors(body: Body): Unit = {
-    (Vector(body.left) ++ body.right.toVector).foreach { value =>
+    (Vector(body.left) ++ body.right.toVector).flatMap(_.flatten).foreach { value =>
       if (!value.isNamed || !value.dontSimplify || !value.isComb ||
           !value.hasTag(noBackendCombMerge))
         fail("ANCHOR-POLICY", "native input wires must remain named and protected from propagation/merging")
@@ -70,15 +97,13 @@ object TypedBalancedReductionBackend {
       if (plan.count.expression.maximum == 1) return vector(0)
       if (ParameterizedStructure.currentOwner(plan.count, "balanced publication").captureId != 0L)
         fail("NESTED-OWNER", "balanced stage publication currently requires the native component scope")
-      if (vector.vec.exists(!_.isInstanceOf[BaseType]))
-        fail("SHAPE", "only certified scalar element graphs are admitted")
       // Callback code admission precedes its first execution. Graph sampling
       // is not used to infer the absence of host state or external effects.
-      TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge)
-      build(vector.asInstanceOf[Vec[BaseType]],
-        op.asInstanceOf[(BaseType, BaseType) => BaseType],
-        bridge.asInstanceOf[(BaseType, Int) => BaseType],
-        native.asInstanceOf[ElabBalancedReduction.Native[BaseType]]).asInstanceOf[T]
+      TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge, vector.vec)
+      build(vector.asInstanceOf[Vec[Data]],
+        op.asInstanceOf[(Data, Data) => Data],
+        bridge.asInstanceOf[(Data, Int) => Data],
+        native.asInstanceOf[ElabBalancedReduction.Native[Data]]).asInstanceOf[T]
     }
   }
 
@@ -89,33 +114,62 @@ object TypedBalancedReductionBackend {
     value
   }
 
-  private def driveZero(value: BaseType): Unit = value match {
+  private def driveZero(value: Data): Unit = value match {
     case scalar: Bool => scalar := False
     case scalar: Bits => scalar := 0
     case scalar: UInt => scalar := 0
     case scalar: SInt => scalar := 0
-    case _ => fail("SHAPE", "unsupported scalar anchor")
+    case _: MultiData => value.flatten.foreach(driveZero)
+    case _ => fail("SHAPE", "unsupported native anchor")
   }
 
-  private def build(vector: Vec[BaseType], op: (BaseType, BaseType) => BaseType,
-      bridge: (BaseType, Int) => BaseType,
-      native: ElabBalancedReduction.Native[BaseType]): BaseType = {
+  private def capture(vector: Vec[Data], op: (Data, Data) => Data,
+      bridge: (Data, Int) => Data, native: ElabBalancedReduction.Native[Data]): ReplayCapture = {
+    if (vector.vec.head.isInstanceOf[BaseType]) {
+      val certificate = TypedBalancedReductionStageReplay.capture(
+        vector.asInstanceOf[Vec[BaseType]],
+        op.asInstanceOf[(BaseType, BaseType) => BaseType],
+        bridge.asInstanceOf[(BaseType, Int) => BaseType],
+        native.asInstanceOf[ElabBalancedReduction.Native[BaseType]])
+      ReplayCapture(certificate.captured.asInstanceOf[UnvalidatedBalancedReduction[Data]],
+        certificate.stages.map(stage => ReplayStage(stage.geometry,
+          (left, right) => stage.operators.head.replay(left.asInstanceOf[BaseType], right.asInstanceOf[BaseType]),
+          value => stage.bridges.head.replay(value.asInstanceOf[BaseType]))),
+        () => certificate.requireFreshness())
+    } else {
+      val certificate = TypedBalancedReductionCompositeReplay.capture(vector, op, bridge, native)
+      ReplayCapture(certificate.captured, certificate.stages.map(stage => ReplayStage(stage.geometry,
+        (left, right) => stage.operators.head.replay(left, right),
+        value => stage.bridges.head.replay(value))), () => certificate.requireFreshness())
+    }
+  }
+
+  private def build(vector: Vec[Data], op: (Data, Data) => Data,
+      bridge: (Data, Int) => Data,
+      native: ElabBalancedReduction.Native[Data]): Data = {
     val owner = Component.current
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
-    val certificate = TypedBalancedReductionStageReplay.capture(vector, op, bridge, native)
+    val certificate = capture(vector, op, bridge, native)
     val shape = certificate.captured.shape
     val plan = certificate.captured.plan
-    def fresh(name: String): BaseType = {
+    def fresh(name: String): Data = {
       val result = ParameterizedWidth.cloneOf(vector.vec.head)
       result.setAsDirectionLess()
-      preserve(result, name)
+      result.setName(name)
+      // Explicit leaf anchors preserve exact identity and avoid flatten-name
+      // collisions between distinct recursive field paths.
+      result.flatten.toVector.zipWithIndex.foreach { case (leaf, index) =>
+        preserve(leaf, if (result.isInstanceOf[BaseType]) name else name + "_leaf_" + index)
+      }
+      claimRecursiveTransport(result)
+      result
     }
-    def template(stage: TypedBalancedReductionStageReplay.Stage, pair: Boolean): Body = {
-      var left: BaseType = null
-      var right: Option[BaseType] = None
-      var result: BaseType = null
+    def template(stage: ReplayStage, pair: Boolean): Body = {
+      var left: Data = null
+      var right: Option[Data] = None
+      var result: Data = null
       val label = prefix + "_l" + stage.geometry.level + (if (pair) "_pair" else "_tail")
       val anchors = ParameterizedStructure.captureBlock(owner, None) {
         left = fresh(label + "_left")
@@ -127,8 +181,10 @@ object TypedBalancedReductionBackend {
         }
       }
       val block = ParameterizedStructure.captureBlock(owner, None) {
-        val operated = if (pair) stage.operators.head.replay(left, right.get) else left
-        val bridged = stage.bridges.head.replay(operated)
+        val operated = if (pair) stage.operation(left, right.get) else left
+        claimRecursiveTransport(operated)
+        val bridged = stage.bridge(operated)
+        claimRecursiveTransport(bridged)
         result = fresh(label + "_result")
         result.assignFrom(bridged)
       }
@@ -151,7 +207,7 @@ object TypedBalancedReductionBackend {
       .flatMap(_.declarations).foreach(_.removeStatement())
     val input = vector.asBits
     preserve(input, prefix + "_input")
-    var output: BaseType = null
+    var output: Data = null
     val outputBlock = ParameterizedStructure.captureBlock(owner, None) {
       output = fresh(prefix + "_result")
       driveZero(output)
@@ -181,7 +237,8 @@ object TypedBalancedReductionBackend {
       if (!record.handedOff)
         fail("HANDOFF", "native template graph was not validated before normalization")
       record.stages.flatMap(s => Vector(s.pair, s.tail)).foreach(validateNativeAnchors)
-      val width = record.shape.elementLeaves.head.width.verilog
+      val width = if (record.shape.elementLeaves.size == 1 && !record.shape.elementLayout.hasNestedVectors)
+        record.shape.elementLeaves.head.width.verilog else record.shape.elementWidthVerilog
       val base = s"morphhdl_balanced_${record.ordinal}"
       val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet
       def reserved(prefix: String): Vector[String] =
@@ -194,10 +251,66 @@ object TypedBalancedReductionBackend {
         suffix += 1
         prefix = base + "_" + suffix
       }
+      val allocatedNames = scala.collection.mutable.HashSet.empty[String] ++ identifiers ++ reserved(prefix)
+      def allocateLabel(base: String): String = {
+        var result = base
+        var ordinal = 0
+        while (allocatedNames.contains(result)) {
+          ordinal += 1
+          result = base + "_" + ordinal
+        }
+        allocatedNames += result
+        result
+      }
       val blocks = record.stages.flatMap(s => Vector(s.pair.block, s.tail.block))
       val (remaining, bodies) = ParameterizedVerilogStructural.extractNativeTemplates(
         component, blocks, current, pc, canonicalOf)
       def slice(source: String, index: String): String = s"$source[(($index) * ($width)) +: ($width)]"
+      def leafSlice(source: String, index: String, leafIndex: Int): String = {
+        if (record.shape.elementLeaves.size == 1 && !record.shape.elementLayout.hasNestedVectors) slice(source, index)
+        else {
+          val offset = record.shape.elementLeaves.take(leafIndex).map(leaf => s"(${leaf.width.verilog})")
+          val offsetText = if (record.shape.elementLayout.hasNestedVectors)
+            record.shape.elementLayout.leaves(leafIndex).offset(_.verilog)
+            else if (offset.isEmpty) "0" else offset.mkString(" + ")
+          val leafWidth = record.shape.elementLeaves(leafIndex).width.verilog
+          s"$source[((($index) * ($width)) + ($offsetText)) +: ($leafWidth)]"
+        }
+      }
+      def connect(body: String, value: Data, source: String, index: String,
+          moduleScope: Boolean = false): String =
+        value.flatten.toVector.zipWithIndex.foldLeft(body) { case (text, (leaf, leafIndex)) =>
+          val connected = replaceDriver(text, leaf, leafSlice(source, index, leafIndex))
+          val active = record.shape.elementLayout.leaves(leafIndex).activeCondition(_.verilog)
+          if (active == "1") connected
+          else {
+            val assignment = ("(?m)^[ \\t]*assign[ \\t]+" + Pattern.quote(leaf.getName()) +
+              "[ \\t]*=[^;]+;").r
+            if (assignment.findAllMatchIn(connected).size != 1)
+              fail("ANCHOR", "recursive leaf must retain one exact driver")
+            val presentLabel = allocateLabel(leaf.getName() + "_present")
+            val absentLabel = allocateLabel(leaf.getName() + "_absent")
+            assignment.replaceAllIn(connected, m => Matcher.quoteReplacement(
+              (if (moduleScope) "  generate\n" else "") +
+                s"  if ($active) begin : $presentLabel\n${m.matched}\n" +
+                s"  end else begin : $absentLabel\n    assign ${leaf.getName()} = 0;\n  end" +
+                (if (moduleScope) "\n  endgenerate" else "")))
+          }
+        }
+      def packed(value: Data): String = {
+        val names = value.flatten.toVector.reverse.map(_.getName())
+        if (names.size == 1) names.head else names.mkString("{", ", ", "}")
+      }
+      def publishResult(target: String, index: String, value: Data): Vector[String] = {
+        if (!record.shape.elementLayout.hasNestedVectors)
+          Vector(s"        assign ${slice(target, index)} = ${packed(value)};")
+        else value.flatten.toVector.zipWithIndex.flatMap { case (leaf, leafIndex) =>
+          val line = s"        assign ${leafSlice(target, index, leafIndex)} = ${leaf.getName()};"
+          val active = record.shape.elementLayout.leaves(leafIndex).activeCondition(_.verilog)
+          if (active == "1") Vector(line)
+          else Vector(s"        if ($active) begin : ${allocateLabel(leaf.getName() + "_published")}", line, "        end")
+        }
+      }
       val lines = ArrayBuffer.empty[String]
       val first = prefix + "_stage_0"
       lines += s"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;"
@@ -210,20 +323,20 @@ object TypedBalancedReductionBackend {
         val pairs = geometry.pairCount.expression.verilog
         val inputs = geometry.inputCount.expression.verilog
         val outputs = geometry.outputCount.expression.verilog
-        var pairBody = replaceDriver(bodies(2 * index), stage.pair.left, slice(before, "2 * " + genvar))
-        pairBody = replaceDriver(pairBody, stage.pair.right.get, slice(before, "2 * " + genvar + " + 1"))
-        val tailBody = replaceDriver(bodies(2 * index + 1), stage.tail.left, slice(before, s"($inputs) - 1"))
+        var pairBody = connect(bodies(2 * index), stage.pair.left, before, "2 * " + genvar)
+        pairBody = connect(pairBody, stage.pair.right.get, before, "2 * " + genvar + " + 1")
+        val tailBody = connect(bodies(2 * index + 1), stage.tail.left, before, s"($inputs) - 1")
         lines += s"  wire [(($width) * ($outputs))-1:0] $after;"
         lines += s"  genvar $genvar;"
         lines += "  generate"
         lines += s"    if (${geometry.active.expression.verilog}) begin : ${prefix}_active_$index"
         lines += s"      for ($genvar = 0; $genvar < ($pairs); $genvar = $genvar + 1) begin : pairs"
         lines += indent(pairBody, 8)
-        lines += s"        assign ${slice(after, genvar)} = ${stage.pair.result.getName()};"
+        lines ++= publishResult(after, genvar, stage.pair.result)
         lines += "      end"
         lines += s"      if (${geometry.hasOddTail.expression.verilog}) begin : tail"
         lines += indent(tailBody, 8)
-        lines += s"        assign ${slice(after, pairs)} = ${stage.tail.result.getName()};"
+        lines ++= publishResult(after, pairs, stage.tail.result)
         lines += "      end"
         lines += s"    end else begin : ${prefix}_bypass_$index"
         lines += s"      assign $after = $before;"
@@ -231,7 +344,7 @@ object TypedBalancedReductionBackend {
         lines += "  endgenerate"
       }
       val last = prefix + "_stage_" + record.stages.size
-      val updated = replaceDriver(remaining, record.output, slice(last, "0"))
+      val updated = connect(remaining, record.output, last, "0", moduleScope = true)
       val end = updated.lastIndexOf("endmodule")
       if (end < 0) fail("MODULE", "native module terminator missing")
       updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)

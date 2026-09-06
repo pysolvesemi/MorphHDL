@@ -540,8 +540,9 @@ abstract class BitVector extends BaseType with Widthable {
   }
 
   override def getMuxType[T <: Data](list: TraversableOnce[T]) = {
-    val w = list.filter(!_.hasTag(tagAutoResize)).map(e => widthOf(e)).max
-    cloneOf(this).setWidth(w).asInstanceOf[T]
+    val inputs = list.toVector.filter(!_.hasTag(tagAutoResize))
+    val w = inputs.map(e => widthOf(e)).max
+    ParameterizedWidth.copyMuxWidth(inputs, this.clone.setWidth(w)).asInstanceOf[T]
   }
 
   def isUnknown: Bool = wrapUnaryWithBool(new Operator.BitVector.IsUnknown)

@@ -23,9 +23,9 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     assert(error.getMessage.contains(code), error.getMessage)
   }
 
-  // Build the native mux node with an inferred result for graph-certificate
-  // tests. The ordinary BitVector Mux method currently freezes its Int witness;
-  // separate tests and independent concrete artifacts exercise that method.
+  // Build an inferred native mux node for certificate tests that specifically
+  // exercise graph-derived width evidence. Separate tests cover native Mux
+  // metadata propagation and independent concrete artifacts.
   private def inferredMux[T <: BaseType](condition: Bool, yes: T, no: T): T =
     yes.wrapWithWeakClone(yes.newMultiplexer(condition, yes, no)).asInstanceOf[T]
 
@@ -286,7 +286,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("native min/max methods admit concrete widths and reject frozen symbolic witnesses") {
+  test("native min/max methods preserve concrete and exact symbolic widths") {
     val operations = Vector[(UInt, UInt) => UInt](_ min _, _ max _)
     for (operation <- operations) {
       generate(new Component {
@@ -298,6 +298,25 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
       })
       withUInt { (words, _) =>
         val captured = record(words, operation)
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        val replayed = proof.replay(words.vec(0), words.vec(2))
+        assert(ElabInt.equivalentExactFunction(
+          ParameterizedWidth.expressionOf(words.vec.head).get,
+          ParameterizedWidth.expressionOf(replayed).get
+        ))
+        assert(replayed.getBitsWidth == 5)
+      }
+    }
+  }
+
+  test("an untyped fixed min/max alias cannot specialize symbolic WIDTH") {
+    for (operation <- Vector[(UInt, UInt) => UInt](_ min _, _ max _)) {
+      withUInt { (words, _) =>
+        val captured = record(words, (a: UInt, b: UInt) => {
+          val fixed = UInt(5 bits)
+          fixed := operation(a, b)
+          fixed
+        })
         assertCode("REPLAY-FIXED-WIDTH") {
           TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
         }

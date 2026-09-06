@@ -10,9 +10,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible.",
+      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve mux width authority only for operands with the same exact typed width function while retaining the native max-width rule.",
       "edits": [
         {
           "id": "bitvector-resize-01",
@@ -23,6 +24,19 @@
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-mux-width-59e",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.getMuxType",
+          "reason": "Retain exact compatible operand width metadata on the native max-width mux result without copying an arbitrary operand width.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copyMuxWidth(inputs, this.clone.setWidth(w)",
               "count": 1
             }
           ]
@@ -513,9 +527,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads.",
+      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads. Mechanically preserve exact typed leaf and nested Vec metadata across native cloneOf used by HardType, Mux and RegNext.",
       "edits": [
         {
           "id": "misc-typed-math-01",
@@ -539,6 +554,19 @@
             {
               "side": "approved",
               "text": "IllegalArgumentException",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "misc-clone-shape-59e",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.cloneOf.apply(Data)",
+          "reason": "Copy exact typed leaf and recursive Vec metadata after authoritative native cloning, without inferring symbolic widths from concrete witnesses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copyCloneMetadata(that, that.clone().asInstanceOf[T])",
               "count": 1
             }
           ]
@@ -569,9 +597,21 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59e: composite and nested Bundle/Vec reductions"
+      ],
+      "reason": "Own bounded identity-checked recursive Bundle/Vec shape and factorized logical packing evidence, including exact leaf ordering, scalar types, dimension functions, offsets and active-index guards.",
       "edits": []
     },
     {
@@ -590,9 +630,10 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
-        "Increment 58: legacy adapter and shadow-path retirement"
+        "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Retain exact native clone geometry and equivalent-function mux widths for ordinary composite callbacks.",
       "edits": []
     },
     {
@@ -713,9 +754,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport.",
       "edits": [
         {
           "id": "vec-typed-geometry-01",
@@ -1032,12 +1074,17 @@
         {
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
-          "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "owner": "spinal.core.Vec packing, assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Preserve all native scalar leaves when packing a retained nested Vec, avoiding premature inner witness truncation before exact logical packing.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.validatePackedAssignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)",
               "count": 1
             }
           ]

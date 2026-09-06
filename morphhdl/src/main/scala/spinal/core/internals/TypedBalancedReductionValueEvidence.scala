@@ -106,4 +106,11 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     if (proof == null) fail("bridge proof must be present")
     create(proof.nativeResult, proof.resultWidth, () => proof.validateFreshness())
   }
+
+  def fromComposite(proof: TypedBalancedReductionCompositeReplay.OperatorProof,
+      index: Int): Evidence = {
+    if (proof == null) fail("composite operator proof must be present")
+    create(proof.nativeResult.flatten(index), proof.resultWidths(index),
+      () => proof.validateFreshness())
+  }
 }

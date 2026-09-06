@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "0cf0bce4944ab31e97dd91bf760295e0c765b762"
+      "approved_tree": "cd4b1407c20057fee5ab91683e99e241d6aef015"
     },
     {
       "path": "idslpayload/src/main",
@@ -60,9 +60,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible.",
+      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve mux width authority only for operands with the same exact typed width function while retaining the native max-width rule.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
@@ -72,8 +73,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
-        "blob": "2598cc70dbce164c571ff3ff6bca349077108c52",
-        "sha256": "5e7cdf32036800a899159ffa71eb0eeafffb634e94979afc2c70c3ee52c7de3a"
+        "blob": "e4bd6f050dd29174987c8a06abe1cad83b82dac3",
+        "sha256": "e77f016145dcc5aa0ef15ec68a27faee4715e0e1a6c09b61db419dd05ddfb40d"
       },
       "edits": [
         {
@@ -95,6 +96,29 @@
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-mux-width-59e",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.getMuxType",
+          "reason": "Retain exact compatible operand width metadata on the native max-width mux result without copying an arbitrary operand width.",
+          "baseline_span": {
+            "start": 19363,
+            "end": 19458,
+            "sha256": "ccdceb97c35c192a15d8b8e44adebd062beaff32166a5ff23c23ce52e5cd30eb"
+          },
+          "approved_span": {
+            "start": 19855,
+            "end": 20021,
+            "sha256": "e8aa1467374443fb8fa833bce39b4be3fc3a94696fa27ce0e8b4820644286f34"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copyMuxWidth(inputs, this.clone.setWidth(w)",
               "count": 1
             }
           ]
@@ -924,9 +948,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads.",
+      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads. Mechanically preserve exact typed leaf and nested Vec metadata across native cloneOf used by HardType, Mux and RegNext.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Misc.scala",
         "mode": "100644",
@@ -936,8 +961,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Misc.scala",
         "mode": "100644",
-        "blob": "ddf530c129d457b03169267f5d945618a5134071",
-        "sha256": "a8ab4d86cfe49ea970d07fa96a79aedf84f11be7df6649d586e1917f45b9ac22"
+        "blob": "b6f9222384ca974d4e972458a995591745abd662",
+        "sha256": "8d95a1902af24ff7b1afac6b2b3ac50066fa843330e0864ab6e8e9dc1a16a1fb"
       },
       "edits": [
         {
@@ -985,6 +1010,29 @@
               "count": 1
             }
           ]
+        },
+        {
+          "id": "misc-clone-shape-59e",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.cloneOf.apply(Data)",
+          "reason": "Copy exact typed leaf and recursive Vec metadata after authoritative native cloning, without inferring symbolic widths from concrete witnesses.",
+          "baseline_span": {
+            "start": 3251,
+            "end": 3280,
+            "sha256": "d1d5470d2ead6cd081a11d67f49d5efee4dc06af7754899a43021bca98d27b1b"
+          },
+          "approved_span": {
+            "start": 3579,
+            "end": 3656,
+            "sha256": "c4e25f9c9cd1d5f03e215aad527fcbc9feb68c89e29c10add6532bf218b3d434"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copyCloneMetadata(that, that.clone().asInstanceOf[T])",
+              "count": 1
+            }
+          ]
         }
       ]
     },
@@ -1017,15 +1065,33 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "86b5ab64ea006b832ad7d9fe356d9c91adf784bf",
-        "sha256": "8212a2ddbee1d2c4a1dbdebe7dff31090f1caa0d4515c7f60eb491c2af040f33"
+        "blob": "d32fc5b15201bc326603474937cc8801673091cf",
+        "sha256": "442a058d9b1ec24e78961aea1c14715f8171194e6747a625568490de9babc161"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59e: composite and nested Bundle/Vec reductions"
+      ],
+      "reason": "Own bounded identity-checked recursive Bundle/Vec shape and factorized logical packing evidence, including exact leaf ordering, scalar types, dimension functions, offsets and active-index guards.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
+        "mode": "100644",
+        "blob": "7ebee43d2c51011187481ecc3ee992850b67dc69",
+        "sha256": "71e01420531be00b60ab621fae6e4a0823ffaa50581ff3c4836593416bf3ed1b"
       },
       "edits": []
     },
@@ -1044,15 +1110,16 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
-        "Increment 58: legacy adapter and shadow-path retirement"
+        "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Retain exact native clone geometry and equivalent-function mux widths for ordinary composite callbacks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "653ae28618abfdcd08de39883814f7faa1199b75",
-        "sha256": "6bad96c6c59198dd0ea87e8d51b332ed58aae6c5da50b07f073b6d21f152fcf3"
+        "blob": "47678308416a3afd187a4d1a2887c8809d131aef",
+        "sha256": "88141b7c3e7473c9712d1214451c35d59372a455345bc4005e8c3ebf1685d7fc"
       },
       "edits": []
     },
@@ -1256,9 +1323,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1268,8 +1336,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "4d87665c7ecf70eb41fc6bedffd63198147e02b4",
-        "sha256": "88ff512e05f0b56f2cf0f1f1602b866cf41160f5b57f42011a5d2cec8cb3f938"
+        "blob": "88efce89f6b1e8026c677fcf37c1141e92b69433",
+        "sha256": "892b0deb762b7d5ab5b19d2280908f72849cfe38060755c400275e7ef40231e0"
       },
       "edits": [
         {
@@ -1827,8 +1895,8 @@
         {
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
-          "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "owner": "spinal.core.Vec packing, assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Preserve all native scalar leaves when packing a retained nested Vec, avoiding premature inner witness truncation before exact logical packing.",
           "baseline_span": {
             "start": 11577,
             "end": 11638,
@@ -1836,13 +1904,18 @@
           },
           "approved_span": {
             "start": 17018,
-            "end": 19113,
-            "sha256": "40b43cdae3dcd8a7997bed3336e0211855905dbbbe331ff9b8d826216228b9d7"
+            "end": 19606,
+            "sha256": "c44aafb5f6babfe94fbd464f575ec305d3e8b630f7481dd832c7a7c6a792b3af"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.validatePackedAssignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)",
               "count": 1
             }
           ]
@@ -1858,8 +1931,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 19443,
-            "end": 19545,
+            "start": 19936,
+            "end": 20038,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -1881,8 +1954,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19613,
-            "end": 19756,
+            "start": 20106,
+            "end": 20249,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
