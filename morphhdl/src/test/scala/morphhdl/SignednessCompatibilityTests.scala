@@ -269,6 +269,67 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
     }
   }
 
+  test("60g unsigned generated domains retain native authority beside signed scalars") {
+    directory { root =>
+      for (defaultWidth <- Vector(1, 8)) {
+        def parameter = HdlInt.param("WIDTH", default = defaultWidth, min = 1, max = 8)
+        def unsigned = new morphhdl.CapturedAssignmentNormalizationSmoke.UnsizedLiteralRegisters(parameter)
+        val defaultPath = root.resolve(s"unsigned-$defaultWidth.v")
+        val legacyPath = root.resolve(s"unsigned-legacy-$defaultWidth.v")
+        morphhdl.MorphVerilog(fresh(defaultPath))(unsigned)
+        morphhdl.MorphVerilog(MorphSignedDeclarations.disable(fresh(legacyPath)))(unsigned)
+        assert(read(defaultPath) == read(legacyPath), "unsigned publication must not change")
+
+        def mixed: Component = {
+          val width = parameter
+          new Component {
+            setDefinitionName("MixedSignedAndUnsignedDomains")
+            val a = in(SInt(width bits))
+            val sum = out(SInt(width bits))
+            val load = in(Bool())
+            val data = out(UInt(width bits))
+            sum := a + a
+            val child = new morphhdl.CapturedAssignmentNormalizationSmoke.UnsizedLiteralRegisters(width)
+            child.load := load
+            data := child.dout
+          }
+        }
+        val mixedPath = root.resolve(s"mixed-$defaultWidth.v")
+        val explicitPath = root.resolve(s"mixed-explicit-$defaultWidth.v")
+        morphhdl.MorphVerilog(fresh(mixedPath))(mixed)
+        morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(explicitPath)))(mixed)
+        val rtl = read(mixedPath)
+        assert(rtl == read(explicitPath))
+        assert(port(rtl, "a").contains("wire signed [WIDTH-1:0]"))
+        assert(!port(rtl, "data").contains("signed"))
+        assert(rtl.contains("g_literal_wide") && rtl.contains("g_literal_narrow"))
+        assert(casts(rtl) == 0)
+      }
+    }
+  }
+
+  test("60g default signed grow uses the symbolic sign bit while legacy rejection remains") {
+    directory { root =>
+      for (defaultWidth <- Vector(4, 8, 12)) {
+        def dut = new morphhdl.CapturedDomainWidthEquivalenceSmoke.TypedSIntResizeNamedGrowCarrier(
+          HdlInt.param("WIDTH", default = defaultWidth, min = 4, max = 12).asElabInt)
+        val output = root.resolve(s"grow-$defaultWidth.v")
+        val explicit = root.resolve(s"grow-explicit-$defaultWidth.v")
+        morphhdl.MorphVerilog(fresh(output))(dut)
+        morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(explicit)))(dut)
+        val rtl = read(output)
+        assert(rtl == read(explicit))
+        assert(rtl.contains("source[WIDTH-1]"), "sign extension must not freeze the witness bit")
+        assert(port(rtl, "observed").contains("wire signed [(WIDTH + 1)-1:0]"))
+        val legacy = root.resolve(s"grow-legacy-$defaultWidth.v")
+        val result = morphhdl.MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(fresh(legacy)))(dut)
+        assert(result.left.toOption.exists(_.detail.contains(
+          "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED")))
+        assert(!Files.exists(legacy))
+      }
+    }
+  }
+
   test("60g null options fail before elaboration without changing later publication") {
     intercept[IllegalArgumentException](MorphSignedDeclarations.enable(null))
     intercept[IllegalArgumentException](MorphSignedDeclarations.disable(null))

@@ -50,6 +50,13 @@ object MorphHdlSignednessAnalysis {
       private val widths: Vector[ElaborationIntegerExpression],
       private val capturedUses: IdentityHashMap[AnyRef, Set[Use]]
   ) {
+    /** Membership is not emission permission. Publication can leave unrelated
+      * unsigned objects with the native backend, but covered objects must still
+      * pass the same identity, role, freshness and width checks below.
+      */
+    private[spinal] def contains(subject: AnyRef): Boolean =
+      subject != null && indices.containsKey(subject)
+
     /** Immutable observations for inspection/replay; these are not use evidence. */
     val facts: Vector[Fact] = entries.map(_.fact)
     def replay: String = {
@@ -256,7 +263,18 @@ object MorphHdlSignednessAnalysis {
   /** Capture all declarations, memory elements, aggregate ancestors and all
     * expression occurrences in deterministic native statement/hierarchy order.
     */
-  def capture(top: Component): Snapshot = {
+  def capture(top: Component): Snapshot = captureGraph(top, publication = false)
+
+  /** A publication policy owns signed operations and their complete dependency
+    * subgraphs, not unrelated unsigned widths. Strict observer capture remains
+    * unchanged. In particular an unsigned branch-local Counter/FIFO must not
+    * acquire a second, module-wide width validator merely because signed
+    * declaration spelling is enabled elsewhere in the design.
+    */
+  private def capturePublication(top: Component): Snapshot =
+    captureGraph(top, publication = true)
+
+  private def captureGraph(top: Component, publication: Boolean): Snapshot = {
     if (top == null) reject("NULL-TOP", "capture needs an elaborated component")
     val roots = ArrayBuffer.empty[Root]
     val aggregates = new IdentityHashMap[MultiData, java.lang.Boolean]()
@@ -277,21 +295,50 @@ object MorphHdlSignednessAnalysis {
       value.children.foreach(component)
     }
     component(top)
-    build(roots.toVector)
+    if (!publication) return build(roots.toVector)
+
+    val relevant = new IdentityHashMap[AnyRef, java.lang.Boolean]()
+    val active = new IdentityHashMap[AnyRef, java.lang.Boolean]()
+    def touchesSigned(subject: AnyRef): Boolean = {
+      val known = relevant.get(subject)
+      if (known != null) return known.booleanValue
+      if (active.put(subject, java.lang.Boolean.TRUE) != null)
+        reject("EXPRESSION-CYCLE", "non-reference expression dependency cycle")
+      val shape = describe(subject)
+      // Type selects work only. It never grants cast or declaration permission;
+      // build/validate retain their original exact typed authority requirements.
+      val signed = shape.kind == SignedScalar || shape.children.exists(touchesSigned)
+      active.remove(subject)
+      relevant.put(subject, java.lang.Boolean.valueOf(signed))
+      signed
+    }
+    val needed = new IdentityHashMap[AnyRef, java.lang.Boolean]()
+    def include(subject: AnyRef): Unit =
+      if (needed.put(subject, java.lang.Boolean.TRUE) == null)
+        describe(subject).children.foreach(include)
+    roots.foreach { root =>
+      // Ancestor aggregate capture is for observers, not scalar publication.
+      // A needed memory/packed expression retains its own complete shape.
+      if (root.use != AggregateUse && touchesSigned(root.subject)) include(root.subject)
+    }
+    // Retain every occurrence role of each needed exact object, including
+    // unsigned declaration references used as signed-operation dependencies.
+    build(roots.filter(root => needed.containsKey(root.subject)).toVector)
   }
 
   /** The final plan is rechecked at execution, not only at installation:
     * another phase inserter must not move analysis before validation or away
     * from the exact emission boundary after this inserter has returned.
     */
-  private final class ObservationPhase(observer: Snapshot => Unit, plan: () => ArrayBuffer[Phase])
+  private final class ObservationPhase(observer: Snapshot => Unit, plan: () => ArrayBuffer[Phase],
+      captureGraph: Component => Snapshot, enabled: () => Boolean)
       extends PhaseMisc {
     override def impl(pc: PhaseContext): Unit = {
       val phases = plan()
       val emission = validatedEmission(phases)
       if (phases.count(_ eq this) != 1 || emission == 0 || (phases(emission - 1) ne this))
         reject("PHASE-PLAN", "analysis must remain immediately before the validated Verilog emitter")
-      observer(capture(pc.topLevel))
+      if (enabled()) observer(captureGraph(pc.topLevel))
     }
   }
 
@@ -313,12 +360,23 @@ object MorphHdlSignednessAnalysis {
   }
 
   /** Opt-in observer; ordinary SpinalVerilog/MorphVerilog remain untouched. */
-  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit = {
-    if (observer == null) reject("PHASE-PLAN", "analysis requires a non-null observer")
+  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit =
+    installCapture(observer, capture _, () => true)(phases)
+
+  /** Publication selection does not alter the strict observational API or any
+    * fact/transfer rule. Native generation with Morph options is not analyzed.
+    */
+  def installPublication(observer: Snapshot => Unit, enabled: () => Boolean)(
+      phases: ArrayBuffer[Phase]): Unit =
+    installCapture(observer, capturePublication _, enabled)(phases)
+
+  private def installCapture(observer: Snapshot => Unit, captureGraph: Component => Snapshot,
+      enabled: () => Boolean)(phases: ArrayBuffer[Phase]): Unit = {
+    if (observer == null || enabled == null) reject("PHASE-PLAN", "analysis requires a non-null observer and selector")
     val emission = validatedEmission(phases)
     if (phases.exists(_.isInstanceOf[ObservationPhase]))
       reject("PHASE-PLAN", "signedness analysis may only be installed once per phase plan")
-    phases.insert(emission, new ObservationPhase(observer, () => phases))
+    phases.insert(emission, new ObservationPhase(observer, () => phases, captureGraph, enabled))
   }
 
   private def resolved(width: Width): Boolean = width match {

@@ -3,16 +3,16 @@ module SymbolicDataShapes #(
 ) (
   input  wire [WIDTH-1:0] bits_in,
   input  wire [WIDTH-1:0] bundle_in_bits,
-  input  wire [WIDTH-1:0] bundle_in_sint,
+  input  wire signed [WIDTH-1:0] bundle_in_sint,
   input  wire [WIDTH-1:0] bundle_in_uint,
   input  wire          clk,
   input  wire [WIDTH-1:0] flow_in_payload_bits,
-  input  wire [WIDTH-1:0] flow_in_payload_sint,
+  input  wire signed [WIDTH-1:0] flow_in_payload_sint,
   input  wire [WIDTH-1:0] flow_in_payload_uint,
   input  wire          flow_in_valid,
-  input  wire [WIDTH-1:0] sint_in,
+  input  wire signed [WIDTH-1:0] sint_in,
   input  wire [WIDTH-1:0] stream_in_payload_bits,
-  input  wire [WIDTH-1:0] stream_in_payload_sint,
+  input  wire signed [WIDTH-1:0] stream_in_payload_sint,
   input  wire [WIDTH-1:0] stream_in_payload_uint,
   input  wire          stream_in_valid,
   input  wire          stream_out_ready,
@@ -20,19 +20,19 @@ module SymbolicDataShapes #(
   input wire [((WIDTH + WIDTH + WIDTH) * 2)-1:0] vec_in,
   output wire [WIDTH-1:0] bits_out,
   output wire [WIDTH-1:0] bundle_out_bits,
-  output wire [WIDTH-1:0] bundle_out_sint,
+  output wire signed [WIDTH-1:0] bundle_out_sint,
   output wire [WIDTH-1:0] bundle_out_uint,
   output wire [WIDTH-1:0] flow_out_payload_bits,
-  output wire [WIDTH-1:0] flow_out_payload_sint,
+  output wire signed [WIDTH-1:0] flow_out_payload_sint,
   output wire [WIDTH-1:0] flow_out_payload_uint,
   output wire          flow_out_valid,
   output wire [WIDTH-1:0] register_out_bits,
-  output wire [WIDTH-1:0] register_out_sint,
+  output wire signed [WIDTH-1:0] register_out_sint,
   output wire [WIDTH-1:0] register_out_uint,
-  output wire [WIDTH-1:0] sint_out,
+  output wire signed [WIDTH-1:0] sint_out,
   output wire          stream_in_ready,
   output wire [WIDTH-1:0] stream_out_payload_bits,
-  output wire [WIDTH-1:0] stream_out_payload_sint,
+  output wire signed [WIDTH-1:0] stream_out_payload_sint,
   output wire [WIDTH-1:0] stream_out_payload_uint,
   output wire          stream_out_valid,
   output wire [WIDTH-1:0] uint_out,
@@ -40,10 +40,10 @@ module SymbolicDataShapes #(
 );
 
   wire       [WIDTH-1:0] internal_payload_bits;
-  wire       [WIDTH-1:0] internal_payload_sint;
+  wire       signed [WIDTH-1:0] internal_payload_sint;
   wire       [WIDTH-1:0] internal_payload_uint;
   reg        [WIDTH-1:0] payload_register_bits;
-  reg        [WIDTH-1:0] payload_register_sint;
+  reg        signed [WIDTH-1:0] payload_register_sint;
   reg        [WIDTH-1:0] payload_register_uint;
 
   assign bits_out = bits_in;

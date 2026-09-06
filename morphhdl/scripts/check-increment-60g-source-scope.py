@@ -13,15 +13,17 @@ from pathlib import Path
 
 BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "13abac049d890fa159238ae89b91eb863da5aa676d9c0d74a4822e315ddd6ac8"
-PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala'])
+CONTRACT_SHA256 = "e911ca65f9176e677e9be38bfaeb09eebf3fb58d4da3710d5fc4c3cab37c88dd"
+PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala'])
 PRODUCTION = {
-    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "2729b023267fbc999768b460195c556ed2b5508a277082ab369d5dad5bffcbcc",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "1869fd4d2512d904719f21b27630903b8e3de183ce8827cd53d7597332911ceb",
     "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
-    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23"
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "6b5a13b6fec3997aecd514863304bbc62496bd051c8a58c407f12b665f3ee198",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "74b5e84c88526798d48fea03d8e1909a9b7ed13eb0d2261451c5fd8d7052b693"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "4a29efa13f61b30828cac42ef8a5764d826273193fe4563c156218c7bfc6c87d",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "53b39d1fd5e5412f95c604346f6ac0d7de35bc8b83e5af07e6f9f74e9625f777",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
@@ -89,7 +91,7 @@ def source_scope(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
-    require(changed == set(PRODUCTION), "60g production exceeds three publication config files: " + str(sorted(changed)))
+    require(changed == set(PRODUCTION), "60g production exceeds five publication configuration/selection files: " + str(sorted(changed)))
     untracked = {p for p in git("ls-files", "--others").splitlines() if "/src/main/" in "/" + p}
     require(not untracked, "untracked 60g production source: " + str(sorted(untracked)))
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
@@ -110,7 +112,7 @@ def source_scope(root: Path) -> None:
                  "morphhdl/contracts/typed-native-source-overlay.json")
     require(not native.strip(), "60g must not change native implementation/approved manifest: " + native)
     oracle_only(root)
-    print("60g three-file publication policy, sealed fixture selection and native-zero delta PASS", flush=True)
+    print("60g five-file publication policy, sealed fixture selection and native-zero delta PASS", flush=True)
 
 
 def self_test(root: Path) -> None:

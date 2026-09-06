@@ -357,7 +357,7 @@ def regressions(root: Path, output: Path) -> None:
         profile = profile[:-len("-and-60g")]
         gate = closure_module().load(root, "60g-source-scope")
         gate.source_scope(root)
-        counts["morphhdl"] = (REGRESSIONS["morphhdl"][0] + 8, REGRESSIONS["morphhdl"][1])
+        counts["morphhdl"] = (REGRESSIONS["morphhdl"][0] + 10, REGRESSIONS["morphhdl"][1])
     require(profile in ("60f-baseline", "60f-with-wa07a", "60f-with-59f",
                         "60f-with-wa07a-and-59f"), "unknown validated source profile: " + profile)
     extensions = descendant_extensions(root)

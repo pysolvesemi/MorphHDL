@@ -657,7 +657,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     }
   }
 
-  test("a symbolic signed grow fails before freezing its witness sign index") {
+  test("legacy symbolic signed grow fails before freezing its witness sign index") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_sint_resize_named_grow_carrier.v"
@@ -665,7 +665,9 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val width =
         HdlInt.param("WIDTH", default = 8, min = 4, max = 12).asElabInt
 
-      MorphVerilog.tryGenerate(config) {
+      // Preserve the pre-60e legacy rejection; signed default coverage is in
+      // SignednessCompatibilityTests and the independent 60e resize proofs.
+      MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(config)) {
         new TypedSIntResizeNamedGrowCarrier(width)
       } match {
         case Left(failure) =>

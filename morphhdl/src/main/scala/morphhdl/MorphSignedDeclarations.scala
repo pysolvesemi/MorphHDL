@@ -36,13 +36,16 @@ object MorphSignedDeclarations {
     if (emitters.isEmpty) return
     require(emitters.size == 1, "signed declarations require one native Verilog emitter")
     val emitter = emitters.head
-    MorphHdlSignednessAnalysis.install { snapshot =>
+    MorphHdlSignednessAnalysis.installPublication(snapshot => {
       val current = GlobalData.get.config
       if (isEnabled(current) && ParameterizedVerilogMode.isEnabled(current)) {
         require(current.mode == Verilog, "signed declarations require strict Verilog publication")
         MorphHdlSignedDeclarationPolicy.bind(emitter, snapshot, MorphSignedCasts.isEnabled(current))
       }
-    }(phases)
+    }, () => {
+      val current = GlobalData.get.config
+      isEnabled(current) && ParameterizedVerilogMode.isEnabled(current)
+    })(phases)
   }
 
   def enable(config: SpinalConfig): SpinalConfig = {
