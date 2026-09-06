@@ -1,0 +1,148 @@
+name: Increment 59b closed callback graphs
+
+on:
+  push:
+    branches: ['agent/increment-59b-*']
+    paths:
+      - '.github/workflows/increment-59b-closed-graph.yml'
+      - 'morphhdl/src/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59b-closed-graph.yml'
+      - 'morphhdl/src/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59b-closure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
+    name: Closed graphs Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify exact native review and regeneration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59b-closure
+          git rev-parse HEAD > target/increment-59b-closure/head.txt
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output target/increment-59b-closure/native-source-preservation.json
+          cmp morphhdl/contracts/native-source-preservation.json target/increment-59b-closure/native-source-preservation.json
+      - name: Bootstrap pinned SBT with verified checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/increment-59b-closure/bootstrap"
+          mkdir -p "$dir"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59b-closure/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Compile and run all 81 focused tests on the actual committed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59b-closure"
+          bootstrap="$output/bootstrap"
+          java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionCaptureTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests morphhdl.ReduceBalancedTreeNativeContractTests' \
+            > "$output/sbt.log" 2>&1 || { tail -n 100 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',23), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+              files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(files) == 1, (name, files)
+              suite = ET.parse(files[0]).getroot()
+              assert int(suite.get('tests','0')) == count, (name, suite.attrib)
+              assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
+              print(name, suite.attrib)
+          PY
+          tail -n 20 "$output/sbt.log"
+      - name: Print exact failing tests without hiding earlier diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports = list(Path('morphhdl/target').rglob('*.xml'))
+          found = 0
+          for path in sorted(reports):
+              if 'Balanced' not in path.name:
+                  continue
+              try:
+                  suite = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in suite.iter('testcase'):
+                  for node in case:
+                      if node.tag in ('failure', 'error'):
+                          found += 1
+                          print('\nFAILED CASE:', case.get('classname'), case.get('name'))
+                          print('DIAGNOSTIC:', node.attrib)
+                          print((node.text or '')[:12000])
+          if not found:
+              print('No JUnit failure record; inspect the compiler/bootstrap log.')
+          log = Path('target/increment-59b-closure/sbt.log')
+          if log.is_file():
+              lines = log.read_text(errors='replace').splitlines()
+              for index, line in enumerate(lines):
+                  if '*** FAILED ***' in line or line.startswith('[error]'):
+                      print('\nLOG CONTEXT:\n' + '\n'.join(lines[max(0,index-1):index+12]))
+          PY
+      - name: Retain exact-head evidence without copying compiler caches
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59b-closure-${{ matrix.scala }}
+          path: |
+            target/increment-59b-closure
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

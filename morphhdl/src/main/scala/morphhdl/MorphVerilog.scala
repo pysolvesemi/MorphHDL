@@ -11,7 +11,8 @@ import spinal.core.internals.{
   ExternalParameterizedAutoResize,
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
-  MorphHdlExternalParameterizedVerilog
+  MorphHdlExternalParameterizedVerilog,
+  TypedBalancedReductionBackend
 }
 
 import morphhdl.backend.verilog2001.{Verilog2001Capability => V2001Capability, Verilog2001Emitter}
@@ -287,7 +288,7 @@ object MorphVerilog {
     try {
       val nativeConfig = copyForSingleSource(config, workspace)
       val external = ExternalSpinalVerilog.transformWithCanonicalIdentity(nativeConfig) {
-        val value = component
+        val value = TypedBalancedReductionBackend.elaborate(component)
         if (value == null) {
           throw new IllegalArgumentException("component factory returned null")
         }
@@ -717,6 +718,7 @@ object MorphVerilog {
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
     phaseInserters += ExternalParameterizedAutoResize.install _
+    phaseInserters += TypedBalancedReductionBackend.install _
     ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),

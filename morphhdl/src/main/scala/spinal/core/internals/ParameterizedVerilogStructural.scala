@@ -79,6 +79,40 @@ private[internals] object ParameterizedVerilogStructural {
   def hasRegions(component: Component): Boolean =
     ParameterizedStructure.regionsOf(component).nonEmpty
 
+  /** Relocate independent native graph templates using the same exact item
+    * ownership analysis as ordinary structural regions. The caller owns the
+    * typed topology; this function owns no HDL operation or reduction logic.
+    */
+  private[internals] def extractNativeTemplates(
+      component: Component, blocks: Vector[ParameterizedStructuralBlock],
+      verilog: String, pc: PhaseContext, canonicalOf: Component => Component
+  ): (String, Vector[String]) = {
+    if (blocks.isEmpty) return verilog -> Vector.empty
+    require(blocks.distinct.size == blocks.size, "duplicate native template identity")
+    require(blocks.forall(b => b.regions.isEmpty && b.children.isEmpty &&
+      b.memories.isEmpty && b.vecIndices.isEmpty && b.slices.isEmpty),
+      "native scalar templates cannot carry unvalidated structural effects")
+    val lines = verilog.split("\n", -1).toVector
+    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet
+    val parameters = mergeParameters(ParameterizedWidth.parametersOf(component) ++
+      ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component))
+    val scalar = resolveScalarOperatorReplay(component, blocks, lines)
+    val targets = blocks.flatMap(_.assignments.map(_.finalTarget.getName())).toSet
+    val plans = blocks.map(b => planBlock(component, b, lines, pc, ports,
+      parameters.map(_.name).toSet, scalar, targets,
+      ContinuousAssignmentResolution.empty, canonicalOf))
+    val ranges = plans.flatMap(_.ranges)
+    ranges.combinations(2).foreach {
+      case Vector(a, b) if a.overlaps(b) =>
+        fail("MORPH-NATIVE-TEMPLATE-OVERLAP", "native templates share emitted module items")
+      case _ =>
+    }
+    validateBranchLocalReferences(plans, lines)
+    val removed = ranges.flatMap(_.indices).toSet
+    val remaining = lines.zipWithIndex.collect { case (line, index) if !removed(index) => line }.mkString("\n")
+    remaining -> plans.map(_.body)
+  }
+
   def rewrite(
       component: Component,
       verilog: String,
@@ -452,7 +486,23 @@ private[internals] object ParameterizedVerilogStructural {
             "structural Vec selection",
             selection.sourceLocation
           )
+          selection.affineRead.foreach { evidence =>
+            if (!evidence.matches(selection.vector, selection.index, token, Some(owner.count)))
+              fail(
+                "SPINAL-ELAB-FINITE-AFFINE-EVIDENCE-MISMATCH",
+                "affine Vec read no longer matches its exact enclosing range and Vec domain",
+                selection.sourceLocation
+              )
+          }
         }
+        if (selection.affineRead.nonEmpty &&
+          (selection.finiteIndexToken.isEmpty || selection.result.flatten.exists(leaf =>
+            block.assignments.exists(_.finalTarget eq leaf))))
+          fail(
+            "SPINAL-ELAB-FINITE-AFFINE-WRITE-UNSUPPORTED",
+            "affine finite Vec selectors authorize reads only; writes require an exact full-range index",
+            selection.sourceLocation
+          )
       }
       block.slices.foreach { slice =>
         if (
@@ -1352,6 +1402,7 @@ private[internals] object ParameterizedVerilogStructural {
         body,
         plan.block.vecIndices,
         plan.block.declarations,
+        plan.block.assignments,
         liveStatements,
         plan.block.sourceLocation
       )
@@ -2351,7 +2402,11 @@ private[internals] object ParameterizedVerilogStructural {
         // Opaque identity above authorizes the relation; the generated name
         // is checked only as replay syntax for that exact owner.
         selection.index.generateIndex.contains(owners.head.indexName) &&
-        ElabInt.equivalentExpression(owners.head.count, shape.depth)
+        (selection.affineRead match {
+          case Some(evidence) => selection.finiteIndexToken.exists(token =>
+            evidence.matches(selection.vector, selection.index, token, Some(owners.head.count)))
+          case None => ElabInt.equivalentExpression(owners.head.count, shape.depth)
+        })
       }
 
     def exactAliasUse(
@@ -3800,6 +3855,7 @@ private[internals] object ParameterizedVerilogStructural {
       body: String,
       selections: Vector[ParameterizedStructure.StructuralVecIndex],
       blockDeclarations: Vector[BaseType],
+      blockAssignments: Vector[DataAssignmentStatement],
       liveStatements: IdentityHashMap[Statement, java.lang.Boolean],
       sourceLocation: Option[String]
   ): String = {
@@ -3883,7 +3939,8 @@ private[internals] object ParameterizedVerilogStructural {
           known
         case (known, selector) => known :+ selector
       }
-    if (selectors.size != 1) {
+    val allTyped = selections.forall(selection => ParameterizedVec.shapeOf(selection.vector).nonEmpty)
+    if (selectors.size != 1 && !allTyped) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-SELECTOR-CONFLICT",
         "one structural body uses multiple distinct symbolic Vec selectors",
@@ -3891,7 +3948,7 @@ private[internals] object ParameterizedVerilogStructural {
       )
     }
     val selector = selectors.head
-    if (selections.forall(selection => ParameterizedVec.shapeOf(selection.vector).nonEmpty)) {
+    if (allTyped) {
       var rewritten = body
       selections.foreach { selection =>
         selection.result.flatten.toVector.zipWithIndex.foreach { case (aliasLeaf, leafIndex) =>
@@ -3916,11 +3973,22 @@ private[internals] object ParameterizedVerilogStructural {
               location
             )
           }
+          val writesAlias = blockAssignments.exists(_.finalTarget eq aliasLeaf)
+          if (aliasLeaf.isInstanceOf[SInt] && writesAlias &&
+            blockAssignments.exists(assignment => expressionContainsIdentity(assignment.source, aliasLeaf)))
+            fail(
+              "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-ALIAS-MIXED-USE-UNSUPPORTED",
+              "one signed structural Vec alias cannot be used as both read and write; retain separate exact selections",
+              location
+            )
           val target = ParameterizedVerilogVecs.structuralDynamicSlice(
             selection.vector,
-            selector,
+            selection.index,
             leafIndex,
-            location
+            location,
+            selection.affineRead,
+            selection.finiteIndexToken,
+            readOnly = !writesAlias
           )
           rewritten = replaceName(rewritten, aliasName, target)
           if (containsName(rewritten, aliasName)) {

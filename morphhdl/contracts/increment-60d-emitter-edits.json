@@ -1,0 +1,22 @@
+{
+  "base": "75e581592334e2e596f6e1043beb9596cc20a99b",
+  "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+  "edits": [
+    {
+      "before": "  def operatorImplAsBinaryOperatorSigned(vhd: String)(op: BinaryOperator): String = {\n",
+      "after": "  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = emitExpression(operand)\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted)\"\n  }\n\n  def operatorImplAsBinaryOperatorSigned(vhd: String)(op: BinaryOperator): String = {\n"
+    },
+    {
+      "before": "    s\"($$signed(${emitExpression(op.left)}) $vhd $$signed(${emitExpression(op.right)}))\"\n",
+      "after": "    s\"(${emitSignedOperand(op, 0, op.left)} $vhd ${emitSignedOperand(op, 1, op.right)})\"\n"
+    },
+    {
+      "before": "    s\"($$signed(${emitExpression(op.left)}) $vhd ${emitExpression(op.right)})\"\n",
+      "after": "    s\"(${emitSignedOperand(op, 0, op.left)} $vhd ${emitExpression(op.right)})\"\n"
+    },
+    {
+      "before": "    s\"($$signed(${emitExpression(e.source)}) >>> ${e.shift})\"\n",
+      "after": "    s\"(${emitSignedOperand(e, 0, e.source)} >>> ${e.shift})\"\n"
+    }
+  ]
+}

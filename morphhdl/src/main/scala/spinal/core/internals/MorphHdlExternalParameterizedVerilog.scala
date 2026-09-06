@@ -231,7 +231,7 @@ object MorphHdlExternalParameterizedVerilog {
             pc,
             canonicalOf
           )
-          if (requiresExpressionHierarchyRewrite(component)) {
+          val withExpressions = if (requiresExpressionHierarchyRewrite(component)) {
             ExternalParameterizedVerilogNativeFallback.rewrite(
               component,
               withStructure,
@@ -239,6 +239,7 @@ object MorphHdlExternalParameterizedVerilog {
               canonicalOf
             )
           } else withStructure
+          TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf)
         }
         Some(name -> rewritten.split("\n", -1).toVector)
       } else None

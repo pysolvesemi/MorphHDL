@@ -1,23 +1,22 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a and 60b qualified; 60c through 60g remain unchecked.
+**Status:** 60a through 60e qualified; 60f and 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
 **Dependency:** Increment 59 must be implemented, reviewed and merged before
-Increment 60a starts. This file reserves Increment 60 while the independently
-owned Increment 59 BlackBox work is still in flight. Creating this roadmap does
-not start or complete Increment 60.
+Increment 60a starts. The child sequence below is serial. Completion of an
+individual child does not complete parent Increment 60.
 
 **Primary target:** MorphHDL single-source, strict IEEE 1364-2001 Verilog
 publication. Ordinary `SpinalVerilog` output remains upstream-compatible and
 byte-for-byte unchanged by default unless a later, separately reviewed opt-in
 configuration is approved.
 
-## Current-state finding
+## Original baseline finding
 
-Current MorphHDL does **not** implement native signed declarations for `SInt`.
-The reviewed paths show all of the following:
+Before Increment 60c, MorphHDL did **not** implement native signed declarations
+for `SInt`. The baseline paths reviewed for this roadmap showed the following:
 
 - `core/src/main/scala/spinal/core/internals/VerilogBase.scala` renders
   `TypeSInt` with the same packed range spelling as `TypeUInt`; it does not add
@@ -32,9 +31,14 @@ The reviewed paths show all of the following:
 - `morphhdl/examples/contracts/symbolic_data_shapes.v` consequently declares
   `SInt` ports, internal wires and registers as unsigned packed vectors.
 
-Therefore parameterized `SInt` widths are retained today, but native Verilog
-signedness is not. A deep signed expression can still contain repeated or
-nested `$signed(...)` calls.
+At that baseline, parameterized `SInt` widths were retained, but native Verilog
+signedness was not. Increment 60c now provides explicit opt-in signed
+declarations through `MorphSignedDeclarations.enable(config)`, with the
+[qualified scope and retained boundaries](increment-60c-signed-declarations.md)
+documented separately. Declaration-only mode retains existing expression casts.
+Increment 60d adds separately enabled pure-`SInt` cast cleanup through
+`MorphSignedCasts.enable(config)`, with the [exact removal rule and qualification](increment-60d-pure-sint-casts.md).
+Neither mode is enabled by default.
 
 ## Goal
 
@@ -140,7 +144,7 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   A text parser, emitted-name table or blanket `TypeSInt` string replacement is
   not an acceptable substitute.
 
-- [ ] **Increment 60c — Native signed declarations with casts retained**
+- [x] **Increment 60c — Native signed declarations with casts retained**
 
   **Dependencies:** Increment 60b implemented and merged.
 
@@ -158,7 +162,15 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   lint and synthesis acceptance before any cast is removed. With the mode off,
   ordinary `SpinalVerilog` must remain byte-identical to its baseline.
 
-- [ ] **Increment 60d — Pure-`SInt` redundant cast elimination**
+  Implemented and qualified by the [native signed-declaration mode](increment-60c-signed-declarations.md).
+  Both Scala lanes pass declaration, identity and isolation regressions; strict
+  Verilog-2001 tool checks; independent-reference equivalence at WIDTH 1/5/8/32;
+  the sealed 60a oracle; and a genuine mutation counterexample. Native function
+  fallback results require exact fixed widths; parameter-dependent result sizing
+  fails closed until the later literal/resize boundary is qualified. This does
+  not close 60d cast elimination or 60e aggregate/boundary work.
+
+- [x] **Increment 60d — Pure-`SInt` redundant cast elimination**
 
   **Dependencies:** Increment 60c implemented and merged.
 
@@ -176,7 +188,18 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   semantic equivalence. Division/remainder proofs must constrain the divisor to
   non-zero where the language result is otherwise undefined.
 
-- [ ] **Increment 60e — Signedness boundaries, aggregates and hierarchy closure**
+  Implemented and qualified by the [pure-`SInt` cast policy](increment-60d-pure-sint-casts.md).
+  Both Scala lanes pass all 87 tests across seven suites, with 29 byte-identical
+  generated files across fresh JVMs and compiler lanes. The pure fixture drops
+  from 53 casts to zero while preserving native intermediate-width wrappers.
+  Strict Verilog-2001 parsing, simulation, lint, synthesis and independent
+  WIDTH 1/5/8/32 equivalence pass, including nonzero-divisor proofs, retained
+  boundary and memory checks, the immutable 60a oracle and three genuine
+  mutation counterexamples. Cleanup remains opt-in; unsupported symbolic signed
+  widening and `cutLongExpressions=false` still fail closed. This does not close
+  60e boundary minimization or the 60f/60g rollout gates.
+
+- [x] **Increment 60e — Signedness boundaries, aggregates and hierarchy closure**
 
   **Dependencies:** Increment 60d implemented and merged.
 
@@ -194,6 +217,17 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   signed only after reconstruction or on independently declared leaf ports.
   Reject unsupported or ambiguous boundaries explicitly instead of silently
   deleting a cast.
+
+  Implementation and exact boundary/proof contracts are recorded in
+  [the 60e closure record](increment-60e-signedness-boundaries.md).
+  Both Scala lanes pass all 139 tests across ten suites without skips, including
+  the inherited Vec formal suite. All 64 independent native-reference tuples
+  pass strict Verilog-2001 tools, simulation and equivalence; five boundary
+  mutations produce genuine SAT counterexamples. Fresh generation reproduces
+  all 70 new and 29 inherited RTL files in each lane. The inherited 60d/60a
+  qualification and native source audits also pass. Signed resize, reconstructed
+  Vec leaves and hierarchy boundaries remain explicitly opt-in. Parent 60 and
+  the separate 60f/60g rollout gates remain unchecked.
 
 - [ ] **Increment 60f — Equivalence, compatibility and tool-matrix closure**
 

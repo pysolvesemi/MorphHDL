@@ -1,0 +1,59 @@
+name: Increment 59b inherited source-scope controls
+
+on:
+  push:
+    branches: ['agent/increment-59b-*']
+    paths:
+      - '.github/workflows/increment-59b-inherited-source-scope.yml'
+      - 'morphhdl/scripts/check-increment-60c-signed-declarations.py'
+      - 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py'
+      - 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py'
+      - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/contracts/**'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59b-inherited-source-scope.yml'
+      - 'morphhdl/scripts/check-increment-60c-signed-declarations.py'
+      - 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py'
+      - 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py'
+      - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/contracts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59b-source-scope-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Accept audited descendants and reject changed or unapproved native source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59b-source-scope
+          python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py \
+            2>&1 | tee target/increment-59b-source-scope/tests.log
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59b-source-scope-controls
+          path: target/increment-59b-source-scope
+          if-no-files-found: error
+          retention-days: 30

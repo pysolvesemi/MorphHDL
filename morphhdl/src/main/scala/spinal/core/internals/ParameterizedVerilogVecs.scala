@@ -302,7 +302,10 @@ private[internals] object ParameterizedVerilogVecs {
       vector: Vec[_],
       selector: ElaborationIntegerExpression,
       leafIndex: Int,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      affineRead: Option[ElabFiniteAffineVecRead] = None,
+      finiteIndexToken: Option[ElabFiniteIndexToken] = None,
+      readOnly: Boolean = false
   ): String = {
     if (vector == null || selector == null) {
       fail(
@@ -326,12 +329,14 @@ private[internals] object ParameterizedVerilogVecs {
         sourceLocation.orElse(selector.sourceLocation)
       )
     }
-    if (
-      selector.verilog != indexName || selector.parameters.nonEmpty ||
-      selector.default != 0 || selector.minimum != 0 ||
-      selector.maximum != shape.depth.maximum - 1 ||
-      shape.depth.maximum != BigInt(shape.carrierCapacity)
-    ) {
+    val exactSelector = affineRead match {
+      case Some(evidence) => readOnly && finiteIndexToken.exists(token => evidence.matches(vector, selector, token))
+      case None =>
+        selector.verilog == indexName && selector.parameters.isEmpty &&
+          selector.default == 0 && selector.minimum == 0 &&
+          selector.maximum == shape.depth.maximum - 1
+    }
+    if (!exactSelector || shape.depth.maximum != BigInt(shape.carrierCapacity)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-STRUCTURAL-DOMAIN-MISMATCH",
         s"structural typed Vec selector '${selector.verilog}' in [${selector.minimum}, ${selector.maximum}] does not cover exactly the retained carrier domain 0 until ${shape.carrierCapacity}",
@@ -373,20 +378,15 @@ private[internals] object ParameterizedVerilogVecs {
       }
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
-    if (isSignedLeaf(shape.elementLeaves(leafIndex))) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
-        s"structural dynamic SInt leaf $leafIndex of Vec '$name' requires context-sensitive signed lowering",
-        sourceLocation.orElse(shape.sourceLocation)
-      )
-    }
     val elementWidth = renderSum(shape.elementLeaves.map(_.width))
     val offset = renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
     val base = addTerms(
-      s"${parenthesize(indexName)} * ${factor(elementWidth)}",
+      s"${parenthesize(selector.verilog)} * ${factor(elementWidth)}",
       offset
     )
-    s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
+    val slice = s"$name[${parenthesize(base)} +: ${render(shape.elementLeaves(leafIndex).width)}]"
+    if (readOnly && isSignedLeaf(shape.elementLeaves(leafIndex))) s"$$signed($slice)"
+    else slice
   }
 
   /** Authorize native width validation only for the exact statements retained
@@ -846,6 +846,7 @@ private[internals] object ParameterizedVerilogVecs {
           val exactSelection = for {
             loop <- owner
             finiteIndexToken <- selection.finiteIndexToken
+            if selection.affineRead.isEmpty
             if loop.finiteIndexToken.exists(_ eq finiteIndexToken)
             access <- selection.staticAccess
             if witness.isValidInt
@@ -1273,6 +1274,11 @@ private[internals] object ParameterizedVerilogVecs {
                 ) =>
               requireCompatibleBoundary(plan, value.source, value.sourceLocation)
             case None
+                if isExactParentInputBoundary(
+                  component, plan.vector, value.source, value.assignments
+                ) =>
+              requireCompatibleBoundary(plan, value.source, value.sourceLocation)
+            case None
                 if isDirectHierarchyBoundary(
                   component,
                   plan.vector,
@@ -1478,6 +1484,10 @@ private[internals] object ParameterizedVerilogVecs {
       lines = collapseDeclaration(lines, plan)
     }
 
+    // Each reconstructed signed read retains the original exact native scalar
+    // identity and width. The aggregate is still an unsigned transport. This
+    // preserves the native same-atom cast decisions after carrier flattening.
+    val reconstructedSignedReads = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val structuralNames = structuralRegionNamesOf(component)
     plans.foreach { plan =>
       plan.leaves.find(leaf => structuralNames.contains(leaf.name)).foreach { leaf =>
@@ -1563,25 +1573,51 @@ private[internals] object ParameterizedVerilogVecs {
         }
         if (found != 0) {
           if (isSignedLeaf(leaf.shape)) {
-            fail(
-              "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
-              s"constant indexed SInt leaf '${leaf.name}' of Vec '${plan.name}' requires context-sensitive signed lowering",
-              plan.sourceLocation
+            if (!morphhdl.MorphSignedCasts.isEnabled(pc.config)) {
+              fail(
+                "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
+                s"constant indexed SInt leaf '${leaf.name}' of Vec '${plan.name}' requires signed boundary publication",
+                plan.sourceLocation
+              )
+            }
+            // A residual write cannot drive a read reconstruction alias. All
+            // aggregate writers must already have exact claimed lineage.
+            val drivers = liveAssignments.keySet().iterator()
+            while (drivers.hasNext) {
+              val driver = drivers.next()
+              if ((driver.finalTarget eq leaf.value) && !claimedAssignments.containsKey(driver)) {
+                fail(
+                  "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-STATIC-WRITE-UNSUPPORTED",
+                  "a static signed Vec write needs an exact packed assignment boundary before read reconstruction",
+                  plan.sourceLocation
+                )
+              }
+            }
+            val end = lines.indexWhere(_.trim == "endmodule")
+            if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
+              "signed leaf reconstruction requires one native module boundary", plan.sourceLocation)
+            val width = render(leaf.shape.width)
+            lines = lines.patch(end, Vector(
+              s"  wire signed [($width)-1:0] ${leaf.name};",
+              s"  assign ${leaf.name} = ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)};"
+            ), 0)
+            reconstructedSignedReads.put(leaf.value, java.lang.Boolean.TRUE)
+          } else {
+            lines = replaceReferenceIdentifier(
+              lines,
+              leaf.name,
+              plan.constantSlice(leaf.elementIndex, leaf.leafIndex)
             )
           }
-          lines = replaceReferenceIdentifier(
-            lines,
-            leaf.name,
-            plan.constantSlice(leaf.elementIndex, leaf.leafIndex)
-          )
         }
       }
     }
 
     val result = lines.mkString("\n")
     plans.foreach { plan =>
-      plan.leafNames.foreach { name =>
-        if (containsReferenceIdentifier(result, name)) {
+      plan.leaves.foreach { leaf =>
+        val name = leaf.name
+        if (!reconstructedSignedReads.containsKey(leaf.value) && containsReferenceIdentifier(result, name)) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-VEC-RESIDUAL-CARRIER-REFERENCE",
             s"Vec '${plan.name}' retains native carrier reference '$name' after packed publication",
@@ -4611,11 +4647,11 @@ private[internals] object ParameterizedVerilogVecs {
   ): ParsedDeclaration = {
     val port =
       ("^([ \\t]*)(.*?)(input|output|inout)\\s+(wire|reg|logic)" +
-        "\\s*(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "\\s*(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*(,?)\\s*(?://.*)?$").r
     val signal =
       ("^([ \\t]*)(.*?)(wire|reg|logic)\\s*" +
-        "(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*;\\s*(?://.*)?$").r
     val matches = lines.zipWithIndex.flatMap { case (line, index) =>
       port
@@ -4761,6 +4797,38 @@ private[internals] object ParameterizedVerilogVecs {
         sourceLocation
       )
     }
+  }
+
+  /** A parent internal Vec may drive a child input just like a parent port.
+    * Authorize only the exact complete native assignment retained by Vec, with
+    * current direct-parent ownership and live statement identities. The parent
+    * publisher independently validates and collapses the corresponding port
+    * connections. Leaf-wise lookalikes never reach this operation boundary.
+    */
+  private def isExactParentInputBoundary(
+      component: Component,
+      local: Vec[_],
+      peer: Vec[_],
+      assignments: Vector[DataAssignmentStatement]
+  ): Boolean = {
+    if (component == null || local == null || peer == null || assignments == null ||
+        assignments.isEmpty || component.parent == null || (local.component ne component)) return false
+    val parent = component.parent
+    val localLeaves = vectorLeaves(local)
+    val peerLeaves = vectorLeaves(peer)
+    if ((peer.component ne parent) || parent.children.count(_ eq component) != 1 ||
+        localLeaves.isEmpty || peerLeaves.isEmpty ||
+        !localLeaves.forall(leaf => (leaf.component eq component) && leaf.isInput &&
+          !leaf.isOutput && !leaf.isInOut) ||
+        !peerLeaves.forall(leaf => (leaf.component eq parent) && !leaf.isInOut) ||
+        !isExactInputBoundary(assignments, localLeaves, peerLeaves)) return false
+    val live = new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    parent.dslBody.walkStatements {
+      case assignment: DataAssignmentStatement => live.put(assignment, java.lang.Boolean.TRUE)
+      case _ =>
+    }
+    assignments.forall(assignment => live.containsKey(assignment) &&
+      (assignment.target eq assignment.finalTarget) && (assignment.parentScope eq parent.dslBody))
   }
 
   private def isDirectHierarchyBoundary(

@@ -1,0 +1,90 @@
+name: Increment 60d pure SInt casts
+
+on:
+  push:
+    branches: ['agent/increment-60d-*', parameterized-verilog]
+    paths: ['core/**', 'morphhdl/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60d-pure-sint-casts.yml']
+  pull_request:
+    branches: [parameterized-verilog]
+    paths: ['core/**', 'morphhdl/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60d-pure-sint-casts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60d-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  qualify:
+    name: Pure SInt casts Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Exact source scope and inherited native audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60d
+          git archive HEAD | gzip > target/increment-60d/source.tar.gz
+          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py --source-only
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+      - name: Declaration roles, opt-in isolation, wrappers and deterministic generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60d"
+          mkdir -p "$output/a/baseline" "$output/b/baseline"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/testOnly spinal.core.internals.PureSIntCastTests spinal.core.internals.SignedDeclarationPublicationTests spinal.core.internals.TypedSignednessAuthorityTests spinal.core.internals.TypedSignednessResumeTests morphhdl.MorphSingleSourceVerilogTests morphhdl.MorphCanonicalIrHandoffTests morphhdl.TypedBlackBoxGenericBindingTests" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 220 "$output/sbt.log"; exit 1; }
+          python3 - "$output" <<'PY'
+          from pathlib import Path
+          import sys
+          root = Path(sys.argv[1])
+          left = {p.relative_to(root / 'a'): p.read_bytes() for p in (root / 'a').rglob('*.v')}
+          right = {p.relative_to(root / 'b'): p.read_bytes() for p in (root / 'b').rglob('*.v')}
+          assert left and left == right, 'fresh generation mismatch'
+          print('Deterministic Verilog files:', len(left))
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for name, count in [('PureSIntCastTests', 13), ('SignedDeclarationPublicationTests', 13), ('TypedSignednessAuthorityTests', 26), ('TypedSignednessResumeTests', 5)]:
+              files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(files) == 1, (name, files)
+              result = ET.parse(files[0]).getroot()
+              assert int(result.get('tests', '0')) >= count, result.attrib
+              assert all(int(result.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), result.attrib
+              print(result.attrib)
+          PY
+      - name: Strict tools, independent native equivalence and genuine mutation counterexample
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py target/increment-60d/a
+      - name: Retain exact-head sources and qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60d-${{ matrix.scala }}
+          path: |
+            target/increment-60d
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
