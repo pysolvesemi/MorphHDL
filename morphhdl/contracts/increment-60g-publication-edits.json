@@ -1,0 +1,87 @@
+{
+  "base": "ddbc9ff637ec0c42093111e7f8e48fc87957580f",
+  "files": [
+    {
+      "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
+      "before_sha256": "02d8c6456a9bacfd5e7acaea878e21e46f43765068b8e62c03bd464ea3a64015",
+      "after_sha256": "5ac41515ddb11e588d853c806f197ffc496977bc35677e8cebbcf3ba9d21e27b",
+      "edits": [
+        {
+          "before": "import hashlib\n",
+          "after": "import hashlib\nimport importlib.util\n"
+        },
+        {
+          "before": "def restore_59f_source(root: Path, path: str, source: str) -> str:\n",
+          "after": "def restore_rollout(root: Path, path: str, source: str) -> str:\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return source\n    spec = importlib.util.spec_from_file_location(\"rollout_scope\", helper)\n    module = importlib.util.module_from_spec(spec)\n    assert spec.loader is not None\n    spec.loader.exec_module(module)\n    return module.restore_60g_source(root, path, source)\n\n\ndef restore_59f_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60c-signed-declarations.py",
+      "before_sha256": "7fa376ae1328dc062a91d4ca64e6fdc12fa68526c003bfe680958f15b15b0a3f",
+      "after_sha256": "7f5662450abdfa848eb439bf13299b631ac3809eb0f6c5caac464715e976cd9c",
+      "edits": [
+        {
+          "before": "def source_scope(root: Path) -> None:\n",
+          "after": "def restore_rollout(root: Path, path: str, source: str) -> str:\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return source\n    spec = importlib.util.spec_from_file_location(\"rollout_scope\", helper)\n    module = importlib.util.module_from_spec(spec)\n    assert spec.loader is not None\n    spec.loader.exec_module(module)\n    return module.restore_60g_source(root, path, source)\n\n\ndef source_scope(root: Path) -> None:\n"
+        },
+        {
+          "before": "    require(git(\"hash-object\", baseline).strip() == \"84ed2baf743d2c47f07b6e76ddc9843fbb5fe910\",\n            \"independent 60a fixture changed\")",
+          "after": "    restored_baseline = restore_rollout(root, baseline, (root / baseline).read_text())\n    restored_hash = subprocess.check_output([\"git\", \"hash-object\", \"--stdin\"],\n                                            input=restored_baseline, text=True, cwd=root).strip()\n    require(restored_hash == \"84ed2baf743d2c47f07b6e76ddc9843fbb5fe910\",\n            \"independent 60a fixture changed\")"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+      "before_sha256": "8a6209daf2ba3dec36f1fe3de2dde1f7bb8650b6938847a325ded964702d7bf5",
+      "after_sha256": "086890ac3cd7d927b79eac01db004d5d025c65089132f1299bb69aca4c5bd7d6",
+      "edits": [
+        {
+          "before": "def source_scope(root: Path) -> None:\n",
+          "after": "def restore_rollout(root: Path, path: str, source: str) -> str:\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return source\n    spec = importlib.util.spec_from_file_location(\"rollout_scope\", helper)\n    module = importlib.util.module_from_spec(spec)\n    assert spec.loader is not None\n    spec.loader.exec_module(module)\n    return module.restore_60g_source(root, path, source)\n\n\ndef source_scope(root: Path) -> None:\n"
+        },
+        {
+          "before": "require(git(\"show\", BASE + \":\" + path) == (root / path).read_text(), \"sealed oracle/authority changed: \" + path)",
+          "after": "require(git(\"show\", BASE + \":\" + path) == restore_rollout(root, path, (root / path).read_text()), \"sealed oracle/authority changed: \" + path)"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+      "before_sha256": "1d5fda5b0c401f61a3fb66a81ee947ef11b3834db6b2be905cef3be0a70f39a5",
+      "after_sha256": "1dfa527a234f7e4bcba547564cb0d9fe3c32b0718e4472174d00b1de18eefc1e",
+      "edits": [
+        {
+          "before": "def source_scope(root: Path) -> None:\n",
+          "after": "def restore_rollout(root: Path, path: str, source: str) -> str:\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return source\n    spec = importlib.util.spec_from_file_location(\"rollout_scope\", helper)\n    module = importlib.util.module_from_spec(spec)\n    assert spec.loader is not None\n    spec.loader.exec_module(module)\n    return module.restore_60g_source(root, path, source)\n\n\ndef source_scope(root: Path) -> None:\n"
+        },
+        {
+          "before": "require(git(\"show\", BASE + \":\" + path) == (root / path).read_text(), \"sealed baseline changed: \" + path)",
+          "after": "require(git(\"show\", BASE + \":\" + path) == restore_rollout(root, path, (root / path).read_text()), \"sealed baseline changed: \" + path)"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
+      "before_sha256": "8ce75c1afc48a9039f70ba2c0ad4b9411f60fe2edc72a7b45cadd87052a220e5",
+      "after_sha256": "129ee5e297219202d75b42105e69d011cea62e82348432d29147d582a9d89638",
+      "edits": [
+        {
+          "before": "    value.netlistFileName = output.getFileName.toString\n    value\n",
+          "after": "    value.netlistFileName = output.getFileName.toString\n    // This shared writer preserves the sealed 60a-60f legacy reference profile.\n    MorphSignedDeclarations.disable(value)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala",
+      "before_sha256": "51eef633888a42e383c97dc48dbb533d95a9df8edeb1ff2ed65eb2727b082509",
+      "after_sha256": "a238290761b5901f0ffff300da2bb2023a6df2908dc0269d8978c5a806656fa5",
+      "edits": [
+        {
+          "before": "    MorphVerilog(generationConfig(output))(SIntSignedVerilogBaselineFixture.parameterized())\n",
+          "after": "    MorphVerilog(morphhdl.MorphSignedDeclarations.disable(generationConfig(output)))(\n      SIntSignedVerilogBaselineFixture.parameterized())\n"
+        }
+      ]
+    }
+  ]
+}

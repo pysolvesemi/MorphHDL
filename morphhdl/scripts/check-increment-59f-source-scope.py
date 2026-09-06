@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import subprocess
 from pathlib import Path
@@ -43,7 +44,19 @@ def contract(root: Path) -> dict:
     return data
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def restore_59f_source(root: Path, path: str, source: str) -> str:
+    source = restore_rollout(root, path, source)
     if path not in PATHS:
         return source
     data = contract(root)

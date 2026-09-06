@@ -347,6 +347,14 @@ def regressions(root: Path, output: Path) -> None:
     # path presence or branch names cannot opt into a looser contract.
     profile = closure_module().production_profile(root)
     counts, suite_inventory = dict(REGRESSIONS), dict(EXPECTED_SUITES)
+    rollout = profile.endswith("-and-60g")
+    if rollout:
+        # Select by the complete validated production profile, never XML or a
+        # partial file inventory. The new checks extend an existing suite.
+        profile = profile[:-len("-and-60g")]
+        gate = closure_module().load(root, "60g-source-scope")
+        gate.source_scope(root)
+        counts["morphhdl"] = (REGRESSIONS["morphhdl"][0] + 8, REGRESSIONS["morphhdl"][1])
     require(profile in ("60f-baseline", "60f-with-wa07a", "60f-with-59f",
                         "60f-with-wa07a-and-59f"), "unknown validated source profile: " + profile)
     extensions = descendant_extensions(root)

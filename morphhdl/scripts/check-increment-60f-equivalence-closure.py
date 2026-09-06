@@ -46,6 +46,11 @@ CALLBACK_59F_PRODUCTION_SHA256 = {
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala": "43e5ee1294041a4bf7f46fc92ec56569d0bf20e8180c770749ae976060afcd10",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala": "da743fb98428d5ffb6d2875096293daad1da99dfb4b796e7cc4c540d76d3f899"
 }
+ROLLOUT_60G_PRODUCTION_SHA256 = {
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "2729b023267fbc999768b460195c556ed2b5508a277082ab369d5dad5bffcbcc",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23"
+}
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -159,6 +164,10 @@ def production_profile(root: Path) -> str:
         frozenset(wa | callbacks): ("60f-with-wa07a-and-59f",
                                    {**WA07A_PRODUCTION_SHA256, **CALLBACK_59F_PRODUCTION_SHA256}),
     }
+    rollout = set(ROLLOUT_60G_PRODUCTION_SHA256)
+    require(len(rollout) == 3 and not rollout & (wa | callbacks), "60g production profile overlaps")
+    for paths, (name, hashes) in list(profiles.items()):
+        profiles[paths | frozenset(rollout)] = (name + "-and-60g", {**hashes, **ROLLOUT_60G_PRODUCTION_SHA256})
     require(frozenset(changed) in profiles,
             "unreviewed production delta: " + str(sorted(changed)))
     profile, hashes = profiles[frozenset(changed)]
@@ -172,6 +181,17 @@ def production_profile(root: Path) -> str:
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "reviewed production source is not uniquely tracked: " + path)
     return profile
+
+
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
 
 
 def source_scope(root: Path) -> None:
@@ -190,7 +210,7 @@ def source_scope(root: Path) -> None:
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        current = (root / path).read_bytes()
+        current = restore_rollout(root, path, (root / path).read_text()).encode()
         if path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py" and \
                 (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
             current = load(root, "59f-source-scope").restore_59f_source(
