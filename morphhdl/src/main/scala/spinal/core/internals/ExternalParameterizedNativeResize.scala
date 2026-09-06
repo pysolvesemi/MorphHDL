@@ -83,6 +83,24 @@ object ExternalParameterizedNativeResize {
     phases.insert(boundary, new PhaseMisc {
       override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
         val captured = ArrayBuffer.empty[Record]
+        // A direct typed UInt resize feeding an explicitly fixed declaration
+        // belongs to the existing normalized-consumer path. Protecting its
+        // intermediate here would prevent that path from reconstructing the
+        // logical resize while preserving the consumer's fixed width. This is
+        // only a reservation: AutoResize still proves exact one-use lineage.
+        val fixedUIntConsumers = new java.util.IdentityHashMap[UInt, java.lang.Boolean]()
+        component.dslBody.walkStatements {
+          case outer: DataAssignmentStatement =>
+            (outer.target, outer.source) match {
+              case (consumer: UInt, carrier: UInt)
+                  if (outer.finalTarget eq consumer) && consumer.isFixedWidth &&
+                    (consumer.component eq component) && (carrier.component eq component) &&
+                    ParameterizedWidth.expressionOf(consumer).forall(_.parameters.isEmpty) =>
+                fixedUIntConsumers.put(carrier, java.lang.Boolean.TRUE)
+              case _ =>
+            }
+          case _ =>
+        }
         component.dslBody.walkStatements {
           case assignment: DataAssignmentStatement =>
             (assignment.target, assignment.source) match {
@@ -92,10 +110,17 @@ object ExternalParameterizedNativeResize {
                     !(morphhdl.MorphSignedCasts.isEnabled(pc.config) && resize.isInstanceOf[ResizeSInt]) =>
                 resize.input match {
                   case source: BitVector if source.component eq component =>
-                    val targetWidth = ParameterizedWidth.resizeExpressionOf(resize)
+                    val typedTargetWidth = ParameterizedWidth.resizeExpressionOf(resize)
+                    val fixedConsumerReservation = target match {
+                      case uint: UInt => fixedUIntConsumers.containsKey(uint) &&
+                        typedTargetWidth.exists(_.parameters.nonEmpty)
+                      case _ => false
+                    }
+                    val targetWidth = typedTargetWidth
                       .getOrElse(ElabInt.literal(resize.size).expression)
                     NativeWidthProvenance.widthOf(source).filter(sourceWidth =>
-                      sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty).foreach { sourceWidth =>
+                      !fixedConsumerReservation &&
+                        (sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty)).foreach { sourceWidth =>
                       NativePublicationWidth.validate(sourceWidth, component, source,
                         "native resize source capture")
                       NativePublicationWidth.validate(targetWidth, component, target,
@@ -103,15 +128,27 @@ object ExternalParameterizedNativeResize {
                       if (sourceWidth.minimum < 1 || targetWidth.minimum < 1 ||
                           sourceWidth.default != source.getBitsWidth || targetWidth.default != target.getBitsWidth)
                         fail("native resize target and source must retain positive, witness-consistent widths")
-                      target.dontSimplifyIt().addTag(noBackendCombMerge)
-                      source.dontSimplifyIt().addTag(noBackendCombMerge)
-                      if (!target.isNamed) target.setWeakName("morphhdl_resize")
-                      if (!source.isNamed) source.setWeakName("morphhdl_resize_source")
-                      captured += Record(assignment, target, resize, source, sourceWidth, targetWidth,
-                        source.getBitsWidth, resize.size,
-                        NativePublicationScope.capture(component, assignment.parentScope),
-                        NativePublicationScope.capture(component, target.parentScope),
-                        NativePublicationScope.capture(component, source.parentScope))
+                      // Native identity elimination and a fixed narrowing slice
+                      // already have the same meaning across the complete owner
+                      // domain. Keep those original native graphs and their
+                      // emission intact; only varying resize boundaries need
+                      // protected declarations and symbolic publication.
+                      val identity = (source.parentScope eq target.parentScope) &&
+                        NativePublicationWidth.equivalentAtOwner(
+                          sourceWidth, targetWidth, component, target)
+                      val fixedNarrowing = targetWidth.parameters.isEmpty &&
+                        targetWidth.maximum <= sourceWidth.minimum
+                      if (!identity && !fixedNarrowing) {
+                        target.dontSimplifyIt().addTag(noBackendCombMerge)
+                        source.dontSimplifyIt().addTag(noBackendCombMerge)
+                        if (!target.isNamed) target.setWeakName("morphhdl_resize")
+                        if (!source.isNamed) source.setWeakName("morphhdl_resize_source")
+                        captured += Record(assignment, target, resize, source, sourceWidth, targetWidth,
+                          source.getBitsWidth, resize.size,
+                          NativePublicationScope.capture(component, assignment.parentScope),
+                          NativePublicationScope.capture(component, target.parentScope),
+                          NativePublicationScope.capture(component, source.parentScope))
+                      }
                     }
                   case _ =>
                 }
@@ -184,6 +221,21 @@ object ExternalParameterizedNativeResize {
       : Option[ElaborationIntegerExpression] =
     storage(component).flatMap(value => Option(value.byTarget.get(target)))
       .filter(valid(component, _)).map(_.targetWidth)
+
+  /** The generic width analysis must publish the same geometry that this
+    * captured native resize proves. A fixed source witness cannot authorize
+    * rewriting a declaration which that analysis infers as symbolic instead.
+    */
+  private[internals] def validatePublishedWidths(component: Component)(
+      matches: (BitVector, ElaborationIntegerExpression) => Boolean
+  ): Unit = records(component).foreach { record =>
+    if (!valid(component, record))
+      fail("retained native resize assignment changed before width validation")
+    if (!matches(record.source, record.sourceWidth))
+      fail("native resize source publication differs from its captured exact width")
+    if (!matches(record.target, record.targetWidth))
+      fail("native resize target publication differs from its captured exact width")
+  }
 
   private[internals] def rewrite(component: Component, verilog: String): String = {
     var lines = verilog.split("\n", -1).toVector

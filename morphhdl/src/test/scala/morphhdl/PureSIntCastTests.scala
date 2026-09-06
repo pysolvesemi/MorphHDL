@@ -153,17 +153,17 @@ final class PureSIntCastTests extends AnyFunSuite {
     }
   }
 
-  test("declaration-only symbolic signed widening remains explicitly unsupported") {
+  test("declaration-only symbolic signed widening preserves exact sign extension") {
     directory { root =>
-      val error = intercept[morphhdl.MorphVerilogException] {
-        MorphVerilog(MorphSignedDeclarations.enable(Writer.config(root.resolve("bad.v"))))(new Component {
-          val a = in(SInt(width bits))
-          val widened = out(SInt(64 bits))
-          widened := a.resize(64)
-        })
-      }
-      assert(error.getMessage.contains("RESIZE-DOMAIN-UNSUPPORTED"), error.getMessage)
-      assert(!Files.exists(root.resolve("bad.v")))
+      val report = MorphVerilog(MorphSignedDeclarations.enable(Writer.config(root.resolve("grow.v"))))(new Component {
+        setDefinitionName("DeclarationOnlySignedGrow")
+        val source = in(SInt(width bits))
+        val observed = out(SInt(64 bits))
+        observed := source.resize(64)
+      })
+      morphhdl.NativeResizeCompatibilitySimulation.check(root, "grow.v",
+        report.toplevelName, "WIDTH", Vector(1, 5, 8).map(value => (value, value, 64)),
+        signedSource = true)
     }
   }
 

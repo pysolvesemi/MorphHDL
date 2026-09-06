@@ -1964,6 +1964,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
       validateParameters()
       validateWidths()
+      ExternalParameterizedNativeResize.validatePublishedWidths(component) {
+        (declaration, expected) => widthInference.matchesRetainedDeclarationWidth(declaration, expected)
+      }
       validateAssignments()
       validateProcesses()
     }
@@ -2336,7 +2339,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       * is stable modulo the symbolic target width. Native normalization may
       * widen Boolean-to-UInt carriers to the concrete witness, but the whole
       * assignment's LSB truncation/zero extension preserves the exact result
-      * for every positive legal target width.
+      * for every positive legal target width. The same argument applies to a
+      * native inferred result whose one unsigned operand has exactly that
+      * width: retaining its width must not turn normalization's Boolean
+      * extension into an independent fixed-width arithmetic boundary.
       */
     private def isProvenModularUIntUpdate(
         assignment: DataAssignmentStatement,
@@ -2351,6 +2357,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               (assignment.target eq uint) &&
               (assignment.finalTarget eq uint) =>
           val active = new IdentityHashMap[Expression, java.lang.Boolean]()
+          val retainedNativeResult = uint.isTypeNode && uint.isComb &&
+            uint.isDirectionLess && !uint.isFixedWidth &&
+            uint.hasOnlyOneStatement && (uint.head eq assignment) &&
+            ParameterizedWidth.expressionOf(uint).exists(_.parameters.nonEmpty)
 
           def combine(
               left: Option[ModularUIntFacts],
@@ -2369,6 +2379,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             if (expression eq uint) return Some(ModularUIntFacts(1, 0))
             active.put(expression, java.lang.Boolean.TRUE)
             val result = expression match {
+              case value: UInt
+                  if retainedNativeResult && (value.component eq component) &&
+                    ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) &&
+                    isProvenCompleteDomainWidthEquivalence(
+                      targetWidth, widthInference.ofBase(value)) =>
+                Some(ModularUIntFacts(1, 0))
               case operator: Operator.BitVector.Add if operator.getTypeObject == TypeUInt =>
                 combine(visit(operator.left), visit(operator.right))
               case operator: Operator.BitVector.Sub if operator.getTypeObject == TypeUInt =>
@@ -2529,6 +2545,21 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         val value = retainedWidthExpression(expression)
         retainedOrigins.put(value, expression)
         value
+      }
+
+      /** Native resize reconstruction must use the width this pass will
+        * actually publish, including symbolic geometry inferred through an
+        * otherwise fixed native carrier. A concrete witness is not a proof
+        * that the carrier's published source width is invariant.
+        */
+      def matchesRetainedDeclarationWidth(
+          declaration: BitVector,
+          expected: ElaborationIntegerExpression
+      ): Boolean = {
+        val actual = ofBase(declaration)
+        val captured = retained(expected)
+        equivalentWidthExpression(actual, captured) ||
+          provesCompleteRelation(actual, captured)(_ == _)
       }
 
       /** Exact bounded evaluation; unsupported or unproven nodes return None. */

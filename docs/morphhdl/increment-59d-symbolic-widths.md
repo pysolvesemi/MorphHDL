@@ -23,6 +23,20 @@ nonnegative extension counts preserve resize behavior across narrowing and
 widening overrides while keeping strict lint checks enabled. Validation reuse
 is confined to one publication call, with fresh checks at both boundaries.
 
+Already-valid native identity resizes and fixed narrowing slices retain their
+original emission. Native multiplication and concatenation retain operand-width
+addition spelling. The existing normalized UInt resize path continues to own
+explicitly fixed consumers, including memory addresses. Captured resize widths
+must also agree with the widths actually selected for publication; a named fixed
+carrier cannot acquire a different symbolic width through its driver.
+
+Native inferred UInt addition/subtraction with a Boolean increment retains its
+modular width through normalization. The proof still excludes explicit fixed
+arithmetic boundaries and requires one exactly same-width unsigned operand.
+Signedness analysis validates composed width certificates at their exact native
+declaration owner while retaining the original integer-domain checks for other
+metadata.
+
 `ElaborationWidthAuthority` composes widths from previously authorized typed
 expressions. Arithmetic and conditional transfer retain declaration identity,
 correlation between repeated roots, and branch scope. Independent roots use

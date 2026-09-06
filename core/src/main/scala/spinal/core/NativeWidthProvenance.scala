@@ -74,9 +74,9 @@ object NativeWidthProvenance {
     case value: CastBitVectorToBitVector => widthOf(value.input)
     case _: CastBoolToBits => constant(1)
     case value: Operator.BitVector.Mul =>
-      combine(value.left, value.right)(ElaborationWidthAuthority.add)
+      combine(value.left, value.right)(ElaborationWidthAuthority.addNative)
     case value: Operator.Bits.Cat =>
-      combine(value.left, value.right)(ElaborationWidthAuthority.add)
+      combine(value.left, value.right)(ElaborationWidthAuthority.addNative)
     case value: Operator.BitVector.Add => maximum(Vector(value.left, value.right))
     case value: Operator.BitVector.Sub => maximum(Vector(value.left, value.right))
     case value: Operator.BitVector.And => maximum(Vector(value.left, value.right))

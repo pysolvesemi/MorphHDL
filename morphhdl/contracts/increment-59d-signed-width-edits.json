@@ -1,0 +1,35 @@
+{
+  "base": "5a669d32095ee722c313bd069b771e7c350a1f81",
+  "edits": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "id": "signed-width-fresh-owner",
+      "before": "          !sameIdentity(saved.parameters, live.parameters) ||\n          !sameIdentity(saved.owners, live.owners))\n        reject(\"STALE-EVIDENCE\", \"graph type, width, operand, ownership or boundary changed after capture\")\n      live.parameters.foreach(validateWidth)\n      saved.children.foreach(child => fresh(child, seen))\n    }\n\n",
+      "after": "          !sameIdentity(saved.parameters, live.parameters) ||\n          !sameIdentity(saved.owners, live.owners))\n        reject(\"STALE-EVIDENCE\", \"graph type, width, operand, ownership or boundary changed after capture\")\n      live.parameters.foreach(validateWidth(_, subject))\n      saved.children.foreach(child => fresh(child, seen))\n    }\n\n"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "id": "signed-width-validated-token-owner",
+      "before": "      }\n      if (key < 0 || key >= widths.size || !contains(fact.width))\n        reject(\"WIDTH-USE-IDENTITY\", \"width token does not belong to this validated use\")\n      val result = widths(key)\n      validateWidth(result)\n      result\n    }\n\n    /** An exact width object is available only through validated subject use;\n",
+      "after": "      }\n      if (key < 0 || key >= widths.size || !contains(fact.width))\n        reject(\"WIDTH-USE-IDENTITY\", \"width token does not belong to this validated use\")\n      // validate above rechecks the complete dependency subtree, including\n      // each retained width at its exact native owner. Revalidating this token\n      // without that owner would lose a captured construction-branch domain.\n      widths(key)\n    }\n\n    /** An exact width object is available only through validated subject use;\n"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "id": "signed-width-authority-route",
+      "before": "    case _ => true\n  }\n\n  private def validateWidth(value: ElaborationIntegerExpression): Unit = {\n    ElabInt.requireAuthoritativeIntegerDomain(value, \"signedness width authority\",\n      \"MORPH-SIGNEDNESS-WIDTH-AUTHORITY\", requireExactExtrema = false)\n    if (value.minimum < 0) reject(\"WIDTH-AUTHORITY\", \"negative logical width domain\")\n  }\n\n",
+      "after": "    case _ => true\n  }\n\n  private def validateWidth(value: ElaborationIntegerExpression, subject: AnyRef): Unit = {\n    subject match {\n      case base: BaseType if ElaborationWidthAuthority.isRetained(value) =>\n        NativePublicationWidth.validate(value, base.component, base, \"signedness width authority\")\n      case _ if ElaborationWidthAuthority.isRetained(value) =>\n        ElaborationWidthAuthority.requireAuthoritative(value, \"signedness width authority\",\n          \"MORPH-SIGNEDNESS-WIDTH-AUTHORITY\")\n      case _ =>\n        ElabInt.requireAuthoritativeIntegerDomain(value, \"signedness width authority\",\n          \"MORPH-SIGNEDNESS-WIDTH-AUTHORITY\", requireExactExtrema = false)\n    }\n    if (value.minimum < 0) reject(\"WIDTH-AUTHORITY\", \"negative logical width domain\")\n  }\n\n"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "id": "signed-width-token-construction-owner",
+      "before": "    val widthIndices = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Integer]()\n    val widths = ArrayBuffer.empty[ElaborationIntegerExpression]\n    def retained(value: ElaborationIntegerExpression): Width = {\n      validateWidth(value)\n      // Root-free generate-index expressions are not necessarily constants.\n      if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)\n        return Fixed(value.default)\n",
+      "after": "    val widthIndices = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Integer]()\n    val widths = ArrayBuffer.empty[ElaborationIntegerExpression]\n    def retained(value: ElaborationIntegerExpression): Width = {\n      // The exact subject's parameters are validated before token allocation.\n      // Root-free generate-index expressions are not necessarily constants.\n      if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)\n        return Fixed(value.default)\n"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+      "id": "signed-width-capture-owner",
+      "before": "      indices.put(subject, java.lang.Integer.valueOf(id))\n      entries += null\n      val shape = describe(subject)\n      shape.parameters.foreach(validateWidth)\n      val children = shape.children.map(visit)\n      val valueChildren = subject match {\n        case mux: BinaryMultiplexer => Vector(visit(mux.whenTrue), visit(mux.whenFalse))\n",
+      "after": "      indices.put(subject, java.lang.Integer.valueOf(id))\n      entries += null\n      val shape = describe(subject)\n      shape.parameters.foreach(validateWidth(_, subject))\n      val children = shape.children.map(visit)\n      val valueChildren = subject match {\n        case mux: BinaryMultiplexer => Vector(visit(mux.whenTrue), visit(mux.whenFalse))\n"
+    }
+  ]
+}

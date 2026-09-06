@@ -135,6 +135,19 @@ def source_scope(root: Path) -> None:
             require((root / entry["path"]).is_file() and
                     hashlib.sha256((root / entry["path"]).read_bytes()).hexdigest() == entry["sha256"],
                     "59d reviewed production bytes changed: " + entry["path"])
+        boundary_checker = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+        expected_checker_edits = [(boundary_checker, "restore-exact-59d-width-seams")]
+        if (root / "morphhdl/contracts/increment-59d-signed-width-edits.json").is_file():
+            expected_checker_edits += [
+                (boundary_checker, "restore-exact-59d-signed-width-authority"),
+                (boundary_checker, "validate-exact-59d-signed-width-authority-60e"),
+                ("morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+                 "validate-exact-59d-signed-width-authority-60d")]
+        require(all(set(edit) == {"path", "id", "before", "after"}
+                    for edit in reviewed["checker_edits"]) and
+                [(edit["path"], edit["id"]) for edit in reviewed["checker_edits"]] ==
+                    expected_checker_edits,
+                "59d checker restoration exceeds its exact inherited boundary seams")
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -148,14 +161,11 @@ def source_scope(root: Path) -> None:
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
         current = (root / path).read_bytes()
-        if reviewed is not None and path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py":
-            edits = reviewed["checker_edits"]
-            require(len(edits) == 1 and set(edits[0]) == {"path", "id", "before", "after"} and
-                    edits[0]["path"] == path and edits[0]["id"] == "restore-exact-59d-width-seams",
-                    "59d checker restoration exceeds its single inherited boundary seam")
-            before, after = edits[0]["before"].encode(), edits[0]["after"].encode()
-            require(current.count(after) == 1, "missing/duplicate reviewed 59d checker restoration span")
-            current = current.replace(after, before, 1)
+        if reviewed is not None:
+            for edit in reversed([edit for edit in reviewed["checker_edits"] if edit["path"] == path]):
+                before, after = edit["before"].encode(), edit["after"].encode()
+                require(current.count(after) == 1, "missing/duplicate reviewed 59d checker restoration span")
+                current = current.replace(after, before, 1)
         require(current == old, "sealed writer/checker changed: " + path)
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)

@@ -55,6 +55,30 @@ def run(command: list[str], cwd: Path, label: str, timeout: int = 240) -> str:
     return result.stdout
 
 
+def restore_59d_signed_width_authority(root: Path, path: str, source: str) -> str:
+    """Undo only the reviewed width-owner adapter; the complete old authority is frozen."""
+    authority = "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala"
+    contract_path = root / "morphhdl/contracts/increment-59d-signed-width-edits.json"
+    if path != authority or not contract_path.is_file():
+        return source
+    contract = json.loads(contract_path.read_text())
+    require(set(contract) == {"base", "edits"} and
+            contract["base"] == "5a669d32095ee722c313bd069b771e7c350a1f81",
+            "59d signed-width restoration baseline changed")
+    require([entry["id"] for entry in contract["edits"]] ==
+            ["signed-width-fresh-owner", "signed-width-validated-token-owner",
+             "signed-width-authority-route", "signed-width-token-construction-owner",
+             "signed-width-capture-owner"] and
+            all(set(entry) == {"path", "id", "before", "after"} and
+                entry["path"] == authority for entry in contract["edits"]),
+            "59d signed-width restoration exceeds its five exact authority seams")
+    for edit in reversed(contract["edits"]):
+        require(source.count(edit["after"]) == 1,
+                "missing/duplicate 59d signed-width span in " + path)
+        source = source.replace(edit["after"], edit["before"], 1)
+    return source
+
+
 def restore_60d_source(root: Path, path: str, source: str) -> str:
     """Undo only exact reviewed 60e spans; inherited 60c/60d guards still run."""
     # 59d publishes exact native widths, msb and resize operations through
@@ -76,10 +100,13 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
                  "width-complete-domain-expression", "width-multi-root-projection-route",
                  "width-multi-root-projection-origins", "width-multi-root-owner-evaluation",
                  "native-resize-normalized-assignment-proof",
-                 "native-publication-validation-session"] and
+                 "native-publication-validation-session",
+                 "native-retained-modular-uint-result",
+                 "native-resize-published-width-validation",
+                 "native-resize-declaration-width-matcher"] and
                 all(set(entry) == {"path", "id", "before", "after"} and
                     entry["path"] == fallback for entry in width["edits"]),
-                "59d width publication restoration exceeds its fourteen fallback seams")
+                "59d width publication restoration exceeds its seventeen fallback seams")
         for edit in reversed(width["edits"]):
             require(source.count(edit["after"]) == 1, "missing/duplicate 59d span in " + path)
             source = source.replace(edit["after"], edit["before"], 1)
@@ -126,7 +153,8 @@ def source_scope(root: Path) -> None:
                        cwd=root, check=True)
     for name in ("MorphHdlSignednessAnalysis.scala",):
         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
-        require(git("show", BASE + ":" + path) == (root / path).read_text(), "independent type authority changed")
+        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())
+        require(git("show", BASE + ":" + path) == restored, "independent type authority changed")
     for path in ("morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
                  "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"):
         require(git("show", BASE + ":" + path) == (root / path).read_text(), "sealed baseline changed: " + path)

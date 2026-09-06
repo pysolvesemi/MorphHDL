@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "5ebbfc8f2ac956bcc73e5ed36abc6e5b945d7a23"
+      "approved_tree": "55ab194009236f3ed03155e06d4c930ed254b8d6"
     },
     {
       "path": "idslpayload/src/main",
@@ -524,8 +524,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
         "mode": "100644",
-        "blob": "8c9e4ac10536791a281f852c37ac225d4d9ed960",
-        "sha256": "d24236d308f560b056b81a220d65df1b59da543b7d82e04074f7a43f03b5a985"
+        "blob": "30a837a24ab72b3e1972eb273dfd95f88cb4db38",
+        "sha256": "27d67d51b5727f085c1de63016486318d5c18cc1e5a17593f53a91dc1e856cac"
       },
       "edits": []
     },
@@ -1181,8 +1181,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
         "mode": "100644",
-        "blob": "7bb178e61df40ad528fdae777bcb77665929130a",
-        "sha256": "0f49104d1fc645aa47c141f6788109d4adf4a7e6365a3e4428e707707db2c6d3"
+        "blob": "49974688d2000299c6814a59da3943b08d6dad6a",
+        "sha256": "d2e5342cbc6370bfe78d45602c6d9f2a6d6bb61b58cdf87f0d2d0cdea2bb468c"
       },
       "edits": []
     },

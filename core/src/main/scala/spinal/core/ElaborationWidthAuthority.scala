@@ -289,6 +289,15 @@ object ElaborationWidthAuthority {
   def add(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
     if (equivalent(left, right)) binary(left, right, (l, _) => s"(2 * $l)", _ + _)
     else binary(left, right, (l, r) => s"($l + $r)", _ + _)
+
+  /** Preserve the native multiplication/concatenation width transfer's operand
+    * addition spelling while certifying it through the same exact-domain path.
+    * General width composition may still factor repeated operands above.
+    */
+  private[core] def addNative(left: ElaborationIntegerExpression,
+                              right: ElaborationIntegerExpression): ElaborationIntegerExpression =
+    binary(left, right, (l, r) => s"($l + $r)", _ + _)
+
   def subtract(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
     binary(left, right, (l, r) => s"($l - $r)", _ - _)
   def multiply(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
