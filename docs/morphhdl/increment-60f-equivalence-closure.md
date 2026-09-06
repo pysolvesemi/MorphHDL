@@ -23,9 +23,12 @@ remain unchanged within that interval. Both endpoints must remain ancestors
 of the current build. The inherited 60c/60d/60e source-restoration checks run
 again against that exact completed tree.
 
-Later implementation increments may extend those production files. Their
-current native sources still pass the complete approved path/blob/span audit,
-including rejection of dirty or unreviewed native changes. Current 60a/60c/60d/60e
+Later implementation increments may extend committed production files outside
+the pass project. The current source gate rejects staged, unstaged and untracked
+production changes, including ignored untracked files. Current native sources
+still pass the complete approved path/blob/span audit, which applies to its
+native roots; it does not certify every later MorphHDL implementation change.
+Those changes require their own increment qualification. Current 60a/60c/60d/60e
 writers and checkers remain pinned to their original base bytes. All behavioral
 qualification below still regenerates and verifies the current implementation;
 the historical source audit does not substitute old RTL or old proof results.
@@ -330,3 +333,53 @@ Those checks finished by 20:41:09 UTC. The legacy combined-status endpoint
 contained no status entries; its default `pending` value was not evidence of
 unfinished Actions work. The completed push workflows and paginated check-run
 results establish the prerequisite status above.
+
+## Follow-on WA-07a CI compatibility
+
+The historical 60f qualification above remains tied to its recorded source.
+The workflow also runs for changes under `morphhdl-passes/`. Its source gate
+selects the pass regression inventory before reading test reports, using
+complete source paths and bytes rather than branch names, suite counts or
+file presence alone.
+
+The strict `production_profile` checker retains the original contract: the
+fixed pre-60f base through the qualified 60f commit must have no production
+changes, and the complete later production delta must be empty or exactly the
+three-file WA-07a delta registered from
+`f6646f574a1bc2c16050e7c27e93b86523af3bd8`. The workflow's `regression_profile`
+entry point also supports later committed implementation changes outside the
+pass project. It retains the completed-interval check, current native audits,
+sealed signedness authority and original behavioral gates described above.
+This inheritance does not qualify those later implementation increments.
+
+The current gate rejects staged, unstaged and untracked production changes
+across all projects, including ignored untracked sources. Within
+`morphhdl-passes/`, including any nested project, the production delta must be
+empty or exactly these registered paths and SHA-256 hashes:
+
+| Path below `morphhdl-passes/` | SHA-256 |
+| --- | --- |
+| `src/main/scala/morphhdl/passes/api/PassContracts.scala` | `1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda` |
+| `src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala` | `e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e` |
+| `src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala` | `40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71` |
+
+Missing files, changed hashes, symlinks, executable or untracked registered
+files, and additional pass production changes are rejected. Renaming a source
+outside its production directory cannot hide its deletion from the comparison.
+
+The source-selected baseline profile requires exactly 11 pass suites and at
+least 99 non-skipped tests. The WA-07a profile requires exactly 14 pass suites
+and at least 123 non-skipped tests, including
+`ConstantOperandSimplificationPassSpec`, `ConstantOperandFourStateSpec` and
+`ConstantOperandFixedPointSpec`. Both profiles retain the updated MorphHDL
+inventory of 81 suites and minimum 858 tests, including all three mandatory
+59e additions. Other project inventories remain unchanged. Missing,
+substituted, duplicated or unexpected suites, failed or skipped tests and
+stale success records remain errors. The original real-Git source controls and
+the added 59e suite controls exercise both profiles.
+
+This compatibility registration does not qualify WA-07a. Its dedicated workflow
+must still prove every candidate against the common pre-pass reference across
+all 512 bindings, repeat independently and validate the complete shard union.
+The 60f signedness proofs, domains, mutation controls, repeated RTL generation
+and cross-Scala comparison remain required by their existing workflow.

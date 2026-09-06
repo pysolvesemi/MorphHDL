@@ -23,6 +23,17 @@ BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
 COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 INHERITED_TRACKS = {"60c": "60c-signed-declarations", "60d": "60d-pure-sint-casts",
                     "60e": "60e-signedness-boundaries"}
+QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
+# Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
+# This does not expand 60f's historical qualification-only production scope.
+WA07A_PRODUCTION_SHA256 = {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala":
+        "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala":
+        "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
+        "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+}
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -164,6 +175,7 @@ def source_scope_self_test() -> None:
             audit.validate_repository(root, manifest_path)
 
         approve_current()
+        baseline_manifest = manifest_path.read_bytes()
         (root / "qualification.txt").write_text("tests and evidence only\n")
         completed = commit("completed qualification-only increment")
         qualification_interval(root, baseline, completed)
@@ -195,10 +207,167 @@ def source_scope_self_test() -> None:
             require(error.code.endswith("DIRTY-WORKTREE"), "wrong dirty-source rejection: " + str(error))
         else:
             raise RuntimeError("uncommitted native production changes escaped the current source audit")
+        (root / later).write_text("object LaterSupport\n")
+
+        # Exercise the new selector with real Git deltas and the real native
+        # auditor. This small fixture replaces only the full repository's sealed
+        # oracle files/history with its synthetic completed interval.
+        from unittest import mock
+        wa_bytes = {path: ("synthetic WA source " + path + "\n").encode()
+                    for path in WA07A_PRODUCTION_SHA256}
+        wa_hashes = {path: hashlib.sha256(data).hexdigest() for path, data in wa_bytes.items()}
+        scope_calls = 0
+
+        def fixture_evolution_scope(repository: Path) -> None:
+            nonlocal scope_calls
+            scope_calls += 1
+            qualification_interval(repository, baseline, completed)
+            audit.validate_repository(repository, manifest_path)
+
+        def rejected_profile(label: str) -> None:
+            try:
+                regression_profile(root)
+            except (RuntimeError, audit.AuditError):
+                return
+            raise RuntimeError("regression selector accepted " + label)
+
+        with mock.patch.dict(globals(), BASE=baseline, QUALIFIED_60F=completed,
+                             COMPLETED_60F=completed, WA07A_PRODUCTION_SHA256=wa_hashes,
+                             source_evolution_scope=fixture_evolution_scope):
+            approved_manifest = manifest_path.read_bytes()
+            manifest_path.write_bytes(baseline_manifest)
+            rejected_profile("unapproved committed native evolution")
+            manifest_path.write_bytes(approved_manifest)
+            require(regression_profile(root) == "60f-baseline", "later native source lost baseline pass profile")
+            for path, data in wa_bytes.items():
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+            commit("exact reviewed pass profile after later native evolution")
+            require(regression_profile(root) == "60f-with-wa07a", "later native source lost exact WA profile")
+            require(scope_calls >= 3, "later production skipped the current native scope gate")
+
+            first = next(iter(wa_bytes))
+            (root / first).write_bytes(wa_bytes[first] + b"staged mutation\n")
+            git("add", "--", first)
+            (root / first).write_bytes(wa_bytes[first])
+            rejected_profile("staged mutation hidden by restored working-tree bytes")
+            git("reset", "-q", "HEAD", "--", first)
+
+            (root / ".gitignore").write_text("ignored/\n")
+            ignored = root / "ignored/src/main/scala/Hidden.scala"
+            ignored.parent.mkdir(parents=True)
+            ignored.write_text("object Hidden\n")
+            rejected_profile("ignored untracked production during later evolution")
+            ignored.unlink()
+
+            extra = "morphhdl-passes/nested/backend/src/main/scala/Extra.scala"
+            target = root / extra
+            target.parent.mkdir(parents=True)
+            target.write_text("object Extra\n")
+            commit("unreviewed nested pass project")
+            rejected_profile("committed production in a nested pass project")
+            git("rm", "-q", "--", extra)
+            commit("remove nested pass project")
+
+            (root / first).write_bytes(wa_bytes[first] + b"committed mutation\n")
+            commit("changed pass source hash")
+            rejected_profile("committed WA source hash mutation")
+            (root / first).write_bytes(wa_bytes[first])
+            commit("restore exact pass source")
+            git("rm", "-q", "--", first)
+            commit("missing required pass source")
+            rejected_profile("committed missing WA source")
+            (root / first).parent.mkdir(parents=True, exist_ok=True)
+            (root / first).write_bytes(wa_bytes[first])
+            commit("restore missing pass source")
+            require(regression_profile(root) == "60f-with-wa07a", "selector fixture restoration failed")
+        print("60f evolved-source/pass-profile selection and six rejection controls PASS", flush=True)
     print("60f historical scope and current approved native-source controls PASS", flush=True)
 
 
+def checked_pass_profile(root: Path, changed: set[str]) -> str:
+    if not changed:
+        return "60f-baseline"
+    require(changed == set(WA07A_PRODUCTION_SHA256),
+            "unreviewed production delta: " + str(sorted(changed)))
+    for path, digest in WA07A_PRODUCTION_SHA256.items():
+        source = root / path
+        require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
+                "reviewed WA-07a production source hash differs: " + path)
+        stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root).decode("utf-8").split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "reviewed WA-07a production source is not uniquely tracked: " + path)
+    return "60f-with-wa07a"
+
+
+def production_profile(root: Path) -> str:
+    """Select an exact source contract before consulting regression reports."""
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F], cwd=root, check=True)
+    subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"], cwd=root, check=True)
+    historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
+    require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
+    # Include every production project (also nested backends and new roots),
+    # including ignored untracked sources; an allowed pathname alone is not a
+    # source contract. New WA files must be tracked and all three bytes exact.
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    return checked_pass_profile(root, changed)
+
+
+def regression_profile(root: Path) -> str:
+    """Choose the pass inventory from source, retaining later increment development."""
+    return current_regression_profile(root)[0]
+
+
+def current_regression_profile(root: Path) -> tuple[str, bool]:
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    # Check index and working tree independently: an uncommitted staged edit
+    # cannot be hidden by restoring only the working-tree bytes to HEAD.
+    for label, args in (("staged", ("diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD")),
+                        ("unstaged", ("diff", "--no-renames", "--name-only", "-z"))):
+        dirty = production_paths(git(*args))
+        require(not dirty, label + " production sources: " + str(sorted(dirty)))
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, "HEAD"))
+    # The whole pass workspace remains closed, including possible nested
+    # production projects. A new path cannot evade the fixed WA inventory.
+    pass_changes = {path for path in changed if path.startswith("morphhdl-passes/")}
+    if changed == pass_changes:
+        return production_profile(root), False
+    # The completed historical interval, sealed semantic authorities and current
+    # native manifest remain gates. Other committed front-end development is
+    # qualified by its own increment; this is not a global approval ledger.
+    qualification_interval(root, BASE, QUALIFIED_60F)
+    source_evolution_scope(root)
+    return checked_pass_profile(root, pass_changes), True
+
+
 def source_scope(root: Path) -> None:
+    profile, current_scope_checked = current_regression_profile(root)
+    if not current_scope_checked:
+        source_evolution_scope(root)
+    print("60f current regression pass profile: " + profile + " PASS", flush=True)
+
+
+def source_evolution_scope(root: Path) -> None:
     qualification_interval(root, BASE, COMPLETED_60F)
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",

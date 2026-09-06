@@ -2,12 +2,27 @@
 
 ## Status
 
-Implementation and qualification are in progress on
-`agent/increment-59e-composite-reductions`, based on merged
-`parameterized-verilog` commit `d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a`.
-The controlling roadmap checkbox remains unchecked until the final source and
-all applicable gates pass. This document does not claim a completed increment
-or a merge.
+The implementation was qualified on published commit
+`4f323bda5ad130d4d1e8e7ee9b2f7cf5904bc9ef`, incorporating merged integration
+commit `5a669d32095ee722c313bd069b771e7c350a1f81`. The local qualification commit
+`104e8fd97ab29c1a188393efca2dad0c25930bfe` has the identical Git tree
+`92d50f48b337d62c178ea4f1831a27f94d4e7e5f`.
+
+Publication and the final CI record are attached to
+[PR #162](https://github.com/pysolvesemi/MorphHDL/pull/162). No unmerged parallel
+successor supplies an implementation dependency.
+
+All 36 applicable workflow runs on that implementation commit passed; retired
+workflow invocations are not counted as proof evidence. Before completion,
+the branch incorporated integration commit
+`3e80cef258ddfdd6ce74819a2fbf200a8d2c5a64`, reconciling its WA-07a inventory
+registration with the historical/current source checks. That integration
+changes no production code, Scala fixture, generated-artifact writer or
+59e proof harness. The 15 existing 60f proof/tool/oracle functions are unchanged.
+The merged guards passed all 67 inventory rejection controls, six new
+source-evolution/pass-profile rejection controls and the full native/source
+boundary checks. The published completion commit reruns the applicable CI
+before merge.
 
 ## Native source contract
 
@@ -122,5 +137,58 @@ implementation. The completed 60f source interval does not freeze later
 production development; current native edits still require the approved-change
 audit.
 
-Final executed results and source-bound CI references will be recorded after
-qualification.
+## Executed qualification
+
+| Gate | Scala 2.12.18 | Scala 2.13.12 |
+| --- | ---: | ---: |
+| Targeted composite, native shape, safety and signedness tests | 263 / 263 in 19 suites | 263 / 263 in 19 suites |
+| Broad inherited regression inventory, with formal gates enabled | 1,652 / 1,652 | 1,652 / 1,652 |
+| Composite A/B artifact pairs | 65 cases, two reused candidates | 65 cases, two reused candidates |
+| Composite strict tools, synthesis, simulation and equivalence | 65 / 65 | 65 / 65 |
+| Composite independent-model simulation cycles | 23,316 | 23,316 |
+| Actual composite mutation counterexamples | 4 / 4 | 4 / 4 |
+| Inherited 59b strict tools, simulation and equivalence | 32 / 32 | 32 / 32 |
+| Inherited 59b simulation cycles | 5,586 | 5,586 |
+| Actual inherited 59b mutation counterexamples | 2 / 2 | 2 / 2 |
+
+Both Scala test inventories contain zero failures, errors or skipped tests.
+Every hardware case checks exact raw result kinds and widths independently of
+physical output adapters. A/B checks cover the manifest, both candidates and
+all independently elaborated native references. The local tools were Icarus
+12, Verilator 5.020 and Yosys 0.33, with the strict Verilog-2001 target and full
+Yosys synthesis/check enabled.
+
+For each Scala version, the main 40 cases require reset-entry and unbounded
+induction checks; the 25 independently counted cases require combinational
+SAT equivalence. All four composite mutations compile successfully, disagree
+with the independent simulation model and produce SAT counterexamples with
+`bad=1` VCD witnesses. The two inherited 59b mutations retain their original
+SAT counterexample checks.
+
+The [59e workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34016723645)
+retains source archives, generated RTL, test XML, solver logs and mutation
+traces. The [60f inherited qualification workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34016723672)
+records the complete regression inventories and original signedness gates.
+
+The approved native-change audit, retirement guards and typed source overlay
+checks passed. Regenerating the native source manifest produced identical
+bytes; its SHA-256 is
+`e55be2ea851e74ab310b4d816f630fd21aa823ab832a004b59b46ca40ec2f9f2`.
+Final source review found no blocker in constructor/callback admission,
+recursive root and ownership retention, live support-wire removal or the
+independent result-shape oracle.
+
+## Proof scope
+
+These are finite specialization proofs using two-state synchronous transition
+semantics. Pipeline induction starts from zero state; reset-entry separately
+checks output equality after an enabled reset transition. Every qualified
+pipeline leaf explicitly resets and initializes to zero under the same clock,
+reset and enable domain. This does not claim a generic invariant over arbitrary
+internal post-reset states or universal quantification over parameter values.
+
+The shared proof setup performs ordinary Yosys optimization to merge identical
+candidate/reference register and enable cones before SAT. It adds no assumptions
+and starts from a miter comparing every declared output; optimization may
+simplify equivalent comparisons. Parser errors, synthesis errors, timeouts,
+UNKNOWN results and absent counterexample traces fail the gate.
