@@ -57,6 +57,9 @@ that carrier's symbolic width. Both transfers require exact native graph and
 emitted-assignment lineage; matching a default literal or width alone grants no
 authority. This keeps part-selection and saturation callbacks free of implicit
 width-extension warnings at WIDTH=1 and at larger overrides.
+Exact registry-owned `ElabValue` carriers are excluded from the zero-literal
+transfer: their construction literal is a parameter-value witness, and the
+retained-value publisher owns that assignment even when its default is zero.
 
 ## Qualification fixtures
 
@@ -208,12 +211,18 @@ argument `--references-only` supports this local refresh, requires existing sole
 candidates, and leaves the strict artifact comparison unchanged. CI uses two
 complete generations from its exact checked-out head.
 
-These results are local evidence. GitHub publication was blocked by automatic
-approval review, so remote workflows and integration merge have not run and the
-59f roadmap checkbox remains open.
+A subsequent compatibility regression reproduced a retained `ElabValue.uintLike`
+value of `WIDTH-1` at WIDTH=1 being mistaken for a native zero constant. The fix
+preserves the exact value-registry ownership while ordinary typed zeros retain
+symbolic zero publication. The complete `ParameterizedVerilogTests` suite and
+callback publication smoke passed together on both Scala lanes: 22 tests per
+lane, including the new zero-default case. Source restoration controls and the
+inherited source audits passed again with the reviewed fix.
 
-Standing publication approval was subsequently confirmed. Publication through
-the connected GitHub API preserves the reviewed file tree with a new Git commit
-identity. The publisher audit is anchored to the merged 60f base; both audited
-before-blobs are byte-identical to the original local checkpoint. The exact
-span and complete before/after hash checks remain in force.
+These results are local evidence. Publication is tracked in
+[PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166); remote workflows and
+integration merge remain pending, so the 59f roadmap checkbox stays open.
+The published Git tree is checked against the reviewed local tree. The publisher
+audit is anchored to the merged 60f base; both audited before-blobs are
+byte-identical to the original local checkpoint. Exact span and complete
+before/after hash checks remain in force.

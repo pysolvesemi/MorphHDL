@@ -774,6 +774,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       nativeSignedLiterals: Boolean = false
   ): String = {
+    // An ElabValue carrier's literal is only its construction witness. Its
+    // exact value registry owns publication even when that witness is zero.
+    val retainedValues = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (value, _) =>
+      retainedValues.put(value, java.lang.Boolean.TRUE)
+    }
     var lines = verilog.split("\n", -1).toVector
     component.dslBody.walkLeafStatements {
       case assignment: DataAssignmentStatement =>
@@ -781,6 +787,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case (target: BitVector, literal: BitVectorLiteral)
               if (assignment.finalTarget eq target) &&
                 (target.component eq component) && target.isComb &&
+                !retainedValues.containsKey(target) &&
                 target.hasOnlyOneStatement && (target.head eq assignment) &&
                 !literal.hasPoison() && literal.getValue() == 0 &&
                 literal.getWidth == target.getBitsWidth =>

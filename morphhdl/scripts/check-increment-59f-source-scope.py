@@ -15,7 +15,7 @@ from pathlib import Path
 
 BASE = "5a669d32095ee722c313bd069b771e7c350a1f81"
 CONTRACT = "morphhdl/contracts/increment-59f-publisher-edits.json"
-CONTRACT_SHA256 = "755381cea6d3965080e9370356c46e1ffdf9b6b269eb7e19257759a2adf20afc"
+CONTRACT_SHA256 = "0b0a0201dbd56243591882ae8e3f1acc02e6f9a9d7ece2fc267565b094de4ccc"
 FALLBACK = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
 BOUNDARY_CHECKER = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
 PATHS = frozenset((FALLBACK, BOUNDARY_CHECKER))

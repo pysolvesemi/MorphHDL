@@ -387,6 +387,33 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("retained symbolic values preserve zero default witnesses until value publication") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "TypedZeroWitnessValue.v"
+      MorphVerilog(config) {
+        new Component {
+          setDefinitionName("TypedZeroWitnessValue")
+          val width = HdlInt.param("WIDTH", 1, 1, 8).asElabInt
+          val input = in Bool()
+          val echo = out Bool()
+          echo := input
+          val output, zero = out UInt(width.bits)
+          val value = ElabValue.uintLike(width - 1, UInt(width.bits), "varying_value")
+          output := value
+          zero := 0
+        }
+      }
+      val verilog = read(directory.resolve("TypedZeroWitnessValue.v"))
+      val compact = verilog.replaceAll("\\s+", "")
+      val valueAssignment = verilog.split("\n").find(_.matches("\\s*assign\\s+varying_value\\s*=.*"))
+        .getOrElse(fail("retained typed value assignment was not published:\n" + verilog))
+      assert(valueAssignment.replaceAll("\\s+", "").contains("WIDTH-1"), valueAssignment)
+      assert(!valueAssignment.contains("1'b0"), valueAssignment)
+      assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
+    }
+  }
+
   test("retained resize rewrite rejects an additional same-target assignment") {
     withTemporaryDirectory { directory =>
       val targetWidth =
