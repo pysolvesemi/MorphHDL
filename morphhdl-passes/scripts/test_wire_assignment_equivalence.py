@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import validate_wire_assignment_equivalence as gate
+import prove_wire_assignment_cones as cones
 
 
 class ScalarOutputPropertyTests(unittest.TestCase):
@@ -418,6 +419,25 @@ class PendingProofTests(unittest.TestCase):
 
 
 class ClockModelContracts(unittest.TestCase):
+    def test_cone_failure_identifies_candidate_binding_and_retained_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "formal" / "DEPTH-8__WIDTH-64"
+            candidate = Path(tmp) / "wire-assignment-four-pass.v"
+            binding = {"WIDTH": 64, "DEPTH": 8}
+            for message in ("TIMEOUT: property-0002-prove", "command log hash mismatch: compile"):
+                cause = cones.ConeProofError(message)
+                with self.subTest(message=message), patch.object(gate, "prepare_leg"), \
+                     patch.object(gate, "prove_comparison_reachable"), \
+                     patch.object(cones, "run_proof", side_effect=cause):
+                    with self.assertRaises(gate.ValidationError) as raised:
+                        gate.run_formal_binding(Path(tmp) / "reference.v", candidate, "Ref", "Candidate",
+                            ({"name": "a", "width": 1},), ({"name": "q", "width": 1},),
+                            binding, None, None, "abc pdr", 120, directory)
+                    diagnostic = str(raised.exception)
+                    for context in (candidate.name, gate.binding_key(binding), str(directory), message):
+                        self.assertIn(context, diagnostic)
+                    self.assertIs(raised.exception.__cause__, cause)
+
     def test_every_solver_mode_preserves_explicit_clock_edges(self):
         for mode in ("prove", "cover", "bmc"):
             config = gate.sby_configuration("Miter", "PASS", mode, "smtbmc yices", 120)

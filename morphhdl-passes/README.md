@@ -421,6 +421,21 @@ or unverified result cannot qualify. The per-binding timeout remains unchanged.
 The 7,168 required equivalence results count complete binding qualifications,
 each of which may contain several distinct PDR property proofs.
 
+Each nonconstant representative uses a fixed PDR search sequence: default,
+monolithic, then monolithic with structural flop priorities, each with
+`-C100 -D100 -F64`, followed by the original `-m -y -r` search. A later search
+starts only when a successful command explicitly reports the configured
+conflict or frame limit and an undecided property. Counterexamples, timeouts,
+tool errors and malformed evidence stop qualification. All attempts share the
+existing 600-second binding budget; an undecided attempt never supplies a proof.
+
+Schema 3 evidence retains every attempted script, model, execution record, log
+and clause dump in order. The checker matches each attempted model to the
+extracted formula and requires a final proved property with a verified
+invariant. Clauses dumped after an effort limit are retained as unverified
+diagnostics. Their canonical contents participate in repeated-run determinism,
+and omitted attempts or extra attempts after success are rejected.
+
 `test_wire_assignment_cone_tools.py` exercises the actual proof backend with
 positive cases and mutations of clock behavior, temporal assumptions, independent
 initial state, comparison reachability and later output properties. These small

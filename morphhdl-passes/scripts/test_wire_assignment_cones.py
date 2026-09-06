@@ -46,9 +46,10 @@ class ConeEvidenceTests(unittest.TestCase):
                 (root / (stem + "-normalized.aig")).write_bytes(normalized)
                 (root / cone.canonical_name(index, False)).write_bytes(b"aig 1 1 0 1 0\n0\nc")
             elif name.endswith("-prove"):
+                attempt = int(name.split("-")[3])
+                stem = cone.attempt_stem(index, attempt)
                 (root / (stem + "-proven.aig")).write_bytes(original if index == 0 else normalized)
-                if index != 0:
-                    (root / cone.canonical_name(index, True)).write_bytes(b"aig 1 1 0 1 0\n0\nc")
+                (root / cone.canonical_name(index, True, attempt)).write_bytes(b"aig 1 1 0 1 0\n0\nc")
                 text = GOOD_LOG
                 (root / (stem + "-invariant.pla")).write_text(
                     "# synthetic timestamp\n.i 0\n.o 1\n.p 0\n.e\n")
@@ -73,8 +74,8 @@ class ConeEvidenceTests(unittest.TestCase):
         self.assertEqual([row["index"] for row in self.evidence["properties"]], [0, 1, 2])
         self.assertEqual(len(self.evidence["unique_proofs"]), 2)
         self.assertFalse(self.evidence["properties"][0]["normalization_kept_output"])
-        self.assertIn("property-0000-prove", self.calls)
-        self.assertNotIn("property-0002-prove", self.calls)
+        self.assertIn("property-0000-attempt-00-default-prove", self.calls)
+        self.assertNotIn("property-0002-attempt-00-default-prove", self.calls)
 
     def test_reordered_properties_rejected(self):
         self.alter_evidence(lambda data: data["properties"].reverse())
@@ -102,7 +103,7 @@ class ConeEvidenceTests(unittest.TestCase):
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_proved_snapshot_must_equal_extracted_formula(self):
-        path = self.root / "property-0001-proven.aig"
+        path = self.root / "property-0001-attempt-00-default-proven.aig"
         path.write_bytes(path.read_bytes() + b"changed")
         with self.assertRaises(cone.ConeProofError): self.validate()
 
@@ -119,8 +120,8 @@ class ConeEvidenceTests(unittest.TestCase):
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_canonical_write_without_matching_read_rejected(self):
-        path = self.root / "property-0001-prove.abc"
-        path.write_text(path.read_text().replace("read_aiger property-0001-canonical-proof.aig; ", ""))
+        path = self.root / "property-0001-attempt-00-default-prove.abc"
+        path.write_text(path.read_text().replace("read_aiger property-0001-attempt-00-default-canonical-proof.aig; ", ""))
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_source_changed_rejected(self):
@@ -138,27 +139,27 @@ class ConeEvidenceTests(unittest.TestCase):
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_false_pass_without_verified_invariant_rejected(self):
-        log = self.root / "property-0001-prove.log"
+        log = self.root / "property-0001-attempt-00-default-prove.log"
         log.write_text("Property proved.  Time = 0.01 sec\n")
-        execution = self.root / "property-0001-prove.execution"
+        execution = self.root / "property-0001-attempt-00-default-prove.execution"
         data = cone._load(execution)
         data["log_sha256"] = cone.digest(log)
         cone._write(execution, data)
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_valid_log_requires_actual_process_success(self):
-        execution = self.root / "property-0001-prove.execution"
+        execution = self.root / "property-0001-attempt-00-default-prove.execution"
         data = cone._load(execution)
         data["returncode"] = 1
         cone._write(execution, data)
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_missing_invariant_rejected(self):
-        (self.root / "property-0001-invariant.pla").unlink()
+        (self.root / "property-0001-attempt-00-default-invariant.pla").unlink()
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_changed_invariant_rejected(self):
-        path = self.root / "property-0001-invariant.txt"
+        path = self.root / "property-0001-attempt-00-default-invariant.txt"
         path.write_text(path.read_text().replace(".p 0", ".p 1"))
         with self.assertRaises(cone.ConeProofError): self.validate()
 
@@ -170,7 +171,7 @@ class ConeEvidenceTests(unittest.TestCase):
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_log_change_rejected(self):
-        (self.root / "property-0001-prove.log").write_text("PASS\n")
+        (self.root / "property-0001-attempt-00-default-prove.log").write_text("PASS\n")
         with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_malformed_manifest_rejected(self):
@@ -203,6 +204,286 @@ class ConeEvidenceTests(unittest.TestCase):
         record = cone._load(self.root / "timeout.execution")
         self.assertTrue(record["timed_out"])
         self.assertIsNone(record["returncode"])
+
+
+LIMIT_LOG = ("Reached conflict limit (100) in frame 27.\n"
+             "Property UNDECIDED.  Time = 0.01 sec\n")
+FRAME_LOG = ("Reached limit on the number of timeframes (64).\n"
+             "Property UNDECIDED.  Time = 0.01 sec\n")
+
+
+class PortfolioEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        self.root = self.directory / cone.DIRECTORY
+        for name in ("reference.il", "candidate.il"):
+            (self.directory / name).write_text("# prepared fixture\n")
+        self.calls = []
+        self.outcomes = (LIMIT_LOG, GOOD_LOG)
+        self.mutate = None
+
+    def command(self, root, name, argv, deadline):
+        ConeEvidenceTests.synthetic_command(self, root, name, argv, deadline)
+        if not name.endswith("-prove"):
+            return
+        attempt = int(name.split("-")[3])
+        log = self.outcomes[attempt]
+        (root / (name + ".log")).write_text(log)
+        execution = root / (name + ".execution")
+        record = cone._load(execution)
+        record["log_sha256"] = cone.digest(root / (name + ".log"))
+        cone._write(execution, record)
+        if self.mutate:
+            self.mutate(root, name, attempt)
+
+    def generate(self):
+        self.calls.clear()
+        with patch.object(cone, "_command", side_effect=self.command):
+            return cone.run_proof(self.directory, "Probe", MITER, 3, 10)
+
+    def validate(self):
+        return cone.validate_proof(self.directory, "Probe", MITER, 3, 10)
+
+    def assert_immediate_failure(self):
+        with self.assertRaises(cone.ConeProofError):
+            self.generate()
+        attempts = [name for name in self.calls if name.endswith("-prove")]
+        self.assertEqual(attempts, [cone.attempt_stem(0, 0) + "-prove"])
+        self.assertFalse((self.root / "evidence.json").exists())
+
+    def test_explicit_effort_limit_advances_and_records_every_attempt(self):
+        evidence = self.generate()
+        self.assertEqual(evidence, self.validate())
+        for proof in evidence["unique_proofs"]:
+            self.assertEqual([a["profile"] for a in proof["attempts"]], ["default", "monolithic"])
+            self.assertEqual([a["status"] for a in proof["attempts"]], ["UNDECIDED", "PASS"])
+            self.assertFalse(proof["attempts"][0]["verified_invariant"])
+            self.assertTrue(proof["attempts"][1]["verified_invariant"])
+            self.assertEqual(proof["attempts"][0]["effort_limit"], {"kind": "conflicts", "limit": 100})
+        self.assertFalse(any(name.startswith(cone.property_stem(2) + "-attempt-") for name in self.calls))
+        self.assertTrue((self.root / cone.canonical_name(2, False)).is_file())
+
+    def test_final_unbounded_profile_still_requires_a_real_proof(self):
+        self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, GOOD_LOG)
+        evidence = self.generate()
+        self.assertEqual(evidence, self.validate())
+        self.assertEqual([a["profile"] for a in evidence["unique_proofs"][0]["attempts"]],
+                         [profile[0] for profile in cone.PDR_PROFILES])
+        self.assertNotIn("-C 100", (self.root / (cone.attempt_stem(0, 3) + "-prove.abc")).read_text())
+
+    def test_counterexample_fails_without_fallback(self):
+        self.outcomes = ("Output 0 was asserted in frame 3.\n", GOOD_LOG)
+        self.assert_immediate_failure()
+
+    def test_truncated_proof_log_fails_without_fallback(self):
+        self.outcomes = (GOOD_LOG.split("Property proved.")[0], GOOD_LOG)
+        self.assert_immediate_failure()
+
+    def test_cpu_timeout_fails_without_fallback(self):
+        self.outcomes = ("Reached time limit (10).\nProperty UNDECIDED. Time = 10.00 sec\n", GOOD_LOG)
+        self.assert_immediate_failure()
+
+    def test_wall_timeout_fails_without_fallback(self):
+        def timeout(root, name, attempt):
+            path = root / (name + ".execution")
+            record = cone._load(path)
+            record.update(returncode=None, timed_out=True)
+            cone._write(path, record)
+        self.mutate = timeout
+        self.assert_immediate_failure()
+
+    def test_nonzero_exit_or_parser_error_does_not_fallback(self):
+        def exit_error(root, name, attempt):
+            path = root / (name + ".execution")
+            record = cone._load(path)
+            record["returncode"] = 1
+            cone._write(path, record)
+        self.mutate = exit_error
+        self.assert_immediate_failure()
+        self.mutate = None
+        self.outcomes = (LIMIT_LOG + "Error: solver input rejected\n", GOOD_LOG)
+        self.assert_immediate_failure()
+
+    def test_missing_forged_or_contradictory_limit_does_not_fallback(self):
+        for log in ("Property UNDECIDED. Time = 0.01 sec\n", LIMIT_LOG.replace("100", "99"),
+                    FRAME_LOG.replace("64", "65"), LIMIT_LOG + GOOD_LOG, LIMIT_LOG + LIMIT_LOG,
+                    LIMIT_LOG + "Output 0 was asserted in frame 3.\n",
+                    LIMIT_LOG + "Reached time limit (10).\n",
+                    LIMIT_LOG.replace("frame 27.", "frame unknown.")):
+            with self.subTest(log=log):
+                self.outcomes = (log, GOOD_LOG)
+                self.assert_immediate_failure()
+
+    def test_changed_log_hash_does_not_fallback(self):
+        self.mutate = lambda root, name, attempt: (root / (name + ".log")).write_text(LIMIT_LOG + "changed\n")
+        self.assert_immediate_failure()
+
+    def test_changed_canonical_or_formula_does_not_fallback(self):
+        for suffix in ("-canonical-proof.aig", "-proven.aig"):
+            def change(root, name, attempt):
+                path = root / (name.removesuffix("-prove") + suffix)
+                path.write_bytes(path.read_bytes() + b"changed")
+            with self.subTest(suffix=suffix):
+                self.mutate = change
+                self.assert_immediate_failure()
+
+    def test_missing_prior_attempt_is_rejected_even_when_manifest_is_adjusted(self):
+        self.generate()
+        for path in self.root.glob(cone.attempt_stem(0, 0) + "-*"):
+            path.unlink()
+        path = self.root / "evidence.json"
+        data = cone._load(path)
+        data["unique_proofs"][0]["attempts"].pop(0)
+        cone._write(path, data)
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_reordered_attempts_and_changed_profile_scripts_are_rejected(self):
+        self.generate()
+        path = self.root / "evidence.json"
+        data = cone._load(path)
+        data["unique_proofs"][0]["attempts"].reverse()
+        cone._write(path, data)
+        with self.assertRaises(cone.ConeProofError): self.validate()
+        self.generate()
+        path = self.root / (cone.attempt_stem(0, 0) + "-prove.abc")
+        path.write_text(path.read_text().replace("pdr -C", "pdr -m -C"))
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_extra_attempt_after_pass_or_on_duplicate_is_rejected(self):
+        for index, attempt in ((0, 2), (2, 0)):
+            with self.subTest(index=index):
+                self.generate()
+                (self.root / (cone.attempt_stem(index, attempt) + "-prove.log")).write_text(GOOD_LOG)
+                with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_prior_attempt_requires_all_artifacts_and_unchanged_model(self):
+        for suffix in ("-prove.abc", "-prove.log", "-prove.execution", "-canonical-proof.aig", "-proven.aig",
+                       "-invariant.pla", "-invariant.txt", "-invariant.execution"):
+            with self.subTest(suffix=suffix):
+                self.generate()
+                (self.root / (cone.attempt_stem(0, 0) + suffix)).unlink()
+                with self.assertRaises(cone.ConeProofError): self.validate()
+        self.generate()
+        path = self.root / (cone.attempt_stem(0, 0) + "-canonical-proof.aig")
+        path.write_bytes(path.read_bytes() + b"changed")
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_effort_limited_clauses_are_required_but_never_certify_the_property(self):
+        evidence = self.generate()
+        attempt = evidence["unique_proofs"][0]["attempts"][0]
+        self.assertEqual(attempt["retained_clauses"], "unverified-last-timeframe")
+        self.assertFalse(attempt["verified_invariant"])
+        self.assertEqual(attempt["status"], "UNDECIDED")
+        (self.root / (cone.attempt_stem(0, 0) + "-invariant.pla")).unlink()
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_effort_limited_raw_and_canonical_clause_changes_are_rejected(self):
+        for suffix in ("-invariant.pla", "-invariant.txt", "-invariant.execution"):
+            with self.subTest(suffix=suffix):
+                self.generate()
+                path = self.root / (cone.attempt_stem(0, 0) + suffix)
+                path.write_text(path.read_text() + "changed\n")
+                with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_missing_effort_limited_clauses_prevents_fallback(self):
+        def remove_clauses(root, name, attempt):
+            (root / (name.removesuffix("-prove") + "-invariant.pla")).unlink()
+        self.mutate = remove_clauses
+        self.assert_immediate_failure()
+
+    def test_effort_limited_clauses_cannot_be_relabelled_as_verified(self):
+        self.generate()
+        path = self.root / "evidence.json"
+        data = cone._load(path)
+        data["unique_proofs"][0]["attempts"][0].update(
+            retained_clauses="verified-invariant", verified_invariant=True)
+        cone._write(path, data)
+        with self.assertRaises(cone.ConeProofError): self.validate()
+
+    def test_every_attempt_counts_toward_shared_budget(self):
+        self.generate()
+        path = self.root / (cone.attempt_stem(0, 0) + "-prove.execution")
+        data = cone._load(path)
+        data["elapsed_seconds"] = 10
+        cone._write(path, data)
+        with self.assertRaisesRegex(cone.ConeProofError, "shared binding timeout"): self.validate()
+
+    def test_unknown_for_every_profile_never_becomes_pass(self):
+        self.outcomes = (LIMIT_LOG,) * len(cone.PDR_PROFILES)
+        with self.assertRaises(cone.ConeProofError): self.generate()
+        self.assertEqual(len([name for name in self.calls if name.endswith("-prove")]), len(cone.PDR_PROFILES))
+        self.assertFalse((self.root / "evidence.json").exists())
+        self.assertEqual(cone._load(self.root / "failure.json")["status"], "FAIL")
+
+    def test_repeated_portfolio_evidence_is_identical(self):
+        first = self.generate()
+        second = self.generate()
+        self.assertEqual(first, second)
+        self.assertEqual(first, self.validate())
+
+
+class CommandDiagnosticTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.argv = ["yosys-abc", "-f", "property-0002-attempt-00-default-prove.abc"]
+        self.name = "property-0002-attempt-00-default-prove"
+        self.log = self.root / (self.name + ".log")
+        self.log.write_text(GOOD_LOG)
+        self.record = {
+            "argv": self.argv, "returncode": 0, "timed_out": False,
+            "elapsed_seconds": 0.01, "log_sha256": cone.digest(self.log),
+        }
+
+    def validate(self, **changes):
+        cone._write(self.root / (self.name + ".execution"), {**self.record, **changes})
+        return cone._validate_command(self.root, self.name, self.argv)
+
+    def test_success_requires_the_retained_successful_execution(self):
+        self.assertEqual(self.validate(), GOOD_LOG)
+        for code in (1, -9):
+            with self.subTest(code=code):
+                with self.assertRaisesRegex(cone.ConeProofError, f"command exited with status {code}: {self.name}"):
+                    self.validate(returncode=code)
+        with self.assertRaisesRegex(cone.ConeProofError, f"command launch failed: {self.name}"):
+            self.validate(returncode=None)
+
+    def test_timeout_requires_a_valid_record_and_unchanged_log(self):
+        with self.assertRaisesRegex(cone.ConeProofError, f"^TIMEOUT:.*{self.name}$"):
+            self.validate(returncode=None, timed_out=True)
+        self.log.write_text("changed after the recorded timeout\n")
+        with self.assertRaisesRegex(cone.ConeProofError, f"^command log hash mismatch: {self.name}$"):
+            self.validate(returncode=None, timed_out=True)
+
+    def test_invalid_record_cannot_be_classified_as_timeout(self):
+        mutations = (
+            {"argv": ["different-tool"]}, {"returncode": 0}, {"returncode": False},
+            {"returncode": 0.0}, {"timed_out": 1}, {"timed_out": "true"},
+            {"elapsed_seconds": True}, {"elapsed_seconds": -1},
+            {"elapsed_seconds": float("nan")}, {"elapsed_seconds": float("inf")},
+            {"elapsed_seconds": "1"}, {"log_sha256": None}, {"log_sha256": "bad"},
+            {"unexpected": "field"},
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                changes = {"returncode": None, "timed_out": True, **mutation}
+                with self.assertRaisesRegex(cone.ConeProofError, "^invalid command execution record:"):
+                    self.validate(**changes)
+
+    def test_missing_fields_and_nonobject_records_are_invalid(self):
+        for record in ([], {key: value for key, value in self.record.items() if key != "timed_out"}):
+            with self.subTest(record=record):
+                cone._write(self.root / (self.name + ".execution"), record)
+                with self.assertRaisesRegex(cone.ConeProofError, "^invalid command execution record:"):
+                    cone._validate_command(self.root, self.name, self.argv)
+
+    def test_zero_exit_tool_error_remains_distinct_and_rejected(self):
+        self.log.write_text("Error: invalid ABC command\n")
+        with self.assertRaisesRegex(cone.ConeProofError, f"^tool reported an error: {self.name}$"):
+            self.validate(log_sha256=cone.digest(self.log))
 
 
 class ConeParsingTests(unittest.TestCase):
@@ -240,7 +521,9 @@ class ConeParsingTests(unittest.TestCase):
         for proof, commands in ((False, cone.extraction_script(0)), (True, cone.proof_script(0, True, 10))):
             name = cone.canonical_name(0, proof)
             self.assertIn(f"dc2; &get; &w -u {name}; read_aiger {name}; dch", commands)
-        self.assertIn("pdr -m -y -r -T 10 -v -d -I", cone.proof_script(0, True, 10))
+        self.assertIn("pdr -m -y -r -T 10 -v -d -I", cone.proof_script(0, True, 10, attempt=3))
+        for attempt, flags in enumerate(("", "-m ", "-m -y ")):
+            self.assertIn(f"pdr {flags}-C 100 -D 100 -F 64 -T 10", cone.proof_script(0, True, 10, attempt=attempt))
 
     def test_canonical_initial_state_requires_zero_for_every_latch(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -291,10 +574,10 @@ class ConstantFalseEvidenceTests(unittest.TestCase):
     def test_literal_zero_is_separate_structural_proof(self):
         self.assertEqual(self.validate(), self.evidence)
         proof = self.evidence["unique_proofs"][0]
-        self.assertEqual(self.evidence["schema_version"], 2)
+        self.assertEqual(self.evidence["schema_version"], 3)
         self.assertEqual(proof["proof_method"], "constant-false")
         self.assertFalse(proof["verified_invariant"])
-        self.assertNotIn("property-0000-prove", self.calls)
+        self.assertNotIn("property-0000-attempt-00-default-prove", self.calls)
 
     def test_missing_certificate_rejected(self):
         (self.root / "property-0000-constant-false.json").unlink()

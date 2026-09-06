@@ -1003,7 +1003,10 @@ def run_formal_binding(
                 timeout_seconds=timeout_seconds, expected_assumption_count=4 if clock else 0,
             )
         except cones.ConeProofError as error:
-            raise ValidationError(f"output-property proof failed: {error}") from error
+            raise ValidationError(
+                f"output-property proof failed for {candidate.name} at {binding_key(binding)} "
+                f"(evidence: {directory}): {error}"
+            ) from error
         return {"binding": dict(sorted(binding.items())), "status": "PASS",
                 "comparison_reachable": True}
     (directory / "proof.sby").write_text(

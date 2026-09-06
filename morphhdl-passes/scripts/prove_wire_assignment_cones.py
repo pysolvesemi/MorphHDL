@@ -39,6 +39,15 @@ BACKEND = "abc-pdr-output-cones"
 DIRECTORY = "cone-proof"
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 SHA256 = re.compile(r"[0-9a-f]{64}")
+# Fixed effort bounds make the choice independent of elapsed time. Only an
+# explicit exhaustion of these bounds advances the ordered search portfolio.
+PDR_PROFILES = (
+    ("default", "", True),
+    ("monolithic", "-m", True),
+    ("monolithic-priority", "-m -y", True),
+    ("monolithic-priority-generalization", "-m -y -r", False),
+)
+
 
 
 class ConeProofError(RuntimeError):
@@ -195,22 +204,27 @@ def property_stem(index: int) -> str:
     return f"property-{index:04d}"
 
 
-def canonical_name(index: int, proof: bool) -> str:
-    return property_stem(index) + ("-canonical-proof.aig" if proof else "-canonical-extract.aig")
+def attempt_stem(index: int, attempt: int) -> str:
+    return f"{property_stem(index)}-attempt-{attempt:02d}-{PDR_PROFILES[attempt][0]}"
 
 
-def normalization_commands(index: int, sequential: bool, proof: bool) -> str:
-    canonical = canonical_name(index, proof)
+def canonical_name(index: int, proof: bool, attempt: int = 0) -> str:
+    return ((attempt_stem(index, attempt) + "-canonical-proof.aig") if proof
+            else property_stem(index) + "-canonical-extract.aig")
+
+
+def normalization_commands(index: int, sequential: bool, proof: bool, attempt: int = 0) -> str:
+    canonical = canonical_name(index, proof, attempt)
     return ("&get; &trim -o; &put" + ("; scorr" if sequential else "")
             + f"; dc2; &get; &w -u {canonical}; read_aiger {canonical}; dch; dc2")
 
 
-def cone_commands(index: int, normalize: bool, sequential: bool = True) -> str:
+def cone_commands(index: int, normalize: bool, sequential: bool = True, attempt: int = 0) -> str:
     commands = f"read_aiger full.aig; fold; strash; cone -s -O {index}"
     if sequential:
         commands += "; scleanup"
     if normalize:
-        commands += "; " + normalization_commands(index, sequential, True)
+        commands += "; " + normalization_commands(index, sequential, True, attempt)
     return commands
 
 
@@ -227,13 +241,19 @@ def extraction_script(index: int, sequential: bool = True) -> str:
             + f"; write_aiger -u {stem}-normalized.aig\n")
 
 
-def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True) -> str:
-    # Monolithic CNF, structural flop priorities and stronger generalization
-    # change PDR's search only. The retained formula, explicit clocks, initial
-    # state, assumptions and timeout remain unchanged.
-    return (cone_commands(index, normalize, sequential)
-            + f"; write_aiger -u {property_stem(index)}-proven.aig"
-            + f"; pdr -m -y -r -T {timeout} -v -d -I {property_stem(index)}-invariant.pla\n")
+def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True,
+                 attempt: int = 0) -> str:
+    stem = attempt_stem(index, attempt)
+    _, options, bounded = PDR_PROFILES[attempt]
+    options = ((options + " ") if options else "") + ("-C 100 -D 100 -F 64 " if bounded else "")
+    # Every attempt rebuilds the canonical extraction, including when a dropped
+    # output requires proving the original formula. Never use a prior attempt's
+    # files, change the model, or turn an elapsed-time failure into a retry.
+    commands = cone_commands(index, True, sequential, attempt)
+    if not normalize:
+        commands += "; " + cone_commands(index, False, sequential)
+    return (commands + f"; write_aiger -u {stem}-proven.aig"
+            + f"; pdr {options}-T {timeout} -v -d -I {stem}-invariant.pla\n")
 
 
 def _command(root: Path, name: str, argv: list[str], deadline: float) -> None:
@@ -268,12 +288,24 @@ def _validate_command(root: Path, name: str, argv: list[str]) -> str:
     if (not isinstance(result, dict) or set(result) != {
             "argv", "returncode", "timed_out", "elapsed_seconds", "log_sha256"}
             or result.get("argv") != argv
-            or type(result.get("returncode")) is not int or result["returncode"] != 0
-            or result.get("timed_out") is not False
+            or (result.get("returncode") is not None and type(result["returncode"]) is not int)
+            or type(result.get("timed_out")) is not bool
+            or (result["timed_out"] and result["returncode"] is not None)
             or type(result.get("elapsed_seconds")) not in (int, float)
             or not math.isfinite(result["elapsed_seconds"]) or result["elapsed_seconds"] < 0
-            or result.get("log_sha256") != digest(root / f"{name}.log")):
-        raise ConeProofError(f"failed, TIMEOUT or inconsistent command evidence: {name}")
+            or not isinstance(result.get("log_sha256"), str)
+            or not SHA256.fullmatch(result["log_sha256"])):
+        raise ConeProofError(f"invalid command execution record: {name}")
+    # A timeout marker is diagnostic evidence only after validating its complete
+    # record and retained log. Corrupt evidence must not masquerade as a timeout.
+    if result["log_sha256"] != digest(root / f"{name}.log"):
+        raise ConeProofError(f"command log hash mismatch: {name}")
+    if result["timed_out"]:
+        raise ConeProofError(f"TIMEOUT: command exceeded remaining binding proof budget: {name}")
+    if result["returncode"] is None:
+        raise ConeProofError(f"command launch failed: {name}")
+    if result["returncode"] != 0:
+        raise ConeProofError(f"command exited with status {result['returncode']}: {name}")
     output = (root / f"{name}.log").read_text(encoding="utf-8", errors="replace")
     # ABC can return zero on a parser or command error, so returncode alone is
     # insufficient even for extraction stages.
@@ -293,6 +325,34 @@ def validate_pdr_log(output: str) -> str:
     if len(proved) != 1 or len(invariant) != 1 or failure:
         raise ConeProofError("ABC PDR did not publish one proved property with a verified invariant")
     return "PASS"
+
+
+def validate_attempt_log(output: str, attempt: int) -> dict[str, Any]:
+    """Accept PASS or one explicit deterministic effort-limit diagnostic only."""
+    if re.search(r"(?im)(?:\berror:|has failed\.|unknown command|cannot open|cannot find|"
+                 r"wrong input file format|\bUNKNOWN\b|\bTIMEOUT\b|time limit|"
+                 r"property.*(?:failed|fails|disproved)|output\s+\d+.*asserted|counterexample|"
+                 r"verification of invariant.*(?:failed|unsuccessful))", output):
+        raise ConeProofError("ABC PDR reported a counterexample, timeout or tool error")
+    undecided = re.findall(r"(?m)^Property UNDECIDED\.\s+Time\s*=\s*[0-9.]+\s+sec\s*$", output)
+    limit_lines = re.findall(r"(?im)^.*(?:Reached.*limit).*$", output)
+    if not re.search(r"\bUNDECIDED\b", output, re.I):
+        validate_pdr_log(output)
+        if limit_lines:
+            raise ConeProofError("proved result contains a contradictory effort-limit diagnostic")
+        return {"status": "PASS", "verified_invariant": True}
+    if (not PDR_PROFILES[attempt][2] or len(undecided) != 1
+            or len(re.findall(r"\bUNDECIDED\b", output, re.I)) != 1
+            or re.search(r"(?i)Property proved|Verification of invariant", output)
+            or len(limit_lines) != 1):
+        raise ConeProofError("ABC PDR undecided result lacks one permitted effort-limit diagnostic")
+    if re.fullmatch(r"Reached conflict limit \(100\) in frame [0-9]+\.", limit_lines[0]):
+        reason = {"kind": "conflicts", "limit": 100}
+    elif limit_lines[0] == "Reached limit on the number of timeframes (64).":
+        reason = {"kind": "frames", "limit": 64}
+    else:
+        raise ConeProofError("ABC PDR reached an unexpected or malformed effort limit")
+    return {"status": "UNDECIDED", "verified_invariant": False, "effort_limit": reason}
 
 
 def _invariant_text(path: Path) -> str:
@@ -333,6 +393,38 @@ def _text(root: Path, name: str, expected: str) -> None:
         raise ConeProofError(f"noncanonical proof source or command: {name}")
 
 
+def _validate_attempt(root: Path, index: int, attempt: int, normalize: bool,
+                      sequential: bool, timeout: int, formula: bytes,
+                      canonical: bytes) -> tuple[dict[str, Any], dict[str, str], set[str]]:
+    stem = attempt_stem(index, attempt)
+    _text(root, stem + "-prove.abc", proof_script(index, normalize, timeout, sequential, attempt))
+    output = _validate_command(root, stem + "-prove", ["yosys-abc", "-f", stem + "-prove.abc"])
+    _single(root / (stem + "-proven.aig"))
+    if (root / (stem + "-proven.aig")).read_bytes() != formula:
+        raise ConeProofError("proved snapshot differs from the extracted formula")
+    proof_canonical = root / canonical_name(index, True, attempt)
+    zero_initialized_single(proof_canonical)
+    if proof_canonical.read_bytes() != canonical:
+        raise ConeProofError("proof canonical snapshot differs from extraction")
+    outcome = validate_attempt_log(output, attempt)
+    retained = {stem + suffix for suffix in ("-prove.abc", "-proven.aig", "-prove.log", "-prove.execution")}
+    retained.add(proof_canonical.name)
+    artifacts = {name: digest(root / name) for name in (stem + "-prove.abc", stem + "-proven.aig", proof_canonical.name)}
+    # Pinned ABC's -d emits last-frame clauses even for UNDECIDED. Retain
+    # and hash them as diagnostics; only PASS has a verified invariant.
+    artifacts[stem + "-invariant.txt"] = _validate_invariant(root, stem)
+    retained.update(stem + suffix for suffix in ("-invariant.pla", "-invariant.txt", "-invariant.execution"))
+    clauses = "verified-invariant" if outcome["status"] == "PASS" else "unverified-last-timeframe"
+    return ({"attempt_index": attempt, "profile": PDR_PROFILES[attempt][0],
+             "retained_clauses": clauses, **outcome}, artifacts, retained)
+
+
+def _attempt_inventory(root: Path, index: int, expected: set[str]) -> None:
+    observed = {path.name for path in root.glob(property_stem(index) + "-attempt-*")}
+    if observed != expected:
+        raise ConeProofError("missing, unexpected or post-success proof-attempt artifacts")
+
+
 def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
               assumptions: int) -> dict[str, Any]:
     root = directory / DIRECTORY
@@ -349,8 +441,11 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
     # Digest indexing only locates candidates; actual byte equality is required
     # before any proof is reused, even in the hypothetical event of a collision.
     representatives: dict[str, tuple[int, bytes]] = {}
+    command_names = ["compile"]
     for index in range(count):
         stem = property_stem(index)
+        attempt_files: set[str] = set()
+        command_names.extend(stem + suffix for suffix in ("-isolate", "-extract"))
         _text(root, stem + "-isolate.abc", isolation_script(index))
         _validate_command(root, stem + "-isolate", ["yosys-abc", "-f", stem + "-isolate.abc"])
         raw_header = _single(root / (stem + "-raw.aig"))
@@ -385,35 +480,31 @@ def _metadata(directory: Path, top: str, miter: str, count: int, timeout: int,
                                "status": "PASS", "proof_method": "constant-false",
                                "verified_invariant": False, "certificate": name})
             else:
-                _text(root, stem + "-prove.abc", proof_script(index, use_normalized, timeout, sequential))
-                output = _validate_command(root, stem + "-prove", ["yosys-abc", "-f", stem + "-prove.abc"])
-                _single(root / (stem + "-proven.aig"))
-                if (root / (stem + "-proven.aig")).read_bytes() != formula:
-                    raise ConeProofError("proved snapshot differs from the extracted formula")
-                if use_normalized:
-                    proof_canonical = root / canonical_name(index, True)
-                    zero_initialized_single(proof_canonical)
-                    if proof_canonical.read_bytes() != canonical.read_bytes():
-                        raise ConeProofError("proof canonical snapshot differs from extraction")
-                    artifacts[proof_canonical.name] = digest(proof_canonical)
-                validate_pdr_log(output)
-                artifacts[stem + "-invariant.txt"] = _validate_invariant(root, stem)
-                for suffix in ("-prove.abc", "-proven.aig"):
-                    artifacts[stem + suffix] = digest(root / (stem + suffix))
+                attempts = []
+                for attempt in range(len(PDR_PROFILES)):
+                    record, hashes, retained = _validate_attempt(
+                        root, index, attempt, use_normalized, sequential, timeout,
+                        formula, canonical.read_bytes())
+                    attempts.append(record)
+                    artifacts.update(hashes)
+                    attempt_files.update(retained)
+                    command_names.append(attempt_stem(index, attempt) + "-prove")
+                    if record["status"] == "PASS":
+                        break
+                else:
+                    raise ConeProofError("ABC PDR portfolio exhausted without a verified proof")
                 proofs.append({"representative_index": index, "formula_sha256": formula_sha,
                                "status": "PASS", "proof_method": "abc-pdr",
-                               "verified_invariant": True})
+                               "verified_invariant": True, "attempts": attempts})
+        _attempt_inventory(root, index, attempt_files)
         properties.append({"index": index, "formula_sha256": formula_sha,
                            "representative_index": representative,
                            "selected": selected, "normalization_kept_output": use_normalized})
     elapsed = sum(_load(root / (name + ".execution"))["elapsed_seconds"]
-                  for name in ["compile"]
-                  + [property_stem(i) + suffix for i in range(count) for suffix in ("-isolate", "-extract")]
-                  + [property_stem(row["representative_index"]) + "-prove" for row in proofs
-                     if row["proof_method"] == "abc-pdr"])
+                  for name in command_names)
     if elapsed > timeout:
         raise ConeProofError("retained commands exceed the shared binding timeout")
-    return {"schema_version": 2, "backend": BACKEND, "status": "PASS",
+    return {"schema_version": 3, "backend": BACKEND, "status": "PASS",
             "miter_top": top, "property_count": count, "assumption_count": assumptions,
             "timeout_seconds": timeout, "full_aiger_header": full_header,
             "sources": {name: digest(directory / name) for name in ("reference.il", "candidate.il")},
@@ -470,19 +561,26 @@ def run_proof(directory: Path, miter_top: str, scalar_miter_text: str,
                 _write(root / (stem + "-constant-false.json"), certificate)
                 representatives[sha] = formula
                 continue
-            script = stem + "-prove.abc"
-            (root / script).write_text(proof_script(index, use_normalized, timeout_seconds, sequential), encoding="utf-8")
-            _command(root, stem + "-prove", ["yosys-abc", "-f", script], deadline)
-            _single(root / (stem + "-proven.aig"))
-            if (root / (stem + "-proven.aig")).read_bytes() != formula:
-                raise ConeProofError("proved snapshot differs from the extracted formula")
-            if use_normalized:
-                proof_canonical = root / canonical_name(index, True)
+            for attempt in range(len(PDR_PROFILES)):
+                attempt_name = attempt_stem(index, attempt)
+                script = attempt_name + "-prove.abc"
+                (root / script).write_text(proof_script(index, use_normalized, timeout_seconds, sequential, attempt), encoding="utf-8")
+                _command(root, attempt_name + "-prove", ["yosys-abc", "-f", script], deadline)
+                # Validate hashes and model equality before interpreting UNKNOWN.
+                _single(root / (attempt_name + "-proven.aig"))
+                if (root / (attempt_name + "-proven.aig")).read_bytes() != formula:
+                    raise ConeProofError("proved snapshot differs from the extracted formula")
+                proof_canonical = root / canonical_name(index, True, attempt)
                 zero_initialized_single(proof_canonical)
                 if proof_canonical.read_bytes() != canonical.read_bytes():
                     raise ConeProofError("proof canonical snapshot differs from extraction")
-            validate_pdr_log((root / (stem + "-prove.log")).read_text(encoding="utf-8"))
-            _retain_invariant(root, stem)
+                output = _validate_command(root, attempt_name + "-prove", ["yosys-abc", "-f", script])
+                outcome = validate_attempt_log(output, attempt)
+                _retain_invariant(root, attempt_name)
+                if outcome["status"] == "PASS":
+                    break
+            else:
+                raise ConeProofError("ABC PDR portfolio exhausted without a verified proof")
             representatives[sha] = formula
         evidence = _metadata(directory, miter_top, scalar_miter_text, expected_property_count,
                              timeout_seconds, assumptions)
