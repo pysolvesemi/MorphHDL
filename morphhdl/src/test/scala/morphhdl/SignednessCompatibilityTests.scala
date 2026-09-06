@@ -273,7 +273,9 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
     directory { root =>
       for (defaultWidth <- Vector(1, 8)) {
         def parameter = HdlInt.param("WIDTH", default = defaultWidth, min = 1, max = 8)
-        def unsigned = new morphhdl.CapturedAssignmentNormalizationSmoke.UnsizedLiteralRegisters(parameter)
+        // The existing nested fixture explicitly bridges branch representative
+        // widths with .resized, including the WIDTH=1 elaboration witness.
+        def unsigned = new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(parameter)
         val defaultPath = root.resolve(s"unsigned-$defaultWidth.v")
         val legacyPath = root.resolve(s"unsigned-legacy-$defaultWidth.v")
         morphhdl.MorphVerilog(fresh(defaultPath))(unsigned)
@@ -287,10 +289,12 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
             val a = in(SInt(width bits))
             val sum = out(SInt(width bits))
             val load = in(Bool())
+            val raw = in(UInt(width bits))
             val data = out(UInt(width bits))
             sum := a + a
-            val child = new morphhdl.CapturedAssignmentNormalizationSmoke.UnsizedLiteralRegisters(width)
+            val child = new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(width)
             child.load := load
+            child.din := raw
             data := child.dout
           }
         }
@@ -302,7 +306,8 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
         assert(rtl == read(explicitPath))
         assert(port(rtl, "a").contains("wire signed [WIDTH-1:0]"))
         assert(!port(rtl, "data").contains("signed"))
-        assert(rtl.contains("g_literal_wide") && rtl.contains("g_literal_narrow"))
+        assert(rtl.contains("g_outer_wide") && rtl.contains("g_outer_narrow"))
+        assert(rtl.contains("g_inner_wide") && rtl.contains("g_inner_middle"))
         assert(casts(rtl) == 0)
       }
     }
