@@ -1,6 +1,6 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60e qualified; 60f and 60g remain unchecked.
+**Status:** 60a through 60f qualified; 60g remains unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -229,9 +229,13 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   Vec leaves and hierarchy boundaries remain explicitly opt-in. Parent 60 and
   the separate 60f/60g rollout gates remain unchecked.
 
-- [ ] **Increment 60f — Equivalence, compatibility and tool-matrix closure**
+- [x] **Increment 60f — Equivalence, compatibility and tool-matrix closure**
 
   **Dependencies:** Increment 60e implemented and merged.
+
+  **Status:** Qualified on both Scala lanes. The precise proof domains,
+  compatibility corpus, retained evidence and completion gates are in the
+  [60f qualification record](increment-60f-equivalence-closure.md).
 
   Generate the feature-disabled cast-heavy reference independently from the
   feature-enabled signed-declaration candidate. Prove combinational and
@@ -247,6 +251,18 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   must produce a genuine counterexample. Missing modules, parser failure,
   timeout, `UNKNOWN` or a tool error is not a proof. Re-run the approved native
   source audit and all inherited MorphHDL regression suites.
+
+  The closure adds an exact 60a solver-witness replay and supplementary
+  eight-step memory-validity proofs without replacing inherited unbounded
+  induction. Require deterministic regeneration and downloaded cross-Scala
+  byte comparison of 213 RTL files, native Verilog/VHDL and opt-out mode
+  compatibility, and at least 1,610 non-skipped regression tests per Scala lane,
+  including the isolated pass workspace. No production or default-policy
+  change is included. Both lanes passed all 1,610 tests across 160 suites with
+  zero failures or skips; the 213 downloaded RTL files match across Scala lanes.
+  Strict tools, all inherited proofs, the exact 60a solver witness/replay and
+  the supplementary memory controls passed. Parent 60 and 60g remain open;
+  final completion-head checks must pass before merge.
 
 - [ ] **Increment 60g — Default rollout, documentation and legacy-cast cleanup**
 
