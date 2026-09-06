@@ -194,6 +194,17 @@ tests yields 1,610. These are required minima, not recorded 60f results.
 The inventory checker requires the exact 160 named suite reports, consistent
 testcase counts and zero failures, errors or skipped/canceled tests.
 
+On 59f descendants, the reviewed inventory additionally requires the four named
+callback policy, scalar graph, mux width and callback publication suites. The
+original 78 MorphHDL suite identities remain required; the descendant requires
+exactly 82 MorphHDL suites and 164 suites overall. The checker activates this
+addition only when all seven registered 59f production/test source files are
+present in both the checked-out `HEAD` and working tree. Partial, uncommitted or
+deleted feature inventories fail. Historical sources without the feature retain
+the original inventory. Unknown extra suites, substituted or missing inherited
+or new suites, and skipped tests still fail. Isolated XML and Git fixtures cover
+both accepted inventories and these rejection cases.
+
 All seven existing optional proof flags are set to `1`: StreamFifo formal,
 StreamFifoCC formal, StreamFifoCC CDC, typed Vec formal, typed primitive closure,
 native library migration and native AXI4 formal. This makes the eight tests
@@ -228,6 +239,24 @@ pure-arithmetic writers and the new compatibility writer. The checker's
 `--closure-only` diagnostic mode runs only the supplementary proofs and labels
 its result accordingly; it cannot close 60f. Likewise `--self-test` and
 `--source-only` do not establish RTL qualification.
+
+For later increments, the qualification-only production-delta guard remains
+sealed to the exact 60f merge, `5a669d32095ee722c313bd069b771e7c350a1f81`.
+It checks the entire original `BASE..QUALIFIED_60F` production delta once that
+merge is an ancestor; before the merge it checks the working tree, including
+untracked production files. Later production changes belong to their own
+increment rather than retroactively becoming 60f changes. The current sealed
+writers/checkers, independent signedness authority, reviewed native hooks and
+complete native-source audit still run. On a 59f descendant, only the exact
+reviewed 60e source-restoration hook is undone before comparing its complete
+checker bytes with the sealed baseline. That hook first restores the reviewed
+59f fallback spans before the original 60c/60e source comparisons. The 59f
+manifest is checksum-pinned and includes complete before/after blob hashes;
+no other checker, writer, signed authority or native hook receives an exception.
+The isolated worktree test
+`test-increment-60f-inherited-source-scope.py` covers accepted later MorphHDL
+production edits and rejects original-increment production edits, oracle or
+signedness-authority changes, modified native hooks and unapproved native paths.
 
 The completion transition requires successful exact-head qualification,
 no-skip regression inventories in both Scala lanes, downloaded cross-Scala

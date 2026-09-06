@@ -210,6 +210,32 @@ EXPECTED_SUITES = {
     """.split()),
 }
 
+# Separately reviewed descendants extend the frozen inherited inventory by exact
+# suite identity. Presence of arbitrary XML or a matching count grants nothing.
+# A complete, tracked feature source inventory activates the reviewed additions;
+# heads without that feature retain exactly the original 78 MorphHDL suites.
+SUITE_EXTENSIONS = {
+    "59f": {
+        "sources": (
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicyTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplayTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionMuxWidthTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCallbackPublicationTests.scala",
+        ),
+        "projects": {
+            "morphhdl": frozenset("""
+                spinal.core.internals.TypedBalancedReductionCertifiedCallbackPolicyTests
+                spinal.core.internals.TypedBalancedReductionScalarGraphReplayTests
+                spinal.core.internals.TypedBalancedReductionMuxWidthTests
+                spinal.core.internals.TypedBalancedReductionCallbackPublicationTests
+            """.split()),
+        },
+    },
+}
+
 WA07A_SUITES = frozenset({
     "morphhdl.passes.transform.ConstantOperandFixedPointSpec",
     "morphhdl.passes.transform.ConstantOperandFourStateSpec",
@@ -298,17 +324,45 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
+def descendant_extensions(root: Path) -> tuple[str, ...]:
+    selected = []
+    for name, extension in SUITE_EXTENSIONS.items():
+        sources = extension["sources"]
+        result = subprocess.run(["git", "ls-tree", "-r", "--name-only", "HEAD", "--", *sources],
+                                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        require(result.returncode == 0,
+                "cannot inspect reviewed suite source inventory for " + name + ": " + result.stderr)
+        tracked = set(result.stdout.splitlines())
+        present = [(root / path).is_file() for path in sources]
+        if tracked or any(present):
+            require(tracked == set(sources) and all(present),
+                    "incomplete or uncommitted reviewed suite source inventory for " + name)
+            selected.append(name)
+    return tuple(selected)
+
+
 def regressions(root: Path, output: Path) -> None:
     output.unlink(missing_ok=True)
     # The source check runs before report discovery, so reports, suite counts,
     # path presence or branch names cannot opt into a looser contract.
     profile = closure_module().production_profile(root)
     counts, suite_inventory = dict(REGRESSIONS), dict(EXPECTED_SUITES)
-    if profile == "60f-with-wa07a":
+    require(profile in ("60f-baseline", "60f-with-wa07a", "60f-with-59f",
+                        "60f-with-wa07a-and-59f"), "unknown validated source profile: " + profile)
+    extensions = descendant_extensions(root)
+    has_callbacks = profile in ("60f-with-59f", "60f-with-wa07a-and-59f")
+    require(extensions == (("59f",) if has_callbacks else ()),
+            "committed suite sources differ from the validated production profile")
+    if profile in ("60f-with-wa07a", "60f-with-wa07a-and-59f"):
         counts["morphhdl-passes"] = (123, 14)
         suite_inventory["morphhdl-passes"] |= WA07A_SUITES
-    else:
-        require(profile == "60f-baseline", "unknown validated source profile: " + profile)
+    for name in extensions:
+        for project, additions in SUITE_EXTENSIONS[name]["projects"].items():
+            require(not (suite_inventory[project] & additions),
+                    "reviewed suite addition duplicates inherited identity: " + name)
+            suite_inventory[project] |= additions
+            minimum, suites = counts[project]
+            counts[project] = (minimum, suites + len(additions))
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -344,7 +398,7 @@ def regressions(root: Path, output: Path) -> None:
 
 
 def self_test() -> None:
-    """Synthetic inventory/report controls only; never HDL qualification evidence."""
+    """Synthetic Git/source/report controls only; never HDL qualification evidence."""
     from unittest import mock
 
     rejections = 0
@@ -385,24 +439,33 @@ def self_test() -> None:
             return git("rev-parse", "HEAD")
 
         git("init", "-q")
-        paths = tuple(closure.WA07A_PRODUCTION_SHA256)
+        wa_paths = tuple(closure.WA07A_PRODUCTION_SHA256)
+        callback_paths = tuple(closure.CALLBACK_59F_PRODUCTION_SHA256)
+        feature_sources = SUITE_EXTENSIONS["59f"]["sources"]
+        callback_new = {path for path in feature_sources if "/src/main/" in path}
         write(".gitignore", b"**/target/\n/ignored/\n/result.json\n")
-        for path in paths[:2]:
+        for path in (*wa_paths[:2], *(path for path in callback_paths if path not in callback_new)):
             write(path, b"synthetic inherited source\n")
         other_source = "core/src/main/scala/Synthetic.scala"
         write(other_source, b"synthetic sealed production\n")
         base = commit()
         write("qualification.txt", b"synthetic qualification-only commit\n")
         qualified = commit()
-        wa_bytes = {path: ("synthetic reviewed follow-on: " + path + "\n").encode() for path in paths}
-        hashes = {path: hashlib.sha256(data).hexdigest() for path, data in wa_bytes.items()}
+        source_bytes = {path: ("synthetic reviewed follow-on: " + path + "\n").encode()
+                        for path in (*wa_paths, *callback_paths)}
+        wa_hashes = {path: hashlib.sha256(source_bytes[path]).hexdigest() for path in wa_paths}
+        callback_hashes = {path: hashlib.sha256(source_bytes[path]).hexdigest() for path in callback_paths}
 
-        def reports(wa: bool) -> None:
+        def reports(wa: bool, callbacks: bool) -> None:
             for project, (minimum, suites) in REGRESSIONS.items():
                 names = set(EXPECTED_SUITES[project])
                 if wa and project == "morphhdl-passes":
                     names |= WA07A_SUITES
                     minimum, suites = 123, 14
+                if callbacks:
+                    additions = SUITE_EXTENSIONS["59f"]["projects"].get(project, frozenset())
+                    names |= additions
+                    suites += len(additions)
                 require(len(names) == suites, "frozen suite count differs: " + project)
                 directory = root / project / "target/test-reports"
                 directory.mkdir(parents=True, exist_ok=True)
@@ -424,54 +487,80 @@ def self_test() -> None:
                 rejected(lambda: regressions(root, output), label)
             require(not output.exists(), "failed validation retained stale success: " + label)
 
-        # Only fixture identities are patched. Every selection/rejection below
-        # executes the real Git delta and byte validation, never a mocked result.
+        # Only fixture identities are patched. Every profile selection below
+        # executes real Git ancestry/delta, byte, committed source and XML checks.
         with mock.patch.multiple(closure, BASE=base, QUALIFIED_60F=qualified,
-                                 WA07A_PRODUCTION_SHA256=hashes):
-            for wa in (False, True):
-                if wa:
-                    for path, data in wa_bytes.items():
-                        write(path, data)
+                                 WA07A_PRODUCTION_SHA256=wa_hashes,
+                                 CALLBACK_59F_PRODUCTION_SHA256=callback_hashes):
+            for wa, callbacks, expected_profile in (
+                    (False, False, "60f-baseline"),
+                    (True, False, "60f-with-wa07a"),
+                    (False, True, "60f-with-59f"),
+                    (True, True, "60f-with-wa07a-and-59f")):
+                # These destructive resets are confined to the temporary fixture.
+                git("reset", "--hard", qualified)
+                git("clean", "-fd")
+                selected = (*(wa_paths if wa else ()), *(callback_paths if callbacks else ()))
+                for path in selected:
+                    write(path, source_bytes[path])
+                reports(wa, callbacks)
+                if callbacks:
+                    # Exact production bytes do not authorize an incomplete or
+                    # merely staged callback feature and its four new suites.
+                    git("add", *selected)
+                    reject_reports("uncommitted callback source inventory")
+                    for path in feature_sources:
+                        if path not in callback_paths:
+                            write(path, b"// synthetic callback test fixture\n")
+                    git("add", *feature_sources)
+                    reject_reports("complete but uncommitted callback source inventory")
+                if selected:
                     commit()
-                expected_profile = "60f-with-wa07a" if wa else "60f-baseline"
                 require(closure.production_profile(root) == expected_profile, "source profile mismatch")
-                reports(wa)
+                require(descendant_extensions(root) == (("59f",) if callbacks else ()),
+                        "committed callback source selection mismatch")
                 with contextlib.redirect_stdout(io.StringIO()):
                     regressions(root, output)
-                require(output.is_file(), "positive XML control published no inventory")
-                # Each named inherited/additional pass suite is independently
-                # required; count-preserving substitutions cannot replace one.
-                directory = root / "morphhdl-passes/target/test-reports"
-                for report in sorted(directory.glob("*.xml")):
+                results = json.loads(output.read_text())
+                require(len(results["morphhdl"]["suites"]) == (82 if callbacks else 78),
+                        "reviewed callback inventory omitted or replaced a suite")
+                require(len(results["morphhdl-passes"]["suites"]) == (14 if wa else 11),
+                        "reviewed WA inventory omitted or replaced a suite")
+
+                for project in ("morphhdl", "morphhdl-passes"):
+                    directory = root / project / "target/test-reports"
+                    # Every inherited and new identity is individually required.
+                    for report in sorted(directory.glob("*.xml")):
+                        original = report.read_bytes()
+                        report.unlink()
+                        reject_reports("missing suite " + project + "/" + report.name)
+                        report.write_bytes(original)
+                    report = directory / "suite-1.xml"
                     original = report.read_bytes()
-                    report.unlink()
-                    reject_reports("missing suite " + report.name)
+                    tree = ET.parse(report)
+                    tree.getroot().set("name", "synthetic.SubstituteSuite")
+                    tree.write(report)
+                    reject_reports("same-count substitute suite " + project)
                     report.write_bytes(original)
-                report = directory / "suite-1.xml"
-                original = report.read_bytes()
-                tree = ET.parse(report)
-                tree.getroot().set("name", "synthetic.SubstituteSuite")
-                tree.write(report)
-                reject_reports("same-count substitute suite")
-                report.write_bytes(original)
-                extra = directory / "extra.xml"
-                tree.write(extra)
-                reject_reports("extra suite")
-                extra.unlink()
-                tree = ET.parse(report)
-                ET.SubElement(tree.getroot().find("testcase"), "skipped")
-                tree.write(report)
-                reject_reports("skipped testcase")
-                report.write_bytes(original)
-                largest = directory / "suite-0.xml"
-                original = largest.read_bytes()
-                tree = ET.parse(largest)
-                suite = tree.getroot()
-                suite.remove(suite.find("testcase"))
-                suite.set("tests", str(int(suite.get("tests")) - 1))
-                tree.write(largest)
-                reject_reports("test count below source profile minimum")
-                largest.write_bytes(original)
+                    extra = directory / "extra.xml"
+                    tree.write(extra)
+                    reject_reports("extra suite " + project)
+                    extra.unlink()
+                    tree = ET.parse(report)
+                    ET.SubElement(tree.getroot().find("testcase"), "skipped")
+                    tree.write(report)
+                    reject_reports("skipped testcase " + project)
+                    report.write_bytes(original)
+                    largest = directory / "suite-0.xml"
+                    original = largest.read_bytes()
+                    tree = ET.parse(largest)
+                    suite = tree.getroot()
+                    suite.remove(suite.find("testcase"))
+                    suite.set("tests", str(int(suite.get("tests")) - 1))
+                    tree.write(largest)
+                    reject_reports("test count below profile minimum " + project)
+                    largest.write_bytes(original)
+
                 for path in (other_source, "backend/src/main/scala/New.scala",
                              "ignored/src/main/scala/Hidden.scala"):
                     target = root / path
@@ -485,29 +574,48 @@ def self_test() -> None:
                 git("mv", "--", other_source, "moved-outside-production.scala")
                 reject_reports("tracked production source renamed outside src/main")
                 git("mv", "--", "moved-outside-production.scala", other_source)
-                reports(not wa)
-                reject_reports("report inventory cannot select its own source profile")
-                reports(wa)
-                if not wa:
+                for wrong_wa, wrong_callbacks in ((not wa, callbacks), (wa, not callbacks)):
+                    reports(wrong_wa, wrong_callbacks)
+                    reject_reports("report inventory cannot select its own source profile")
+                reports(wa, callbacks)
+                for path in selected:
+                    target = root / path
+                    target.write_bytes(source_bytes[path] + b"unreviewed mutation\n")
+                    reject_reports("reviewed source hash mutation " + path)
+                    target.unlink()
+                    reject_reports("missing reviewed source " + path)
+                    target.write_bytes(source_bytes[path])
+                if callbacks:
+                    for path in feature_sources:
+                        target = root / path
+                        original = target.read_bytes()
+                        target.unlink()
+                        reject_reports("deleted tracked callback source " + path)
+                        target.write_bytes(original)
+                else:
+                    path = next(path for path in feature_sources if "/src/test/" in path)
+                    write(path, b"// uncommitted callback source fixture\n")
+                    reject_reports("callback suite source cannot select a production profile")
+                    (root / path).unlink()
+                if selected:
+                    path = selected[-1]
+                    target = root / path
+                    target.chmod(0o755)
+                    reject_reports("executable reviewed source")
+                    target.chmod(0o644)
+                    git("rm", "--cached", "--", path)
+                    reject_reports("exact reviewed bytes at untracked allowed path")
+                    git("add", "--", path)
+                    with mock.patch.object(closure, "QUALIFIED_60F", git("rev-parse", "HEAD")):
+                        reject_reports("historical 60f production change")
+                else:
                     git("mv", "--", other_source, "moved-outside-production.scala")
                     renamed_qualification = commit()
                     with mock.patch.object(closure, "QUALIFIED_60F", renamed_qualification):
                         reject_reports("historical production source renamed outside src/main")
                     git("reset", "--hard", qualified)
-            for path in paths:
-                target = root / path
-                target.write_bytes(wa_bytes[path] + b"unreviewed mutation\n")
-                reject_reports("reviewed source hash mutation " + path)
-                target.unlink()
-                reject_reports("missing reviewed source " + path)
-                target.write_bytes(wa_bytes[path])
-            git("rm", "--cached", "--", paths[-1])
-            reject_reports("exact reviewed bytes at untracked allowed path")
-            git("add", "--", paths[-1])
-            with mock.patch.object(closure, "QUALIFIED_60F", git("rev-parse", "HEAD")):
-                reject_reports("historical 60f production change")
-            require(closure.production_profile(root) == "60f-with-wa07a", "fixture restoration failed")
-    print(f"60f inventory self-test: both source profiles and {rejections} rejection controls PASS")
+                require(closure.production_profile(root) == expected_profile, "fixture restoration failed")
+    print(f"60f inventory self-test: four exact source profiles and {rejections} rejection controls PASS")
 
 
 def main() -> None:

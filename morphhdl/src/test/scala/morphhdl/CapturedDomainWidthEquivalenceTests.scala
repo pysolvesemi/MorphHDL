@@ -652,7 +652,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       assert(verilog.contains("parameter integer TARGET = 5"), verilog)
       assert(compact.contains("[TARGET-1:0]retained_grow_resize"), verilog)
-      assert(compact.contains("retained_grow_resize={1'b0,source};"), verilog)
+      assert(compact.contains("retained_grow_resize={{(TARGET-4){1'b0}},source};"), verilog)
       assert(!compact.contains("retained_grow_resize={1'd0,source};"), verilog)
     }
   }

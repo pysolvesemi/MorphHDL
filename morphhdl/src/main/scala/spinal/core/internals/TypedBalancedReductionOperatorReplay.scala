@@ -74,7 +74,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
       private val minimum: Option[Boolean],
       private val replayBody: (BaseType, BaseType) => BaseType,
       private val guards: Vector[() => Unit]
-  ) {
+  ) extends TypedBalancedReductionOperatorCertificate {
     /** A mux class alone cannot distinguish minimum from maximum. Stage
       * uniformity must compare this exact semantic key, not operatorClass.
       */

@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "0cf0bce4944ab31e97dd91bf760295e0c765b762"
+      "approved_tree": "94ae588cf15d189389d34a21571e7f0d6397db41"
     },
     {
       "path": "idslpayload/src/main",
@@ -60,9 +60,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible.",
+      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve an independently certified common symbolic input width through the native Mux clone without altering concrete max-width selection.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
@@ -72,8 +73,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
-        "blob": "2598cc70dbce164c571ff3ff6bca349077108c52",
-        "sha256": "5e7cdf32036800a899159ffa71eb0eeafffb634e94979afc2c70c3ee52c7de3a"
+        "blob": "cadb8a608554ceb7e57af989ec741fb4decae174",
+        "sha256": "fc59c3f42ff9be5ea6ddfb4a5d7e32c59f57302ad8b806201285dc648425f9f6"
       },
       "edits": [
         {
@@ -95,6 +96,29 @@
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-typed-mux-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.getMuxType",
+          "reason": "Materialize the non-auto-resized native Mux inputs once, retain concrete max-width cloning and forward exact input-width authority to the result.",
+          "baseline_span": {
+            "start": 19363,
+            "end": 19458,
+            "sha256": "ccdceb97c35c192a15d8b8e44adebd062beaff32166a5ff23c23ce52e5cd30eb"
+          },
+          "approved_span": {
+            "start": 19855,
+            "end": 20028,
+            "sha256": "f191c0e1bbd6a81933c86911cff6ae2cf1b133354a57d174de3f1fedf859d376"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.preserveMuxWidth(cloneOf(this).setWidth(w), inputs",
               "count": 1
             }
           ]
@@ -1044,15 +1068,16 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
-        "Increment 58: legacy adapter and shadow-path retirement"
+        "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Preserve a native Mux result's width only when every non-auto-resized input directly owns an equivalent exact width function in the identity registry; missing or mismatched authority never becomes inferred width provenance.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "653ae28618abfdcd08de39883814f7faa1199b75",
-        "sha256": "6bad96c6c59198dd0ea87e8d51b332ed58aae6c5da50b07f073b6d21f152fcf3"
+        "blob": "89dfe996e2867f8f2b9120fe0d3e9a2c71d831ba",
+        "sha256": "f85ea514e70e7be6e46f566bb898bb40f8588d8b42ec68d9c6116a0122ffdce8"
       },
       "edits": []
     },

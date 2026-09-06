@@ -24,8 +24,8 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
   }
 
   // Build the native mux node with an inferred result for graph-certificate
-  // tests. The ordinary BitVector Mux method currently freezes its Int witness;
-  // separate tests and independent concrete artifacts exercise that method.
+  // tests. Separate tests exercise the ordinary Mux method, including 59f's
+  // exact common-arm symbolic-width propagation.
   private def inferredMux[T <: BaseType](condition: Bool, yes: T, no: T): T =
     yes.wrapWithWeakClone(yes.newMultiplexer(condition, yes, no)).asInstanceOf[T]
 
@@ -286,7 +286,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("native min/max methods admit concrete widths and reject frozen symbolic witnesses") {
+  test("native min/max methods admit concrete widths and exact common typed widths") {
     val operations = Vector[(UInt, UInt) => UInt](_ min _, _ max _)
     for (operation <- operations) {
       generate(new Component {
@@ -298,9 +298,10 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
       })
       withUInt { (words, _) =>
         val captured = record(words, operation)
-        assertCode("REPLAY-FIXED-WIDTH") {
-          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
-        }
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        val result = proof.replay(words.vec(0), words.vec(2))
+        assert(ElabInt.equivalentExactFunction(ParameterizedWidth.expressionOf(result).get,
+          ParameterizedWidth.expressionOf(words.vec.head).get))
       }
     }
   }
