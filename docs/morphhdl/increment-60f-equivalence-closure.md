@@ -1,9 +1,8 @@
 # Increment 60f — Equivalence, compatibility and tool-matrix closure
 
-**Status:** Implementation in qualification. Increment 60f remains unchecked;
-no successful 60f qualification or merge is recorded yet. Parent Increment 60
-and Increment 60g remain open. Signed declarations and cast cleanup remain
-explicitly opt-in.
+**Status:** 60f qualified on both Scala lanes. Parent Increment 60 and
+Increment 60g remain open. Signed declarations and cast cleanup remain
+explicitly opt-in. Final completion-head CI must pass before merge.
 
 **Base:** `feca6b9d599d97af92ed9f6a8bc871ef008c395e` on
 `parameterized-verilog`, which includes merged Increment 60e and the inherited
@@ -237,7 +236,49 @@ qualified commit, PR, workflow links and evidence must be recorded before
 marking 60f complete. After merge, inspect push workflows for the actual merge
 commit. Post-merge results from 60e do not establish 60f success.
 
-**60f qualified head, PR, workflow results and post-merge CI:** pending.
+## Qualified implementation and retained evidence
+
+Implementation head: `e93850ae6de855be375d8773eec75ae66723aa4f` in
+[PR #161](https://github.com/pysolvesemi/MorphHDL/pull/161). Its tree is
+`e9c3c6209abd34e4a6e643effb94806568f94749`.
+
+[Dedicated qualification run 34011149044](https://github.com/pysolvesemi/MorphHDL/actions/runs/34011149044)
+passed both Scala 2.12.18 and 2.13.12 qualification jobs, both full-regression
+jobs and the downloaded cross-Scala comparison. Each lane passed exactly
+1,610 tests across all 160 named suites, with zero failures, errors or skips.
+All 213 generated RTL files reproduced byte-for-byte in fresh JVMs and across
+compiler lanes. The cross-Scala log confirms successful artifact downloads,
+manifest validation and matching actual RTL bytes at the implementation head.
+
+The retained logs confirm all 64 inherited boundary tuples, inherited 60d/60c/60a
+tool and induction gates, all inherited mutations, the exact 60a SAT witness and
+Icarus replay, and all four supplementary memory widths. Each width passed its
+eight-step validity proof, live memory-output mutation and separate arbitrary
+initial memory/register counterexamples. Source and native-change audits passed.
+
+[Baseline run 34011151123](https://github.com/pysolvesemi/MorphHDL/actions/runs/34011151123)
+passed both Scala jobs and strict Verilog-2001 contracts.
+[Mill run 34011150989](https://github.com/pysolvesemi/MorphHDL/actions/runs/34011150989)
+passed both Scala lanes. One inherited 60c job initially failed during sbt
+download with Maven HTTP 502, before compilation or tests; its targeted retry
+passed. This infrastructure failure is not counted as a proof result.
+
+GitHub retains these implementation-run artifacts:
+
+| Artifact | ID | SHA-256 reported by GitHub |
+| --- | --- | --- |
+| Qualification, Scala 2.12.18 | 9982575669 | `102f133869fd5f30d75e76040f57a67dd85bef21dcbc8c6e1c7b4cf18b3e9e2d` |
+| Qualification, Scala 2.13.12 | 9982572471 | `b5a08ceeeafbc874af82878213f6e48472f9f6c2153716e4364a81db619e7e0b` |
+| Regressions, Scala 2.12.18 | 9982655593 | `5287e0511945d568bffd52ac908d71ee774e148a2a7903155a78ab96b45ab959` |
+| Regressions, Scala 2.13.12 | 9982654064 | `9eadc4bead1425dc12cb6100ebc2f9b80f6e33f45d6bf448b1e3ffb7b5ffc624` |
+| RTL, Scala 2.12.18 | 9982575036 | `3c1cdae6d709c38701fcba2962aad614453196e5f027adaac9e2a6c2c6b62f6f` |
+| RTL, Scala 2.13.12 | 9982571957 | `39cc421cf2c568f953f7552f2bd4e7e87c2dc3e2230e6bc1c277b605506c97b6` |
+
+This completion transition changes only this record and the child roadmap.
+Executable source, proof settings, fixture bytes and tool pins are unchanged.
+Fresh checks of the final documentation commit must pass before merge; their
+results and the subsequent exact-merge push CI are recorded on PR #161. No
+60f post-merge result is claimed by this pre-merge record.
 
 ## Verified prerequisite: 60e post-merge CI
 
