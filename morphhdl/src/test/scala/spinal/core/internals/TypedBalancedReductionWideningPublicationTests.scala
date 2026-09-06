@@ -23,8 +23,11 @@ class TypedBalancedReductionWideningPublicationTests extends AnyFunSuite {
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
   }
 
+  private lazy val singletonText = generate()
+  private lazy val alternateText = generate(8, 5)
+
   test("singleton default preserves independent geometry and all native scalar operations") {
-    val text = generate()
+    val text = singletonText
     assert("parameter\\s+(?:integer\\s+)?WIDTH\\s*=\\s*5\\b".r.findFirstIn(text).nonEmpty, text)
     assert("parameter\\s+(?:integer\\s+)?COUNT\\s*=\\s*1\\b".r.findFirstIn(text).nonEmpty, text)
     assert(text.linesIterator.count(_.trim.startsWith("module BalancedWidening")) == 1, text)
@@ -37,7 +40,7 @@ class TypedBalancedReductionWideningPublicationTests extends AnyFunSuite {
   }
 
   test("alternate default retains symbolic WIDTH and COUNT instead of its native result witness") {
-    val text = generate(8, 5)
+    val text = alternateText
     assert("parameter\\s+(?:integer\\s+)?WIDTH\\s*=\\s*8\\b".r.findFirstIn(text).nonEmpty, text)
     assert("parameter\\s+(?:integer\\s+)?COUNT\\s*=\\s*5\\b".r.findFirstIn(text).nonEmpty, text)
     val product = text.linesIterator.find(line => line.contains("output") &&
@@ -49,8 +52,8 @@ class TypedBalancedReductionWideningPublicationTests extends AnyFunSuite {
   }
 
   test("independent repeated widening publication is byte deterministic") {
-    assert(generate() == generate())
-    assert(generate(8, 5) == generate(8, 5))
+    assert(singletonText == generate())
+    assert(alternateText == generate(8, 5))
   }
 
   test("the independent native five element product preserves narrow odd-tail bridge inputs") {

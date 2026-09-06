@@ -10,7 +10,9 @@ import json
 import math
 import re
 import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -28,6 +30,30 @@ STIMULUS = load('widening_stimulus', 'check-increment-59b-native-oracle.py')
 OUTPUTS = ('uSum', 'sSum', 'uProduct', 'sProduct', 'uMin', 'uMax', 'sMin', 'sMax',
            'uResize', 'sResize', 'uSymbolicResize', 'sSymbolicResize', 'rSum', 'rSignedSum')
 INDUCTIVE_PASS = 'Induction step proven: SUCCESS!'
+
+
+def command(args: list[str], log: Path, timeout: int = 180) -> str:
+    """Retain phase timing without turning an incomplete tool run into evidence."""
+    timing = log.with_suffix('.timing.json')
+    timing.unlink(missing_ok=True)
+    started = time.monotonic()
+    print('START:', log.parent.name, log.stem, flush=True)
+    try:
+        with log.open('w') as output:
+            completed = subprocess.run(args, text=True, stdout=output,
+                stderr=subprocess.STDOUT, timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        with log.open('a') as output:
+            output.write('\n' + str(error) + '\n')
+        raise RuntimeError(f'tool did not complete; see {log}') from error
+    if completed.returncode:
+        raise RuntimeError(f'tool exited {completed.returncode}; see {log}')
+    result = log.read_text()
+    elapsed = time.monotonic() - started
+    timing.write_text(json.dumps(dict(
+        elapsed_seconds=elapsed, command=args), indent=2) + '\n')
+    print('TOOL-PASS:', log.parent.name, log.stem, f'{elapsed:.2f}s', flush=True)
+    return result
 
 
 def expected_width(name: str, width: int, count: int) -> int:
@@ -245,8 +271,15 @@ def mutation_specs() -> list[tuple[str, tuple[int, int], object]]:
     ]
 
 
-def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
-    root, duplicate = root.resolve(), duplicate.resolve()
+def qualify(root: Path, duplicate: Path | None, only_case: str | None = None) -> None:
+    root = root.resolve()
+    preliminary = duplicate is None
+    if preliminary and only_case is None:
+        raise RuntimeError('complete qualification requires an independently regenerated duplicate')
+    if duplicate is not None:
+        duplicate = duplicate.resolve()
+    if preliminary:
+        print('PRELIMINARY: one artifact only; deterministic generation is not checked and no complete evidence is emitted', flush=True)
     # A failed or focused rerun cannot leave a previous full PASS artifact behind.
     (root / 'evidence.json').unlink(missing_ok=True)
     for tool in ('iverilog', 'vvp', 'verilator', 'yosys'):
@@ -258,7 +291,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
         raise RuntimeError('incorrect widening evidence scope')
     if manifest.get('independent_inputs') != ['unsignedIn', 'signedIn']:
         raise RuntimeError('unsigned and signed vectors must have independently driven ports')
-    if manifest_path.read_bytes() != (duplicate / 'manifest.json').read_bytes():
+    if duplicate is not None and manifest_path.read_bytes() != (duplicate / 'manifest.json').read_bytes():
         raise RuntimeError('nondeterministic native evidence manifest')
     profiles = manifest['profiles']
     if [(p['name'], p['default_width'], p['default_count']) for p in profiles] != [
@@ -272,7 +305,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
     for case in cases:
         check_native_shape(case)
         reference = H.checked_rtl(root, case['reference_rtl'])
-        if reference.read_bytes() != H.checked_rtl(duplicate, case['reference_rtl']).read_bytes():
+        if duplicate is not None and reference.read_bytes() != H.checked_rtl(duplicate, case['reference_rtl']).read_bytes():
             raise RuntimeError('nondeterministic independently elaborated native reference')
     mutations = mutation_specs()
     if only_case is None:
@@ -282,10 +315,14 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
                 raise RuntimeError('actual candidate mutation anchor made no change: ' + label)
     evidence = []
     selected = 0
+    # Both static profiles use the same independently elaborated references.
+    # Reuse only a successful check from this invocation, keyed by exact RTL
+    # bytes and module identity; candidate checks and all comparisons still run.
+    reference_checks: dict[tuple[str, str], tuple[Path, dict]] = {}
     for profile in profiles:
         candidate = H.checked_rtl(root, profile['candidate_rtl'])
         candidate_contract(candidate.read_text(), profile)
-        if candidate.read_bytes() != H.checked_rtl(duplicate, profile['candidate_rtl']).read_bytes():
+        if duplicate is not None and candidate.read_bytes() != H.checked_rtl(duplicate, profile['candidate_rtl']).read_bytes():
             raise RuntimeError('nondeterministic generic candidate RTL')
         for native_case in cases:
             case = dict(native_case, **profile)
@@ -302,24 +339,48 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
             reference = H.checked_rtl(root, case['reference_rtl'])
             specialized = work / 'specialized.v'
             specialized.write_text(specialized_top(case))
+            synthesis = {}
             for role, module, paths in (
                     ('reference', case['reference_module'], [reference]),
                     ('candidate', 'specialized', [candidate, specialized])):
-                H.command(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', module,
+                reference_key = (hashlib.sha256(reference.read_bytes()).hexdigest(), module)
+                if role == 'reference' and reference_key in reference_checks:
+                    checked_work, checked_summary = reference_checks[reference_key]
+                    for suffix in ('lint.log', 'lint.timing.json', 'synthesis.ys',
+                                   'synthesis.log', 'synthesis.timing.json', 'ports.json'):
+                        shutil.copyfile(checked_work / ('reference-' + suffix),
+                                        work / ('reference-' + suffix))
+                    synthesis[role] = dict(checked_summary,
+                        reused_from=checked_work.name, rtl_sha256=reference_key[0])
+                    check_specialized_ports(case, json.loads(
+                        (work / 'reference-ports.json').read_text()), role)
+                    print('REUSE-PASS:', label, 'reference', checked_work.name,
+                          reference_key[0], flush=True)
+                    continue
+                command(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', module,
                            *map(str, paths)], work / (role + '-lint.log'), timeout=300)
                 script = work / (role + '-synthesis.ys')
                 port_evidence = work / (role + '-ports.json')
                 script.write_text('read_verilog ' + ' '.join(H.quoted(path) for path in paths) +
                     f'\nhierarchy -check -top {module}\nproc\nwrite_json {H.quoted(port_evidence)}\n' +
                     f'synth -top {module}\ncheck -assert\nstat\n')
-                H.command(['yosys', '-Q', '-T', '-s', str(script)], work / (role + '-synthesis.log'), timeout=600)
+                synthesis_log = work / (role + '-synthesis.log')
+                result = command(['yosys', '-Q', '-T', '-s', str(script)], synthesis_log, timeout=600)
+                counts = re.findall(r'Number of cells:\s+(\d+)', result)
+                if not counts:
+                    raise RuntimeError('synthesis lacks final cell count: ' + label + '/' + role)
+                synthesis[role] = dict(cells=int(counts[-1]), elapsed_seconds=json.loads(
+                    synthesis_log.with_suffix('.timing.json').read_text())['elapsed_seconds'])
+                print('SYNTHESIS:', label, role, synthesis[role], flush=True)
                 check_specialized_ports(case, json.loads(port_evidence.read_text()), role)
+                if role == 'reference':
+                    reference_checks[reference_key] = (work, dict(synthesis[role]))
             bench = work / 'tb.v'
             bench_text, cycles = testbench(case)
             bench.write_text(bench_text)
             executable = work / 'tb.vvp'
-            H.command(['iverilog', '-g2001', '-s', 'tb', '-o', str(executable), str(reference), str(candidate), str(bench)], work / 'compile.log')
-            simulation = H.command(['vvp', str(executable)], work / 'simulation.log')
+            command(['iverilog', '-g2001', '-s', 'tb', '-o', str(executable), str(reference), str(candidate), str(bench)], work / 'compile.log')
+            simulation = command(['vvp', str(executable)], work / 'simulation.log')
             if '59D-WIDENING-SIM-PASS' not in simulation or '59D-WIDENING-MISMATCH' in simulation:
                 raise RuntimeError('independent native specialization arithmetic/latency simulation failed: ' + label)
             top = work / 'miter.v'
@@ -327,25 +388,26 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
             script = work / 'reset-entry.ys'
             script.write_text(setup([reference, candidate, top]) +
                 'sat -seq 2 -set-at 1 reset 1 -set-at 1 enable 1 -prove bad 0 -prove-skip 1 -verify -timeout 90\n')
-            proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'reset-entry.log')
+            proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'reset-entry.log')
             if H.PASS not in proof or H.COUNTEREXAMPLE in proof:
                 raise RuntimeError('reset-entry proof lacks definitive SUCCESS: ' + label)
             script = work / 'induction.ys'
             script.write_text(setup([reference, candidate, top]) +
                 'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 24 -timeout 90\n')
-            proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'induction.log')
+            proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'induction.log')
             if INDUCTIVE_PASS not in proof:
                 raise RuntimeError('unbounded induction lacks definitive SUCCESS: ' + label)
             evidence.append(dict(profile=profile['name'], width=width, count=count,
                 native_outputs=case['native_outputs'], native_product_stages=case['native_product_stages'],
                 cycles=cycles, latency=(count-1).bit_length(), reset_entry='PASS', induction='PASS',
+                synthesis=synthesis,
                 sha256={role: hashlib.sha256(path.read_bytes()).hexdigest()
                         for role, path in (('reference', reference), ('candidate', candidate))}))
             print('PASS:', label, 'exact native widths, independent arithmetic/latency, strict tools and equivalence', flush=True)
     if not selected:
         raise RuntimeError('unknown focused widening case')
     if only_case is not None:
-        print('PASS: focused case only; full matrix and mutation gates remain required', flush=True)
+        print('PASS: focused HDL/formal case only; full matrix, independent regeneration and mutation gates remain required', flush=True)
         return
 
     profile = profiles[0]
@@ -367,7 +429,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
         script = work / 'mutation.ys'
         script.write_text(setup([reference, mutated, top]) +
             'sat -seq 8 -set-init-zero -prove bad 0 -show-inputs -show-outputs -timeout 90 -dump_vcd ' + H.quoted(trace) + '\n')
-        proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'mutation.log')
+        proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'mutation.log')
         if H.COUNTEREXAMPLE not in proof or H.PASS in proof:
             raise RuntimeError('actual candidate mutation lacks a genuine counterexample: ' + label)
         H.require_counterexample_vcd(trace)
@@ -384,7 +446,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('root', type=Path)
-    parser.add_argument('duplicate', type=Path)
+    parser.add_argument('duplicate', type=Path, nargs='?', help='Independent regeneration; omit only with --case for a preliminary diagnostic')
     parser.add_argument('--case', dest='only_case', help='Development case, e.g. singleton_w5_n5; emits no complete evidence')
     args = parser.parse_args()
     qualify(args.root, args.duplicate, args.only_case)

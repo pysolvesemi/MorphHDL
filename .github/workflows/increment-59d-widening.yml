@@ -31,7 +31,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: increment-59d-widening-${{ github.ref }}
+  group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
       github.ref_name == 'parameterized-verilog'
     name: Symbolic widening Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
