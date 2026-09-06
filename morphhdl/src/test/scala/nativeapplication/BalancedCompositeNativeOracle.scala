@@ -86,32 +86,36 @@ final class BalancedCompositeNativeOracle(rw: Int, gw: Int, bw: Int, keyWidth: I
   nestedLanesOut := nestedResult.lanes.asBits
   nestedGridOut := nestedResult.grid
   val pipelineResult = out(NativeBalancedCompositeRecord(keyWidth, tagWidth, coordWidth)).setName("pipelineResult")
-  rgbMin := rgbValues.reduceBalancedTree((a: NativeBalancedCompositeRgb, b: NativeBalancedCompositeRgb) => {
+  val rgbMinReduced = rgbValues.reduceBalancedTree((a: NativeBalancedCompositeRgb, b: NativeBalancedCompositeRgb) => {
     val r = cloneOf(a)
     r.red := a.red min b.red
     r.green := a.green min b.green
     r.blue := a.blue min b.blue
     r
   })
-  rgbMax := rgbValues.reduceBalancedTree((a: NativeBalancedCompositeRgb, b: NativeBalancedCompositeRgb) => {
+  rgbMin := rgbMinReduced
+  val rgbMaxReduced = rgbValues.reduceBalancedTree((a: NativeBalancedCompositeRgb, b: NativeBalancedCompositeRgb) => {
     val r = cloneOf(a)
     r.red := a.red max b.red
     r.green := a.green max b.green
     r.blue := a.blue max b.blue
     r
   })
+  rgbMax := rgbMaxReduced
   // <= keeps the left complete record on equal keys, including its tag and coordinates.
-  selected := recordValues.reduceBalancedTree((a: NativeBalancedCompositeRecord, b: NativeBalancedCompositeRecord) =>
+  val selectedReduced = recordValues.reduceBalancedTree((a: NativeBalancedCompositeRecord, b: NativeBalancedCompositeRecord) =>
     Mux(a.key <= b.key, a, b))
+  selected := selectedReduced
   // Modular cross-field complex add/sub; each output depends on the opposite complex field.
   // This non-associative example deliberately preserves the exact native tree order.
-  complexResult := complexValues.reduceBalancedTree((a: NativeBalancedCompositeComplex, b: NativeBalancedCompositeComplex) => {
+  val complexReduced = complexValues.reduceBalancedTree((a: NativeBalancedCompositeComplex, b: NativeBalancedCompositeComplex) => {
     val r = cloneOf(a)
     r.real := a.real + b.imag
     r.imag := a.imag - b.real
     r
   })
-  nestedResult := nestedValues.reduceBalancedTree((a: NativeBalancedCompositeNested, b: NativeBalancedCompositeNested) => {
+  complexResult := complexReduced
+  val nestedReduced = nestedValues.reduceBalancedTree((a: NativeBalancedCompositeNested, b: NativeBalancedCompositeNested) => {
     val r = cloneOf(a)
     r.tag := a.tag ^ b.tag
     r.payload.unsigned := a.payload.unsigned + b.payload.unsigned
@@ -132,10 +136,11 @@ final class BalancedCompositeNativeOracle(rw: Int, gw: Int, bw: Int, keyWidth: I
     r.grid(1)(1) := a.grid(1)(1) ^ b.grid(1)(1)
     r
   })
+  nestedResult := nestedReduced
   val pipeline = new ClockingArea(ClockDomain(clock = clk, reset = reset,
       clockEnable = enable, config = ClockDomainConfig(resetKind = SYNC,
         resetActiveLevel = HIGH, clockEnableActiveLevel = HIGH))) {
-    pipelineResult := recordValues.reduceBalancedTree(
+    val reduced = recordValues.reduceBalancedTree(
       (a: NativeBalancedCompositeRecord, b: NativeBalancedCompositeRecord) => Mux(a.key <= b.key, a, b),
       (value: NativeBalancedCompositeRecord, _: Int) => {
         val r = cloneOf(value)
@@ -147,5 +152,6 @@ final class BalancedCompositeNativeOracle(rw: Int, gw: Int, bw: Int, keyWidth: I
         r.y.init(U(0))
         r
       })
+    pipelineResult := reduced
   }
 }

@@ -55,9 +55,9 @@ object TypedBalancedReductionCompositeArtifactWriter {
       recordNativeShapes(candidateModule,
         Vector("rgbIn" -> hardware.rgbValues, "recordIn" -> hardware.recordValues,
           "complexIn" -> hardware.complexValues, "nestedIn" -> hardware.nestedValues),
-        Vector("rgbMin" -> hardware.rgbMin, "rgbMax" -> hardware.rgbMax, "selected" -> hardware.selected,
-          "complexResult" -> hardware.complexResult, "nestedResult" -> hardware.nestedResult,
-          "pipelineResult" -> hardware.pipelineResult))
+        Vector("rgbMin" -> hardware.rgbMinReduced, "rgbMax" -> hardware.rgbMaxReduced, "selected" -> hardware.selectedReduced,
+          "complexResult" -> hardware.complexReduced, "nestedResult" -> hardware.nestedReduced,
+          "pipelineResult" -> hardware.pipeline.reduced))
       hardware
     }
     val result = directory.resolve(candidateModule + ".v")
@@ -77,7 +77,7 @@ object TypedBalancedReductionCompositeArtifactWriter {
         HdlInt.param("INNER", 1, 1, 3), HdlInt.param("GRID_R", 1, 1, 3),
         HdlInt.param("GRID_C", 1, 1, 3), HdlInt.param("COUNT", 1, 1, maximum))
       recordNativeShapes(countedModule, Vector("countedIn" -> hardware.records),
-        Vector("countedResult" -> hardware.result))
+        Vector("countedResult" -> hardware.reductionResult))
       hardware
     }
     val result = directory.resolve(countedModule + ".v")
@@ -211,7 +211,10 @@ object TypedBalancedReductionCompositeArtifactWriter {
         "pipelineResult" -> oracle.pipelineResult)
         .map { case (name, value) => quoted(name) + ":" + leaves(value) } :+
         (quoted("nestedResult") + ":" + nestedPhysical.mkString("[", ",", "]"))).mkString("{", ",", "}")
-      val recursiveShapes = "{" + quoted("nestedResult") + ":" + leaves(oracle.nestedResult) + "}"
+      val recursiveShapes = Vector("rgbMin" -> oracle.rgbMinReduced, "rgbMax" -> oracle.rgbMaxReduced,
+        "selected" -> oracle.selectedReduced, "complexResult" -> oracle.complexReduced,
+        "nestedResult" -> oracle.nestedReduced, "pipelineResult" -> oracle.pipeline.reduced)
+        .map { case (name, value) => quoted(name) + ":" + leaves(value) }.mkString("{", ",", "}")
       val inputShapes = Vector("rgbIn" -> oracle.rgbValues.head, "recordIn" -> oracle.recordValues.head,
         "complexIn" -> oracle.complexValues.head, "nestedIn" -> oracle.nestedValues.head)
         .map { case (name, value) => quoted(name) + ":" + leaves(value) }.mkString("{", ",", "}")

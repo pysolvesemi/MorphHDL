@@ -245,7 +245,12 @@ def testbench(case: dict) -> tuple[str, int]:
 
 
 def setup(paths: list[Path]) -> str:
-    return 'read_verilog ' + ' '.join(H.quoted(path) for path in paths) + '\nprep -top miter -flatten\ndffunmap\ncheck -assert\n'
+    # Normalize the two native register/enable forms before SAT. Full Yosys
+    # optimization proves and shares identical cones, avoiding exponential
+    # induction over separately represented but equivalent pipeline states.
+    # Unmap any remaining enabled/reset registers for the SAT cell importer.
+    return ('read_verilog ' + ' '.join(H.quoted(path) for path in paths) +
+            '\nprep -top miter -flatten\ndffunmap\nopt -full\ndffunmap\ncheck -assert\n')
 
 
 def evaluate_geometry(expression: str, parameters: dict[str, int]) -> int:
@@ -600,10 +605,17 @@ def qualify_mutations(root: Path, cases: list[dict], candidate: Path) -> list[di
     jobs = [(case, label, text) for label, text in candidate_mutations(candidate.read_text())]
     nested = next(c for c in cases if c.get('profile') == 'nested_counts' and c['parameters']['INNER'] == 3 and c['count'] == 5)
     nested_candidate = H.checked_rtl(root, nested['candidate_rtl'])
-    leaf_width = '(U_W+S_W+BITS_W+1)'
-    mutated = rewrite_candidate_output(nested_candidate.read_text(), 'countedResult_samples', lambda w:
-        '{' + w + '[(INNER*' + leaf_width + ')-1:' + leaf_width + '], ' +
-        w + '[(2*' + leaf_width + ')-1:' + leaf_width + ']}')
+    # This output is published through guarded native leaf slice assignments.
+    # Corrupt the first element's UInt source with the next element's UInt,
+    # preserving the exact slice width and every generate guard.
+    text = nested_candidate.read_text()
+    anchor = re.compile(r'(?m)^(\s*assign\s+countedResult_samples\[\(0\)\s*\+:\s*U_W\]\s*=\s*)([^;]+);')
+    matches = list(anchor.finditer(text))
+    if len(matches) != 1:
+        raise RuntimeError('one exact nested element output slice is required for mutation')
+    match = matches[0]
+    mutated = (text[:match.start()] + match.group(1) +
+               'countedResult_samples[(U_W+S_W+BITS_W+1) +: U_W];' + text[match.end():])
     jobs.append((nested, 'nested-element-offset', mutated))
     result = []
     for case, label, text in jobs:

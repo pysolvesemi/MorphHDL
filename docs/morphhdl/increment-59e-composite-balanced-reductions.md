@@ -53,6 +53,8 @@ Function0 constructor parameters, custom construction hooks, extra callback
 traits and opaque HardType factories reject. Locally constructed native Vec
 generators are recursively audited. These restrictions apply to symbolic
 reduction admission; they do not change ordinary concrete callback execution.
+Per-instance assignment redirects also reject before either callback executes,
+including redirects on a nested leaf or Vec container.
 
 ## Packed transport and native propagation
 
@@ -65,6 +67,12 @@ native carrier. Independent nested counts multiply the logical packed width;
 they do not become a fixed list of numbered public ports. Native flat leaves
 retain separate logical offsets and presence conditions. Inactive carrier
 leaves do not occupy bits in the published logical record.
+
+Transient packed support wires require exact live, unconditional, full-object
+combinational drivers in the owning component. A changed register, port,
+foreign source or partial driver cannot authorize removal of that wire.
+Generated presence labels use the same collision-aware allocation discipline
+as the stage buses.
 
 This increment uses the legacy packed Vec interface. Named field-vector
 interfaces belong to 59c, changing stage widths to 59d, and combined feature
@@ -96,6 +104,23 @@ The minimum scalar geometry is WIDTH in `{1,5,8,32}` and COUNT in
 These finite specialization proofs are not universal formal quantification
 over all parameter values. Domain validity and symbolic shape transfer have
 their own implementation checks.
+
+| Profile | Specializations | Coverage |
+| --- | ---: | --- |
+| Main composite | 40 | 32 common width/count cases plus eight independent field-width cases; RGB min/max, stable complete-record selection, modular cross-field arithmetic, mixed nested records and a complete-record register bridge |
+| Independent nested counts | 25 | Inner Vec length and both rectangular grid dimensions retain separate roots; three dimension/width profiles across all eight counts, plus the all-singleton default |
+
+The actual returned reduction Data supplies the candidate and native oracle
+logical shape descriptors. Declared output adapters have their own separate
+physical port checks, so those adapters cannot supply the expected result kind
+or hide a result-width mismatch. The fixture sets the packed vector limit to
+8192 bits to cover its declared maximum carrier domains.
+
+The inherited signedness workflows retain their sealed qualification history
+and oracle files while rerunning their original behavioral gates on the current
+implementation. The completed 60f source interval does not freeze later
+production development; current native edits still require the approved-change
+audit.
 
 Final executed results and source-bound CI references will be recorded after
 qualification.

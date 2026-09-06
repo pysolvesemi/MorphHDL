@@ -21,6 +21,7 @@ final class BalancedCompositeCountedHardware(uw: HdlInt, sw: HdlInt, bw: HdlInt,
   val enable = in(Bool()).setName("enable")
   val records = in(Vec(BalancedCompositeCountedRecord(uw, sw, bw, tw, inner, rows, columns), count)).setName("countedIn")
   val result = out(BalancedCompositeCountedRecord(uw, sw, bw, tw, inner, rows, columns)).setName("countedResult")
-  result := records.reduceBalancedTree((a: BalancedCompositeCountedRecord, b: BalancedCompositeCountedRecord) =>
+  val reductionResult = records.reduceBalancedTree((a: BalancedCompositeCountedRecord, b: BalancedCompositeCountedRecord) =>
     Mux(a.key <= b.key, a, b))
+  result := reductionResult
 }

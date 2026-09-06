@@ -52,32 +52,36 @@ final class BalancedCompositeHardware(rw: HdlInt, gw: HdlInt, bw: HdlInt, keyWid
   val complexResult = out(BalancedCompositeComplex(complexWidth)).setName("complexResult")
   val nestedResult = out(BalancedCompositeNested(uw, sw, bitsWidth, tagWidth)).setName("nestedResult")
   val pipelineResult = out(BalancedCompositeRecord(keyWidth, tagWidth, coordWidth)).setName("pipelineResult")
-  rgbMin := rgbValues.reduceBalancedTree((a: BalancedCompositeRgb, b: BalancedCompositeRgb) => {
+  val rgbMinReduced = rgbValues.reduceBalancedTree((a: BalancedCompositeRgb, b: BalancedCompositeRgb) => {
     val r = cloneOf(a)
     r.red := a.red min b.red
     r.green := a.green min b.green
     r.blue := a.blue min b.blue
     r
   })
-  rgbMax := rgbValues.reduceBalancedTree((a: BalancedCompositeRgb, b: BalancedCompositeRgb) => {
+  rgbMin := rgbMinReduced
+  val rgbMaxReduced = rgbValues.reduceBalancedTree((a: BalancedCompositeRgb, b: BalancedCompositeRgb) => {
     val r = cloneOf(a)
     r.red := a.red max b.red
     r.green := a.green max b.green
     r.blue := a.blue max b.blue
     r
   })
+  rgbMax := rgbMaxReduced
   // <= keeps the left complete record on equal keys, including its tag and coordinates.
-  selected := recordValues.reduceBalancedTree((a: BalancedCompositeRecord, b: BalancedCompositeRecord) =>
+  val selectedReduced = recordValues.reduceBalancedTree((a: BalancedCompositeRecord, b: BalancedCompositeRecord) =>
     Mux(a.key <= b.key, a, b))
+  selected := selectedReduced
   // Modular cross-field complex add/sub; each output depends on the opposite complex field.
   // This non-associative example deliberately preserves the exact native tree order.
-  complexResult := complexValues.reduceBalancedTree((a: BalancedCompositeComplex, b: BalancedCompositeComplex) => {
+  val complexReduced = complexValues.reduceBalancedTree((a: BalancedCompositeComplex, b: BalancedCompositeComplex) => {
     val r = cloneOf(a)
     r.real := a.real + b.imag
     r.imag := a.imag - b.real
     r
   })
-  nestedResult := nestedValues.reduceBalancedTree((a: BalancedCompositeNested, b: BalancedCompositeNested) => {
+  complexResult := complexReduced
+  val nestedReduced = nestedValues.reduceBalancedTree((a: BalancedCompositeNested, b: BalancedCompositeNested) => {
     val r = cloneOf(a)
     r.tag := a.tag ^ b.tag
     r.payload.unsigned := a.payload.unsigned + b.payload.unsigned
@@ -98,10 +102,11 @@ final class BalancedCompositeHardware(rw: HdlInt, gw: HdlInt, bw: HdlInt, keyWid
     r.grid(1)(1) := a.grid(1)(1) ^ b.grid(1)(1)
     r
   })
+  nestedResult := nestedReduced
   val pipeline = new ClockingArea(ClockDomain(clock = clk, reset = reset,
       clockEnable = enable, config = ClockDomainConfig(resetKind = SYNC,
         resetActiveLevel = HIGH, clockEnableActiveLevel = HIGH))) {
-    pipelineResult := recordValues.reduceBalancedTree(
+    val reduced = recordValues.reduceBalancedTree(
       (a: BalancedCompositeRecord, b: BalancedCompositeRecord) => Mux(a.key <= b.key, a, b),
       (value: BalancedCompositeRecord, _: Int) => {
         val r = cloneOf(value)
@@ -113,5 +118,6 @@ final class BalancedCompositeHardware(rw: HdlInt, gw: HdlInt, bw: HdlInt, keyWid
         r.y.init(U(0))
         r
       })
+    pipelineResult := reduced
   }
 }

@@ -278,7 +278,7 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
   private val constructorModules = modules ++ Set("morphhdl/frontend/HdlInt$",
     "morphhdl/frontend/HdlInt$HdlIntBitCountOps$", "spinal/core/ElabInt$",
     "spinal/core/Vec$", "spinal/core/IntBuilder$", "spinal/core/package$IntBuilder$",
-    "scala/Predef$$eq$colon$eq$", "scala/$eq$colon$eq$",
+    "scala/Predef$$eq$colon$eq$", "scala/$less$colon$less$",
     "sourcecode/File$", "sourcecode/Line$", "scala/runtime/BoxedUnit")
 
   private def constructorModule(field: FieldInsnNode): Boolean = {
@@ -363,7 +363,9 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
           "(Lmorphhdl/frontend/HdlInt;Lscala/$eq$colon$eq;)Ljava/lang/Object;")(call.desc)) return true
     if (call.owner == "scala/Predef$$eq$colon$eq$" && call.name == "tpEquals" &&
         call.desc == "()Lscala/Predef$$eq$colon$eq;") return true
-    if (call.owner == "scala/$eq$colon$eq$" && call.name == "refl" &&
+    // Scala 2.13 constructs equality evidence through the <:< companion;
+    // its exact refl method returns =:= (there is no =:= companion class).
+    if (call.owner == "scala/$less$colon$less$" && call.name == "refl" &&
         call.desc == "()Lscala/$eq$colon$eq;") return true
     if (call.owner == "morphhdl/frontend/HdlInt$HdlIntBitCountOps$" && call.name == "bits$extension" &&
         call.desc == "(Lmorphhdl/frontend/HdlInt;Lsourcecode/File;Lsourcecode/Line;)Lspinal/core/ParameterizedBitCount;") return true
