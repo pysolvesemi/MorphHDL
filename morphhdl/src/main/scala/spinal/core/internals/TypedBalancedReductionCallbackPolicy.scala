@@ -12,9 +12,10 @@ import org.objectweb.asm.tree._
   * Admit compiler-generated, capture-free static lambdas only. Their complete
   * bytecode (including static adapters/helpers) may read arguments and locals,
   * call the enumerated native scalar construction methods, and return. Native
-  * immutable source-location construction is admitted for DSL assignments. Only a
-  * bridge may branch, and its integer data can originate only in the level
-  * argument or constants. Host fields, arbitrary calls, exceptions, allocations,
+  * immutable source-location construction is admitted for DSL assignments.
+  * Literal resize widths are allowed; native witness-width queries are not.
+  * Only a bridge may branch, and its integer data can originate only in the
+  * level argument or constants. Host fields, arbitrary calls, exceptions, allocations,
   * invokedynamic and loops all reject. This contract authorizes executing the
   * callback once for graph certification; it does not authorize native graph
   * replay, width transfer, associativity or publication by itself.
@@ -34,7 +35,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
   private val scalarNames = Set("Bool", "Bits", "UInt", "SInt").map("spinal/core/" + _)
   private val dataNames = scalarNames ++ Set("spinal/core/Data", "spinal/core/BaseType", "spinal/core/BitVector")
   private val dataDescriptors = dataNames.map(name => "L" + name + ";")
-  private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "min", "max")
+  private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "$times", "min", "max")
   private val nativeModules = Set("RegNext", "U", "S", "B", "package").map("spinal/core/" + _ + "$")
 
   private def check(callback: AnyRef, bridge: Boolean): Unit = {
@@ -126,13 +127,13 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
           case insn: InsnNode =>
             val common = Set(Opcodes.NOP, Opcodes.ARETURN, Opcodes.ACONST_NULL, Opcodes.DUP, Opcodes.POP)
             val integerConstants = insn.getOpcode >= Opcodes.ICONST_M1 && insn.getOpcode <= Opcodes.ICONST_5
-            if (!common(insn.getOpcode) && !(bridge && integerConstants))
+            if (!common(insn.getOpcode) && !integerConstants)
               fail("unsupported callback opcode " + insn.getOpcode)
           case insn: IntInsnNode =>
-            if (!bridge || !Set(Opcodes.BIPUSH, Opcodes.SIPUSH).contains(insn.getOpcode))
+            if (!Set(Opcodes.BIPUSH, Opcodes.SIPUSH).contains(insn.getOpcode))
               fail("unsupported callback integer instruction")
           case insn: LdcInsnNode =>
-            if (!bridge || !(insn.cst.isInstanceOf[java.lang.Integer] || insn.cst.isInstanceOf[String]))
+            if (!(insn.cst.isInstanceOf[java.lang.Integer] || (bridge && insn.cst.isInstanceOf[String])))
               fail("callbacks may not read object, string or floating constants")
           case insn: FieldInsnNode =>
             val module = insn.name == "MODULE$" && nativeModules(insn.owner) && insn.desc == "L" + insn.owner + ";"
@@ -175,6 +176,15 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
             Type.getReturnType(call.desc).getDescriptor == "Ljava/lang/Object;")
       }
     if (scalarBinary) return !bridge
+    // This method constructs a fresh native value. In particular, do not
+    // admit setWidth/getWidth: the former mutates an operand and the latter
+    // erases a symbolic width to its current native witness. Width transfer
+    // and graph certification still decide whether a resized result replays.
+    if (call.getOpcode == Opcodes.INVOKEVIRTUAL && scalarNames(call.owner) &&
+        dataDescriptors(Type.getReturnType(call.desc).getDescriptor)) {
+      if (call.name == "resize" && Type.getArgumentTypes(call.desc).toVector.map(_.getDescriptor) == Vector("I"))
+        return true
+    }
     if (!bridge) return false
     if (call.getOpcode == Opcodes.INVOKESPECIAL && call.owner == "spinal/idslplugin/Location" &&
         call.name == "<init>" && call.desc == "(Ljava/lang/String;II)V") return true

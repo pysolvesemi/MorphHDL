@@ -23,9 +23,8 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     assert(error.getMessage.contains(code), error.getMessage)
   }
 
-  // Build the native mux node with an inferred result for graph-certificate
-  // tests. The ordinary BitVector Mux method currently freezes its Int witness;
-  // separate tests and independent concrete artifacts exercise that method.
+  // Exercise inferred native mux construction separately from the ordinary
+  // min/max factory, which has its own natural-width propagation assertions.
   private def inferredMux[T <: BaseType](condition: Bool, yes: T, no: T): T =
     yes.wrapWithWeakClone(yes.newMultiplexer(condition, yes, no)).asInstanceOf[T]
 
@@ -286,7 +285,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("native min/max methods admit concrete widths and reject frozen symbolic witnesses") {
+  test("native min/max methods preserve concrete and natural symbolic widths") {
     val operations = Vector[(UInt, UInt) => UInt](_ min _, _ max _)
     for (operation <- operations) {
       generate(new Component {
@@ -298,18 +297,19 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
       })
       withUInt { (words, _) =>
         val captured = record(words, operation)
-        assertCode("REPLAY-FIXED-WIDTH") {
-          TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
-        }
+        val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
+        val replayed = proof.replay(words.vec(0), words.vec(2))
+        assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(replayed).get,
+          ParameterizedWidth.expressionOf(words.vec.head).get))
       }
     }
   }
 
-  test("subtraction and widening arithmetic are not silently certified") {
+  test("unsupported subtraction and witness-frozen widening results remain rejected") {
     val cases = Vector[((UInt, UInt) => UInt, String)](
       ((a, b) => a - b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED"),
-      ((a, b) => a +^ b, "REPLAY-BODY-OPERANDS"),
-      ((a, b) => a * b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED")
+      ((a, b) => { val result = UInt(6 bits); result := a +^ b; result }, "REPLAY-FIXED-WIDTH"),
+      ((a, b) => { val result = UInt(10 bits); result := a * b; result }, "REPLAY-FIXED-WIDTH")
     )
     for ((operation, code) <- cases) {
       withUInt { (words, _) =>

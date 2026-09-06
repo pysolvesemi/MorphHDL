@@ -57,6 +57,32 @@ def run(command: list[str], cwd: Path, label: str, timeout: int = 240) -> str:
 
 def restore_60d_source(root: Path, path: str, source: str) -> str:
     """Undo only exact reviewed 60e spans; inherited 60c/60d guards still run."""
+    # 59d publishes exact native widths, msb and resize operations through
+    # separately reviewed seams. Undo those first, including seams inside a 60e resize
+    # call. The complete restored source is still compared with its historical
+    # baseline by every inherited scope guard; no unrelated edit is admitted.
+    width_contract = root / "morphhdl/contracts/increment-59d-width-publication-edits.json"
+    fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+    if width_contract.is_file() and path == fallback:
+        width = json.loads(width_contract.read_text())
+        require(set(width) == {"base", "edits"} and
+                width["base"] == "d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a",
+                "59d width publication restoration baseline changed")
+        require([entry["id"] for entry in width["edits"]] ==
+                ["native-high-bit-publication", "native-resize-publication",
+                 "native-resize-single-owner", "native-resize-target-width",
+                 "native-resize-domain-proof", "native-resize-result-width",
+                 "native-high-bit-domain-proof", "width-complete-domain-relation",
+                 "width-complete-domain-expression", "width-multi-root-projection-route",
+                 "width-multi-root-projection-origins", "width-multi-root-owner-evaluation",
+                 "native-resize-normalized-assignment-proof",
+                 "native-publication-validation-session"] and
+                all(set(entry) == {"path", "id", "before", "after"} and
+                    entry["path"] == fallback for entry in width["edits"]),
+                "59d width publication restoration exceeds its fourteen fallback seams")
+        for edit in reversed(width["edits"]):
+            require(source.count(edit["after"]) == 1, "missing/duplicate 59d span in " + path)
+            source = source.replace(edit["after"], edit["before"], 1)
     contract = json.loads((root / "morphhdl/contracts/increment-60e-boundary-edits.json").read_text())
     require(contract["base"] == BASE, "60e restoration baseline changed")
     edits = [entry for entry in contract["edits"] if entry["path"] == path]

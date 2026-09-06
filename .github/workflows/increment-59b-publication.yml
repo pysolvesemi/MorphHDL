@@ -2,7 +2,7 @@ name: Increment 59b parameterized balanced publication
 
 on:
   push:
-    branches: ['agent/increment-59b-*']
+    branches: ['agent/increment-59b-*', 'agent/increment-59d-*', parameterized-verilog]
     paths:
       - '.github/workflows/increment-59b-publication.yml'
       - 'morphhdl/src/**'
@@ -38,7 +38,9 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d'))
     name: Parameterized publication Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
@@ -108,7 +110,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',12), ('TypedBalancedReductionPublicationSafetyTests',7), ('FiniteAffineVecReadTests',8)]:
+          for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',14), ('TypedBalancedReductionPublicationSafetyTests',7), ('FiniteAffineVecReadTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

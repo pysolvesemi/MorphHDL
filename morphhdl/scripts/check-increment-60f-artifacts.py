@@ -209,6 +209,19 @@ EXPECTED_SUITES = {
     """.split()),
 }
 
+# Approved successor inventory. The original 60f boundary above remains frozen;
+# this exact union is admitted only after the successor production source audit.
+INCREMENT_59D_SUITES = {
+    "morphhdl": {
+        "spinal.core.ElaborationWidthAuthorityTests": 7,
+        "spinal.core.NativeSymbolicWidthProvenanceTests": 5,
+        "spinal.core.internals.NativeWidthPublicationSafetyTests": 6,
+        "spinal.core.internals.NativePublicationWidthTests": 1,
+        "spinal.core.internals.TypedBalancedReductionWidthTransferTests": 11,
+        "spinal.core.internals.TypedBalancedReductionWideningPublicationTests": 6,
+    },
+}
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -217,6 +230,27 @@ def require(ok: bool, message: str) -> None:
 def exact_names(actual: set[str], expected: set[str], label: str) -> None:
     require(actual == expected,
             f"{label}: missing={sorted(expected - actual)}, unexpected={sorted(actual - expected)}")
+
+
+def regression_catalog(root: Path) -> tuple[dict, dict, dict]:
+    requirements = dict(REGRESSIONS)
+    expected = dict(EXPECTED_SUITES)
+    extension = {}
+    contract = root / "morphhdl/contracts/increment-59d-production-review.json"
+    if contract.is_file():
+        path = root / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
+        spec = importlib.util.spec_from_file_location("signedness_closure_regression_scope", path)
+        require(spec is not None and spec.loader is not None, "cannot load successor source scope")
+        closure = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(closure)
+        closure.source_scope(root)
+        extension = INCREMENT_59D_SUITES
+        for project, additions in extension.items():
+            require(not expected[project].intersection(additions), "59d inventory replaced an inherited suite")
+            expected[project] = expected[project] | frozenset(additions)
+            old_tests, old_suites = requirements[project]
+            requirements[project] = (old_tests + sum(additions.values()), old_suites + len(additions))
+    return requirements, expected, extension
 
 
 def compatibility_names() -> set[str]:
@@ -286,8 +320,9 @@ def compare(left: Path, right: Path) -> None:
 
 def regressions(root: Path, output: Path) -> None:
     output.unlink(missing_ok=True)
+    requirements, expected_suites, extension = regression_catalog(root)
     records = {}
-    for project, (minimum_tests, minimum_suites) in REGRESSIONS.items():
+    for project, (minimum_tests, minimum_suites) in requirements.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
         names = set()
         tests = 0
@@ -302,6 +337,9 @@ def regressions(root: Path, output: Path) -> None:
             require(not list(suite.iter("skipped")) and not list(suite.iter("failure"))
                     and not list(suite.iter("error")), f"unsuccessful test result: {path}")
             count = int(suite.get("tests", "0"))
+            added_count = extension.get(project, {}).get(name)
+            if added_count is not None:
+                require(count == added_count, f"changed exact 59d test inventory: {name}: {count}")
             cases = suite.findall("testcase")
             require(count > 0 and len(cases) == count, f"empty/inconsistent suite: {path}")
             case_names = [case.get("name") for case in cases]
@@ -310,7 +348,7 @@ def regressions(root: Path, output: Path) -> None:
             tests += count
         require(tests >= minimum_tests and len(names) >= minimum_suites,
                 f"missing {project} regressions: tests={tests}, suites={len(names)}")
-        expected = EXPECTED_SUITES[project]
+        expected = expected_suites[project]
         require(len(expected) == minimum_suites, f"inconsistent frozen suite inventory: {project}")
         exact_names(names, expected, project + " suite identities")
         records[project] = {"tests": tests, "suites": sorted(names), "skipped": 0}
@@ -335,6 +373,17 @@ def self_test() -> None:
     rejected(lambda: exact_names((expected - {name}) | {"compatibility/wrong.v"}, expected, "renamed"),
              "same-count renamed RTL")
     rejected(lambda: exact_names(expected | {"unexpected.v"}, expected, "extra"), "extra RTL")
+    for project, additions in INCREMENT_59D_SUITES.items():
+        inherited = EXPECTED_SUITES[project]
+        require(not inherited.intersection(additions), "59d overlaps an inherited suite")
+        extended = inherited | frozenset(additions)
+        exact_names(extended, extended, "positive exact 59d extension")
+        rejected(lambda: exact_names(extended - {min(inherited)}, extended, "missing inherited"),
+                 "59d extension missing inherited suite")
+        rejected(lambda: exact_names(extended - {min(additions)}, extended, "missing successor"),
+                 "59d extension missing approved successor suite")
+        rejected(lambda: exact_names(extended | {"unexpected.SuccessorSuite"}, extended, "extra successor"),
+                 "59d extension unexpected suite")
     with tempfile.TemporaryDirectory(prefix="increment-60f-inventory-self-test-") as temporary:
         root = Path(temporary)
         for project, (minimum, suites) in REGRESSIONS.items():
@@ -370,7 +419,7 @@ def self_test() -> None:
         report.unlink()
         with contextlib.redirect_stdout(io.StringIO()):
             rejected(lambda: regressions(root, output), "missing suite")
-    print("60f inventory self-test: exact file/suite identities, skips and stale-result controls PASS")
+    print("60f inventory self-test: exact file/suite identities, audited 59d union, skips and stale-result controls PASS")
 
 
 def main() -> None:

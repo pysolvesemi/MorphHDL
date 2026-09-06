@@ -13,7 +13,13 @@ object TypedBalancedReductionBackend {
   private final case class Body(block: ParameterizedStructuralBlock,
       left: BaseType, right: Option[BaseType], result: BaseType,
       observations: Vector[TypedBalancedReductionClosedGraph.Observation])
-  private final case class Stage(geometry: TypedBalancedReductionStage, pair: Body, tail: Body)
+  private final case class Stage(geometry: TypedBalancedReductionStage,
+      inputFullWidth: ElaborationIntegerExpression, inputTailWidth: ElaborationIntegerExpression,
+      outputFullWidth: ElaborationIntegerExpression, outputTailWidth: ElaborationIntegerExpression,
+      inputPackedWidth: ElaborationIntegerExpression, outputPackedWidth: ElaborationIntegerExpression,
+      fullPairPossible: Boolean, pair: Body, partialPair: Option[Body], tail: Option[Body]) {
+    def bodies: Vector[Body] = Vector(pair) ++ partialPair.toVector ++ tail.toVector
+  }
   private final case class Record(vector: Vec[BaseType], shape: ParameterizedVecShape,
       input: Bits, output: BaseType, plan: TypedBalancedReductionPlan,
       stages: Vector[Stage], ordinal: Int,
@@ -39,6 +45,16 @@ object TypedBalancedReductionBackend {
     }
   }
 
+  private def validatePackedWidths(record: Record, pc: PhaseContext): Unit = {
+    record.stages.flatMap(stage => Vector(stage.inputPackedWidth, stage.outputPackedWidth)).foreach { width =>
+      NativePublicationWidth.validate(width, record.vector.component, record.input,
+        "balanced packed transport")
+      if (width.minimum < 1 || width.maximum > BigInt(pc.config.bitVectorWidthMax))
+        fail("TRANSPORT-WIDTH", "packed native stage reaches [" + width.minimum + ", " + width.maximum +
+          "], outside [1, " + pc.config.bitVectorWidthMax + "] allowed by SpinalConfig.bitVectorWidthMax")
+    }
+  }
+
   /** Scoped inside the native elaboration closure, including native retries. */
   def elaborate[A](body: => A): A = ElabBalancedReduction.withBackend(Backend)(body)
 
@@ -51,7 +67,8 @@ object TypedBalancedReductionBackend {
     phases.insert(boundary, new PhaseMisc {
       override def impl(pc: PhaseContext): Unit = pc.walkComponents { owner =>
         records(owner).foreach { record =>
-          val bodies = record.stages.flatMap(s => Vector(s.pair, s.tail))
+          validatePackedWidths(record, pc)
+          val bodies = record.stages.flatMap(_.bodies)
           bodies.foreach(validateNativeAnchors)
           bodies.flatMap(_.observations).foreach(_.requireUnchanged())
           record.outputObservation.requireUnchanged()
@@ -107,29 +124,43 @@ object TypedBalancedReductionBackend {
     val certificate = TypedBalancedReductionStageReplay.capture(vector, op, bridge, native)
     val shape = certificate.captured.shape
     val plan = certificate.captured.plan
-    def fresh(name: String): BaseType = {
-      val result = ParameterizedWidth.cloneOf(vector.vec.head)
+    def fresh(name: String, width: ElaborationIntegerExpression): BaseType = {
+      val bits = ElabInt.fromExpression(width).bits
+      val result: BaseType = vector.vec.head match {
+        case _: Bool =>
+          if (width.minimum != 1 || width.maximum != 1) fail("BOOL-WIDTH", "Bool width must remain one")
+          Bool()
+        case _: Bits => Bits(bits)
+        case _: UInt => UInt(bits)
+        case _: SInt => SInt(bits)
+        case _ => fail("SHAPE", "unsupported scalar template")
+      }
       result.setAsDirectionLess()
       preserve(result, name)
     }
-    def template(stage: TypedBalancedReductionStageReplay.Stage, pair: Boolean): Body = {
+    def template(stage: TypedBalancedReductionStageReplay.Stage, suffix: String,
+        leftWidth: ElaborationIntegerExpression,
+        rightWidth: Option[ElaborationIntegerExpression],
+        active: ElaborationBooleanExpression): Body = {
       var left: BaseType = null
       var right: Option[BaseType] = None
       var result: BaseType = null
-      val label = prefix + "_l" + stage.geometry.level + (if (pair) "_pair" else "_tail")
+      val label = prefix + "_l" + stage.geometry.level + "_" + suffix
       val anchors = ParameterizedStructure.captureBlock(owner, None) {
-        left = fresh(label + "_left")
+        left = fresh(label + "_left", leftWidth)
         driveZero(left)
-        if (pair) {
-          val other = fresh(label + "_right")
+        rightWidth.foreach { width =>
+          val other = fresh(label + "_right", width)
           driveZero(other)
           right = Some(other)
         }
       }
       val block = ParameterizedStructure.captureBlock(owner, None) {
-        val operated = if (pair) stage.operators.head.replay(left, right.get) else left
-        val bridged = stage.bridges.head.replay(operated)
-        result = fresh(label + "_result")
+        val resultWidth = rightWidth.map(stage.operators.head.resultWidthFor(leftWidth, _)).getOrElse(leftWidth)
+        val operated = rightWidth.map(width =>
+          stage.operators.head.replayWithWidths(left, right.get, leftWidth, width)).getOrElse(left)
+        val bridged = stage.bridges.head.replayWithWidth(operated, resultWidth, active)
+        result = fresh(label + "_result", resultWidth)
         result.assignFrom(bridged)
       }
       val assignments = block.statements.collect { case a: AssignmentStatement => a }
@@ -141,7 +172,29 @@ object TypedBalancedReductionBackend {
       block.append(anchors)
       Body(block, left, right, result, Vector(observation, anchorObservation))
     }
-    val stages = certificate.stages.map(s => Stage(s.geometry, template(s, true), template(s, false)))
+    val widthSchedule = TypedBalancedReductionStageReplay.widths(plan,
+      shape.elementLeaves.head.width, certificate.stages.flatMap(_.operators).headOption)
+    val stages = certificate.stages.zip(widthSchedule.stages).map { case (stage, widths) =>
+      def sameOnPartial(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean = {
+        val difference = ElaborationWidthAuthority.subtract(left, right)
+        ElaborationWidthAuthority.minimumWhen(difference, widths.partialPairActive).contains(BigInt(0)) &&
+          ElaborationWidthAuthority.maximumWhen(difference, widths.partialPairActive).contains(BigInt(0))
+      }
+      val partial = if (!widths.fullPairPossible || !widths.partialPairPossible ||
+          (sameOnPartial(widths.fullInput, widths.partialLeft) &&
+            sameOnPartial(widths.fullInput, widths.partialRight))) None
+        else Some(template(stage, "partial_pair", widths.partialLeft, Some(widths.partialRight),
+          widths.partialPairActive))
+      Stage(stage.geometry, widths.inputFull, widths.inputTail, widths.outputFull, widths.outputTail,
+        widths.inputPacked, widths.outputPacked, widths.fullPairPossible,
+        template(stage, if (widths.fullPairPossible) "pair" else "partial_pair",
+          if (widths.fullPairPossible) widths.fullInput else widths.partialLeft,
+          Some(if (widths.fullPairPossible) widths.fullInput else widths.partialRight),
+          if (!widths.fullPairPossible) widths.partialPairActive
+          else if (partial.nonEmpty) widths.fullPairActive else stage.geometry.active.expression), partial,
+        if (widths.tailPossible) Some(template(stage, "tail", widths.inputTail, None,
+          stage.geometry.hasOddTail.expression)) else None)
+    }
     certificate.requireFreshness()
     // Probe hardware has discharged the pre-normalization obligations and is
     // never published. Only the distinct replay templates enter native phases.
@@ -153,7 +206,7 @@ object TypedBalancedReductionBackend {
     preserve(input, prefix + "_input")
     var output: BaseType = null
     val outputBlock = ParameterizedStructure.captureBlock(owner, None) {
-      output = fresh(prefix + "_result")
+      output = fresh(prefix + "_result", widthSchedule.terminal)
       driveZero(output)
     }
     val outputObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
@@ -180,8 +233,8 @@ object TypedBalancedReductionBackend {
         fail("SHAPE-CHANGED", "the captured Vec no longer owns its original shape")
       if (!record.handedOff)
         fail("HANDOFF", "native template graph was not validated before normalization")
-      record.stages.flatMap(s => Vector(s.pair, s.tail)).foreach(validateNativeAnchors)
-      val width = record.shape.elementLeaves.head.width.verilog
+      validatePackedWidths(record, pc)
+      record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)
       val base = s"morphhdl_balanced_${record.ordinal}"
       val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet
       def reserved(prefix: String): Vector[String] =
@@ -194,14 +247,17 @@ object TypedBalancedReductionBackend {
         suffix += 1
         prefix = base + "_" + suffix
       }
-      val blocks = record.stages.flatMap(s => Vector(s.pair.block, s.tail.block))
+      val blocks = record.stages.flatMap(_.bodies.map(_.block))
       val (remaining, bodies) = ParameterizedVerilogStructural.extractNativeTemplates(
         component, blocks, current, pc, canonicalOf)
-      def slice(source: String, index: String): String = s"$source[(($index) * ($width)) +: ($width)]"
+      def slice(source: String, index: String, stride: ElaborationIntegerExpression,
+          width: ElaborationIntegerExpression): String =
+        s"$source[(($index) * (${stride.verilog})) +: (${width.verilog})]"
       val lines = ArrayBuffer.empty[String]
       val first = prefix + "_stage_0"
-      lines += s"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;"
+      lines += s"  wire [(${record.stages.head.inputPackedWidth.verilog})-1:0] $first;"
       lines += s"  assign $first = ${record.input.getName()};"
+      var bodyIndex = 0
       record.stages.zipWithIndex.foreach { case (stage, index) =>
         val before = prefix + "_stage_" + index
         val after = prefix + "_stage_" + (index + 1)
@@ -209,29 +265,61 @@ object TypedBalancedReductionBackend {
         val geometry = stage.geometry
         val pairs = geometry.pairCount.expression.verilog
         val inputs = geometry.inputCount.expression.verilog
-        val outputs = geometry.outputCount.expression.verilog
-        var pairBody = replaceDriver(bodies(2 * index), stage.pair.left, slice(before, "2 * " + genvar))
-        pairBody = replaceDriver(pairBody, stage.pair.right.get, slice(before, "2 * " + genvar + " + 1"))
-        val tailBody = replaceDriver(bodies(2 * index + 1), stage.tail.left, slice(before, s"($inputs) - 1"))
-        lines += s"  wire [(($width) * ($outputs))-1:0] $after;"
+        val partialCondition = s"((($inputs) % 2) == 0) && ($genvar == (($pairs) - 1))"
+        var pairBody = replaceDriver(bodies(bodyIndex), stage.pair.left,
+          slice(before, "2 * " + genvar, stage.inputFullWidth, stage.inputFullWidth))
+        pairBody = replaceDriver(pairBody, stage.pair.right.get,
+          slice(before, "2 * " + genvar + " + 1", stage.inputFullWidth,
+            if (stage.fullPairPossible) stage.inputFullWidth else stage.inputTailWidth))
+        bodyIndex += 1
+        val partialBody = stage.partialPair.map { body =>
+          var text = replaceDriver(bodies(bodyIndex), body.left,
+            slice(before, "2 * " + genvar, stage.inputFullWidth, stage.inputFullWidth))
+          text = replaceDriver(text, body.right.get,
+            slice(before, "2 * " + genvar + " + 1", stage.inputFullWidth, stage.inputTailWidth))
+          bodyIndex += 1
+          text
+        }
+        val tailBody = stage.tail.map { body =>
+          val text = replaceDriver(bodies(bodyIndex), body.left,
+            slice(before, s"($inputs) - 1", stage.inputFullWidth, stage.inputTailWidth))
+          bodyIndex += 1
+          text
+        }
+        lines += s"  wire [(${stage.outputPackedWidth.verilog})-1:0] $after;"
         lines += s"  genvar $genvar;"
         lines += "  generate"
         lines += s"    if (${geometry.active.expression.verilog}) begin : ${prefix}_active_$index"
         lines += s"      for ($genvar = 0; $genvar < ($pairs); $genvar = $genvar + 1) begin : pairs"
-        lines += indent(pairBody, 8)
-        lines += s"        assign ${slice(after, genvar)} = ${stage.pair.result.getName()};"
+        stage.partialPair match {
+          case Some(body) =>
+            lines += s"        if ($partialCondition) begin : partial_pair"
+            lines += indent(partialBody.get, 10)
+            lines += s"          assign ${slice(after, genvar, stage.outputFullWidth, stage.outputTailWidth)} = ${body.result.getName()};"
+            lines += "        end else begin : full_pair"
+            lines += indent(pairBody, 10)
+            lines += s"          assign ${slice(after, genvar, stage.outputFullWidth, stage.outputFullWidth)} = ${stage.pair.result.getName()};"
+            lines += "        end"
+          case None =>
+            lines += indent(pairBody, 8)
+            lines += s"        assign ${slice(after, genvar, stage.outputFullWidth, stage.outputFullWidth)} = ${stage.pair.result.getName()};"
+        }
         lines += "      end"
-        lines += s"      if (${geometry.hasOddTail.expression.verilog}) begin : tail"
-        lines += indent(tailBody, 8)
-        lines += s"        assign ${slice(after, pairs)} = ${stage.tail.result.getName()};"
-        lines += "      end"
+        stage.tail.foreach { body =>
+          lines += s"      if (${geometry.hasOddTail.expression.verilog}) begin : tail"
+          lines += indent(tailBody.get, 8)
+          lines += s"        assign ${slice(after, pairs, stage.outputFullWidth, stage.outputTailWidth)} = ${body.result.getName()};"
+          lines += "      end"
+        }
         lines += s"    end else begin : ${prefix}_bypass_$index"
         lines += s"      assign $after = $before;"
         lines += "    end"
         lines += "  endgenerate"
       }
       val last = prefix + "_stage_" + record.stages.size
-      val updated = replaceDriver(remaining, record.output, slice(last, "0"))
+      val finalWidth = record.stages.last.outputTailWidth
+      val updated = replaceDriver(remaining, record.output,
+        slice(last, "0", record.stages.last.outputFullWidth, finalWidth))
       val end = updated.lastIndexOf("endmodule")
       if (end < 0) fail("MODULE", "native module terminator missing")
       updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)

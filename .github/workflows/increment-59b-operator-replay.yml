@@ -2,7 +2,7 @@ name: Increment 59b native operator replay formal proof
 
 on:
   push:
-    branches: ['agent/increment-59b-*', parameterized-verilog]
+    branches: ['agent/increment-59b-*', 'agent/increment-59d-*', parameterized-verilog]
     paths:
       - '.github/workflows/increment-59b-operator-replay.yml'
       - 'core/**'
@@ -29,6 +29,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59b'))
     name: Concrete replay formal Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest

@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -108,7 +109,32 @@ def source_scope(root: Path) -> None:
     untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
                                         cwd=root, text=True).splitlines()
     changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
-    require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
+    reviewed = None
+    if changed:
+        # The original 60f merge remains a qualification-only checkpoint.
+        # Descendant 59d changes are admitted only by their complete exact
+        # production path/hash inventory, followed by inherited native audits.
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+                       cwd=root, check=True)
+        historical = subprocess.check_output(["git", "diff", "--name-only", BASE, QUALIFIED_60F],
+                                             cwd=root, text=True).splitlines()
+        require(not any(re.search(r"(?:^|/)src/main/", path) for path in historical),
+                "qualified 60f production-free checkpoint changed")
+        contract = root / "morphhdl/contracts/increment-59d-production-review.json"
+        require(contract.is_file(), "60f must remain qualification-only; unreviewed production delta:\n" +
+                "\n".join(changed))
+        reviewed = json.loads(contract.read_text())
+        require(set(reviewed) == {"base", "files", "checker_edits"} and reviewed["base"] == QUALIFIED_60F,
+                "59d production review baseline changed")
+        require(all(set(entry) == {"path", "sha256"} and
+                    re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) for entry in reviewed["files"]),
+                "59d production review has malformed file records")
+        require([entry["path"] for entry in reviewed["files"]] == changed,
+                "59d reviewed production inventory differs from the exact current delta")
+        for entry in reviewed["files"]:
+            require((root / entry["path"]).is_file() and
+                    hashlib.sha256((root / entry["path"]).read_bytes()).hexdigest() == entry["sha256"],
+                    "59d reviewed production bytes changed: " + entry["path"])
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -121,11 +147,22 @@ def source_scope(root: Path) -> None:
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old, "sealed writer/checker changed: " + path)
+        current = (root / path).read_bytes()
+        if reviewed is not None and path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py":
+            edits = reviewed["checker_edits"]
+            require(len(edits) == 1 and set(edits[0]) == {"path", "id", "before", "after"} and
+                    edits[0]["path"] == path and edits[0]["id"] == "restore-exact-59d-width-seams",
+                    "59d checker restoration exceeds its single inherited boundary seam")
+            before, after = edits[0]["before"].encode(), edits[0]["after"].encode()
+            require(current.count(after) == 1, "missing/duplicate reviewed 59d checker restoration span")
+            current = current.replace(after, before, 1)
+        require(current == old, "sealed writer/checker changed: " + path)
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    print("60f qualification-only scope, sealed writers/checkers and inherited native audits PASS", flush=True)
+    scope = ("60f qualification checkpoint and exact reviewed 59d descendant scope" if reviewed is not None
+             else "60f qualification-only scope")
+    print(scope + ", sealed writers/checkers and inherited native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:

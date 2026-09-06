@@ -721,11 +721,10 @@ object ParameterizedWidth {
           })
         }
         if (!safeLegacyDirect)
-          ElabInt.requireAuthoritativeIntegerDomain(
+          ElaborationWidthAuthority.requireAuthoritative(
             value,
             "parameterized bit-count expression",
-            "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED",
-            requireExactExtrema = false
+            "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED"
           )
       }
     }
@@ -872,7 +871,39 @@ object ParameterizedWidth {
   def copy(from: BaseType, to: BaseType): Unit = {
     if (from == null || to == null)
       throw new IllegalArgumentException("symbolic-width copy requires non-null leaves")
-    metadataOf(from).foreach(retain(to, _))
+    metadataOf(from) match {
+      case Some(metadata) => retain(to, metadata)
+      case None => NativeWidthProvenance.widthOf(from).foreach(retainNativeWidth(to, _))
+    }
+  }
+
+  /** Native transfer records geometry without fixing an inferred native width. */
+  private[core] def retainNativeWidth(
+      data: BaseType,
+      expression: ElaborationIntegerExpression
+  ): Unit = {
+    if (expression.parameters.nonEmpty) {
+      val width = ElabInt.fromExpression(expression).bits
+      val normalized = validateWidth(width)
+      retain(data, RetainedWidth(width.parameter, normalized, width.sourceLocation))
+    }
+  }
+
+  /** A mux type is a fresh native clone whose width is deliberately recomputed
+    * from all inputs. Replace only that clone's inherited metadata, after the
+    * native transfer has independently proved its new geometry.
+    */
+  private[core] def retainNativeMuxWidth(
+      data: BaseType,
+      expression: Option[ElaborationIntegerExpression]
+  ): Unit = synchronized {
+    val validated = expression.filter(_.parameters.nonEmpty).map { value =>
+      val width = ElabInt.fromExpression(value).bits
+      RetainedWidth(width.parameter, validateWidth(width), width.sourceLocation)
+    }
+    reap()
+    retained.remove(new RetainedWidthIdentityRef(data, null))
+    validated.foreach(retain(data, _))
   }
 
   /** Copy concrete and symbolic leaf geometry in deterministic data-model order.

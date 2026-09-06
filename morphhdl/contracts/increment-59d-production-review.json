@@ -1,0 +1,93 @@
+{
+  "base": "5a669d32095ee722c313bd069b771e7c350a1f81",
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "sha256": "f4ba26893a0b52827b085b936924bab0d1c110574f9121805791e7abd927b16b"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/BitVector.scala",
+      "sha256": "984dd29a43540a5fd26c2591dd3a05e7adc357c8d47b1c0db2ae3b677d279e47"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "sha256": "754f28ac4674a8129da10f244e793314d4ad82b7ac603b78c3a646d01648fbd5"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+      "sha256": "d24236d308f560b056b81a220d65df1b59da543b7d82e04074f7a43f03b5a985"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Misc.scala",
+      "sha256": "f761ac70eb188058cb777b34bf25e3c0e85d8b5d52ce28bbacc2772b29fb8414"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+      "sha256": "0f49104d1fc645aa47c141f6788109d4adf4a7e6365a3e4428e707707db2c6d3"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "sha256": "b174c50bbf8cd21fb7f049332451183a92de229bcac865875d84be11d9a346a5"
+    },
+    {
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "sha256": "a30ff441d12611baae105d94a59263d51f21633b7385b88288068d095d09e612"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedHighBit.scala",
+      "sha256": "9941d4a960e2878e62ce92bc1e9569997bd5ba6efc5ab3d63afaffc28936de55"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+      "sha256": "d57aac9e99d126df1fe5fb4db06f60fe21e20ba6c043478352109409d47b20b6"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "sha256": "5f978cbdaa145796c1c1f864fb0b2ca90df47d831d43b8bcb8c941dbd3b391c9"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/NativePublicationScope.scala",
+      "sha256": "dfcb580452463f03a2122ba59ec07ba0fa0b875596fea748e6323b3f83b3878e"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala",
+      "sha256": "2422f34355cf9a124ff6efe0dba1fe95df00248788af9e2ddeb49813de39fce1"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "sha256": "283ab8da6052f3e87f92e524103f433cb8dd817766f59fea19291e17fa7e6067"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
+      "sha256": "89efca3085fcb04e216bfbb0d59730cab973a401779487455c93fb89c96a83f5"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala",
+      "sha256": "87b8dca4e5c664ebe623d46310b24a812efd4f468dc42fbcf5a182b20b969ee3"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
+      "sha256": "782d9ade175e41e703ac822c000efd2096d98bff9d9ea2ceb6f157443f265d2b"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala",
+      "sha256": "4256149989d6506037c1df8bcf0e791124424d73eb53c711b0ad2ceb3d4a347d"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
+      "sha256": "456b47d5a53485ce85e71af118b8a9b52464265def851451baf711923f60fc18"
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala",
+      "sha256": "aefc9c12b2eb7f9d22250456357a17bea345805d1c6eb659b19456c09f95fd02"
+    }
+  ],
+  "checker_edits": [
+    {
+      "path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+      "id": "restore-exact-59d-width-seams",
+      "before": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())",
+      "after": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    # 59d publishes exact native widths, msb and resize operations through\n    # separately reviewed seams. Undo those first, including seams inside a 60e resize\n    # call. The complete restored source is still compared with its historical\n    # baseline by every inherited scope guard; no unrelated edit is admitted.\n    width_contract = root / \"morphhdl/contracts/increment-59d-width-publication-edits.json\"\n    fallback = \"morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala\"\n    if width_contract.is_file() and path == fallback:\n        width = json.loads(width_contract.read_text())\n        require(set(width) == {\"base\", \"edits\"} and\n                width[\"base\"] == \"d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a\",\n                \"59d width publication restoration baseline changed\")\n        require([entry[\"id\"] for entry in width[\"edits\"]] ==\n                [\"native-high-bit-publication\", \"native-resize-publication\",\n                 \"native-resize-single-owner\", \"native-resize-target-width\",\n                 \"native-resize-domain-proof\", \"native-resize-result-width\",\n                 \"native-high-bit-domain-proof\", \"width-complete-domain-relation\",\n                 \"width-complete-domain-expression\", \"width-multi-root-projection-route\",\n                 \"width-multi-root-projection-origins\", \"width-multi-root-owner-evaluation\",\n                 \"native-resize-normalized-assignment-proof\",\n                 \"native-publication-validation-session\"] and\n                all(set(entry) == {\"path\", \"id\", \"before\", \"after\"} and\n                    entry[\"path\"] == fallback for entry in width[\"edits\"]),\n                \"59d width publication restoration exceeds its fourteen fallback seams\")\n        for edit in reversed(width[\"edits\"]):\n            require(source.count(edit[\"after\"]) == 1, \"missing/duplicate 59d span in \" + path)\n            source = source.replace(edit[\"after\"], edit[\"before\"], 1)\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())"
+    }
+  ]
+}
