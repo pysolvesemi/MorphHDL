@@ -68,13 +68,11 @@ private[internals] final class BalancedPublicationCollisionFixture extends Compo
   output := words.reduceBalancedTree((a: UInt, b: UInt) => a + b)
 }
 
-private[internals] final class BalancedPublicationNestedLabelCollisionFixture extends Component {
+private[internals] final class BalancedPublicationNestedLabelCollisionFixture(width: HdlInt,
+    inner: HdlInt, one: HdlInt, count: HdlInt) extends Component {
   setDefinitionName("BalancedPublicationNestedLabelCollision")
-  val width = HdlInt.literal(5)
-  val inner = HdlInt.param("INNER", 1, 1, 2)
-  val one = HdlInt.literal(1)
   val words = in(Vec(BalancedCompositeCountedRecord(width, width, width, width, inner, one, one),
-    HdlInt.param("COUNT", 1, 1, 2))).setName("words")
+    count)).setName("words")
   val result = out(BalancedCompositeCountedRecord(width, width, width, width, inner, one, one)).setName("result")
   // Leaf six is samples(1).unsigned, which is absent when INNER is one.
   val present = in(Bool()).setName("morphhdl_balanced_1_result_leaf_6_present")
@@ -150,7 +148,8 @@ class TypedBalancedReductionPublicationSafetyTests extends AnyFunSuite {
 
   test("nested result generate labels cannot collide with live user signal names") {
     val directory = Files.createTempDirectory("balanced-nested-label-collision-")
-    MorphVerilog(SpinalConfig(targetDirectory = directory.toString))(new BalancedPublicationNestedLabelCollisionFixture)
+    MorphVerilog(SpinalConfig(targetDirectory = directory.toString))(new BalancedPublicationNestedLabelCollisionFixture(
+      HdlInt.literal(5), HdlInt.param("INNER", 1, 1, 2), HdlInt.literal(1), HdlInt.param("COUNT", 1, 1, 2)))
     val text = new String(Files.readAllBytes(directory.resolve("BalancedPublicationNestedLabelCollision.v")), StandardCharsets.UTF_8)
     val base = "morphhdl_balanced_1_result_leaf_6"
     val collisions = Vector("present", "absent", "published").map(suffix => base + "_" + suffix)

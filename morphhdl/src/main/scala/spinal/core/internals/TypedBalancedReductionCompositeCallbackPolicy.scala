@@ -50,6 +50,12 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
           fail("composite callback Bundle has an opaque native clone factory: " + owner)
         bundle.elements.foreach { case (_, child) => visit(child, depth + 1) }
       } else fail("composite callback input has an unsupported runtime Data class: " + owner)
+      // Even an exact native Data class can redirect assignment to an opaque
+      // per-instance Assignable. Such a hook can run host code without adding
+      // an IR assignment, so post-callback external-write checks cannot detect
+      // it. Read this inherited property only after the class audit above.
+      if (data.compositeAssign != null)
+        fail("composite callback input has an opaque native assignment redirect: " + owner)
       path.remove(data)
     }
     visit(value, 0)

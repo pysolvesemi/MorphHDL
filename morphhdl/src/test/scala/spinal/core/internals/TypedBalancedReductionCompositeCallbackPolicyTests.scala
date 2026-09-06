@@ -139,6 +139,48 @@ class TypedBalancedReductionCompositeCallbackPolicyTests extends AnyFunSuite {
       finally paths.close()
     }
   }
+
+  test("per-instance assignment redirects cannot hide host effects on scalars or recursive containers") {
+    val directory = Files.createTempDirectory("composite-callback-assignment-")
+    try {
+      SpinalConfig(targetDirectory = directory.toString).generateVerilog(new Component {
+        val keep = out Bool()
+        keep := False
+        val record = BalancedCompositeSafeValue()
+        record.value := U(0)
+        val scalar = UInt(4 bits)
+        scalar := U(0)
+        val vector = Vec(UInt(4 bits), 2)
+        vector.foreach(_ := U(0))
+        var calls = 0
+        val redirect = new Assignable {
+          override protected def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)
+              (implicit location: spinal.idslplugin.Location): Unit = { calls += 1 }
+          override def getRealSourceNoRec: Any = this
+        }
+        val rootsAndTargets: Vector[(Data, Data)] = Vector(
+          record -> record, record -> record.value, scalar -> scalar,
+          vector -> vector, vector -> vector(0))
+        rootsAndTargets.foreach { case (root, target) =>
+          target.compositeAssign = redirect
+          try {
+            val error = intercept[IllegalArgumentException] {
+              TypedBalancedReductionCallbackPolicy.requireSupportedValues(Vector(root))
+              // This ordinary native assignment would invoke only the hidden
+              // host hook and record no external native assignment.
+              target.assignFrom(target)
+            }
+            assert(error.getMessage.contains("opaque native assignment redirect"), error.getMessage)
+            assert(calls == 0, "assignment redirect ran before callback rejection")
+          } finally target.compositeAssign = null
+        }
+      })
+    } finally {
+      val paths = Files.walk(directory)
+      try paths.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach(Files.deleteIfExists(_))
+      finally paths.close()
+    }
+  }
 }
 
 private[internals] object BalancedCompositePolicyState { var calls = 0 }
