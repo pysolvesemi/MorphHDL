@@ -1738,7 +1738,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
-            (value.resultAssignments ++ value.carrierAssignments)
+            (value.resultAssignments ++ value.carrierAssignments ++ value.supportAssignments)
               .foreach(assignment => retained.put(assignment, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment =>
             (value.assignments ++ value.carrierAssignments)
@@ -1760,6 +1760,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead if value.carrier ne value.result =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+          case value: ParameterizedVecPackedRead =>
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment if value.carrier ne value.source =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
           case _ =>
@@ -2711,8 +2714,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   // Independently rooted element-width and depth expressions
                   // cannot form one core exact-domain expression. Preserve
                   // their factorized geometry directly for that case.
-                  val elementWidth = shape.elementLeaves
-                    .map(leaf => retained(leaf.width))
+                  val elementWidth = shape.elementFields
+                    .map(field => field.dimensions.map(axis => retained(axis.depth))
+                      .foldLeft[WidthExpr](retained(field.width))(widthMultiply))
                     .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
                   widthMultiply(retained(shape.depth), elementWidth)
                 }

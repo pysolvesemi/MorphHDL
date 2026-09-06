@@ -209,6 +209,19 @@ EXPECTED_SUITES = {
     """.split()),
 }
 
+# Explicit successor suites extend the frozen 60f inventory. Every original
+# identity remains mandatory; neither runtime discovery nor a subset check can
+# substitute an unrelated suite for an inherited or named-field contract.
+ADDITIONAL_SUITES_59C = {
+    "morphhdl": frozenset("""
+        morphhdl.NamedFieldVecTests
+        morphhdl.NamedFieldVecHierarchyTests
+        morphhdl.NamedFieldVecCollisionTests
+        spinal.core.NamedFieldPackedAliasTests
+        spinal.core.internals.ParameterizedVerilogFieldLayoutTests
+    """.split()),
+}
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -310,8 +323,11 @@ def regressions(root: Path, output: Path) -> None:
             tests += count
         require(tests >= minimum_tests and len(names) >= minimum_suites,
                 f"missing {project} regressions: tests={tests}, suites={len(names)}")
-        expected = EXPECTED_SUITES[project]
-        require(len(expected) == minimum_suites, f"inconsistent frozen suite inventory: {project}")
+        frozen = EXPECTED_SUITES[project]
+        require(len(frozen) == minimum_suites, f"inconsistent frozen suite inventory: {project}")
+        additional = ADDITIONAL_SUITES_59C.get(project, frozenset())
+        require(not (frozen & additional), f"duplicated successor suite: {project}")
+        expected = frozen | additional
         exact_names(names, expected, project + " suite identities")
         records[project] = {"tests": tests, "suites": sorted(names), "skipped": 0}
         print(f"{project}: {tests} tests / {len(names)} suites, zero failures/errors/skips")
@@ -338,8 +354,8 @@ def self_test() -> None:
     with tempfile.TemporaryDirectory(prefix="increment-60f-inventory-self-test-") as temporary:
         root = Path(temporary)
         for project, (minimum, suites) in REGRESSIONS.items():
-            expected_suites = sorted(EXPECTED_SUITES[project])
-            require(len(expected_suites) == suites, "frozen suite count differs: " + project)
+            require(len(EXPECTED_SUITES[project]) == suites, "frozen suite count differs: " + project)
+            expected_suites = sorted(EXPECTED_SUITES[project] | ADDITIONAL_SUITES_59C.get(project, frozenset()))
             reports = root / project / "target/test-reports"
             reports.mkdir(parents=True)
             for index, suite_name in enumerate(expected_suites):
@@ -353,6 +369,14 @@ def self_test() -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             regressions(root, output)
         require(output.is_file(), "positive XML control published no inventory")
+        for successor in ADDITIONAL_SUITES_59C["morphhdl"]:
+            report = next(path for path in (root / "morphhdl/target/test-reports").glob("*.xml")
+                          if ET.parse(path).getroot().get("name") == successor)
+            original = report.read_bytes()
+            report.unlink()
+            with contextlib.redirect_stdout(io.StringIO()):
+                rejected(lambda: regressions(root, output), "missing explicit 59c suite " + successor)
+            report.write_bytes(original)
         report = root / "morphhdl/target/test-reports/suite-1.xml"
         original = report.read_bytes()
         tree = ET.parse(report)

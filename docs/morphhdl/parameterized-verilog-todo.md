@@ -798,6 +798,10 @@ dependency chain is unchanged and may proceed independently.
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59d through 59h or unfinished Increment 60 children.
 
+  **Implementation record:** [Named field vectors](increment-59c-named-field-vectors.md)
+  defines the opt-in interface, recursive packing and naming contract. Work and
+  qualification are in progress; this link is not completion evidence.
+
   Add a generic field-preserving publication profile for the same source
   `val pixels = in Vec(Rgb(width), count)`. Derive one packed vector per scalar
   element-field path from retained typed shape metadata. For the RGB example,

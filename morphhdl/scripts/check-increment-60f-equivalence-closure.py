@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -108,7 +109,25 @@ def source_scope(root: Path) -> None:
     untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
                                         cwd=root, text=True).splitlines()
     changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
-    require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
+    named_checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    named_contract = root / "morphhdl/contracts/increment-59c-source-review.json"
+    named = None
+    if named_checker.is_file() or named_contract.is_file():
+        require(named_checker.is_file() and named_contract.is_file(),
+                "59c source-review checker or contract is missing")
+        # Freeze the actual qualified 60f history. A successor may extend
+        # production only through its complete exact inventory and reviewed
+        # byte spans; neither an allowed filename nor a passing signedness
+        # fixture can authorize arbitrary newer production code.
+        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"], cwd=root, check=True)
+        historical = subprocess.check_output(["git", "diff", "--name-only", BASE, QUALIFIED_60F],
+                                             cwd=root, text=True).splitlines()
+        require(not [path for path in historical if re.search(r"(?:^|/)src/main/", path)],
+                "qualified 60f history contains a production delta")
+        named = load(root, "59c-source-review")
+        named.verify(root, qualification_base=BASE)
+    else:
+        require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -121,7 +140,12 @@ def source_scope(root: Path) -> None:
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old, "sealed writer/checker changed: " + path)
+        source = (root / path).read_bytes()
+        if named is not None:
+            # Only the explicitly reviewed 60e restoration adapter differs;
+            # all other sealed writers/checkers still compare byte for byte.
+            source = named.restore_source(root, path, source.decode()).encode()
+        require(source == old, "sealed writer/checker changed: " + path)
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)

@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "0cf0bce4944ab31e97dd91bf760295e0c765b762"
+      "approved_tree": "217339988de46e8d0df3f756e67ea6670669c02c"
     },
     {
       "path": "idslpayload/src/main",
@@ -1017,15 +1017,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence.",
+      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "86b5ab64ea006b832ad7d9fe356d9c91adf784bf",
-        "sha256": "8212a2ddbee1d2c4a1dbdebe7dff31090f1caa0d4515c7f60eb491c2af040f33"
+        "blob": "b88f6dc904befd268e6cc458e569d2676e13e6f4",
+        "sha256": "ee3dbb91f62c3bcee95073fcfb9e81c3d26598b53f99c467d531303c68e53577"
       },
       "edits": []
     },
@@ -1256,9 +1257,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry, static-index assignment evidence and scoped inherited packing through the authoritative native Vec algorithms.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1268,8 +1270,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "4d87665c7ecf70eb41fc6bedffd63198147e02b4",
-        "sha256": "88ff512e05f0b56f2cf0f1f1602b866cf41160f5b57f42011a5d2cec8cb3f938"
+        "blob": "f5732c648b02bb2c4e9055327b359c5d676527b3",
+        "sha256": "78ff15612c0d75b97e4ec63b1d0a366888a64c47370ae94fe5319fb7f5846e44"
       },
       "edits": [
         {
@@ -1411,24 +1413,62 @@
           ]
         },
         {
+          "id": "vec-static-index-assignment-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
+          "reason": "Capture exact complete static-index scalar assignment/control evidence while delegating through the existing native composite assignment path and restoring that path after exceptions.",
+          "baseline_span": {
+            "start": 4780,
+            "end": 4780,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6913,
+            "end": 8244,
+            "sha256": "106c80efc3b78cb28f05622bb5ed1deaca844fd9faf7335aed353ca75be816b1"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "leaf.compositAssignFrom(that, target, kind)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordStaticWrite",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "finally leaf.compositeAssign = active",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-07",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Retain physical native carrier geometry and scope nested inherited width queries so inner Vec logical widths cannot truncate the carrier.",
           "baseline_span": {
             "start": 5795,
             "end": 5818,
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 7928,
-            "end": 8242,
-            "sha256": "df157b6b2d4a8c1d20476545def9e70b6b283cb1df7503894f5e7aa72328a5dc"
+            "start": 9259,
+            "end": 9621,
+            "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "super.getBitsWidth",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.getBitsWidth)",
               "count": 1
             }
           ]
@@ -1437,21 +1477,26 @@
           "id": "vec-typed-geometry-08",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Expose logical Vec geometry normally and use physical carrier geometry only inside exact scoped inherited native packing.",
           "baseline_span": {
             "start": 5822,
             "end": 5857,
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 8246,
-            "end": 8643,
-            "sha256": "0a845af7e521779099591a34c5d81790f1b73c62d361debb1d7793ab6d69825a"
+            "start": 9625,
+            "end": 10098,
+            "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "logicalBitsWidthOf",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (ParameterizedVec.usesNativeCarrierGeometry) carrierBitsWidth",
               "count": 1
             }
           ]
@@ -1467,8 +1512,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9655,
-            "end": 9707,
+            "start": 11110,
+            "end": 11162,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -1490,8 +1535,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9891,
-            "end": 9959,
+            "start": 11346,
+            "end": 11414,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
@@ -1513,9 +1558,9 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10474,
-            "end": 10979,
-            "sha256": "2358ea0c3d9fc36f4c67637cb356191d686fd9f55da963aee7cf9c09e3f532c4"
+            "start": 11929,
+            "end": 12518,
+            "sha256": "c4e88f58cbda7b88b2fd44a4a5e66b174153b48b37692d3f274aa08a63d33556"
           },
           "required_exact_text": [
             {
@@ -1536,8 +1581,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 11312,
-            "end": 11326,
+            "start": 12851,
+            "end": 12865,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -1559,8 +1604,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 12192,
-            "end": 12331,
+            "start": 13731,
+            "end": 13870,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -1582,8 +1627,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 12615,
-            "end": 12621,
+            "start": 14154,
+            "end": 14160,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -1605,8 +1650,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 12830,
-            "end": 12913,
+            "start": 14369,
+            "end": 14452,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -1628,8 +1673,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 13178,
-            "end": 13827,
+            "start": 14717,
+            "end": 15366,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -1651,8 +1696,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 13838,
-            "end": 14115,
+            "start": 15377,
+            "end": 15654,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -1674,8 +1719,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14123,
-            "end": 14206,
+            "start": 15662,
+            "end": 15745,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -1697,8 +1742,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14250,
-            "end": 14409,
+            "start": 15789,
+            "end": 15948,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -1720,8 +1765,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14586,
-            "end": 14654,
+            "start": 16125,
+            "end": 16193,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -1743,8 +1788,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15576,
-            "end": 15651,
+            "start": 17115,
+            "end": 17190,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -1766,8 +1811,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15765,
-            "end": 15804,
+            "start": 17304,
+            "end": 17343,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -1789,8 +1834,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15902,
-            "end": 16238,
+            "start": 17441,
+            "end": 17777,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -1812,8 +1857,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 16667,
-            "end": 17001,
+            "start": 18206,
+            "end": 18540,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -1828,21 +1873,31 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "reason": "Capture inherited packed conversions and Vec compatibility operations; scope nested native carrier packing while preserving exact source/target assignment lineage.",
           "baseline_span": {
             "start": 11577,
             "end": 11638,
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 17018,
-            "end": 19113,
-            "sha256": "40b43cdae3dcd8a7997bed3336e0211855905dbbbe331ff9b8d826216228b9d7"
+            "start": 18557,
+            "end": 20949,
+            "sha256": "6cdd3a87868cfed196335baaed30c5d4fab03fdc2d6bdfd49c7ea2f0bed1e2c2"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.validatePackedAssignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.asBits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.assignFromBits(carrier))",
               "count": 1
             }
           ]
@@ -1858,8 +1913,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 19443,
-            "end": 19545,
+            "start": 21279,
+            "end": 21381,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -1881,8 +1936,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19613,
-            "end": 19756,
+            "start": 21449,
+            "end": 21592,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [

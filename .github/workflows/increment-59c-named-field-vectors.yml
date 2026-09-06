@@ -1,0 +1,170 @@
+name: Increment 59c named field vectors
+
+on:
+  push:
+    branches: [parameterized-verilog, 'agent/increment-59c-*']
+    paths:
+      - '.github/workflows/increment-59c-named-field-vectors.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59c-*.py'
+      - 'morphhdl/scripts/test-increment-59c-*.py'
+      - 'morphhdl/contracts/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'morphruntime/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59c-named-field-vectors.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59c-*.py'
+      - 'morphhdl/scripts/test-increment-59c-*.py'
+      - 'morphhdl/contracts/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'morphruntime/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59c-named-field-vectors-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Named field vectors Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Record source and validate approved native changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59c/bootstrap
+          git rev-parse HEAD > target/increment-59c/head.txt
+          git archive HEAD | gzip > target/increment-59c/source.tar.gz
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          bash morphhdl/scripts/check-typed-vec-boundary.sh
+          python3 morphhdl/scripts/check-increment-59c-source-review.py --self-test
+          python3 morphhdl/scripts/check-increment-59c-source-review.py
+          python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+          python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py --self-test
+      - name: Bootstrap repository-pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/increment-59c/bootstrap"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59c/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Run new and inherited contracts and generate independent native references twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59c"
+          bootstrap="$output/bootstrap"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
+            "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/a" \
+            "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 120 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          suites = ['NamedFieldVecTests', 'TypedParameterizedVecTests',
+                    'NamedFieldVecCollisionTests', 'NamedFieldVecHierarchyTests', 'NamedFieldPackedAliasTests',
+                    'TypedParameterizedVecFormalEquivalenceTests',
+                    'TypedVecShapeTests', 'ParameterizedVerilogFieldLayoutTests',
+                    'StructuralIdentityAdversarialTests',
+                    'TypedBalancedReductionPublicationSafetyTests',
+                    'TypedBalancedReductionCallbackPolicyTests']
+          for name in suites:
+              files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(files) == 1, (name, files)
+              suite = ET.parse(files[0]).getroot()
+              assert int(suite.get('tests', '0')) > 0, (name, suite.attrib)
+              assert all(int(suite.get(key, '0')) == 0 for key in ('failures', 'errors', 'skipped')), (name, suite.attrib)
+              if name == 'NamedFieldVecTests':
+                  assert int(suite.get('tests')) == 11, suite.attrib
+              print(name, suite.attrib)
+          PY
+      - name: Qualify both layouts across independent fields and nested dimensions
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59c"
+          python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py "$output/a" "$output/b"
+          printf '%s\n' '59c: named and legacy layouts; 32 common WIDTH/COUNT, 36 independent nested dimension, 16 register/hierarchy and 16 Stream/Flow cases; 16 named mixed-direction Vec/Stream cases; one singleton-default candidate per layout/topology; exact native leaf widths; deterministic generation; strict Verilog-2001 Icarus simulation, Verilator lint, full Yosys synthesis, native-reference equivalence, arbitrary-state register convergence and temporal induction; genuine field/order/offset/cross-Vec and generated parent/child binding counterexamples. The finite matrix is not universal parameter quantification.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Print failures
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in sorted(Path('morphhdl/target').rglob('*.xml')):
+              try:
+                  suite = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in suite.iter('testcase'):
+                  for node in case:
+                      if node.tag in ('failure', 'error'):
+                          print('FAILED:', case.get('classname'), case.get('name'))
+                          print(node.attrib)
+                          print((node.text or '')[:6000])
+          logs = sorted(Path('target/increment-59c/a/checks').rglob('*.log'), key=lambda p:p.stat().st_mtime)
+          for path in logs[-3:]:
+              print('HDL LOG:', path)
+              print('\n'.join(path.read_text(errors='replace').splitlines()[-100:]))
+          PY
+      - name: Preserve exact-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59c-named-field-vectors-${{ matrix.scala }}
+          path: |
+            target/increment-59c
+            target/increment-59c-source-scope
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

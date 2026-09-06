@@ -569,9 +569,10 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence.",
+      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing.",
       "edits": []
     },
     {
@@ -713,9 +714,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry, static-index assignment evidence and scoped inherited packing through the authoritative native Vec algorithms.",
       "edits": [
         {
           "id": "vec-typed-geometry-01",
@@ -796,14 +798,42 @@
           ]
         },
         {
+          "id": "vec-static-index-assignment-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
+          "reason": "Capture exact complete static-index scalar assignment/control evidence while delegating through the existing native composite assignment path and restoring that path after exceptions.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "leaf.compositAssignFrom(that, target, kind)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordStaticWrite",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "finally leaf.compositeAssign = active",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-07",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Retain physical native carrier geometry and scope nested inherited width queries so inner Vec logical widths cannot truncate the carrier.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "super.getBitsWidth",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.getBitsWidth)",
               "count": 1
             }
           ]
@@ -812,11 +842,16 @@
           "id": "vec-typed-geometry-08",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec indexed access",
-          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "reason": "Expose logical Vec geometry normally and use physical carrier geometry only inside exact scoped inherited native packing.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "logicalBitsWidthOf",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (ParameterizedVec.usesNativeCarrierGeometry) carrierBitsWidth",
               "count": 1
             }
           ]
@@ -1033,11 +1068,21 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "reason": "Capture inherited packed conversions and Vec compatibility operations; scope nested native carrier packing while preserving exact source/target assignment lineage.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedVec.validatePackedAssignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.asBits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.withNativeCarrierGeometry(super.assignFromBits(carrier))",
               "count": 1
             }
           ]

@@ -57,6 +57,20 @@ def run(command: list[str], cwd: Path, label: str, timeout: int = 240) -> str:
 
 def restore_60d_source(root: Path, path: str, source: str) -> str:
     """Undo only exact reviewed 60e spans; inherited 60c/60d guards still run."""
+    # Named Vec publication extends two external files shared with 60e. Undo
+    # only its reviewed byte spans first; all original 60e spans and frozen
+    # baseline comparisons below remain authoritative. Historical worktrees
+    # without 59c keep their original restoration path.
+    named_checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    named_contract = root / "morphhdl/contracts/increment-59c-source-review.json"
+    if named_checker.is_file() or named_contract.is_file():
+        require(named_checker.is_file() and named_contract.is_file(),
+                "59c source-review checker or contract is missing")
+        spec = importlib.util.spec_from_file_location("named_vec_source_review", named_checker)
+        named = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(named)
+        source = named.restore_source(root, path, source)
     contract = json.loads((root / "morphhdl/contracts/increment-60e-boundary-edits.json").read_text())
     require(contract["base"] == BASE, "60e restoration baseline changed")
     edits = [entry for entry in contract["edits"] if entry["path"] == path]

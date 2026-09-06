@@ -1106,8 +1106,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           s"canonical pulled Vec of instance '$instanceName' lost its retained shape"
         )
       }
-      val dimensions =
-        canonicalShape.depth +: canonicalShape.elementLeaves.map(_.width)
+      val dimensions = canonicalShape.geometryExpressions
       val canonicalFormals = exactVecFormals(
         canonicalVector,
         canonicalRegistryFormals
@@ -1192,7 +1191,45 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 ) =>
               read
           }
-          if (reads.nonEmpty) {
+          // Whole native Vec assignment/auto-connect is also an aggregate
+          // boundary. A depth-only parameter has no scalar width port to
+          // constrain it, so retain the complete Vec relation by exact live
+          // statements instead of asking for a fabricated scalar formal.
+          val boundaries = ParameterizedVec.vectorsOf(parent).flatMap { parentVector =>
+            val parentLeaves = vectorLeaves(parentVector)
+            val childOwned = ParameterizedVec.operationsOf(actualVector).collect {
+              case value: ParameterizedVecWholeAssignment if value.source eq parentVector => value.assignments
+              case value: ParameterizedVecAutoConnect if value.peer eq parentVector => value.assignments
+            }
+            val parentOwned = ParameterizedVec.operationsOf(parentVector).collect {
+              case value: ParameterizedVecWholeAssignment if value.source eq actualVector => value.assignments
+              case value: ParameterizedVecAutoConnect if value.peer eq actualVector => value.assignments
+            }
+            (childOwned ++ parentOwned).filter { evidence =>
+              evidence.size == actualLeaves.size && parentLeaves.size == actualLeaves.size &&
+              evidence.forall(statement => assignments.exists(_ eq statement) &&
+                (statement.parentScope eq evidence.head.parentScope) &&
+                ((statement.parentScope eq parent.dslBody) || actualLeaves.forall(leaf => leaf.isOutput && !leaf.isInput)) &&
+                (statement.target eq statement.finalTarget)) &&
+              actualLeaves.zip(parentLeaves).forall { case (childLeaf, parentLeaf) =>
+                val input = childLeaf.isInput && !childLeaf.isOutput && !childLeaf.isInOut
+                val output = childLeaf.isOutput && !childLeaf.isInput && !childLeaf.isInOut
+                (input || output) && (parentLeaf.component eq parent) && !parentLeaf.isInOut &&
+                evidence.count { statement =>
+                  val target = if (input) childLeaf else parentLeaf
+                  val source = if (input) parentLeaf else childLeaf
+                  (statement.finalTarget eq target) && (statement.source match {
+                    case actual: BaseType => actual eq source
+                    case _ => false
+                  })
+                } == 1
+              }
+            }.map { evidence =>
+              ParameterizedVec.requireCompatible(actualVector, parentVector)
+              evidence
+            }
+          }
+          if (reads.nonEmpty || boundaries.nonEmpty) {
             present = true
             val actual = formalPair
               .flatMap { case (canonicalBinding, actualBinding) =>
