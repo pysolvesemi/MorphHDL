@@ -528,6 +528,112 @@ def proof_setup(paths):
     return 'read_verilog ' + ' '.join(quoted(path) for path in paths) + '\nprep -top miter -flatten\ndffunmap\nmemory_map\nopt_clean\ncheck -assert\n'
 
 
+def output_partitions(case, layout):
+    """A fixed complete cover; packed legacy carriers use smaller SAT goals."""
+    if case['kind'] != 'nested' or layout not in ('named', 'legacy'):
+        raise RuntimeError('output partitioning is restricted to nested Vec qualification')
+    result = []
+    for name, width in schema(case)[1].items():
+        step = width if layout == 'named' else 32
+        result.extend(dict(output=name, low=low, width=min(step, width - low))
+                      for low in range(0, width, step))
+    return result
+
+
+def check_partition_cover(case, layout, partitions):
+    """Validate all output bits independently, then require canonical order."""
+    outputs = schema(case)[1]
+    if not isinstance(partitions, list) or not partitions:
+        raise RuntimeError('missing nested output partition inventory')
+    actual = []
+    for part in partitions:
+        if not isinstance(part, dict) or set(part) != {'output', 'low', 'width'}:
+            raise RuntimeError('invalid nested output partition record')
+        name, low, width = part['output'], part['low'], part['width']
+        if (not isinstance(name, str) or name not in outputs or
+                type(low) is not int or type(width) is not int or
+                low < 0 or width <= 0 or low + width > outputs[name]):
+            raise RuntimeError('unknown or out-of-range nested output partition')
+        actual.extend((name, bit) for bit in range(low, low + width))
+    expected = {(name, bit) for name, width in outputs.items() for bit in range(width)}
+    if len(actual) != len(set(actual)) or set(actual) != expected:
+        raise RuntimeError('nested partitions do not cover every output bit exactly once')
+    if partitions != output_partitions(case, layout):
+        raise RuntimeError('nested output partitions changed canonical boundaries or order')
+
+
+def check_partition_evidence(case, layout, records):
+    if not isinstance(records, list) or any(
+            not isinstance(record, dict) or
+            set(record) != {'output', 'low', 'width', 'proof'} or record['proof'] != 'PASS'
+            for record in records):
+        raise RuntimeError('missing or unsuccessful nested output partition evidence')
+    check_partition_cover(case, layout, [{key: record[key] for key in ('output', 'low', 'width')}
+                                        for record in records])
+
+
+def partitioned_miter(case, layout, partitions):
+    check_partition_cover(case, layout, partitions)
+    inputs, _ = schema(case)
+    flags = [f'bad_part_{index:03d}' for index in range(len(partitions))]
+    if set(flags) & set(inputs):
+        raise RuntimeError('nested partition proof flag collides with a native input')
+    ports = [f'input wire [{width - 1}:0] {name}' for name, width in inputs.items()]
+    ports += ['output wire ' + flag for flag in flags]
+    lines = ['module miter(' + ',\n'.join(ports) + ');']
+    lines += instance(case, 'reference', layout, 'g')
+    lines += instance(case, 'candidate', layout, 'c')
+    for flag, part in zip(flags, partitions):
+        name, low, width = part['output'], part['low'], part['width']
+        lines.append(f'assign {flag} = (|({slice_("g_" + name, low, width)} ^ '
+                     f'{slice_("c_" + name, low, width)}));')
+    return '\n'.join(lines + ['endmodule', '']), flags
+
+
+def prove_nested_outputs(case, layout, reference, candidate, work):
+    """Prove a conjunction of mandatory disjoint goals with all inputs free.
+
+    One prepared RTLIL graph contains every original comparison. Each SAT
+    process reloads that exact immutable graph, demotes only the other proof
+    output flags, and removes irrelevant logic with ordinary Yosys passes.
+    Width reduction preserves packed-word semantics while narrowing each cone.
+    """
+    directory = work / 'output-proofs'
+    directory.mkdir(parents=True, exist_ok=True)
+    evidence_path = directory / 'evidence.json'
+    evidence_path.unlink(missing_ok=True)
+    partitions = output_partitions(case, layout)
+    text, flags = partitioned_miter(case, layout, partitions)
+    top, prepare, intermediate = (directory / name for name in
+                                  ('complete-miter.v', 'prepare.ys', 'complete.il'))
+    intermediate.unlink(missing_ok=True)
+    top.write_text(text)
+    prepare.write_text(proof_setup([reference, candidate, top]) +
+                       'write_rtlil ' + quoted(intermediate) + '\n')
+    command(['yosys', '-Q', '-T', '-s', str(prepare)], directory / 'prepare.log')
+    intermediate_hash = hashlib.sha256(intermediate.read_bytes()).hexdigest()
+    records = []
+    for flag, part in zip(flags, partitions):
+        label = f'{part["output"]}_{part["low"]}_{part["width"]}'
+        script = directory / (label + '.ys')
+        remove = ' '.join('miter/' + other for other in flags if other != flag)
+        script.write_text('read_rtlil ' + quoted(intermediate) + '\n' +
+                          ('delete -output ' + remove + '\n' if remove else '') +
+                          'opt_clean\nwreduce\nopt_clean\ncheck -assert\n' +
+                          f'sat -prove {flag} 0 -verify -timeout 120 -show-inputs -show-outputs\n')
+        proof = command(['yosys', '-Q', '-T', '-s', str(script)], directory / (label + '.log'))
+        if PASS not in proof or COUNTEREXAMPLE in proof:
+            raise RuntimeError('nested output partition lacks definitive PASS: ' + label)
+        if hashlib.sha256(intermediate.read_bytes()).hexdigest() != intermediate_hash:
+            raise RuntimeError('prepared nested graph changed during partition proof')
+        records.append(dict(part, proof='PASS'))
+    check_partition_evidence(case, layout, records)
+    evidence_path.write_text(json.dumps(dict(status='complete-output-conjunction',
+                                            prepared_sha256=intermediate_hash,
+                                            partitions=records), indent=2) + '\n')
+    return records
+
+
 def qualify_case(case, root, replay, layouts):
     """Run unchanged strict checks in this case's independent artifact paths."""
     evidence = []
@@ -563,14 +669,18 @@ def qualify_case(case, root, replay, layouts):
         simulation = command(['vvp', str(executable)], work / 'simulation.log')
         if SIM_PASS not in simulation or SIM_FAIL in simulation:
             raise RuntimeError('simulation did not produce definitive PASS: ' + label)
-        top, script = work / 'miter.v', work / 'proof.ys'
-        top.write_text(miter(case, layout))
-        temporal = '-seq 2 -set-at 1 enable 1 -prove-skip 1 ' if case['kind'] == 'storage' else ''
-        script.write_text(proof_setup([reference, candidate, top]) +
-                          f'sat {temporal}-prove bad 0 -verify -timeout 120 -show-inputs -show-outputs\n')
-        proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'proof.log')
-        if PASS not in proof or COUNTEREXAMPLE in proof:
-            raise RuntimeError('formal did not produce definitive PASS: ' + label)
+        partition_evidence = None
+        if case['kind'] == 'nested':
+            partition_evidence = prove_nested_outputs(case, layout, reference, candidate, work)
+        else:
+            top, script = work / 'miter.v', work / 'proof.ys'
+            top.write_text(miter(case, layout))
+            temporal = '-seq 2 -set-at 1 enable 1 -prove-skip 1 ' if case['kind'] == 'storage' else ''
+            script.write_text(proof_setup([reference, candidate, top]) +
+                              f'sat {temporal}-prove bad 0 -verify -timeout 120 -show-inputs -show-outputs\n')
+            proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'proof.log')
+            if PASS not in proof or COUNTEREXAMPLE in proof:
+                raise RuntimeError('formal did not produce definitive PASS: ' + label)
         if case['kind'] == 'storage':
             # The previous proof shows convergence after one load from
             # arbitrary independent register states. Induction additionally
@@ -583,22 +693,47 @@ def qualify_case(case, root, replay, layouts):
                 raise RuntimeError('register/hierarchy proof lacks definitive induction SUCCESS: ' + label)
         if candidate_bytes != candidate.read_bytes():
             raise RuntimeError('tool specialization rewrote the shared candidate')
-        evidence.append(dict(case=label, layout=layout, samples=len(samples(case)), proof='PASS',
-                             candidate_sha256=hashlib.sha256(candidate_bytes).hexdigest(),
-                             reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest()))
+        record = dict(case=label, layout=layout, samples=len(samples(case)), proof='PASS',
+                      candidate_sha256=hashlib.sha256(candidate_bytes).hexdigest(),
+                      reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest())
+        if partition_evidence is not None:
+            record['output_partitions'] = partition_evidence
+        evidence.append(record)
     return evidence
 
 
-def ordered_results(function, items, jobs):
-    """Bound active workers, surface failures promptly, yield in input order."""
+def ordered_results(function, items, jobs, cost=None):
+    """Bound concurrent memory costs and yield every result in input order."""
     if not 1 <= jobs <= 8:
         raise RuntimeError('jobs must be between 1 and 8')
+    items = list(items)
+    costs = [1 if cost is None else cost(item) for item in items]
+    if any(type(value) is not int or value < 1 or value > jobs for value in costs):
+        raise RuntimeError('case worker cost must be between one and the complete worker budget')
     if jobs == 1:
         yield from map(function, items)
         return
+    from threading import Condition
+    budget, used = Condition(), 0
+
+    def run(item, required):
+        nonlocal used
+        # Acquire a whole case budget atomically. Taking several semaphore
+        # permits one at a time could deadlock two simultaneous heavy cases.
+        with budget:
+            budget.wait_for(lambda: used + required <= jobs)
+            used += required
+        try:
+            return function(item)
+        finally:
+            with budget:
+                used -= required
+                budget.notify_all()
+
     workers = ThreadPoolExecutor(max_workers=jobs)
     try:
-        futures = {workers.submit(function, item): index for index, item in enumerate(items)}
+        futures = {workers.submit(run, item, required): index
+                   for index, (item, required) in enumerate(zip(items, costs))}
         ready, next_index = {}, 0
         for future in as_completed(futures):
             ready[futures[future]] = future.result()
@@ -613,6 +748,13 @@ def ordered_results(function, items, jobs):
         workers.shutdown(wait=True, cancel_futures=True)
 
 
+def case_worker_cost(case, jobs):
+    # Measured large Access synthesis approaches 3.6 GiB per process. Keep the
+    # two widest/deepest fixtures exclusive on smaller CI runners while other
+    # independent cases retain the requested concurrency.
+    return jobs if case['kind'] == 'access' and pixel_bits(case) * case['count'] >= 1024 else 1
+
+
 def check_case_evidence(case, layouts, records):
     required = [(stem(case), layout) for layout in layouts
                 if not (case['kind'] == 'mixed' and layout == 'legacy')]
@@ -621,6 +763,11 @@ def check_case_evidence(case, layouts, records):
     actual = [(record.get('case'), record.get('layout')) for record in records]
     if actual != required or any(record.get('proof') != 'PASS' for record in records):
         raise RuntimeError('incomplete or reordered case evidence: ' + stem(case))
+    for record in records:
+        if case['kind'] == 'nested':
+            check_partition_evidence(case, record['layout'], record.get('output_partitions'))
+        elif 'output_partitions' in record:
+            raise RuntimeError('unexpected partition evidence outside the nested topology')
 
 
 def nested_mutation_constraints(case, mutation):
@@ -705,7 +852,8 @@ def qualify(root, replay, only=None, layout_filter=None, jobs=1):
 
     # Tool outputs belong to checks/<layout>/<case>; shared RTL is read only.
     # Results and the final ledger retain manifest order at every worker count.
-    for records in ordered_results(run_case, selected, jobs):
+    for records in ordered_results(run_case, selected, jobs,
+                                   cost=lambda case: case_worker_cost(case, jobs)):
         evidence.extend(records)
         for record in records:
             print(f'PASS {record["layout"]} {record["case"]}: strict tools, native equivalence, independent simulation', flush=True)
@@ -763,7 +911,7 @@ def stem(case):
 
 
 def scheduler_self_test():
-    from threading import Event, Lock
+    from threading import Barrier, Event, Lock
 
     lock, second_done = Lock(), Event()
     seen, completed = [], []
@@ -808,6 +956,47 @@ def scheduler_self_test():
         assert str(error) == 'genuine worker exception'
     else:
         raise AssertionError('scheduler swallowed a worker exception')
+
+    # A measured-memory-heavy case must exclude all other tools, while two
+    # ordinary cases must still make progress concurrently. Check observable
+    # overlap and ordered results without relying on timing or sleeps.
+    first_pair = Barrier(2)
+    active_items, overlapping_normals, seen_heavy = set(), [], []
+    tasks = ['normal-a', 'normal-b', 'heavy-a', 'normal-c', 'heavy-b', 'normal-d']
+
+    def mixed_cost_worker(item):
+        with lock:
+            assert not any(value.startswith('heavy') for value in active_items)
+            if item.startswith('heavy'):
+                assert not active_items, 'heavy case overlapped another tool'
+                seen_heavy.append(item)
+            active_items.add(item)
+            if len(active_items) == 2:
+                overlapping_normals.append(tuple(sorted(active_items)))
+        if item in ('normal-a', 'normal-b'):
+            first_pair.wait(timeout=5)
+        with lock:
+            active_items.remove(item)
+        return item + '-complete'
+
+    weighted = list(ordered_results(mixed_cost_worker, tasks, 2,
+                                    cost=lambda item: 2 if item.startswith('heavy') else 1))
+    assert weighted == [item + '-complete' for item in tasks]
+    assert overlapping_normals and sorted(seen_heavy) == ['heavy-a', 'heavy-b']
+    assert not active_items
+    for value in (0, 3, True):
+        try:
+            list(ordered_results(lambda item: item, [0], 2, cost=lambda item: value))
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('scheduler accepted invalid case cost')
+    heavy = dict(kind='access', width=32, blue_width=7, count=17, inner=1)
+    assert case_worker_cost(heavy, 2) == 2
+    assert case_worker_cost(dict(heavy, count=16), 2) == 2
+    assert case_worker_cost(dict(heavy, count=9), 2) == 1
+    assert case_worker_cost(dict(heavy, kind='nested'), 2) == 1
+    assert case_worker_cost(heavy, 1) == 1
 
     case = dict(kind='access', width=5, blue_width=3, count=3, inner=1)
     records = [dict(case=stem(case), layout=layout, proof='PASS') for layout in ('named', 'legacy')]
@@ -892,9 +1081,79 @@ def nested_oracle_self_test():
     assert total == 16576, total
 
 
+def partition_self_test():
+    case = dict(kind='nested', width=32, blue_width=7, count=5, inner=3,
+                reference_module='Reference')
+    for layout, count in (('named', 20), ('legacy', 116)):
+        parts = output_partitions(case, layout)
+        assert len(parts) == count
+        check_partition_cover(case, layout, parts)
+        records = [dict(part, proof='PASS') for part in parts]
+        check_partition_evidence(case, layout, records)
+        text, flags = partitioned_miter(case, layout, parts)
+        assert len(flags) == len(set(flags)) == count
+        assert text.count('assign bad_part_') == count
+        assert '-set' not in text
+        for name in schema(case)[0]:
+            assert f' {name}' in text
+        for part, flag in zip(parts, flags):
+            expected = (f'assign {flag} = (|(g_{part["output"]}[{part["low"]} +: {part["width"]}] ^ '
+                        f'c_{part["output"]}[{part["low"]} +: {part["width"]}]));')
+            assert expected in text
+        bad_inventories = [None, [], records[:-1], records + records[:1], list(reversed(records)),
+                           [dict(records[0], proof='UNKNOWN')] + records[1:],
+                           [dict(records[0], output='unrecognized')] + records[1:],
+                           [dict(records[0], low=-1)] + records[1:],
+                           [dict(records[0], low=True)] + records[1:],
+                           [dict(records[0], width=0)] + records[1:],
+                           [dict(records[0], width=schema(case)[1][records[0]['output']] + 1)] + records[1:],
+                           [dict(records[0], unexpected='extra')] + records[1:],
+                           [{key: value for key, value in records[0].items() if key != 'proof'}] + records[1:]]
+        if layout == 'legacy':
+            split_index = next(index for index, record in enumerate(records) if record['low'] > 0)
+            overlapping = [dict(record) for record in records]
+            overlapping[split_index]['low'] = 0
+            bad_inventories.append(overlapping)
+        for broken in bad_inventories:
+            try:
+                check_partition_evidence(case, layout, broken)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('partition gate accepted missing, duplicate, overlapping, unordered or failed evidence')
+            outer = dict(case=stem(case), layout=layout, proof='PASS', output_partitions=broken)
+            try:
+                check_case_evidence(case, (layout,), [outer])
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('case ledger accepted invalid nested partition proof evidence')
+    from tempfile import TemporaryDirectory
+    from unittest.mock import patch
+    with TemporaryDirectory(prefix='59c-stale-partitions-') as temporary:
+        work = Path(temporary)
+        directory = work / 'output-proofs'
+        directory.mkdir()
+        stale = directory / 'evidence.json'
+        stale.write_text('{"status":"stale-success"}')
+        intermediate = directory / 'complete.il'
+        intermediate.write_text('stale prepared graph')
+        def fail_preparation(*args, **kwargs):
+            raise RuntimeError('genuine preparation failure')
+        with patch.dict(globals(), {'command': fail_preparation}):
+            try:
+                prove_nested_outputs(case, 'named', work / 'native.v', work / 'candidate.v', work)
+            except RuntimeError as error:
+                assert str(error) == 'genuine preparation failure'
+            else:
+                raise AssertionError('partition preparation failure did not propagate')
+        assert not stale.exists() and not intermediate.exists(), 'failed preparation retained stale proof evidence'
+
+
 def self_test():
     scheduler_self_test()
     nested_oracle_self_test()
+    partition_self_test()
     for kind, width, blue, count, inner in [('access', 5, 3, 3, 1), ('nested', 5, 3, 3, 2), ('nested', 1, 5, 1, 3),
                                            ('storage', 5, 3, 3, 1), ('streams', 8, 1, 3, 1), ('mixed', 5, 3, 3, 1)]:
         case = dict(kind=kind, width=width, blue_width=blue, count=count, inner=inner, reference_module='Reference')
@@ -945,7 +1204,7 @@ def self_test():
             pass
         else:
             raise AssertionError('candidate ABI checker accepted wrong top defaults or a signed output carrier')
-    print('PASS: independent native mapping, dimensions, stimulus, semantic model, mutation and bounded scheduler self-tests')
+    print('PASS: independent native mapping, dimensions, stimulus, semantic model, mutation, mandatory output partition and bounded scheduler self-tests')
 
 
 def main():

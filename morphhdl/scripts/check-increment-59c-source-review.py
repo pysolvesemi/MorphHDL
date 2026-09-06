@@ -20,7 +20,7 @@ from pathlib import Path
 
 BASE = "99b6017d7ac69112a088680457029623620224d3"
 CONTRACT = "morphhdl/contracts/increment-59c-source-review.json"
-CONTRACT_SHA256 = "0b39a3cdfdd00fb6ada6339148d32196e5429accadcb6bf2689264b22fba3837"
+CONTRACT_SHA256 = "bdbca36b2f53347f6f213d297e4a577ed8a644f480c01af9db898a1225a79859"
 PATHS = (
     "core/src/main/scala/spinal/core/ParameterizedVec.scala",
     "core/src/main/scala/spinal/core/Vec.scala",

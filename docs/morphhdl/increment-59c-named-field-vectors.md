@@ -233,6 +233,22 @@ cell, then checks writes, enable holds and full-width invalid addresses against
 an independent Python state update. Both enable and axis mutations must produce
 real SAT counterexamples whose before/after states validate the intended fault.
 
+Nested combinational equivalence is the conjunction of a complete, ordered
+cover of canonical output bits. The named layout proves each field port; the
+legacy layout proves consecutive chunks of at most 32 bits. Each case prepares
+one immutable RTLIL checkpoint from the unchanged candidate/reference miter,
+then removes unrelated outputs and reduces unused widths for each proof. Every
+partition must return a definitive pass, with all original inputs unconstrained.
+The ledger rejects missing, duplicate, reordered or incorrectly sized partitions
+and records the checkpoint and source hashes. Timeouts remain failures: each
+solver has 120 seconds and each tool invocation has 180 seconds.
+
+The runner preserves manifest order at every worker count. Access cases with
+at least 1,024 payload bits reserve the complete worker budget because measured
+synthesis memory for one such case can exceed 3.5 GiB. Other cases may run
+concurrently. The workflow allows 75 minutes for the enlarged complete matrix;
+this does not extend any individual proof or tool deadline.
+
 Inputs must drive fields, elements and distinct Vecs independently. References
 must assert native scalar kinds and exact result widths without adapting away
 a shape mismatch. Tool errors, timeouts, UNKNOWN and skipped cases do not count

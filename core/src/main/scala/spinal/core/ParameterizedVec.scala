@@ -487,7 +487,7 @@ object ParameterizedVec {
     reap()
     retained.get(new ParameterizedVecIdentityRef(vector, null)).getOrElse {
       throw new IllegalStateException("typed Vec write invocation has no retained shape")
-    }.completedWriteInvocations += invocation
+    }.completedWriteInvocations += selected -> operation
     val captured = writeInvocations.get()
     if (captured != null) captured += invocation
   }
@@ -508,7 +508,9 @@ object ParameterizedVec {
 
   private final class Entry(val shape: ParameterizedVecShape) {
     val operations = ArrayBuffer.empty[ParameterizedVecOperation]
-    val completedWriteInvocations = ArrayBuffer.empty[ParameterizedVecWriteInvocation]
+    // The owning Vec is the registry's weak key. Do not retain that key again
+    // through the journal value; recover it only while returning a snapshot.
+    val completedWriteInvocations = ArrayBuffer.empty[(BaseType, ParameterizedVecOperation)]
     val formalBindings = ArrayBuffer.empty[ParameterizedVecFormalBinding]
   }
 
@@ -1037,7 +1039,9 @@ object ParameterizedVec {
       reap()
       retained
         .get(new ParameterizedVecIdentityRef(vector, null))
-        .map(_.completedWriteInvocations.toVector)
+        .map(_.completedWriteInvocations.toVector.map { case (selected, operation) =>
+          ParameterizedVecWriteInvocation(vector, selected, operation)
+        })
         .getOrElse(Vector.empty)
     }
   }

@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "47db56ebd73d8e06a23ab4ea8a20133480b90319"
+      "approved_tree": "e8d9e56bdc3b59db4e3242c3bc5c23c28e6cc6d7"
     },
     {
       "path": "idslpayload/src/main",
@@ -1228,8 +1228,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "0e054f6bd3d57b81deb061544a15fffc048f09e7",
-        "sha256": "7787922ea42d27a97caf2a3b032335c540f9869de13edc4fca68839d76ab36f5"
+        "blob": "1083f1067abaf034372ab0bf2520947b6475c492",
+        "sha256": "db959410994b7e9add989eed28546d6441c585e031cb434ea883ca84cda27efb"
       },
       "edits": []
     },

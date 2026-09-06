@@ -40,7 +40,9 @@ jobs:
   qualify:
     name: Named field vectors Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # The expanded nested matrix proves every output partition; each tool and
+    # solver retains its strict 180-second and 120-second deadline.
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
