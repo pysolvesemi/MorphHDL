@@ -713,11 +713,320 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
   source-bound dual-Scala proofs and explicit rejected cases are recorded in
   [the 59b completion record](increment-59b-parameterized-reduce-balanced-tree.md).
   Completion head `b0a4388e3babbc01500a620eefe6c0965e9e6343` passed its CI.
-  The later integration of merged 60e base `dc8cab41cf3fd41b026ba7359f30cb596b14d015`
-  requires fresh combined-head CI on [PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157)
-  before merge; the checkbox and qualified safe-graph scope remain unchanged.
-  Historical completion evidence does not claim the new combined head is qualified
-  or that PR #157 has merged.
+  The combined 59b/60e final head `33105c07fd0f93d3335469120381b0c959bb9e86`
+  subsequently qualified and merged through
+  [PR #157](https://github.com/pysolvesemi/MorphHDL/pull/157) as
+  `feca6b9d599d97af92ed9f6a8bc871ef008c395e`. The completed 59b checkbox refers
+  only to its documented safe-graph subset; the extensions below remain open.
+
+### Parallel Vec and balanced-reduction extensions (59c through 59i)
+
+The following are new unchecked capabilities, not a reopening of the qualified
+59b safe-graph subset. They cover the remaining field-preserving interfaces,
+symbolic result widths, nested composite reductions, callback expressiveness,
+register bridges and structural ownership discussed after 59b.
+
+**Dependency and parallel-start rules:**
+
+| Increment | Required merged dependencies | Parallel work |
+| --- | --- | --- |
+| 59c | 59b (including its inherited 53f Vec foundation) | Independent of 59d through 59h and the unfinished Increment 60 children |
+| 59d | 59b | Independent of 59c and 59e through 59h |
+| 59e | 59b | Independent of 59c, 59d and 59f through 59h |
+| 59f | 59b | Independent of 59c through 59e, 59g and 59h |
+| 59g | 59b | Independent of 59c through 59f and 59h |
+| 59h | 59b | Independent of 59c through 59g |
+| 59i | 59c, 59d, 59e, 59f, 59g and 59h | Final cross-feature integration and qualification join |
+
+59c through 59h may each start from the current merged base. Numbering does not
+create a serial chain. Each track includes the minimal typed propagation,
+capture/admission and native lowering needed to qualify its own standalone
+surface against 59b; its acceptance must not silently require an unmerged sibling.
+They must agree on shared exact-object shape, width, capture and owner contracts,
+reuse existing infrastructure and reconcile overlapping edits on the latest
+integration branch. Full combinations belong to 59i. The existing Increment 60
+dependency chain is unchanged and may proceed independently.
+
+**Common architecture and acceptance rules for these extensions:**
+
+- Keep ordinary `Vec(...).reduceBalancedTree(op, levelBridge)` and component
+  source authoritative. Examples are qualification fixtures, never class-name,
+  field-name, callback-name, source-position or emitted-text recognizers. Do not
+  replace native algorithms with an adder, multiplier, RGB tree or handwritten
+  RTL implementation.
+- Retain recursive field paths, native leaf kinds, directions, exact symbolic
+  widths/counts, parameter-root identity and ownership before normalization.
+  Generic native IR transfer rules must determine acceptance; matching concrete
+  witnesses or a few successful callback executions cannot supply that evidence.
+- Preserve the native helper's exact pairing order, singleton bypass, odd-tail
+  bridge calls and parameter-dependent active levels. Do not pad a tail, insert
+  a neutral operand, reassociate an expression or change latency without proving
+  identical native behavior, result shape and width. Non-associativity alone is
+  not evidence of an unsafe host callback when the exact native topology is
+  preserved; any actual reassociation needs a separate algebraic proof.
+- Preserve the ordinary concrete `Int`/`Boolean` APIs and parameter-free
+  `SpinalVerilog` output. Keep the strict Verilog-2001 target, native arithmetic
+  and clocked emission, typed signedness boundaries and approved-native-change
+  audit. Packed multi-element transport is not one signed scalar. `Mem` remains
+  native memory; these Vec extensions must not repack memory storage.
+- Every implementation needs its own dual-Scala tests, deterministic generation,
+  Icarus simulation, strict Verilog-2001 parsing, Verilator lint, full Yosys
+  synthesis, independent native-reference specialization equivalence, genuine
+  mutation counterexamples and applicable inherited gates. Use WIDTH in
+  `{1, 5, 8, 32}` and COUNT in `{1, 2, 3, 5, 8, 9, 16, 17}` as the common
+  minimum scalar matrix, extended for independent field/nested dimensions and
+  each supported operation's legal domain. Prove positive finite symbolic
+  geometry over the declared domain; a finite formal matrix is not universal
+  formal quantification over all parameter values.
+- Generate one parameterized candidate per declared static topology/profile,
+  including a COUNT=1 default that permits larger overrides. Independently
+  elaborate the ordinary native reference for each specialization; do not
+  regenerate the candidate per override or build the reference from candidate
+  replay. Different interfaces may use independently specified wiring-only
+  wrappers. Assert exact native result widths and leaf types as well as values;
+  do not hide a shape mismatch by truncating or widening both sides of a miter.
+  Drive fields, elements and distinct Vecs independently so swapped
+  channels or cross-Vec wiring cannot be hidden by equal test inputs.
+- Retain graph-mutation, foreign-write, partial-driver, unknown-call/effect,
+  ambiguous-width and illegal-domain rejection controls. Host-state mutation,
+  unbounded elaboration and uncertified effects remain rejected. Parser/tool
+  errors, timeouts, UNKNOWN and skipped tests are not passing proof or mutation
+  evidence. Planning these tasks does not mark any implementation complete.
+
+- [ ] **Increment 59c — Field-preserving parameterized Vec-of-Bundle interfaces**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59d through 59h or unfinished Increment 60 children.
+
+  Add a generic field-preserving publication profile for the same source
+  `val pixels = in Vec(Rgb(width), count)`. Derive one packed vector per scalar
+  element-field path from retained typed shape metadata. For the RGB example,
+  the required new-profile interface is equivalent to:
+
+  ```verilog
+  input wire [(WIDTH * COUNT)-1:0] pixels_red;
+  input wire [(WIDTH * COUNT)-1:0] pixels_green;
+  input wire [(WIDTH * COUNT)-1:0] pixels_blue;
+  ```
+
+  Do not require rewriting `Vec[Bundle]` as `Bundle[Vec]`, calling `asBits`,
+  supplying a layout map, or teaching the compiler about RGB. A scalar
+  `Vec[UInt]` retains one WIDTH*COUNT carrier. An ordinary output `Rgb` remains
+  separate WIDTH-bit `result_red`, `result_green` and `result_blue` leaves.
+
+  Recurse through nested Bundles and Vecs, retaining distinct leaf widths/types
+  and every independent Vec dimension. A nested path such as `color.red`
+  becomes a deterministic field path such as `pixels_color_red`; array
+  dimensions contribute to that leaf's packed width, not to a parameter-varying
+  list of port names. Define exact dimension ordering, element slices, legal
+  identifier escaping/collision handling and leaf directions. Preserve readable
+  field grouping on ports, internal stage/storage signals and parent/child
+  connections where these are structural Vec values.
+
+  Cover static/dynamic reads and writes, whole-Vec assignment, cloning/HardType,
+  registers, explicit packed conversions, Stream/Flow payloads, nested shapes,
+  module deduplication and named hierarchy binding. Field grouping must not
+  imply independent per-field arithmetic: callbacks may couple multiple leaves.
+  Keep explicit bit-packing semantics unchanged through wiring conversions.
+  Document the interface change and retain an explicit legacy packed-interface
+  compatibility path; qualify both layouts without altering ordinary concrete
+  SpinalVerilog. A parameter override cannot add numbered module ports.
+
+  Prove equal payload behavior against independently flattened native leaves,
+  including unequal field widths, signed leaves, count-one and odd/nested
+  shapes. Mutation controls must detect field swaps, reversed element order,
+  wrong offsets and incorrect parent/child or cross-Vec binding. This track
+  qualifies interfaces and access without waiting for composite reduction.
+
+- [ ] **Increment 59d — Generic symbolic result-width provenance and widening reductions**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59c or 59e through 59h.
+
+  Replace the equal-width-only reduction certificate with generic scalar
+  input/intermediate/result width functions derived from native typed IR.
+  Carry independent WIDTH/COUNT roots through arithmetic, resize, mux/min/max,
+  native cloning, HardType and register construction without freezing them to
+  a default Int width. Qualify natural symbolic-width min/max and RegNext paths,
+  not only inferred-construction workarounds. Every native propagation edit
+  remains mechanical, audited and concrete-compatible.
+
+  Support native `values.reduceBalancedTree(_ +^ _)` and
+  `values.reduceBalancedTree(_ * _)` through the same transfer/replay mechanism,
+  including UInt and SInt and required intermediate nodes. Addition and
+  multiplication are fixtures, not separate production reduction algorithms.
+  Retain each node/lane's actual shape: different groups at one level can have
+  different widths. In a five-element full-width product, native group widths
+  are W,W,W,W,W -> 2W,2W,W -> 4W,W -> 5W; uniform stage padding must not change
+  this native result contract.
+
+  Preserve narrower odd tails and their bridge input widths until native
+  semantics require resize, zero extension or sign extension. Derive terminal
+  widths symbolically for every legal COUNT, including COUNT=1 and alternate
+  defaults. Widening-sum W+ceil(log2(COUNT)) is an acceptance example where the
+  native helper derives it, not a universal width rule for arbitrary callbacks.
+  Keep strict Verilog-2001 constant-function support for required logarithms.
+
+  Compare every specialization with independently elaborated native results,
+  including signed extremes, carries, truncation, unequal intermediate widths
+  and transparent or already-certified scalar bridges. Mutation controls must
+  detect dropped carry/sign bits, default-frozen widths and incorrect tail
+  extension. Widening composite/expanded-bridge combinations are joined in 59i.
+
+- [ ] **Increment 59e — Recursive composite-Data balanced reduction**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59c, 59d or 59f through 59h.
+
+  Generalize scalar-only capture, ownership validation, graph replay and result
+  reconstruction to recursive compatible Data shapes: Bundles, nested Bundles,
+  Vecs inside Bundles, Bundles inside Vecs and nested Vec combinations. Preserve
+  leaf paths, direction legality, UInt/SInt/Bits/Bool interpretation, independent
+  leaf-width/count roots and complete assignment ownership at each stage.
+  Include the minimal certified composite construction/mux/assignment callback
+  admission needed for standalone publication; no blanket arbitrary-call escape
+  is allowed.
+
+  Qualify channel-wise RGB min/max, a whole-record selection using a native
+  comparison key with deterministic tie behavior, complex-valued modular
+  arithmetic and nested tagged records. A callback selecting one whole pixel
+  must keep its tag/coordinates with that pixel; do not replace it with
+  independently selected channel values. Include cross-field dependencies and
+  fields with different widths and signedness. These are examples of general
+  recursive shape handling, never named Bundle implementations.
+
+  Establish stage-invariant composite shapes first using 59b's packed boundary
+  and certified scalar leaves; use the same shape contract that 59c can expose
+  as named field vectors. This increment does not require 59c's interface layout
+  or 59d's changing stage widths to land. Preserve native singleton/odd-tail
+  behavior and qualified identity/register bridges. Reject missing fields,
+  incompatible shapes, partial/foreign drivers and unsupported cyclic shapes.
+  Prove complete records and detect leaf swaps, corrupted tags and cross-field
+  wiring. Combined named-field, widening and expanded-bridge behavior is 59i.
+
+- [ ] **Increment 59f — Generic safe callback graphs and explicit captured inputs**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59c through 59e, 59g or 59h.
+
+  Expand the narrow single-operation/capture-free callback profile through
+  generic typed expression and statement transfer rules. Support certifiable
+  multi-node compositions, typed local temporaries, comparisons, mux/when
+  alternatives, bit/part selection, concatenation, resize and native constants.
+  Use fixed-result-width unsigned saturation with a widened intermediate as
+  one fixture, built from native nodes and a typed symbolic-width constant;
+  never compute a symbolic constant via an ordinary Scala Int/BigInt witness.
+  Include user-authored pure helpers and source-equivalent callback forms when
+  their complete call/effect graph can be inspected and certified.
+
+  Admit immutable captured typed configuration and read-only hardware operands
+  only through an explicit exact-identity capture schema. Validate each capture's
+  type, width, owner, lifetime and per-stage binding, and keep runtime inputs
+  runtime. Distinguish those reads from forbidden writes to external signals or
+  mutable host state. For example, a captured input bias is not inherently
+  non-associative/unsafe, but its binding and number of native operator uses must
+  be preserved and formally proven. Unknown host fields/calls and mutation must
+  fail before effects execute; representative samples do not prove purity.
+
+  Preserve native pairing for order-sensitive callbacks such as subtraction;
+  only admit them after exact-topology specialization proof, without introducing
+  reassociation. No universal acceptance of arbitrary Scala code is promised.
+  Stage-varying or parameter-dependent code needs exact typed semantics, not a
+  finite-carrier uniformity guess. This track qualifies scalar fixed-result
+  graphs using existing or locally certified native intermediate transfers;
+  changing stage widths and composite combinations are joined in 59i.
+
+  Prove accepted helper/capture forms equivalent to separate native references,
+  test independent captured inputs and alternate parameter defaults, and retain
+  rejection/mutation controls for external writes, changed capture bindings,
+  stateful host callbacks, dropped operations and reordered operands.
+
+- [ ] **Increment 59g — Register-bridge semantics and clock/reset qualification closure**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59c through 59f or 59h.
+
+  Extend and qualify the native level-bridge graph beyond the existing
+  unconditional scalar-chain, zero/no-initializer profile. Cover identity,
+  transparent aliases, ordinary native register helpers, level-selected register
+  depths, typed width-correct nonzero initializers and certifiable local
+  register enables. Retain native clock-edge, clock-enable, synchronous and
+  asynchronous reset polarity and reset/enable precedence; do not author a
+  replacement clocked process. Use explicit legal initialization/validity
+  contracts for uninitialized state rather than silently assuming zero.
+
+  Start independently with fixed-width or already-certified scalar shapes.
+  Reconstruct each operator result and odd tail before applying its native
+  bridge, preserve zero added latency and no callback execution for COUNT=1,
+  and establish exact latency/stall behavior at every active level. Freeze and
+  prove a finite clock/reset configuration matrix; differing or unsupported
+  clock domains, unmodelled CDC and unsupported side effects remain rejected.
+
+  Require independent native simulation and sequential formal proof with reset
+  entry, enable stalls and in-flight reset cases for every admitted profile.
+  Mutations must detect an added/removed stage, wrong initial value and altered
+  reset/enable precedence. Sibling widening, composite, symbolic clone and
+  nested-owner combinations are additional 59i gates, not start dependencies.
+
+- [ ] **Increment 59h — Balanced reduction inside nested typed structural owners**
+
+  **Dependencies:** Increment 59b implemented and merged. Parallel successor;
+  no dependency on 59c through 59g.
+
+  Remove the current component-scope-only publication limit where exact typed
+  ownership can be established. Support reductions inside parameter-controlled
+  generate-if/case and finite generate-for regions, including nested regions
+  and ordinary child components with canonical parameter binding. Begin with
+  59b's supported scalar operations and bridges so this track is independently
+  implementable; mixed composite/widening/layout cases are tested in 59i.
+
+  Retain exact outer-owner, branch-domain, Vec, callback-template, index and
+  result-anchor identities through capture, retries, normalization and
+  publication. Preserve lexical ownership and driver scope, branch narrowing,
+  bound index reads, default COUNT=1 alternate branches and correct removal of
+  probe hardware. Do not rediscover owners from component or emitted names.
+  Reject sibling-scope capture leaks, escaping results, conflicting drivers,
+  invalid finite bounds and callbacks creating uncertified child hardware.
+
+  Prove independently elaborated native hierarchy/region specializations,
+  deterministic generated names and one canonical definition per logical
+  component/profile. Mutation controls must detect wrong owner or branch
+  binding, stale indices and cross-instance result wiring.
+
+- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**
+
+  **Dependencies:** Increments 59c, 59d, 59e, 59f, 59g and 59h implemented and
+  merged. This is the integration join, not a prerequisite for their own gates.
+
+  Combine named field vectors, recursive composite shapes, generic widening
+  rules, certified callback captures, registered bridges and nested typed
+  owners using one shared typed graph/shape representation. Retire superseded
+  scalar-only/packed-only restrictions only where their replacement has exact
+  coverage. Do not remove safety diagnostics for unproven cases or introduce
+  component-specific compatibility paths.
+
+  Qualify WIDTH/COUNT and independent field/inner-Vec parameter overrides across
+  unsigned/signed widening sums and products, saturation, nested record
+  selection, cross-field arithmetic, registered composites and reductions in
+  generated child hierarchies. Cover every pair of the new mechanisms and
+  representative end-to-end combinations. Compare legacy packed and new
+  field-preserving interfaces using wiring-only adapters and independent native
+  reference elaborations; arithmetic or callback code must not be duplicated
+  inside the adapters. Include existing signedness modes, hierarchy binding,
+  native library consumers and all inherited 59b proof/mutation gates.
+
+  Freeze exact default/compatibility behavior for the field-preserving profile,
+  document migration of existing generated-port consumers, and retain ordinary
+  concrete SpinalVerilog behavior. Update runnable generic examples,
+  architecture/support-matrix documentation, reviewed native-change manifests
+  and deterministic golden contracts. Include field/index/capture misbinding,
+  carry/sign loss, wrong odd-tail handling and latency/reset mutations. Record
+  source-bound results on both Scala lanes and require all applicable
+  final-head CI/formal/tool gates before marking this join complete. The user's
+  CI skip for this roadmap-only planning commit does not waive implementation
+  or merge gates for any of these increments.
+
+### Native signed-Verilog track (Increment 60)
 
 - [ ] **Increment 60 — Native signed `SInt` Verilog**
 
