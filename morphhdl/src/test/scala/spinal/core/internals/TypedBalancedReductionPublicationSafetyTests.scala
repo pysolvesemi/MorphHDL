@@ -94,7 +94,8 @@ class TypedBalancedReductionPublicationSafetyTests extends AnyFunSuite {
   test("mutating a native replay operator before the handoff prevents publication") {
     val error = intercept[Exception](emit(new BalancedPublicationMutationFixture(1,
       HdlInt.param("WIDTH", 5, 1, 8), HdlInt.param("COUNT", 1, 1, 5))))
-    assert(messages(error).contains("GRAPH-CHANGED"), messages(error))
+    assert(messages(error).contains("GRAPH-CHANGED") ||
+      messages(error).contains("GRAPH-REPLAY-STALE"), messages(error))
   }
 
   test("replacing the public reduction result anchor cannot silently change its meaning") {

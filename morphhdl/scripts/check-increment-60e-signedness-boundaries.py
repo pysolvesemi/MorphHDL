@@ -57,6 +57,13 @@ def run(command: list[str], cwd: Path, label: str, timeout: int = 240) -> str:
 
 def restore_60d_source(root: Path, path: str, source: str) -> str:
     """Undo only exact reviewed 60e spans; inherited 60c/60d guards still run."""
+    descendant = root / "morphhdl/scripts/check-increment-59f-source-scope.py"
+    if descendant.exists():
+        spec = importlib.util.spec_from_file_location("publisher_59f_scope", descendant)
+        require(spec is not None and spec.loader is not None, "cannot import reviewed 59f publisher scope")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = module.restore_59f_source(root, path, source)
     contract = json.loads((root / "morphhdl/contracts/increment-60e-boundary-edits.json").read_text())
     require(contract["base"] == BASE, "60e restoration baseline changed")
     edits = [entry for entry in contract["edits"] if entry["path"] == path]

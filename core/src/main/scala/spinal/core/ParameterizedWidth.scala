@@ -875,6 +875,26 @@ object ParameterizedWidth {
     metadataOf(from).foreach(retain(to, _))
   }
 
+  /** Preserve an already-certified common width through the native mux clone.
+    * Each non-auto-resized input must independently own the same exact width
+    * function. Concrete width equality alone never creates symbolic evidence;
+    * absent or differing input authority leaves the ordinary clone unchanged.
+    */
+  private[core] def preserveMuxWidth[T <: BitVector](result: T, inputs: Seq[Data]): T = {
+    val widths = inputs.map {
+      case value: BitVector => metadataOf(value)
+      case _                => None
+    }
+    widths.headOption.flatten.foreach { first =>
+      first.expression.foreach { expression =>
+        if (widths.forall(_.exists(_.expression.exists { other =>
+          ElabInt.equivalentExactFunction(expression, other)
+        }))) retain(result, first)
+      }
+    }
+    result
+  }
+
   /** Copy concrete and symbolic leaf geometry in deterministic data-model order.
     * This is the external replacement for the former native `BaseType.clone`
     * hook.

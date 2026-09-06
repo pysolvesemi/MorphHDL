@@ -122,9 +122,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
+    val rewrittenConstants = rewriteRetainedZeroAssignments(
+      component,
+      rewrittenDeclarations,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
+    )
     val rewrittenInitializers = rewriteRetainedZeroInitializers(
       component,
-      rewrittenDeclarations
+      rewrittenConstants
     )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
@@ -759,6 +764,70 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     lines.mkString("\n")
   }
 
+  /** An exact native zero remains zero at every positive retained width.
+    * Publish its own symbolic result width, including combinational carriers
+    * inside ordinary helper graphs. Only one direct, poison-free literal edge
+    * on the exact live typed carrier authorizes an emitted replacement.
+    */
+  private[internals] def rewriteRetainedZeroAssignments(
+      component: Component,
+      verilog: String,
+      nativeSignedLiterals: Boolean = false
+  ): String = {
+    var lines = verilog.split("\n", -1).toVector
+    component.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement =>
+        (assignment.target, assignment.source) match {
+          case (target: BitVector, literal: BitVectorLiteral)
+              if (assignment.finalTarget eq target) &&
+                (target.component eq component) && target.isComb &&
+                target.hasOnlyOneStatement && (target.head eq assignment) &&
+                !literal.hasPoison() && literal.getValue() == 0 &&
+                literal.getWidth == target.getBitsWidth =>
+            ParameterizedWidth.expressionOf(target)
+              .filter(_.parameters.nonEmpty).foreach { width =>
+                ElabInt.requireAuthoritativeIntegerDomain(width,
+                  "native zero carrier width",
+                  "SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY",
+                  requireExactExtrema = false)
+                if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth)) {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-MISMATCH",
+                    "one exact native zero carrier lost its positive typed width or witness",
+                    width.sourceLocation)
+                }
+                val name = Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-NAME-MISSING",
+                    "one retained native zero carrier has no final emitted name", width.sourceLocation)
+                }
+                val witness = emittedRetainedWitness(literal)
+                val nativeWitness =
+                  if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
+                    witness.replace("'", "'s")
+                  else witness
+                val targetPattern = ("^\\s*assign\\s+" + Pattern.quote(name) + "\\s*=.*$").r
+                val exactPattern = ("^(\\s*assign\\s+" + Pattern.quote(name) + "\\s*=\\s*)" +
+                  Pattern.quote(nativeWitness) + "(;\\s*)$").r
+                val targetEdges = lines.count(line => targetPattern.findFirstIn(line).nonEmpty)
+                var exactEdges = 0
+                lines = lines.map {
+                  case exactPattern(prefix, suffix) =>
+                    exactEdges += 1
+                    prefix + "{" + width.verilog + "{1'b0}}" + suffix
+                  case line => line
+                }
+                if (targetEdges != 1 || exactEdges != 1) {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-EMITTED-LINEAGE-MISMATCH",
+                    s"retained native zero carrier '$name' maps to $targetEdges target assignments and $exactEdges exact native literal edges; exactly one of each is required",
+                    width.sourceLocation)
+                }
+              }
+          case _ =>
+        }
+      case _ =>
+    }
+    lines.mkString("\n")
+  }
+
   /** Replace only the concrete witness assignment of compiler-created UInt
     * carriers. The carrier was retained by exact object identity; its final
     * emitted name is read from that object after normal Spinal naming. No port,
@@ -1038,11 +1107,62 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ): Option[ElaborationIntegerExpression] =
     ParameterizedWidth.resizeExpressionOf(resize)
 
+  /** Exact symbolic input carriers and invariant native leaves can name the
+    * complete unsigned padding count. Untagged computed widths keep the prior
+    * conservative publication policy; a native witness alone is not evidence.
+    */
+  private def exactUnsignedResizePadding(
+      resize: Resize,
+      target: ElaborationIntegerExpression
+  ): Option[String] = {
+    def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
+      case access: BitVectorRangedAccessFixed => Some(ElabInt.literal(access.getWidth).expression)
+      case _: BitVectorBitAccessFixed => Some(ElabInt.literal(1).expression)
+      case literal: BitVectorLiteral => Some(ElabInt.literal(literal.getWidth).expression)
+      case _ => None
+    }
+    val source = resize.input match {
+      case value: BitVector =>
+        ParameterizedWidth.expressionOf(value).orElse {
+          if (value.isInput) Some(ElabInt.literal(value.getBitsWidth).expression)
+          else if (value.hasOnlyOneStatement) value.head match {
+            case assignment: DataAssignmentStatement
+                if (assignment.target eq value) && (assignment.finalTarget eq value) =>
+              invariantWidth(assignment.source).filter(_.default == BigInt(value.getBitsWidth))
+            case _ => None
+          }
+          else None
+        }
+      case expression => invariantWidth(expression)
+    }
+    source.flatMap { width =>
+      if (width.minimum < 1 || target.minimum < 1 ||
+          width.default != BigInt(resize.input.getWidth) ||
+          target.default != BigInt(resize.size)) None
+      else {
+        ElabInt.requireAuthoritativeIntegerDomain(width,
+          "native resize source width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-AUTHORITY",
+          requireExactExtrema = false)
+        ElabInt.requireAuthoritativeIntegerDomain(target,
+          "native resize target width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AUTHORITY",
+          requireExactExtrema = false)
+        if (target.minimum >= width.maximum)
+          Some("(" + target.verilog + " - " + width.verilog + ")")
+        else {
+          val difference = ElabInt.fromExpression(target) - ElabInt.fromExpression(width)
+          if (difference.expression.minimum >= 0) Some(difference.expression.verilog)
+          else None
+        }
+      }
+    }
+  }
+
   /** Replace target-witness syntax emitted for one exact native Resize. A
     * narrowing slice receives the retained symbolic range; a proven unsigned
-    * widening replaces the native witness-sized zero prefix with one invariant
-    * zero bit, preserving unsignedness while the symbolic target declaration
-    * performs any remaining zero extension. The
+    * widening receives an exact symbolic padding count when the native source
+    * has authoritative width evidence. Other accepted unsigned widenings keep
+    * one invariant zero bit and the target declaration supplies remaining
+    * extension. The
     * eligible assignment, target and Resize node are discovered from the
     * normalized graph by JVM identity; emitted names are used only after that
     * proof to address the corresponding native Verilog assignment. Other
@@ -1291,6 +1411,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         val padding = record.witnessSize - record.inputWitnessSize
+        val symbolicPadding = exactUnsignedResizePadding(record.resize, record.expression)
+        def grow(source: String): String = symbolicPadding match {
+          case Some(count) => "{{" + count + "{1'b0}}, " + source + "}"
+          case None => "{1'b0, " + source + "}"
+        }
         val concreteGrow = (
           "^\\{\\s*" + padding + "'d0\\s*,\\s*(.*?)\\s*\\}$"
         ).r
@@ -1302,7 +1427,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   rhs match {
                     case concreteGrow(source) =>
                       exactRewriteCount += 1
-                      prefix + "{1'b0, " + source.trim + "}" + suffix
+                      prefix + grow(source.trim) + suffix
                     case _ => line
                   }
                 case _ => line
@@ -1319,7 +1444,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               line match {
                 case exactGrowEdge(prefix, suffix) =>
                   exactRewriteCount += 1
-                  prefix + "{1'b0, " + sourceName + "}" + suffix
+                  prefix + grow(sourceName) + suffix
                 case _ => line
               }
             }

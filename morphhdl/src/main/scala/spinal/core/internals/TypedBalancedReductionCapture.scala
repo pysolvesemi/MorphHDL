@@ -13,7 +13,8 @@ private[spinal] final case class UnvalidatedBalancedCallback(
     operands: Vector[Data],
     result: Data,
     declarations: Vector[BaseType],
-    assignments: Vector[AssignmentStatement]
+    assignments: Vector[AssignmentStatement],
+    statements: Vector[Statement] = Vector.empty
 )
 
 private[spinal] final case class UnvalidatedBalancedRow(
@@ -41,7 +42,8 @@ private[spinal] object TypedBalancedReductionCapture {
   private final case class Snapshot(
       declarations: Vector[BaseType],
       assignments: Vector[(AssignmentStatement, Expression, Expression, BaseType)],
-      children: Vector[Component]
+      children: Vector[Component],
+      statements: Vector[Statement]
   )
 
   private def fail(code: String, detail: String): Nothing =
@@ -50,13 +52,15 @@ private[spinal] object TypedBalancedReductionCapture {
   private def snapshot(owner: Component): Snapshot = {
     val declarations = ArrayBuffer.empty[BaseType]
     val assignments = ArrayBuffer.empty[(AssignmentStatement, Expression, Expression, BaseType)]
+    val statements = ArrayBuffer.empty[Statement]
+    owner.dslBody.walkStatements(statements += _)
     owner.dslBody.walkStatements {
       case value: BaseType => declarations += value
       case value: AssignmentStatement =>
         assignments += ((value, value.source, value.target, value.finalTarget))
       case _ =>
     }
-    Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector)
+    Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector, statements.toVector)
   }
 
   /** Retain the original four-argument internal entry point. */
@@ -135,7 +139,10 @@ private[spinal] object TypedBalancedReductionCapture {
       if (assignments.exists(statement => !declarations.exists(_ eq statement.finalTarget)))
         fail("CALLBACK-EXTERNAL-WRITE", "a callback assigned an input or another pre-existing signal")
       validateInputShape()
-      val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments)
+      if (before.statements.exists(value => !after.statements.exists(_ eq value)))
+        fail("CALLBACK-MUTATION", "a callback removed an existing native statement")
+      val addedStatements = after.statements.filterNot(value => before.statements.exists(_ eq value))
+      val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments, addedStatements)
       onCallback(captured)
       ordinal += 1
       captured

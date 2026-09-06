@@ -421,7 +421,7 @@ class ParameterizedVerilogTests extends AnyFunSuite {
         rewritten
           .replaceAll("\\s+", "")
           .contains(
-            "assignretained_grow_resize={1'b0,source};"
+            "assignretained_grow_resize={{(TARGET-4){1'b0}},source};"
           ),
         rewritten
       )
@@ -447,6 +447,34 @@ class ParameterizedVerilogTests extends AnyFunSuite {
             s"$exactRewriteCount exact native Resize rewrites"
           )
         )
+      }
+    }
+  }
+
+  test("retained zero rewrite requires one exact native combinational literal edge") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", default = 5, min = 1, max = 32).asElabInt
+      val report = SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("RetainedZeroEmittedLineage")
+          val observed = out(UInt(width bits)).setName("observed")
+          val retained = UInt(width bits).setName("retained_zero").dontSimplifyIt()
+          retained := 0
+          observed := retained
+        }
+      }
+      val native = read(directory.resolve("RetainedZeroEmittedLineage.v"))
+      val assignment = "(?m)^(\\s*assign\\s+retained_zero\\s*=\\s*)(.*?)(;\\s*)$".r
+        .findFirstMatchIn(native).getOrElse(fail("native zero assignment missing:\n" + native))
+      val rewritten = ExternalParameterizedVerilogNativeFallback
+        .rewriteRetainedZeroAssignments(report.toplevel, native)
+      assert(rewritten.replaceAll("\\s+", "").contains("assignretained_zero={WIDTH{1'b0}};"), rewritten)
+      val stale = native.substring(0, assignment.start(2)) + "5'h1" + native.substring(assignment.end(2))
+      Vector(stale, native + "\n" + assignment.group(0) + "\n").foreach { altered =>
+        val error = intercept[ParameterizedVerilogException] {
+          ExternalParameterizedVerilogNativeFallback.rewriteRetainedZeroAssignments(report.toplevel, altered)
+        }
+        assert(error.code == "SPINAL-PARAMETERIZED-VERILOG-ZERO-EMITTED-LINEAGE-MISMATCH")
       }
     }
   }

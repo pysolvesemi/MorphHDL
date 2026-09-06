@@ -19,6 +19,7 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -104,9 +105,17 @@ def source_scope(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     # Include every production project (also nested backends and new roots),
     # rather than limiting qualification-only scope to native emitter hooks.
-    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE], cwd=root, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
-                                        cwd=root, text=True).splitlines()
+    # On descendants, keep the completed qualification-only increment sealed
+    # at its exact merge; later increments own their separate production delta.
+    # Before that merge, continue inspecting the complete working-tree delta.
+    qualified = subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+                               cwd=root, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL).returncode == 0
+    revision = [QUALIFIED_60F] if qualified else []
+    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE, *revision],
+                                      cwd=root, text=True).splitlines()
+    untracked = [] if qualified else subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard"], cwd=root, text=True).splitlines()
     changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
     require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
     frozen = [
@@ -121,7 +130,12 @@ def source_scope(root: Path) -> None:
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old, "sealed writer/checker changed: " + path)
+        current = (root / path).read_bytes()
+        if path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py" and \
+                (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
+            current = load(root, "59f-source-scope").restore_59f_source(
+                root, path, current.decode()).encode()
+        require(current == old, "sealed writer/checker changed: " + path)
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)

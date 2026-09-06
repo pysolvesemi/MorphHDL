@@ -10,9 +10,10 @@
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible.",
+      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve an independently certified common symbolic input width through the native Mux clone without altering concrete max-width selection.",
       "edits": [
         {
           "id": "bitvector-resize-01",
@@ -23,6 +24,19 @@
             {
               "side": "approved",
               "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-typed-mux-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.getMuxType",
+          "reason": "Materialize the non-auto-resized native Mux inputs once, retain concrete max-width cloning and forward exact input-width authority to the result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.preserveMuxWidth(cloneOf(this).setWidth(w), inputs",
               "count": 1
             }
           ]
@@ -590,9 +604,10 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
-        "Increment 58: legacy adapter and shadow-path retirement"
+        "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Preserve a native Mux result's width only when every non-auto-resized input directly owns an equivalent exact width function in the identity registry; missing or mismatched authority never becomes inferred width provenance.",
       "edits": []
     },
     {

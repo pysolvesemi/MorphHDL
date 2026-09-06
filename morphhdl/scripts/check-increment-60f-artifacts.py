@@ -209,6 +209,32 @@ EXPECTED_SUITES = {
     """.split()),
 }
 
+# Separately reviewed descendants extend the frozen inherited inventory by exact
+# suite identity. Presence of arbitrary XML or a matching count grants nothing.
+# A complete, tracked feature source inventory activates the reviewed additions;
+# heads without that feature retain exactly the original 78 MorphHDL suites.
+SUITE_EXTENSIONS = {
+    "59f": {
+        "sources": (
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicyTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplayTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionMuxWidthTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCallbackPublicationTests.scala",
+        ),
+        "projects": {
+            "morphhdl": frozenset("""
+                spinal.core.internals.TypedBalancedReductionCertifiedCallbackPolicyTests
+                spinal.core.internals.TypedBalancedReductionScalarGraphReplayTests
+                spinal.core.internals.TypedBalancedReductionMuxWidthTests
+                spinal.core.internals.TypedBalancedReductionCallbackPublicationTests
+            """.split()),
+        },
+    },
+}
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -284,8 +310,33 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
+def descendant_extensions(root: Path) -> tuple[str, ...]:
+    selected = []
+    for name, extension in SUITE_EXTENSIONS.items():
+        sources = extension["sources"]
+        result = subprocess.run(["git", "ls-tree", "-r", "--name-only", "HEAD", "--", *sources],
+                                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        require(result.returncode == 0,
+                "cannot inspect reviewed suite source inventory for " + name + ": " + result.stderr)
+        tracked = set(result.stdout.splitlines())
+        present = [(root / path).is_file() for path in sources]
+        if tracked or any(present):
+            require(tracked == set(sources) and all(present),
+                    "incomplete or uncommitted reviewed suite source inventory for " + name)
+            selected.append(name)
+    return tuple(selected)
+
+
 def regressions(root: Path, output: Path) -> None:
     output.unlink(missing_ok=True)
+    _regressions(root, output, descendant_extensions(root))
+
+
+def _regressions(root: Path, output: Path, extensions: tuple[str, ...]) -> None:
+    """Validate reports; explicit extension selection is private to self-tests."""
+    output.unlink(missing_ok=True)
+    require(len(set(extensions)) == len(extensions) and
+            set(extensions) <= set(SUITE_EXTENSIONS), "unknown or repeated reviewed suite extension")
     records = {}
     for project, (minimum_tests, minimum_suites) in REGRESSIONS.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -312,6 +363,10 @@ def regressions(root: Path, output: Path) -> None:
                 f"missing {project} regressions: tests={tests}, suites={len(names)}")
         expected = EXPECTED_SUITES[project]
         require(len(expected) == minimum_suites, f"inconsistent frozen suite inventory: {project}")
+        for name in extensions:
+            additions = SUITE_EXTENSIONS[name]["projects"].get(project, frozenset())
+            require(not (expected & additions), "reviewed suite addition duplicates inherited identity: " + name)
+            expected = expected | additions
         exact_names(names, expected, project + " suite identities")
         records[project] = {"tests": tests, "suites": sorted(names), "skipped": 0}
         print(f"{project}: {tests} tests / {len(names)} suites, zero failures/errors/skips")
@@ -351,7 +406,7 @@ def self_test() -> None:
                 ET.ElementTree(suite).write(reports / f"suite-{index}.xml")
         output = root / "result.json"
         with contextlib.redirect_stdout(io.StringIO()):
-            regressions(root, output)
+            _regressions(root, output, ())
         require(output.is_file(), "positive XML control published no inventory")
         report = root / "morphhdl/target/test-reports/suite-1.xml"
         original = report.read_bytes()
@@ -359,18 +414,90 @@ def self_test() -> None:
         tree.getroot().set("name", "synthetic.SubstituteSuite")
         tree.write(report)
         with contextlib.redirect_stdout(io.StringIO()):
-            rejected(lambda: regressions(root, output), "same-count substitute suite")
+            rejected(lambda: _regressions(root, output, ()), "same-count substitute suite")
         require(not output.exists(), "failed XML validation retained stale success")
         report.write_bytes(original)
         tree = ET.parse(report)
         ET.SubElement(tree.getroot().find("testcase"), "skipped")
         tree.write(report)
         with contextlib.redirect_stdout(io.StringIO()):
-            rejected(lambda: regressions(root, output), "skipped testcase")
+            rejected(lambda: _regressions(root, output, ()), "skipped testcase")
+        report.write_bytes(original)
+        reports = root / "morphhdl/target/test-reports"
+        additions = sorted(SUITE_EXTENSIONS["59f"]["projects"]["morphhdl"])
+        for index, suite_name in enumerate(additions):
+            suite = ET.Element("testsuite", name=suite_name, tests="1",
+                               failures="0", errors="0", skipped="0")
+            ET.SubElement(suite, "testcase", name="synthetic-descendant-case")
+            ET.ElementTree(suite).write(reports / f"descendant-{index}.xml")
+        with contextlib.redirect_stdout(io.StringIO()):
+            _regressions(root, output, ("59f",))
+        require(len(json.loads(output.read_text())["morphhdl"]["suites"]) == 82,
+                "reviewed descendant XML control omitted an inherited or new suite")
+        with contextlib.redirect_stdout(io.StringIO()):
+            rejected(lambda: _regressions(root, output, ()), "new suites on historical inventory")
+        descendant = reports / "descendant-0.xml"
+        descendant_original = descendant.read_bytes()
+        tree = ET.parse(descendant)
+        tree.getroot().set("name", "synthetic.UnreviewedDescendantSuite")
+        tree.write(descendant)
+        with contextlib.redirect_stdout(io.StringIO()):
+            rejected(lambda: _regressions(root, output, ("59f",)), "substituted descendant suite")
+        require(not output.exists(), "failed descendant XML validation retained stale success")
+        descendant.write_bytes(descendant_original)
+        extra = reports / "extra.xml"
+        tree = ET.parse(descendant)
+        tree.getroot().set("name", "synthetic.UnreviewedExtraSuite")
+        tree.write(extra)
+        with contextlib.redirect_stdout(io.StringIO()):
+            rejected(lambda: _regressions(root, output, ("59f",)), "unreviewed extra suite")
+        extra.unlink()
+        tree = ET.parse(descendant)
+        ET.SubElement(tree.getroot().find("testcase"), "skipped")
+        tree.write(descendant)
+        with contextlib.redirect_stdout(io.StringIO()):
+            rejected(lambda: _regressions(root, output, ("59f",)), "skipped descendant testcase")
+        descendant.unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            rejected(lambda: _regressions(root, output, ("59f",)), "missing descendant suite")
+        descendant.write_bytes(descendant_original)
         report.unlink()
         with contextlib.redirect_stdout(io.StringIO()):
-            rejected(lambda: regressions(root, output), "missing suite")
-    print("60f inventory self-test: exact file/suite identities, skips and stale-result controls PASS")
+            rejected(lambda: _regressions(root, output, ("59f",)), "new suites replacing an inherited suite")
+            rejected(lambda: _regressions(root, output, ("unknown",)), "unreviewed extension selector")
+    with tempfile.TemporaryDirectory(prefix="increment-60f-suite-source-self-test-") as temporary:
+        root = Path(temporary)
+
+        def git(*arguments: str) -> None:
+            subprocess.run(["git", "-c", "user.name=Suite inventory fixture", "-c",
+                            "user.email=suite-inventory@example.invalid", *arguments],
+                           cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+
+        git("init", "--quiet")
+        git("commit", "--quiet", "--allow-empty", "-m", "historical inventory fixture")
+        require(descendant_extensions(root) == (), "historical source selected a descendant extension")
+        sources = SUITE_EXTENSIONS["59f"]["sources"]
+        first = root / sources[0]
+        first.parent.mkdir(parents=True)
+        first.write_text("// Isolated source inventory fixture.\n")
+        rejected(lambda: descendant_extensions(root), "uncommitted descendant source")
+        git("add", sources[0])
+        git("commit", "--quiet", "-m", "partial descendant source fixture")
+        rejected(lambda: descendant_extensions(root), "partial committed descendant source")
+        for source in sources[1:]:
+            path = root / source
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("// Isolated source inventory fixture.\n")
+        rejected(lambda: descendant_extensions(root), "partially uncommitted descendant source")
+        git("add", *sources)
+        git("commit", "--quiet", "-m", "complete descendant source fixture")
+        require(descendant_extensions(root) == ("59f",), "complete source omitted reviewed suite extension")
+        first.unlink()
+        output = root / "result.json"
+        output.write_text("stale evidence")
+        rejected(lambda: regressions(root, output), "deleted tracked descendant source")
+        require(not output.exists(), "source selection failure retained stale success")
+    print("60f inventory self-test: exact historical/reviewed-descendant identities, skips and stale-result controls PASS")
 
 
 def main() -> None:
