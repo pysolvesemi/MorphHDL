@@ -83,6 +83,13 @@ def commit_fixture(root: Path, path: str) -> None:
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "combined approved 59b and frozen 60c/60d/60e source")]
+    # The validated successor publisher can reject this same outside-span
+    # mutation before either inherited fallback boundary is reached.
+    publisher_rejection = None
+    if (ROOT / "morphhdl/scripts/check-increment-59f-source-scope.py").is_file():
+        publisher_rejection = "unreviewed source change outside 59f spans"
+        if (ROOT / "morphhdl/contracts/increment-59d-59f-zero-edits.json").is_file():
+            publisher_rejection = "unreviewed source change outside 59d/59f zero-owner span"
     cases = (
         ("historical", QUALIFIED, None),
         ("historical-60d", QUALIFIED_60D, None),
@@ -105,7 +112,7 @@ def main() -> None:
             ("changed-width-fallback-publication-width", head, "missing/duplicate 59d span"),
             ("changed-width-fallback-width-matcher", head, "missing/duplicate 59d span"),
             ("changed-width-fallback-outside", head,
-             "fallback change exceeds preserving the graph-owned declaration section"),
+             publisher_rejection or "fallback change exceeds preserving the graph-owned declaration section"),
         )
     with tempfile.TemporaryDirectory(prefix="morphhdl-59b-source-scope-") as temporary:
         for label, revision, error in cases:
@@ -218,7 +225,7 @@ def main() -> None:
                 elif label == "changed-boundary-printer":
                     boundary_error = "missing/duplicate 60e span"
                 elif label == "changed-width-fallback-outside":
-                    boundary_error = "unreviewed source change outside 60e spans"
+                    boundary_error = publisher_rejection or "unreviewed source change outside 60e spans"
                 records.append(checked(fixture, label, error, boundary_error,
                     label == "changed-vec", label.startswith("changed-width-fallback-")))
             finally:
