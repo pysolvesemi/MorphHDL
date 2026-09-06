@@ -1,0 +1,28 @@
+name: 60g resume source snapshot
+on:
+  push:
+    branches: [agent/60g-resume-source-99b6017]
+    paths: [.github/workflows/60g-resume-source.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export source history only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/60g-resume-source
+          git rev-parse refs/remotes/origin/parameterized-verilog refs/remotes/origin/agent/increment-60g-default-signed-verilog > target/60g-resume-source/refs.txt
+          git bundle create target/60g-resume-source/repository.bundle refs/remotes/origin/parameterized-verilog refs/remotes/origin/agent/increment-60g-default-signed-verilog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 60g-resume-source
+          path: target/60g-resume-source
+          retention-days: 7
+          if-no-files-found: error
