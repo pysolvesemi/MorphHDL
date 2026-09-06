@@ -29,6 +29,10 @@ addition spelling. The existing normalized UInt resize path continues to own
 explicitly fixed consumers, including memory addresses. Captured resize widths
 must also agree with the widths actually selected for publication; a named fixed
 carrier cannot acquire a different symbolic width through its driver.
+The exact recorded `Vec.asBits` wrapper remains owned by its existing packed-Vec
+publisher, which validates its finite carrier and logical result together.
+Ordinary scalar resizes retain their separate source-width check. Rejection
+diagnostics identify the declaration and both captured and published widths.
 
 Native inferred UInt addition/subtraction with a Boolean increment retains its
 modular width through normalization. The proof still excludes explicit fixed

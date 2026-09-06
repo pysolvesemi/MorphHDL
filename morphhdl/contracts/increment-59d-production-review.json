@@ -39,11 +39,11 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
-      "sha256": "0cccaa3b699081956820afe70e549c6eca1007aaf841b349bdfaa6beddea3932"
+      "sha256": "233b2505bcae9617ca5ba16c6ad2db0c83398422ce3c7fd0cb70fd190f1c5de7"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-      "sha256": "4817cceddcd4d488b29e7c2d2c9f088a688a193ec687c05a46597cc064a73ef1"
+      "sha256": "c02b4c38d10f9df860d215b300ba0583c979e71c73015f95fa1c3727485f138f"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",

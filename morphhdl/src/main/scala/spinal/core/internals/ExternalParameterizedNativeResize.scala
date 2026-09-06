@@ -83,6 +83,24 @@ object ExternalParameterizedNativeResize {
     phases.insert(boundary, new PhaseMisc {
       override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
         val captured = ArrayBuffer.empty[Record]
+        // Vec.asBits owns the exact witness wrapper around its finite-capacity
+        // carrier. Its publisher revalidates both identities and restores the
+        // logical packed width. Treating that wrapper as an ordinary scalar
+        // resize would give two publishers incompatible meanings for its
+        // source width. Reserve only the original recorded wrapper assignments;
+        // unrelated resizes, including same-width carriers, remain scalar edges.
+        val packedReadWrappers = new java.util.IdentityHashMap[
+          DataAssignmentStatement, java.lang.Boolean]()
+        ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
+          ParameterizedVec.operationsOf(vector).foreach {
+            case read: ParameterizedVecPackedRead if read.result ne read.carrier =>
+              read.resultAssignments.foreach { assignment =>
+                if ((assignment.target eq read.result) && (assignment.finalTarget eq read.result))
+                  packedReadWrappers.put(assignment, java.lang.Boolean.TRUE)
+              }
+            case _ =>
+          }
+        }
         // A direct typed UInt resize feeding an explicitly fixed declaration
         // belongs to the existing normalized-consumer path. Protecting its
         // intermediate here would prevent that path from reconstructing the
@@ -107,6 +125,7 @@ object ExternalParameterizedNativeResize {
               case (target: BitVector, resize: Resize)
                   if (assignment.finalTarget eq target) && target.isComb &&
                     (target.component eq component) &&
+                    !packedReadWrappers.containsKey(assignment) &&
                     !(morphhdl.MorphSignedCasts.isEnabled(pc.config) && resize.isInstanceOf[ResizeSInt]) =>
                 resize.input match {
                   case source: BitVector if source.component eq component =>
@@ -227,14 +246,16 @@ object ExternalParameterizedNativeResize {
     * rewriting a declaration which that analysis infers as symbolic instead.
     */
   private[internals] def validatePublishedWidths(component: Component)(
-      matches: (BitVector, ElaborationIntegerExpression) => Boolean
+      mismatch: (BitVector, ElaborationIntegerExpression) => Option[String]
   ): Unit = records(component).foreach { record =>
     if (!valid(component, record))
       fail("retained native resize assignment changed before width validation")
-    if (!matches(record.source, record.sourceWidth))
-      fail("native resize source publication differs from its captured exact width")
-    if (!matches(record.target, record.targetWidth))
-      fail("native resize target publication differs from its captured exact width")
+    mismatch(record.source, record.sourceWidth).foreach { detail =>
+      fail(s"native resize source publication differs from its captured exact width: $detail")
+    }
+    mismatch(record.target, record.targetWidth).foreach { detail =>
+      fail(s"native resize target publication differs from its captured exact width: $detail")
+    }
   }
 
   private[internals] def rewrite(component: Component, verilog: String): String = {

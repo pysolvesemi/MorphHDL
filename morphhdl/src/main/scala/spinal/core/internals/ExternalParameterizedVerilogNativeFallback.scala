@@ -1965,7 +1965,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       validateParameters()
       validateWidths()
       ExternalParameterizedNativeResize.validatePublishedWidths(component) {
-        (declaration, expected) => widthInference.matchesRetainedDeclarationWidth(declaration, expected)
+        (declaration, expected) => widthInference.retainedDeclarationWidthMismatch(declaration, expected)
       }
       validateAssignments()
       validateProcesses()
@@ -2552,14 +2552,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         * otherwise fixed native carrier. A concrete witness is not a proof
         * that the carrier's published source width is invariant.
         */
-      def matchesRetainedDeclarationWidth(
+      def retainedDeclarationWidthMismatch(
           declaration: BitVector,
           expected: ElaborationIntegerExpression
-      ): Boolean = {
+      ): Option[String] = {
         val actual = ofBase(declaration)
         val captured = retained(expected)
-        equivalentWidthExpression(actual, captured) ||
-          provesCompleteRelation(actual, captured)(_ == _)
+        if (equivalentWidthExpression(actual, captured) ||
+            provesCompleteRelation(actual, captured)(_ == _)) None
+        else Some(s"signal '${declaration.getName()}' publishes '${actual.render}' " +
+          s"(default ${actual.default}, bounds ${actual.minimum}..${actual.maximum}) " +
+          s"but retained '${expected.verilog}' (default ${expected.default}, " +
+          s"bounds ${expected.minimum}..${expected.maximum})")
       }
 
       /** Exact bounded evaluation; unsupported or unproven nodes return None. */

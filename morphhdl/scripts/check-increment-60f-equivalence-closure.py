@@ -19,7 +19,41 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
-QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
+# Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
+# This does not expand 60f's historical qualification-only production scope.
+WA07A_PRODUCTION_SHA256 = {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala":
+        "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala":
+        "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
+        "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+}
+INCREMENT_59D_BASE = "5a669d32095ee722c313bd069b771e7c350a1f81"
+INCREMENT_59D_PRODUCTION_PATHS = frozenset({
+    "core/src/main/scala/spinal/core/BaseType.scala",
+    "core/src/main/scala/spinal/core/BitVector.scala",
+    "core/src/main/scala/spinal/core/ElabInt.scala",
+    "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+    "core/src/main/scala/spinal/core/Misc.scala",
+    "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedHighBit.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/NativePublicationScope.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala",
+})
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -101,53 +135,94 @@ def self_test() -> None:
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
 
 
-def source_scope(root: Path) -> None:
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+def production_profile(root: Path) -> str:
+    """Select an exact source contract before consulting regression reports."""
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F], cwd=root, check=True)
+    subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"], cwd=root, check=True)
+    historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
+    require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
     # Include every production project (also nested backends and new roots),
-    # rather than limiting qualification-only scope to native emitter hooks.
-    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE], cwd=root, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
-                                        cwd=root, text=True).splitlines()
-    changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
+    # including ignored untracked sources; an allowed pathname alone is not a
+    # source contract. Every reviewed file must be tracked with its exact bytes.
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    if not changed:
+        return "60f-baseline"
+    wa_paths = set(WA07A_PRODUCTION_SHA256)
+    wa_changed = changed & wa_paths
+    require(not wa_changed or wa_changed == wa_paths,
+            "incomplete reviewed WA-07a production delta: " + str(sorted(wa_changed)))
+    descendant = changed - wa_paths
     reviewed = None
-    if changed:
-        # The original 60f merge remains a qualification-only checkpoint.
-        # Descendant 59d changes are admitted only by their complete exact
-        # production path/hash inventory, followed by inherited native audits.
-        subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+    if descendant:
+        subprocess.run(["git", "merge-base", "--is-ancestor", INCREMENT_59D_BASE, "HEAD"],
                        cwd=root, check=True)
-        historical = subprocess.check_output(["git", "diff", "--name-only", BASE, QUALIFIED_60F],
-                                             cwd=root, text=True).splitlines()
-        require(not any(re.search(r"(?:^|/)src/main/", path) for path in historical),
-                "qualified 60f production-free checkpoint changed")
-        contract = root / "morphhdl/contracts/increment-59d-production-review.json"
-        require(contract.is_file(), "60f must remain qualification-only; unreviewed production delta:\n" +
-                "\n".join(changed))
-        reviewed = json.loads(contract.read_text())
-        require(set(reviewed) == {"base", "files", "checker_edits"} and reviewed["base"] == QUALIFIED_60F,
-                "59d production review baseline changed")
-        require(all(set(entry) == {"path", "sha256"} and
-                    re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) for entry in reviewed["files"]),
-                "59d production review has malformed file records")
-        require([entry["path"] for entry in reviewed["files"]] == changed,
+        historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE,
+                                          INCREMENT_59D_BASE))
+        require(not historical, "59d review baseline must remain production-zero: " + str(sorted(historical)))
+        require(descendant == INCREMENT_59D_PRODUCTION_PATHS,
                 "59d reviewed production inventory differs from the exact current delta")
-        for entry in reviewed["files"]:
-            require((root / entry["path"]).is_file() and
-                    hashlib.sha256((root / entry["path"]).read_bytes()).hexdigest() == entry["sha256"],
-                    "59d reviewed production bytes changed: " + entry["path"])
-        boundary_checker = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
-        expected_checker_edits = [(boundary_checker, "restore-exact-59d-width-seams")]
-        if (root / "morphhdl/contracts/increment-59d-signed-width-edits.json").is_file():
-            expected_checker_edits += [
-                (boundary_checker, "restore-exact-59d-signed-width-authority"),
-                (boundary_checker, "validate-exact-59d-signed-width-authority-60e"),
-                ("morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
-                 "validate-exact-59d-signed-width-authority-60d")]
-        require(all(set(edit) == {"path", "id", "before", "after"}
-                    for edit in reviewed["checker_edits"]) and
-                [(edit["path"], edit["id"]) for edit in reviewed["checker_edits"]] ==
-                    expected_checker_edits,
-                "59d checker restoration exceeds its exact inherited boundary seams")
+        reviewed = reviewed_59d(root)
+        require([entry["path"] for entry in reviewed["files"]] == sorted(descendant),
+                "59d reviewed production inventory differs from the exact current delta")
+    hashes = dict(WA07A_PRODUCTION_SHA256) if wa_changed else {}
+    if reviewed is not None:
+        hashes.update((entry["path"], entry["sha256"]) for entry in reviewed["files"])
+    for path, digest in hashes.items():
+        source = root / path
+        require(source.is_file(), ("59d reviewed production bytes changed: " if path in descendant else
+                                  "reviewed WA-07a production source hash differs: ") + path)
+        require(not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
+                ("59d reviewed production bytes changed: " if path in descendant else
+                 "reviewed WA-07a production source hash differs: ") + path)
+        stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "reviewed production source is not uniquely tracked: " + path)
+    if descendant:
+        return "60f-with-wa07a-and-59d" if wa_changed else "60f-with-59d"
+    return "60f-with-wa07a"
+
+
+def reviewed_59d(root: Path) -> dict:
+    """Load the exact 59d contract without widening either follow-on's scope."""
+    contract = root / "morphhdl/contracts/increment-59d-production-review.json"
+    require(contract.is_file() and not contract.is_symlink(), "missing regular 59d production review")
+    reviewed = json.loads(contract.read_text())
+    require(set(reviewed) == {"base", "files", "checker_edits"} and
+            reviewed["base"] == INCREMENT_59D_BASE, "59d production review baseline changed")
+    require(all(set(entry) == {"path", "sha256"} and
+                re.fullmatch(r"[0-9a-f]{64}", entry["sha256"]) for entry in reviewed["files"]),
+            "59d production review has malformed file records")
+    require([entry["path"] for entry in reviewed["files"]] == sorted(INCREMENT_59D_PRODUCTION_PATHS),
+            "59d reviewed production inventory differs from the exact current delta")
+    boundary_checker = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+    expected_checker_edits = [(boundary_checker, "restore-exact-59d-width-seams")]
+    if (root / "morphhdl/contracts/increment-59d-signed-width-edits.json").is_file():
+        expected_checker_edits += [
+            (boundary_checker, "restore-exact-59d-signed-width-authority"),
+            (boundary_checker, "validate-exact-59d-signed-width-authority-60e"),
+            ("morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+             "validate-exact-59d-signed-width-authority-60d")]
+    require(all(set(edit) == {"path", "id", "before", "after"}
+                for edit in reviewed["checker_edits"]) and
+            [(edit["path"], edit["id"]) for edit in reviewed["checker_edits"]] == expected_checker_edits,
+            "59d checker restoration exceeds its exact inherited boundary seams")
+    return reviewed
+
+
+def source_scope(root: Path) -> None:
+    profile = production_profile(root)
+    reviewed = reviewed_59d(root) if profile in ("60f-with-59d", "60f-with-wa07a-and-59d") else None
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -170,9 +245,8 @@ def source_scope(root: Path) -> None:
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    scope = ("60f qualification checkpoint and exact reviewed 59d descendant scope" if reviewed is not None
-             else "60f qualification-only scope")
-    print(scope + ", sealed writers/checkers and inherited native audits PASS", flush=True)
+    print("60f historical qualification-only scope, " + profile +
+          ", sealed writers/checkers and inherited native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:

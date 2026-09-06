@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the exact 59d descendant exception to 60f's frozen scope."""
+"""Exercise exact 59d/WA-07a unions without weakening 60f's frozen scope."""
 from __future__ import annotations
 
 import json
@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+REVIEWED_59D = "4c4aa25ae02b4eb206b4d89027865d7e380e1d30"
+PROFILE_AWARE_60F = "3e80cef258ddfdd6ce74819a2fbf200a8d2c5a64"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
@@ -54,7 +56,12 @@ def main() -> None:
     records = [checked(ROOT, "working reviewed descendant")]
     cases = (
         ("historical-60f", QUALIFIED_60F, None),
-        ("committed-59d", head, None),
+        ("historical-reviewed-59d", REVIEWED_59D, None),
+        ("historical-profile-aware-60f", PROFILE_AWARE_60F, None),
+        ("committed-reviewed-descendant", head, None),
+        ("partial-wa07a-production", head, "incomplete reviewed WA-07a production delta"),
+        ("ignored-untracked-production", head, "untracked production sources"),
+        ("forged-59d-absorbs-wa07a", head, "59d reviewed production inventory differs"),
         ("unreviewed-production", head, "59d reviewed production inventory differs"),
         ("changed-reviewed-production", head, "59d reviewed production bytes changed"),
         ("dirty-reviewed-production", head, "59d reviewed production bytes changed"),
@@ -74,7 +81,23 @@ def main() -> None:
             git(ROOT, "worktree", "add", "--detach", str(fixture), revision)
             try:
                 path = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
-                if label == "unreviewed-production":
+                if label == "partial-wa07a-production":
+                    path = "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
+                    with (fixture / path).open("a") as stream:
+                        stream.write("\n// Deliberate unreviewed WA-07a mutation.\n")
+                elif label == "ignored-untracked-production":
+                    path = "target/unreviewed/src/main/scala/HiddenScopeProbe.scala"
+                    (fixture / path).parent.mkdir(parents=True)
+                    (fixture / path).write_text("object HiddenScopeProbe\n")
+                elif label == "forged-59d-absorbs-wa07a":
+                    path = "morphhdl/contracts/increment-59d-production-review.json"
+                    review = json.loads((fixture / path).read_text())
+                    wa = "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
+                    review["files"].append({"path": wa,
+                                            "sha256": hashlib.sha256((fixture / wa).read_bytes()).hexdigest()})
+                    review["files"].sort(key=lambda entry: entry["path"])
+                    (fixture / path).write_text(json.dumps(review, indent=2) + "\n")
+                elif label == "unreviewed-production":
                     path = "morphhdl/src/main/scala/spinal/core/internals/Unreviewed59dScopeProbe.scala"
                     (fixture / path).write_text("package spinal.core.internals\nobject Unreviewed59dScopeProbe\n")
                     commit(fixture, path)

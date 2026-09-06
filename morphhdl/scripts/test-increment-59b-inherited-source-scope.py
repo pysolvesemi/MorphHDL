@@ -173,10 +173,10 @@ def main() -> None:
                 elif label == "changed-width-fallback-publication-width":
                     path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
                     source = (fixture / path).read_text()
-                    before = "(declaration, expected) => widthInference.matchesRetainedDeclarationWidth(declaration, expected)"
+                    before = "(declaration, expected) => widthInference.retainedDeclarationWidthMismatch(declaration, expected)"
                     if source.count(before) != 1:
                         raise RuntimeError("reviewed 59d published resize width seam is missing")
-                    (fixture / path).write_text(source.replace(before, "(declaration, expected) => true"))
+                    (fixture / path).write_text(source.replace(before, "(declaration, expected) => None"))
                     commit_fixture(fixture, path)
                 elif label == "changed-width-fallback-width-matcher":
                     path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
