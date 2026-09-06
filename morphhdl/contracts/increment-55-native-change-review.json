@@ -572,7 +572,7 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing.",
+      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing, while preserving inherited native pruning of internal Vec copy chains.",
       "edits": []
     },
     {

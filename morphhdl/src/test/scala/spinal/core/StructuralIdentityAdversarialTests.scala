@@ -556,6 +556,16 @@ private object StructuralIdentityAdversarialFixture {
     observed := storage
   }
 
+  final class RetainedStaticVecCopy(width: ElabInt) extends Component {
+    setDefinitionName("RetainedStaticVecCopy")
+    val input = in(Bits(width bits)).setName("input_value")
+    val observed = out(Vec(Bits(width bits), 2)).setName("observed")
+    val storage = Vec(Bits(width bits), 2).setName("storage").dontSimplifyIt()
+    storage(0) := input
+    storage(1) := storage(0)
+    observed := storage
+  }
+
   final class RemovedDynamicReadSelect(depth: ElabInt) extends Component {
     setDefinitionName("RemovedDynamicReadSelectVec")
     val original = in(Vec(Bits(8 bits), depth)).setName("original")
@@ -1502,6 +1512,20 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
       }
       assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-INDEXED-WRITE-FEEDBACK-UNSUPPORTED"), failure.detail)
       assert(!Files.exists(rtl), "dependent native carrier processes published partial RTL")
+    }
+  }
+
+  test("a fully retained Vec preserves an exact same-carrier static scalar copy") {
+    withTemporaryDirectory { directory =>
+      val config = morphConfig(directory, "retained_static_vec_copy.v")
+      MorphVerilog(config) {
+        new RetainedStaticVecCopy(parameter("WIDTH", 8, 1, 16))
+      }
+      val text = readVerilog(directory, config)
+        .filterNot(character => character.isWhitespace || character == '(' || character == ')')
+      assert(text.contains("assignstorage[0+:WIDTH]=input_value;"), text)
+      assert(text.contains("assignstorage[1*WIDTH+:WIDTH]=storage[0+:WIDTH];"), text)
+      assert(text.contains("assignobserved=storage;"), text)
     }
   }
 

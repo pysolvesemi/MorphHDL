@@ -1144,10 +1144,16 @@ object ParameterizedVec {
       kind: AnyRef
   ): Unit = shapeOf(vector).foreach { shape =>
     assignments.foreach { assignment =>
-      // Preserve exact authored scalar source identities, just as dynamic
-      // access retains its exact native mux targets and decoder identities.
+      // Preserve external scalar source identities. A source inside this Vec
+      // already belongs to its exact carrier inventory: pinning that one leaf
+      // would turn an otherwise fully simplified internal copy chain into a
+      // partially retained aggregate. Publication still requires every exact
+      // carrier and validates the captured source identity whenever the Vec
+      // survives native simplification.
       assignment.source match {
-        case value: BaseType => value.dontSimplifyIt()
+        case value: BaseType
+            if !vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_ eq value)) =>
+          value.dontSimplifyIt()
         case _ =>
       }
       append(vector, ParameterizedVecStaticWrite(elementIndex, elementLeafIndex, selected,

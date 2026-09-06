@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "217339988de46e8d0df3f756e67ea6670669c02c"
+      "approved_tree": "18ca8c6043256867d87f6df2d40981d51959d60c"
     },
     {
       "path": "idslpayload/src/main",
@@ -1020,13 +1020,13 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
       ],
-      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing.",
+      "reason": "Own exact logical Vec geometry, recursive field dimensions and packing topology, indexed-write/control evidence, same-owner packed alias lineage, and scoped native carrier packing, while preserving inherited native pruning of internal Vec copy chains.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "b88f6dc904befd268e6cc458e569d2676e13e6f4",
-        "sha256": "ee3dbb91f62c3bcee95073fcfb9e81c3d26598b53f99c467d531303c68e53577"
+        "blob": "d6d77e79f82e293c57ad4bc9b099437eff794628",
+        "sha256": "330c5d6e9f875ff7e6acbf191a433c8309a804f108b33039b0b3dcdac5a0f821"
       },
       "edits": []
     },

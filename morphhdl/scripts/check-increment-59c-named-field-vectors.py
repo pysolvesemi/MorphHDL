@@ -10,6 +10,7 @@ stimulus. A parser error, timeout, missing tool or UNKNOWN is always failure.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import itertools
 import json
@@ -459,8 +460,108 @@ def proof_setup(paths):
     return 'read_verilog ' + ' '.join(quoted(path) for path in paths) + '\nprep -top miter -flatten\ndffunmap\nmemory_map\nopt_clean\ncheck -assert\n'
 
 
-def qualify(root, replay, only=None, layout_filter=None):
+def qualify_case(case, root, replay, layouts):
+    """Run unchanged strict checks in this case's independent artifact paths."""
+    evidence = []
+    label = stem(case)
+    reference = checked_rtl(root, case['reference_rtl'])
+    if reference.read_bytes() != checked_rtl(replay, case['reference_rtl']).read_bytes():
+        raise RuntimeError('nondeterministic independent native reference: ' + label)
+    check_module_ports(case, reference.read_text())
+    for layout in layouts:
+        if case['kind'] == 'mixed' and layout == 'legacy':
+            continue
+        candidate_relative = ('candidate' if layout == 'named' else 'legacy') + '/' + case['kind'] + '/' + candidate_module(case) + '.v'
+        candidate = checked_rtl(root, candidate_relative)
+        candidate_bytes = candidate.read_bytes()
+        if candidate_bytes != checked_rtl(replay, candidate_relative).read_bytes():
+            raise RuntimeError('nondeterministic candidate: ' + candidate_relative)
+        check_candidate(case, candidate.read_text(), layout)
+        work = root / 'checks' / layout / label
+        work.mkdir(parents=True, exist_ok=True)
+        special = work / 'specialized.v'
+        special.write_text(specialize(case, layout))
+        for role, module, paths in (
+                ('candidate', 'specialized', [candidate, special]),
+                ('reference', case['reference_module'], [reference])):
+            command(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', module, *map(str, paths)], work / (role + '-lint.log'))
+            synthesis = work / (role + '-synthesis.ys')
+            synthesis.write_text('read_verilog ' + ' '.join(quoted(path) for path in paths) +
+                                 f'\nhierarchy -check -top {module}\nsynth -top {module}\ncheck -assert\nstat\n')
+            command(['yosys', '-Q', '-T', '-s', str(synthesis)], work / (role + '-synthesis.log'))
+        bench, executable = work / 'tb.v', work / 'tb.vvp'
+        bench.write_text(testbench(case, layout))
+        command(['iverilog', '-g2001', '-s', 'tb', '-o', str(executable), str(reference), str(candidate), str(bench)], work / 'parse.log')
+        simulation = command(['vvp', str(executable)], work / 'simulation.log')
+        if SIM_PASS not in simulation or SIM_FAIL in simulation:
+            raise RuntimeError('simulation did not produce definitive PASS: ' + label)
+        top, script = work / 'miter.v', work / 'proof.ys'
+        top.write_text(miter(case, layout))
+        temporal = '-seq 2 -set-at 1 enable 1 -prove-skip 1 ' if case['kind'] == 'storage' else ''
+        script.write_text(proof_setup([reference, candidate, top]) +
+                          f'sat {temporal}-prove bad 0 -verify -timeout 120 -show-inputs -show-outputs\n')
+        proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'proof.log')
+        if PASS not in proof or COUNTEREXAMPLE in proof:
+            raise RuntimeError('formal did not produce definitive PASS: ' + label)
+        if case['kind'] == 'storage':
+            # The previous proof shows convergence after one load from
+            # arbitrary independent register states. Induction additionally
+            # establishes unbounded equivalence from a shared initial state.
+            induction = work / 'induction.ys'
+            induction.write_text(proof_setup([reference, candidate, top]) +
+                                 'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 8 -timeout 120\n')
+            inductive = command(['yosys', '-Q', '-T', '-s', str(induction)], work / 'induction.log')
+            if INDUCTIVE_PASS not in inductive or COUNTEREXAMPLE in inductive:
+                raise RuntimeError('register/hierarchy proof lacks definitive induction SUCCESS: ' + label)
+        if candidate_bytes != candidate.read_bytes():
+            raise RuntimeError('tool specialization rewrote the shared candidate')
+        evidence.append(dict(case=label, layout=layout, samples=len(samples(case)), proof='PASS',
+                             candidate_sha256=hashlib.sha256(candidate_bytes).hexdigest(),
+                             reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest()))
+    return evidence
+
+
+def ordered_results(function, items, jobs):
+    """Bound active workers, surface failures promptly, yield in input order."""
+    if not 1 <= jobs <= 8:
+        raise RuntimeError('jobs must be between 1 and 8')
+    if jobs == 1:
+        yield from map(function, items)
+        return
+    workers = ThreadPoolExecutor(max_workers=jobs)
+    try:
+        futures = {workers.submit(function, item): index for index, item in enumerate(items)}
+        ready, next_index = {}, 0
+        for future in as_completed(futures):
+            ready[futures[future]] = future.result()
+            while next_index in ready:
+                yield ready.pop(next_index)
+                next_index += 1
+        if next_index != len(futures):
+            raise RuntimeError('parallel scheduler lost a case result')
+    finally:
+        # A failed worker retains its strict error. Pending tasks are cancelled;
+        # already running tools finish under their unchanged per-tool timeouts.
+        workers.shutdown(wait=True, cancel_futures=True)
+
+
+def check_case_evidence(case, layouts, records):
+    required = [(stem(case), layout) for layout in layouts
+                if not (case['kind'] == 'mixed' and layout == 'legacy')]
+    if not isinstance(records, list) or any(not isinstance(record, dict) for record in records):
+        raise RuntimeError('missing case evidence: ' + stem(case))
+    actual = [(record.get('case'), record.get('layout')) for record in records]
+    if actual != required or any(record.get('proof') != 'PASS' for record in records):
+        raise RuntimeError('incomplete or reordered case evidence: ' + stem(case))
+
+
+def qualify(root, replay, only=None, layout_filter=None, jobs=1):
     root, replay = root.resolve(), replay.resolve()
+    evidence_path = root / ('evidence.json' if only is None and layout_filter is None else 'focused-evidence.json')
+    # A failed rerun must never leave a prior success record available to CI.
+    evidence_path.unlink(missing_ok=True)
+    if not 1 <= jobs <= 8:
+        raise RuntimeError('jobs must be between 1 and 8')
     for tool in ('yosys', 'iverilog', 'vvp', 'verilator'):
         if shutil.which(tool) is None:
             raise RuntimeError('required tool missing: ' + tool)
@@ -495,63 +596,17 @@ def qualify(root, replay, only=None, layout_filter=None):
         raise RuntimeError('unknown selected case')
     evidence = []
     layouts = ('named', 'legacy') if layout_filter is None else (layout_filter,)
-    for case in selected:
-        label = stem(case)
-        reference = checked_rtl(root, case['reference_rtl'])
-        if reference.read_bytes() != checked_rtl(replay, case['reference_rtl']).read_bytes():
-            raise RuntimeError('nondeterministic independent native reference: ' + label)
-        check_module_ports(case, reference.read_text())
-        for layout in layouts:
-            if case['kind'] == 'mixed' and layout == 'legacy':
-                continue
-            candidate_relative = ('candidate' if layout == 'named' else 'legacy') + '/' + case['kind'] + '/' + candidate_module(case) + '.v'
-            candidate = checked_rtl(root, candidate_relative)
-            candidate_bytes = candidate.read_bytes()
-            if candidate_bytes != checked_rtl(replay, candidate_relative).read_bytes():
-                raise RuntimeError('nondeterministic candidate: ' + candidate_relative)
-            check_candidate(case, candidate.read_text(), layout)
-            work = root / 'checks' / layout / label
-            work.mkdir(parents=True, exist_ok=True)
-            special = work / 'specialized.v'
-            special.write_text(specialize(case, layout))
-            for role, module, paths in (
-                    ('candidate', 'specialized', [candidate, special]),
-                    ('reference', case['reference_module'], [reference])):
-                command(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', module, *map(str, paths)], work / (role + '-lint.log'))
-                synthesis = work / (role + '-synthesis.ys')
-                synthesis.write_text('read_verilog ' + ' '.join(quoted(path) for path in paths) +
-                                     f'\nhierarchy -check -top {module}\nsynth -top {module}\ncheck -assert\nstat\n')
-                command(['yosys', '-Q', '-T', '-s', str(synthesis)], work / (role + '-synthesis.log'))
-            bench, executable = work / 'tb.v', work / 'tb.vvp'
-            bench.write_text(testbench(case, layout))
-            command(['iverilog', '-g2001', '-s', 'tb', '-o', str(executable), str(reference), str(candidate), str(bench)], work / 'parse.log')
-            simulation = command(['vvp', str(executable)], work / 'simulation.log')
-            if SIM_PASS not in simulation or SIM_FAIL in simulation:
-                raise RuntimeError('simulation did not produce definitive PASS: ' + label)
-            top, script = work / 'miter.v', work / 'proof.ys'
-            top.write_text(miter(case, layout))
-            temporal = '-seq 2 -set-at 1 enable 1 -prove-skip 1 ' if case['kind'] == 'storage' else ''
-            script.write_text(proof_setup([reference, candidate, top]) +
-                              f'sat {temporal}-prove bad 0 -verify -timeout 120 -show-inputs -show-outputs\n')
-            proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'proof.log')
-            if PASS not in proof or COUNTEREXAMPLE in proof:
-                raise RuntimeError('formal did not produce definitive PASS: ' + label)
-            if case['kind'] == 'storage':
-                # The previous proof shows convergence after one load from
-                # arbitrary independent register states. Induction additionally
-                # establishes unbounded equivalence from a shared initial state.
-                induction = work / 'induction.ys'
-                induction.write_text(proof_setup([reference, candidate, top]) +
-                                     'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 8 -timeout 120\n')
-                inductive = command(['yosys', '-Q', '-T', '-s', str(induction)], work / 'induction.log')
-                if INDUCTIVE_PASS not in inductive or COUNTEREXAMPLE in inductive:
-                    raise RuntimeError('register/hierarchy proof lacks definitive induction SUCCESS: ' + label)
-            if candidate_bytes != candidate.read_bytes():
-                raise RuntimeError('tool specialization rewrote the shared candidate')
-            evidence.append(dict(case=label, layout=layout, samples=len(samples(case)), proof='PASS',
-                                 candidate_sha256=hashlib.sha256(candidate_bytes).hexdigest(),
-                                 reference_sha256=hashlib.sha256(reference.read_bytes()).hexdigest()))
-            print(f'PASS {layout} {label}: strict tools, native equivalence, independent simulation', flush=True)
+    def run_case(case):
+        records = qualify_case(case, root, replay, layouts)
+        check_case_evidence(case, layouts, records)
+        return records
+
+    # Tool outputs belong to checks/<layout>/<case>; shared RTL is read only.
+    # Results and the final ledger retain manifest order at every worker count.
+    for records in ordered_results(run_case, selected, jobs):
+        evidence.extend(records)
+        for record in records:
+            print(f'PASS {record["layout"]} {record["case"]}: strict tools, native equivalence, independent simulation', flush=True)
     mutations = []
     if only is None and layout_filter != 'legacy':
         case = next(c for c in access if c['width'] == 5 and c['count'] == 3)
@@ -594,7 +649,7 @@ def qualify(root, replay, only=None, layout_filter=None):
     if not evidence:
         raise RuntimeError('no supported specialization was selected; mixed directions require the named layout')
     record = dict(status=status, universal_parameter_proof=False, cases=evidence, mutations=mutations)
-    (root / ('evidence.json' if only is None and layout_filter is None else 'focused-evidence.json')).write_text(json.dumps(record, indent=2) + '\n')
+    evidence_path.write_text(json.dumps(record, indent=2) + '\n')
     print(f'PASS: {len(evidence)} layout specializations, {len(mutations)} genuine input-wiring counterexamples')
 
 
@@ -602,7 +657,82 @@ def stem(case):
     return f'{case["kind"]}_w{case["width"]}_b{case["blue_width"]}_n{case["count"]}_i{case["inner"]}'
 
 
+def scheduler_self_test():
+    from threading import Event, Lock
+
+    lock, second_done = Lock(), Event()
+    seen, completed = [], []
+    active, peak = 0, 0
+
+    def out_of_order(value):
+        nonlocal active, peak
+        with lock:
+            seen.append(value)
+            active += 1
+            peak = max(peak, active)
+        if value == 0:
+            if not second_done.wait(timeout=5):
+                raise AssertionError('parallel worker did not start')
+        with lock:
+            completed.append(value)
+            active -= 1
+        if value == 1:
+            second_done.set()
+        return value * 3
+
+    assert list(ordered_results(out_of_order, range(6), 2)) == [value * 3 for value in range(6)]
+    assert sorted(seen) == list(range(6)) and peak == 2
+    assert completed.index(1) < completed.index(0), 'test must finish out of order'
+    assert list(ordered_results(lambda value: value, range(6), 1)) == list(range(6))
+    for jobs in (0, -1, 9):
+        try:
+            list(ordered_results(lambda value: value, [0], jobs))
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('scheduler accepted invalid worker bound')
+
+    def broken_worker(value):
+        if value == 1:
+            raise RuntimeError('genuine worker exception')
+        return value
+
+    try:
+        list(ordered_results(broken_worker, range(6), 2))
+    except RuntimeError as error:
+        assert str(error) == 'genuine worker exception'
+    else:
+        raise AssertionError('scheduler swallowed a worker exception')
+
+    case = dict(kind='access', width=5, blue_width=3, count=3, inner=1)
+    records = [dict(case=stem(case), layout=layout, proof='PASS') for layout in ('named', 'legacy')]
+    check_case_evidence(case, ('named', 'legacy'), records)
+    for broken in (None, [], records[:1], records + records[:1], list(reversed(records)),
+                   [dict(records[0], proof='UNKNOWN'), records[1]]):
+        try:
+            check_case_evidence(case, ('named', 'legacy'), broken)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError('scheduler accepted missing, duplicate, unordered or failed evidence')
+
+    from tempfile import TemporaryDirectory
+    with TemporaryDirectory(prefix='59c-stale-evidence-') as temporary:
+        root = Path(temporary)
+        for only, filename in ((None, 'evidence.json'), ('access', 'focused-evidence.json')):
+            stale = root / filename
+            stale.write_text('{"status":"stale-success"}')
+            try:
+                qualify(root, root, only=only, jobs=0)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError('invalid worker bound did not fail')
+            assert not stale.exists(), 'failed rerun retained stale success evidence'
+
+
 def self_test():
+    scheduler_self_test()
     for kind, width, blue, count, inner in [('access', 5, 3, 3, 1), ('nested', 5, 3, 3, 2), ('nested', 1, 5, 1, 3),
                                            ('storage', 5, 3, 3, 1), ('streams', 8, 1, 3, 1), ('mixed', 5, 3, 3, 1)]:
         case = dict(kind=kind, width=width, blue_width=blue, count=count, inner=inner, reference_module='Reference')
@@ -653,7 +783,7 @@ def self_test():
             pass
         else:
             raise AssertionError('candidate ABI checker accepted wrong top defaults or a signed output carrier')
-    print('PASS: independent native mapping, dimensions, stimulus, semantic model and mutation self-tests')
+    print('PASS: independent native mapping, dimensions, stimulus, semantic model, mutation and bounded scheduler self-tests')
 
 
 def main():
@@ -662,12 +792,14 @@ def main():
     parser.add_argument('replay', nargs='?', type=Path)
     parser.add_argument('--only', help='case stem or topology name; focused evidence cannot claim full matrix')
     parser.add_argument('--layout', choices=('named', 'legacy'))
+    parser.add_argument('--jobs', type=int, default=1,
+                        help='bounded independent case workers, 1 through 8 (default: 1)')
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
     if args.self_test:
         self_test()
     elif args.root is not None and args.replay is not None:
-        qualify(args.root, args.replay, args.only, args.layout)
+        qualify(args.root, args.replay, args.only, args.layout, args.jobs)
     else:
         parser.error('provide root and replay artifact directories, or --self-test')
 

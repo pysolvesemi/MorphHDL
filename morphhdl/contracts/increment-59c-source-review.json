@@ -281,21 +281,21 @@
         },
         {
           "id": "ParameterizedVec-59c-28",
-          "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: validateStaticIndex.",
+          "reason": "Capture exact static-index assignment and control evidence while preserving inherited native pruning of internal Vec copy chains; only source leaves outside the exact receiving Vec carrier are pinned. Reviewed source context: recordStaticWrite.",
           "before_start": 27882,
           "before_end": 27882,
           "after_start": 43421,
-          "after_end": 44236,
+          "after_end": 44607,
           "before": "",
-          "after": "    }\n  }\n\n  private[core] def recordStaticWrite(\n      vector: Vec[_],\n      elementIndex: Int,\n      elementLeafIndex: Int,\n      selected: BaseType,\n      assignments: Vector[DataAssignmentStatement],\n      kind: AnyRef\n  ): Unit = shapeOf(vector).foreach { shape =>\n    assignments.foreach { assignment =>\n      // Preserve exact authored scalar source identities, just as dynamic\n      // access retains its exact native mux targets and decoder identities.\n      assignment.source match {\n        case value: BaseType => value.dontSimplifyIt()\n        case _ =>\n      }\n      append(vector, ParameterizedVecStaticWrite(elementIndex, elementLeafIndex, selected,\n        assignment, assignment.source, assignment.target,\n        capturedConditions(assignment.parentScope), kindName(kind), shape.sourceLocation))\n"
+          "after": "    }\n  }\n\n  private[core] def recordStaticWrite(\n      vector: Vec[_],\n      elementIndex: Int,\n      elementLeafIndex: Int,\n      selected: BaseType,\n      assignments: Vector[DataAssignmentStatement],\n      kind: AnyRef\n  ): Unit = shapeOf(vector).foreach { shape =>\n    assignments.foreach { assignment =>\n      // Preserve external scalar source identities. A source inside this Vec\n      // already belongs to its exact carrier inventory: pinning that one leaf\n      // would turn an otherwise fully simplified internal copy chain into a\n      // partially retained aggregate. Publication still requires every exact\n      // carrier and validates the captured source identity whenever the Vec\n      // survives native simplification.\n      assignment.source match {\n        case value: BaseType\n            if !vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_ eq value)) =>\n          value.dontSimplifyIt()\n        case _ =>\n      }\n      append(vector, ParameterizedVecStaticWrite(elementIndex, elementLeafIndex, selected,\n        assignment, assignment.source, assignment.target,\n        capturedConditions(assignment.parentScope), kindName(kind), shape.sourceLocation))\n"
         },
         {
           "id": "ParameterizedVec-59c-29",
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordDynamicAccess.",
           "before_start": 30665,
           "before_end": 30665,
-          "after_start": 47019,
-          "after_end": 47255,
+          "after_start": 47390,
+          "after_end": 47626,
           "before": "",
           "after": "      // Retain unused sibling leaves too: selecting one Bundle field must not\n      // partially erase the exact native read evidence for the other fields.\n      // Stale/replaced assignments still fail the publication identity audit.\n"
         },
@@ -304,8 +304,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordDynamicAccess.",
           "before_start": 30751,
           "before_end": 30793,
-          "after_start": 47341,
-          "after_end": 48848,
+          "after_start": 47712,
+          "after_end": 49219,
           "before": "result.flatten.foreach(_.dontSimplifyIt())",
           "after": "// Native pruning protects a vital scalar only when it is named. Give\n      // the exact result aggregate a weak name so nested field ownership still\n      // supplies readable leaf names and later user naming remains stronger.\n      result.setName(\"morphhdl_typed_vec_access_result\", weak = true)\n      result.flatten.foreach(_.dontSimplifyIt().setAsVital())\n      val assignments = assignmentStatementsOf(result)\n      val selections = assignments.collect { case assignment if assignment.source.isInstanceOf[Multiplexer] =>\n        assignment.source.asInstanceOf[Multiplexer].select\n      }.foldLeft(Vector.empty[Expression]) { (known, selection) =>\n        if (known.exists(_ eq selection)) known else known :+ selection\n      }\n      val readSelect = if (shape.carrierCapacity <= 1) None else selections match {\n        case Vector(selection: UInt) if selection ne address =>\n          val drivers = assignmentStatementsOf(selection).filter(_.finalTarget eq selection)\n          if (drivers.size != 1) {\n            fail(\"SPINAL-ELAB-VEC-READ-SELECT-EVIDENCE-MISMATCH\",\n              \"typed Vec read lost its exact single native carrier-select driver\", shape.sourceLocation)\n          }\n          Some(ParameterizedVecReadSelect(selection, drivers, drivers.map(_.source), log2Up(shape.carrierCapacity)))\n        case _ =>\n          fail(\"SPINAL-ELAB-VEC-READ-SELECT-EVIDENCE-MISMATCH\",\n            \"typed Vec read lost its exact distinct per-access native select identity\", shape.sourceLocation)\n      }"
         },
@@ -314,8 +314,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordDynamicAccess.",
           "before_start": 30862,
           "before_end": 31001,
-          "after_start": 48917,
-          "after_end": 48989,
+          "after_start": 49288,
+          "after_end": 49360,
           "before": "\n          address,\n          result,\n          assignmentStatementsOf(result),\n          writable,\n          shape.sourceLocation\n        ",
           "after": "address, result, assignments, writable, readSelect, shape.sourceLocation"
         },
@@ -324,8 +324,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordDynamicWrite.",
           "before_start": 35951,
           "before_end": 35951,
-          "after_start": 53939,
-          "after_end": 53992,
+          "after_start": 54310,
+          "after_end": 54363,
           "before": "",
           "after": ",\n            capturedWriteConditions(parentWhen.get)"
         },
@@ -334,8 +334,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordDynamicWrite.",
           "before_start": 36396,
           "before_end": 36396,
-          "after_start": 54437,
-          "after_end": 55572,
+          "after_start": 54808,
+          "after_end": 55943,
           "before": "",
           "after": "\n  private def capturedWriteConditions(\n      guard: WhenStatement\n  ): Vector[ParameterizedVecWriteCondition] = {\n    capturedConditions(guard.parentScope)\n  }\n\n  private def capturedConditions(\n      initialScope: spinal.core.internals.ScopeStatement\n  ): Vector[ParameterizedVecWriteCondition] = {\n    val conditions = ArrayBuffer.empty[ParameterizedVecWriteCondition]\n    var scope = initialScope\n    var complete = false\n    while (scope != null && scope.parentStatement != null && !complete) {\n      scope.parentStatement match {\n        case parent: WhenStatement =>\n          // Preserve this exact Bool identity through ordinary alias cleanup.\n          // Publication still validates the native condition and scope graph.\n          parent.cond match {\n            case value: Bool => value.dontSimplifyIt()\n            case _ =>\n          }\n          conditions += ParameterizedVecWriteCondition(parent, parent.cond, scope eq parent.whenTrue)\n          scope = parent.parentScope\n        case _ => complete = true // Unsupported ownership remains fail-closed at publication.\n      }\n    }\n    conditions.reverse.toVector\n  }\n"
         },
@@ -344,8 +344,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: exactPackedReadLeaves.",
           "before_start": 38355,
           "before_end": 38355,
-          "after_start": 57531,
-          "after_end": 57595,
+          "after_start": 57902,
+          "after_end": 57966,
           "before": "",
           "after": ",\n      supportAssignments: ArrayBuffer[DataAssignmentStatement]"
         },
@@ -354,8 +354,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: trace.",
           "before_start": 39560,
           "before_end": 39560,
-          "after_start": 58800,
-          "after_end": 58900,
+          "after_start": 59171,
+          "after_end": 59271,
           "before": "",
           "after": "              if (!supportAssignments.exists(_ eq drivers.head)) supportAssignments += drivers.head\n"
         },
@@ -364,8 +364,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: validatePackedReadCarrierLineage.",
           "before_start": 40309,
           "before_end": 40309,
-          "after_start": 59649,
-          "after_end": 59713,
+          "after_start": 60020,
+          "after_end": 60084,
           "before": "",
           "after": ",\n      supportAssignments: ArrayBuffer[DataAssignmentStatement]"
         },
@@ -374,8 +374,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: validatePackedReadCarrierLineage.",
           "before_start": 40607,
           "before_end": 40607,
-          "after_start": 60011,
-          "after_end": 60031,
+          "after_start": 60382,
+          "after_end": 60402,
           "before": "",
           "after": ", supportAssignments"
         },
@@ -384,8 +384,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedRead.",
           "before_start": 44430,
           "before_end": 44431,
-          "after_start": 63854,
-          "after_end": 63862,
+          "after_start": 64225,
+          "after_end": 64233,
           "before": "e",
           "after": "logicalE"
         },
@@ -394,8 +394,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedRead.",
           "before_start": 46307,
           "before_end": 46307,
-          "after_start": 65738,
-          "after_end": 65814,
+          "after_start": 66109,
+          "after_end": 66185,
           "before": "",
           "after": "        val supportAssignments = ArrayBuffer.empty[DataAssignmentStatement]\n"
         },
@@ -404,8 +404,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedRead.",
           "before_start": 46451,
           "before_end": 46451,
-          "after_start": 65958,
-          "after_end": 65988,
+          "after_start": 66329,
+          "after_end": 66359,
           "before": "",
           "after": ",\n          supportAssignments"
         },
@@ -414,8 +414,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedRead.",
           "before_start": 47747,
           "before_end": 47747,
-          "after_start": 67284,
-          "after_end": 67325,
+          "after_start": 67655,
+          "after_end": 67696,
           "before": "",
           "after": ",\n            supportAssignments.toVector"
         },
@@ -424,8 +424,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: validatePackedAssignment.",
           "before_start": 48531,
           "before_end": 48551,
-          "after_start": 68109,
-          "after_end": 68143,
+          "after_start": 68480,
+          "after_end": 68514,
           "before": "packedShapeOf(source",
           "after": "exactPackedSource(source).map(_._1"
         },
@@ -434,8 +434,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: validatePackedAssignment.",
           "before_start": 50314,
           "before_end": 50314,
-          "after_start": 69906,
-          "after_end": 71720,
+          "after_start": 70277,
+          "after_end": 72091,
           "before": "",
           "after": "\n  /** Follow only complete, unconditional, same-owner native Bits copies.\n    * The returned assignment identities are frozen into the consuming Vec\n    * operation and re-audited before publication; width coincidence is never\n    * used to discover an alias.\n    */\n  private def exactPackedSource(\n      source: Bits\n  ): Option[(ParameterizedVecShape, Vector[ParameterizedVecPackedSourceAlias])] = {\n    val visited = new IdentityHashMap[Bits, java.lang.Boolean]()\n    def visit(value: Bits): Option[(ParameterizedVecShape, Vector[ParameterizedVecPackedSourceAlias])] = {\n      if (value == null || visited.put(value, java.lang.Boolean.TRUE) != null) return None\n      directPackedShapeOf(value) match {\n        case Some(shape) => Some(shape -> Vector.empty)\n        case None if !value.isReg && value.component != null =>\n          val drivers = assignmentStatementsOf(value).filter(_.finalTarget eq value)\n          drivers match {\n            case Vector(driver) if (driver.target eq value) && (driver.parentScope eq value.component.dslBody) =>\n              driver.source match {\n                case upstream: Bits if upstream.component eq value.component =>\n                  visit(upstream).filter { case (shape, _) =>\n                    !value.isFixedWidth || (for {\n                      width <- ParameterizedWidth.expressionOf(value)\n                      expected <- expectedPackedWidth(shape)\n                    } yield equivalentPackedWidth(width, expected)).getOrElse(false)\n                  }.map { case (shape, aliases) =>\n                    shape -> (ParameterizedVecPackedSourceAlias(value, upstream, driver) +: aliases)\n                  }\n                case _ => None\n              }\n            case _ => None\n          }\n        case _ => None\n      }\n    }\n    visit(source)\n  }\n"
         },
@@ -444,8 +444,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedAssignment.",
           "before_start": 52078,
           "before_end": 52078,
-          "after_start": 73484,
-          "after_end": 73693,
+          "after_start": 73855,
+          "after_end": 74064,
           "before": "",
           "after": "      val sourceAliases = exactPackedSource(source).map(_._2).getOrElse(Vector.empty)\n      sourceAliases.foreach { alias =>\n        alias.target.dontSimplifyIt()\n        alias.source.dontSimplifyIt()\n      }\n"
         },
@@ -454,8 +454,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: recordPackedAssignment.",
           "before_start": 52288,
           "before_end": 52288,
-          "after_start": 73903,
-          "after_end": 73928,
+          "after_start": 74274,
+          "after_end": 74299,
           "before": "",
           "after": ",\n          sourceAliases"
         },
@@ -464,8 +464,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: expectedPackedWidth.",
           "before_start": 54577,
           "before_end": 54618,
-          "after_start": 76217,
-          "after_end": 76236,
+          "after_start": 76588,
+          "after_end": 76607,
           "before": "depth +: shape.elementLeaves.map(_.width)",
           "after": "geometryExpressions"
         },
@@ -474,8 +474,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: expectedPackedWidth.",
           "before_start": 54935,
           "before_end": 54996,
-          "after_start": 76553,
-          "after_end": 76648,
+          "after_start": 76924,
+          "after_end": 77019,
           "before": "Leaves\n        .map(leaf => ElabInt.fromExpression(leaf.width",
           "after": "Fields\n        .map(field => field.geometryExpressions.map(ElabInt.fromExpression).reduce(_ * _"
         },
@@ -484,8 +484,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: equivalentShape.",
           "before_start": 55672,
           "before_end": 55672,
-          "after_start": 77324,
-          "after_end": 77391,
+          "after_start": 77695,
+          "after_end": 77762,
           "before": "",
           "after": " &&\n      equivalentFields(left.elementFields, right.elementFields)"
         },
@@ -494,8 +494,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: exactAggregateHierarchyBinding.",
           "before_start": 56992,
           "before_end": 56992,
-          "after_start": 78711,
-          "after_end": 78790,
+          "after_start": 79082,
+          "after_end": 79161,
           "before": "",
           "after": "      !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||\n"
         },
@@ -504,8 +504,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: exactAggregateHierarchyBinding.",
           "before_start": 57275,
           "before_end": 57450,
-          "after_start": 79073,
-          "after_end": 79135,
+          "after_start": 79444,
+          "after_end": 79506,
           "before": "\n      (canonical.depth -> actual.depth) +:\n        canonical.elementLeaves.zip(actual.elementLeaves).map { case (left, right) =>\n          left.width -> right.width\n        }",
           "after": " canonical.geometryExpressions.zip(actual.geometryExpressions)"
         },
@@ -514,8 +514,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: exactDirectAggregateHierarchyBinding.",
           "before_start": 59578,
           "before_end": 59578,
-          "after_start": 81263,
-          "after_end": 81342,
+          "after_start": 81634,
+          "after_end": 81713,
           "before": "",
           "after": "      !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||\n"
         },
@@ -524,8 +524,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: exactDirectAggregateHierarchyBinding.",
           "before_start": 59861,
           "before_end": 60036,
-          "after_start": 81625,
-          "after_end": 81687,
+          "after_start": 81996,
+          "after_end": 82058,
           "before": "\n      (canonical.depth -> actual.depth) +:\n        canonical.elementLeaves.zip(actual.elementLeaves).map { case (left, right) =>\n          left.width -> right.width\n        }",
           "after": " canonical.geometryExpressions.zip(actual.geometryExpressions)"
         },
@@ -534,8 +534,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: equivalentDirectHierarchyShape.",
           "before_start": 64853,
           "before_end": 64853,
-          "after_start": 86504,
-          "after_end": 86927,
+          "after_start": 86875,
+          "after_end": 87298,
           "before": "",
           "after": "      equivalentFieldLayout(childShape.elementFields, parentShape.elementFields) &&\n      childShape.elementFields.zip(parentShape.elementFields).forall { case (childField, parentField) =>\n        childField.geometryExpressions.zip(parentField.geometryExpressions).forall { case (childExpression, parentExpression) =>\n          equivalentBoundaryExpression(childExpression, parentExpression, bindings)\n        }\n      } &&\n"
         },
@@ -544,8 +544,8 @@
           "reason": "Retain exact recursive field dimensions, native packing and alias identities, static and conditional indexed-write evidence, and finite carrier geometry. Reviewed source context: isExactDirectFormalExpression.",
           "before_start": 69176,
           "before_end": 69176,
-          "after_start": 91250,
-          "after_end": 92596,
+          "after_start": 91621,
+          "after_end": 92967,
           "before": "",
           "after": "  private def equivalentFieldLayout(\n      left: Vector[ParameterizedVecFieldShape],\n      right: Vector[ParameterizedVecFieldShape]\n  ): Boolean = left.size == right.size && left.zip(right).forall { case (l, r) =>\n    l.path == r.path && (l.typeObject eq r.typeObject) &&\n      l.carrierLeafIndices == r.carrierLeafIndices &&\n      l.dimensions.size == r.dimensions.size &&\n      l.dimensions.zip(r.dimensions).forall { case (ld, rd) =>\n        ld.witnessDepth == rd.witnessDepth && ld.carrierCapacity == rd.carrierCapacity\n      }\n  }\n\n  private def equivalentFieldGeometry(\n      left: ParameterizedVecFieldShape,\n      right: ParameterizedVecFieldShape\n  ): Boolean =\n    left.path == right.path && (left.typeObject eq right.typeObject) &&\n      ElabInt.equivalentExactFunction(left.width, right.width) &&\n      left.dimensions.size == right.dimensions.size &&\n      left.dimensions.zip(right.dimensions).forall { case (l, r) =>\n        l.witnessDepth == r.witnessDepth && l.carrierCapacity == r.carrierCapacity &&\n          ElabInt.equivalentExactFunction(l.depth, r.depth)\n      }\n\n  private def equivalentFields(\n      left: Vector[ParameterizedVecFieldShape],\n      right: Vector[ParameterizedVecFieldShape]\n  ): Boolean = equivalentFieldLayout(left, right) &&\n    left.zip(right).forall { case (l, r) => equivalentFieldGeometry(l, r) }\n\n"
         }
@@ -702,14 +702,44 @@
           "after": " canonicalShape.geometryExpressions"
         },
         {
+          "id": "ExternalParameterizedVerilogHierarchy-59c-3",
+          "reason": "Evaluate exact hierarchy parameter dependence for an explicit geometry-expression inventory, retaining the canonical declaration-root and direct-schema proofs. Reviewed source context: exactVecFormals.",
+          "before_start": 46500,
+          "before_end": 46741,
+          "after_start": 46461,
+          "after_end": 46795,
+          "before": "val dependsOnParameter = canonicalFormals.headOption match {\n        case Some(canonicalBinding) =>\n          dimensions.exists(\n            _.completedParameterRoots.exists(\n              _ eq canonicalBinding.binding.formal.declarationRoot",
+          "after": "def dependsOnParameter(expressions: Vector[ElaborationIntegerExpression]): Boolean =\n        canonicalFormals.headOption match {\n          case Some(canonicalBinding) =>\n            expressions.exists(\n              _.completedParameterRoots.exists(\n                _ eq canonicalBinding.binding.formal.declarationRoot\n              )"
+        },
+        {
+          "id": "ExternalParameterizedVerilogHierarchy-59c-4",
+          "reason": "Separate outer and recursive Vec count dimensions from scalar widths so whole-assignment and auto-connect evidence only extends count-parameter inference. Reviewed source context: exactVecFormals.",
+          "before_start": 46766,
+          "before_end": 46909,
+          "after_start": 46820,
+          "after_end": 47158,
+          "before": ")\n        case None =>\n          dimensions.exists(\n            ParameterizedVec.isExactDirectParameterSchema(_, parameter)\n          )\n      }",
+          "after": "case None =>\n            expressions.exists(\n              ParameterizedVec.isExactDirectParameterSchema(_, parameter)\n            )\n        }\n      val countDimensions = canonicalShape.depth +:\n        canonicalShape.elementFields.flatMap(_.dimensions.map(_.depth))\n      val dependsOnCountParameter = dependsOnParameter(countDimensions)"
+        },
+        {
+          "id": "ExternalParameterizedVerilogHierarchy-59c-5",
+          "reason": "Keep aggregate port discovery sensitive to all retained geometry while applying count-only filtering to native whole-assignment and auto-connect evidence. Reviewed source context: exactVecFormals.",
+          "before_start": 47005,
+          "before_end": 47005,
+          "after_start": 47254,
+          "after_end": 47266,
+          "before": "",
+          "after": "(dimensions)"
+        },
+        {
           "id": "ExternalParameterizedVerilogHierarchy-59c-2",
-          "reason": "Thread the selected field publication profile through exact native hierarchy planning. Reviewed source context: exactVecFormals.",
+          "reason": "Retain complete native whole-assignment and auto-connect lineage as aggregate evidence only for exact Vec count parameters, preserving scalar connection proofs for width-only parameters. Reviewed source context: exactVecFormals.",
           "before_start": 49739,
           "before_end": 49747,
-          "after_start": 49700,
-          "after_end": 52246,
+          "after_start": 50000,
+          "after_end": 52769,
           "before": "if (read",
-          "after": "// Whole native Vec assignment/auto-connect is also an aggregate\n          // boundary. A depth-only parameter has no scalar width port to\n          // constrain it, so retain the complete Vec relation by exact live\n          // statements instead of asking for a fabricated scalar formal.\n          val boundaries = ParameterizedVec.vectorsOf(parent).flatMap { parentVector =>\n            val parentLeaves = vectorLeaves(parentVector)\n            val childOwned = ParameterizedVec.operationsOf(actualVector).collect {\n              case value: ParameterizedVecWholeAssignment if value.source eq parentVector => value.assignments\n              case value: ParameterizedVecAutoConnect if value.peer eq parentVector => value.assignments\n            }\n            val parentOwned = ParameterizedVec.operationsOf(parentVector).collect {\n              case value: ParameterizedVecWholeAssignment if value.source eq actualVector => value.assignments\n              case value: ParameterizedVecAutoConnect if value.peer eq actualVector => value.assignments\n            }\n            (childOwned ++ parentOwned).filter { evidence =>\n              evidence.size == actualLeaves.size && parentLeaves.size == actualLeaves.size &&\n              evidence.forall(statement => assignments.exists(_ eq statement) &&\n                (statement.parentScope eq evidence.head.parentScope) &&\n                ((statement.parentScope eq parent.dslBody) || actualLeaves.forall(leaf => leaf.isOutput && !leaf.isInput)) &&\n                (statement.target eq statement.finalTarget)) &&\n              actualLeaves.zip(parentLeaves).forall { case (childLeaf, parentLeaf) =>\n                val input = childLeaf.isInput && !childLeaf.isOutput && !childLeaf.isInOut\n                val output = childLeaf.isOutput && !childLeaf.isInput && !childLeaf.isInOut\n                (input || output) && (parentLeaf.component eq parent) && !parentLeaf.isInOut &&\n                evidence.count { statement =>\n                  val target = if (input) childLeaf else parentLeaf\n                  val source = if (input) parentLeaf else childLeaf\n                  (statement.finalTarget eq target) && (statement.source match {\n                    case actual: BaseType => actual eq source\n                    case _ => false\n                  })\n                } == 1\n              }\n            }.map { evidence =>\n              ParameterizedVec.requireCompatible(actualVector, parentVector)\n              evidence\n            }\n          }\n          if (reads.nonEmpty || boundarie"
+          "after": "// Whole native Vec assignment/auto-connect is also an aggregate\n          // boundary for a retained count parameter. A width-only parameter\n          // remains on the ordinary scalar connection proof path, including\n          // scalar ports that share that exact width. Counts have no scalar\n          // width port to constrain them, so retain the complete Vec relation\n          // by exact live statements instead of fabricating a scalar formal.\n          val boundaries = if (!dependsOnCountParameter) Vector.empty else\n            ParameterizedVec.vectorsOf(parent).flatMap { parentVector =>\n            val parentLeaves = vectorLeaves(parentVector)\n            val childOwned = ParameterizedVec.operationsOf(actualVector).collect {\n              case value: ParameterizedVecWholeAssignment if value.source eq parentVector => value.assignments\n              case value: ParameterizedVecAutoConnect if value.peer eq parentVector => value.assignments\n            }\n            val parentOwned = ParameterizedVec.operationsOf(parentVector).collect {\n              case value: ParameterizedVecWholeAssignment if value.source eq actualVector => value.assignments\n              case value: ParameterizedVecAutoConnect if value.peer eq actualVector => value.assignments\n            }\n            (childOwned ++ parentOwned).filter { evidence =>\n              evidence.size == actualLeaves.size && parentLeaves.size == actualLeaves.size &&\n              evidence.forall(statement => assignments.exists(_ eq statement) &&\n                (statement.parentScope eq evidence.head.parentScope) &&\n                ((statement.parentScope eq parent.dslBody) || actualLeaves.forall(leaf => leaf.isOutput && !leaf.isInput)) &&\n                (statement.target eq statement.finalTarget)) &&\n              actualLeaves.zip(parentLeaves).forall { case (childLeaf, parentLeaf) =>\n                val input = childLeaf.isInput && !childLeaf.isOutput && !childLeaf.isInOut\n                val output = childLeaf.isOutput && !childLeaf.isInput && !childLeaf.isInOut\n                (input || output) && (parentLeaf.component eq parent) && !parentLeaf.isInOut &&\n                evidence.count { statement =>\n                  val target = if (input) childLeaf else parentLeaf\n                  val source = if (input) parentLeaf else childLeaf\n                  (statement.finalTarget eq target) && (statement.source match {\n                    case actual: BaseType => actual eq source\n                    case _ => false\n                  })\n                } == 1\n              }\n            }.map { evidence =>\n              ParameterizedVec.requireCompatible(actualVector, parentVector)\n              evidence\n            }\n          }\n          if (reads.nonEmpty || boundarie"
         }
       ]
     },

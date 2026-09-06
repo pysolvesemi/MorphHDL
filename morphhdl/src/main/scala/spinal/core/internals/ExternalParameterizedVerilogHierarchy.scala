@@ -1118,21 +1118,25 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           canonicalFormals.flatMap(_.binding.sourceLocation).headOption
         )
       }
-      val dependsOnParameter = canonicalFormals.headOption match {
-        case Some(canonicalBinding) =>
-          dimensions.exists(
-            _.completedParameterRoots.exists(
-              _ eq canonicalBinding.binding.formal.declarationRoot
+      def dependsOnParameter(expressions: Vector[ElaborationIntegerExpression]): Boolean =
+        canonicalFormals.headOption match {
+          case Some(canonicalBinding) =>
+            expressions.exists(
+              _.completedParameterRoots.exists(
+                _ eq canonicalBinding.binding.formal.declarationRoot
+              )
             )
-          )
-        case None =>
-          dimensions.exists(
-            ParameterizedVec.isExactDirectParameterSchema(_, parameter)
-          )
-      }
+          case None =>
+            expressions.exists(
+              ParameterizedVec.isExactDirectParameterSchema(_, parameter)
+            )
+        }
+      val countDimensions = canonicalShape.depth +:
+        canonicalShape.elementFields.flatMap(_.dimensions.map(_.depth))
+      val dependsOnCountParameter = dependsOnParameter(countDimensions)
       val canonicalLeaves = vectorLeaves(canonicalVector)
       if (
-        dependsOnParameter && canonicalLeaves.nonEmpty &&
+        dependsOnParameter(dimensions) && canonicalLeaves.nonEmpty &&
         canonicalLeaves.forall(_.isIo)
       ) {
         val portOrdinals = canonicalLeaves.map { leaf =>
@@ -1192,10 +1196,13 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               read
           }
           // Whole native Vec assignment/auto-connect is also an aggregate
-          // boundary. A depth-only parameter has no scalar width port to
-          // constrain it, so retain the complete Vec relation by exact live
-          // statements instead of asking for a fabricated scalar formal.
-          val boundaries = ParameterizedVec.vectorsOf(parent).flatMap { parentVector =>
+          // boundary for a retained count parameter. A width-only parameter
+          // remains on the ordinary scalar connection proof path, including
+          // scalar ports that share that exact width. Counts have no scalar
+          // width port to constrain them, so retain the complete Vec relation
+          // by exact live statements instead of fabricating a scalar formal.
+          val boundaries = if (!dependsOnCountParameter) Vector.empty else
+            ParameterizedVec.vectorsOf(parent).flatMap { parentVector =>
             val parentLeaves = vectorLeaves(parentVector)
             val childOwned = ParameterizedVec.operationsOf(actualVector).collect {
               case value: ParameterizedVecWholeAssignment if value.source eq parentVector => value.assignments

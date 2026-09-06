@@ -132,7 +132,7 @@ jobs:
         run: |
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59c"
-          python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py "$output/a" "$output/b"
+          python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py "$output/a" "$output/b" --jobs 2
           printf '%s\n' '59c: named and legacy layouts; 32 common WIDTH/COUNT, 36 independent nested dimension, 16 register/hierarchy and 16 Stream/Flow cases; 16 named mixed-direction Vec/Stream cases; one singleton-default candidate per layout/topology; exact native leaf widths; deterministic generation; strict Verilog-2001 Icarus simulation, Verilator lint, full Yosys synthesis, native-reference equivalence, arbitrary-state register convergence and temporal induction; genuine field/order/offset/cross-Vec and generated parent/child binding counterexamples. The finite matrix is not universal parameter quantification.' >> "$GITHUB_STEP_SUMMARY"
       - name: Print failures
         if: failure()
