@@ -2,27 +2,40 @@
 
 ## Status
 
-The implementation was qualified on published commit
-`4f323bda5ad130d4d1e8e7ee9b2f7cf5904bc9ef`, incorporating merged integration
-commit `5a669d32095ee722c313bd069b771e7c350a1f81`. The local qualification commit
+Standalone 59e was qualified on published commit
+`4f323bda5ad130d4d1e8e7ee9b2f7cf5904bc9ef`, incorporating integration commit
+`5a669d32095ee722c313bd069b771e7c350a1f81`. The local qualification commit
 `104e8fd97ab29c1a188393efca2dad0c25930bfe` has the identical Git tree
-`92d50f48b337d62c178ea4f1831a27f94d4e7e5f`.
+`92d50f48b337d62c178ea4f1831a27f94d4e7e5f`. All 36 applicable workflow runs on
+that publication passed; retired workflow invocations are not proof evidence.
 
-Publication and the final CI record are attached to
-[PR #162](https://github.com/pysolvesemi/MorphHDL/pull/162). No unmerged parallel
-successor supplies an implementation dependency.
-
-All 36 applicable workflow runs on that implementation commit passed; retired
-workflow invocations are not counted as proof evidence. Before completion,
-the branch incorporated integration commit
+The subsequent standalone completion publication
+`ba479403017d762fb1cf8227fa2f130d992bee38` incorporated integration commit
 `3e80cef258ddfdd6ce74819a2fbf200a8d2c5a64`, reconciling its WA-07a inventory
-registration with the historical/current source checks. That integration
-changes no production code, Scala fixture, generated-artifact writer or
-59e proof harness. The 15 existing 60f proof/tool/oracle functions are unchanged.
-The merged guards passed all 67 inventory rejection controls, six new
-source-evolution/pass-profile rejection controls and the full native/source
-boundary checks. The published completion commit reruns the applicable CI
-before merge.
+registration with the historical/current source checks. This reconciliation
+changed no production code, Scala fixture, generated-artifact writer or 59e
+proof harness. All 36 applicable workflow runs on `ba479403` also passed,
+including both 59e Scala lanes and the complete inherited 60f workflow.
+
+Before PR #162 could merge, the integration branch advanced to completed 59f
+at `c85659a20d428dd58cc6116c12c8b24418c37722`. The combined production source
+qualified locally is `da47a78faf60217c795e47e1e8c598e2fccb61a0`, with tree
+`e5f83db999501e1941702d259c694bddd6e94a37`. It includes the reviewed integration
+repair for exact assignment-domain unsigned resize padding described below.
+Both supported Scala versions have passed 358 targeted tests across 27 suites,
+with zero failures, errors or skips. Complete independent A/B generation and all 65 composite, 64 callback and
+32 inherited hardware cases passed on each Scala version, including all nine
+actual RTL mutation counterexamples. The three resulting evidence JSON files
+are byte-identical across Scala versions. The subsequent integration update
+`ddbc9ff637ec0c42093111e7f8e48fc87957580f` changes only the 59f completion
+document and roadmap; incorporating it changes no qualified production source.
+
+Publication and the final CI record belong to
+[PR #162](https://github.com/pysolvesemi/MorphHDL/pull/162). The standalone
+results below remain historical evidence. Final combined CI results, including
+the broad regression inventory, are retained on that PR and must pass for its
+published head before merge. No unmerged
+parallel successor supplies an implementation dependency.
 
 ## Native source contract
 
@@ -70,6 +83,44 @@ generators are recursively audited. These restrictions apply to symbolic
 reduction admission; they do not change ordinary concrete callback execution.
 Per-instance assignment redirects also reject before either callback executes,
 including redirects on a nested leaf or Vec container.
+
+## Integration with completed 59f
+
+The shared backend dispatches from the actual element shape. Exact native
+scalar `Bool`, `Bits`, `UInt` and `SInt` operands use 59f's certified helper and
+captured-input schema, scalar stage capture and scalar graph replay. Composite
+Bundle/Vec operands retain 59e's separate constructor/assignment admission,
+recursive shape certificate and composite replay. Both paths perform the
+pre-execution runtime-value checks, preserve their own freshness observations
+and feed the shared native stage topology. This integration does not admit
+broader captured composite callback graphs; that combined feature remains a
+separate qualification obligation.
+
+The native scalar mux uses `ParameterizedWidth.preserveMuxWidth` with an
+ordinary native `this.clone.setWidth(w)` result. The clone initially carries no
+pre-copied width evidence from one arm. Metadata is retained only after every
+input proves the same exact width function; native maximum-width selection
+remains authoritative. Ordinary `cloneOf` still propagates 59e's existing
+shape metadata through its separate validated clone boundary.
+
+Combining that clone propagation with 59f's unsigned resize publisher exposed
+two captured-register initialization regressions. The cloned resize input can
+carry branch-projected width metadata while padding publication runs at module
+scope.
+The repair passes the exact component and assignment to the padding helper,
+checks projected assignment dominance and obtains each width's admitted domain
+from `exactAssignmentDomainOf`. Width-authority validation and subtraction run
+inside those exact owner contexts. Proven same-root zero padding retains the
+established one-zero-bit normalization; a projection or concrete witness alone
+does not authorize the proof.
+
+The checksum-pinned publisher ledger retains all six original 59f spans and
+four original 59e spans unchanged, then appends three reversible repair spans.
+Reversing the three repair spans reproduces the initially merged fallback;
+reversing the ten preserved spans then reproduces the completed 60f baseline.
+Each span must match uniquely, and complete before/after hashes are checked. The final fallback SHA-256 is
+`f436d56464ad291904d66ec8381121d3b12dfa58fbfaf35b0206d778fca9ca79`; the ledger
+SHA-256 is `a7413d5d50fcb9a073cdd40a980c1476dddb9ef7d727635d045565b39b5b3f9a`.
 
 ## Packed transport and native propagation
 
@@ -137,7 +188,12 @@ implementation. The completed 60f source interval does not freeze later
 production development; current native edits still require the approved-change
 audit.
 
-## Executed qualification
+## Standalone qualification — historical results
+
+This table records the standalone 59e qualification associated with `4f323bda`
+and its subsequent `ba479403` completion publication. The 1,652-test broad
+inventories are historical standalone counts, not a claim about the combined
+59e/59f build.
 
 | Gate | Scala 2.12.18 | Scala 2.13.12 |
 | --- | ---: | ---: |
@@ -170,6 +226,13 @@ retains source archives, generated RTL, test XML, solver logs and mutation
 traces. The [60f inherited qualification workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34016723672)
 records the complete regression inventories and original signedness gates.
 
+The later standalone [59e run 34026753088](https://github.com/pysolvesemi/MorphHDL/actions/runs/34026753088)
+and [60f run 34026753083](https://github.com/pysolvesemi/MorphHDL/actions/runs/34026753083)
+passed on `ba479403`. Both complete 59e Scala lanes reproduced 65 composite
+cases, 32 inherited cases and all four actual composite mutation witnesses.
+Both broad Scala inventories passed 1,652 non-skipped tests, and the downloaded
+cross-Scala signedness comparison matched 213 RTL files at that publication.
+
 The approved native-change audit, retirement guards and typed source overlay
 checks passed. Regenerating the native source manifest produced identical
 bytes; its SHA-256 is
@@ -177,6 +240,60 @@ bytes; its SHA-256 is
 Final source review found no blocker in constructor/callback admission,
 recursive root and ownership retention, live support-wire removal or the
 independent result-shape oracle.
+
+## Combined 59e/59f qualification — local results
+
+The following results apply only to production commit
+`da47a78faf60217c795e47e1e8c598e2fccb61a0` and tree
+`e5f83db999501e1941702d259c694bddd6e94a37`.
+
+| Gate | Scala 2.12.18 | Scala 2.13.12 |
+| --- | --- | --- |
+| Combined targeted composite, callback, native shape, safety and signedness tests | 358 / 358 in 27 suites; zero failures/errors/skips | 358 / 358 in 27 suites; zero failures/errors/skips |
+| Complete independent A/B generation | All six writer invocations; deterministic pairs | All six writer invocations; deterministic pairs |
+| Composite strict tools, synthesis, independent simulation and equivalence | 65 / 65 | 65 / 65 |
+| Composite independent-model simulation cycles | 23,316 | 23,316 |
+| Composite reset-entry / induction / combinational proofs | 40 / 40 / 25 | 40 / 40 / 25 |
+| Actual composite RTL mutation counterexamples | 4 / 4, simulation and SAT | 4 / 4, simulation and SAT |
+| Inherited 59f callback strict tools, synthesis, independent simulation and equivalence | 64 / 64 | 64 / 64 |
+| Callback independent-model simulation vectors / combinational proofs | 27,330 / 64 | 27,330 / 64 |
+| Actual callback RTL mutation counterexamples | 3 / 3, SAT | 3 / 3, SAT |
+| Inherited 59b strict tools, synthesis, independent simulation and equivalence | 32 / 32 | 32 / 32 |
+| Inherited 59b simulation cycles / reset-entry / induction proofs | 5,586 / 32 / 32 | 5,586 / 32 / 32 |
+| Actual inherited 59b mutation counterexamples | 2 / 2, SAT | 2 / 2, SAT |
+
+All actual mutation controls require `bad=1` counterexample VCD witnesses. The
+four composite mutants additionally compile and disagree with the independent
+simulation model. The inherited callback and 59b mutation controls retain their
+original SAT checks; no separate mutant simulation is claimed for those five.
+
+The completed evidence files have the following SHA-256 hashes. Each file is
+byte-identical between Scala 2.12.18 and 2.13.12:
+
+| Evidence | SHA-256 |
+| --- | --- |
+| Composite 59e | `7b16cab728d832fe1a23ed256900f23521729365290130e01f91ce29edce31d8` |
+| Callback 59f | `9f357e33506d8f97940d9902b7794929e9e5109d941f6cfe880b894e1f185986` |
+| Inherited 59b | `df0bbc90ddffd6cb0af97bbc47925d1ff32488a32ee247cfaf069b222095e966` |
+
+The repaired committed source passed all four source gates: current 60f source
+and native audits, three positive/nine negative inherited-source worktree
+controls, exact combined publisher restoration, and three positive/fourteen
+negative publisher worktree controls. These include a changed assignment-owner
+repair proof and a committed unrelated fallback mutation. The inventory gate
+passed 533 rejection controls across all four exact original source profiles;
+solver classification and source-evolution checks passed their 12 and six
+rejection controls respectively.
+
+The current native manifest SHA-256 is
+`d0b9594b76b109222adaba7818233d239a7f68f553f29b758e062d388c1ad236`.
+The combined broad inventory requires all 85 MorphHDL suites, including every
+59e and 59f addition. Current staged, unstaged or ignored/untracked production
+changes, altered sealed authorities, unregistered pass deltas and complete
+callback-source reversions remain rejection cases. These source checks do not
+replace the hardware evidence or the final published-head CI. The 59f workflow
+explicitly admits the 59e integration branch, so the final PR also reruns the
+complete callback gate alongside 59e and the inherited regression workflows.
 
 ## Proof scope
 

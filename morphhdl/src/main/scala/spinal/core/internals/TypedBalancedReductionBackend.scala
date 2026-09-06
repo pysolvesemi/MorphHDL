@@ -16,7 +16,7 @@ object TypedBalancedReductionBackend {
   }
   private final case class Body(block: ParameterizedStructuralBlock,
       left: Data, right: Option[Data], result: Data,
-      observations: Vector[TypedBalancedReductionClosedGraph.Observation])
+      observations: Vector[() => Unit])
   private final case class Stage(geometry: TypedBalancedReductionStage, pair: Body, tail: Body)
   private final case class ReplayStage(geometry: TypedBalancedReductionStage,
       operation: (Data, Data) => Data, bridge: Data => Data)
@@ -80,7 +80,7 @@ object TypedBalancedReductionBackend {
         records(owner).foreach { record =>
           val bodies = record.stages.flatMap(s => Vector(s.pair, s.tail))
           bodies.foreach(validateNativeAnchors)
-          bodies.flatMap(_.observations).foreach(_.requireUnchanged())
+          bodies.flatMap(_.observations).foreach(_.apply())
           record.outputObservation.requireUnchanged()
           record.handedOff = true
         }
@@ -99,11 +99,24 @@ object TypedBalancedReductionBackend {
         fail("NESTED-OWNER", "balanced stage publication currently requires the native component scope")
       // Callback code admission precedes its first execution. Graph sampling
       // is not used to infer the absence of host state or external effects.
-      TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge, vector.vec)
+      TypedBalancedReductionCallbackPolicy.requireSupportedValues(vector.vec)
+      val schema = if (vector.vec.head.isInstanceOf[BaseType]) {
+        val scalarClasses: Set[Class[_]] = Set(classOf[Bool], classOf[Bits], classOf[UInt], classOf[SInt])
+        if (vector.vec.exists(value => !scalarClasses(value.getClass)))
+          fail("SHAPE", "callback operands must have exact native scalar classes without overriding methods")
+        val captures = TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedOperator(op)
+        TypedBalancedReductionCallbackPolicy.requireSupportedBridge(bridge)
+        Some(captures)
+      } else {
+        // Composite construction and assignment retain their separate narrow
+        // admission; broader captured composite graphs belong to the join.
+        TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge)
+        None
+      }
       build(vector.asInstanceOf[Vec[Data]],
         op.asInstanceOf[(Data, Data) => Data],
         bridge.asInstanceOf[(Data, Int) => Data],
-        native.asInstanceOf[ElabBalancedReduction.Native[Data]]).asInstanceOf[T]
+        native.asInstanceOf[ElabBalancedReduction.Native[Data]], schema).asInstanceOf[T]
     }
   }
 
@@ -124,13 +137,14 @@ object TypedBalancedReductionBackend {
   }
 
   private def capture(vector: Vec[Data], op: (Data, Data) => Data,
-      bridge: (Data, Int) => Data, native: ElabBalancedReduction.Native[Data]): ReplayCapture = {
+      bridge: (Data, Int) => Data, native: ElabBalancedReduction.Native[Data],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema]): ReplayCapture = {
     if (vector.vec.head.isInstanceOf[BaseType]) {
       val certificate = TypedBalancedReductionStageReplay.capture(
         vector.asInstanceOf[Vec[BaseType]],
         op.asInstanceOf[(BaseType, BaseType) => BaseType],
         bridge.asInstanceOf[(BaseType, Int) => BaseType],
-        native.asInstanceOf[ElabBalancedReduction.Native[BaseType]])
+        native.asInstanceOf[ElabBalancedReduction.Native[BaseType]], schema)
       ReplayCapture(certificate.captured.asInstanceOf[UnvalidatedBalancedReduction[Data]],
         certificate.stages.map(stage => ReplayStage(stage.geometry,
           (left, right) => stage.operators.head.replay(left.asInstanceOf[BaseType], right.asInstanceOf[BaseType]),
@@ -146,12 +160,13 @@ object TypedBalancedReductionBackend {
 
   private def build(vector: Vec[Data], op: (Data, Data) => Data,
       bridge: (Data, Int) => Data,
-      native: ElabBalancedReduction.Native[Data]): Data = {
+      native: ElabBalancedReduction.Native[Data],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema]): Data = {
     val owner = Component.current
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
-    val certificate = capture(vector, op, bridge, native)
+    val certificate = capture(vector, op, bridge, native, schema)
     val shape = certificate.captured.shape
     val plan = certificate.captured.plan
     def fresh(name: String): Data = {
@@ -170,6 +185,22 @@ object TypedBalancedReductionBackend {
       var left: Data = null
       var right: Option[Data] = None
       var result: Data = null
+      val observations = ArrayBuffer.empty[() => Unit]
+      schema.foreach(captures => observations += (() => captures.validateBindings()))
+      def record(operands: Vector[Data])(body: => Data): UnvalidatedBalancedCallback = {
+        def inventory(): Vector[Statement] = {
+          val values = ArrayBuffer.empty[Statement]
+          owner.dslBody.walkStatements(values += _)
+          values.toVector
+        }
+        val before = new IdentityHashMap[Statement, java.lang.Boolean]()
+        inventory().foreach(statement => before.put(statement, java.lang.Boolean.TRUE))
+        val value = body
+        val added = inventory().filterNot(before.containsKey)
+        UnvalidatedBalancedCallback(0, operands, value,
+          added.collect { case declaration: BaseType => declaration },
+          added.collect { case assignment: AssignmentStatement => assignment }, added)
+      }
       val label = prefix + "_l" + stage.geometry.level + (if (pair) "_pair" else "_tail")
       val anchors = ParameterizedStructure.captureBlock(owner, None) {
         left = fresh(label + "_left")
@@ -181,21 +212,46 @@ object TypedBalancedReductionBackend {
         }
       }
       val block = ParameterizedStructure.captureBlock(owner, None) {
-        val operated = if (pair) stage.operation(left, right.get) else left
-        claimRecursiveTransport(operated)
-        val bridged = stage.bridge(operated)
-        claimRecursiveTransport(bridged)
-        result = fresh(label + "_result")
-        result.assignFrom(bridged)
+        if (schema.nonEmpty) {
+          val operated = if (pair) {
+            val callback = record(Vector(left, right.get)) { stage.operation(left, right.get) }
+            val proof = TypedBalancedReductionScalarGraphReplay.certify(callback,
+              Vector(left, right.get).map(value => TypedBalancedReductionValueEvidence.input(value.asInstanceOf[BaseType])),
+              schema.get.hardwareInputs)
+            observations += (() => proof.validateFreshness())
+            callback.result
+          } else left
+          val bridgeRecord = record(Vector(operated)) { stage.bridge(operated) }
+          val bridgeObservation = TypedBalancedReductionClosedGraph.observe(bridgeRecord)
+          observations += (() => bridgeObservation.requireUnchanged())
+          val resultRecord = record(Vector(bridgeRecord.result)) {
+            result = fresh(label + "_result")
+            result.assignFrom(bridgeRecord.result)
+            result
+          }
+          val resultObservation = TypedBalancedReductionClosedGraph.observe(resultRecord)
+          observations += (() => resultObservation.requireUnchanged())
+        } else {
+          val operated = if (pair) stage.operation(left, right.get) else left
+          claimRecursiveTransport(operated)
+          val bridged = stage.bridge(operated)
+          claimRecursiveTransport(bridged)
+          result = fresh(label + "_result")
+          result.assignFrom(bridged)
+        }
       }
-      val assignments = block.statements.collect { case a: AssignmentStatement => a }
-      val observation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
-        0, Vector(left) ++ right.toVector, result, block.declarations, assignments))
+      if (schema.isEmpty) {
+        val assignments = block.statements.collect { case a: AssignmentStatement => a }
+        val observation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
+          0, Vector(left) ++ right.toVector, result, block.declarations, assignments))
+        observations += (() => observation.requireUnchanged())
+      }
       val anchorObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
         0, Vector(vector.vec.head), Vec(Vector(left) ++ right.toVector), anchors.declarations,
         anchors.statements.collect { case a: AssignmentStatement => a }))
       block.append(anchors)
-      Body(block, left, right, result, Vector(observation, anchorObservation))
+      observations += (() => anchorObservation.requireUnchanged())
+      Body(block, left, right, result, observations.toVector)
     }
     val stages = certificate.stages.map(s => Stage(s.geometry, template(s, true), template(s, false)))
     certificate.requireFreshness()
@@ -205,6 +261,9 @@ object TypedBalancedReductionBackend {
       .flatMap(_.assignments).foreach(_.removeStatement())
     certificate.captured.rows.flatMap(r => r.operator.toVector :+ r.bridge)
       .flatMap(_.declarations).foreach(_.removeStatement())
+    certificate.captured.rows.flatMap(r => r.operator.toVector :+ r.bridge)
+      .flatMap(_.statements).collect { case statement: WhenStatement => statement }
+      .reverse.foreach(_.removeStatement())
     val input = vector.asBits
     preserve(input, prefix + "_input")
     var output: Data = null

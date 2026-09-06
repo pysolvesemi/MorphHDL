@@ -926,16 +926,22 @@ object ParameterizedWidth {
     to
   }
 
-  /** A native mux may widen either input. Retain one exact width only when all
-    * participating operands prove the same complete typed value function;
-    * other mux widths remain owned by the native max-width algorithm.
+  /** Preserve an already-certified common width through the native mux clone.
+    * Each non-auto-resized input must independently own the same exact width
+    * function. Concrete width equality alone never creates symbolic evidence;
+    * absent or differing input authority leaves the ordinary clone unchanged.
+    * The caller supplies a native clone without pre-copied width metadata.
     */
-  private[core] def copyMuxWidth[T <: BitVector](inputs: Vector[Data], result: T): T = {
-    val leaves = inputs.collect { case leaf: BaseType => leaf }
-    if (leaves.size == inputs.size && leaves.nonEmpty) {
-      expressionOf(leaves.head).foreach { width =>
-        if (leaves.forall(leaf => expressionOf(leaf).exists(ElabInt.equivalentExactFunction(width, _))))
-          copy(leaves.head, result)
+  private[core] def preserveMuxWidth[T <: BitVector](result: T, inputs: Seq[Data]): T = {
+    val widths = inputs.map {
+      case value: BitVector => metadataOf(value)
+      case _                => None
+    }
+    widths.headOption.flatten.foreach { first =>
+      first.expression.foreach { expression =>
+        if (widths.forall(_.exists(_.expression.exists { other =>
+          ElabInt.equivalentExactFunction(expression, other)
+        }))) retain(result, first)
       }
     }
     result

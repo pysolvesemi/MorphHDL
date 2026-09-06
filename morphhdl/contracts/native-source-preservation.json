@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "cd4b1407c20057fee5ab91683e99e241d6aef015"
+      "approved_tree": "b0843b7f844f4d100f14c722b5c8f76a15fbca16"
     },
     {
       "path": "idslpayload/src/main",
@@ -61,9 +61,10 @@
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 55: audit concrete compatibility",
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve mux width authority only for operands with the same exact typed width function while retaining the native max-width rule.",
+      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve a mux result width only when every participating operand owns the same exact typed width function, while retaining native max-width selection and avoiding receiver metadata from recursive clone propagation.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
@@ -73,8 +74,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
-        "blob": "e4bd6f050dd29174987c8a06abe1cad83b82dac3",
-        "sha256": "e77f016145dcc5aa0ef15ec68a27faee4715e0e1a6c09b61db419dd05ddfb40d"
+        "blob": "930238fa6e55a1be2cebbf04d4766560bbe653c0",
+        "sha256": "4e75d8cbdf88f1dbe0e4632c2494648b7893b96a1cb6242797e55a6c89d31729"
       },
       "edits": [
         {
@@ -104,7 +105,7 @@
           "id": "bitvector-mux-width-59e",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.BitVector.getMuxType",
-          "reason": "Retain exact compatible operand width metadata on the native max-width mux result without copying an arbitrary operand width.",
+          "reason": "Materialize the non-auto-resized native Mux inputs once, retain native cloning and concrete max-width selection, and attach width authority only after all participating operands prove the same exact width function.",
           "baseline_span": {
             "start": 19363,
             "end": 19458,
@@ -112,13 +113,13 @@
           },
           "approved_span": {
             "start": 19855,
-            "end": 20021,
-            "sha256": "e8aa1467374443fb8fa833bce39b4be3fc3a94696fa27ce0e8b4820644286f34"
+            "end": 20025,
+            "sha256": "c067507d679e1c752f1cedd6dc653a198da3bf10c20542a3c236f2fd27e0565b"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.copyMuxWidth(inputs, this.clone.setWidth(w)",
+              "text": "ParameterizedWidth.preserveMuxWidth(this.clone.setWidth(w), inputs",
               "count": 1
             }
           ]
@@ -1111,15 +1112,16 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 58: legacy adapter and shadow-path retirement",
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Retain exact native clone geometry and equivalent-function mux widths for ordinary composite callbacks.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Preserve recursive native clone geometry for retained Bundle/Vec metadata and preserve a native Mux result width only when every participating input directly owns an equivalent exact width function; missing or mismatched authority never becomes inferred width provenance.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "47678308416a3afd187a4d1a2887c8809d131aef",
-        "sha256": "88141b7c3e7473c9712d1214451c35d59372a455345bc4005e8c3ebf1685d7fc"
+        "blob": "528317cab9b42d4d42179e7c1f6d19feac223d09",
+        "sha256": "98a637def36d140b8692b3e099b465eb8f9f95f68218aea86bc6eb973f4965ab"
       },
       "edits": []
     },

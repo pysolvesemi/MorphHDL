@@ -16,7 +16,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
 
   final class Stage private[TypedBalancedReductionStageReplay] (
       val geometry: TypedBalancedReductionStage,
-      val operators: Vector[TypedBalancedReductionOperatorReplay.Proof],
+      val operators: Vector[TypedBalancedReductionOperatorCertificate],
       val bridges: Vector[TypedBalancedReductionBridgeReplay.Proof]
   ) {
     val registerCountPerRow: Int = bridges.head.registerCount
@@ -27,7 +27,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
       val stages: Vector[Stage],
       val resultEvidence: Evidence,
       private val inputs: Vector[Evidence],
-      private val observations: Vector[TypedBalancedReductionClosedGraph.Observation],
+      private val observations: Vector[() => Unit],
       private val native: ElabBalancedReduction.Native[T],
       private val admittedCounts: Set[Int]
   ) {
@@ -39,7 +39,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
           captured.vector.vec.zip(inputs).exists { case (value, proof) => value ne proof.value })
         fail("SHAPE-CHANGED", "the exact captured receiver or its shape changed after certification")
       inputs.foreach(_.requireFreshness())
-      observations.foreach(_.requireUnchanged())
+      observations.foreach(_.apply())
       resultEvidence.requireFreshness()
     }
 
@@ -89,7 +89,8 @@ private[spinal] object TypedBalancedReductionStageReplay {
   }
 
   def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
-      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] = {
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None): Certificate[T] = {
     if (vector == null || op == null || bridge == null || native == null)
       fail("NULL", "Vec, callbacks and the authoritative native helper are required")
     val shape = ParameterizedVec.shapeOf(vector)
@@ -110,8 +111,9 @@ private[spinal] object TypedBalancedReductionStageReplay {
     }
     val values = new IdentityHashMap[BaseType, Evidence]()
     inputEvidence.foreach(evidence => values.put(evidence.value, evidence))
-    val observations = ArrayBuffer.empty[TypedBalancedReductionClosedGraph.Observation]
-    val operators = mutable.Map.empty[Int, TypedBalancedReductionOperatorReplay.Proof]
+    val observations = ArrayBuffer.empty[() => Unit]
+    schema.foreach(value => observations += (() => value.validateBindings()))
+    val operators = mutable.Map.empty[Int, TypedBalancedReductionOperatorCertificate]
     val bridges = mutable.Map.empty[Int, TypedBalancedReductionBridgeReplay.Proof]
 
     def statements(): Vector[Statement] = {
@@ -136,14 +138,20 @@ private[spinal] object TypedBalancedReductionStageReplay {
           fail("STATEMENT-EFFECT", "callback removed a pre-existing native statement")
         val added = currentStatements.filterNot(value => previousStatements.exists(_ eq value))
         if (added.exists(value => !callback.declarations.exists(_ eq value) &&
-            !callback.assignments.exists(_ eq value)))
+            !callback.assignments.exists(_ eq value) &&
+            !(schema.nonEmpty && callback.operands.size == 2 && value.isInstanceOf[WhenStatement])))
           fail("STATEMENT-EFFECT", "callback created a statement outside its recorded scalar data graph")
         previousStatements = currentStatements
-        observations.foreach(_.requireUnchanged())
+        observations.foreach(_.apply())
         val evidence = callback.operands.size match {
           case 2 =>
-            val proof = TypedBalancedReductionOperatorReplay.certify(callback, callback.operands.map(evidenceOf))
+            val proof: TypedBalancedReductionOperatorCertificate = schema match {
+              case Some(captures) => TypedBalancedReductionScalarGraphReplay.certify(
+                callback, callback.operands.map(evidenceOf), captures.hardwareInputs)
+              case None => TypedBalancedReductionOperatorReplay.certify(callback, callback.operands.map(evidenceOf))
+            }
             operators(callback.ordinal) = proof
+            if (schema.nonEmpty) observations += (() => proof.validateFreshness())
             TypedBalancedReductionValueEvidence.fromOperator(proof)
           case 1 =>
             val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidenceOf(callback.operands.head))
@@ -152,7 +160,10 @@ private[spinal] object TypedBalancedReductionStageReplay {
           case _ => fail("ARITY", "native callback has an unexpected arity")
         }
         values.put(evidence.value, evidence)
-        observations += TypedBalancedReductionClosedGraph.observe(callback)
+        if (schema.isEmpty || callback.operands.size == 1) {
+          val observed = TypedBalancedReductionClosedGraph.observe(callback)
+          observations += (() => observed.requireUnchanged())
+        }
       })
     val stages = captured.plan.stages.map { geometry =>
       val rows = captured.rows.filter(_.level == geometry.level)
@@ -167,7 +178,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
       fail("CLOCK-NONUNIFORM", "fixed enabled-edge latency requires one exact clock domain across all stages and register chains")
     val allOperators = stages.flatMap(_.operators)
     if (allOperators.nonEmpty && allOperators.exists(_.operationKey != allOperators.head.operationKey))
-      fail("OPERATOR-NONUNIFORM", "the whole native tree must use one certified associative primitive")
+      fail("OPERATOR-NONUNIFORM", "the whole native tree must retain one certified ordered callback graph and capture binding")
     val terminal = evidenceOf(captured.result)
     if (!ElabInt.equivalentExactFunction(terminal.width, shape.elementLeaves.head.width))
       fail("RESULT-WIDTH", "terminal value lost the certified element-width transfer")
