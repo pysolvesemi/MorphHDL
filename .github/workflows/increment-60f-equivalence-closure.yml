@@ -1,0 +1,201 @@
+name: Increment 60f equivalence closure
+
+on:
+  push:
+    branches: ['agent/increment-60f-*', parameterized-verilog]
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+  pull_request:
+    branches: [parameterized-verilog]
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60f-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Signedness closure Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Exact source scope, sealed oracles and native audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60f
+          git rev-parse HEAD > target/increment-60f/head.txt
+          git archive HEAD | gzip > target/increment-60f/source.tar.gz
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          for tool in python3 iverilog vvp verilator yosys; do command -v "$tool"; done
+          iverilog -V > target/increment-60f/tool-versions.txt 2>&1
+          verilator --version >> target/increment-60f/tool-versions.txt
+          yosys -V >> target/increment-60f/tool-versions.txt
+      - name: Independently elaborate references, candidates and compatibility corpus twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f"
+          mkdir -p "$output/a/pure/baseline" "$output/b/pure/baseline"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/a/boundaries" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/a/pure" \
+            "morph/Test/runMain nativeapplication.SignednessCompatibilityArtifactWriter $output/a/compatibility" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/b/boundaries" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/b/pure" \
+            "morph/Test/runMain nativeapplication.SignednessCompatibilityArtifactWriter $output/b/compatibility" \
+            > "$output/sbt-generation.log" 2>&1 || { tail -n 250 "$output/sbt-generation.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py snapshot \
+            "$output/a" "$output/b" "$output/rtl-manifest.json" --scala '${{ matrix.scala }}'
+          mkdir -p "$output/cross"
+          cp -a "$output/a" "$output/cross/rtl"
+          cp "$output/rtl-manifest.json" "$output/cross/rtl-manifest.json"
+      - name: Strict V2001 tools, independent equivalence and solver counterexamples
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py target/increment-60f/a
+      - name: Retain RTL for mandatory cross-Scala byte comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-rtl-${{ matrix.scala }}
+          path: target/increment-60f/cross
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain exact-head qualification and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-evidence-${{ matrix.scala }}
+          path: target/increment-60f
+          if-no-files-found: error
+          retention-days: 30
+
+  regressions:
+    name: All inherited regressions Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF: '1'
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Require real inherited formal tools and retain each proof workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          mkdir -p "$output/inherited"
+          git rev-parse HEAD > "$output/head.txt"
+          for tool in python3 iverilog vvp verilator yosys sby yices-smt2; do command -v "$tool"; done
+          yosys -Q -T -p 'help abc' > "$output/yosys-abc.txt"
+          cat >> "$GITHUB_ENV" <<EOF
+          MORPHDL_STREAMFIFO_FORMAL_WORKSPACE=$output/inherited/streamfifo
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE=$output/inherited/streamfifocc-formal
+          MORPHDL_STREAMFIFOCC_CDC_WORKSPACE=$output/inherited/streamfifocc-cdc
+          MORPHDL_TYPED_VEC_FORMAL_WORKSPACE=$output/inherited/vec
+          MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE=$output/inherited/primitive
+          MORPHDL_NATIVE_LIBRARY_MIGRATION_FORMAL_WORKSPACE=$output/inherited/library-migration
+          MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE=$output/inherited/axi4
+          EOF
+      - name: Run every inherited MorphHDL suite with formal gates enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          sbt -batch "++${{ matrix.scala }}" \
+            idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
+            frontend/test verilogBackend/test morph/test \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests' \
+            > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
+      - name: Run the inherited isolated pass workspace suites
+        shell: bash
+        working-directory: morphhdl-passes
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          sbt -batch "++${{ matrix.scala }}" test \
+            > "$output/sbt-passes.log" 2>&1 || { tail -n 250 "$output/sbt-passes.log"; exit 1; }
+      - name: Require complete test inventories with no skipped formal cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
+            . target/increment-60f-regressions/test-inventory.json
+      - name: Retain inherited test and solver evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-regressions-${{ matrix.scala }}
+          path: |
+            target/increment-60f-regressions
+            morphhdl/target/test-reports
+            morphplugin/target/test-reports
+            morphir/target/test-reports
+            paramrtl/target/test-reports
+            frontend/target/test-reports
+            backends/verilog/target/test-reports
+            core/target/test-reports
+            morphhdl-passes/target/test-reports
+            /tmp/morphhdl-typed-adapter-formal-*
+            /tmp/morphhdl-typed-adapter-mutation-*
+          if-no-files-found: error
+          retention-days: 30
+
+  cross-scala:
+    name: Cross-Scala deterministic signedness artifacts
+    needs: [qualify, regressions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-60f-rtl-*
+          path: target/increment-60f-cross
+      - name: Compare downloaded bytes, manifests and exact commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py compare \
+            target/increment-60f-cross/increment-60f-rtl-2.12.18 \
+            target/increment-60f-cross/increment-60f-rtl-2.13.12

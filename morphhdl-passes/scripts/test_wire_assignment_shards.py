@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import importlib.util
 import io
 import shutil
 import tarfile
@@ -15,6 +16,62 @@ from unittest.mock import patch
 import aggregate_wire_assignment_equivalence as aggregate
 import validate_wire_assignment_equivalence as gate
 import test_wire_assignment_equivalence as historical
+
+
+class AggregationWorkflowContractTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.root = Path(__file__).resolve().parents[2]
+        path = cls.root / 'morphhdl-passes/scripts/check-wa07a-constant-pass.py'
+        spec = importlib.util.spec_from_file_location('wa07a_aggregate_workflow_contract', path)
+        cls.contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.contract)
+        cls.workflow = (cls.root / cls.contract.WORKFLOW).read_text()
+
+    def test_actual_aggregation_budget_and_isolated_summary_upload_are_valid(self):
+        self.assertEqual(self.contract.aggregation_workflow_failures(self.workflow), [])
+
+    def test_recursive_live_directory_upload_and_missing_summaries_are_rejected(self):
+        gate_path, shard_path = self.contract.AGGREGATE_SUMMARY_PATHS
+        block = 'path: |\n            ' + gate_path + '\n            ' + shard_path
+        self.assertEqual(self.workflow.count(block), 1)
+        mutations = (
+            self.workflow.replace(block, 'path: morphhdl-passes/build/formal-aggregate'),
+            self.workflow.replace(shard_path, 'morphhdl-passes/build/formal-aggregate/**'),
+            self.workflow.replace(shard_path, shard_path + '\n            morphhdl-passes/build/formal-aggregate/expanded-shard-*/**'),
+            self.workflow.replace('            ' + gate_path + '\n', ''),
+            self.workflow.replace('            ' + shard_path + '\n', ''),
+            self.workflow.replace('name: Retain full-domain qualification summary\n        if: always()',
+                                  'name: Retain full-domain qualification summary\n        if: success()'),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation[-600:]):
+                self.assertNotEqual(mutation, self.workflow)
+                self.assertTrue(any('AGGREGATE-SUMMARY' in error for error in
+                    self.contract.aggregation_workflow_failures(mutation)))
+
+    def test_aggregation_budget_mutation_is_rejected_without_changing_proof_budgets(self):
+        before, job = self.workflow.split('  equivalence:\n', 1)
+        self.assertEqual(job.count('timeout-minutes: 60'), 1)
+        for value in ('30', 'unbounded'):
+            mutation = before + '  equivalence:\n' + job.replace('timeout-minutes: 60', 'timeout-minutes: ' + value)
+            self.assertTrue(any('AGGREGATE-BUDGET' in error for error in
+                self.contract.aggregation_workflow_failures(mutation)))
+
+    def test_summary_globs_ignore_live_expanded_shard_files(self):
+        with tempfile.TemporaryDirectory(prefix='wa07a-summary-upload-') as temporary:
+            root = Path(temporary)
+            output = root / 'morphhdl-passes/build/formal-aggregate'
+            live = output / 'expanded-shard-live'
+            live.mkdir(parents=True)
+            for folder in (output, live):
+                for name in ('gate-status.json', 'shard-0-determinism.json'):
+                    (folder / name).write_text('{}\n')
+            selected = {path for pattern in self.contract.AGGREGATE_SUMMARY_PATHS
+                        for path in root.glob(pattern)}
+            self.assertEqual(selected, {output / 'gate-status.json', output / 'shard-0-determinism.json'})
+            shutil.rmtree(live)
+            self.assertTrue(all(path.is_file() for path in selected))
 
 
 class ArchiveMaterializationTests(unittest.TestCase):

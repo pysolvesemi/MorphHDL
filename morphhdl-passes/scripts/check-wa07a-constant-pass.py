@@ -28,6 +28,10 @@ CONE_TOOLS = 'morphhdl-passes/scripts/test_wire_assignment_cone_tools.py'
 TESTS = 'morphhdl-passes/src/test/scala/morphhdl/passes/transform/'
 CONST = 'constant-operand-simplification'
 ALL = 'wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+' + CONST
+AGGREGATE_SUMMARY_PATHS = (
+    'morphhdl-passes/build/formal-aggregate/gate-status.json',
+    'morphhdl-passes/build/formal-aggregate/shard-*-determinism.json',
+)
 SLOTS = [
     {'activation_item': 'WA-07a', 'candidate': 'morphhdl-passes/build/pass-outputs/' + CONST + '.v', 'pass_id': CONST},
     {'activation_item': 'WA-07a', 'candidate': 'morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v', 'pass_id': ALL},
@@ -62,6 +66,9 @@ MARKERS = {
                 'case["clock"], case["reset"], mutation', 'WA07A_FULL_DOMAIN_PASS',
                 'cones.validate_proof', 'split_output_bits=True', 'property_count = sum'),
     SHARD_TEST: ('test_every_binding_has_exactly_one_owner_without_domain_sampling',
+                 'test_recursive_live_directory_upload_and_missing_summaries_are_rejected',
+                 'test_summary_globs_ignore_live_expanded_shard_files',
+                 'test_aggregation_budget_mutation_is_rejected_without_changing_proof_budgets',
                  'test_duplicate_shard_index_is_rejected',
                  'test_stale_commit_registry_manifest_or_reference_is_rejected',
                  'test_solver_failure_cannot_be_hidden_by_pass_summary',
@@ -147,6 +154,26 @@ def manifest_failures(value):
     return []
 
 
+def aggregation_workflow_failures(text):
+    """Keep the summary upload independent of temporary shard cleanup."""
+    job = re.search(r'(?ms)^  equivalence:\n(.*?)(?=^  [A-Za-z_][A-Za-z0-9_-]*:\n|\Z)', text)
+    if job is None:
+        return ['WA07A-AGGREGATE-SUMMARY: missing aggregation job']
+    errors = []
+    if re.findall(r'(?m)^    timeout-minutes: (.*)$', job[1]) != ['60']:
+        errors.append('WA07A-AGGREGATE-BUDGET: complete artifact validation requires its reviewed 60-minute job budget')
+    step = re.search(r'(?ms)^      - name: Retain full-domain qualification summary\n(.*?)(?=^      - |\Z)', job[1])
+    if step is None:
+        return errors + ['WA07A-AGGREGATE-SUMMARY: missing summary upload step']
+    paths = re.search(r'(?m)^          path: \|\n((?:            [^\n]*\n)+)', step[1])
+    selected = tuple(line.strip() for line in paths[1].splitlines()) if paths else ()
+    if (re.findall(r'(?m)^          path: (.*)$', step[1]) != ['|']
+            or selected != AGGREGATE_SUMMARY_PATHS
+            or re.findall(r'(?m)^        if: (.*)$', step[1]) != ['always()']):
+        errors.append('WA07A-AGGREGATE-SUMMARY: upload only completed top-level gate and shard summaries, including on failure')
+    return errors
+
+
 def text_failures(path, text):
     errors = [f'WA07A-CONTRACT: {path}: missing {marker!r}' for marker in MARKERS[path] if marker not in text]
     if path in (PASS, PIPELINE) and FORBIDDEN.search(text):
@@ -161,6 +188,8 @@ def text_failures(path, text):
         end = text.find('object ParameterizedStreamFifoConstantPassWitness')
         if begin < 0 or end <= begin or NATIVE_FORBIDDEN.search(text[begin:end]):
             errors.append('WA07A-NATIVE-GENERICITY: native decision boundary is unproven')
+    if path == WORKFLOW:
+        errors += aggregation_workflow_failures(text)
     return errors
 
 

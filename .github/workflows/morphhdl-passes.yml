@@ -376,7 +376,8 @@ jobs:
     needs: [native_generation, formal_shards]
     if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Revalidate all retained proofs; this is not an individual solver budget.
+    timeout-minutes: 60
     steps:
       - name: Require every upstream proof job to have succeeded
         shell: bash
@@ -421,6 +422,10 @@ jobs:
         with:
           name: morphhdl-wa07a-equivalence-evidence
           overwrite: true
-          path: morphhdl-passes/build/formal-aggregate
+          # Expansion cleanup may still run during cancellation. Upload only
+          # completed summaries, never the live expanded-shard directories.
+          path: |
+            morphhdl-passes/build/formal-aggregate/gate-status.json
+            morphhdl-passes/build/formal-aggregate/shard-*-determinism.json
           if-no-files-found: error
           retention-days: 14
