@@ -1,0 +1,159 @@
+--- a/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
++++ b/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+@@ -724,5 +724,7 @@
+     phaseInserters += ExternalParameterizedHighBit.install _
+     phaseInserters += TypedBalancedReductionBackend.install _
+-    ParameterizedVerilogMode.enable(config.copy(
++    // Resolve the publication default on a private copy, never on the caller's
++    // native configuration or the independent dual-factory witness path.
++    MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
+       mode = Verilog,
+       flags = config.flags.clone(),
+@@ -733,5 +735,5 @@
+       memBlackBoxers = config.memBlackBoxers.clone(),
+       scopeProperties = config.scopeProperties.clone()
+-    ))
++    )))
+   }
+ 
+--- a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
+@@ -99,5 +99,5 @@
+           !sameIdentity(saved.owners, live.owners))
+         reject("STALE-EVIDENCE", "graph type, width, operand, ownership or boundary changed after capture")
+-      live.parameters.foreach(validateWidth)
++      live.parameters.foreach(validateWidth(_, subject))
+       saved.children.foreach(child => fresh(child, seen))
+     }
+@@ -241,7 +241,8 @@
+       if (key < 0 || key >= widths.size || !contains(fact.width))
+         reject("WIDTH-USE-IDENTITY", "width token does not belong to this validated use")
+-      val result = widths(key)
+-      validateWidth(result)
+-      result
++      // validate above rechecks the complete dependency subtree, including
++      // each retained width at its exact native owner. Revalidating this token
++      // without that owner would lose a captured construction-branch domain.
++      widths(key)
+     }
+ 
+@@ -331,5 +332,37 @@
+     * from the exact emission boundary after this inserter has returned.
+     */
+-  private final class ObservationPhase(plan: () => ArrayBuffer[Phase]) extends PhaseMisc {
++  /** An exact plan-local execution boundary, before any native or caller phase.
++    * Keeping this marker first is part of the same fail-closed phase contract
++    * as keeping capture immediately before emission. No global state is used.
++    */
++  private final class RegistrationBoundary(plan: () => ArrayBuffer[Phase]) extends PhaseMisc {
++    private var started = false
++
++    private def validatePlacement(): Unit = {
++      val phases = plan()
++      if (phases.count(_ eq this) != 1 || (phases.head ne this))
++        reject("PHASE-PLAN", "the registration boundary must remain first and unique")
++    }
++
++    def requireOpen(): Unit = {
++      validatePlacement()
++      if (started) reject("PHASE-PLAN", "signedness registration is closed once phase execution starts")
++    }
++
++    def requireStarted(): Unit = {
++      validatePlacement()
++      if (!started) reject("PHASE-PLAN", "the registration boundary must execute before capture")
++    }
++
++    override def impl(pc: PhaseContext): Unit = {
++      requireOpen()
++      started = true
++    }
++  }
++
++  private final class ObservationPhase(
++      plan: () => ArrayBuffer[Phase],
++      val registration: RegistrationBoundary
++  ) extends PhaseMisc {
+     private var observer: Option[Snapshot => Unit] = None
+     private var publisher: Option[(Snapshot => Unit, () => Boolean)] = None
+@@ -337,4 +370,5 @@
+ 
+     def observe(callback: Snapshot => Unit): Unit = {
++      registration.requireOpen()
+       if (entered || observer.nonEmpty)
+         reject("PHASE-PLAN", "a strict observer may only be installed once before execution")
+@@ -343,4 +377,5 @@
+ 
+     def publish(callback: Snapshot => Unit, enabled: () => Boolean): Unit = {
++      registration.requireOpen()
+       if (entered || publisher.nonEmpty)
+         reject("PHASE-PLAN", "a publication consumer may only be installed once before execution")
+@@ -349,4 +384,5 @@
+ 
+     override def impl(pc: PhaseContext): Unit = {
++      registration.requireStarted()
+       if (entered) reject("PHASE-PLAN", "a signedness phase may only execute once")
+       entered = true
+@@ -404,14 +440,24 @@
+     val emission = validatedEmission(phases)
+     val existing = phases.collect { case phase: ObservationPhase => phase }
+-    if (existing.size > 1)
+-      reject("PHASE-PLAN", "signedness requires exactly one physical capture boundary")
++    val registrations = phases.collect { case phase: RegistrationBoundary => phase }
++    if (existing.size > 1 || registrations.size > 1 || existing.isEmpty != registrations.isEmpty)
++      reject("PHASE-PLAN", "signedness requires one registration boundary and one physical capture boundary")
+     if (existing.isEmpty) {
+-      val phase = new ObservationPhase(() => phases)
++      // A first installation is only valid on the native pre-elaboration plan.
++      // Inserting a new first marker from inside a running mutable plan must
++      // not rely on that collection's version-specific iterator behaviour.
++      val context = Option(GlobalData.get).flatMap(data => Option(data.phaseContext))
++      if (!phases.head.isInstanceOf[PhaseCreateComponent] || context.exists(_.topLevel != null))
++        reject("PHASE-PLAN", "first signedness registration requires the unexecuted native creation boundary")
++      val registration = new RegistrationBoundary(() => phases)
++      val phase = new ObservationPhase(() => phases, registration)
+       phases.insert(emission, phase)
++      phases.prepend(registration)
+       phase
+     } else {
+       val phase = existing.head
+-      if (emission == 0 || (phases(emission - 1) ne phase))
+-        reject("PHASE-PLAN", "an existing analysis must remain immediately before the validated emitter")
++      if ((phase.registration ne registrations.head) || emission == 0 || (phases(emission - 1) ne phase))
++        reject("PHASE-PLAN", "an existing analysis must retain its exact registration and emission boundaries")
++      phase.registration.requireOpen()
+       phase
+     }
+@@ -428,7 +474,15 @@
+   }
+ 
+-  private def validateWidth(value: ElaborationIntegerExpression): Unit = {
+-    ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
+-      "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
++  private def validateWidth(value: ElaborationIntegerExpression, subject: AnyRef): Unit = {
++    subject match {
++      case base: BaseType if ElaborationWidthAuthority.isRetained(value) =>
++        NativePublicationWidth.validate(value, base.component, base, "signedness width authority")
++      case _ if ElaborationWidthAuthority.isRetained(value) =>
++        ElaborationWidthAuthority.requireAuthoritative(value, "signedness width authority",
++          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY")
++      case _ =>
++        ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
++          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
++    }
+     if (value.minimum < 0) reject("WIDTH-AUTHORITY", "negative logical width domain")
+   }
+@@ -608,5 +662,5 @@
+     val widths = ArrayBuffer.empty[ElaborationIntegerExpression]
+     def retained(value: ElaborationIntegerExpression): Width = {
+-      validateWidth(value)
++      // The exact subject's parameters are validated before token allocation.
+       // Root-free generate-index expressions are not necessarily constants.
+       if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)
+@@ -632,5 +686,5 @@
+       entries += null
+       val shape = describe(subject)
+-      shape.parameters.foreach(validateWidth)
++      shape.parameters.foreach(validateWidth(_, subject))
+       val children = shape.children.map(visit)
+       val valueChildren = subject match {

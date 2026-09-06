@@ -1,0 +1,105 @@
+--- a/morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala
++++ b/morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala
+@@ -330,5 +330,5 @@
+   }
+ 
+-  test("60g default signed grow uses the symbolic sign bit while legacy rejection remains") {
++  test("60g signed grow retains merged 59d support in both default and legacy modes") {
+     directory { root =>
+       for (defaultWidth <- Vector(4, 8, 12)) {
+@@ -345,7 +345,15 @@
+         val legacy = root.resolve(s"grow-legacy-$defaultWidth.v")
+         val result = morphhdl.MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(fresh(legacy)))(dut)
+-        assert(result.left.toOption.exists(_.detail.contains(
+-          "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED")))
+-        assert(!Files.exists(legacy))
++        // 59d now owns symbolic growth in the native/legacy path too. Do not
++        // preserve an obsolete rejection by regressing its width authority.
++        assert(result.isRight)
++        val legacyRtl = read(legacy)
++        assert(legacyRtl.contains("source[WIDTH-1]"))
++        assert(!port(legacyRtl, "observed").contains("signed"))
++        for (generated <- Vector(output, legacy)) {
++          morphhdl.NativeResizeCompatibilitySimulation.check(root,
++            generated.getFileName.toString, "TypedSIntResizeNamedGrowCarrier", "WIDTH",
++            Vector(4, 8, 12).map(w => (w, w, w + 1)), signedSource = true)
++        }
+       }
+     }
+@@ -425,4 +433,76 @@
+   }
+ 
++  test("60g rejects consumer registration from any running phase before capture") {
++    directory { root =>
++      for (role <- Vector("observer", "publisher", "first-observer");
++           position <- Vector("before-create", "after-validation", "after-allocation")) {
++        val output = root.resolve(s"late-$role-$position.v")
++        val previous = "// previously published artifact\n"
++        Files.write(output, previous.getBytes(StandardCharsets.UTF_8))
++        var called = false
++        val config = role match {
++          case "observer" => MorphSignedCasts.enable(fresh(output))
++          case _ => MorphSignedDeclarations.disable(fresh(output))
++        }
++        if (role == "publisher")
++          config.phasesInserters += MorphHdlSignednessAnalysis.install(_ => called = true)
++        config.phasesInserters += { phases =>
++          val index = position match {
++            case "before-create" => phases.indexWhere(_.isInstanceOf[PhaseCreateComponent])
++            case "after-validation" => phases.indexWhere(_.getClass == classOf[PhaseCheckCrossClock]) + 1
++            case "after-allocation" => phases.indexWhere(_.getClass == classOf[PhaseAllocateNames]) + 1
++          }
++          var attempted = false
++          phases.insert(index, new PhaseMisc {
++            override def impl(pc: PhaseContext): Unit = {
++              // First-ever runtime installation must also fail, even if a
++              // mutable plan revisits this phase after a rejected insertion.
++              if (!attempted) {
++                attempted = true
++                if (role == "publisher")
++                  MorphHdlSignednessAnalysis.installPublication(_ => called = true, () => true)(phases)
++                else MorphHdlSignednessAnalysis.install(_ => called = true)(phases)
++              }
++            }
++          })
++        }
++        val result = morphhdl.MorphVerilog.tryGenerate(config) {
++          new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
++        }
++        assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-PHASE-PLAN")), s"$role/$position")
++        assert(!called, s"$role/$position")
++        assert(read(output) == previous, s"$role/$position")
++      }
++    }
++  }
++
++  test("60g registration boundary cannot be removed duplicated or moved behind a caller phase") {
++    directory { root =>
++      for (mutation <- Vector("remove", "duplicate", "move", "prepend-and-register")) {
++        val output = root.resolve(s"registration-$mutation.v")
++        val config = MorphSignedCasts.enable(fresh(output))
++        var called = false
++        config.phasesInserters += { phases =>
++          val boundary = phases.head
++          mutation match {
++            case "remove" => phases.remove(0)
++            case "duplicate" => phases.insert(1, boundary)
++            case "move" => phases.remove(0); phases.insert(1, boundary)
++            case "prepend-and-register" => phases.prepend(new PhaseMisc {
++              override def impl(pc: PhaseContext): Unit =
++                MorphHdlSignednessAnalysis.install(_ => called = true)(phases)
++            })
++          }
++        }
++        val result = morphhdl.MorphVerilog.tryGenerate(config) {
++          new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
++        }
++        assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-PHASE-PLAN")), mutation)
++        assert(!called, mutation)
++        assert(!Files.exists(output), mutation)
++      }
++    }
++  }
++
+   test("60g caller observation cannot refresh publication evidence after a graph mutation") {
+     directory { root =>

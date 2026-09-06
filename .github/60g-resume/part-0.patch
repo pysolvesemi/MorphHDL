@@ -1,0 +1,204 @@
+--- a/.github/workflows/increment-59d-widening.yml
++++ b/.github/workflows/increment-59d-widening.yml
+@@ -46,4 +46,5 @@
+       github.event_name == 'workflow_dispatch' ||
+       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
++      startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
+       github.ref_name == 'parameterized-verilog'
+     name: Symbolic widening Scala ${{ matrix.scala }}
+--- a/.github/workflows/increment-59f-callback-graphs.yml
++++ b/.github/workflows/increment-59f-callback-graphs.yml
+@@ -45,4 +45,5 @@
+       startsWith(github.head_ref || github.ref_name, 'agent/increment-59f-') ||
+       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
++      startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
+       startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') ||
+       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f'))
+--- a/docs/morphhdl/architecture/verilog-2001-profile.md
++++ b/docs/morphhdl/architecture/verilog-2001-profile.md
+@@ -409,2 +409,10 @@
+ includes 1, 5, 8 and 32; finite specialization matrices are not a universal
+ formal proof over every legal parameter value.
++
++
++Signedness consumer registration is restricted to phase-plan construction.
++Its plan-local execution-start boundary must remain first and unique, and
++capture remains immediately before validated native emission. A custom phase
++inserter may register a strict observer in either order with the publication
++consumer, but an executing phase must not add consumers or move either
++boundary. Invalid plans fail before a new public artifact is committed.
+--- a/docs/morphhdl/increment-60g-default-rollout.md
++++ b/docs/morphhdl/increment-60g-default-rollout.md
+@@ -4,6 +4,6 @@
+ not yet recorded. Both 60g and parent 60 remain unchecked.
+ 
+-**Integration base:** `b25e367d99604e61b8f2c895b2c51ca1ab90d423`, including
+-qualified and merged 60f, 59f and 59e. The original branch began at
++**Integration base:** `99b6017d7ac69112a088680457029623620224d3`, including
++qualified and merged 59d, 59e, 59f and 60f. The original branch began at
+ `ddbc9ff637ec0c42093111e7f8e48fc87957580f`; the 60g production delta and
+ reversible checker spans are measured against the merged integration state,
+@@ -28,5 +28,5 @@
+ `morphhdl/contracts/native-source-preservation.json`, SHA-256:
+ 
+-`d0b9594b76b109222adaba7818233d239a7f68f553f29b758e062d388c1ad236`
++`712fba385c39de57e5379467892b3bfc6f855b308b5a38f290cc730784745d06`
+ 
+ The existing native helpers `emitSignedOperand`,
+@@ -84,5 +84,5 @@
+ ## Required qualification
+ 
+-The existing `SignednessCompatibilityTests` suite gains thirteen tests covering
++The existing `SignednessCompatibilityTests` suite gains fifteen tests (twenty total) covering
+ WIDTH defaults 1/5/8/32, zero redundant pure-arithmetic casts, complete unchanged
+ unsigned ports, explicit legacy/declaration-only selection, config copies,
+@@ -118,5 +118,5 @@
+ and Mill CI are required before closure. The new tests extend an already
+ required suite, so the exact named suite inventory remains unchanged and its
+-minimum MorphHDL test count increases by thirteen. Zero failures/errors/skips
++minimum MorphHDL test count increases by fifteen. Zero failures/errors/skips
+ remain mandatory. Source-bound results and merge/post-merge checks are not yet
+ available in this in-progress record.
+@@ -136,5 +136,8 @@
+ keeping strict observer semantics and signed-use checks unchanged. Two additional
+ regressions cover mixed signed/unsigned hierarchy at WIDTH defaults 1 and 8, and
+-symbolic signed growth at defaults 4, 8 and 12 with its explicit legacy rejection.
++symbolic signed growth at defaults 4, 8 and 12. The original legacy rejection
++was superseded by merged 59d: the integrated test requires success and exhaustive
++Icarus comparison with signed assignment semantics in both publication modes
++and under all three overrides.
+ These repairs still require fresh exact-head Scala, tools and full-regression CI.
+ 
+@@ -154,2 +157,34 @@
+ uses unmodified `MorphVerilog(config)` rather than a default opt-out. Only the
+ sealed cast-heavy oracle comparison paths explicitly select legacy output.
++
++
++## Integration and execution-start closure
++
++The current integration includes 59d's exact owner-aware width authority and
++its independent widening matrix, without altering its reviewed native code or
++arithmetic proofs. The 60g source ledger restores all five changed production
++files to the complete merged 59d/59e/59f source before the inherited profile
++checks run. Eleven complete source restorations and thirty-three source
++mutation rejections are required. The twelve exact inherited source profiles
++retain all 3,042 inventory rejection controls. On current 60g source, mutations
++of a checker wrapped by the rollout ledger are rejected at that outer exact
++blob boundary before reaching the historical 59d seam check; the fixture
++expectations distinguish those exact errors and preserve historical profiles.
++
++A plan-local registration boundary must remain first and unique. It closes
++consumer registration before native or caller phases execute, while the one
++physical capture phase must still immediately precede validated emission.
++The first boundary must actually execute, so installing a first-ever observer
++from inside a running phase cannot manufacture an unexecuted seal. Removing,
++duplicating or moving the registration boundary fails closed. Two new tests
++cover nine early/runtime registration combinations and four boundary mutations;
++no rejected callback runs or replaces an existing public artifact. Normal
++caller phase inserters still register both consumer roles in either order
++before execution. No native phase implementation or global lifecycle state is
++modified.
++
++The predecessor `cefb24d51daaef9a080870b714059b84b6a5a988` passed its
++60g, 60f, baseline, Mill and all applicable inherited PR workflows. Its results
++are historical, not qualification of this integrated execution-start repair.
++Current integration and repair qualification must be recorded before 60g or
++parent 60 is marked complete.
+--- a/morphhdl/scripts/check-increment-59f-source-scope.py
++++ b/morphhdl/scripts/check-increment-59f-source-scope.py
+@@ -10,4 +10,5 @@
+ import argparse
+ import hashlib
++import importlib.util
+ import json
+ import subprocess
+@@ -326,4 +327,15 @@
+ 
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+     contract(root)
+@@ -331,5 +343,5 @@
+                else restore_59f_source)
+     for path in sorted(PATHS):
+-        restore(root, path, (root / path).read_text())
++        restore(root, path, restore_rollout(root, path, (root / path).read_text()))
+     print("59f exact reviewed publisher spans and complete before/after blobs PASS", flush=True)
+ 
+--- a/morphhdl/scripts/check-increment-60d-pure-sint-casts.py
++++ b/morphhdl/scripts/check-increment-60d-pure-sint-casts.py
+@@ -91,5 +91,12 @@
+                  "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+                  "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala"):
+-        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed oracle/authority changed: " + path)
++        current = restore_rollout(root, path, (root / path).read_text())
++        boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
++        if boundary_checker.is_file():
++            boundary = load(boundary_checker, "boundary_signed_width_scope")
++            restore = getattr(boundary, "restore_59d_signed_width_authority", None)
++            if restore is not None:
++                current = restore(root, path, current)
++        require(git("show", BASE + ":" + path) == current, "sealed oracle/authority changed: " + path)
+     print("60d exact native hook, unchanged wrapper plan and independent oracle scope PASS")
+ 
+--- a/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
++++ b/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
+@@ -128,4 +128,15 @@
+ 
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+     def git(*args: str) -> str:
+@@ -141,5 +152,5 @@
+         baseline = (QUALIFIED_59B if has_59b and path ==
+                     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala" else BASE)
+-        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", baseline + ":" + path),
++        require(restore_60d_source(root, path, restore_rollout(root, path, (root / path).read_text())) == git("show", baseline + ":" + path),
+                 "unreviewed source change outside 60e spans: " + path)
+     native = set(git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
+@@ -161,9 +172,9 @@
+     for name in ("MorphHdlSignednessAnalysis.scala",):
+         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
+-        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())
++        restored = restore_59d_signed_width_authority(root, path, restore_rollout(root, path, (root / path).read_text()))
+         require(git("show", BASE + ":" + path) == restored, "independent type authority changed")
+     for path in ("morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
+                  "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"):
+-        require(git("show", BASE + ":" + path) == (root / path).read_text(), "sealed baseline changed: " + path)
++        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed baseline changed: " + path)
+     for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
+         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
+--- a/morphhdl/scripts/check-increment-60f-artifacts.py
++++ b/morphhdl/scripts/check-increment-60f-artifacts.py
+@@ -420,4 +420,11 @@
+                             minimum += 4
+                 counts[project] = (minimum, old_suites + len(additions))
++    if "60g" in features:
++        # The production profile is validated before reports are inspected.
++        # Require the entire extended existing suite, not just a global count.
++        tests, total_suites = counts["morphhdl"]
++        counts["morphhdl"] = (tests + 15, total_suites)
++        extension.setdefault("morphhdl", {})[
++            "spinal.core.internals.SignednessCompatibilityTests"] = 20
+     return counts, suites, extension
+ 

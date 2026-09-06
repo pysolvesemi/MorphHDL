@@ -1,0 +1,166 @@
+--- a/morphhdl/scripts/check-increment-60f-equivalence-closure.py
++++ b/morphhdl/scripts/check-increment-60f-equivalence-closure.py
+@@ -299,4 +299,6 @@
+ 
+ def profile_features(profile: str) -> frozenset[str]:
++    if profile.endswith("-and-60g"):
++        return profile_features(profile[:-len("-and-60g")]) | frozenset(("60g",))
+     names = ("wa07a", "59d", "59e", "59f")
+     profiles = {"60f-baseline": frozenset()}
+@@ -355,4 +357,17 @@
+ 
+ def production_profile(root: Path) -> str:
++    """Compose a sealed publication delta with the unchanged inherited union."""
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    rollout = load(root, "60g-source-scope") if helper.is_file() else None
++    profile = inherited_production_profile(root, rollout)
++    if rollout is not None:
++        # The real tree must differ from its merged base in exactly the reviewed
++        # five files. Restoration below never authorizes an extra source path.
++        rollout.source_scope(root)
++        profile += "-and-60g"
++    return profile
++
++
++def inherited_production_profile(root: Path, rollout=None) -> str:
+     """Select a complete reviewed source union before consulting any reports."""
+     def git(*args: str) -> bytes:
+@@ -369,4 +384,7 @@
+     require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
++    if rollout is not None:
++        prior = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, rollout.BASE))
++        changed -= set(rollout.PRODUCTION) - prior
+     wa, widths, composites, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
+                                          set(COMPOSITE_59E_PRODUCTION_SHA256), set(CALLBACK_59F_PRODUCTION_SHA256))
+@@ -443,5 +461,8 @@
+         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
+                 "reviewed production source must be a regular non-executable file: " + path)
+-        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest, diagnostic + path)
++        current = source.read_bytes()
++        if rollout is not None and path in rollout.PRODUCTION:
++            current = rollout.restore_60g_source(root, path, current.decode()).encode()
++        require(hashlib.sha256(current).hexdigest() == digest, diagnostic + path)
+         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
+         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+@@ -497,4 +518,15 @@
+ 
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+     # Preserve the inherited oracle/authority rejection diagnostics. The exact
+@@ -519,5 +551,5 @@
+     for path in frozen:
+         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
+-        current = (root / path).read_bytes()
++        current = restore_rollout(root, path, (root / path).read_text()).encode()
+         if reviewed is not None:
+             for edit in reversed([edit for edit in reviewed["checker_edits"] if edit["path"] == path]):
+--- a/morphhdl/scripts/check-increment-60g-source-scope.py
++++ b/morphhdl/scripts/check-increment-60g-source-scope.py
+@@ -12,17 +12,17 @@
+ from pathlib import Path
+ 
+-BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
++BASE = "99b6017d7ac69112a088680457029623620224d3"
+ CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
+-CONTRACT_SHA256 = "eee43c42919c5e28e340c12ceb0bab2f5270a46663377a87d34edea353e39167"
+-PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala'])
++CONTRACT_SHA256 = "8d470a0921af3b344e32679665b47b45fbbd8b577712fd432ff47a1fcf035e0e"
++PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala'])
+ PRODUCTION = {
+     "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "1869fd4d2512d904719f21b27630903b8e3de183ce8827cd53d7597332911ceb",
+     "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
+-    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23",
+-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "c01343b104e2caab8978fc46f80b2c3d7fc4959676430779c76ed50f8e5c3e0d",
++    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
++    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "2ca80f599fa2eb8a69ed2bc0d9be9c762496984e66b629845c536e124b49eb57",
+     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "74b5e84c88526798d48fea03d8e1909a9b7ed13eb0d2261451c5fd8d7052b693"
+ }
+ QUALIFICATION = {
+-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "5ee573850c9fa0787251415ac97c533c475ec80a17a0c29ae988d3643847e2a3",
++    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "52be7757b46faa41ac5d2f99280484e7466686be5b89a7ea42ae24c603fba0da",
+     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
+ }
+--- a/morphhdl/scripts/test-increment-59d-inherited-60f-scope.py
++++ b/morphhdl/scripts/test-increment-59d-inherited-60f-scope.py
+@@ -94,4 +94,16 @@
+         ("changed-60e-signed-width-restoration", head, "missing/duplicate reviewed 59d checker restoration span"),
+     )
++    # On a reviewed 60g descendant the outer complete-blob ledger rejects
++    # these same mutations before the inner 59d seam check. Keep exact causes
++    # and paths, not an arbitrary nonzero exit or broad exception match. The
++    # original historical profiles above still traverse their original gates.
++    rollout_rejections = {
++        "changed-checker-restoration": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
++        "changed-60d-signed-width-restoration": "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
++        "changed-60e-signed-width-restoration": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
++        "changed-signed-width-proof": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
++        "changed-signed-width-outside": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
++    }
++    has_rollout = (ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py").is_file()
+     with tempfile.TemporaryDirectory(prefix="morphhdl-59d-60f-scope-") as temporary:
+         for label, revision, expected in cases:
+@@ -224,9 +236,13 @@
+                     path = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+                     source = (fixture / path).read_text()
+-                    before = "        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())"
++                    argument = ("restore_rollout(root, path, (root / path).read_text())"
++                                if has_rollout else "(root / path).read_text()")
++                    before = "        restored = restore_59d_signed_width_authority(root, path, " + argument + ")"
+                     if source.count(before) != 1:
+                         raise RuntimeError("reviewed 59d/60e signed-width restoration seam is absent")
+                     (fixture / path).write_text(source.replace(before, "        restored = (root / path).read_text()"))
+                     commit(fixture, path)
++                if has_rollout and revision == head and label in rollout_rejections:
++                    expected = "or 60g publication spans: " + rollout_rejections[label]
+                 records.append(checked(fixture, label, expected))
+             finally:
+--- a/morphhdl/scripts/test-increment-59f-source-scope.py
++++ b/morphhdl/scripts/test-increment-59f-source-scope.py
+@@ -186,4 +186,6 @@
+ def main() -> None:
+     head = git(ROOT, "rev-parse", "HEAD")
++    rollout_helper = "morphhdl/scripts/check-increment-60g-source-scope.py"
++    has_rollout = (ROOT / rollout_helper).is_file()
+     has_59d = (ROOT / REVIEW_59D).is_file()
+     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()
+@@ -575,4 +577,11 @@
+                               for label, replacements, rejection in production_cases]
+             for label, replacements, checker, rejection, *entrypoints in mutations:
++                # 60g's reviewed whole-checker seal is intentionally outside
++                # the inherited 59d seam guard. These exact mutations must now
++                # fail there first; do not weaken them to any failed command.
++                if has_rollout and label in ("restoration hook removed",
++                        "59d checker restoration seam changed",
++                        "59d source and checker contract changed together"):
++                    rejection = "or 60g publication spans: " + BOUNDARY
+                 originals = {path: (fixture / path).read_bytes() for path, _ in replacements}
+                 try:
+@@ -615,4 +624,9 @@
+                 if has_joint_padding:
+                     original_paths.append(PADDING_59D_59F_CONTRACT)
++                if has_rollout:
++                    # This positive control explicitly reconstructs pre-59d
++                    # 59f alone. Its historical source is not a 60g profile;
++                    # restore the current helper in the finally block below.
++                    original_paths.append(rollout_helper)
+                 originals = {path: (fixture / path).read_bytes() for path in original_paths}
+                 try:
+@@ -634,4 +648,6 @@
+                     if has_joint_padding:
+                         (fixture / PADDING_59D_59F_CONTRACT).unlink()
++                    if has_rollout:
++                        (fixture / rollout_helper).unlink()
+                     records.append(check(fixture, HELPER, "historical frozen 59f publisher alone"))
+                 finally:

@@ -1,0 +1,44 @@
+name: Apply reviewed 60g integration
+on:
+  push:
+    branches: [agent/60g-resume-source-99b6017]
+    paths: ['.github/60g-resume/**', '.github/workflows/60g-resume-apply.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Apply exact reviewed tree on the existing implementation branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=agent/increment-60g-default-signed-verilog
+          expected=cefb24d51daaef9a080870b714059b84b6a5a988
+          test "$(git ls-remote origin refs/heads/$branch | cut -f1)" = "$expected"
+          payload=$(mktemp -d)
+          cp -a .github/60g-resume/. "$payload/"
+          mkdir -p /tmp/60g-publication
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 "$payload/apply.py" "$payload" 2>&1 | tee /tmp/60g-publication/apply.log
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py 2>&1 | tee /tmp/60g-publication/source.log
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test 2>&1 | tee /tmp/60g-publication/controls.log
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only 2>&1 | tee /tmp/60g-publication/inherited.log
+          test "$(git rev-parse HEAD^{tree})" = 7c1eb5f558a36c124d2e0ed8adb65a39d06f228f
+          test "$(git ls-remote origin refs/heads/$branch | cut -f1)" = "$expected"
+          git push origin HEAD:refs/heads/$branch
+          git rev-parse HEAD HEAD^{tree} > /tmp/60g-publication/identity.txt
+          git bundle create /tmp/60g-publication/repository.bundle HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60g-reviewed-integration
+          path: /tmp/60g-publication
+          retention-days: 7
+          if-no-files-found: error
