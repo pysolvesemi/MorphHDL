@@ -3,8 +3,8 @@
 **Status:** Implementation in progress; final-head qualification and merge are
 not yet recorded. Both 60g and parent 60 remain unchecked.
 
-**Integration base:** `b25e367d99604e61b8f2c895b2c51ca1ab90d423`, including
-qualified and merged 60f, 59f and 59e. The original branch began at
+**Integration base:** `99b6017d7ac69112a088680457029623620224d3`, including
+qualified and merged 59d, 59e, 59f and 60f. The original branch began at
 `ddbc9ff637ec0c42093111e7f8e48fc87957580f`; the 60g production delta and
 reversible checker spans are measured against the merged integration state,
 not against the earlier base. Integration target: `parameterized-verilog`.
@@ -18,8 +18,11 @@ cast policy. Exact no-op config markers retain an explicit opt-out; no global
 or thread-local switch, source recognizer, signal-name recognizer, new signed
 operator implementation or arithmetic rewrite is introduced.
 
-Native SpinalVerilog and VHDL remain unchanged. The native emitters, strict observational signedness capture, boundary
-transfer rules and native-change manifests remain unchanged. Publication-only
+Native SpinalVerilog and VHDL retain their output and phase order. Native
+emitters and arithmetic boundary transfer rules remain unchanged. The sole
+native edit is a six-line PhaseContext lifecycle hook, recorded in the native
+manifest: a private monotonic flag, read-only getter and execution-start
+assignment. Strict observers retain the full original capture. Publication-only
 selection now captures signed objects and their complete dependencies, retaining
 all occurrence roles and all existing identity, width and freshness checks.
 Unrelated unsigned declarations/wrappers retain their original native authority;
@@ -27,7 +30,7 @@ they cannot fail merely because an unrelated branch has a narrower width domain.
 The full original analysis and policy restore exactly through the scoped ledger. The final native-source manifest is
 `morphhdl/contracts/native-source-preservation.json`, SHA-256:
 
-`d0b9594b76b109222adaba7818233d239a7f68f553f29b758e062d388c1ad236`
+`ad320814cd46d599d0937c246f078decf231694210fa4bd3fc0558065ad08d2a`
 
 The existing native helpers `emitSignedOperand`,
 `operatorImplAsBinaryOperatorSigned`, `operatorImplAsBinaryOperatorLeftSigned`,
@@ -83,7 +86,7 @@ unrelated edits, duplicate spans and altered reviewed spans.
 
 ## Required qualification
 
-The existing `SignednessCompatibilityTests` suite gains thirteen tests covering
+The existing `SignednessCompatibilityTests` suite gains fifteen tests (twenty total) covering
 WIDTH defaults 1/5/8/32, zero redundant pure-arithmetic casts, complete unchanged
 unsigned ports, explicit legacy/declaration-only selection, config copies,
 repeated mode transitions, same-session native Verilog/VHDL bytes, real casts,
@@ -117,7 +120,7 @@ strict Verilog-2001 parsing, Icarus simulation, Verilator lint, Yosys synthesis,
 formal counterexamples, native audits, public golden regeneration, baseline
 and Mill CI are required before closure. The new tests extend an already
 required suite, so the exact named suite inventory remains unchanged and its
-minimum MorphHDL test count increases by thirteen. Zero failures/errors/skips
+minimum MorphHDL test count increases by fifteen. Zero failures/errors/skips
 remain mandatory. Source-bound results and merge/post-merge checks are not yet
 available in this in-progress record.
 
@@ -135,7 +138,10 @@ from eager whole-graph signedness capture and unrelated unsigned wrapper sizing.
 The publication-only dependency selection fixes that integration boundary while
 keeping strict observer semantics and signed-use checks unchanged. Two additional
 regressions cover mixed signed/unsigned hierarchy at WIDTH defaults 1 and 8, and
-symbolic signed growth at defaults 4, 8 and 12 with its explicit legacy rejection.
+symbolic signed growth at defaults 4, 8 and 12. The original legacy rejection
+was superseded by merged 59d: the integrated test requires success and exhaustive
+Icarus comparison with signed assignment semantics in both publication modes
+and under all three overrides.
 These repairs still require fresh exact-head Scala, tools and full-regression CI.
 
 ## Caller-installed observer compatibility
@@ -153,3 +159,54 @@ invalid-plan controls and a stale-evidence mutation that must preserve the
 previous public file. The original inferred-width observer regression again
 uses unmodified `MorphVerilog(config)` rather than a default opt-out. Only the
 sealed cast-heavy oracle comparison paths explicitly select legacy output.
+
+
+## Integration and execution-start closure
+
+The current integration includes 59d's exact owner-aware width authority and
+its independent widening matrix, without altering its reviewed native code or
+arithmetic proofs. The 60g source ledger restores all six changed production
+files to the complete merged 59d/59e/59f source before the inherited profile
+checks run. Twelve complete source restorations and thirty-six source
+mutation rejections are required. The twelve exact inherited source profiles
+retain all 3,042 inventory rejection controls. On current 60g source, mutations
+of a checker wrapped by the rollout ledger are rejected at that outer exact
+blob boundary before reaching the historical 59d seam check; the fixture
+expectations distinguish those exact errors and preserve historical profiles.
+
+A scheduler-owned execution flag closes consumer registration before any
+native or caller phase runs, including a phase inserted before creation. The
+state belongs to the exact PhaseContext, is read-only to consumers, and is never
+reset during that context's lifetime. No movable registration phase is inserted;
+this preserves native verbose-mode graph checks after creation. First-ever
+runtime installation and late attachment of either consumer role are rejected.
+The original capture-phase placement, duplicate and freshness gates remain.
+Two new tests cover nine early/runtime registration combinations, monotonic
+state through a failing phase, and native verbose output with and without a
+strict observer. No rejected callback runs or replaces an existing public
+artifact. Inactive Morph signedness options also leave the complete native
+phase inventory unchanged in all five option modes. The native hook changes no
+arithmetic, graph rewrite, inherited validation, phase order or logging.
+
+The predecessor `cefb24d51daaef9a080870b714059b84b6a5a988` passed its
+60g, 60f, baseline, Mill and all applicable inherited PR workflows. Its results
+are historical, not qualification of this integrated execution-start repair.
+Current integration and repair qualification must be recorded before 60g or
+parent 60 is marked complete.
+
+
+Inactive signedness options do not add publication or registration phases to
+ordinary native Verilog generation. The native-isolation regression compares
+both emitted bytes and the complete native phase-class inventory across all
+five option selections; an inactive option cannot accidentally run before
+native verbose checksum traversal has a constructed top-level component.
+Caller-requested strict observers remain separate from publication options.
+
+The native lifecycle hook is deliberately separate from the signedness policy.
+Its exact field/getter and execution-start assignment are recorded in the
+existing native-change review and schema-v2 manifest; only Phase.scala changes
+under native source roots. The older typed-overlay file remains historical and
+its compatibility command delegates to the current canonical audit. The
+final five-file publication policy plus six-line lifecycle hook still requires
+fresh compiler, independent-reference hardware, source-audit and compatibility
+qualification before rollout completion.

@@ -10,6 +10,56 @@ import org.scalatest.funsuite.AnyFunSuite
 import morphhdl.frontend.HdlInt
 import spinal.core._
 
+/** Exercise one emitted resize across overrides against Verilog assignment
+  * semantics, including the DUT's actual port widths and signed extension.
+  */
+object NativeResizeCompatibilitySimulation {
+  def check(directory: Path, fileName: String, moduleName: String,
+            parameterName: String, cases: Vector[(Int, Int, Int)],
+            signedSource: Boolean = false): Unit = {
+    import scala.sys.process._
+    cases.zipWithIndex.foreach { case ((parameter, inputWidth, outputWidth), index) =>
+      val bench = directory.resolve(s"resize_compatibility_$index.v")
+      val binary = directory.resolve(s"resize_compatibility_$index.out")
+      val interpretation = if (signedSource) "$signed(source)" else "source"
+      Files.write(bench, s"""module ResizeCompatibilityBench;
+  reg [${inputWidth - 1}:0] source;
+  wire [${outputWidth - 1}:0] observed;
+  reg [${outputWidth - 1}:0] expected;
+  integer value;
+  $moduleName #(.$parameterName($parameter)) dut (.source(source), .observed(observed));
+  initial begin
+    if ($$bits(dut.source) != $inputWidth || $$bits(dut.observed) != $outputWidth)
+      $$fatal(1, "resize port width mismatch");
+    for (value = 0; value < ${1 << inputWidth}; value = value + 1) begin
+      source = value;
+      #1;
+      expected = $interpretation;
+      if (observed !== expected) $$fatal(1, "resize value mismatch");
+    end
+    $$display("RESIZE_PASS");
+    $$finish;
+  end
+endmodule
+""".getBytes(StandardCharsets.UTF_8))
+      val diagnostics = new StringBuilder
+      val logger = ProcessLogger(line => diagnostics.append(line).append('\n'),
+        line => diagnostics.append(line).append('\n'))
+      // Check the generated DUT independently as strict Verilog-2001. Only
+      // the verification bench uses SystemVerilog $bits/$fatal assertions.
+      val strict = Process(Seq("iverilog", "-g2001", "-s", moduleName,
+        s"-P$moduleName.$parameterName=$parameter", "-tnull",
+        directory.resolve(fileName).toString)).!(logger)
+      require(strict == 0, diagnostics.toString)
+      val compiled = Process(Seq("iverilog", "-g2012", "-s", "ResizeCompatibilityBench",
+        "-o", binary.toString, directory.resolve(fileName).toString, bench.toString)).!(logger)
+      require(compiled == 0, diagnostics.toString)
+      val simulated = Process(Seq("vvp", binary.toString)).!!
+      require(simulated.linesIterator.exists(_.trim == "RESIZE_PASS"), simulated)
+    }
+  }
+}
+
 object CapturedDomainWidthEquivalenceSmoke {
   final class ExactSingletonDepth(depth: ElabInt) extends Component {
     setDefinitionName("CapturedDomainExactSingletonDepth")
@@ -533,7 +583,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     }
   }
 
-  test("a nested typed resize without a reviewed renderer fails closed") {
+  test("a nested typed resize rejects a different independent consumer width") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_resize_nested_operand.v"
@@ -549,12 +599,12 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
         case Left(failure) =>
           assert(
             failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
             ),
             failure.detail
           )
         case Right(report) =>
-          fail(s"Expected unsupported nested typed resize, received $report")
+          fail(s"Expected independent nested resize width mismatch, received $report")
       }
       assert(!Files.exists(directory.resolve(fileName)))
     }
@@ -579,11 +629,12 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       assert(verilog.contains("parameter integer TARGET_WIDTH = 3"), verilog)
       assert(compact.contains("outputwire[TARGET_WIDTH-1:0]observed"), verilog)
-      assert(compact.contains("source[TARGET_WIDTH-1:0]"), verilog)
+      assert(compact.replace("(TARGET_WIDTH)", "TARGET_WIDTH")
+        .contains("source[TARGET_WIDTH-1:0]"), verilog)
     }
   }
 
-  test("a typed whole-assignment resize cannot cross its fixed input width") {
+  test("a typed whole-assignment resize supports exact narrowing and widening") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_bits_resize_crossing_input_width.v"
@@ -591,24 +642,16 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val targetWidth =
         HdlInt.param("TARGET_WIDTH", default = 3, min = 3, max = 5).asElabInt
 
-      MorphVerilog.tryGenerate(config) {
+      MorphVerilog(config) {
         new TypedBitsResizeCrossingInputWidth(targetWidth)
-      } match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected crossing typed resize rejection, received $report")
       }
-      assert(!Files.exists(directory.resolve(fileName)))
+      NativeResizeCompatibilitySimulation.check(directory, fileName,
+        "TypedBitsResizeCrossingInputWidth", "TARGET_WIDTH",
+        Vector(3, 4, 5).map(value => (value, 4, value)))
     }
   }
 
-  test("a named retained resize cannot bypass complete crossing-domain validation") {
+  test("a named retained resize preserves its complete crossing-domain behavior") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_bits_resize_named_crossing_carrier.v"
@@ -616,24 +659,16 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val targetWidth =
         HdlInt.param("TARGET", default = 3, min = 3, max = 5).asElabInt
 
-      MorphVerilog.tryGenerate(config) {
+      MorphVerilog(config) {
         new TypedBitsResizeNamedCrossingCarrier(targetWidth)
-      } match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-CROSSING-UNSUPPORTED"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected named crossing-domain resize rejection, received $report")
       }
-      assert(!Files.exists(directory.resolve(fileName)))
+      NativeResizeCompatibilitySimulation.check(directory, fileName,
+        "TypedBitsResizeNamedCrossingCarrier", "TARGET",
+        Vector(3, 4, 5).map(value => (value, 4, value)))
     }
   }
 
-  test("a named unsigned grow rewrites the exact native witness prefix") {
+  test("a named unsigned grow preserves exact widths and zero extension") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_bits_resize_named_grow_carrier.v"
@@ -652,12 +687,13 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val compact = verilog.replaceAll("\\s+", "")
       assert(verilog.contains("parameter integer TARGET = 5"), verilog)
       assert(compact.contains("[TARGET-1:0]retained_grow_resize"), verilog)
-      assert(compact.contains("retained_grow_resize={{(TARGET-4){1'b0}},source};"), verilog)
-      assert(!compact.contains("retained_grow_resize={1'd0,source};"), verilog)
+      NativeResizeCompatibilitySimulation.check(directory, fileName,
+        "TypedBitsResizeNamedGrowCarrier", "TARGET",
+        Vector(5, 6, 7).map(value => (value, 4, value)))
     }
   }
 
-  test("legacy symbolic signed grow fails before freezing its witness sign index") {
+  test("a symbolic signed grow preserves its dynamic sign index") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_sint_resize_named_grow_carrier.v"
@@ -665,22 +701,12 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val width =
         HdlInt.param("WIDTH", default = 8, min = 4, max = 12).asElabInt
 
-      // Preserve the pre-60e legacy rejection; signed default coverage is in
-      // SignednessCompatibilityTests and the independent 60e resize proofs.
-      MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(config)) {
+      MorphVerilog(config) {
         new TypedSIntResizeNamedGrowCarrier(width)
-      } match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected symbolic signed-grow resize rejection, received $report")
       }
-      assert(!Files.exists(directory.resolve(fileName)))
+      NativeResizeCompatibilitySimulation.check(directory, fileName,
+        "TypedSIntResizeNamedGrowCarrier", "WIDTH",
+        Vector(4, 8, 12).map(value => (value, value, value + 1)), signedSource = true)
     }
   }
 
@@ -700,10 +726,12 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
         case Left(failure) =>
           assert(
             failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+              "SPINAL-PARAMETERIZED-VERILOG-NATIVE-RESIZE-LINEAGE-MISMATCH"
             ),
             failure.detail
           )
+          assert(failure.detail.contains("source publication differs from its captured exact width"),
+            failure.detail)
         case Right(report) =>
           fail(s"Expected named-carrier typed resize rejection, received $report")
       }
@@ -711,7 +739,7 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
     }
   }
 
-  test("a witness-equal typed resize cannot launder transient cast signedness") {
+  test("an explicit SInt to Bits cast resizes with unsigned bit semantics") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_bits_resize_transient_cast.v"
@@ -719,24 +747,16 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
       val targetWidth =
         HdlInt.param("TARGET_WIDTH", default = 3, min = 3, max = 4).asElabInt
 
-      MorphVerilog.tryGenerate(config) {
+      MorphVerilog(config) {
         new TypedBitsResizeTransientCast(targetWidth)
-      } match {
-        case Left(failure) =>
-          assert(
-            failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
-            ),
-            failure.detail
-          )
-        case Right(report) =>
-          fail(s"Expected transient-cast typed resize rejection, received $report")
       }
-      assert(!Files.exists(directory.resolve(fileName)))
+      NativeResizeCompatibilitySimulation.check(directory, fileName,
+        "TypedBitsResizeTransientCast", "TARGET_WIDTH",
+        Vector(3, 4).map(value => (value, 3, value)))
     }
   }
 
-  test("a nested typed Bits resize fails closed before native simplification") {
+  test("a nested typed Bits resize rejects a different independent consumer width") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(targetDirectory = directory.toString)
       val fileName = "typed_bits_resize_nested_operand.v"
@@ -752,12 +772,12 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
         case Left(failure) =>
           assert(
             failure.detail.contains(
-              "SPINAL-PARAMETERIZED-VERILOG-NESTED-TYPED-RESIZE-UNSUPPORTED"
+              "SPINAL-PARAMETERIZED-VERILOG-ASSIGNMENT-WIDTH-MISMATCH"
             ),
             failure.detail
           )
         case Right(report) =>
-          fail(s"Expected unsupported nested typed Bits resize, received $report")
+          fail(s"Expected independent nested Bits resize width mismatch, received $report")
       }
       assert(!Files.exists(directory.resolve(fileName)))
     }

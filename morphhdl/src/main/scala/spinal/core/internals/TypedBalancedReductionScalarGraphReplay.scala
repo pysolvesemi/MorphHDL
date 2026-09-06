@@ -112,24 +112,47 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
   }
   private final class WidthKey(val width: ElaborationIntegerExpression) {
     override def equals(other: Any): Boolean = other match {
-      case that: WidthKey => ElabInt.equivalentExactFunction(width, that.width)
+      case that: WidthKey => ElaborationWidthAuthority.equivalent(width, that.width)
       case _ => false
     }
     // Width authority compares exact functions and root identities, never text.
     override def hashCode(): Int = 1
   }
-  private final case class Key(kind: Any, width: WidthKey, properties: Vector[Any], children: Vector[Key])
-  private final class Node(val kind: AnyRef, val width: ElaborationIntegerExpression,
-      val key: Key, val children: Vector[Node], val build: Vector[BaseType] => BaseType)
+  private type Width = ElaborationIntegerExpression
+  // Scalar input widths are substituted by exact operand position. A key
+  // retains ordered native operations, fixed width targets and capture identity,
+  // while avoiding the different witness widths of ragged native-tree rows.
+  private final case class Key(kind: Any, properties: Vector[Any], children: Vector[Key])
+  private final class Node(val kind: AnyRef, val width: Width,
+      val transfer: Vector[Width] => Width, val key: Key, val children: Vector[Node],
+      val build: (Vector[BaseType], Width) => BaseType)
 
-  private def lit(value: Int): ElaborationIntegerExpression = ElabInt.literal(value).expression
-  private def add(a: ElaborationIntegerExpression, b: ElaborationIntegerExpression): ElaborationIntegerExpression =
-    (ElabInt.fromExpression(a) + ElabInt.fromExpression(b)).expression
-  private def maximum(a: ElaborationIntegerExpression, b: ElaborationIntegerExpression): ElaborationIntegerExpression = {
-    if (ElabInt.equivalentExactFunction(a, b)) a
-    else if ((ElabInt.fromExpression(a) - ElabInt.fromExpression(b)).expression.minimum >= 0) a
-    else if ((ElabInt.fromExpression(b) - ElabInt.fromExpression(a)).expression.minimum >= 0) b
-    else fail("WIDTH-ORDER", "native maximum width requires a proven ordering over the entire typed domain")
+  private def widthAt(node: Node, left: Width, right: Width,
+      cache: IdentityHashMap[Node, Width]): Width = {
+    val previous = cache.get(node)
+    if (previous != null) previous
+    else {
+      val width = node.key.kind match {
+        case "left" => left
+        case "right" => right
+        case _ => node.transfer(node.children.map(child => widthAt(child, left, right, cache)))
+      }
+      cache.put(node, width)
+      width
+    }
+  }
+
+  private def lit(value: Int): Width = ElabInt.literal(value).expression
+  private def add(a: Width, b: Width): Width = ElaborationWidthAuthority.add(a, b)
+  private def maximum(a: Width, b: Width): Width = ElaborationWidthAuthority.maximum(a, b)
+  private def widthOf(value: BaseType): Width = ParameterizedWidth.expressionOf(value)
+    .getOrElse(lit(value.getBitsWidth))
+  private def align(value: BaseType, width: Width): BaseType = {
+    if (ElaborationWidthAuthority.equivalent(widthOf(value), width)) value
+    else value match {
+      case bits: BitVector => bits.resize(ElabInt.fromExpression(width))
+      case _ => fail("TYPE", "a Bool operand cannot acquire a packed resize")
+    }
   }
   private def scalar(kind: AnyRef): BaseType = {
     if (kind eq TypeBool) Bool()
@@ -180,13 +203,37 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
       private val guards: Vector[() => Unit]
   ) extends TypedBalancedReductionOperatorCertificate {
     val operationKey: Any = root.key
+    val transferKey: Any = root.key
     def validateFreshness(): Unit = guards.foreach(_.apply())
-    def replay(left: BaseType, right: BaseType): BaseType = {
+    def resultWidthFor(left: Width, right: Width): Width = {
       validateFreshness()
-      if (Component.current ne owner) fail("OWNER", "replay must remain in its exact owning component")
+      Vector(left, right).foreach { width =>
+        ElaborationWidthAuthority.requireAuthoritative(width, "substituted graph operand width",
+          "MORPH-REDUCE-BALANCED-GRAPH-REPLAY-WIDTH-AUTHORITY")
+        if (width.minimum < 1) fail("INPUT-SHAPE", "substituted scalar widths must remain positive")
+      }
+      widthAt(root, left, right, new IdentityHashMap[Node, Width]())
+    }
+    def replay(left: BaseType, right: BaseType): BaseType = {
       inputs(0).requireReplacement(left)
       inputs(1).requireReplacement(right)
+      replayWithWidths(left, right, inputs(0).width, inputs(1).width)
+    }
+    def replayWithWidths(left: BaseType, right: BaseType,
+        leftWidth: Width, rightWidth: Width): BaseType = {
+      validateFreshness()
+      if (Component.current ne owner) fail("OWNER", "replay must remain in its exact owning component")
+      Vector((left, leftWidth, inputs(0)), (right, rightWidth, inputs(1))).foreach {
+        case (value, width, evidence) =>
+          if (value == null || !scalarClasses.contains(value.getClass) ||
+              (value.component ne owner) || (value.getTypeObject.asInstanceOf[AnyRef] ne evidence.kind) ||
+              value.isAnalog || value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||
+              !ElaborationWidthAuthority.equivalent(widthOf(value), width))
+            fail("INPUT-SHAPE", "substitution must retain exact owner, kind and authoritative native width")
+      }
+      resultWidthFor(leftWidth, rightWidth)
       val cache = new IdentityHashMap[Node, BaseType]()
+      val widths = new IdentityHashMap[Node, Width]()
       def emit(node: Node): BaseType = {
         val existing = cache.get(node)
         if (existing != null) existing
@@ -195,7 +242,7 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
             case "left" => left
             case "right" => right
             case "capture" => captureEvidence(node.key.properties.head.asInstanceOf[Int]).value
-            case _ => node.build(node.children.map(emit))
+            case _ => node.build(node.children.map(emit), widthAt(node, leftWidth, rightWidth, widths))
           }
           cache.put(node, value)
           value
@@ -223,12 +270,12 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
     val owner = operands.head.component
     if (owner == null || (Component.current ne owner) || (operands(0) eq operands(1)))
       fail("OWNER", "two distinct operands must belong to the active native component")
-    val inputWidth = inputEvidence.head.width
     val inputKind = inputEvidence.head.kind
     inputEvidence.foreach { evidence =>
-      if ((evidence.owner ne owner) || (evidence.kind ne inputKind) ||
-          !ElabInt.equivalentExactFunction(evidence.width, inputWidth))
-        fail("INPUT-SHAPE", "fixed-result graph inputs must retain one exact scalar shape")
+      ElaborationWidthAuthority.requireAuthoritative(evidence.width, "balanced graph operand width",
+        "MORPH-REDUCE-BALANCED-GRAPH-REPLAY-WIDTH-AUTHORITY")
+      if ((evidence.owner ne owner) || (evidence.kind ne inputKind) || evidence.width.minimum < 1)
+        fail("INPUT-SHAPE", "graph inputs must retain exact scalar kind and positive authoritative widths")
     }
     val captureEvidence = captures.map(TypedBalancedReductionValueEvidence.input)
     val captureIds = new IdentityHashMap[BaseType, java.lang.Integer]()
@@ -294,9 +341,11 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
         if (!same(liveInventory(), inventory)) fail("STALE", "native callback statements were removed or reordered")
       })
     }
-    def leafNode(label: String, evidence: Evidence, properties: Vector[Any]): Node =
-      new Node(evidence.kind, evidence.width, Key(label, new WidthKey(evidence.width), properties, Vector.empty),
-        Vector.empty, _ => fail("INTERNAL", "input nodes require exact replay bindings"))
+    def leafNode(label: String, evidence: Evidence, properties: Vector[Any]): Node = {
+      val retainedProperties = if (label == "capture") properties :+ new WidthKey(evidence.width) else properties
+      new Node(evidence.kind, evidence.width, _ => evidence.width, Key(label, retainedProperties, Vector.empty),
+        Vector.empty, (_, _) => fail("INTERNAL", "input nodes require exact replay bindings"))
+    }
     operands.zip(inputEvidence).zipWithIndex.foreach { case ((value, evidence), index) =>
       nodes.put(value, leafNode(if (index == 0) "left" else "right", evidence, Vector.empty))
     }
@@ -305,34 +354,42 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
         nodes.put(evidence.value, leafNode("capture", evidence, Vector(index, new Identity(evidence.value))))
     }
 
-    def make(kind: AnyRef, width: ElaborationIntegerExpression, cls: Class[_], properties: Vector[Any],
-        children: Vector[Node])(construct: Vector[BaseType] => Expression): Node = {
-      ElabInt.requireAuthoritativeIntegerDomain(width, "balanced graph width",
-        "MORPH-REDUCE-BALANCED-GRAPH-REPLAY-WIDTH-AUTHORITY", requireExactExtrema = false)
-      if (width.minimum < 0 || width.maximum > Int.MaxValue)
-        fail("WIDTH-DOMAIN", "every native intermediate requires a finite nonnegative typed width")
-      new Node(kind, width, Key(cls, new WidthKey(width), properties, children.map(_.key)), children,
-        values => {
-          val expression = construct(values)
+    def make(kind: AnyRef, transfer: Vector[Width] => Width, cls: Class[_], properties: Vector[Any],
+        children: Vector[Node], highBit: Boolean = false)
+        (construct: (Vector[BaseType], Width) => Expression): Node = {
+      def checkedTransfer(widths: Vector[Width]): Width = {
+        val width = transfer(widths)
+        ElaborationWidthAuthority.requireAuthoritative(width, "balanced graph width",
+          "MORPH-REDUCE-BALANCED-GRAPH-REPLAY-WIDTH-AUTHORITY")
+        if (width.minimum < 0 || width.maximum > Int.MaxValue)
+          fail("WIDTH-DOMAIN", "every native intermediate requires a finite nonnegative typed width")
+        width
+      }
+      val width = checkedTransfer(children.map(_.width))
+      new Node(kind, width, checkedTransfer, Key(cls, properties, children.map(_.key)), children,
+        (values, target) => {
+          val expression = construct(values, target)
           if (expression.getClass != cls || (expression.getTypeObject.asInstanceOf[AnyRef] ne kind))
             fail("CONSTRUCTOR", "the native constructor changed exact expression class or kind")
-          wrap(expression, width)
+          val result = wrap(expression, target)
+          if (highBit) NativeWidthProvenance.retainHighBit(values.head.asInstanceOf[BitVector], result.asInstanceOf[Bool])
+          result
         })
     }
     def mux(condition: Node, yes: Node, no: Node): Node = {
       if ((condition.kind ne TypeBool) || (yes.kind ne no.kind))
         fail("TYPE", "mux requires a native Bool condition and equal arm kinds")
-      val width = maximum(yes.width, no.width)
       val factory = if (yes.kind eq TypeBool) muxes(classOf[BinaryMultiplexerBool])
         else if (yes.kind eq TypeBits) muxes(classOf[BinaryMultiplexerBits])
         else if (yes.kind eq TypeUInt) muxes(classOf[BinaryMultiplexerUInt])
         else muxes(classOf[BinaryMultiplexerSInt])
       val cls = factory().getClass
-      make(yes.kind, width, cls, Vector.empty, Vector(condition, yes, no)) { values =>
+      make(yes.kind, widths => maximum(widths(1), widths(2)), cls, Vector.empty,
+          Vector(condition, yes, no)) { (values, target) =>
         val out = factory()
         out.cond = values(0)
-        out.whenTrue = values(1).asInstanceOf[out.T]
-        out.whenFalse = values(2).asInstanceOf[out.T]
+        out.whenTrue = align(values(1), target).asInstanceOf[out.T]
+        out.whenFalse = align(values(2), target).asInstanceOf[out.T]
         out
       }
     }
@@ -444,7 +501,7 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           val value = scopeDriver(leaf.parentScope, None, 0).getOrElse {
             fail("DRIVER", "local temporary has no complete combinational driver")
           }
-          if ((value.kind ne kind) || retained.exists(width => !ElabInt.equivalentExactFunction(width, value.width)) ||
+          if ((value.kind ne kind) || retained.exists(width => !ElaborationWidthAuthority.equivalent(width, value.width)) ||
               (fixed >= 0 && (BigInt(fixed) != value.width.default ||
                 (value.width.parameters.nonEmpty && retained.isEmpty))))
             fail("LOCAL-WIDTH", "local width must follow exact native transfer or retain its typed width; witness freezing is forbidden")
@@ -467,7 +524,7 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
                 (retainedCarrier && !leaf.dontSimplify) ||
                 (separateCarrier && !leaf.hasTag(noBackendCombMerge)) ||
                 (leaf.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
-                !TypedBalancedReductionValueEvidence.preservesFixedWidth(certifiedFixed, nowFixed, value.width) ||
+                !TypedBalancedReductionValueEvidence.preservesValueWidth(leaf, certifiedFixed, nowFixed, value.width) ||
                 ParameterizedWidth.expressionOf(leaf).map(new Identity(_)) != certifiedRetained.map(new Identity(_)) ||
                 !same(assignmentsOf(owner, leaf), all))
               fail("STALE", "a certified local changed identity, state, width or complete driver order")
@@ -480,13 +537,20 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           val expectedKind = comparisonKinds.getOrElse(native.getClass, kind)
           if ((a.kind ne b.kind) || (a.kind ne expectedKind))
             fail("TYPE", "binary operands must retain the exact native class's operand kind")
-          val width = if (kind eq TypeBool) lit(1)
-            else if (native.getClass == classOf[Operator.Bits.Cat] ||
-                native.getClass == classOf[Operator.UInt.Mul] || native.getClass == classOf[Operator.SInt.Mul]) add(a.width, b.width)
-            else maximum(a.width, b.width)
+          val summed = native.getClass == classOf[Operator.Bits.Cat] ||
+            native.getClass == classOf[Operator.UInt.Mul] || native.getClass == classOf[Operator.SInt.Mul]
+          val transfer: Vector[Width] => Width = widths => {
+            if (kind eq TypeBool) lit(1)
+            else if (summed) add(widths(0), widths(1))
+            else maximum(widths(0), widths(1))
+          }
           val factory = binaries(native.getClass)
-          make(kind, width, native.getClass, Vector.empty, Vector(a, b)) { values =>
-            val out = factory(); out.left = values(0).asInstanceOf[out.T]; out.right = values(1).asInstanceOf[out.T]; out
+          make(kind, transfer, native.getClass, Vector.empty, Vector(a, b)) { (values, _) =>
+            val target = if (summed) None else Some(maximum(widthOf(values(0)), widthOf(values(1))))
+            val out = factory()
+            out.left = target.map(align(values(0), _)).getOrElse(values(0)).asInstanceOf[out.T]
+            out.right = target.map(align(values(1), _)).getOrElse(values(1)).asInstanceOf[out.T]
+            out
           }
         case native: UnaryOperator if unaries.contains(native.getClass) =>
           freeze(native, () => Vector.empty)
@@ -495,9 +559,9 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
             native.getClass == classOf[Operator.BitVector.andR] || native.getClass == classOf[Operator.BitVector.xorR]
           if ((!reduction && (source.kind ne kind)) || (reduction && (source.kind eq TypeBool)))
             fail("TYPE", "unary operand does not match the exact native primitive kind")
-          val width = if (kind eq TypeBool) lit(1) else source.width
+          val transfer: Vector[Width] => Width = widths => if (kind eq TypeBool) lit(1) else widths.head
           val factory = unaries(native.getClass)
-          make(kind, width, native.getClass, Vector.empty, Vector(source)) { values =>
+          make(kind, transfer, native.getClass, Vector.empty, Vector(source)) { (values, _) =>
             val out = factory(); out.source = values.head.asInstanceOf[out.T]; out
           }
         case native: Cast if casts.contains(native.getClass) =>
@@ -506,7 +570,7 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           if (source.kind ne castInputKinds(native.getClass))
             fail("TYPE", "cast source kind must match its exact native cast class")
           val factory = casts(native.getClass)
-          make(kind, source.width, native.getClass, Vector.empty, Vector(source)) { values =>
+          make(kind, _.head, native.getClass, Vector.empty, Vector(source)) { (values, _) =>
             val out = factory(); out.input = values.head.asInstanceOf[out.T]; out
           }
         case native: Resize if resizes.contains(native.getClass) =>
@@ -518,8 +582,8 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           val source = child(native.input)
           if (source.kind ne kind) fail("TYPE", "resize cannot change the native scalar kind")
           val factory = resizes(native.getClass)
-          make(kind, width, native.getClass, Vector.empty, Vector(source)) { values =>
-            val out = factory(); out.input = values.head.asInstanceOf[Expression with WidthProvider]; out.size = size; out
+          make(kind, _ => width, native.getClass, Vector(new WidthKey(width)), Vector(source)) { (values, target) =>
+            val out = factory(); out.input = values.head.asInstanceOf[Expression with WidthProvider]; out.size = target.default.toInt; out
           }
         case native: BinaryMultiplexer if muxes.contains(native.getClass) =>
           freeze(native, () => Vector.empty)
@@ -528,24 +592,33 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           out
         case native: BitVectorBitAccessFixed if bitAccesses.contains(native.getClass) =>
           val bit = native.bitId
-          freeze(native, () => Vector(native.bitId))
+          val high = NativeWidthProvenance.isHighBit(native)
+          freeze(native, () => Vector(native.bitId, NativeWidthProvenance.isHighBit(native)))
           val source = child(native.source)
           if (source.kind ne selectInputKinds(native.getClass)) fail("TYPE", "bit access source kind mismatch")
-          if (bit < 0 || BigInt(bit) >= source.width.minimum)
-            fail("SELECT-DOMAIN", "fixed bit index must be in range over the entire symbolic width domain")
+          val transfer: Vector[Width] => Width = widths => {
+            if (widths.head.minimum < 1 || (!high && (bit < 0 || BigInt(bit) >= widths.head.minimum)))
+              fail("SELECT-DOMAIN", "bit index must retain exact high-bit authority or fit the entire substituted width domain")
+            lit(1)
+          }
           val factory = bitAccesses(native.getClass)
-          make(TypeBool, lit(1), native.getClass, Vector(bit), Vector(source)) { values =>
-            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]; out.bitId = bit; out
+          make(TypeBool, transfer, native.getClass, Vector(if (high) "msb" else bit), Vector(source), high) { (values, _) =>
+            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]
+            out.bitId = if (high) values.head.getBitsWidth - 1 else bit
+            out
           }
         case native: BitVectorRangedAccessFixed if ranges.contains(native.getClass) =>
           val hi = native.hi; val lo = native.lo
           freeze(native, () => Vector(native.hi, native.lo))
           val source = child(native.source)
           if (source.kind ne selectInputKinds(native.getClass)) fail("TYPE", "part access source kind mismatch")
-          if (lo < 0 || hi < lo || BigInt(hi) >= source.width.minimum)
-            fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire symbolic domain")
+          val transfer: Vector[Width] => Width = widths => {
+            if (lo < 0 || hi < lo || BigInt(hi) >= widths.head.minimum)
+              fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire substituted domain")
+            lit(hi - lo + 1)
+          }
           val factory = ranges(native.getClass)
-          make(kind, lit(hi - lo + 1), native.getClass, Vector(hi, lo), Vector(source)) { values =>
+          make(kind, transfer, native.getClass, Vector(hi, lo), Vector(source)) { (values, _) =>
             val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]; out.hi = hi; out.lo = lo; out
           }
         case native: BitVectorLiteral if native.getClass == classOf[BitsLiteral] ||
@@ -559,15 +632,15 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           val needed = value.bitLength + (if ((kind eq TypeSInt) && value != 0) 1 else 0)
           if ((value < 0 && (kind ne TypeSInt)) || width.minimum < needed)
             fail("LITERAL-DOMAIN", "constant value must fit its exact native kind and width for every allowed parameter")
-          make(kind, width, native.getClass, Vector(value, specified), Vector.empty) { _ =>
-            if (kind eq TypeBits) BitsLiteral(value, null, width.default.toInt, true)
-            else if (kind eq TypeUInt) UIntLiteral(value, null, width.default.toInt, true)
-            else SIntLiteral(value, null, width.default.toInt, true)
+          make(kind, _ => width, native.getClass, Vector(value, specified, new WidthKey(width)), Vector.empty) { (_, target) =>
+            if (kind eq TypeBits) BitsLiteral(value, null, target.default.toInt, true)
+            else if (kind eq TypeUInt) UIntLiteral(value, null, target.default.toInt, true)
+            else SIntLiteral(value, null, target.default.toInt, true)
           }
         case native: BoolLiteral if native.getClass == classOf[BoolLiteral] =>
           val value = native.value
           freeze(native, () => Vector(native.value))
-          make(TypeBool, lit(1), native.getClass, Vector(value), Vector.empty)(_ => new BoolLiteral(value))
+          make(TypeBool, _ => lit(1), native.getClass, Vector(value), Vector.empty)((_, _) => new BoolLiteral(value))
         case _ => fail("UNSUPPORTED", s"native class '${expression.getClass.getName}' has no exact graph transfer rule")
       }
       visiting.remove(expression)
@@ -590,8 +663,8 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
         case _ =>
       }
     }
-    if ((root.kind ne inputKind) || !ElabInt.equivalentExactFunction(root.width, inputWidth) || root.width.minimum < 1)
-      fail("RESULT-SHAPE", "59f graph callbacks must preserve the exact input scalar kind and result width")
+    if ((root.kind ne inputKind) || root.width.minimum < 1)
+      fail("RESULT-SHAPE", "graph callbacks must preserve the exact scalar kind and a positive native width transfer")
     if (callback.declarations.exists(value => !nodes.containsKey(value)) || consumed.size() != callback.assignments.size)
       fail("UNCONSUMED-EFFECT", "all callback declarations and assignments must belong to the certified result graph")
     if (callback.statements.exists {

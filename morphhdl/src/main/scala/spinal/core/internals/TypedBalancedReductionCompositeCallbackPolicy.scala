@@ -155,8 +155,6 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
       return call.desc == "(I)Lspinal/core/Data;"
     if (scalarNames(call.owner) && Set("$minus", "$times", "$less", "$less$eq", "$greater", "$greater$eq", "$eq$eq$eq", "$eq$div$eq")(call.name))
       return !bridge && args.size == 1 && dataDescriptor(args.head.getDescriptor) && dataDescriptor(result.getDescriptor)
-    if (scalarNames(call.owner) && call.name == "resized" && args.isEmpty &&
-        dataDescriptor(result.getDescriptor)) return !bridge
     if (dataName(call.owner)) {
       if (call.name == "$colon$eq" && call.desc == "(Lspinal/core/Data;Lspinal/idslplugin/Location;)V") return true
       if (bridge && call.name == "setAsReg" && args.isEmpty && dataDescriptor(result.getDescriptor)) return true

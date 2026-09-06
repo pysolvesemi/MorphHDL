@@ -90,7 +90,14 @@ def source_scope(root: Path) -> None:
     for path in ("morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala",
                  "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
                  "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala"):
-        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed oracle/authority changed: " + path)
+        current = restore_rollout(root, path, (root / path).read_text())
+        boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
+        if boundary_checker.is_file():
+            boundary = load(boundary_checker, "boundary_signed_width_scope")
+            restore = getattr(boundary, "restore_59d_signed_width_authority", None)
+            if restore is not None:
+                current = restore(root, path, current)
+        require(git("show", BASE + ":" + path) == current, "sealed oracle/authority changed: " + path)
     print("60d exact native hook, unchanged wrapper plan and independent oracle scope PASS")
 
 

@@ -21,6 +21,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       private val input: Evidence,
       private val observation: TypedBalancedReductionClosedGraph.Observation,
       private val registers: Vector[RegisterStep],
+      private val minimumInitializerWidth: Int,
       private val localGuards: Vector[() => Unit]
   ) {
     val registerCount: Int = registers.size
@@ -36,7 +37,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       validateFreshness()
       other.validateFreshness()
       (input.owner eq other.input.owner) && (input.kind eq other.input.kind) &&
-        ElabInt.equivalentExactFunction(resultWidth, other.resultWidth) &&
+        minimumInitializerWidth == other.minimumInitializerWidth &&
         registers.size == other.registers.size &&
         registers.zip(other.registers).forall { case (a, b) =>
           (a.clock eq b.clock) && a.zeroInitialized == b.zeroInitialized
@@ -44,10 +45,39 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     }
 
     def replay(value: BaseType): BaseType = {
+      input.requireReplacement(value)
+      replayWithWidth(value, input.width)
+    }
+
+    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression): BaseType =
+      replayWithWidthWhen(value, width, None)
+
+    /** A generated template has data semantics only on its exact active COUNT
+      * domain. Inactive positive-width placeholders cannot impose a spurious
+      * initializer restriction, or excuse an illegal active initializer. */
+    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,
+        active: ElaborationBooleanExpression): BaseType = {
+      if (active == null) fail("WIDTH-AUTHORITY", "template activity must retain exact native count authority")
+      replayWithWidthWhen(value, width, Some(active))
+    }
+
+    private def replayWithWidthWhen(value: BaseType, width: ElaborationIntegerExpression,
+        active: Option[ElaborationBooleanExpression]): BaseType = {
       validateFreshness()
       if (Component.current ne input.owner)
         fail("OWNER", "bridge replay must remain inside its owning component")
-      input.requireReplacement(value)
+      ElaborationWidthAuthority.requireAuthoritative(width, "replayed bridge width",
+        "MORPH-REDUCE-BALANCED-BRIDGE-WIDTH-AUTHORITY")
+      val activeMinimum = active.map(ElaborationWidthAuthority.minimumWhen(width, _))
+        .getOrElse(Some(width.minimum))
+      if (activeMinimum.exists(_ < minimumInitializerWidth))
+        fail("INITIALIZER-WIDTH", "replayed narrower native lane cannot contain the certified initializer width")
+      if (value == null || (value.component ne input.owner) ||
+          (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.isAnalog ||
+          value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||
+          !ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(value)
+            .getOrElse(ElabInt.literal(value.getBitsWidth).expression), width))
+        fail("WIDTH", "replayed bridge input lacks its exact certified native shape")
       registers.foldLeft(value) { (prior, step) =>
         val context = step.clock.push()
         try {
@@ -91,6 +121,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     val consumed = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
     val initializerNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val registers = ArrayBuffer.empty[RegisterStep]
+    var minimumInitializerWidth = 0
     val localGuards = ArrayBuffer.empty[() => Unit]
 
     def local(value: BaseType): Unit = {
@@ -121,14 +152,17 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       case literal: BitVectorLiteral
           if !literal.hasPoison && literal.value == BigInt(0) &&
             (literal.getTypeObject.asInstanceOf[AnyRef] eq input.kind) =>
+        minimumInitializerWidth = minimumInitializerWidth.max(literal.getWidth)
         if (BigInt(literal.getWidth) > input.width.minimum)
           fail("INITIALIZER-WIDTH", "initializer width exceeds the smallest certified data width")
       case literal: BoolLiteral if (input.kind eq TypeBool) && !literal.value =>
+        minimumInitializerWidth = minimumInitializerWidth.max(1)
       case value: BaseType =>
         local(value)
         if (value.isReg || (value eq source) ||
             ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty))
           fail("INITIALIZER", "initializer aliases must be local constant-only combinational nodes")
+        minimumInitializerWidth = minimumInitializerWidth.max(value.getBitsWidth)
         if (BigInt(value.getBitsWidth) > input.width.minimum)
           fail("INITIALIZER-WIDTH", "initializer alias width exceeds the smallest certified data width")
         if (!initializerNodes.containsKey(value)) {
@@ -158,14 +192,14 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       val fixed = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
       val retained = ParameterizedWidth.expressionOf(value)
       if ((fixed >= 0 && BigInt(fixed) != input.width.default) ||
-          retained.exists(width => !ElabInt.equivalentExactFunction(width, input.width)) ||
+          retained.exists(width => !ElaborationWidthAuthority.equivalent(width, input.width)) ||
           (fixed >= 0 && input.width.parameters.nonEmpty && retained.isEmpty))
         fail("WIDTH", "a fixed native clone witness is not symbolic bridge-width authority")
       if (BigInt(value.getBitsWidth) != input.width.default)
         fail("WIDTH", "bridge does not preserve its input width")
       localGuards += (() => {
         val current = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
-        if (!TypedBalancedReductionValueEvidence.preservesFixedWidth(fixed, current, input.width) ||
+        if (!TypedBalancedReductionValueEvidence.preservesValueWidth(value, fixed, current, input.width) ||
             value.hasTag(tagAutoResize))
           fail("STALE-SHAPE", "bridge local changed its fixed-width or resize policy")
       })
@@ -190,7 +224,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     if (seen.size != callback.declarations.size || consumed.size != callback.assignments.size)
       fail("UNCONSUMED", "bridge contains local effects outside its result chain")
     val proof = new Proof(result, input.width, input, observation,
-      registers.reverse.toVector, localGuards.toVector)
+      registers.reverse.toVector, minimumInitializerWidth, localGuards.toVector)
     proof.validateFreshness()
     proof
   }

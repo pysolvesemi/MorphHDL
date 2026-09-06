@@ -2,7 +2,7 @@ name: Increment 59e composite balanced reductions
 
 on:
   push:
-    branches: ['agent/increment-59e-*', parameterized-verilog]
+    branches: ['agent/increment-59e-*', 'agent/increment-59d-*', parameterized-verilog]
     paths:
       - '.github/workflows/increment-59e-composite-reduction.yml'
       - 'core/src/**'

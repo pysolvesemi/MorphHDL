@@ -1,0 +1,34 @@
+{
+  "base": "cf353ddd45c766576488ae45748d1d17876c3b11",
+  "qualified_composite": "b25e367d99604e61b8f2c895b2c51ca1ab90d423",
+  "historical_publisher_sha256": "a7413d5d50fcb9a073cdd40a980c1476dddb9ef7d727635d045565b39b5b3f9a",
+  "files": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "before_sha256": "35e82c305d5f10373f170b4788fe1d8ef09853bbba8fb58997aabde94e5e4974",
+      "after_sha256": "ae092202f2bf3ecb1b85171c4b8f44f30db1c5dad0f6ef3cc81bc6c24a6ece9a",
+      "edits": [
+        {
+          "id": "packed-read-support-identities",
+          "before": "    private val treeStatements = ArrayBuffer.empty[TreeStatement]\n    private val widthInference = new WidthInference\n\n    /** Exact native statements whose logical width and layout are owned by\n      * the typed Vec packed-operation validator.  The ordinary native graph\n      * deliberately uses finite-capacity carriers and witness-width wrappers;\n",
+          "after": "    private val treeStatements = ArrayBuffer.empty[TreeStatement]\n    private val widthInference = new WidthInference\n\n    private lazy val exactPackedReadSupportAssignments =\n      ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)\n\n    private lazy val exactPackedReadSupportTargets = {\n      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()\n      exactPackedReadSupportAssignments.foreach(assignment =>\n        retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))\n      retained\n    }\n\n    /** Exact native statements whose logical width and layout are owned by\n      * the typed Vec packed-operation validator.  The ordinary native graph\n      * deliberately uses finite-capacity carriers and witness-width wrappers;\n"
+        },
+        {
+          "id": "packed-read-support-assignment-evidence",
+          "before": "    private lazy val exactPackedVecEvidenceAssignments = {\n      val retained =\n        new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()\n      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>\n        ParameterizedVec.operationsOf(vector).foreach {\n          case value: ParameterizedVecPackedRead =>\n",
+          "after": "    private lazy val exactPackedVecEvidenceAssignments = {\n      val retained =\n        new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()\n      exactPackedReadSupportAssignments.foreach(assignment =>\n        retained.put(assignment, java.lang.Boolean.TRUE))\n      ParameterizedVec.retainedVectorsOf(component).foreach { vector =>\n        ParameterizedVec.operationsOf(vector).foreach {\n          case value: ParameterizedVecPackedRead =>\n"
+        },
+        {
+          "id": "packed-read-independent-owner-roots",
+          "before": "          ) { (known, root) =>\n            if (known.exists(_ eq root)) known else known :+ root\n          }\n        if (roots.size != 1) {\n          fail(\n            \"SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH\",\n",
+          "after": "          ) { (known, root) =>\n            if (known.exists(_ eq root)) known else known :+ root\n          }\n        // These exact partial concatenations are removed by the packed Vec\n        // rewriter after its independent current-AST and emitted-use audits.\n        // Preserve the existing single-root owner projection, but do not\n        // reinterpret proven independent packing roots as one projection.\n        // Their factorized bounds and native witnesses are still validated.\n        if (roots.size > 1 && exactPackedReadSupportTargets.containsKey(declaration)) return None\n        if (roots.size != 1) {\n          fail(\n            \"SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH\",\n"
+        },
+        {
+          "id": "recursive-packed-element-geometry",
+          "before": "                  // Independently rooted element-width and depth expressions\n                  // cannot form one core exact-domain expression. Preserve\n                  // their factorized geometry directly for that case.\n                  val elementWidth = shape.elementLeaves\n                    .map(leaf => retained(leaf.width))\n                    .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)\n                  widthMultiply(retained(shape.depth), elementWidth)\n                }\n            }\n",
+          "after": "                  // Independently rooted element-width and depth expressions\n                  // cannot form one core exact-domain expression. Preserve\n                  // their factorized geometry directly for that case.\n                  import ParameterizedVecElementLayout._\n                  def geometry(size: Size): WidthExpr = size match {\n                    case Constant(value) => WidthLiteral(value)\n                    case Value(value) => retained(value)\n                    case Sum(values) => values.map(geometry)\n                      .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)\n                    case Product(left, right) => widthMultiply(geometry(left), geometry(right))\n                  }\n                  val elementWidth = geometry(shape.elementLayout.root.size)\n                  widthMultiply(retained(shape.depth), elementWidth)\n                }\n            }\n"
+        }
+      ]
+    }
+  ]
+}

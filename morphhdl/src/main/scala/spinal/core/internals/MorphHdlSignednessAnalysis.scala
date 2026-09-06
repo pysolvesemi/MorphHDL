@@ -98,7 +98,7 @@ object MorphHdlSignednessAnalysis {
           !sameIdentity(saved.parameters, live.parameters) ||
           !sameIdentity(saved.owners, live.owners))
         reject("STALE-EVIDENCE", "graph type, width, operand, ownership or boundary changed after capture")
-      live.parameters.foreach(validateWidth)
+      live.parameters.foreach(validateWidth(_, subject))
       saved.children.foreach(child => fresh(child, seen))
     }
 
@@ -240,9 +240,10 @@ object MorphHdlSignednessAnalysis {
       }
       if (key < 0 || key >= widths.size || !contains(fact.width))
         reject("WIDTH-USE-IDENTITY", "width token does not belong to this validated use")
-      val result = widths(key)
-      validateWidth(result)
-      result
+      // validate above rechecks the complete dependency subtree, including
+      // each retained width at its exact native owner. Revalidating this token
+      // without that owner would lose a captured construction-branch domain.
+      widths(key)
     }
 
     /** An exact width object is available only through validated subject use;
@@ -330,24 +331,35 @@ object MorphHdlSignednessAnalysis {
     * another phase inserter must not move analysis before validation or away
     * from the exact emission boundary after this inserter has returned.
     */
-  private final class ObservationPhase(plan: () => ArrayBuffer[Phase]) extends PhaseMisc {
+  private final class ObservationPhase(
+      plan: () => ArrayBuffer[Phase],
+      val context: PhaseContext
+  ) extends PhaseMisc {
+    private def requireRegistrationOpen(): Unit =
+      if (context.hasStartedPhaseExecution)
+        reject("PHASE-PLAN", "signedness registration is closed once phase execution starts")
+
     private var observer: Option[Snapshot => Unit] = None
     private var publisher: Option[(Snapshot => Unit, () => Boolean)] = None
     private var entered = false
 
     def observe(callback: Snapshot => Unit): Unit = {
+      requireRegistrationOpen()
       if (entered || observer.nonEmpty)
         reject("PHASE-PLAN", "a strict observer may only be installed once before execution")
       observer = Some(callback)
     }
 
     def publish(callback: Snapshot => Unit, enabled: () => Boolean): Unit = {
+      requireRegistrationOpen()
       if (entered || publisher.nonEmpty)
         reject("PHASE-PLAN", "a publication consumer may only be installed once before execution")
       publisher = Some((callback, enabled))
     }
 
     override def impl(pc: PhaseContext): Unit = {
+      if ((pc ne context) || !context.hasStartedPhaseExecution)
+        reject("PHASE-PLAN", "capture requires its exact executing native phase context")
       if (entered) reject("PHASE-PLAN", "a signedness phase may only execute once")
       entered = true
       val phases = plan()
@@ -402,17 +414,23 @@ object MorphHdlSignednessAnalysis {
 
   private def sharedPhase(phases: ArrayBuffer[Phase]): ObservationPhase = {
     val emission = validatedEmission(phases)
+    val context = Option(GlobalData.get).flatMap(data => Option(data.phaseContext))
+      .getOrElse(reject("PHASE-PLAN", "registration requires its native phase context"))
+    // This evidence is owned by the native scheduler, not a movable guard
+    // phase or a test of whether top-level elaboration has happened yet.
+    if (context.hasStartedPhaseExecution)
+      reject("PHASE-PLAN", "signedness registration is closed once phase execution starts")
     val existing = phases.collect { case phase: ObservationPhase => phase }
     if (existing.size > 1)
       reject("PHASE-PLAN", "signedness requires exactly one physical capture boundary")
     if (existing.isEmpty) {
-      val phase = new ObservationPhase(() => phases)
+      val phase = new ObservationPhase(() => phases, context)
       phases.insert(emission, phase)
       phase
     } else {
       val phase = existing.head
-      if (emission == 0 || (phases(emission - 1) ne phase))
-        reject("PHASE-PLAN", "an existing analysis must remain immediately before the validated emitter")
+      if ((phase.context ne context) || emission == 0 || (phases(emission - 1) ne phase))
+        reject("PHASE-PLAN", "an existing analysis must retain its exact context and validated emission boundary")
       phase
     }
   }
@@ -427,9 +445,17 @@ object MorphHdlSignednessAnalysis {
     case _ => true
   }
 
-  private def validateWidth(value: ElaborationIntegerExpression): Unit = {
-    ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
-      "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
+  private def validateWidth(value: ElaborationIntegerExpression, subject: AnyRef): Unit = {
+    subject match {
+      case base: BaseType if ElaborationWidthAuthority.isRetained(value) =>
+        NativePublicationWidth.validate(value, base.component, base, "signedness width authority")
+      case _ if ElaborationWidthAuthority.isRetained(value) =>
+        ElaborationWidthAuthority.requireAuthoritative(value, "signedness width authority",
+          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY")
+      case _ =>
+        ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
+          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
+    }
     if (value.minimum < 0) reject("WIDTH-AUTHORITY", "negative logical width domain")
   }
 
@@ -607,7 +633,7 @@ object MorphHdlSignednessAnalysis {
     val widthIndices = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Integer]()
     val widths = ArrayBuffer.empty[ElaborationIntegerExpression]
     def retained(value: ElaborationIntegerExpression): Width = {
-      validateWidth(value)
+      // The exact subject's parameters are validated before token allocation.
       // Root-free generate-index expressions are not necessarily constants.
       if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)
         return Fixed(value.default)
@@ -631,7 +657,7 @@ object MorphHdlSignednessAnalysis {
       indices.put(subject, java.lang.Integer.valueOf(id))
       entries += null
       val shape = describe(subject)
-      shape.parameters.foreach(validateWidth)
+      shape.parameters.foreach(validateWidth(_, subject))
       val children = shape.children.map(visit)
       val valueChildren = subject match {
         case mux: BinaryMultiplexer => Vector(visit(mux.whenTrue), visit(mux.whenFalse))

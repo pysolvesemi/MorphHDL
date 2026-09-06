@@ -408,3 +408,13 @@ Verilog/VHDL compatibility, strict V2001 tools, mutation counterexamples and
 all inherited no-skip regression gates remain required. WIDTH qualification
 includes 1, 5, 8 and 32; finite specialization matrices are not a universal
 formal proof over every legal parameter value.
+
+
+Signedness consumer registration is restricted to phase-plan construction.
+A read-only, monotonic flag owned by the native scheduler closes registration
+before its first phase invocation; no additional pre-creation phase is inserted.
+Capture still immediately precedes validated native emission. A custom phase
+inserter may register a strict observer in either order with the publication
+consumer, but an executing phase must not add consumers or move the capture
+boundary. Invalid plans fail before a new public artifact is committed. Native
+phase order, verbose logging and generated RTL remain unchanged.

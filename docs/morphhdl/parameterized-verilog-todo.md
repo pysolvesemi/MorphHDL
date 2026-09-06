@@ -843,6 +843,10 @@ dependency chain is unchanged and may proceed independently.
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c or 59e through 59h.
 
+  Implementation and qualification record:
+  [Increment 59d](increment-59d-symbolic-widths.md). The checkbox remains open
+  until the complete final-head acceptance gates pass.
+
   Replace the equal-width-only reduction certificate with generic scalar
   input/intermediate/result width functions derived from native typed IR.
   Carry independent WIDTH/COUNT roots through arithmetic, resize, mux/min/max,

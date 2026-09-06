@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "b0843b7f844f4d100f14c722b5c8f76a15fbca16"
+      "approved_tree": "5f88bcf3aa0289791089c99e3f1b4f808aa9a675"
     },
     {
       "path": "idslpayload/src/main",
@@ -55,16 +55,86 @@
   ],
   "entries": [
     {
+      "path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+      ],
+      "reason": "Retain exact typed result geometry at the native weak-clone and cast construction seams without changing the native graph or concrete width inference.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/BaseType.scala",
+        "mode": "100644",
+        "blob": "b3456b8e8f7483d1cb26a995fd9c6fc86bb43401",
+        "sha256": "178fcfb53db8a81dde58525099be0cf7406024da0367da542a53546141afbe79"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/BaseType.scala",
+        "mode": "100644",
+        "blob": "f10764300e85a2ad0ae73798f3316cd248d7404a",
+        "sha256": "f4ba26893a0b52827b085b936924bab0d1c110574f9121805791e7abd927b16b"
+      },
+      "edits": [
+        {
+          "id": "basetype-result-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapWithWeakClone",
+          "reason": "Record scalar operator and resize width provenance on the freshly constructed native result.",
+          "baseline_span": {
+            "start": 10676,
+            "end": 10676,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 10676,
+            "end": 10728,
+            "sha256": "8047018a373ea812d7e6e878af4703fc3e4c96f5214ae936d0bf4114b795bea9"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(typeNode, e)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "basetype-result-width-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapCast",
+          "reason": "Record width-preserving native cast provenance on its freshly constructed result.",
+          "baseline_span": {
+            "start": 11212,
+            "end": 11212,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 11264,
+            "end": 11317,
+            "sha256": "a904f7eecd7459031ce0b829613854822e0097c25e4c9614994dd9f3bd3e2c97"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(result, node)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/BitVector.scala",
       "change": "modified",
       "classification": "typed-overload",
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve a mux result width only when every participating operand owns the same exact typed width function, while retaining native max-width selection and avoiding receiver metadata from recursive clone propagation.",
+      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
@@ -74,10 +144,56 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/BitVector.scala",
         "mode": "100644",
-        "blob": "930238fa6e55a1be2cebbf04d4766560bbe653c0",
-        "sha256": "4e75d8cbdf88f1dbe0e4632c2494648b7893b96a1cb6242797e55a6c89d31729"
+        "blob": "b47f75df5b589568568e3ad152a15da366d5b8eb",
+        "sha256": "984dd29a43540a5fd26c2591dd3a05e7adc357c8d47b1c0db2ae3b677d279e47"
       },
       "edits": [
+        {
+          "id": "bitvector-native-msb-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.msb",
+          "reason": "Retain the exact native msb request before lowering its index to a concrete witness.",
+          "baseline_span": {
+            "start": 2539,
+            "end": 2548,
+            "sha256": "da0b123266d2c994e5562213d1b186dcc0e5035242f6da7df6a14c2773882b10"
+          },
+          "approved_span": {
+            "start": 2539,
+            "end": 2591,
+            "sha256": "d5e163db8519ad1c56772aebb65f86951f340a1ad98fc2547354b6b78957bd88"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainHighBit(this, this(high)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-native-clone-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.clone",
+          "reason": "Copy exact typed metadata after the unchanged native clone width calculation.",
+          "baseline_span": {
+            "start": 6731,
+            "end": 6731,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6774,
+            "end": 6813,
+            "sha256": "7d9522615cde82ebad5c99b441f4faa65f19acd1f42309cc3041f085c138cf05"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copy(this, res)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "bitvector-resize-01",
           "kind": "overload",
@@ -89,8 +205,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6978,
-            "end": 7470,
+            "start": 7060,
+            "end": 7552,
             "sha256": "b13f7b439e1658847e68fa3ae4947070393df67a7aaa845e3c42aa4ae13bf57a"
           },
           "required_exact_text": [
@@ -102,24 +218,24 @@
           ]
         },
         {
-          "id": "bitvector-mux-width-59e",
+          "id": "bitvector-native-mux-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.BitVector.getMuxType",
-          "reason": "Materialize the non-auto-resized native Mux inputs once, retain native cloning and concrete max-width selection, and attach width authority only after all participating operands prove the same exact width function.",
+          "reason": "Consume input traversal once and retain the native maximum-input width on the fresh mux clone, with the original auto-resize exclusion and native width calculation preserved.",
           "baseline_span": {
             "start": 19363,
-            "end": 19458,
-            "sha256": "ccdceb97c35c192a15d8b8e44adebd062beaff32166a5ff23c23ce52e5cd30eb"
+            "end": 19475,
+            "sha256": "89b016e86241a0dfa97a6818e54e1122e246d732f4a7c44f637d45c0d133cf0a"
           },
           "approved_span": {
-            "start": 19855,
-            "end": 20025,
-            "sha256": "c067507d679e1c752f1cedd6dc653a198da3bf10c20542a3c236f2fd27e0565b"
+            "start": 19937,
+            "end": 20179,
+            "sha256": "1ff84cbb9b3b0bc5e14fdfc4e13a35d4c2b3edf581c765761eea2a7cfcfe75bd"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.preserveMuxWidth(this.clone.setWidth(w), inputs",
+              "text": "NativeWidthProvenance.retainMuxType[T](inputs, result)",
               "count": 1
             }
           ]
@@ -350,15 +466,16 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads.",
+      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabInt.scala",
         "mode": "100644",
-        "blob": "5adffccd8825c699c38ae8ab1595949b8ba03f8a",
-        "sha256": "ed4b50140835f3717e9ecdbb1f1f0af21e88d212b5d019c0b871409a86fe8ca9"
+        "blob": "defb22e2847b8792ce4cf51a2b98fb1066593bc1",
+        "sha256": "754f28ac4674a8129da10f244e793314d4ad82b7ac603b78c3a646d01648fbd5"
       },
       "edits": []
     },
@@ -394,6 +511,23 @@
         "mode": "100644",
         "blob": "a8279f4b0667616c4f666c3f7e0b45ca6dec1ffe",
         "sha256": "9366006897a806beddaa03643dd4a24dc5a302e9ae5293eb6a70c2af863bc071"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+      ],
+      "reason": "Certify finite width-specific expression composition across independent root identities, preserve exact private-object provenance and guarded projection, and reject forged/copy-derived authority or illegal geometry without broadening general elaboration control domains. Conditional extrema and redundant choose arms use exact admitted bindings, including guarded full-group geometry, without granting authority from rendered expressions.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+        "mode": "100644",
+        "blob": "30a837a24ab72b3e1972eb273dfd95f88cb4db38",
+        "sha256": "27d67d51b5727f085c1de63016486318d5c18cc1e5a17593f53a91dc1e856cac"
       },
       "edits": []
     },
@@ -950,9 +1084,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads. Mechanically preserve exact typed leaf and nested Vec metadata across native cloneOf used by HardType, Mux and RegNext.",
+      "reason": "Keep exact typed log2Up/isPow2 overloads and mechanically retain scalar leaf width provenance through the ordinary cloneOf/HardType construction path.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Misc.scala",
         "mode": "100644",
@@ -962,8 +1097,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Misc.scala",
         "mode": "100644",
-        "blob": "b6f9222384ca974d4e972458a995591745abd662",
-        "sha256": "8d95a1902af24ff7b1afac6b2b3ac50066fa843330e0864ab6e8e9dc1a16a1fb"
+        "blob": "ffe0943a1e82efb16f40441fcee3b627a4637b0e",
+        "sha256": "f761ac70eb188058cb777b34bf25e3c0e85d8b5d52ce28bbacc2772b29fb8414"
       },
       "edits": [
         {
@@ -1013,29 +1148,47 @@
           ]
         },
         {
-          "id": "misc-clone-shape-59e",
+          "id": "misc-native-clone-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.cloneOf.apply(Data)",
-          "reason": "Copy exact typed leaf and recursive Vec metadata after authoritative native cloning, without inferring symbolic widths from concrete witnesses.",
+          "reason": "Copy proved typed source geometry to the native clone; ordinary concrete clone behavior remains unchanged.",
           "baseline_span": {
-            "start": 3251,
+            "start": 3252,
             "end": 3280,
-            "sha256": "d1d5470d2ead6cd081a11d67f49d5efee4dc06af7754899a43021bca98d27b1b"
+            "sha256": "ac6eab13fe6750227b0508f863b99725739f114f9365c33b9fdcbfb55ffb3b4d"
           },
           "approved_span": {
-            "start": 3579,
-            "end": 3656,
-            "sha256": "c4e25f9c9cd1d5f03e215aad527fcbc9feb68c89e29c10add6532bf218b3d434"
+            "start": 3580,
+            "end": 3654,
+            "sha256": "f1e258addd7762c70b811bacd66be20c78ddfe0d74a36a24111de39ffb2fcb97"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.copyCloneMetadata(that, that.clone().asInstanceOf[T])",
+              "text": "NativeWidthProvenance.retainCloneShape(that, that.clone().asInstanceOf[T])",
               "count": 1
             }
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
+      ],
+      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+        "mode": "100644",
+        "blob": "8f80ebeeb44455b58ef3e99ca455b1f4d855942e",
+        "sha256": "f45ed9c60786dc09b999eeb2db96e55988b1fb6201bd0517512d8162d79b7298"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
@@ -1069,13 +1222,13 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "d32fc5b15201bc326603474937cc8801673091cf",
-        "sha256": "442a058d9b1ec24e78961aea1c14715f8171194e6747a625568490de9babc161"
+        "blob": "52a867c4ea3080a9c85253cd52d38fec2dd083da",
+        "sha256": "f7d9233246c90687220c3704a4c9f63f0a52c74b1a7ebdaae8d5036df5b4b219"
       },
       "edits": []
     },
@@ -1112,16 +1265,17 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Preserve recursive native clone geometry for retained Bundle/Vec metadata and preserve a native Mux result width only when every participating input directly owns an equivalent exact width function; missing or mismatched authority never becomes inferred width provenance.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "528317cab9b42d4d42179e7c1f6d19feac223d09",
-        "sha256": "98a637def36d140b8692b3e099b465eb8f9f95f68218aea86bc6eb973f4965ab"
+        "blob": "d2d35b0fc5ef11b84e9a3e1783475c50f570daa5",
+        "sha256": "c20a93e2f582f2b8a12c573258ce23c48730d10f1b583cde2370498e3b292b8b"
       },
       "edits": []
     },
@@ -1328,7 +1482,7 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1338,8 +1492,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "88efce89f6b1e8026c677fcf37c1141e92b69433",
-        "sha256": "892b0deb762b7d5ab5b19d2280908f72849cfe38060755c400275e7ef40231e0"
+        "blob": "1bcc69f6bf08e0965fa89060af91948220eee114",
+        "sha256": "dbf3d58588860c44d303571e8ea86a130e28050d3fbc14b6f0dbf9c1710f622c"
       },
       "edits": [
         {
@@ -1898,7 +2052,7 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Preserve all native scalar leaves when packing a retained nested Vec, avoiding premature inner witness truncation before exact logical packing.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation.",
           "baseline_span": {
             "start": 11577,
             "end": 11638,
@@ -1906,8 +2060,8 @@
           },
           "approved_span": {
             "start": 17018,
-            "end": 19606,
-            "sha256": "c44aafb5f6babfe94fbd464f575ec305d3e8b630f7481dd832c7a7c6a792b3af"
+            "end": 19321,
+            "sha256": "19af89908fb7872447e931c85af757503b92df53f59483f7dae8a85933529f03"
           },
           "required_exact_text": [
             {
@@ -1917,7 +2071,17 @@
             },
             {
               "side": "approved",
-              "text": "this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)",
+              "text": "shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.readCompositeBits(this)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordPackedRead(this, super.asBits)",
               "count": 1
             }
           ]
@@ -1933,8 +2097,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 19936,
-            "end": 20038,
+            "start": 19651,
+            "end": 19753,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -1956,8 +2120,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20106,
-            "end": 20249,
+            "start": 19821,
+            "end": 19964,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
@@ -2362,9 +2526,10 @@
       "change": "modified",
       "classification": "platform-integration-hook",
       "introduced_by": [
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 60g: scheduler-owned registration lifecycle"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
@@ -2374,10 +2539,56 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
-        "blob": "887984fc2aeff5438a1dbbfe163f0a877036dbf7",
-        "sha256": "a71c08a9ad865a07b0e6f21cb2d6252e84886d51d4bd31cc70525f6641213239"
+        "blob": "2f9a94735b66196d07a484cc94747f2118cda504",
+        "sha256": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200"
       },
       "edits": [
+        {
+          "id": "phase-context-execution-evidence",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Read-only monotonic per-context lifecycle evidence allows optional consumers to reject runtime registration without inserting pre-creation phases.",
+          "baseline_span": {
+            "start": 9673,
+            "end": 9673,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9673,
+            "end": 9942,
+            "sha256": "b42f036138f7fd606504dadf776c58833717576de3a8773fce0f5ab34e48b264"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[spinal] def hasStartedPhaseExecution: Boolean = phaseExecutionStarted",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "phase-context-execution-start",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Close registration before invoking even the first custom phase; leave all native phase execution, logging and validation statements intact.",
+          "baseline_span": {
+            "start": 9710,
+            "end": 9710,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 9979,
+            "end": 10012,
+            "sha256": "485c7a91982bd189521fe6a133e1a6c9c5203360a791a64d9b4581722c919c08"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "phaseExecutionStarted = true",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "spinal-verilog-parameterized-exception-01",
           "kind": "platform-integration",
@@ -2389,8 +2600,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 136911,
-            "end": 136974,
+            "start": 137213,
+            "end": 137276,
             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
           },
           "required_exact_text": [

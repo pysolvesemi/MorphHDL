@@ -2,7 +2,7 @@ name: Increment 59b native operator replay formal proof
 
 on:
   push:
-    branches: ['agent/increment-59b-*', parameterized-verilog]
+    branches: ['agent/increment-59b-*', 'agent/increment-59d-*', parameterized-verilog]
     paths:
       - '.github/workflows/increment-59b-operator-replay.yml'
       - 'core/**'
@@ -29,6 +29,8 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59b'))
     name: Concrete replay formal Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
@@ -92,7 +94,7 @@ jobs:
           paths = list(Path('morphhdl/target').rglob('*TypedBalancedReductionOperatorReplayTests.xml'))
           assert len(paths) == 1, paths
           suite = ET.parse(paths[0]).getroot()
-          assert int(suite.get('tests', '0')) == 23, suite.attrib
+          assert int(suite.get('tests', '0')) == 24, suite.attrib
           assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
           print('Executed native replay suite:', suite.attrib)
           PY

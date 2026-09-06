@@ -19,6 +19,56 @@ import spinal.lib._
   * authoritative native Vec algorithm originally produced.
   */
 private object PackedVecIdentityAdversarialFixture {
+  final case class IndependentPackedRecord(aWidth: ElabInt, bWidth: ElabInt,
+      cWidth: ElabInt, dWidth: ElabInt) extends Bundle {
+    val a = UInt(aWidth bits)
+    val b = SInt(bWidth bits)
+    val c = Bits(cWidth bits)
+    val d = UInt(dWidth bits)
+  }
+
+  final class IndependentPackedRead(defaultCount: Int, maximumCount: Int,
+      mutation: Int = 0, scalarConsumer: Boolean = false) extends Component {
+    setDefinitionName("IndependentPackedRead")
+    val aWidth = HdlInt.param("A_W", 5, 1, 32).asElabInt
+    val bWidth = HdlInt.param("B_W", 5, 1, 32).asElabInt
+    val cWidth = HdlInt.param("C_W", 5, 1, 32).asElabInt
+    val dWidth = HdlInt.param("D_W", 5, 1, 32).asElabInt
+    val count = HdlInt.param("COUNT", defaultCount, 1, maximumCount).asElabInt
+    val values = in(Vec(IndependentPackedRecord(aWidth, bWidth, cWidth, dWidth), count)).setName("values")
+    val packed = values.asBits.asOutput().setName("copied")
+    if (mutation != 0) {
+      val operation = ParameterizedVec.operationsOf(values)
+        .collect { case value: ParameterizedVecPackedRead => value }.last
+      val packing = operation.carrierAssignments.find(_.finalTarget eq operation.carrier).get
+      val cat = packing.source.asInstanceOf[Operator.Bits.Cat]
+      if (mutation == 1) {
+        val left = cat.left
+        cat.left = cat.right
+        cat.right = left
+      } else {
+        // The lower prefix is a real private Cat support node. Turning it
+        // into state must still invalidate the final exact carrier proof.
+        val prefix = cat.right.asInstanceOf[BaseType]
+        require(prefix.isComb && !prefix.isIo)
+        prefix.setAsReg()
+      }
+    }
+    if (scalarConsumer) {
+      val scalar = out(UInt()).setName("scalar")
+      scalar := packed.asUInt
+    }
+  }
+
+  final class IndependentScalarConcat extends Component {
+    val a = in(Bits(HdlInt.param("A_W", 5, 1, 32) bits))
+    val b = in(Bits(HdlInt.param("B_W", 5, 1, 32) bits))
+    val c = in(Bits(HdlInt.param("C_W", 5, 1, 32) bits))
+    val d = in(Bits(HdlInt.param("D_W", 5, 1, 32) bits))
+    val result = out(Bits())
+    result := d ## c ## b ## a
+  }
+
   sealed trait ProjectedCoverageMutation
   case object KeepProjectedCoverage extends ProjectedCoverageMutation
   case object KeepActiveStorageCoverage extends ProjectedCoverageMutation
@@ -348,6 +398,58 @@ private object PackedVecIdentityAdversarialFixture {
 class PackedVecIdentityAdversarialTests extends AnyFunSuite {
   import PackedVecIdentityAdversarialFixture._
 
+  test("composite packed reads keep factorized geometry beyond the scalar Cartesian limit") {
+    // Four independent 32-value roots have 1,048,576 combinations. Both a
+    // logical-witness wrapper and a full-size native carrier must publish.
+    for (defaultCount <- Vector(1, 3)) withTemporaryDirectory { directory =>
+      val fileName = "independent_packed_read.v"
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = fileName
+      MorphVerilog(config)(new IndependentPackedRead(defaultCount, 3))
+      val text = new String(Files.readAllBytes(directory.resolve(fileName)), StandardCharsets.UTF_8)
+      for (name <- Vector("values", "copied")) {
+        val port = text.linesIterator.find(line =>
+          (line.contains("input") || line.contains("output")) &&
+            ("\\b" + name + "\\b").r.findFirstIn(line).nonEmpty).getOrElse(fail(text))
+        for (root <- Vector("A_W", "B_W", "C_W", "D_W", "COUNT"))
+          assert(port.contains(root), port)
+      }
+      val copies = "(?m)^\\s*assign\\s+([A-Za-z_][A-Za-z0-9_$]*)\\s*=\\s*([A-Za-z_][A-Za-z0-9_$]*)\\s*;".r
+        .findAllMatchIn(text).map(value => value.group(1) -> value.group(2)).toMap
+      var source = "copied"
+      val visited = scala.collection.mutable.Set.empty[String]
+      while (copies.contains(source) && !visited(source)) {
+        visited += source
+        source = copies(source)
+      }
+      assert(source == "values", text)
+    }
+  }
+
+  test("ordinary scalar concatenation still enforces the exhaustive width domain limit") {
+    expectFailure("independent_scalar_concat.v", "SPINAL-ELAB-WIDTH-DOMAIN-TOO-LARGE",
+      new IndependentScalarConcat)
+  }
+
+  test("a factorized packed read cannot confer witness width authority on a scalar cast") {
+    // A full carrier is checked by native scalar width retention; a smaller
+    // witness wrapper is checked by publication of its factorized source.
+    // Neither path may turn the packed width into a scalar witness constant.
+    for ((defaultCount, code) <- Vector(
+        2 -> "SPINAL-ELAB-WIDTH-DOMAIN-TOO-LARGE",
+        1 -> "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH"))
+      expectFailure(s"independent_packed_scalar_cast_$defaultCount.v", code,
+        new IndependentPackedRead(defaultCount, 2, scalarConsumer = true))
+  }
+
+  test("private composite packing still rejects reordered leaves and stateful support") {
+    for (mutation <- Vector(1, 2))
+      expectFailure(s"independent_packed_mutation_$mutation.v",
+        Set("SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-LAYOUT-MISMATCH",
+          "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH"),
+        new IndependentPackedRead(1, 3, mutation = mutation))
+  }
+
   test("packed Vec read rejects a live Resize whose input identity changed") {
     expectFailure(
       "mutated_packed_read_wrapper.v",
@@ -492,6 +594,12 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
       fileName: String,
       code: String,
       component: => Component
+  ): Unit = expectFailure(fileName, Set(code), component)
+
+  private def expectFailure(
+      fileName: String,
+      codes: Set[String],
+      component: => Component
   ): Unit =
     withTemporaryDirectory { directory =>
       val rtl = directory.resolve(fileName)
@@ -499,10 +607,10 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
       config.netlistFileName = fileName
       val failure = MorphVerilog.tryGenerate(config)(component) match {
         case Left(value)  => value
-        case Right(value) => fail(s"expected $code rejection, received $value")
+        case Right(value) => fail(s"expected ${codes.mkString(" or ")} rejection, received $value")
       }
-      assert(failure.detail.contains(code), failure.detail)
-      assert(!Files.exists(rtl), s"$code published partial RTL")
+      assert(codes.exists(failure.detail.contains), failure.detail)
+      assert(!Files.exists(rtl), s"${codes.mkString(" or ")} published partial RTL")
     }
 
   private def parameter(

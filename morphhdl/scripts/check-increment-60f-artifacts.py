@@ -21,7 +21,7 @@ REGRESSIONS = {
     "paramrtl": (234, 23),
     "frontend": (257, 22),
     "backends/verilog": (148, 21),
-    "morphhdl": (858, 81),
+    "morphhdl": (819, 78),
     "morphir": (32, 2),
     "morphplugin": (16, 2),
     "core": (5, 1),
@@ -29,8 +29,8 @@ REGRESSIONS = {
 }
 
 
-# Exact inherited suite identities plus the three reviewed 59e additions. These
-# are explicit data, not runtime discovery or a count-only substitute for suites.
+# Exact suite identities at the 60f qualification boundary. These are frozen
+# data, not runtime discovery or a count-only substitute for inherited suites.
 EXPECTED_SUITES = {
     "paramrtl": frozenset("""
         morphhdl.paramrtl.AddressWidthExpressionTests
@@ -153,7 +153,6 @@ EXPECTED_SUITES = {
         spinal.core.FiniteBitsIndexTests
         spinal.core.FiniteFormalBoundaryTests
         spinal.core.FiniteMemIdentityAdversarialTests
-        spinal.core.NativeCloneShapeContractTests
         spinal.core.PackedVecIdentityAdversarialTests
         spinal.core.ProceduralIdentityAdversarialTests
         spinal.core.ScalarStructuralIdentityAdversarialTests
@@ -177,8 +176,6 @@ EXPECTED_SUITES = {
         spinal.core.internals.TypedBalancedReductionCaptureSafetyTests
         spinal.core.internals.TypedBalancedReductionCaptureTests
         spinal.core.internals.TypedBalancedReductionClosedGraphTests
-        spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests
-        spinal.core.internals.TypedBalancedReductionCompositeTests
         spinal.core.internals.TypedBalancedReductionOperatorReplayTests
         spinal.core.internals.TypedBalancedReductionPlanTests
         spinal.core.internals.TypedBalancedReductionPublicationSafetyTests
@@ -213,11 +210,59 @@ EXPECTED_SUITES = {
     """.split()),
 }
 
+# Approved successor inventory. The original 60f boundary above remains frozen;
+# this exact union is admitted only after the successor production source audit.
+INCREMENT_59D_SUITES = {
+    "morphhdl": {
+        "spinal.core.ElaborationWidthAuthorityTests": 7,
+        "spinal.core.NativeSymbolicWidthProvenanceTests": 5,
+        "spinal.core.internals.NativeWidthPublicationSafetyTests": 6,
+        "spinal.core.internals.NativePublicationWidthTests": 1,
+        "spinal.core.internals.TypedBalancedReductionWidthTransferTests": 11,
+        "spinal.core.internals.TypedBalancedReductionWideningPublicationTests": 6,
+    },
+}
+
+# 59e adds three suites and one test to each of three inherited suites. Keep
+# these separate from the immutable 60f boundary and activate them only with its
+# complete source profile, which also requires the 59f callback implementation.
+INCREMENT_59E_SUITES = {
+    "morphhdl": {
+        "spinal.core.NativeCloneShapeContractTests": 4,
+        "spinal.core.internals.TypedBalancedReductionCompositeTests": 23,
+        "spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests": 12,
+    },
+}
+INCREMENT_59E_INHERITED_TESTS = {
+    "morphhdl": {
+        "spinal.core.PackedVecIdentityAdversarialTests": 8,
+        "spinal.core.internals.TypedBalancedReductionPublicationSafetyTests": 8,
+        "spinal.core.internals.TypedBalancedReductionOperatorReplayTests": 24,
+    },
+}
+
+# The width/composite integration adds one replay regression. Standalone E+F
+# retains its exact historical 23-case composite suite.
+INCREMENT_59D59E_JOINT_TESTS = {
+    "morphhdl": {"spinal.core.internals.TypedBalancedReductionCompositeTests": 24},
+}
+
 # Separately reviewed descendants extend the frozen inherited inventory by exact
 # suite identity. Presence of arbitrary XML or a matching count grants nothing.
 # A complete, tracked feature source inventory activates the reviewed additions;
-# heads without that feature retain the 81 inherited and reviewed 59e suites.
+# heads without that feature retain the exact inventory of their other reviewed features.
 SUITE_EXTENSIONS = {
+    "59e": {
+        "sources": (
+            "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+            "morphhdl/src/test/scala/spinal/core/NativeCloneShapeContractTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicyTests.scala",
+        ),
+        "projects": {project: frozenset(additions) for project, additions in INCREMENT_59E_SUITES.items()},
+    },
     "59f": {
         "sources": (
             "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
@@ -327,6 +372,63 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
+def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict, dict]:
+    features = closure_module().profile_features(profile)
+    require(not packing or {"59d", "59e", "59f"}.issubset(features),
+            "reviewed packing inventory requires the complete width/composite/callback profile")
+    counts, suites = dict(REGRESSIONS), dict(EXPECTED_SUITES)
+    extension = {}
+    if "wa07a" in features:
+        counts["morphhdl-passes"] = (123, 14)
+        suites["morphhdl-passes"] |= WA07A_SUITES
+    if "59d" in features:
+        extension = {project: dict(additions) for project, additions in INCREMENT_59D_SUITES.items()}
+        for project, additions in extension.items():
+            require(not suites[project].intersection(additions), "59d inventory replaced an inherited suite")
+            suites[project] |= frozenset(additions)
+            old_tests, old_suites = counts[project]
+            counts[project] = (old_tests + sum(additions.values()), old_suites + len(additions))
+    for name in SUITE_EXTENSIONS:
+        if name in features:
+            for project, additions in SUITE_EXTENSIONS[name]["projects"].items():
+                require(not suites[project].intersection(additions),
+                        "reviewed suite addition duplicates inherited identity: " + name)
+                suites[project] |= additions
+                minimum, old_suites = counts[project]
+                if name == "59e":
+                    exact_new = INCREMENT_59E_SUITES[project]
+                    exact_inherited = INCREMENT_59E_INHERITED_TESTS[project]
+                    require(set(exact_inherited) <= EXPECTED_SUITES[project],
+                            "59e inherited test counts escaped the frozen suite inventory")
+                    reviewed_counts = extension.setdefault(project, {})
+                    require(not set(reviewed_counts).intersection((*exact_new, *exact_inherited)),
+                            "59e exact test counts replaced another reviewed feature")
+                    reviewed_counts.update(exact_new)
+                    reviewed_counts.update(exact_inherited)
+                    # The three inherited suites each gain one adversarial test.
+                    minimum += sum(exact_new.values()) + len(exact_inherited)
+                    if {"59d", "59e", "59f"}.issubset(features):
+                        for suite, count in INCREMENT_59D59E_JOINT_TESTS[project].items():
+                            require(suite in exact_new and count > exact_new[suite],
+                                    "joint width/composite count escaped its reviewed suite")
+                            minimum += count - exact_new[suite]
+                            reviewed_counts[suite] = count
+                        if packing:
+                            suite = "spinal.core.PackedVecIdentityAdversarialTests"
+                            require(reviewed_counts[suite] == 8, "historical packed Vec inventory changed")
+                            reviewed_counts[suite] = 12
+                            minimum += 4
+                counts[project] = (minimum, old_suites + len(additions))
+    if "60g" in features:
+        # The production profile is validated before reports are inspected.
+        # Require the entire extended existing suite, not just a global count.
+        tests, total_suites = counts["morphhdl"]
+        counts["morphhdl"] = (tests + 15, total_suites)
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.SignednessCompatibilityTests"] = 20
+    return counts, suites, extension
+
+
 def descendant_extensions(root: Path) -> tuple[str, ...]:
     selected = []
     for name, extension in SUITE_EXTENSIONS.items():
@@ -346,34 +448,32 @@ def descendant_extensions(root: Path) -> tuple[str, ...]:
 
 def regressions(root: Path, output: Path) -> None:
     output.unlink(missing_ok=True)
-    # The source check runs before report discovery, so reports, suite counts,
-    # path presence or branch names cannot opt into a looser contract.
-    profile = closure_module().regression_profile(root)
-    counts, suite_inventory = dict(REGRESSIONS), dict(EXPECTED_SUITES)
-    rollout = profile.endswith("-and-60g")
-    if rollout:
-        # Select by the complete validated production profile, never XML or a
-        # partial file inventory. The new checks extend an existing suite.
-        profile = profile[:-len("-and-60g")]
-        gate = closure_module().load(root, "60g-source-scope")
-        gate.source_scope(root)
-        counts["morphhdl"] = (REGRESSIONS["morphhdl"][0] + 13, REGRESSIONS["morphhdl"][1])
-    require(profile in ("60f-baseline", "60f-with-wa07a", "60f-with-59f",
-                        "60f-with-wa07a-and-59f"), "unknown validated source profile: " + profile)
+    # Source validation precedes report discovery. XML and feature-file presence
+    # cannot select a successor contract or bypass inherited 59d authority audits.
+    closure = closure_module()
+    profile = closure.regression_profile(root)
+    if "59d" in closure.profile_features(profile):
+        closure.source_scope(root)
+    _regression_inventory(root, output, profile)
+
+
+def _regression_inventory(root: Path, output: Path, profile: str) -> None:
+    """Validate reports only after the caller has validated the source profile."""
+    closure = closure_module()
+    features = closure.profile_features(profile)
     extensions = descendant_extensions(root)
-    has_callbacks = profile in ("60f-with-59f", "60f-with-wa07a-and-59f")
-    require(extensions == (("59f",) if has_callbacks else ()),
+    require(extensions == tuple(name for name in SUITE_EXTENSIONS if name in features),
             "committed suite sources differ from the validated production profile")
-    if profile in ("60f-with-wa07a", "60f-with-wa07a-and-59f"):
-        counts["morphhdl-passes"] = (123, 14)
-        suite_inventory["morphhdl-passes"] |= WA07A_SUITES
-    for name in extensions:
-        for project, additions in SUITE_EXTENSIONS[name]["projects"].items():
-            require(not (suite_inventory[project] & additions),
-                    "reviewed suite addition duplicates inherited identity: " + name)
-            suite_inventory[project] |= additions
-            minimum, suites = counts[project]
-            counts[project] = (minimum, suites + len(additions))
+    packing_review = root / closure.PACKING_59D59E_CONTRACT
+    packing = packing_review.exists() or packing_review.is_symlink()
+    if packing:
+        require({"59d", "59e", "59f"}.issubset(features),
+                "reviewed packing inventory requires the complete width/composite/callback profile")
+        publisher = closure.load(root, "59f-source-scope")
+        reviewed = publisher.reviewed_59d59e_packing(root)
+        require(set(reviewed) == closure.PACKING_59D59E_PATHS,
+                "reviewed packing inventory escaped its exact source paths")
+    counts, suite_inventory, extension = catalog_for_profile(profile, packing)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -390,6 +490,9 @@ def regressions(root: Path, output: Path) -> None:
             require(not list(suite.iter("skipped")) and not list(suite.iter("failure"))
                     and not list(suite.iter("error")), f"unsuccessful test result: {path}")
             count = int(suite.get("tests", "0"))
+            added_count = extension.get(project, {}).get(name)
+            if added_count is not None:
+                require(count == added_count, f"changed exact reviewed test inventory: {name}: {count}")
             cases = suite.findall("testcase")
             require(count > 0 and len(cases) == count, f"empty/inconsistent suite: {path}")
             case_names = [case.get("name") for case in cases]
@@ -453,6 +556,12 @@ def self_test() -> None:
         wa_paths = tuple(closure.WA07A_PRODUCTION_SHA256)
         callback_paths = tuple(closure.CALLBACK_59F_PRODUCTION_SHA256)
         feature_sources = SUITE_EXTENSIONS["59f"]["sources"]
+        composite_feature_sources = SUITE_EXTENSIONS["59e"]["sources"]
+        composite_real_paths = {path for path in composite_feature_sources if "/src/main/" in path} | \
+            set(closure.PACKING_59D59E_PATHS)
+        composite_paths = tuple(sorted(composite_real_paths)) + tuple(
+            f"morphhdl/src/main/scala/Synthetic59e{index}.scala" for index in range(14 - len(composite_real_paths)))
+        require(len(composite_paths) == 14, "synthetic 59e fixture changed its exact source inventory")
         callback_new = {path for path in feature_sources if "/src/main/" in path}
         write(".gitignore", b"**/target/\n/ignored/\n/result.json\n")
         for path in (*wa_paths[:2], *(path for path in callback_paths if path not in callback_new)):
@@ -463,84 +572,239 @@ def self_test() -> None:
         write("qualification.txt", b"synthetic qualification-only commit\n")
         qualified = commit()
         source_bytes = {path: ("synthetic reviewed follow-on: " + path + "\n").encode()
-                        for path in (*wa_paths, *callback_paths)}
+                        for path in (*wa_paths, *callback_paths, *composite_paths)}
+        composite_hashes = {path: hashlib.sha256(source_bytes[path]).hexdigest() for path in composite_paths}
         wa_hashes = {path: hashlib.sha256(source_bytes[path]).hexdigest() for path in wa_paths}
         callback_hashes = {path: hashlib.sha256(source_bytes[path]).hexdigest() for path in callback_paths}
+        # A real immutable Git blob anchors each joint edit's full restoration.
+        # It need not be an ancestor of the independent profile fixture heads.
+        for path in callback_paths:
+            write(path, source_bytes[path])
+        integration_base = commit()
+        git("branch", "synthetic-callback-baseline", integration_base)
+        git("reset", "--hard", qualified)
+        integration_path = closure.INTEGRATION_59D59F_CONTRACT
+        integration_bytes = {
+            path: source_bytes[path] + b"synthetic reviewed joint widthAt integration\n"
+            for path in closure.INTEGRATION_59D59F_PATHS}
+        integration_review = {"base": integration_base, "files": [
+            {"path": path,
+             "before_sha256": callback_hashes[path],
+             "after_sha256": hashlib.sha256(data).hexdigest(),
+             "edits": [{"id": "restore-exact-joint-widthAt",
+                        "before": source_bytes[path].decode(), "after": data.decode()}]}
+            for path, data in sorted(integration_bytes.items())]}
+        integration_manifest = (json.dumps(integration_review, indent=2) + "\n").encode()
+        integration_sha256 = hashlib.sha256(integration_manifest).hexdigest()
+        publisher_path = "morphhdl/scripts/check-increment-59f-source-scope.py"
+        repository = Path(__file__).resolve().parents[2]
+        publisher = closure.load(repository, "59f-source-scope")
+        composite_integration_path = publisher.COMPOSITE_59DE_PRODUCTION_CONTRACT
+        composite_policy = publisher.COMPOSITE_59DE_POLICY
+        # The copied real validator remains intact. Only the fixture's immutable
+        # baseline and pinned manifest identities differ from production.
+        for path in (*callback_paths, *composite_paths):
+            write(path, source_bytes[path])
+        composite_integration_base = commit()
+        git("branch", "synthetic-composite-baseline", composite_integration_base)
+        git("reset", "--hard", qualified)
+        composite_integrated_bytes = source_bytes[composite_policy] + b"synthetic reviewed scalar auto-resize rejection\n"
+        composite_integration_review = {"base": composite_integration_base, "files": [{
+            "path": composite_policy,
+            "before_sha256": composite_hashes[composite_policy],
+            "after_sha256": hashlib.sha256(composite_integrated_bytes).hexdigest(),
+            "edits": [{"id": "reject-scalar-auto-resize",
+                       "before": source_bytes[composite_policy].decode(),
+                       "after": composite_integrated_bytes.decode()}]}]}
+        composite_integration_manifest = (json.dumps(composite_integration_review, indent=2) + "\n").encode()
+        composite_integration_sha256 = hashlib.sha256(composite_integration_manifest).hexdigest()
+        packing_path = closure.PACKING_59D59E_CONTRACT
+        packing_bytes = {path: source_bytes[path] + b"synthetic reviewed exact composite packing\n"
+                         for path in closure.PACKING_59D59E_PATHS}
+        packing_review = {"base": composite_integration_base, "files": [{
+            "path": path,
+            "before_sha256": composite_hashes[path],
+            "after_sha256": hashlib.sha256(data).hexdigest(),
+            "edits": [{"id": publisher.PACKING_59DE_IDS[path][0],
+                       "before": source_bytes[path].decode(), "after": data.decode()}]}
+            for path, data in sorted(packing_bytes.items())]}
+        require(all(len(ids) == 1 for ids in publisher.PACKING_59DE_IDS.values()),
+                "synthetic packing fixture requires each exact reviewed single-span edit")
+        packing_manifest = (json.dumps(packing_review, indent=2) + "\n").encode()
+        packing_sha256 = hashlib.sha256(packing_manifest).hexdigest()
+        publisher_source = (repository / publisher_path).read_text()
 
-        def reports(wa: bool, callbacks: bool) -> None:
-            for project, (minimum, suites) in REGRESSIONS.items():
-                names = set(EXPECTED_SUITES[project])
-                if wa and project == "morphhdl-passes":
-                    names |= WA07A_SUITES
-                    minimum, suites = 123, 14
-                if callbacks:
-                    additions = SUITE_EXTENSIONS["59f"]["projects"].get(project, frozenset())
-                    names |= additions
-                    suites += len(additions)
+        def fixture_publisher(manifest_sha256: str = composite_integration_sha256,
+                              packing_sha: str = packing_sha256) -> bytes:
+            source = publisher_source
+            for name, value in (("COMPOSITE_59EF_BASE", composite_integration_base),
+                                ("COMPOSITE_59DE_PRODUCTION_SHA256", manifest_sha256),
+                                ("PACKING_59DE_SHA256", packing_sha)):
+                before = name + ' = "' + getattr(publisher, name) + '"'
+                after = name + ' = "' + value + '"'
+                require(source.count(before) == 1, "missing unique real publisher fixture identity: " + name)
+                source = source.replace(before, after, 1)
+            return source.encode()
+
+        descendant_paths = ("core/src/main/scala/Synthetic59d.scala",
+                            "morphhdl/src/main/scala/Synthetic59d.scala")
+        descendant_bytes = {path: ("synthetic reviewed 59d: " + path + "\n").encode()
+                            for path in descendant_paths}
+        review_path = "morphhdl/contracts/increment-59d-production-review.json"
+        review = {"base": qualified, "files": [
+            {"path": path, "sha256": hashlib.sha256(data).hexdigest()}
+            for path, data in sorted(descendant_bytes.items())], "checker_edits": [
+            {"path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+             "id": "restore-exact-59d-width-seams", "before": "fixture before", "after": "fixture after"}]}
+        profiles = tuple((wa, descendant, composite, callbacks)
+                         for wa in (False, True) for descendant in (False, True)
+                         for composite in (False, True) for callbacks in (False, True)
+                         if not composite or callbacks)
+        incomplete_profiles = tuple((wa, descendant, True, False)
+                                    for wa in (False, True) for descendant in (False, True))
+
+        def profile_name(wa: bool, descendant: bool, composite: bool, callbacks: bool) -> str:
+            selected = [name for name, present in (("wa07a", wa), ("59d", descendant),
+                                                   ("59e", composite), ("59f", callbacks)) if present]
+            return "60f-with-" + "-and-".join(selected) if selected else "60f-baseline"
+
+        def reports(wa: bool, descendant: bool, composite: bool, callbacks: bool,
+                    packing: bool = False) -> None:
+            counts, inventories, extension = catalog_for_profile(
+                profile_name(wa, descendant, composite, callbacks), packing)
+            for project, (minimum, suites) in counts.items():
+                names = inventories[project]
                 require(len(names) == suites, "frozen suite count differs: " + project)
+                exact_counts = extension.get(project, {})
+                inherited = sorted(names - exact_counts.keys())
+                counts_by_suite = {name: exact_counts.get(name, 1) for name in names}
+                counts_by_suite[inherited[0]] += minimum - sum(counts_by_suite.values())
                 directory = root / project / "target/test-reports"
                 directory.mkdir(parents=True, exist_ok=True)
                 for old in directory.glob("*.xml"):
                     old.unlink()
                 for index, suite_name in enumerate(sorted(names)):
-                    count = minimum - suites + 1 if index == 0 else 1
+                    count = counts_by_suite[suite_name]
                     suite = ET.Element("testsuite", name=suite_name, tests=str(count),
                                        failures="0", errors="0", skipped="0")
                     for case in range(count):
                         ET.SubElement(suite, "testcase", name=f"synthetic-case-{case}")
                     ET.ElementTree(suite).write(directory / f"suite-{index}.xml")
 
+        def fixture_regressions() -> None:
+            # Real Git/profile and XML gates run on synthetic bytes. Historical
+            # restoration and overlapping real source unions are audited by
+            # test-increment-59d-inherited-60f-scope.py and the 59f scope fixtures.
+            output.unlink(missing_ok=True)
+            profile = closure.regression_profile(root)
+            _regression_inventory(root, output, profile)
+
         output = root / "result.json"
 
         def reject_reports(label: str) -> None:
             output.write_text('{"stale_success": true}\n')
             with contextlib.redirect_stdout(io.StringIO()):
-                rejected(lambda: regressions(root, output), label)
+                rejected(fixture_regressions, label)
             require(not output.exists(), "failed validation retained stale success: " + label)
 
-        # Only fixture identities are patched. Every profile selection below
-        # executes real Git ancestry/delta, byte, committed source and XML checks.
+        # Only fixture identities are patched. All twelve selections execute real
+        # Git ancestry/delta, exact bytes, committed feature-source and XML gates.
         with mock.patch.multiple(closure, BASE=base, QUALIFIED_60F=qualified,
+                                 INCREMENT_59D_BASE=qualified,
+                                 INCREMENT_59D_PRODUCTION_PATHS=frozenset(descendant_paths),
                                  WA07A_PRODUCTION_SHA256=wa_hashes,
-                                 CALLBACK_59F_PRODUCTION_SHA256=callback_hashes):
-            for wa, callbacks, expected_profile in (
-                    (False, False, "60f-baseline"),
-                    (True, False, "60f-with-wa07a"),
-                    (False, True, "60f-with-59f"),
-                    (True, True, "60f-with-wa07a-and-59f")):
-                # These destructive resets are confined to the temporary fixture.
+                                 CALLBACK_59F_PRODUCTION_SHA256=callback_hashes,
+                                 COMPOSITE_59E_PRODUCTION_SHA256=composite_hashes,
+                                 INCREMENT_59E_BASE=qualified,
+                                 COMPLETED_59F=integration_base,
+                                 COMPLETED_59E=integration_base,
+                                 INTEGRATION_59D59F_BASE=integration_base,
+                                 INTEGRATION_59D59F_SHA256=integration_sha256):
+            for wa, descendant, composite, callbacks in incomplete_profiles:
+                incomplete_name = profile_name(wa, descendant, composite, callbacks)
+                rejected(lambda: catalog_for_profile(incomplete_name),
+                         "59e profile name without required 59f callbacks")
                 git("reset", "--hard", qualified)
                 git("clean", "-fd")
-                selected = (*(wa_paths if wa else ()), *(callback_paths if callbacks else ()))
-                for path in selected:
+                for path in composite_paths:
                     write(path, source_bytes[path])
-                reports(wa, callbacks)
+                for path in composite_feature_sources:
+                    if "/src/test/" in path:
+                        write(path, b"// synthetic composite test fixture\n")
+                if wa:
+                    for path in wa_paths:
+                        write(path, source_bytes[path])
+                if descendant:
+                    for path, data in descendant_bytes.items():
+                        write(path, data)
+                    write(review_path, (json.dumps(review, indent=2) + "\n").encode())
+                commit()
+                reports(False, False, False, False)
+                reject_reports("committed 59e production without required 59f callbacks " + incomplete_name)
+
+            for wa, descendant, composite, callbacks in profiles:
+                # Destructive reset/clean calls are confined to this temporary Git fixture.
+                git("reset", "--hard", qualified)
+                git("clean", "-fd")
+                selected_bytes = {}
+                if wa:
+                    selected_bytes.update((path, source_bytes[path]) for path in wa_paths)
+                if descendant:
+                    selected_bytes.update(descendant_bytes)
+                    write(review_path, (json.dumps(review, indent=2) + "\n").encode())
                 if callbacks:
-                    # Exact production bytes do not authorize an incomplete or
-                    # merely staged callback feature and its four new suites.
-                    git("add", *selected)
+                    selected_bytes.update((path, source_bytes[path]) for path in callback_paths)
+                if composite:
+                    selected_bytes.update((path, source_bytes[path]) for path in composite_paths)
+                if descendant and callbacks:
+                    selected_bytes.update(integration_bytes)
+                    write(integration_path, integration_manifest)
+                if descendant and composite:
+                    selected_bytes[composite_policy] = composite_integrated_bytes
+                    write(composite_integration_path, composite_integration_manifest)
+                    write(publisher_path, fixture_publisher())
+                for path, data in selected_bytes.items():
+                    write(path, data)
+                reports(wa, descendant, composite, callbacks)
+                if callbacks:
+                    # Reviewed production bytes cannot authorize either an
+                    # incomplete or a complete-but-uncommitted callback feature.
+                    git("add", *selected_bytes)
                     reject_reports("uncommitted callback source inventory")
                     for path in feature_sources:
                         if path not in callback_paths:
                             write(path, b"// synthetic callback test fixture\n")
                     git("add", *feature_sources)
                     reject_reports("complete but uncommitted callback source inventory")
-                if selected:
+                if composite:
+                    reject_reports("incomplete uncommitted composite source inventory")
+                    for path in composite_feature_sources:
+                        if path not in composite_paths:
+                            write(path, b"// synthetic composite test fixture\n")
+                    git("add", *composite_feature_sources)
+                    reject_reports("complete but uncommitted composite source inventory")
+                if selected_bytes:
                     commit()
+                expected_profile = profile_name(wa, descendant, composite, callbacks)
                 require(closure.production_profile(root) == expected_profile, "source profile mismatch")
-                require(descendant_extensions(root) == (("59f",) if callbacks else ()),
-                        "committed callback source selection mismatch")
+                expected_extensions = (*(("59e",) if composite else ()), *(("59f",) if callbacks else ()))
+                require(descendant_extensions(root) == expected_extensions,
+                        "committed descendant source selection mismatch")
                 with contextlib.redirect_stdout(io.StringIO()):
-                    regressions(root, output)
+                    fixture_regressions()
                 results = json.loads(output.read_text())
-                require(len(results["morphhdl"]["suites"]) == (85 if callbacks else 81),
-                        "reviewed callback inventory omitted or replaced a suite")
+                require(len(results["morphhdl"]["suites"]) == 78 + 6 * descendant + 3 * composite + 4 * callbacks,
+                        "reviewed descendant inventory omitted or replaced a suite")
+                require(results["morphhdl"]["tests"] == 819 + 36 * descendant + 42 * composite +
+                        int(descendant and composite),
+                        "reviewed descendant minimum test count changed")
+                require(results["morphhdl-passes"]["tests"] == (123 if wa else 99),
+                        "reviewed WA minimum test count changed")
                 require(len(results["morphhdl-passes"]["suites"]) == (14 if wa else 11),
                         "reviewed WA inventory omitted or replaced a suite")
-
                 for project in ("morphhdl", "morphhdl-passes"):
                     directory = root / project / "target/test-reports"
-                    # Every inherited and new identity is individually required.
+                    # Every inherited/new suite is independently mandatory.
                     for report in sorted(directory.glob("*.xml")):
                         original = report.read_bytes()
                         report.unlink()
@@ -585,17 +849,145 @@ def self_test() -> None:
                 git("mv", "--", other_source, "moved-outside-production.scala")
                 reject_reports("tracked production source renamed outside src/main")
                 git("mv", "--", "moved-outside-production.scala", other_source)
-                for wrong_wa, wrong_callbacks in ((not wa, callbacks), (wa, not callbacks)):
-                    reports(wrong_wa, wrong_callbacks)
-                    reject_reports("report inventory cannot select its own source profile")
-                reports(wa, callbacks)
-                for path in selected:
+                for other in profiles:
+                    if other != (wa, descendant, composite, callbacks):
+                        reports(*other)
+                        reject_reports("report inventory cannot select source profile " + profile_name(*other))
+                reports(wa, descendant, composite, callbacks)
+                if descendant or composite:
+                    directory = root / "morphhdl/target/test-reports"
+                    exact_counts = catalog_for_profile(expected_profile)[2]["morphhdl"]
+                    for report in directory.glob("*.xml"):
+                        if ET.parse(report).getroot().get("name") not in exact_counts:
+                            continue
+                        original = report.read_bytes()
+                        tree = ET.parse(report)
+                        suite = tree.getroot()
+                        suite.set("tests", str(int(suite.get("tests")) + 1))
+                        ET.SubElement(suite, "testcase", name="unreviewed-extra-case")
+                        tree.write(report)
+                        reject_reports("exact reviewed suite test count increased " + suite.get("name"))
+                        report.write_bytes(original)
+                        if composite and (suite.get("name") in INCREMENT_59E_INHERITED_TESTS["morphhdl"] or
+                                          (descendant and suite.get("name") in INCREMENT_59D59E_JOINT_TESTS["morphhdl"])):
+                            tree = ET.parse(report)
+                            suite = tree.getroot()
+                            suite.remove(suite.find("testcase"))
+                            suite.set("tests", str(int(suite.get("tests")) - 1))
+                            tree.write(report)
+                            # Add a compensating case elsewhere to demonstrate
+                            # that an inherited E or joint integration test
+                            # cannot be traded away.
+                            compensating = directory / "suite-0.xml"
+                            compensating_original = compensating.read_bytes()
+                            other_tree = ET.parse(compensating)
+                            other_suite = other_tree.getroot()
+                            other_suite.set("tests", str(int(other_suite.get("tests")) + 1))
+                            ET.SubElement(other_suite, "testcase", name="compensating-unreviewed-case")
+                            other_tree.write(compensating)
+                            reject_reports("missing inherited or joint 59e case with unchanged total " + suite.get("name"))
+                            compensating.write_bytes(compensating_original)
+                            report.write_bytes(original)
+                if not descendant:
+                    write(review_path, (json.dumps(review) + "\n").encode())
+                    require(closure.production_profile(root) == expected_profile,
+                            "59d contract presence selected an unaudited source profile")
+                    (root / review_path).unlink()
+                if descendant and callbacks:
+                    contract = root / integration_path
+                    contract.unlink()
+                    reject_reports("missing mandatory 59d/59f joint integration review")
+                    contract.write_bytes(integration_manifest + b" ")
+                    reject_reports("changed pinned 59d/59f integration manifest bytes")
+                    forged = json.loads(integration_manifest)
+                    extra_path = next(path for path in callback_paths if path not in integration_bytes)
+                    forged["files"].append({
+                        "path": extra_path,
+                        "before_sha256": callback_hashes[extra_path],
+                        "after_sha256": callback_hashes[extra_path],
+                        "edits": [{"id": "unreviewed-extra-path",
+                                   "before": source_bytes[extra_path].decode(),
+                                   "after": source_bytes[extra_path].decode()}]})
+                    forged["files"].sort(key=lambda entry: entry["path"])
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    # Re-pin only the synthetic identity so the exact two-path
+                    # inventory must independently reject this scope expansion.
+                    with mock.patch.object(closure, "INTEGRATION_59D59F_SHA256",
+                                           hashlib.sha256(forged_bytes).hexdigest()):
+                        reject_reports("joint integration review cannot absorb another callback path")
+                    forged = json.loads(integration_manifest)
+                    forged["files"][0]["edits"][0]["before"] += "unreviewed restored source\n"
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    with mock.patch.object(closure, "INTEGRATION_59D59F_SHA256",
+                                           hashlib.sha256(forged_bytes).hexdigest()):
+                        reject_reports("joint source edit must restore the complete frozen callback blob")
+                    contract.write_bytes(integration_manifest)
+                if descendant and composite:
+                    contract = root / composite_integration_path
+                    contract.unlink()
+                    reject_reports("missing mandatory width/composite policy integration review")
+                    contract.write_bytes(composite_integration_manifest + b" ")
+                    reject_reports("changed pinned width/composite policy integration manifest")
+                    forged = json.loads(composite_integration_manifest)
+                    forged["files"].append(dict(forged["files"][0], path=composite_paths[-1]))
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("policy integration review cannot absorb another composite path")
+                    forged = json.loads(composite_integration_manifest)
+                    forged["files"][0]["edits"][0]["before"] += "unreviewed restored source\n"
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("policy integration must restore the complete frozen composite blob")
+                    contract.write_bytes(composite_integration_manifest)
+                    write(publisher_path, fixture_publisher())
+                for path, data in selected_bytes.items():
                     target = root / path
-                    target.write_bytes(source_bytes[path] + b"unreviewed mutation\n")
+                    target.write_bytes(data + b"unreviewed mutation\n")
                     reject_reports("reviewed source hash mutation " + path)
                     target.unlink()
                     reject_reports("missing reviewed source " + path)
-                    target.write_bytes(source_bytes[path])
+                    target.write_bytes(data)
+                    # Restoring only the worktree must not hide different bytes
+                    # still staged for the next committed production tree.
+                    target.write_bytes(data + b"unreviewed staged mutation\n")
+                    git("add", "--", path)
+                    target.write_bytes(data)
+                    reject_reports("staged production mutation hidden by worktree restoration " + path)
+                    git("add", "--", path)
+                    git("rm", "--cached", "--", path)
+                    reject_reports("exact reviewed bytes at untracked allowed path " + path)
+                    git("add", "--", path)
+                    target.chmod(0o755)
+                    reject_reports("executable reviewed source " + path)
+                    target.chmod(0o644)
+                    git("update-index", "--chmod=+x", "--", path)
+                    reject_reports("executable index mode with regular worktree source " + path)
+                    git("update-index", "--chmod=-x", "--", path)
+                    link_target = root / "symlink-source.txt"
+                    link_target.write_bytes(data)
+                    target.unlink()
+                    target.symlink_to(link_target)
+                    reject_reports("symlink at reviewed source path " + path)
+                    target.unlink()
+                    target.write_bytes(data)
+                    link_target.unlink()
+                if descendant:
+                    path = descendant_paths[0]
+                    original_source = (root / path).read_bytes()
+                    original_review = (root / review_path).read_bytes()
+                    uncommitted_source = original_source + b"uncommitted reviewed width change\n"
+                    forged = json.loads(original_review)
+                    next(entry for entry in forged["files"] if entry["path"] == path)["sha256"] = \
+                        hashlib.sha256(uncommitted_source).hexdigest()
+                    write(path, uncommitted_source)
+                    write(review_path, (json.dumps(forged, indent=2) + "\n").encode())
+                    reject_reports("dirty width source paired with matching uncommitted review hash")
+                    write(path, original_source)
+                    write(review_path, original_review)
                 if callbacks:
                     for path in feature_sources:
                         target = root / path
@@ -608,15 +1000,19 @@ def self_test() -> None:
                     write(path, b"// uncommitted callback source fixture\n")
                     reject_reports("callback suite source cannot select a production profile")
                     (root / path).unlink()
-                if selected:
-                    path = selected[-1]
-                    target = root / path
-                    target.chmod(0o755)
-                    reject_reports("executable reviewed source")
-                    target.chmod(0o644)
-                    git("rm", "--cached", "--", path)
-                    reject_reports("exact reviewed bytes at untracked allowed path")
-                    git("add", "--", path)
+                if composite:
+                    for path in composite_feature_sources:
+                        target = root / path
+                        original = target.read_bytes()
+                        target.unlink()
+                        reject_reports("deleted tracked composite source " + path)
+                        target.write_bytes(original)
+                else:
+                    path = next(path for path in composite_feature_sources if "/src/test/" in path)
+                    write(path, b"// uncommitted composite source fixture\n")
+                    reject_reports("composite suite source cannot select a production profile")
+                    (root / path).unlink()
+                if selected_bytes:
                     with mock.patch.object(closure, "QUALIFIED_60F", git("rev-parse", "HEAD")):
                         reject_reports("historical 60f production change")
                 else:
@@ -627,17 +1023,147 @@ def self_test() -> None:
                     git("reset", "--hard", qualified)
                 if callbacks:
                     callback_completion = git("rev-parse", "HEAD")
-                    # Retain completion ancestry while reverting every tracked
-                    # callback source and suite to the old baseline tree.
+                    # Completion remains an ancestor when a descendant commit
+                    # restores every feature source and suite to baseline.
                     git("read-tree", "--reset", "-u", qualified)
                     commit()
+                    reports(False, False, False, False)
                     with mock.patch.object(closure, "COMPLETED_59F", callback_completion):
                         require(closure.production_profile(root) == "60f-baseline",
                                 "complete callback reversion did not restore exact baseline bytes")
                         reject_reports("complete committed callback reversion cannot drop suite obligations")
                     git("reset", "--hard", callback_completion)
+                    reports(wa, descendant, composite, callbacks)
+                if composite:
+                    composite_completion = git("rev-parse", "HEAD")
+                    # Retain the complete F (and any D/WA) implementation while
+                    # reverting all E production and suite sources in a child.
+                    git("read-tree", "--reset", "-u", qualified)
+                    for path, data in selected_bytes.items():
+                        if path not in composite_paths:
+                            write(path, data)
+                    for path in feature_sources:
+                        if "/src/test/" in path:
+                            write(path, b"// synthetic callback test fixture\n")
+                    if descendant:
+                        write(review_path, (json.dumps(review, indent=2) + "\n").encode())
+                        write(integration_path, integration_manifest)
+                    commit()
+                    reports(wa, descendant, False, callbacks)
+                    with mock.patch.object(closure, "COMPLETED_59E", composite_completion):
+                        require(closure.production_profile(root) == profile_name(wa, descendant, False, callbacks),
+                                "complete composite reversion did not retain exact inherited feature bytes")
+                        reject_reports("complete committed composite reversion cannot drop suite obligations")
+                    git("reset", "--hard", composite_completion)
+                    reports(wa, descendant, composite, callbacks)
+                if not (descendant and composite):
+                    rejected(lambda: catalog_for_profile(expected_profile, packing=True),
+                             "packing inventory without the complete width/composite/callback profile")
+                    write(packing_path, packing_manifest)
+                    reject_reports("packing manifest cannot activate outside the complete integration profile")
+                    (root / packing_path).unlink()
+                else:
+                    historical_head = git("rev-parse", "HEAD")
+                    for path, data in packing_bytes.items():
+                        write(path, data)
+                    write(packing_path, packing_manifest)
+                    write(publisher_path, fixture_publisher())
+                    packing_head = commit()
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        fixture_regressions()
+                    packing_results = json.loads(output.read_text())
+                    require(packing_results["morphhdl"]["tests"] == 902 and
+                            len(packing_results["morphhdl"]["suites"]) == 91,
+                            "reviewed packing inventory changed its exact minimum or suite count")
+                    directory = root / "morphhdl/target/test-reports"
+                    packed_report = next(report for report in directory.glob("*.xml")
+                                         if ET.parse(report).getroot().get("name") ==
+                                         "spinal.core.PackedVecIdentityAdversarialTests")
+                    require(ET.parse(packed_report).getroot().get("tests") == "12",
+                            "reviewed packing inventory omitted its four integration cases")
+                    reports(wa, descendant, composite, callbacks)
+                    reject_reports("packing source cannot use the historical eight-case packed Vec inventory")
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    contract = root / packing_path
+                    contract.unlink()
+                    commit()
+                    reject_reports("committed packing sources cannot lose their required adapter")
+                    git("reset", "--hard", packing_head)
+                    contract.write_bytes(packing_manifest + b" ")
+                    reject_reports("changed pinned packing manifest")
+                    forged = json.loads(packing_manifest)
+                    forged["files"].append(dict(forged["files"][0], path=composite_paths[-1]))
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(packing_sha=hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("packing adapter cannot absorb another composite source")
+                    forged = json.loads(packing_manifest)
+                    forged["files"][0]["edits"][0]["before"] += "unreviewed restored source\n"
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(packing_sha=hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("packing adapter must restore the complete frozen composite blob")
+                    contract.write_bytes(packing_manifest)
+                    write(publisher_path, fixture_publisher())
+                    for path, data in packing_bytes.items():
+                        target = root / path
+                        target.write_bytes(data + b"unreviewed packing mutation\n")
+                        reject_reports("reviewed packing source mutation " + path)
+                        target.write_bytes(data)
+                        target.write_bytes(data + b"unreviewed staged packing mutation\n")
+                        git("add", "--", path)
+                        target.write_bytes(data)
+                        reject_reports("staged packing mutation hidden by restored worktree " + path)
+                        git("add", "--", path)
+                        target.unlink()
+                        reject_reports("missing reviewed packing source " + path)
+                        target.write_bytes(data)
+                    for relative in (packing_path, *packing_bytes):
+                        target = root / relative
+                        data = target.read_bytes()
+                        target.chmod(0o755)
+                        reject_reports("executable packing source or manifest " + relative)
+                        target.chmod(0o644)
+                        git("rm", "--cached", "--", relative)
+                        reject_reports("untracked packing source or manifest " + relative)
+                        git("add", "--", relative)
+                        git("update-index", "--chmod=+x", "--", relative)
+                        reject_reports("executable index mode on packing source or manifest " + relative)
+                        git("update-index", "--chmod=-x", "--", relative)
+                        link_target = root / "packing-symlink-target.txt"
+                        link_target.write_bytes(data)
+                        target.unlink()
+                        target.symlink_to(link_target)
+                        reject_reports("symlink packing source or manifest " + relative)
+                        target.unlink()
+                        target.write_bytes(data)
+                        link_target.unlink()
+                    git("reset", "--hard", historical_head)
+                    # A historical source head must not acquire the extra test
+                    # obligation merely because XML includes the new cases.
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    reject_reports("packing reports cannot activate an absent source adapter")
+                    reports(wa, descendant, composite, callbacks)
                 require(closure.production_profile(root) == expected_profile, "fixture restoration failed")
-    print(f"60f inventory self-test: four exact source profiles and {rejections} rejection controls PASS")
+
+            original_review = (root / review_path).read_bytes()
+            forged = json.loads(original_review)
+            forged["files"].extend({"path": path, "sha256": digest} for path, digest in wa_hashes.items())
+            forged["files"].sort(key=lambda entry: entry["path"])
+            write(review_path, (json.dumps(forged) + "\n").encode())
+            reject_reports("59d production review cannot absorb WA-07a paths")
+            write(review_path, original_review)
+            for incomplete in (wa_paths[:1], wa_paths[:2]):
+                for path in incomplete:
+                    git("checkout", qualified, "--", path)
+                reject_reports("partial WA-07a source set in the 59d/59f union")
+                for path in incomplete:
+                    write(path, source_bytes[path])
+                    git("add", "--", path)
+            require(closure.production_profile(root) == "60f-with-wa07a-and-59d-and-59e-and-59f",
+                    "fixture restoration failed")
+    print(f"60f inventory self-test: twelve exact source profiles and {rejections} rejection controls PASS")
 
 
 def main() -> None:

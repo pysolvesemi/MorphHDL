@@ -172,11 +172,10 @@ final class ElabInt private[core] (
   private[spinal] def toParameterizedBitCount(
       role: String
   ): ParameterizedBitCount = {
-    val projected = authoritativeProjectedExpression(
-      role,
-      "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED",
-      requireProjectedExactExtrema = false
+    ElaborationWidthAuthority.requireAuthoritative(
+      expression, role, "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED"
     )
+    val projected = ElaborationWidthAuthority.project(expression, role)
     if (projected.minimum < 1 || projected.maximum < projected.minimum) {
       ElabInt.fail(
         "SPINAL-ELAB-INT-WIDTH-DOMAIN-INVALID",
@@ -1251,6 +1250,8 @@ object ElabInt {
       expression: ElaborationIntegerExpression,
       role: String
   ): ElaborationIntegerExpression = {
+    if (ElaborationWidthAuthority.isRetained(expression))
+      return ElaborationWidthAuthority.project(expression, role)
     // Projection is the common authority boundary for witness, extrema,
     // constant-only helpers and every concrete-overload delegation. Validate
     // parameter-free carriers here as well: only a canonical literal (including

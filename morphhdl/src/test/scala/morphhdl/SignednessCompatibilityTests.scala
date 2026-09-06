@@ -207,6 +207,22 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       assert(read(root.resolve("native-after.v")) == native)
       assert(read(root.resolve("native-after.vhd")) == vhdl)
       assert(neutral.phasesInserters.isEmpty)
+      // Inactive options must preserve the complete native execution plan,
+      // not just RTL text. In particular they cannot prepend a lifecycle phase
+      // before the native verbose logger has a constructed component to walk.
+      val options = Vector[SpinalConfig => SpinalConfig](identity,
+        MorphSignedDeclarations.enable _, MorphSignedCasts.enable _,
+        MorphSignedDeclarations.disable _, MorphSignedCasts.disable _)
+      val nativePlans = options.zipWithIndex.map { case (select, index) =>
+        val path = root.resolve(s"native-plan-$index.v")
+        val config = select(fresh(path))
+        var classes = Vector.empty[String]
+        config.phasesInserters += { phases => classes = phases.map(_.getClass.getName).toVector }
+        SpinalVerilog(config)(dut)
+        assert(read(path) == native)
+        classes
+      }
+      assert(nativePlans.head.nonEmpty && nativePlans.distinct.size == 1)
     }
   }
 
@@ -329,7 +345,7 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
     }
   }
 
-  test("60g default signed grow uses the symbolic sign bit while legacy rejection remains") {
+  test("60g signed grow retains merged 59d support in both default and legacy modes") {
     directory { root =>
       for (defaultWidth <- Vector(4, 8, 12)) {
         def dut = new morphhdl.CapturedDomainWidthEquivalenceSmoke.TypedSIntResizeNamedGrowCarrier(
@@ -344,9 +360,17 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
         assert(port(rtl, "observed").contains("wire signed [(WIDTH + 1)-1:0]"))
         val legacy = root.resolve(s"grow-legacy-$defaultWidth.v")
         val result = morphhdl.MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(fresh(legacy)))(dut)
-        assert(result.left.toOption.exists(_.detail.contains(
-          "SPINAL-PARAMETERIZED-VERILOG-SIGNED-RESIZE-GROW-DOMAIN-UNSUPPORTED")))
-        assert(!Files.exists(legacy))
+        // 59d now owns symbolic growth in the native/legacy path too. Do not
+        // preserve an obsolete rejection by regressing its width authority.
+        assert(result.isRight)
+        val legacyRtl = read(legacy)
+        assert(legacyRtl.contains("source[WIDTH-1]"))
+        assert(!port(legacyRtl, "observed").contains("signed"))
+        for (generated <- Vector(output, legacy)) {
+          morphhdl.NativeResizeCompatibilitySimulation.check(root,
+            generated.getFileName.toString, "TypedSIntResizeNamedGrowCarrier", "WIDTH",
+            Vector(4, 8, 12).map(w => (w, w, w + 1)), signedSource = true)
+        }
       }
     }
   }
@@ -420,6 +444,105 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
         assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-PHASE-PLAN")), mutation)
         assert(!called, mutation)
         assert(!Files.exists(output), mutation)
+      }
+    }
+  }
+
+  test("60g rejects consumer registration from any running phase before capture") {
+    directory { root =>
+      for (role <- Vector("observer", "publisher", "first-observer");
+           position <- Vector("before-create", "after-validation", "after-allocation")) {
+        val output = root.resolve(s"late-$role-$position.v")
+        val previous = "// previously published artifact\n"
+        Files.write(output, previous.getBytes(StandardCharsets.UTF_8))
+        var called = false
+        val config = role match {
+          case "observer" => MorphSignedCasts.enable(fresh(output))
+          case _ => MorphSignedDeclarations.disable(fresh(output))
+        }
+        if (role == "publisher")
+          config.phasesInserters += MorphHdlSignednessAnalysis.install(_ => called = true)
+        config.phasesInserters += { phases =>
+          val index = position match {
+            case "before-create" => phases.indexWhere(_.isInstanceOf[PhaseCreateComponent])
+            case "after-validation" => phases.indexWhere(_.getClass == classOf[PhaseCheckCrossClock]) + 1
+            case "after-allocation" => phases.indexWhere(_.getClass == classOf[PhaseAllocateNames]) + 1
+          }
+          var attempted = false
+          phases.insert(index, new PhaseMisc {
+            override def impl(pc: PhaseContext): Unit = {
+              // First-ever runtime installation must also fail, even if a
+              // mutable plan revisits this phase after a rejected insertion.
+              if (!attempted) {
+                attempted = true
+                if (role == "publisher")
+                  MorphHdlSignednessAnalysis.installPublication(_ => called = true, () => true)(phases)
+                else MorphHdlSignednessAnalysis.install(_ => called = true)(phases)
+              }
+            }
+          })
+        }
+        val result = morphhdl.MorphVerilog.tryGenerate(config) {
+          new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
+        }
+        assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-PHASE-PLAN")), s"$role/$position")
+        assert(!called, s"$role/$position")
+        assert(read(output) == previous, s"$role/$position")
+      }
+    }
+  }
+
+  test("60g scheduler lifecycle is monotonic and strict native observers preserve verbose generation") {
+    // The scheduler closes registration before even an early caller phase
+    // runs, including phases which fail. No removable guard phase is involved.
+    val pc = new PhaseContext(SpinalConfig())
+    assert(!pc.hasStartedPhaseExecution)
+    intercept[IllegalStateException] {
+      pc.doPhase(new PhaseMisc {
+        override def impl(context: PhaseContext): Unit = {
+          assert(context.hasStartedPhaseExecution)
+          throw new IllegalStateException("intentional lifecycle control")
+        }
+      })
+    }
+    assert(pc.hasStartedPhaseExecution)
+    pc.doPhase(new PhaseMisc {
+      override def impl(context: PhaseContext): Unit = assert(context.hasStartedPhaseExecution)
+    })
+    assert(pc.hasStartedPhaseExecution)
+
+    directory { root =>
+      // Native verbose output uses this fixed path. Restore a pre-existing log
+      // after the sequential regression and close each native report's writer.
+      val verboseLog = java.nio.file.Paths.get("verbose.log")
+      val saved = if (Files.exists(verboseLog)) Some(Files.readAllBytes(verboseLog)) else None
+      try {
+        for (observe <- Vector(false, true)) {
+          val output = root.resolve(s"native-verbose-$observe.v")
+          val config = fresh(output).copy(verbose = true)
+          var called = false
+          var planned = Vector.empty[String]
+          config.phasesInserters += { phases =>
+            assert(!GlobalData.get.phaseContext.hasStartedPhaseExecution)
+            if (observe) MorphHdlSignednessAnalysis.install { _ =>
+              called = true
+              assert(GlobalData.get.phaseContext.hasStartedPhaseExecution)
+            }(phases)
+            planned = phases.map(_.getClass.getName).toVector
+            assert(phases.head.isInstanceOf[PhaseCreateComponent])
+          }
+          val report = SpinalVerilog(config)(new SIntSignedDeclarationsFixture.Direct(HdlInt.literal(5)))
+          report.globalData.phaseContext.verboseLog.close()
+          assert(called == observe)
+          assert(planned.count(_.contains("ObservationPhase")) == (if (observe) 1 else 0))
+          assert(read(verboseLog).contains("checksum:"))
+        }
+        assert(read(root.resolve("native-verbose-true.v")) == read(root.resolve("native-verbose-false.v")))
+      } finally {
+        saved match {
+          case Some(bytes) => Files.write(verboseLog, bytes)
+          case None => Files.deleteIfExists(verboseLog)
+        }
       }
     }
   }

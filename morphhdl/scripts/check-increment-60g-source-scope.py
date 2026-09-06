@@ -11,19 +11,21 @@ import json
 import subprocess
 from pathlib import Path
 
-BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
+BASE = "99b6017d7ac69112a088680457029623620224d3"
+NATIVE_MANIFEST_SHA256 = "ad320814cd46d599d0937c246f078decf231694210fa4bd3fc0558065ad08d2a"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "eee43c42919c5e28e340c12ceb0bab2f5270a46663377a87d34edea353e39167"
-PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala'])
+CONTRACT_SHA256 = "8a8e280aa08a1a787e543f7c0230c84dc54340a0a5d99020bf513f73850b976d"
+PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala'])
 PRODUCTION = {
-    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "1869fd4d2512d904719f21b27630903b8e3de183ce8827cd53d7597332911ceb",
+    "core/src/main/scala/spinal/core/internals/Phase.scala": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "3085816ba26dbceb899ed08270ff9cc00fede099e7bcb6cfbb29f14ac671b139",
     "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
-    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "c01343b104e2caab8978fc46f80b2c3d7fc4959676430779c76ed50f8e5c3e0d",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "2c7649b3ff6c04e241e1330e18eef829345c5b002767220ff6835a3258211963",
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "74b5e84c88526798d48fea03d8e1909a9b7ed13eb0d2261451c5fd8d7052b693"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "5ee573850c9fa0787251415ac97c533c475ec80a17a0c29ae988d3643847e2a3",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "541f9c83d7691db7b5469a95d61e22d6962be04af216ddd2a8f296850db4f97f",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
@@ -91,7 +93,7 @@ def source_scope(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
-    require(changed == set(PRODUCTION), "60g production exceeds five publication configuration/selection files: " + str(sorted(changed)))
+    require(changed == set(PRODUCTION), "60g production exceeds five publication files and one scheduler lifecycle hook: " + str(sorted(changed)))
     untracked = {p for p in git("ls-files", "--others").splitlines() if "/src/main/" in "/" + p}
     require(not untracked, "untracked 60g production source: " + str(sorted(untracked)))
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
@@ -110,9 +112,15 @@ def source_scope(root: Path) -> None:
     native = git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
                  "idslplugin/src/main", "sim/src/main", "morphhdl/contracts/native-source-preservation.json",
                  "morphhdl/contracts/typed-native-source-overlay.json")
-    require(not native.strip(), "60g must not change native implementation/approved manifest: " + native)
+    require(set(native.splitlines()) == {
+        "core/src/main/scala/spinal/core/internals/Phase.scala",
+        "morphhdl/contracts/native-source-preservation.json"
+    }, "60g native delta exceeds the exact lifecycle hook and its approved manifest: " + native)
+    manifest_path = "morphhdl/contracts/native-source-preservation.json"
+    require(digest((root / manifest_path).read_text()) == NATIVE_MANIFEST_SHA256,
+            "60g reviewed native manifest changed")
     oracle_only(root)
-    print("60g five-file publication policy, sealed fixture selection and native-zero delta PASS", flush=True)
+    print("60g five-file publication policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
 
 
 def self_test(root: Path) -> None:

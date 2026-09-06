@@ -9,6 +9,8 @@ import scala.util.control.NonFatal
 import spinal.core.{Component, SpinalConfig, SpinalReport, SystemVerilog, VHDL, Verilog}
 import spinal.core.internals.{
   ExternalParameterizedAutoResize,
+  ExternalParameterizedHighBit,
+  ExternalParameterizedNativeResize,
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog,
@@ -717,7 +719,9 @@ object MorphVerilog {
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
+    phaseInserters += ExternalParameterizedNativeResize.install _
     phaseInserters += ExternalParameterizedAutoResize.install _
+    phaseInserters += ExternalParameterizedHighBit.install _
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.

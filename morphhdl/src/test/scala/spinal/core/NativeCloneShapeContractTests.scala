@@ -96,7 +96,7 @@ class NativeCloneShapeContractTests extends AnyFunSuite {
     }
   }
 
-  test("native mux does not transfer one operand width to different formal or wider widths") {
+  test("native mux derives exact maximum width across different formal and wider widths") {
     elaborate {
       val width: ElabInt = HdlInt.param("WIDTH", default = 5, min = 1, max = 8)
       val other: ElabInt = HdlInt.param("OTHER", default = 5, min = 1, max = 8)
@@ -106,8 +106,18 @@ class NativeCloneShapeContractTests extends AnyFunSuite {
       val select = in Bool()
       val differentRoot = Mux(select, a, b)
       val wider = Mux(select, a, c)
-      assert(ParameterizedWidth.expressionOf(differentRoot).isEmpty)
-      assert(ParameterizedWidth.expressionOf(wider).isEmpty)
+      val independent = ParameterizedWidth.expressionOf(differentRoot).get
+      val correlated = ParameterizedWidth.expressionOf(wider).get
+      val widthRoot = width.expression.completedParameterRoots.head
+      val otherRoot = other.expression.completedParameterRoots.head
+      assert(independent.completedParameterRoots.exists(_ eq widthRoot))
+      assert(independent.completedParameterRoots.exists(_ eq otherRoot))
+      for (w <- 1 to 8; o <- 1 to 8) {
+        assert(ElaborationWidthAuthority.evaluate(independent,
+          Vector(widthRoot -> BigInt(w), otherRoot -> BigInt(o))).contains(BigInt(w max o)))
+        assert(ElaborationWidthAuthority.evaluate(correlated,
+          Vector(widthRoot -> BigInt(w))).contains(BigInt(w + 1)))
+      }
       assert(wider.getBitsWidth == 6)
       out(differentRoot)
       out(wider)
@@ -130,6 +140,29 @@ class NativeCloneShapeContractTests extends AnyFunSuite {
       assert(kindError.code == "SPINAL-PARAMETERIZED-VERILOG-CLONE-SHAPE-MISMATCH")
       assert(ParameterizedWidth.expressionOf(wrongWidth).isEmpty)
       assert(ParameterizedWidth.expressionOf(wrongKind).isEmpty)
+
+      val inferred = UInt()
+      inferred := typed
+      assert(ParameterizedWidth.expressionOf(inferred).isEmpty)
+      val inferredClone = cloneOf(inferred)
+      inferredClone := inferred
+      assert(ElaborationWidthAuthority.equivalent(
+        NativeWidthProvenance.widthOf(inferred).get,
+        ParameterizedWidth.expressionOf(inferredClone).get))
+
+      val mixedSource = new Bundle {
+        val authored = UInt(width bits)
+        val fixed = UInt(3 bits)
+      }
+      val introduced = HdlInt.param("INTRODUCED", default = 3, min = 1, max = 8).asElabInt
+      val mixedTarget = new Bundle {
+        val authored = UInt(width bits)
+        val fixed = UInt(introduced bits)
+      }
+      val introducedError = intercept[ParameterizedVerilogException] {
+        ParameterizedWidth.copyCloneMetadata[Data](mixedSource, mixedTarget)
+      }
+      assert(introducedError.code == "SPINAL-PARAMETERIZED-VERILOG-CLONE-SHAPE-MISMATCH")
 
       val concrete = UInt(3 bits)
       val customClone = UInt(4 bits)

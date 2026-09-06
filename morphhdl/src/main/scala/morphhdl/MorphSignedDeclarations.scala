@@ -31,6 +31,9 @@ object MorphSignedDeclarations {
     config != null && config.phasesInserters.contains(installer)
 
   private def install(phases: ArrayBuffer[Phase]): Unit = {
+    // Ordinary native generation must not acquire even an inactive publication
+    // lifecycle phase (notably before verbose native checksum traversal).
+    if (!ParameterizedVerilogMode.isEnabled(GlobalData.get.config)) return
     val emitters = phases.collect { case phase: PhaseVerilog => phase }
     // VHDL is deliberately unaffected by this MorphVerilog-only option.
     if (emitters.isEmpty) return
