@@ -104,7 +104,10 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
       private val inputs: Vector[Evidence],
       private val graph: Node,
       private val guards: Vector[() => Unit]
-  ) {
+  ) extends TypedBalancedReductionOperatorCertificate {
+    /** A mux class alone cannot distinguish minimum from maximum. Stage
+      * uniformity must compare this exact semantic key, not operatorClass.
+      */
     val operationKey: (Class[_], Option[Boolean]) = (operatorClass, minimum)
     val transferKey: Any = graph.key
     def validateFreshness(): Unit = guards.foreach(_.apply())

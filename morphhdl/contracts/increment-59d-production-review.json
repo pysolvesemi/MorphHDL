@@ -43,7 +43,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-      "sha256": "c02b4c38d10f9df860d215b300ba0583c979e71c73015f95fa1c3727485f138f"
+      "sha256": "8dc296ab72ac4e5f847d9978b52bf79e1928075c7df623ef18764e537cc4f03b"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
@@ -59,7 +59,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
-      "sha256": "283ab8da6052f3e87f92e524103f433cb8dd817766f59fea19291e17fa7e6067"
+      "sha256": "01110900bc8445b58dc201d1c8f49a98ed672cd037b6bb5495cf4aea866d56b2"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
@@ -75,23 +75,23 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala",
-      "sha256": "4256149989d6506037c1df8bcf0e791124424d73eb53c711b0ad2ceb3d4a347d"
+      "sha256": "d39b64a96535c844463511a77f8e82f9bab55e0dbd1ecd050394a063f01acb88"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
-      "sha256": "456b47d5a53485ce85e71af118b8a9b52464265def851451baf711923f60fc18"
+      "sha256": "3ce9cd765e3f8273ea156fee2a54909308bdbd77aadb79d537f016c6e88bdfc5"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala",
-      "sha256": "aefc9c12b2eb7f9d22250456357a17bea345805d1c6eb659b19456c09f95fd02"
+      "sha256": "149f4cee7134ca069e1557f3fe27ae93137a1c9f78d3f328239979ed0b6c2484"
     }
   ],
   "checker_edits": [
     {
       "path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
       "id": "restore-exact-59d-width-seams",
-      "before": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())",
-      "after": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    # 59d publishes exact native widths, msb and resize operations through\n    # separately reviewed seams. Undo those first, including seams inside a 60e resize\n    # call. The complete restored source is still compared with its historical\n    # baseline by every inherited scope guard; no unrelated edit is admitted.\n    width_contract = root / \"morphhdl/contracts/increment-59d-width-publication-edits.json\"\n    fallback = \"morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala\"\n    if width_contract.is_file() and path == fallback:\n        width = json.loads(width_contract.read_text())\n        require(set(width) == {\"base\", \"edits\"} and\n                width[\"base\"] == \"d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a\",\n                \"59d width publication restoration baseline changed\")\n        require([entry[\"id\"] for entry in width[\"edits\"]] ==\n                [\"native-high-bit-publication\", \"native-resize-publication\",\n                 \"native-resize-single-owner\", \"native-resize-target-width\",\n                 \"native-resize-domain-proof\", \"native-resize-result-width\",\n                 \"native-high-bit-domain-proof\", \"width-complete-domain-relation\",\n                 \"width-complete-domain-expression\", \"width-multi-root-projection-route\",\n                 \"width-multi-root-projection-origins\", \"width-multi-root-owner-evaluation\",\n                 \"native-resize-normalized-assignment-proof\",\n                 \"native-publication-validation-session\",\n                 \"native-retained-modular-uint-result\",\n                 \"native-resize-published-width-validation\",\n                 \"native-resize-declaration-width-matcher\"] and\n                all(set(entry) == {\"path\", \"id\", \"before\", \"after\"} and\n                    entry[\"path\"] == fallback for entry in width[\"edits\"]),\n                \"59d width publication restoration exceeds its seventeen fallback seams\")\n        for edit in reversed(width[\"edits\"]):\n            require(source.count(edit[\"after\"]) == 1, \"missing/duplicate 59d span in \" + path)\n            source = source.replace(edit[\"after\"], edit[\"before\"], 1)\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())"
+      "before": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    descendant = root / \"morphhdl/scripts/check-increment-59f-source-scope.py\"\n    if descendant.exists():\n        spec = importlib.util.spec_from_file_location(\"publisher_59f_scope\", descendant)\n        require(spec is not None and spec.loader is not None, \"cannot import reviewed 59f publisher scope\")\n        module = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(module)\n        source = module.restore_59f_source(root, path, source)\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())",
+      "after": "def restore_60d_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Undo only exact reviewed 60e spans; inherited 60c/60d guards still run.\"\"\"\n    # 59d publishes exact native widths, msb and resize operations through\n    # separately reviewed seams. Undo those first, including seams inside a 60e resize\n    # call. The complete restored source is still compared with its historical\n    # baseline by every inherited scope guard; no unrelated edit is admitted.\n    width_contract = root / \"morphhdl/contracts/increment-59d-width-publication-edits.json\"\n    fallback = \"morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala\"\n    if width_contract.is_file() and path == fallback:\n        width = json.loads(width_contract.read_text())\n        require(set(width) == {\"base\", \"edits\"} and\n                width[\"base\"] == \"d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a\",\n                \"59d width publication restoration baseline changed\")\n        require([entry[\"id\"] for entry in width[\"edits\"]] ==\n                [\"native-high-bit-publication\", \"native-resize-publication\",\n                 \"native-resize-single-owner\", \"native-resize-target-width\",\n                 \"native-resize-domain-proof\", \"native-resize-result-width\",\n                 \"native-high-bit-domain-proof\", \"width-complete-domain-relation\",\n                 \"width-complete-domain-expression\", \"width-multi-root-projection-route\",\n                 \"width-multi-root-projection-origins\", \"width-multi-root-owner-evaluation\",\n                 \"native-resize-normalized-assignment-proof\",\n                 \"native-publication-validation-session\",\n                 \"native-retained-modular-uint-result\",\n                 \"native-resize-published-width-validation\",\n                 \"native-resize-declaration-width-matcher\"] and\n                all(set(entry) == {\"path\", \"id\", \"before\", \"after\"} and\n                    entry[\"path\"] == fallback for entry in width[\"edits\"]),\n                \"59d width publication restoration exceeds its seventeen fallback seams\")\n        for edit in reversed(width[\"edits\"]):\n            require(source.count(edit[\"after\"]) == 1, \"missing/duplicate 59d span in \" + path)\n            source = source.replace(edit[\"after\"], edit[\"before\"], 1)\n    descendant = root / \"morphhdl/scripts/check-increment-59f-source-scope.py\"\n    if descendant.exists():\n        spec = importlib.util.spec_from_file_location(\"publisher_59f_scope\", descendant)\n        require(spec is not None and spec.loader is not None, \"cannot import reviewed 59f publisher scope\")\n        module = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(module)\n        source = module.restore_59f_source(root, path, source)\n    contract = json.loads((root / \"morphhdl/contracts/increment-60e-boundary-edits.json\").read_text())"
     },
     {
       "path": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",

@@ -6,6 +6,10 @@ Implementation and qualification are in progress. The roadmap checkbox remains
 open. Work started from merged `parameterized-verilog` commit
 `d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a`, including completed Increment 59b.
 No dependency on an unmerged 59c or other parallel successor is introduced.
+The integration branch also includes merged 59f callback graphs from
+`c85659a20d428dd58cc6116c12c8b24418c37722`. Their shared callback certificate
+must retain the generic width function as well as ordered graph and capture
+identity. Both increments' qualification remains required on the combined head.
 
 ## Native width provenance
 
@@ -40,6 +44,10 @@ arithmetic boundaries and requires one exactly same-width unsigned operand.
 Signedness analysis validates composed width certificates at their exact native
 declaration owner while retaining the original integer-domain checks for other
 metadata.
+The inherited zero-value publisher uses that same declaration-owner width
+validation for composed widths. It still requires one exact live, poison-free
+zero literal edge and preserves the separate ownership of retained values and
+finite-fold anchors.
 
 `ElaborationWidthAuthority` composes widths from previously authorized typed
 expressions. Arithmetic and conditional transfer retain declaration identity,
@@ -95,5 +103,22 @@ for mutated carry bits, sign bits, default-frozen width behavior and tail
 extension. Inherited callback, graph, ownership and native-source controls
 remain applicable. A timeout, tool error, missing artifact, UNKNOWN or skipped
 test is not passing evidence.
+
+For synthesis, the checker records actual specialized ports before flattening
+the native design, then places every native RTLIL cell in its own submodule.
+This bounds individual ABC networks while leaving the native Verilog unchanged.
+The preparation must pass formal equivalence and preserve the complete set of
+known initialization bits through aliases. Unrestricted `synth -top` still runs
+all default passes and ABC across the complete hierarchy. Final inventories
+reject unresolved cells, boxes, processes, memories and unreachable modules.
+A genuine zero-cell singleton remains valid and still runs the full flow.
+
+The 32 native references can be reused between the two profiles only after
+successful checks within the same invocation, keyed by their complete RTL hash
+and module identity. All 64 candidate specializations and all comparisons run.
+The workflow records runner memory, CPU and tool versions, retains phase timings,
+and allows 1,200 seconds per full synthesis and 240 minutes per Scala lane.
+These limits accommodate the largest native multiplication networks; exceeding
+either limit still fails qualification.
 
 Final evidence and completion status will be recorded after these gates pass.

@@ -14,6 +14,7 @@ CHECKER = ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 REVIEWED_59D = "4c4aa25ae02b4eb206b4d89027865d7e380e1d30"
 PROFILE_AWARE_60F = "3e80cef258ddfdd6ce74819a2fbf200a8d2c5a64"
+REVIEWED_59F = "c85659a20d428dd58cc6116c12c8b24418c37722"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
@@ -54,21 +55,32 @@ def commit(root: Path, *paths: str) -> None:
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "working reviewed descendant")]
+    has_callbacks = (ROOT / "morphhdl/scripts/check-increment-59f-source-scope.py").is_file()
+    outside_checker_rejection = ("unreviewed source change outside 59f spans" if has_callbacks
+                                 else "sealed writer/checker changed")
     cases = (
         ("historical-60f", QUALIFIED_60F, None),
         ("historical-reviewed-59d", REVIEWED_59D, None),
+        ("historical-reviewed-59f", REVIEWED_59F, None),
         ("historical-profile-aware-60f", PROFILE_AWARE_60F, None),
         ("committed-reviewed-descendant", head, None),
         ("partial-wa07a-production", head, "incomplete reviewed WA-07a production delta"),
         ("ignored-untracked-production", head, "untracked production sources"),
         ("forged-59d-absorbs-wa07a", head, "59d reviewed production inventory differs"),
+        ("forged-59d-absorbs-59f-only", head, "59d reviewed production inventory differs"),
+        ("changed-59f-only-production", head, "reviewed production source hash differs"),
+        ("changed-integration-certificate", head, "59d/59f reviewed integration source changed"),
+        ("changed-integration-replay", head, "59d/59f reviewed integration source changed"),
+        ("changed-integration-manifest", head, "59d/59f reviewed integration manifest changed"),
+        ("paired-integration-source-and-manifest", head, "59d/59f reviewed integration manifest changed"),
+        ("removed-integration-manifest", head, "missing regular 59d/59f integration review"),
         ("unreviewed-production", head, "59d reviewed production inventory differs"),
         ("changed-reviewed-production", head, "59d reviewed production bytes changed"),
         ("dirty-reviewed-production", head, "59d reviewed production bytes changed"),
         ("removed-reviewed-production", head, "59d reviewed production bytes changed"),
         ("changed-independent-oracle", head, "sealed writer/checker changed"),
         ("changed-checker-restoration", head, "missing/duplicate reviewed 59d checker restoration span"),
-        ("changed-checker-outside", head, "sealed writer/checker changed"),
+        ("changed-checker-outside", head, outside_checker_rejection),
         ("changed-signed-width-proof", head, "missing/duplicate 59d signed-width span"),
         ("changed-signed-width-outside", head, "sealed oracle/authority changed"),
         ("changed-signed-width-contract", head, "59d signed-width restoration exceeds its five exact authority seams"),
@@ -89,10 +101,35 @@ def main() -> None:
                     path = "target/unreviewed/src/main/scala/HiddenScopeProbe.scala"
                     (fixture / path).parent.mkdir(parents=True)
                     (fixture / path).write_text("object HiddenScopeProbe\n")
-                elif label == "forged-59d-absorbs-wa07a":
+                elif label in ("changed-integration-certificate", "changed-integration-replay",
+                               "changed-integration-manifest", "paired-integration-source-and-manifest",
+                               "removed-integration-manifest"):
+                    manifest_path = "morphhdl/contracts/increment-59d-59f-integration-edits.json"
+                    integration = json.loads((fixture / manifest_path).read_text())
+                    if label == "removed-integration-manifest":
+                        (fixture / manifest_path).unlink()
+                    elif label == "changed-integration-manifest":
+                        integration["files"][0]["path"] = "other/src/main/Unreviewed.scala"
+                        (fixture / manifest_path).write_text(json.dumps(integration, indent=2) + "\n")
+                    else:
+                        wanted = ("TypedBalancedReductionScalarGraphReplay.scala" if label == "changed-integration-replay"
+                                  else "TypedBalancedReductionOperatorCertificate.scala")
+                        entry = next(entry for entry in integration["files"] if entry["path"].endswith(wanted))
+                        target = fixture / entry["path"]
+                        target.write_text(target.read_text() + "\n// Deliberate unreviewed integration mutation.\n")
+                        if label == "paired-integration-source-and-manifest":
+                            entry["after_sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
+                            (fixture / manifest_path).write_text(json.dumps(integration, indent=2) + "\n")
+                elif label == "changed-59f-only-production":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala"
+                    with (fixture / path).open("a") as stream:
+                        stream.write("\n// Deliberate unreviewed callback-only mutation.\n")
+                elif label in ("forged-59d-absorbs-wa07a", "forged-59d-absorbs-59f-only"):
                     path = "morphhdl/contracts/increment-59d-production-review.json"
                     review = json.loads((fixture / path).read_text())
-                    wa = "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
+                    wa = ("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
+                          if label == "forged-59d-absorbs-wa07a" else
+                          "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala")
                     review["files"].append({"path": wa,
                                             "sha256": hashlib.sha256((fixture / wa).read_bytes()).hexdigest()})
                     review["files"].sort(key=lambda entry: entry["path"])

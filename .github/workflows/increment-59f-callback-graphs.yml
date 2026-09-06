@@ -1,0 +1,202 @@
+name: Increment 59f certified callback graphs
+
+on:
+  push:
+    branches: ['agent/increment-59f-*', 'agent/increment-59d-*', parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59f-callback-graphs.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/*59f*.py'
+      - 'morphhdl/contracts/*59f*.json'
+      - 'morphhdl/scripts/check-increment-59b-*.py'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'frontend/src/**'
+      - 'morphruntime/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59f-callback-graphs.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/*59f*.py'
+      - 'morphhdl/contracts/*59f*.json'
+      - 'morphhdl/scripts/check-increment-59b-*.py'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'frontend/src/**'
+      - 'morphruntime/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59f-callback-graphs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59f-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f'))
+    name: Safe callback graphs Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve exact-head evidence and audit native boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59f-callback-graphs"
+          mkdir -p "$output/bootstrap"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-increment-59f-source-scope.py
+          python3 morphhdl/scripts/test-increment-59f-source-scope.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+          python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output "$output/native.json"
+          cmp morphhdl/contracts/native-source-preservation.json "$output/native.json"
+          python3 morphhdl/scripts/check-increment-59f-callback-graphs.py --self-test
+      - name: Bootstrap repository-pinned SBT launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/increment-59f-callback-graphs/bootstrap"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59f-callback-graphs/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Run inherited and expanded safety tests and repeat independent artifact generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59f-callback-graphs"
+          bootstrap="$output/bootstrap"
+          java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReduction*Tests spinal.core.FiniteAffineVecReadTests' \
+            'morph/Test/testOnly spinal.core.internals.ParameterizedVerilogTests -- -z retained' \
+            'morph/Test/testOnly morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.CapturedAssignmentNormalizationTests' \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCallbackGraphArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCallbackGraphArtifactWriter $output/b" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 120 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          expected = {
+              'TypedBalancedReductionPlanTests',
+              'TypedBalancedReductionCaptureTests',
+              'TypedBalancedReductionCaptureSafetyTests',
+              'TypedBalancedReductionClosedGraphTests',
+              'TypedBalancedReductionOperatorReplayTests',
+              'TypedBalancedReductionStageReplayTests',
+              'TypedBalancedReductionCallbackPolicyTests',
+              'TypedBalancedReductionPublicationTests',
+              'TypedBalancedReductionPublicationSafetyTests',
+              'TypedBalancedReductionCertifiedCallbackPolicyTests',
+              'TypedBalancedReductionScalarGraphReplayTests',
+              'TypedBalancedReductionMuxWidthTests',
+              'TypedBalancedReductionCallbackPublicationTests',
+              'FiniteAffineVecReadTests',
+              'ParameterizedVerilogTests',
+              'CapturedDomainWidthEquivalenceTests',
+              'CapturedAssignmentNormalizationTests',
+          }
+          files = []
+          for name in sorted(expected):
+              matches = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(matches) == 1, ('required suite missing or duplicated', name, matches)
+              files.extend(matches)
+          total = 0
+          for path in files:
+              suite = ET.parse(path).getroot()
+              assert int(suite.get('tests','0')) > 0, (path,suite.attrib)
+              assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (path,suite.attrib)
+              total += int(suite.get('tests'))
+              print(path.name, suite.attrib)
+          assert total >= 150, ('inherited or expanded qualification unexpectedly omitted', total)
+          PY
+      - name: Qualify 64 exact callback specializations and three genuine mutation counterexamples
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59f-callback-graphs"
+          python3 morphhdl/scripts/check-increment-59f-callback-graphs.py "$output/a" "$output/b"
+          python3 morphhdl/scripts/check-increment-59b-publication.py "$output/inherited-a" "$output/inherited-b"
+          printf '%s\n' '59f: two sole-candidate profiles with singleton and alternate defaults; 64 WIDTH/COUNT specializations against independently native references; independently driven runtime captures; exact-order simulation; strict Verilog-2001 lint/parse, full synthesis and SAT equivalence; genuine bad=1 controls for reordered subtraction, dropped callback operation and changed capture binding. Inherited 59b publication qualification also passed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Print failing source and HDL diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in sorted(Path('morphhdl/target').rglob('*Balanced*.xml')):
+              try:
+                  suite = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in suite.iter('testcase'):
+                  for node in case:
+                      if node.tag in ('failure','error'):
+                          print('FAILED:', case.get('classname'), case.get('name'), node.attrib)
+                          print((node.text or '')[:6000])
+          logs = sorted(Path('target/increment-59f-callback-graphs').rglob('*.log'), key=lambda p:p.stat().st_mtime)
+          for path in logs[-4:]:
+              print('HDL LOG:', path)
+              print('\n'.join(path.read_text(errors='replace').splitlines()[-100:]))
+          PY
+      - name: Retain exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59f-callback-graphs-${{ matrix.scala }}
+          path: |
+            target/increment-59f-callback-graphs
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

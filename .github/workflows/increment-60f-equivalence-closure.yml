@@ -40,6 +40,7 @@ jobs:
           git rev-parse HEAD > target/increment-60f/head.txt
           git archive HEAD | gzip > target/increment-60f/source.tar.gz
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
           python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
           python3 morphhdl/scripts/check-increment-58-retirement.py

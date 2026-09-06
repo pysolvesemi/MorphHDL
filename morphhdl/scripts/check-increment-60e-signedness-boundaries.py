@@ -110,6 +110,13 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
         for edit in reversed(width["edits"]):
             require(source.count(edit["after"]) == 1, "missing/duplicate 59d span in " + path)
             source = source.replace(edit["after"], edit["before"], 1)
+    descendant = root / "morphhdl/scripts/check-increment-59f-source-scope.py"
+    if descendant.exists():
+        spec = importlib.util.spec_from_file_location("publisher_59f_scope", descendant)
+        require(spec is not None and spec.loader is not None, "cannot import reviewed 59f publisher scope")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        source = module.restore_59f_source(root, path, source)
     contract = json.loads((root / "morphhdl/contracts/increment-60e-boundary-edits.json").read_text())
     require(contract["base"] == BASE, "60e restoration baseline changed")
     edits = [entry for entry in contract["edits"] if entry["path"] == path]

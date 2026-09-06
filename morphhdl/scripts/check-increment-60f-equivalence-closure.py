@@ -30,6 +30,22 @@ WA07A_PRODUCTION_SHA256 = {
     "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
         "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
 }
+# Exact, separately reviewed 59f production delta. Source selection never uses
+# report counts, branch names, partial feature presence, or unchecked paths.
+CALLBACK_59F_PRODUCTION_SHA256 = {
+    "core/src/main/scala/spinal/core/BitVector.scala": "fc59c3f42ff9be5ea6ddfb4a5d7e32c59f57302ad8b806201285dc648425f9f6",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala": "f85ea514e70e7be6e46f566bb898bb40f8588d8b42ec68d9c6116a0122ffdce8",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "dd2bdf8629d08a0b25fb785e4828c9ae56ef0f5e7c4fc8efd4b086c61140d6a3",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": "8745879bd3e435ed51c9809e6eb05f9c3d5ede6513fe47b84a1e4dc8bd895064",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala": "b08a77c98c5b9fad4f5a44430b5c9a2edc6fa9055c763503b808c0c2688ccc70",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala": "15fecc14650d5a0fb2f03450977cd91da432816bfa47ab1fc4003c573f557f1c",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala": "db37d6540af715b6f535a78891439020fb7196d450dc403af3cde6a9fedc53fb",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorCertificate.scala": "5abc84b0aeaf26b21d6a21fc0a844f2e8b17833ec4da33cec84f8ce75b7f17d3",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala": "b401b6cece917c84e945efedaca22148ccc4a88bbe8df9ff7f4073fdf4ab35bf",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala": "a1de8e5058d02f66c801f70409f7e208daed3a2a1d1584491e3be837615352ed",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala": "43e5ee1294041a4bf7f46fc92ec56569d0bf20e8180c770749ae976060afcd10",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala": "da743fb98428d5ffb6d2875096293daad1da99dfb4b796e7cc4c540d76d3f899"
+}
 INCREMENT_59D_BASE = "5a669d32095ee722c313bd069b771e7c350a1f81"
 INCREMENT_59D_PRODUCTION_PATHS = frozenset({
     "core/src/main/scala/spinal/core/BaseType.scala",
@@ -53,6 +69,13 @@ INCREMENT_59D_PRODUCTION_PATHS = frozenset({
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala",
+})
+INTEGRATION_59D59F_BASE = "c85659a20d428dd58cc6116c12c8b24418c37722"
+INTEGRATION_59D59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-integration-edits.json"
+INTEGRATION_59D59F_SHA256 = "c4e314a6ca8d47ff50c04b1dcc6e7562f0195bdea1831bffbea6c425e9f2da9c"
+INTEGRATION_59D59F_PATHS = frozenset({
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorCertificate.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala",
 })
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
@@ -135,8 +158,72 @@ def self_test() -> None:
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
 
 
+def qualification_ancestry(root: Path) -> None:
+    require(subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F],
+                           cwd=root).returncode == 0,
+            "60f baseline must be an ancestor of the qualified commit")
+    require(subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+                           cwd=root).returncode == 0,
+            "qualified 60f must be an ancestor of HEAD")
+
+
+def profile_features(profile: str) -> frozenset[str]:
+    names = ("wa07a", "59d", "59f")
+    profiles = {"60f-baseline": frozenset()}
+    for mask in range(1, 8):
+        selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
+        profiles["60f-with-" + "-and-".join(selected)] = frozenset(selected)
+    require(profile in profiles, "unknown validated source profile: " + profile)
+    return profiles[profile]
+
+
+def integration_59d59f(root: Path) -> dict[str, str]:
+    """Prove only the two reviewed callback/width integrations against frozen 59f."""
+    contract_path = root / INTEGRATION_59D59F_CONTRACT
+    require(contract_path.is_file() and not contract_path.is_symlink(),
+            "missing regular 59d/59f integration review")
+    raw = contract_path.read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == INTEGRATION_59D59F_SHA256,
+            "59d/59f reviewed integration manifest changed")
+    reviewed = json.loads(raw)
+    require(set(reviewed) == {"base", "files"} and reviewed["base"] == INTEGRATION_59D59F_BASE,
+            "59d/59f integration restoration baseline/schema changed")
+    entries = reviewed["files"]
+    require([entry["path"] for entry in entries] == sorted(INTEGRATION_59D59F_PATHS),
+            "59d/59f integration exceeds its two exact callback paths")
+    hashes = {}
+    for entry in entries:
+        require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"},
+                "59d/59f integration file schema changed")
+        path = entry["path"]
+        require(entry["before_sha256"] == CALLBACK_59F_PRODUCTION_SHA256[path],
+                "59d/59f integration changed the frozen 59f source hash")
+        source_path = root / path
+        require(source_path.is_file() and not source_path.is_symlink() and not source_path.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        source = source_path.read_text()
+        require(hashlib.sha256(source.encode()).hexdigest() == entry["after_sha256"],
+                "59d/59f reviewed integration source changed: " + path)
+        edits = entry["edits"]
+        require(edits and all(set(edit) == {"id", "before", "after"} and
+                             edit["id"] and edit["before"] and edit["after"] for edit in edits) and
+                len({edit["id"] for edit in edits}) == len(edits),
+                "59d/59f integration has malformed or duplicate reviewed spans")
+        for edit in reversed(edits):
+            require(source.count(edit["after"]) == 1,
+                    "missing/duplicate reviewed 59d/59f integration span: " + path)
+            source = source.replace(edit["after"], edit["before"], 1)
+        require(hashlib.sha256(source.encode()).hexdigest() == entry["before_sha256"],
+                "59d/59f restored integration source hash differs: " + path)
+        historical = subprocess.check_output(["git", "show", INTEGRATION_59D59F_BASE + ":" + path],
+                                             cwd=root, text=True)
+        require(source == historical, "59d/59f restored integration source differs from frozen 59f: " + path)
+        hashes[path] = entry["after_sha256"]
+    return hashes
+
+
 def production_profile(root: Path) -> str:
-    """Select an exact source contract before consulting regression reports."""
+    """Select a complete reviewed source union before consulting any reports."""
     def git(*args: str) -> bytes:
         return subprocess.check_output(["git", *args], cwd=root)
 
@@ -144,53 +231,62 @@ def production_profile(root: Path) -> str:
         return {path.decode("utf-8") for path in data.split(b"\0")
                 if re.search(rb"(?:^|/)src/main/", path)}
 
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F], cwd=root, check=True)
-    subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"], cwd=root, check=True)
+    qualification_ancestry(root)
     historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
     require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
-    # Include every production project (also nested backends and new roots),
-    # including ignored untracked sources; an allowed pathname alone is not a
-    # source contract. Every reviewed file must be tracked with its exact bytes.
     untracked = production_paths(git("ls-files", "--others", "-z"))
     require(not untracked, "untracked production sources: " + str(sorted(untracked)))
     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
-    if not changed:
-        return "60f-baseline"
-    wa_paths = set(WA07A_PRODUCTION_SHA256)
-    wa_changed = changed & wa_paths
-    require(not wa_changed or wa_changed == wa_paths,
-            "incomplete reviewed WA-07a production delta: " + str(sorted(wa_changed)))
-    descendant = changed - wa_paths
-    reviewed = None
-    if descendant:
-        subprocess.run(["git", "merge-base", "--is-ancestor", INCREMENT_59D_BASE, "HEAD"],
-                       cwd=root, check=True)
-        historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE,
-                                          INCREMENT_59D_BASE))
+    wa, widths, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
+                             set(CALLBACK_59F_PRODUCTION_SHA256))
+    require(wa and widths and callbacks and not wa & (widths | callbacks),
+            "reviewed WA-07a production profile overlaps a width/callback profile or is empty")
+    profiles = {}
+    for mask in range(8):
+        selected = tuple(name for index, name in enumerate(("wa07a", "59d", "59f"))
+                         if mask & (1 << index))
+        paths = (wa if mask & 1 else set()) | (widths if mask & 2 else set()) | (callbacks if mask & 4 else set())
+        profiles[frozenset(paths)] = ("60f-with-" + "-and-".join(selected)) if selected else "60f-baseline"
+    require(len(profiles) == 8, "reviewed production feature inventories do not identify eight exact unions")
+    if changed & wa:
+        require(changed & wa == wa,
+                "incomplete reviewed WA-07a production delta: " + str(sorted(changed & wa)))
+    require(frozenset(changed) in profiles,
+            "59d reviewed production inventory differs from the exact current delta; "
+            "unreviewed production delta: " + str(sorted(changed)))
+    profile = profiles[frozenset(changed)]
+    features = profile_features(profile)
+    hashes = dict(WA07A_PRODUCTION_SHA256) if "wa07a" in features else {}
+    if "59f" in features:
+        hashes.update(CALLBACK_59F_PRODUCTION_SHA256)
+    if "59d" in features:
+        require(subprocess.run(["git", "merge-base", "--is-ancestor", INCREMENT_59D_BASE, "HEAD"],
+                               cwd=root).returncode == 0, "59d review baseline must be an ancestor of HEAD")
+        historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, INCREMENT_59D_BASE))
         require(not historical, "59d review baseline must remain production-zero: " + str(sorted(historical)))
-        require(descendant == INCREMENT_59D_PRODUCTION_PATHS,
-                "59d reviewed production inventory differs from the exact current delta")
         reviewed = reviewed_59d(root)
-        require([entry["path"] for entry in reviewed["files"]] == sorted(descendant),
-                "59d reviewed production inventory differs from the exact current delta")
-    hashes = dict(WA07A_PRODUCTION_SHA256) if wa_changed else {}
-    if reviewed is not None:
+        # The seven shared width/callback paths have separately reviewed merged
+        # bytes in the exact 59d contract. Callback-only paths retain their frozen
+        # 59f hashes; standalone 59f retains all twelve original source hashes.
         hashes.update((entry["path"], entry["sha256"]) for entry in reviewed["files"])
+    if {"59d", "59f"}.issubset(features):
+        require(INTEGRATION_59D59F_PATHS <= callbacks - widths,
+                "59d/59f integration paths escaped the callback-only scope")
+        hashes.update(integration_59d59f(root))
+    require(set(hashes) == changed, "validated source hashes do not cover the exact production union")
     for path, digest in hashes.items():
         source = root / path
-        require(source.is_file(), ("59d reviewed production bytes changed: " if path in descendant else
-                                  "reviewed WA-07a production source hash differs: ") + path)
+        diagnostic = ("59d reviewed production bytes changed: " if "59d" in features and path in widths else
+                      "reviewed WA-07a production source hash differs: " if path in wa else
+                      "reviewed production source hash differs: ")
+        require(source.is_file(), diagnostic + path)
         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
-        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
-                ("59d reviewed production bytes changed: " if path in descendant else
-                 "reviewed WA-07a production source hash differs: ") + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "reviewed production source is not uniquely tracked: " + path)
-    if descendant:
-        return "60f-with-wa07a-and-59d" if wa_changed else "60f-with-59d"
-    return "60f-with-wa07a"
+    return profile
 
 
 def reviewed_59d(root: Path) -> dict:
@@ -221,8 +317,10 @@ def reviewed_59d(root: Path) -> dict:
 
 
 def source_scope(root: Path) -> None:
-    profile = production_profile(root)
-    reviewed = reviewed_59d(root) if profile in ("60f-with-59d", "60f-with-wa07a-and-59d") else None
+    # Preserve the inherited oracle/authority rejection diagnostics. The exact
+    # production union is still mandatory after all historical source audits.
+    qualification_ancestry(root)
+    reviewed = reviewed_59d(root) if (root / "morphhdl/contracts/increment-59d-production-review.json").is_file() else None
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -241,10 +339,14 @@ def source_scope(root: Path) -> None:
                 before, after = edit["before"].encode(), edit["after"].encode()
                 require(current.count(after) == 1, "missing/duplicate reviewed 59d checker restoration span")
                 current = current.replace(after, before, 1)
+        if path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py" and \
+                (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
+            current = load(root, "59f-source-scope").restore_59f_source(root, path, current.decode()).encode()
         require(current == old, "sealed writer/checker changed: " + path)
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
+    profile = production_profile(root)
     print("60f historical qualification-only scope, " + profile +
           ", sealed writers/checkers and inherited native audits PASS", flush=True)
 

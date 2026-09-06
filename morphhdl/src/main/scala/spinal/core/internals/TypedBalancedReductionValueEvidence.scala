@@ -106,7 +106,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     create(value, width, () => ())
   }
 
-  def fromOperator(proof: TypedBalancedReductionOperatorReplay.Proof): Evidence = {
+  def fromOperator(proof: TypedBalancedReductionOperatorCertificate): Evidence = {
     if (proof == null) fail("operator proof must be present")
     create(proof.nativeResult, proof.resultWidth, () => proof.validateFreshness())
   }
