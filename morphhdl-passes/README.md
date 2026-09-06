@@ -259,6 +259,11 @@ to the reference captured before **all** passes. Both new proof legs cover all
 simulation is an additional mandatory gate, not a claim made from two-state
 formal alone.
 
+The [WA-07a qualification record](wa07a-completion-evidence.md) identifies the
+verified implementation revision, complete aggregate evidence and required
+independent CI for the completion commit. WA-08 becomes eligible after WA-07a
+is merged; production execution and writeback remain its scope.
+
 ### Non-vacuous clocked proofs
 
 The formal miter uses both an explicit DUT clock and the formal global timestep.

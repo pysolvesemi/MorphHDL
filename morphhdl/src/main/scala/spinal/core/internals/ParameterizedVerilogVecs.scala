@@ -50,7 +50,8 @@ private[internals] object ParameterizedVerilogVecs {
       }
 
     def offsetOf(leafIndex: Int): String =
-      renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
+      if (shape.elementLayout.hasNestedVectors) shape.elementLayout.leaves(leafIndex).offset(render)
+      else renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
 
     def constantSlice(elementIndex: Int, leafIndex: Int): String = {
       val base = addTerms(
@@ -172,6 +173,43 @@ private[internals] object ParameterizedVerilogVecs {
   ): Vector[ElaborationIntegerParameter] =
     ParameterizedVec.parametersOf(component)
 
+  /** Exact transient concatenation/cast assignments consumed by packed-read
+    * publication. Generic width validation may encounter independent roots
+    * in these partial carriers before this pass removes their declarations.
+    * Only the complete current low-to-high lineage, checked against both the
+    * retained operation and native Vec leaf identities, authorizes deferral.
+    */
+  private[internals] def exactPackedReadSupportAssignments(
+      component: Component
+  ): Vector[DataAssignmentStatement] = {
+    if (component == null) return Vector.empty
+    val live = new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+    component.dslBody.walkStatements {
+      case assignment: DataAssignmentStatement => live.put(assignment, java.lang.Boolean.TRUE)
+      case _ =>
+    }
+    val support = publicationVectors(component).flatMap { vector =>
+      val expected = vectorLeaves(vector)
+      ParameterizedVec.operationsOf(vector).flatMap {
+        case operation: ParameterizedVecPackedRead =>
+          val carriers = operation.carrierAssignments.filter(assignment =>
+            (assignment.target eq operation.carrier) && live.containsKey(assignment))
+          val recorded = operation.carrierLeavesLowToHigh
+          if (carriers.size != 1 || recorded.size != expected.size ||
+              !recorded.zip(expected).forall { case (left, right) => left eq right }) Vector.empty
+          else exactPackedReadLeaves(carriers.head.source, expected, operation.carrier, live)
+            .filter(proof => proof.leavesLowToHigh.size == expected.size &&
+              proof.leavesLowToHigh.zip(expected).forall { case (left, right) => left eq right } &&
+              proof.supportAssignments.forall(assignment => assignment.target eq assignment.finalTarget))
+            .toVector.flatMap(_.supportAssignments)
+        case _ => Vector.empty
+      }
+    }
+    support.foldLeft(Vector.empty[DataAssignmentStatement]) { (known, assignment) =>
+      if (known.exists(_ eq assignment)) known else known :+ assignment
+    }
+  }
+
   /** Narrow admission proof for an otherwise output-only native surface.
     * Every port must be an exact flattened carrier leaf of one publication
     * Vec, and every such owning Vec must participate in an exact retained
@@ -263,8 +301,8 @@ private[internals] object ParameterizedVerilogVecs {
         sourceLocation.orElse(shape.sourceLocation)
       )
     }
-    val elementWidth = renderSum(shape.elementLeaves.map(_.width))
-    val offset = renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
+    val elementWidth = renderElementWidth(shape)
+    val offset = renderElementOffset(shape, leafIndex)
     val base = addTerms(
       if (elementIndex == 0) "0"
       else s"$elementIndex * ${factor(elementWidth)}",
@@ -378,8 +416,8 @@ private[internals] object ParameterizedVerilogVecs {
       }
     }
     val name = requiredVecName(vector, sourceLocation.orElse(shape.sourceLocation))
-    val elementWidth = renderSum(shape.elementLeaves.map(_.width))
-    val offset = renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
+    val elementWidth = renderElementWidth(shape)
+    val offset = renderElementOffset(shape, leafIndex)
     val base = addTerms(
       s"${parenthesize(selector.verilog)} * ${factor(elementWidth)}",
       offset
@@ -1143,7 +1181,20 @@ private[internals] object ParameterizedVerilogVecs {
       case _                                  => Vector.empty
     }
 
-    ParameterizedVec.retainedVectorsOf(component).filter { vector =>
+    val retained = ParameterizedVec.retainedVectorsOf(component)
+    retained.filter(TypedBalancedReductionBackend.ownsRecursiveTransport).foreach { vector =>
+      ParameterizedVec.operationsOf(vector).foreach {
+        case _: ParameterizedVecStaticIndex | _: ParameterizedVecWholeAssignment =>
+        case operation => fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-OPERATION-UNSUPPORTED",
+          "a certified recursive replay Vec supports exact static leaves and whole assignments at its transport boundary",
+          operation.sourceLocation)
+      }
+    }
+    val nested = new IdentityHashMap[Vec[_], java.lang.Boolean]()
+    retained.foreach(vector => vector.vec.foreach(element =>
+      ParameterizedVecElementLayout.nestedVectors(element.asInstanceOf[Data])
+        .foreach(child => nested.put(child, java.lang.Boolean.TRUE))))
+    retained.filterNot(vector => nested.containsKey(vector) || TypedBalancedReductionBackend.ownsRecursiveTransport(vector)).filter { vector =>
       val shape = ParameterizedVec.shapeOf(vector).getOrElse {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-VEC-SHAPE-MISSING",
@@ -1196,7 +1247,11 @@ private[internals] object ParameterizedVerilogVecs {
       }
       val depth = ExternalFormalParameterRegistry
         .normalizedDefinitionSchema(shape.depth)
-      s"$name:${expressionSchema(depth)}:${shape.witnessDepth}:${shape.carrierCapacity}:${leaves.mkString("|")}"
+      val recursive = if (shape.elementLayout.hasNestedVectors)
+        ":" + shape.elementLayout.schemaUsing(value => expressionSchema(
+          ExternalFormalParameterRegistry.normalizedDefinitionSchema(value)))
+        else ""
+      s"$name:${expressionSchema(depth)}:${shape.witnessDepth}:${shape.carrierCapacity}:${leaves.mkString("|")}$recursive"
     }.sorted
 
   def rewrite(
@@ -1264,6 +1319,9 @@ private[internals] object ParameterizedVerilogVecs {
               )
               lines = rewritten.lines
               rewritten.consumedDynamicWrites.foreach(value => consumedDynamicWrites.put(value, java.lang.Boolean.TRUE))
+            case None
+                if TypedBalancedReductionBackend.ownsRecursiveTransport(value.source) =>
+              lines = rewriteRecursiveTransportAssignment(lines, plan, value, claimedAssignments, liveAssignments)
             case None
                 if isClaimedChildOutputBoundary(
                   component,
@@ -1572,6 +1630,9 @@ private[internals] object ParameterizedVerilogVecs {
           )
         }
         if (found != 0) {
+          if (plan.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render) != "1")
+            fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-STATIC-INDEX-INVALID",
+              s"static nested Vec leaf '${leaf.name}' is not active over every admitted inner dimension", plan.sourceLocation)
           if (isSignedLeaf(leaf.shape)) {
             if (!morphhdl.MorphSignedCasts.isEnabled(pc.config)) {
               fail(
@@ -1711,6 +1772,10 @@ private[internals] object ParameterizedVerilogVecs {
         )
       }
       val allLeaves = vector.vec.zipWithIndex.flatMap { case (element, elementIndex) =>
+        if (!ParameterizedVecElementLayout.equivalent(shape.elementLayout.root,
+            ParameterizedVecElementLayout.capture(element.asInstanceOf[Data]).root))
+          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-LAYOUT-MISMATCH",
+            s"Vec element $elementIndex changed its retained recursive geometry before publication", shape.sourceLocation)
         val flattened = element.asInstanceOf[Data].flatten.toVector
         if (flattened.size != shape.elementLeaves.size) {
           fail(
@@ -1772,7 +1837,7 @@ private[internals] object ParameterizedVerilogVecs {
             shape.sourceLocation
           )
         }
-        val elementWidth = renderSum(shape.elementLeaves.map(_.width))
+        val elementWidth = renderElementWidth(shape)
         val totalWidth = multiplyTerms(elementWidth, render(shape.depth))
         val totalRange = s"[${parenthesize(totalWidth)}-1:0]"
         Some(
@@ -1834,8 +1899,7 @@ private[internals] object ParameterizedVerilogVecs {
   ): Unit = {
     ElabInt.validateExpression(shape.depth, "typed Vec publication depth")
     if (
-      (shape.depth.parameters.isEmpty &&
-        shape.elementLeaves.forall(_.width.parameters.isEmpty)) ||
+      shape.parameters.isEmpty ||
       shape.depth.minimum < 1 ||
       shape.depth.maximum < shape.depth.minimum ||
       shape.depth.default != BigInt(shape.witnessDepth) ||
@@ -1864,7 +1928,7 @@ private[internals] object ParameterizedVerilogVecs {
         )
       }
     }
-    val maximum = shape.depth.maximum * shape.elementWidthMaximum
+    val maximum = shape.depth.maximum * shape.logicalElementWidthMaximum
     if (maximum > BigInt(pc.config.bitVectorWidthMax)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-TOTAL-WIDTH-TOO-LARGE",
@@ -1884,7 +1948,7 @@ private[internals] object ParameterizedVerilogVecs {
     var lines = original
     component.children.foreach { child =>
       val childVectors = ArrayBuffer.empty[(Vec[_], ParameterizedVecShape)]
-      ParameterizedVec.vectorsOf(child).foreach { vector =>
+      publicationVectors(child).foreach { vector =>
         val shape = ParameterizedVec.shapeOf(vector).get
         val leaves = vector.vec.flatMap(element => element.asInstanceOf[Data].flatten).toVector
         if (leaves.nonEmpty && leaves.forall(_.isIo))
@@ -2283,6 +2347,58 @@ private[internals] object ParameterizedVerilogVecs {
     */
   private def compactExpression(value: String): String =
     value.filterNot(_.isWhitespace)
+
+  /** A reduction result deliberately retains scalar native anchors until the
+    * reduction emitter has reconstructed their logical offsets. Consume only
+    * exact full leaf-to-leaf assignments when it crosses into a public Vec.
+    */
+  private def rewriteRecursiveTransportAssignment(
+      original: Vector[String], target: VecPlan,
+      operation: ParameterizedVecWholeAssignment,
+      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],
+      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]
+  ): Vector[String] = {
+    val sourceShape = ParameterizedVec.shapeOf(operation.source).getOrElse {
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISSING",
+        "certified recursive result lost its Vec shape", operation.sourceLocation)
+    }
+    requireCompatibleShapes(target.shape, target.name, sourceShape,
+      "certified recursive result", operation.sourceLocation)
+    if (!ParameterizedVecElementLayout.equivalent(target.shape.elementLayout.root, sourceShape.elementLayout.root))
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISMATCH",
+        "certified recursive result has a different dimension tree", operation.sourceLocation)
+    val sources = vectorLeaves(operation.source)
+    requireLiveAssignmentEvidence(operation.assignments, live,
+      "certified recursive result assignment", operation.sourceLocation)
+    if (sources.size != target.leaves.size || operation.assignments.size != sources.size)
+      fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH",
+        "certified recursive result needs one exact assignment per carrier leaf", operation.sourceLocation)
+    val replacements = target.leaves.zip(sources).map { case (leaf, source) =>
+      val assignment = operation.assignments.filter { a =>
+        (a.target eq leaf.value) && (a.source eq source)
+      }
+      if (assignment.size != 1)
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH",
+          "certified recursive result assignment changed a leaf or introduced a partial target", operation.sourceLocation)
+      val name = requiredBaseName(source, "certified recursive result leaf", operation.sourceLocation)
+      val parsed = findAssignment(original, leaf.name, None,
+        "certified recursive result assignment", operation.sourceLocation)
+      if (!parsed.continuous || parsed.operator != "=" || parsed.rhs.trim != name)
+        fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH",
+          "certified recursive result requires an exact direct continuous leaf driver", operation.sourceLocation)
+      val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)
+      val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) "1"
+        else s"(${leaf.elementIndex} < (${render(target.shape.depth)}))"
+      val condition = Vector(outer, nested).filterNot(_ == "1").mkString(" && ")
+      val assign = s"assign ${target.constantSlice(leaf.elementIndex, leaf.leafIndex)} = $name;"
+      val body = if (condition.isEmpty) assign else
+        s"generate if ($condition) begin\n    $assign\n  end endgenerate"
+      parsed.lineIndex -> (parsed.indentation + body)
+    }
+    claimAssignmentEvidence(operation.assignments, live, claimed,
+      "certified recursive result assignment", operation.sourceLocation)
+    replacements.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }
+  }
 
   private def rewriteWholeAssignment(
       original: Vector[String],
@@ -2874,9 +2990,14 @@ private[internals] object ParameterizedVerilogVecs {
         case cast: CastSIntToBits => trace(cast.input)
         case cast: CastBoolToBits => trace(cast.input)
         case cast: CastEnumToBits => trace(cast.input)
-        case intermediate: BaseType if intermediate ne blocked =>
+        case intermediate: BaseType
+            if (intermediate ne blocked) && intermediate.isComb &&
+              !intermediate.isIo && !intermediate.isAnalog &&
+              blocked.component != null && (intermediate.component eq blocked.component) &&
+              (intermediate.parentScope eq blocked.component.dslBody) =>
           val drivers = exactLiveDrivers(intermediate, live)
-          if (drivers.size == 1)
+          if (drivers.size == 1 && (drivers.head.target eq intermediate) &&
+              (drivers.head.parentScope eq blocked.component.dslBody))
             trace(drivers.head.source).map(proof =>
               proof.copy(
                 supportAssignments = proof.supportAssignments :+ drivers.head
@@ -3284,7 +3405,7 @@ private[internals] object ParameterizedVerilogVecs {
 
     val resultRetained = operation.resultAssignments.filter(assignment => assignment.finalTarget eq operation.result)
     val logicalWitnessWidth =
-      BigInt(plan.shape.witnessDepth) * plan.shape.elementWidthDefault
+      BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault
     val exactLogicalResize = resultRetained match {
       case Vector(assignment) =>
         assignment.source match {
@@ -4731,7 +4852,7 @@ private[internals] object ParameterizedVerilogVecs {
       plan: VecPlan,
       sourceLocation: Option[String]
   ): Unit = {
-    val expected = BigInt(plan.shape.witnessDepth) * plan.shape.elementWidthDefault
+    val expected = BigInt(plan.shape.witnessDepth) * plan.shape.logicalElementWidthDefault
     if (BigInt(data.getBitsWidth) != expected) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-WITNESS-WIDTH-MISMATCH",
@@ -4789,6 +4910,7 @@ private[internals] object ParameterizedVerilogVecs {
       !ElabInt.equivalentExpression(left.depth, right.depth) ||
       left.witnessDepth != right.witnessDepth ||
       left.carrierCapacity != right.carrierCapacity ||
+      !ParameterizedVecElementLayout.equivalent(left.elementLayout.root, right.elementLayout.root) ||
       !leavesCompatible
     ) {
       fail(
@@ -5061,6 +5183,14 @@ private[internals] object ParameterizedVerilogVecs {
     }
     value
   }
+
+  private def renderElementWidth(shape: ParameterizedVecShape): String =
+    if (shape.elementLayout.hasNestedVectors) shape.elementLayout.width(render)
+    else renderSum(shape.elementLeaves.map(_.width))
+
+  private def renderElementOffset(shape: ParameterizedVecShape, leafIndex: Int): String =
+    if (shape.elementLayout.hasNestedVectors) shape.elementLayout.leaves(leafIndex).offset(render)
+    else renderSum(shape.elementLeaves.take(leafIndex).map(_.width))
 
   private def renderSum(
       expressions: Vector[ElaborationIntegerExpression]

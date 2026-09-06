@@ -485,7 +485,15 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   override def asBits: Bits = {
-    ParameterizedVec.recordPackedRead(this, super.asBits)
+    // The outer packing operation owns the complete recursive carrier. Calling
+    // a nested typed Vec.asBits here would insert its logical witness resize
+    // before the outer exact-carrier proof and lose independently sized lanes.
+    val carrier = ParameterizedVec.shapeOf(this) match {
+      case Some(shape) if shape.elementLayout.hasNestedVectors =>
+        this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)
+      case _ => super.asBits
+    }
+    ParameterizedVec.recordPackedRead(this, carrier)
   }
 
   override def assignFromBits(bits: Bits): Unit = {

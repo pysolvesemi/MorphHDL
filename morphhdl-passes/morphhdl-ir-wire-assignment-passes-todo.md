@@ -14,9 +14,9 @@ and before Verilog-2001 emission:
 
 WA-07a is the user-authorized addition to this roadmap. It is inserted before
 WA-08, whose production handoff must include the new pass and its proof gates.
-The four-stage standalone pipeline is implemented; WA-07a remains unchecked
-until its complete native witness and formal qualification gates pass. No pass executes in production
-until WA-08.
+The four-stage standalone pipeline is implemented and its native witness and
+formal qualification are recorded in [WA-07a evidence](wa07a-completion-evidence.md).
+Production execution and writeback remain the separate WA-08 increment.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
 `true` must execute all four in the fixed order above. Internal proof fixtures
@@ -498,11 +498,14 @@ WA-04 or WA-05 can remove an alias.
   `WIDTH=1..64` by `DEPTH=1..8` bindings. Retain strict Verilog-2001, lint,
   synthesis, representative simulation, mutation and repeated-emission gates.
 
-- [ ] **WA-07a — Constant-operand expression simplification**
+- [x] **WA-07a — Constant-operand expression simplification**
 
   **Dependencies:** WA-07 implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
+
+  Implementation qualification and the separate final-head merge gate are
+  recorded in [WA-07a evidence](wa07a-completion-evidence.md).
 
   Add `ConstantOperandSimplificationPass` over the canonical IR. Implement the
   bounded bitwise, Boolean, unary, zero-shift and constant-mux rules above,
@@ -531,9 +534,11 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-07, WA-07a and PV-58 implemented and merged.
 
-  **Status:** `BLOCKED`.
+  **Status:** `READY`.
 
-  Blocked by WA-07a's implementation and proof closure. Expand PV-58's validated
+  Eligible to start once this WA-07a completion is merged into
+  `parameterized-verilog`; an open completion PR does not satisfy its dependency.
+  Expand PV-58's validated
   publication profile to carry the approved pure expression algebra and
   connect the one-flag four-pass pipeline to the MorphHDL single-source
   production path after parameterization/capture and before Verilog lowering.

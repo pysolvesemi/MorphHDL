@@ -11,11 +11,13 @@ import org.objectweb.asm.tree._
   *
   * Admit compiler-generated, capture-free static lambdas only. Their complete
   * bytecode (including static adapters/helpers) may read arguments and locals,
-  * call the enumerated native scalar construction methods, and return. Native
-  * immutable source-location construction is admitted for DSL assignments. Only a
+  * call the enumerated native scalar/composite construction methods, and return.
+  * Composite field access and constructors have a separate exact bytecode
+  * inspector, and native clone dispatch is checked against the actual inputs.
+  * Immutable source-location construction is admitted for DSL assignments. Only a
   * bridge may branch, and its integer data can originate only in the level
-  * argument or constants. Host fields, arbitrary calls, exceptions, allocations,
-  * invokedynamic and loops all reject. This contract authorizes executing the
+  * argument or constants. Host fields, arbitrary calls, exceptions, unchecked
+  * allocations, callback invokedynamic and loops all reject. This contract authorizes executing the
   * callback once for graph certification; it does not authorize native graph
   * replay, width transfer, associativity or publication by itself.
   */
@@ -26,6 +28,21 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
   def requireSupported(op: AnyRef, bridge: AnyRef): Unit = {
     requireSupportedOperator(op)
     requireSupportedBridge(bridge)
+  }
+
+  def requireSupported(op: AnyRef, bridge: AnyRef, values: Seq[spinal.core.Data]): Unit = {
+    requireSupportedValues(values)
+    requireSupported(op, bridge)
+  }
+
+  def requireSupportedValues(values: Seq[spinal.core.Data]): Unit = {
+    if (values == null || values.size > 32768) fail("callback input tree exceeds the inspection budget")
+    val policies = scala.collection.mutable.Map.empty[ClassLoader, TypedBalancedReductionCompositeCallbackPolicy]
+    values.foreach { value =>
+      if (value == null) fail("callback input must be present")
+      policies.getOrElseUpdate(value.getClass.getClassLoader,
+        new TypedBalancedReductionCompositeCallbackPolicy(value.getClass.getClassLoader)).requireValue(value)
+    }
   }
 
   def requireSupportedOperator(callback: AnyRef): Unit = check(callback, bridge = false)
@@ -61,6 +78,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
         serialized.getFunctionalInterfaceMethodName != "apply")
       fail("only capture-free static Scala Function2 callbacks are supported")
     val loader = cls.getClassLoader
+    val composites = new TypedBalancedReductionCompositeCallbackPolicy(loader)
     val owner = serialized.getImplClass
     val clazz = new ClassNode(Opcodes.ASM9)
     val stream = Option(loader.getResourceAsStream(owner + ".class"))
@@ -101,7 +119,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
         fail("callback methods must be ordinary static code without exception handlers")
       val arguments = Type.getArgumentTypes(descriptor).toVector
       if (arguments.size != 2 || !arguments.forall { arg =>
-          dataDescriptors(arg.getDescriptor) || arg.getDescriptor == "Ljava/lang/Object;" ||
+          dataDescriptors(arg.getDescriptor) || composites.dataDescriptor(arg.getDescriptor) || arg.getDescriptor == "Ljava/lang/Object;" ||
             (bridge && arg.getSort == Type.INT)
         } || !Set(Type.OBJECT).contains(Type.getReturnType(descriptor).getSort))
         fail("callback helper changed the two-argument scalar/level signature")
@@ -119,31 +137,32 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
               fail("callback may only read/write scalar locals and the bridge level")
           case insn: TypeInsnNode =>
             val cast = insn.getOpcode == Opcodes.CHECKCAST &&
-              (dataNames(insn.desc) || (bridge && insn.desc == "spinal/core/DataPrimitives"))
-            val location = bridge && insn.getOpcode == Opcodes.NEW && insn.desc == "spinal/idslplugin/Location"
+              (dataNames(insn.desc) || composites.dataName(insn.desc) || insn.desc == "spinal/core/DataPrimitives")
+            val location = insn.getOpcode == Opcodes.NEW && insn.desc == "spinal/idslplugin/Location"
             if (!cast && !location)
               fail("callback allocation and non-scalar casts are unsupported")
           case insn: InsnNode =>
             val common = Set(Opcodes.NOP, Opcodes.ARETURN, Opcodes.ACONST_NULL, Opcodes.DUP, Opcodes.POP)
             val integerConstants = insn.getOpcode >= Opcodes.ICONST_M1 && insn.getOpcode <= Opcodes.ICONST_5
-            if (!common(insn.getOpcode) && !(bridge && integerConstants))
+            if (!common(insn.getOpcode) && !integerConstants)
               fail("unsupported callback opcode " + insn.getOpcode)
           case insn: IntInsnNode =>
-            if (!bridge || !Set(Opcodes.BIPUSH, Opcodes.SIPUSH).contains(insn.getOpcode))
+            if (!Set(Opcodes.BIPUSH, Opcodes.SIPUSH).contains(insn.getOpcode))
               fail("unsupported callback integer instruction")
           case insn: LdcInsnNode =>
-            if (!bridge || !(insn.cst.isInstanceOf[java.lang.Integer] || insn.cst.isInstanceOf[String]))
+            if (!(insn.cst.isInstanceOf[java.lang.Integer] || insn.cst.isInstanceOf[String]))
               fail("callbacks may not read object, string or floating constants")
           case insn: FieldInsnNode =>
             val module = insn.name == "MODULE$" && nativeModules(insn.owner) && insn.desc == "L" + insn.owner + ";"
             val unit = insn.owner == "scala/runtime/BoxedUnit" && insn.name == "UNIT" &&
               insn.desc == "Lscala/runtime/BoxedUnit;"
-            if (!bridge || insn.getOpcode != Opcodes.GETSTATIC || (!module && !unit))
+            if (insn.getOpcode != Opcodes.GETSTATIC ||
+                (!(bridge && (module || unit)) && !composites.moduleField(insn)))
               fail("callbacks may not read or write host fields")
           case insn: MethodInsnNode =>
             if (insn.owner == owner && insn.getOpcode == Opcodes.INVOKESTATIC)
               audit(insn.name, insn.desc, depth + 1)
-            else if (!nativeCall(insn, bridge))
+            else if (!nativeCall(insn, bridge) && !composites.nativeCall(insn, bridge))
               fail("unsupported callback call " + insn.owner + "." + insn.name + insn.desc)
           case insn: JumpInsnNode =>
             val allowed = Set(Opcodes.GOTO, Opcodes.IFEQ, Opcodes.IFNE, Opcodes.IFLT,

@@ -31,13 +31,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
-      - name: Exact source scope and inherited native audits
+      - name: Sealed historical source scope and current native audits
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/increment-60d
           git archive HEAD | gzip > target/increment-60d/source.tar.gz
-          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py --source-only
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py
@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py target/increment-60d/a
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --inherited-track 60d target/increment-60d/a
       - name: Retain exact-head sources and qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
