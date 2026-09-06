@@ -228,11 +228,39 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       assert(!default.contains("$signed($signed("))
       val result = morphhdl.MorphVerilog.tryGenerate(fresh(root.resolve("try.v")))(dut)
       assert(result.isRight)
-      morphhdl.MorphVerilog.generateWithCanonicalIr(fresh(root.resolve("canonical.v")))(dut)
       assert(default == read(root.resolve("try.v")))
-      assert(default == read(root.resolve("canonical.v")))
       morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(root.resolve("explicit.v"))))(dut)
       assert(default == read(root.resolve("explicit.v")))
+
+      // Canonical IR's simple-wire profile has no nested Vec scopes or compound
+      // widths. Exercise its supported scalar surface independently, rather
+      // than broadening that producer as part of a signedness-default rollout.
+      def scalar = new Component {
+        setDefinitionName("DefaultSignedCanonicalWire")
+        val a = in(SInt(parameter bits))
+        val b = out(SInt(parameter bits))
+        b := a
+      }
+      morphhdl.MorphVerilog(fresh(root.resolve("scalar.v")))(scalar)
+      val scalarDefault = read(root.resolve("scalar.v"))
+      assert(port(scalarDefault, "a").contains("wire signed [WIDTH-1:0]"))
+      val captured = morphhdl.MorphVerilog.generateWithCanonicalIr(
+        fresh(root.resolve("canonical.v")))(scalar)
+      assert(scalarDefault == read(root.resolve("canonical.v")))
+      assert(captured.handoff.design.modules.head.declarations.forall(
+        _.packedType.exists(_.valueSemantics == morphhdl.ir.v1.PackedValueSemantics.SignedInteger)))
+      var received: morphhdl.ir.v1.CanonicalIrHandoff = null
+      val published = morphhdl.MorphVerilog.publishCanonicalIr(
+        fresh(root.resolve("published.v")),
+        new morphhdl.ir.v1.CanonicalIrPublisher {
+          override def publish(handoff: morphhdl.ir.v1.CanonicalIrHandoff): Unit = {
+            assert(received == null)
+            assert(Files.isRegularFile(root.resolve("published.v")))
+            received = handoff
+          }
+        })(scalar)
+      assert(received eq published.handoff)
+      assert(scalarDefault == read(root.resolve("published.v")))
     }
   }
 

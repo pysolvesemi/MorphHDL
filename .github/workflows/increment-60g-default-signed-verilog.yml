@@ -39,6 +39,7 @@ jobs:
           {
             python3 morphhdl/scripts/check-increment-60g-source-scope.py
             python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
             python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
             python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
             python3 morphhdl/scripts/test-increment-59f-source-scope.py

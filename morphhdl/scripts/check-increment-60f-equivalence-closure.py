@@ -16,9 +16,14 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+COMPLETED_59F = "c85659a20d428dd58cc6116c12c8b24418c37722"
+INHERITED_TRACKS = {"60c": "60c-signed-declarations", "60d": "60d-pure-sint-casts",
+                    "60e": "60e-signedness-boundaries"}
 QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
 # Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
 # This does not expand 60f's historical qualification-only production scope.
@@ -45,11 +50,6 @@ CALLBACK_59F_PRODUCTION_SHA256 = {
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala": "a1de8e5058d02f66c801f70409f7e208daed3a2a1d1584491e3be837615352ed",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala": "43e5ee1294041a4bf7f46fc92ec56569d0bf20e8180c770749ae976060afcd10",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala": "da743fb98428d5ffb6d2875096293daad1da99dfb4b796e7cc4c540d76d3f899"
-}
-ROLLOUT_60G_PRODUCTION_SHA256 = {
-    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "2729b023267fbc999768b460195c556ed2b5508a277082ab369d5dad5bffcbcc",
-    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
-    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23"
 }
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
@@ -130,6 +130,194 @@ def self_test() -> None:
             continue
         raise RuntimeError("failed to reject invalid result: " + repr(args))
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
+    source_scope_self_test()
+
+
+def qualification_interval(root: Path, baseline: str, completed: str) -> None:
+    """Seal this completed increment's scope without freezing later work."""
+    for older, newer in ((baseline, completed), (completed, "HEAD")):
+        subprocess.run(["git", "merge-base", "--is-ancestor", older, newer], cwd=root, check=True)
+    changed = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", baseline, completed], cwd=root, text=True).splitlines()
+    production = sorted(path for path in changed if re.search(r"(?:^|/)src/main/", path))
+    require(not production, "completed 60f interval changed production sources:\n" + "\n".join(production))
+
+
+def source_scope_self_test() -> None:
+    """Exercise the historical boundary and the real current native auditor."""
+    audit_path = Path(__file__).with_name("check-native-source-preservation.py")
+    spec = importlib.util.spec_from_file_location("closure_native_audit", audit_path)
+    require(spec is not None and spec.loader is not None, "cannot load native audit controls")
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60f-scope-") as directory:
+        root = Path(directory) / "repository"
+        root.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        git("init", "-q")
+        git("config", "user.name", "MorphHDL scope control")
+        git("config", "user.email", "scope@example.invalid")
+        for index, source_root in enumerate(audit.EXPECTED_SOURCE_ROOTS):
+            marker = root / source_root / "scala" / f"Marker{index}.scala"
+            marker.parent.mkdir(parents=True)
+            marker.write_text(f"object Marker{index}\n")
+        upstream = commit("upstream")
+        config = root / audit.DEFAULT_UPSTREAM_CONFIG
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("UPSTREAM_COMMIT=" + upstream + "\n")
+        initial = "core/src/main/scala/InitialSupport.scala"
+        (root / initial).write_text("object InitialSupport\n")
+        baseline = commit("reviewed implementation before qualification")
+
+        def reviewed_support(path: str) -> dict:
+            return dict(path=path, baseline_path=None, change="added", classification="typed-support-file",
+                        introduced_by=["source-scope control"], reason="explicitly reviewed native support", edits=[])
+
+        policy = dict(schema_version=1, repository=audit.EXPECTED_REPOSITORY,
+                      baseline_commit=upstream, files=[reviewed_support(initial)])
+        policy_path = Path(directory) / "review.json"
+        manifest_path = Path(directory) / "manifest.json"
+
+        def approve_current() -> None:
+            policy_path.write_text(json.dumps(policy))
+            manifest_path.write_text(json.dumps(audit.generate_manifest_value(root, policy_path)))
+            audit.validate_repository(root, manifest_path)
+
+        approve_current()
+        baseline_manifest = manifest_path.read_bytes()
+        (root / "qualification.txt").write_text("tests and evidence only\n")
+        completed = commit("completed qualification-only increment")
+        qualification_interval(root, baseline, completed)
+        audit.validate_repository(root, manifest_path)
+
+        later = "core/src/main/scala/LaterSupport.scala"
+        (root / later).write_text("object LaterSupport\n")
+        current = commit("later implementation increment")
+        qualification_interval(root, baseline, completed)
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("UNAPPROVED-PATH"), "wrong unreviewed-source rejection: " + str(error))
+        else:
+            raise RuntimeError("later native production changes escaped the current approved-source audit")
+        policy["files"].append(reviewed_support(later))
+        approve_current()
+        try:
+            qualification_interval(root, baseline, current)
+        except RuntimeError as error:
+            require("changed production sources" in str(error), "wrong historical source rejection")
+        else:
+            raise RuntimeError("production changes were accepted inside a qualification-only interval")
+
+        (root / later).write_text("object LaterSupport { val unreviewed = true }\n")
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("DIRTY-WORKTREE"), "wrong dirty-source rejection: " + str(error))
+        else:
+            raise RuntimeError("uncommitted native production changes escaped the current source audit")
+        (root / later).write_text("object LaterSupport\n")
+
+        # Exercise the new selector with real Git deltas and the real native
+        # auditor. This small fixture replaces only the full repository's sealed
+        # oracle files/history with its synthetic completed interval.
+        from unittest import mock
+        wa_bytes = {path: ("synthetic WA source " + path + "\n").encode()
+                    for path in WA07A_PRODUCTION_SHA256}
+        wa_hashes = {path: hashlib.sha256(data).hexdigest() for path, data in wa_bytes.items()}
+        scope_calls = 0
+
+        def fixture_evolution_scope(repository: Path) -> None:
+            nonlocal scope_calls
+            scope_calls += 1
+            qualification_interval(repository, baseline, completed)
+            audit.validate_repository(repository, manifest_path)
+
+        def rejected_profile(label: str) -> None:
+            try:
+                regression_profile(root)
+            except (RuntimeError, audit.AuditError):
+                return
+            raise RuntimeError("regression selector accepted " + label)
+
+        with mock.patch.dict(globals(), BASE=baseline, QUALIFIED_60F=completed,
+                             COMPLETED_60F=completed, WA07A_PRODUCTION_SHA256=wa_hashes,
+                             source_evolution_scope=fixture_evolution_scope):
+            approved_manifest = manifest_path.read_bytes()
+            manifest_path.write_bytes(baseline_manifest)
+            rejected_profile("unapproved committed native evolution")
+            manifest_path.write_bytes(approved_manifest)
+            require(regression_profile(root) == "60f-baseline", "later native source lost baseline pass profile")
+            for path, data in wa_bytes.items():
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+            commit("exact reviewed pass profile after later native evolution")
+            require(regression_profile(root) == "60f-with-wa07a", "later native source lost exact WA profile")
+            require(scope_calls >= 3, "later production skipped the current native scope gate")
+
+            first = next(iter(wa_bytes))
+            (root / first).write_bytes(wa_bytes[first] + b"staged mutation\n")
+            git("add", "--", first)
+            (root / first).write_bytes(wa_bytes[first])
+            rejected_profile("staged mutation hidden by restored working-tree bytes")
+            git("reset", "-q", "HEAD", "--", first)
+
+            (root / ".gitignore").write_text("ignored/\n")
+            ignored = root / "ignored/src/main/scala/Hidden.scala"
+            ignored.parent.mkdir(parents=True)
+            ignored.write_text("object Hidden\n")
+            rejected_profile("ignored untracked production during later evolution")
+            ignored.unlink()
+
+            extra = "morphhdl-passes/nested/backend/src/main/scala/Extra.scala"
+            target = root / extra
+            target.parent.mkdir(parents=True)
+            target.write_text("object Extra\n")
+            commit("unreviewed nested pass project")
+            rejected_profile("committed production in a nested pass project")
+            git("rm", "-q", "--", extra)
+            commit("remove nested pass project")
+
+            (root / first).write_bytes(wa_bytes[first] + b"committed mutation\n")
+            commit("changed pass source hash")
+            rejected_profile("committed WA source hash mutation")
+            (root / first).write_bytes(wa_bytes[first])
+            commit("restore exact pass source")
+            git("rm", "-q", "--", first)
+            commit("missing required pass source")
+            rejected_profile("committed missing WA source")
+            (root / first).parent.mkdir(parents=True, exist_ok=True)
+            (root / first).write_bytes(wa_bytes[first])
+            commit("restore missing pass source")
+            require(regression_profile(root) == "60f-with-wa07a", "selector fixture restoration failed")
+        print("60f evolved-source/pass-profile selection and six rejection controls PASS", flush=True)
+    print("60f historical scope and current approved native-source controls PASS", flush=True)
+
+
+def checked_pass_profile(root: Path, changed: set[str]) -> str:
+    if not changed:
+        return "60f-baseline"
+    require(changed == set(WA07A_PRODUCTION_SHA256),
+            "unreviewed production delta: " + str(sorted(changed)))
+    for path, digest in WA07A_PRODUCTION_SHA256.items():
+        source = root / path
+        require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
+                "reviewed WA-07a production source hash differs: " + path)
+        stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root).decode("utf-8").split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "reviewed WA-07a production source is not uniquely tracked: " + path)
+    return "60f-with-wa07a"
 
 
 def production_profile(root: Path) -> str:
@@ -164,10 +352,6 @@ def production_profile(root: Path) -> str:
         frozenset(wa | callbacks): ("60f-with-wa07a-and-59f",
                                    {**WA07A_PRODUCTION_SHA256, **CALLBACK_59F_PRODUCTION_SHA256}),
     }
-    rollout = set(ROLLOUT_60G_PRODUCTION_SHA256)
-    require(len(rollout) == 3 and not rollout & (wa | callbacks), "60g production profile overlaps")
-    for paths, (name, hashes) in list(profiles.items()):
-        profiles[paths | frozenset(rollout)] = (name + "-and-60g", {**hashes, **ROLLOUT_60G_PRODUCTION_SHA256})
     require(frozenset(changed) in profiles,
             "unreviewed production delta: " + str(sorted(changed)))
     profile, hashes = profiles[frozenset(changed)]
@@ -183,6 +367,67 @@ def production_profile(root: Path) -> str:
     return profile
 
 
+def regression_profile(root: Path) -> str:
+    """Choose the pass inventory from source, retaining later increment development."""
+    profile = current_regression_profile(root)[0]
+    # The later rollout owns its exact three-file publication policy. Its
+    # source gate, not XML counts or a branch name, admits the extra tests.
+    if (root / "morphhdl/scripts/check-increment-60g-source-scope.py").is_file():
+        load(root, "60g-source-scope").source_scope(root)
+        profile += "-and-60g"
+    return profile
+
+
+def current_regression_profile(root: Path) -> tuple[str, bool]:
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    require(subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+                           cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0,
+            "qualified 60f must be an ancestor of HEAD")
+    # Check index and working tree independently: an uncommitted staged edit
+    # cannot be hidden by restoring only the working-tree bytes to HEAD.
+    for label, args in (("staged", ("diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD")),
+                        ("unstaged", ("diff", "--no-renames", "--name-only", "-z"))):
+        dirty = production_paths(git(*args))
+        require(not dirty, label + " production sources: " + str(sorted(dirty)))
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, "HEAD"))
+    # The whole pass workspace remains closed, including possible nested
+    # production projects. A new path cannot evade the fixed WA inventory.
+    pass_changes = {path for path in changed if path.startswith("morphhdl-passes/")}
+    callbacks_completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", COMPLETED_59F, "HEAD"], cwd=root,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    # Preserve the four exact original profiles, including their full source
+    # hash controls. Other committed evolution uses the completed-increment
+    # history and current audits below rather than relabeling an exact profile.
+    callback_changes = set(CALLBACK_59F_PRODUCTION_SHA256)
+    if changed in (set(), set(WA07A_PRODUCTION_SHA256), callback_changes,
+                   set(WA07A_PRODUCTION_SHA256) | callback_changes):
+        profile = production_profile(root)
+        require(not callbacks_completed or profile in ("60f-with-59f", "60f-with-wa07a-and-59f"),
+                "completed 59f callback profile cannot disappear from a descendant")
+        return profile, False
+    # The completed historical interval, sealed semantic authorities and current
+    # native manifest remain gates. Other committed front-end development is
+    # qualified by its own increment; this is not a global approval ledger.
+    qualification_interval(root, BASE, QUALIFIED_60F)
+    source_evolution_scope(root)
+    profile = checked_pass_profile(root, pass_changes)
+    # Completed callback support retains its complete regression inventory as
+    # later increments extend shared implementation files. Mere file presence
+    # cannot activate or suppress these separately qualified suites.
+    if callbacks_completed:
+        profile = "60f-with-wa07a-and-59f" if profile == "60f-with-wa07a" else "60f-with-59f"
+    return profile, True
+
+
 def restore_rollout(root: Path, path: str, source: str) -> str:
     helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
     if not helper.is_file():
@@ -195,9 +440,14 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
 
 
 def source_scope(root: Path) -> None:
-    # Preserve the inherited audits and their precise rejection diagnostics.
-    # The complete production profile remains mandatory after those audits;
-    # report validation also checks it before consulting any XML inventory.
+    profile, current_scope_checked = current_regression_profile(root)
+    if not current_scope_checked:
+        source_evolution_scope(root)
+    print("60f current regression pass profile: " + profile + " PASS", flush=True)
+
+
+def source_evolution_scope(root: Path) -> None:
+    qualification_interval(root, BASE, COMPLETED_60F)
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -207,6 +457,10 @@ def source_scope(root: Path) -> None:
         "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
         "morphhdl/src/test/scala/nativeapplication/PureSIntCastFixture.scala",
         "morphhdl/src/test/scala/spinal/core/SignednessBoundaryFixture.scala",
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+        "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
+        "morphhdl/contracts/increment-60d-emitter-edits.json",
+        "morphhdl/contracts/increment-60e-boundary-edits.json",
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
@@ -215,13 +469,40 @@ def source_scope(root: Path) -> None:
                 (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
             current = load(root, "59f-source-scope").restore_59f_source(
                 root, path, current.decode()).encode()
-        require(current == old, "sealed writer/checker changed: " + path)
-    for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
-        load(root, suffix).source_scope(root)
+        require(current == old, "sealed oracle/authority/contract changed: " + path)
+    # The declaration/cast printers remain sealed at the completed signedness
+    # qualification even as unrelated reviewed native entry points evolve.
+    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
+        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
+        require((root / path).read_bytes() == old,
+                "native signed declaration/cast hooks changed after their frozen qualification")
+    # Exact publisher restoration remains a current check after callback
+    # support has merged; the historical signedness tree cannot replace it.
+    if (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
+        load(root, "59f-source-scope").source_scope(root)
+    # Preserve the predecessor source gates' ongoing inference bans on current
+    # policies; these are not historical diff-scope restrictions.
+    for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
+        source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
+        for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
+            require(token not in source, "signedness authority uses forbidden inference: " + token)
+    # The inherited restoration checks describe the implementation that 60f
+    # qualified. Re-run them on that exact completed tree; later increments
+    # legitimately extend these same production files. Their current native
+    # changes must still pass the complete path/blob/span audit below, and the
+    # current semantic oracles above remain sealed to their original bytes.
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60f-history-") as directory:
+        historical = Path(directory) / "completed"
+        subprocess.run(["git", "worktree", "add", "--quiet", "--detach", str(historical), COMPLETED_60F],
+                       cwd=root, check=True)
+        try:
+            for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
+                load(historical, suffix).source_scope(historical)
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", str(historical)], cwd=root, check=True)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    profile = production_profile(root)
-    print("60f historical qualification-only scope, " + profile +
-          ", sealed writers/checkers and inherited native audits PASS", flush=True)
+    print("60f completed qualification-only scope, sealed current oracles and current native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:
@@ -420,16 +701,27 @@ endmodule
         "unbounded_equivalence": "retained inherited 60c/60d induction gates"}, indent=2) + "\n")
 
 
+def qualify_inherited(root: Path, out: Path, track: str) -> None:
+    """Run a sealed predecessor's unchanged behavioral gates on current RTL."""
+    require(track in INHERITED_TRACKS, "unknown inherited qualification track: " + track)
+    inherited = load(root, INHERITED_TRACKS[track])
+    if track == "60e":
+        inherited.qualify(root, out, tuple(inherited.KINDS), ("simulation", "formal", "tools"))
+        inherited.mutations(out)
+    else:
+        # Both 60c and 60d qualify() include their original mutation gates.
+        inherited.qualify(root, out)
+    print(track + " inherited behavioral qualification on current artifacts PASS", flush=True)
+
+
 def qualify(root: Path, out: Path, closure_only: bool = False) -> None:
     invalidate_summaries(out)
     for tool in ("yosys", "iverilog", "vvp", "verilator"):
         require(shutil.which(tool) is not None, "missing required tool: " + tool)
     manifest = inventory(root, out)
     if not closure_only:
-        boundary = load(root, "60e-signedness-boundaries")
-        boundary.qualify(root, out / "boundaries", tuple(boundary.KINDS), ("simulation", "formal", "tools"))
-        boundary.mutations(out / "boundaries")
-        load(root, "60d-pure-sint-casts").qualify(root, out / "pure")
+        qualify_inherited(root, out / "boundaries", "60e")
+        qualify_inherited(root, out / "pure", "60d")
     baseline_mutation(root, out)
     memory_validity(root, out)
     require(inventory(root, out) == manifest, "qualification mutated independently generated RTL")
@@ -441,7 +733,7 @@ def qualify(root: Path, out: Path, closure_only: bool = False) -> None:
         "exact_60a_mutation": "SAT counterexample, positive proof and Icarus witness replay",
         "memory_widths": list(WIDTHS), "memory_bounded_steps": MEMORY_STEPS,
         "independent_initial_state_counterexamples": 2 * len(WIDTHS),
-        "default_signedness_cleanup": "unchanged; opt-in"}, indent=2) + "\n")
+        "publication_default": "owned by the calling increment; this proof checks candidate semantics"}, indent=2) + "\n")
     print("60f equivalence, defined domains and solver-counterexample closure PASS", flush=True)
 
 
@@ -449,10 +741,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--source-only", action="store_true")
-    parser.add_argument("--self-test", action="store_true", help="run result-classification controls without external tools")
+    parser.add_argument("--self-test", action="store_true", help="run solver-result and real Git/native-audit source-scope controls")
     parser.add_argument("--closure-only", action="store_true", help="run supplementary proofs only; never claims full qualification")
+    parser.add_argument("--inherited-track", choices=tuple(INHERITED_TRACKS),
+                        help="run one unchanged predecessor's full artifact qualification after the historical/current source gate")
     parser.add_argument("--skip-source", action="store_true", help="artifact stages after a separately completed source gate")
     args = parser.parse_args()
+    require(not (args.inherited_track and args.closure_only), "inherited-track cannot select supplementary 60f closure")
     root = Path(__file__).resolve().parents[2]
     output = args.output.resolve() if args.output else None
     if output is not None:
@@ -464,7 +759,10 @@ def main() -> None:
         source_scope(root)
     if not args.source_only:
         require(args.output is not None, "artifact output directory is required")
-        qualify(root, output, args.closure_only)
+        if args.inherited_track:
+            qualify_inherited(root, output, args.inherited_track)
+        else:
+            qualify(root, output, args.closure_only)
 
 
 if __name__ == "__main__":

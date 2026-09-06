@@ -15,6 +15,7 @@ be accepted without enabling a SystemVerilog parser.
 | Named module instance | `Child #(.PARAM(expr)) instance (.port(signal))` |
 | Named Boolean child binding | `.PARAM((boolean_expr) ? 1 : 0)` after integer-Boolean legalization; literals use `.PARAM(1)` or `.PARAM(0)` |
 | Packed unsigned signal | `wire` or `reg [WIDTH-1:0]` |
+| Native scalar `SInt` (60g single-source default) | `wire signed [WIDTH-1:0]` or `reg signed [WIDTH-1:0]`; retain casts at unproven unsigned boundaries |
 | Combinational process | `always @*` |
 | Clocked process | Edge-sensitive `always` |
 | Structural loop | Named `generate`/`for` with `genvar` |
@@ -267,8 +268,11 @@ Increment 30 applies the same flat ABI directly to native tagged
 Bits/UInt/SInt leaves cloned through HardType, Bundle, static Vec, Stream and
 Flow. Each packed payload leaf and supported internal/register declaration
 uses `[PARAMETER-1:0]`; concrete Bool controls have no range. SInt retains its
-native Spinal AST identity, while emitted declarations intentionally follow
-the native Verilog style without adding a `signed` keyword.
+native Spinal AST identity. The historical Increment 30 profile and explicit
+legacy mode follow the native Verilog style without a `signed` keyword.
+Increment 60g changes the MorphHDL single-source default to signed scalar
+declarations and proven minimal casts, as specified below. Native
+`SpinalVerilog` remains unchanged.
 
 Increment 53f extends that boundary to a typed `Vec` whose logical depth and
 element layout remain attached to the ordinary native Vec. Strict
@@ -284,6 +288,8 @@ port or SystemVerilog multidimensional packed type is required.
 This Vec publication rule does not apply to `Mem`. A typed memory retains its
 unpacked storage declaration, equivalent to
 `reg [WIDTH-1:0] memory [0:DEPTH-1]`, so synthesis can continue to infer RAM.
+An exact scalar `Mem[SInt]` element adds `signed` to this packed element
+declaration in signed mode; an aggregate memory carrier remains unsigned.
 The logical distinction is therefore explicit: Vec is a structural collection
 with a packed Verilog boundary, while Mem is storage with an unpacked array
 declaration.
@@ -322,3 +328,83 @@ Every emitted fixture must pass:
 
 The parser and synthesis checks supplement the internal capability verifier;
 they do not replace it.
+
+
+## Native signed scalar publication (Increment 60g)
+
+The MorphHDL single-source `MorphVerilog(config) { component }` path resolves
+an otherwise neutral configuration to signed scalar declarations and minimal
+proven casts. This is an output-policy change, not a new arithmetic algorithm.
+`SInt` ports, internal wires, registers and exact scalar memory elements retain
+their typed widths and use native Verilog-2001 `signed` declarations. Pure
+signed arithmetic can therefore use `a + b` rather than redundant operand
+casts. Existing truncation, overflow, intermediate widths and operator order
+remain authoritative.
+
+The following selections apply to a fresh `SpinalConfig`:
+
+| Configuration supplied to `MorphVerilog` | Scalar declarations | Expression policy |
+| --- | --- | --- |
+| `config` | Signed | Proven minimal casts (default) |
+| `MorphSignedCasts.enable(config)` | Signed | Explicit selection of the default policy |
+| `MorphSignedDeclarations.enable(config)` | Signed | Existing casts retained |
+| `MorphSignedCasts.disable(config)` | Signed | Cleanup explicitly disabled |
+| `MorphSignedDeclarations.disable(config)` | Legacy unsigned spelling | Existing casts retained |
+
+Options return copied configurations. Default resolution takes place on a
+private publication copy, without adding markers to the caller's configuration.
+There is no environment, process-global or thread-global rollout switch.
+`MorphVerilog.tryGenerate`, canonical-IR generation and canonical-IR publication
+use the same single-source path. The deprecated dual-factory witness path does
+not acquire this new default.
+
+The selectors are layered: enabling declarations on a config that already has
+cleanup enabled retains that cleanup request. To select declaration-only output
+from any enabled config, use `MorphSignedCasts.disable(config)`. Disabling
+declarations takes precedence over cleanup; enabling cleanup explicitly also
+re-enables declarations. Copies preserve explicit choices. `isEnabled(config)`
+queries an installed option marker, not the eventual default of a neutral
+configuration; a neutral caller config remains unmodified after publication.
+
+Ordinary `SpinalVerilog(config)` and `SpinalVhdl(config)` retain their native
+behavior even when a MorphHDL signedness option is present. The default changes
+only MorphHDL's parameterized single-source publication. Previously generated
+RTL consumers that require the legacy declaration spelling can request
+`MorphSignedDeclarations.disable(config)` explicitly. The public
+`symbolic_data_shapes.v` golden follows the new default; sealed historical
+60a–60f reference writers select the legacy profile explicitly and retain their
+original arithmetic and oracle bytes.
+
+### Necessary boundaries
+
+Cast removal requires exact typed graph identity and joint signedness, width
+and expression-context evidence. A signed destination alone never makes an
+unsigned right-hand subexpression signed. Unproven bit/part selections,
+concatenations, mixed unsigned operands, literals, resize boundaries and external
+connections retain their necessary interpretation. A boundary materialized as
+an independently declared signed scalar can legitimately need no expression
+cast; the policy does not enforce an arbitrary nonzero cast count.
+
+`Bits`, `UInt`, `Bool`, shift amounts, addresses and masks remain unsigned.
+Packed Vec/Bundle transport is not one signed scalar, even when every leaf is
+`SInt`. A reconstructed leaf regains signed interpretation at its exact scalar
+boundary, including a necessary `$signed` around a dynamic packed selection.
+Separately published scalar Bundle/Stream/Flow leaves can be signed. `Mem`
+remains native unpacked storage, not a repacked Vec. BlackBox source remains
+externally owned; the policy controls only MorphHDL's local typed connections.
+
+Unsupported width/context combinations still fail closed. This rollout does
+not extend the signedness transfer rules, loosen parameter-domain validation,
+change native defaults or retire genuine boundary/legacy native helpers.
+
+### Qualification contract
+
+The [60g record](../increment-60g-default-rollout.md) tracks final-head evidence.
+Neutral-config default candidates are independently elaborated and compared
+byte-for-byte with explicit-cleanup candidates, then run through the inherited
+independent-native-reference proof corpus. Both Scala 2.12.18 and 2.13.12,
+fresh-JVM determinism, downloaded cross-Scala byte comparison, native
+Verilog/VHDL compatibility, strict V2001 tools, mutation counterexamples and
+all inherited no-skip regression gates remain required. WIDTH qualification
+includes 1, 5, 8 and 32; finite specialization matrices are not a universal
+formal proof over every legal parameter value.

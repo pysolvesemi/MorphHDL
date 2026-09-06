@@ -1,10 +1,10 @@
 {
-  "base": "ddbc9ff637ec0c42093111e7f8e48fc87957580f",
+  "base": "b25e367d99604e61b8f2c895b2c51ca1ab90d423",
   "files": [
     {
       "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
-      "before_sha256": "02d8c6456a9bacfd5e7acaea878e21e46f43765068b8e62c03bd464ea3a64015",
-      "after_sha256": "5ac41515ddb11e588d853c806f197ffc496977bc35677e8cebbcf3ba9d21e27b",
+      "before_sha256": "28be05bf350a7975e7e063cc987e7b67ad30a0e597469fb81e90db7875ef40c3",
+      "after_sha256": "7ae807bb6b6e28898ca589ceba40e30d4c6f0b228802061da8f8fc334d99c439",
       "edits": [
         {
           "before": "import hashlib\n",

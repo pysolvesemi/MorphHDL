@@ -16,12 +16,49 @@ production implementation, library algorithm, default option, native-change
 manifest or sealed semantic oracle. It does not enable the default rollout in
 60g or expand unsupported signedness boundaries.
 
-The source gate requires the recorded base to be an ancestor. It rejects
-production changes in every tracked or untracked `src/main` path, including
-native and MorphHDL implementation roots, and checks the existing 60a/60c/60d/60e writers
-and checkers against their base bytes. The inherited source-scope restoration,
-immutable baseline hashes, production-retirement, native-source preservation
-and typed-overlay audits remain required.
+The source gate seals the completed qualification-only interval from the
+recorded base through merge `5a669d32095ee722c313bd069b771e7c350a1f81`.
+Every `src/main` path, including native and MorphHDL implementation roots, must
+remain unchanged within that interval. Both endpoints must remain ancestors
+of the current build. The inherited 60c/60d/60e source-restoration checks run
+again against that exact completed tree.
+
+Later implementation increments may extend committed production files outside
+the pass project. The current source gate rejects staged, unstaged and untracked
+production changes, including ignored untracked files. Current native sources
+still pass the complete approved path/blob/span audit, which applies to its
+native roots; it does not certify every later MorphHDL implementation change.
+Those changes require their own increment qualification. Current independent
+writers and 60a/60c/60d checkers remain pinned to their original base bytes.
+The only 60e checker exception is its exact recorded source-restoration hook;
+reversing that hook must reproduce every original checker byte. Both native
+signed declaration/cast printers remain sealed at the completed 60f tree.
+All behavioral
+qualification below still regenerates and verifies the current implementation;
+the historical source audit does not substitute old RTL or old proof results.
+The inherited signedness authority files and edit contracts also remain sealed,
+and all three signedness policies retain the original current-source inference
+bans from 60c/60d/60e.
+Immutable baseline hashes, production-retirement and typed-overlay audits
+remain required. Source-gate controls use a real temporary Git repository and
+the canonical native auditor to distinguish a production change inside 60f's
+sealed interval, an unreviewed later native change and a reviewed later change.
+
+The direct 60c, 60d and 60e workflows use this same historical/current source
+gate on successor increments. Their tool steps select `--inherited-track 60c`,
+`60d` or `60e`, which invokes that sealed checker's original `qualify` function
+on the freshly generated current artifacts, including every original proof and
+mutation. The 60e dispatch also invokes its separate original `mutations`
+function. No workflow trigger, regression suite, tool stage or audit is removed;
+the original qualification bodies and fixture bytes remain sealed. Selecting one inherited
+track does not claim the additional 60f closure proofs.
+
+The exact regression inventory now includes three reviewed 59e additions:
+`NativeCloneShapeContractTests`, `TypedBalancedReductionCompositeTests` and
+`TypedBalancedReductionCompositeCallbackPolicyTests`. The MorphHDL floor grows
+from 819 tests in 78 suites to 858 tests in 81 suites. All inherited suite names
+remain mandatory, and inventory controls reject omission of each added suite.
+The recorded historical 60f run counts below remain its original evidence.
 
 The semantic-reference legs remain independent native `SpinalVerilog`
 elaborations of the ordinary fixtures. Parameterized candidates are emitted
@@ -194,16 +231,20 @@ tests yields 1,610. These are required minima, not recorded 60f results.
 The inventory checker requires the exact 160 named suite reports, consistent
 testcase counts and zero failures, errors or skipped/canceled tests.
 
-On 59f descendants, the reviewed inventory additionally requires the four named
-callback policy, scalar graph, mux width and callback publication suites. The
-original 78 MorphHDL suite identities remain required; the descendant requires
-exactly 82 MorphHDL suites and 164 suites overall. The checker activates this
-addition only when all seven registered 59f production/test source files are
-present in both the checked-out `HEAD` and working tree. Partial, uncommitted or
-deleted feature inventories fail. Historical sources without the feature retain
-the original inventory. Unknown extra suites, substituted or missing inherited
-or new suites, and skipped tests still fail. Isolated XML and Git fixtures cover
-both accepted inventories and these rejection cases.
+The numbers above describe the original 60f inventory. The current checker
+also requires all three reviewed 59e suites, giving 81 MorphHDL suite identities
+and a minimum of 858 tests. Once the completed 59f merge is an ancestor, its four
+callback policy, scalar graph, mux width and callback publication suites remain
+mandatory while later increments extend shared production files. The combined
+inventory requires exactly 85 MorphHDL suites and 167 suites overall with the
+baseline pass profile, or 170 overall with the registered WA-07a pass profile.
+All seven registered 59f production/test source files must remain present in
+both committed `HEAD` and the working tree. Partial, uncommitted or deleted
+feature inventories fail. Reverting all callback sources to an earlier exact
+profile also fails once callback completion is in the ancestry. Unknown extra suites, substituted or missing
+inherited or new suites, and skipped tests still fail. The four exact original
+source profiles and every mandatory suite omission are covered by 533 synthetic
+Git/source/XML rejection controls.
 
 All seven existing optional proof flags are set to `1`: StreamFifo formal,
 StreamFifoCC formal, StreamFifoCC CDC, typed Vec formal, typed primitive closure,
@@ -241,22 +282,34 @@ its result accordingly; it cannot close 60f. Likewise `--self-test` and
 `--source-only` do not establish RTL qualification.
 
 For later increments, the qualification-only production-delta guard remains
-sealed to the exact 60f merge, `5a669d32095ee722c313bd069b771e7c350a1f81`.
-It checks the entire original `BASE..QUALIFIED_60F` production delta once that
-merge is an ancestor; before the merge it checks the working tree, including
-untracked production files. Later production changes belong to their own
-increment rather than retroactively becoming 60f changes. The current sealed
-writers/checkers, independent signedness authority, reviewed native hooks and
-complete native-source audit still run. On a 59f descendant, only the exact
-reviewed 60e source-restoration hook is undone before comparing its complete
-checker bytes with the sealed baseline. That hook first restores the reviewed
-59f fallback spans before the original 60c/60e source comparisons. The 59f
-manifest is checksum-pinned and includes complete before/after blob hashes;
-no other checker, writer, signed authority or native hook receives an exception.
-The isolated worktree test
-`test-increment-60f-inherited-source-scope.py` covers accepted later MorphHDL
-production edits and rejects original-increment production edits, oracle or
-signedness-authority changes, modified native hooks and unapproved native paths.
+sealed through the exact 60f merge,
+`5a669d32095ee722c313bd069b771e7c350a1f81`. The qualified and completed endpoints
+must be ancestors of the current checkout; all production paths are unchanged
+inside that historical interval. Current staged, unstaged and untracked
+production changes still fail. Later committed non-pass implementation changes
+belong to their own increment rather than retroactively becoming 60f changes.
+Current independent writers/checkers, signedness authority, sealed native
+printers and the complete native-source audit remain required.
+
+The exact 60e source-restoration hook introduced by 59f is reversed before the
+complete checker is compared with its sealed baseline. Its checksum-pinned
+publisher ledger now retains all six original 59f fallback spans and adds four
+reviewed 59e spans. Three additional repair spans record exact assignment-owner
+domain restoration for unsigned resize padding. Reversing those repair spans
+first reproduces the initially reviewed combined fallback; the six original
+59f spans then reproduce the exact 59e fallback, and the four original 59e
+spans reproduce the original 60f fallback. All ten original spans remain unchanged.
+The ledger checks unique exact spans and complete before/after source hashes.
+No behavioral checker body, independent writer, signed authority or native
+printer receives an exception. The inherited 60c/60d/60e source checks still
+run on the completed historical tree; all behavioral proofs run on newly
+generated current artifacts.
+
+The isolated worktree controls cover accepted later committed MorphHDL changes
+and reject historical production edits, unreviewed pass changes, altered
+oracles or signedness authority, modified native printers and unapproved native
+paths. The publisher controls also reject a committed unrelated fallback edit,
+so committing a change cannot bypass the exact current restoration ledger.
 
 The completion transition requires successful exact-head qualification,
 no-skip regression inventories in both Scala lanes, downloaded cross-Scala
@@ -333,30 +386,51 @@ results establish the prerequisite status above.
 ## Follow-on WA-07a CI compatibility
 
 The historical 60f qualification above remains tied to its recorded source.
-The workflow also runs for changes under `morphhdl-passes/`, so its source and
-test inventory gates must recognize the reviewed WA-07a addition without
-accepting arbitrary production changes or test suites.
+The workflow also runs for changes under `morphhdl-passes/`. Its source gate
+selects the pass regression inventory before reading test reports, using
+complete source paths and bytes rather than branch names, suite counts or
+file presence alone.
 
-The source gate retains the production-zero check from the fixed pre-60f base
-to the qualified 60f commit. For the current checkout it accepts either that
-unchanged production profile or the exact three-file WA-07a production delta
-registered from `f6646f574a1bc2c16050e7c27e93b86523af3bd8`:
+The strict `production_profile` checker retains the four registered contracts:
+no later production changes, exactly the three WA-07a files, exactly the original
+59f production files, or the union of those two deltas. Each contract preserves
+its complete path inventory and source hashes. The WA-07a bytes come from
+`f6646f574a1bc2c16050e7c27e93b86523af3bd8`; the original 59f hashes remain fixed
+in the checker.
 
-- `PassContracts.scala`
-- `WireAliasPassPipeline.scala`
-- `ConstantOperandSimplificationPass.scala`
+The workflow's `regression_profile` entry point also supports later committed
+implementation changes outside the pass project, retaining the completed
+interval, current native audits, sealed authorities and exact publisher ledger.
+It selects WA only from the registered pass-subtree delta and retains all 59f
+suites once `c85659a20d428dd58cc6116c12c8b24418c37722` is an ancestor. This
+inheritance does not qualify later implementation increments.
 
-The checker pins each complete path and source hash. Missing files, changed
-hashes and any other tracked or untracked production change are rejected.
-The sealed native writers/checkers and inherited native audits still run.
+The current gate rejects staged, unstaged and untracked production changes
+across all projects, including ignored untracked sources. Within
+`morphhdl-passes/`, including any nested project, the production delta must be
+empty or exactly these registered paths and SHA-256 hashes:
 
-The regression inventory follows the validated source profile. The historical
-profile retains its exact 11 pass suites and minimum 99 non-skipped tests.
-The WA-07a profile requires all 14 pass suites and at least 123 non-skipped tests,
-including `ConstantOperandSimplificationPassSpec`, `ConstantOperandFourStateSpec`
-and `ConstantOperandFixedPointSpec`. Other project inventories are unchanged.
-Missing, substituted, duplicated or unexpected suites, failed/skipped tests and
-stale success records remain errors.
+| Path below `morphhdl-passes/` | SHA-256 |
+| --- | --- |
+| `src/main/scala/morphhdl/passes/api/PassContracts.scala` | `1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda` |
+| `src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala` | `e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e` |
+| `src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala` | `40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71` |
+
+Missing files, changed hashes, symlinks, executable or untracked registered
+files, and additional pass production changes are rejected. Renaming a source
+outside its production directory cannot hide its deletion from the comparison.
+
+The source-selected baseline profile requires exactly 11 pass suites and at
+least 99 non-skipped tests. The WA-07a profile requires exactly 14 pass suites
+and at least 123 non-skipped tests, including
+`ConstantOperandSimplificationPassSpec`, `ConstantOperandFourStateSpec` and
+`ConstantOperandFixedPointSpec`. Both profiles retain the updated MorphHDL
+inventory floor of 858 tests, including all three mandatory 59e additions and
+all four 59f suites on the combined implementation (85 MorphHDL suites).
+Other project inventories remain unchanged. Missing,
+substituted, duplicated or unexpected suites, failed or skipped tests and
+stale success records remain errors. The original real-Git source controls and
+the added 59e suite controls exercise both profiles.
 
 This compatibility registration does not qualify WA-07a. Its dedicated workflow
 must still prove every candidate against the common pre-pass reference across

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Restore only the reviewed 59f publisher edits for inherited source gates.
+"""Restore exact reviewed 59e/59f publisher edits for inherited source gates.
 
 The complete before/after blobs and unique exact spans are checked. Restoring a
 file does not accept its historical contract: the caller still compares every
@@ -16,7 +16,7 @@ from pathlib import Path
 
 BASE = "5a669d32095ee722c313bd069b771e7c350a1f81"
 CONTRACT = "morphhdl/contracts/increment-59f-publisher-edits.json"
-CONTRACT_SHA256 = "5fa83b2aae310305db22829e157dd5edf52387428f10ef4718c29f0ae01de0c2"
+CONTRACT_SHA256 = "a7413d5d50fcb9a073cdd40a980c1476dddb9ef7d727635d045565b39b5b3f9a"
 FALLBACK = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
 BOUNDARY_CHECKER = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
 PATHS = frozenset((FALLBACK, BOUNDARY_CHECKER))

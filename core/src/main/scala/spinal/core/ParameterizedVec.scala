@@ -57,6 +57,7 @@ private[spinal] final case class ParameterizedVecShape(
     witnessDepth: Int,
     carrierCapacity: Int,
     elementLeaves: Vector[ParameterizedVecLeafShape],
+    elementLayout: ParameterizedVecElementLayout.Layout,
     sourceLocation: Option[String]
 ) {
   def elementWidthDefault: BigInt =
@@ -68,19 +69,24 @@ private[spinal] final case class ParameterizedVecShape(
   def elementWidthMaximum: BigInt =
     elementLeaves.foldLeft(BigInt(0))((sum, leaf) => sum + leaf.width.maximum)
 
+  def logicalElementWidthDefault: BigInt = elementLayout.evaluate(_.default)
+
+  def logicalElementWidthMaximum: BigInt = elementLayout.evaluate(_.maximum)
+
   /** Factorized Verilog-2001 expression for one logical element.  Keeping
     * this textual composition here avoids constructing an [[ElabInt]] across
     * independent parameter roots merely to publish a packed Vec boundary.
     */
   def elementWidthVerilog: String =
-    elementLeaves.map(leaf => s"(${leaf.width.verilog})").mkString(" + ")
+    if (elementLayout.hasNestedVectors) elementLayout.width(_.verilog)
+    else elementLeaves.map(leaf => s"(${leaf.width.verilog})").mkString(" + ")
 
   /** Factorized Verilog-2001 expression for the flattened packed boundary. */
   def totalPackedWidthVerilog: String =
     s"(${depth.verilog}) * ($elementWidthVerilog)"
 
   def parameters: Vector[ElaborationIntegerParameter] =
-    (depth.parameters ++ elementLeaves.flatMap(_.width.parameters))
+    (depth.parameters ++ elementLayout.expressions.flatMap(_.parameters))
       .groupBy(_.name)
       .toVector
       .map(_._2.head)
@@ -370,7 +376,9 @@ object ParameterizedVec {
   ): Vec[T] = {
     if (
       vector != null && vector.vec.nonEmpty &&
-      vector.vec.head.flatten.exists(leaf => ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty))
+      (ParameterizedVecElementLayout.nestedVectors(vector.vec.head)
+          .exists(nested => shapeOf(nested).exists(_.parameters.nonEmpty)) ||
+        vector.vec.head.flatten.exists(leaf => ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)))
     ) {
       val sourceLocation = vector.vec.head.flatten.iterator
         .flatMap(ParameterizedWidth.sourceLocationOf)
@@ -444,8 +452,12 @@ object ParameterizedVec {
         sourceLocation
       )
     }
+    val layout = ParameterizedVecElementLayout.capture(vector.vec.head)
     val leaves = elementShape(vector.vec.head, sourceLocation)
     vector.vec.zipWithIndex.foreach { case (element, index) =>
+      if (!ParameterizedVecElementLayout.equivalent(layout.root, ParameterizedVecElementLayout.capture(element).root))
+        fail("SPINAL-ELAB-VEC-RECURSIVE-LAYOUT-MISMATCH",
+          s"typed Vec element $index has a different recursive type or dimension schema", sourceLocation)
       validateElementShape(element, leaves, index, sourceLocation)
     }
     val shape = ParameterizedVecShape(
@@ -453,6 +465,7 @@ object ParameterizedVec {
       witnessDepth = witnessDepth,
       carrierCapacity = carrierCapacity,
       elementLeaves = leaves,
+      elementLayout = layout,
       sourceLocation = sourceLocation
     )
     retain(vector, shape)
@@ -598,12 +611,12 @@ object ParameterizedVec {
         "logical Vec depth",
         shape.sourceLocation
       )
-      val elementWidth = shape.elementLeaves.zipWithIndex.foldLeft(BigInt(0)) { case (sum, (leaf, index)) =>
-        sum + projectedConstant(
-          leaf.width,
+      val elementWidth = shape.elementLayout.evaluate { expression =>
+        projectedConstant(
+          expression,
           operation,
-          s"logical Vec element leaf $index width",
-          shape.sourceLocation.orElse(leaf.width.sourceLocation)
+          "logical Vec recursive element geometry",
+          shape.sourceLocation.orElse(expression.sourceLocation)
         )
       }
       val total = depth * elementWidth
@@ -717,7 +730,7 @@ object ParameterizedVec {
     val vectors = vectorsOf(component)
     val expressions = vectors.flatMap { vector =>
       val shape = shapeOf(vector).get
-      shape.depth +: shape.elementLeaves.map(_.width)
+      shape.depth +: shape.elementLayout.expressions
     }
     ElabInt.validateParameterRootInventory(
       s"typed Vec component '${component.definitionName}'",
@@ -748,8 +761,10 @@ object ParameterizedVec {
           shape.sourceLocation
         )
       }
+      val recursiveMatches = to.vec.forall(element => ParameterizedVecElementLayout.equivalent(
+        shape.elementLayout.root, ParameterizedVecElementLayout.capture(element).root))
       val actual = elementShape(to.vec.head, shape.sourceLocation)
-      if (!equivalentLeaves(shape.elementLeaves, actual)) {
+      if (!equivalentLeaves(shape.elementLeaves, actual) || !recursiveMatches) {
         fail(
           "SPINAL-ELAB-VEC-CLONE-SHAPE-MISMATCH",
           "typed Vec clone changed its logical element layout",
@@ -1235,7 +1250,7 @@ object ParameterizedVec {
       case None => carrier
       case Some(shape) =>
         val physicalWidth = BigInt(shape.carrierCapacity) * shape.elementWidthDefault
-        val logicalWitnessWidth = BigInt(shape.witnessDepth) * shape.elementWidthDefault
+        val logicalWitnessWidth = BigInt(shape.witnessDepth) * shape.logicalElementWidthDefault
         if (
           !physicalWidth.isValidInt || !logicalWitnessWidth.isValidInt ||
           physicalWidth < 1 || logicalWitnessWidth < 1 ||
@@ -1498,7 +1513,7 @@ object ParameterizedVec {
   private def expectedPackedWidth(
       shape: ParameterizedVecShape
   ): Option[ElaborationIntegerExpression] = {
-    val expressions = shape.depth +: shape.elementLeaves.map(_.width)
+    val expressions = shape.depth +: shape.elementLayout.expressions
     val roots = expressions
       .flatMap(_.completedParameterRoots)
       .foldLeft(
@@ -1508,9 +1523,14 @@ object ParameterizedVec {
       }
     if (roots.size > 1) None
     else {
-      val elementWidth = shape.elementLeaves
-        .map(leaf => ElabInt.fromExpression(leaf.width))
-        .reduce(_ + _)
+      import ParameterizedVecElementLayout._
+      def typed(size: Size): ElabInt = size match {
+        case Constant(value) => ElabInt.fromBigInt(value)
+        case Value(value) => ElabInt.fromExpression(value)
+        case Sum(values) => values.map(typed).reduceOption(_ + _).getOrElse(ElabInt.literal(0))
+        case Product(left, right) => typed(left) * typed(right)
+      }
+      val elementWidth = typed(shape.elementLayout.root.size)
       Some(
         (elementWidth * ElabInt.fromExpression(shape.depth)).expression
       )
@@ -1530,7 +1550,8 @@ object ParameterizedVec {
     ElabInt.equivalentExactFunction(left.depth, right.depth) &&
       left.witnessDepth == right.witnessDepth &&
       left.carrierCapacity == right.carrierCapacity &&
-      equivalentLeaves(left.elementLeaves, right.elementLeaves)
+      equivalentLeaves(left.elementLeaves, right.elementLeaves) &&
+      ParameterizedVecElementLayout.equivalent(left.elementLayout.root, right.elementLayout.root)
 
   /** Recover one parent-side formal actual from two exact corresponding Vec
     * port objects.  Port order is established by the hierarchy caller through
@@ -1560,6 +1581,7 @@ object ParameterizedVec {
       canonical.witnessDepth != actual.witnessDepth ||
       canonical.carrierCapacity != actual.carrierCapacity ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
+      !ParameterizedVecElementLayout.equivalentWith(canonical.elementLayout.root, actual.elementLayout.root)((_, _) => true) ||
       !canonical.elementLeaves.zip(actual.elementLeaves).forall { case (left, right) =>
         left.path == right.path &&
         (left.typeObject eq right.typeObject)
@@ -1568,9 +1590,7 @@ object ParameterizedVec {
 
     val dimensions =
       (canonical.depth -> actual.depth) +:
-        canonical.elementLeaves.zip(actual.elementLeaves).map { case (left, right) =>
-          left.width -> right.width
-        }
+        canonical.elementLayout.expressions.zip(actual.elementLayout.expressions)
     val retainedCanonical = formalBindingsOf(canonicalVector).filter(binding => binding.formal eq canonicalFormal)
     val retainedActual = formalBindingsOf(actualVector).filter(binding => binding.formal eq actualFormal)
     if (
@@ -1628,6 +1648,7 @@ object ParameterizedVec {
       canonical.witnessDepth != actual.witnessDepth ||
       canonical.carrierCapacity != actual.carrierCapacity ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
+      !ParameterizedVecElementLayout.equivalentWith(canonical.elementLayout.root, actual.elementLayout.root)((_, _) => true) ||
       !canonical.elementLeaves.zip(actual.elementLeaves).forall { case (left, right) =>
         left.path == right.path &&
         (left.typeObject eq right.typeObject)
@@ -1636,9 +1657,7 @@ object ParameterizedVec {
 
     val dimensions =
       (canonical.depth -> actual.depth) +:
-        canonical.elementLeaves.zip(actual.elementLeaves).map { case (left, right) =>
-          left.width -> right.width
-        }
+        canonical.elementLayout.expressions.zip(actual.elementLayout.expressions)
     if (
       !dimensions.forall { case (definition, instance) =>
         ElabInt.equivalentExactFunction(definition, instance)
@@ -1754,6 +1773,9 @@ object ParameterizedVec {
         parentShape.depth,
         bindings
       ) &&
+      ParameterizedVecElementLayout.equivalentWith(childShape.elementLayout.root, parentShape.elementLayout.root) {
+        (childExpression, parentExpression) => equivalentBoundaryExpression(childExpression, parentExpression, bindings)
+      } &&
       childShape.elementLeaves.size == parentShape.elementLeaves.size &&
       childShape.elementLeaves.zip(parentShape.elementLeaves).forall { case (childLeaf, parentLeaf) =>
         childLeaf.path == parentLeaf.path &&

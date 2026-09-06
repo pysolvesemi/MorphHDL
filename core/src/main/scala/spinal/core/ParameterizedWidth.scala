@@ -875,10 +875,62 @@ object ParameterizedWidth {
     metadataOf(from).foreach(retain(to, _))
   }
 
+  /** Preserve authored geometry through the native clone boundary. No width is
+    * inferred from a concrete witness and the native clone keeps ownership of
+    * concrete construction and width inference.
+    */
+  private[core] def copyCloneMetadata[T <: Data](from: T, to: T): T = {
+    def hasMetadata(data: Data): Boolean = data match {
+      case leaf: BaseType => isRetained(leaf)
+      case vector: Vec[_] if ParameterizedVec.shapeOf(vector).nonEmpty => true
+      case multi: MultiData => multi.elements.exists(element => hasMetadata(element._2))
+      case _ => false
+    }
+    if (!hasMetadata(from)) return to
+
+    def invalid(detail: String): Nothing = ParameterizedVerilogException.fail(
+      "SPINAL-PARAMETERIZED-VERILOG-CLONE-SHAPE-MISMATCH",
+      detail
+    )
+
+    def rec(source: Data, target: Data): Unit = (source, target) match {
+      case (left: BaseType, right: BaseType) =>
+        if (left.getClass != right.getClass)
+          invalid("typed clone changed native leaf type")
+        // Only retained leaves own a fixed concrete witness here. Inherited
+        // enum encoding and untyped leaf width inference must remain deferred.
+        if (isRetained(left) && left.getBitsWidth != right.getBitsWidth)
+          invalid("typed clone changed a retained leaf's concrete width")
+        if (!isRetained(left) && isRetained(right))
+          invalid("typed clone introduced a symbolic width absent from its source leaf")
+        copy(left, right)
+      case (left: MultiData, right: MultiData) =>
+        val sourceElements = left.elements.toVector
+        val targetElements = right.elements.toVector
+        if (sourceElements.map(_._1) != targetElements.map(_._1))
+          invalid("typed clone changed native field paths")
+        sourceElements.zip(targetElements).foreach { case ((_, a), (_, b)) => rec(a, b) }
+        (left, right) match {
+          case (a: Vec[_], b: Vec[_]) =>
+            if (ParameterizedVec.shapeOf(a).isEmpty && ParameterizedVec.shapeOf(b).nonEmpty)
+              invalid("typed clone introduced a symbolic Vec shape absent from its source")
+            ParameterizedVec.copyShape(a.asInstanceOf[Vec[Data]], b.asInstanceOf[Vec[Data]])
+          case (_: Vec[_], _) | (_, _: Vec[_]) =>
+            invalid("typed clone changed a native Vec into a different data kind")
+          case _ =>
+        }
+      case _ =>
+        invalid("typed clone changed native data kinds")
+    }
+    rec(from, to)
+    to
+  }
+
   /** Preserve an already-certified common width through the native mux clone.
     * Each non-auto-resized input must independently own the same exact width
     * function. Concrete width equality alone never creates symbolic evidence;
     * absent or differing input authority leaves the ordinary clone unchanged.
+    * The caller supplies a native clone without pre-copied width metadata.
     */
   private[core] def preserveMuxWidth[T <: BitVector](result: T, inputs: Seq[Data]): T = {
     val widths = inputs.map {

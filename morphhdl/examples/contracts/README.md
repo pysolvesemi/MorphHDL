@@ -14,7 +14,10 @@ These files are executable output contracts for the parameterized backend.
   two-element, three-leaf shape while publishing `vec_in` and `vec_out` as
   single `6 * WIDTH` packed Verilog-2001 ports. Concrete Bool clock and
   protocol controls stay one bit; the rest of the aggregate ABI remains
-  deterministically flattened by leaf.
+  deterministically flattened by leaf. Increment 60g uses signed declarations
+  for the exact scalar SInt leaves and registers by default, while `vec_in`
+  and `vec_out` remain unsigned packed transport. Native SpinalVerilog and
+  explicitly selected legacy MorphHDL output keep their earlier spelling.
 - `derived_width.v` is owned by Increments 3, 23 and 24. Its two frontend public
   parameters feed an acyclic local-parameter expression graph; Increment 23
   clamps parameter-derived padding with typed `Min` and floors the final width
@@ -122,7 +125,8 @@ These files are executable output contracts for the parameterized backend.
   the native single-source width bridge without changing that inventory.
   Increment 30 extends the path to twenty-one files with
   `symbolic_data_shapes.v`; Increment 53f upgrades that artifact's Vec boundary
-  without changing the twenty-one-file inventory. CI
+  without changing the twenty-one-file inventory. Increment 60g updates its
+  scalar signed declarations without changing the packed Vec ABI or inventory. CI
   performs a normal and reverse-construction run, requires an exact
   twenty-one-file inventory, checks
   byte identity with these goldens, and gives that unmodified directory to the

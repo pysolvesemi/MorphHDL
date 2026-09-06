@@ -43,6 +43,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59f-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f'))
     name: Safe callback graphs Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest

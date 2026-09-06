@@ -1141,9 +1141,22 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * conservative publication policy; a native witness alone is not evidence.
     */
   private def exactUnsignedResizePadding(
+      component: Component,
+      assignment: DataAssignmentStatement,
       resize: Resize,
       target: ElaborationIntegerExpression
   ): Option[String] = {
+    def withinAssignmentOwner[A](expression: ElaborationIntegerExpression, role: String)(body: => A): A =
+      expression.exactDomain match {
+        case Some(domain) =>
+          if (expression.projectionProvenance.nonEmpty)
+            ParameterizedStructure.validateProjectedAssignmentDominance(
+              component, assignment, expression, role, expression.sourceLocation)
+          val owner = ParameterizedStructure.exactAssignmentDomainOf(
+            component, assignment, domain.root, domain.universe, role, expression.sourceLocation)
+          ElaborationDomainContext.withAdmitted(domain.root, owner.values, expression.sourceLocation)(body)
+        case None => body
+      }
     def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
       case access: BitVectorRangedAccessFixed => Some(ElabInt.literal(access.getWidth).expression)
       case _: BitVectorBitAccessFixed => Some(ElabInt.literal(1).expression)
@@ -1168,19 +1181,34 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       if (width.minimum < 1 || target.minimum < 1 ||
           width.default != BigInt(resize.input.getWidth) ||
           target.default != BigInt(resize.size)) None
-      else {
-        ElabInt.requireAuthoritativeIntegerDomain(width,
-          "native resize source width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-AUTHORITY",
-          requireExactExtrema = false)
-        ElabInt.requireAuthoritativeIntegerDomain(target,
-          "native resize target width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AUTHORITY",
-          requireExactExtrema = false)
-        if (target.minimum >= width.maximum)
-          Some("(" + target.verilog + " - " + width.verilog + ")")
-        else {
-          val difference = ElabInt.fromExpression(target) - ElabInt.fromExpression(width)
-          if (difference.expression.minimum >= 0) Some(difference.expression.verilog)
-          else None
+      else withinAssignmentOwner(width, "native resize source width") {
+        withinAssignmentOwner(target, "native resize target width") {
+          ElabInt.requireAuthoritativeIntegerDomain(width,
+            "native resize source width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-AUTHORITY",
+            requireExactExtrema = false)
+          ElabInt.requireAuthoritativeIntegerDomain(target,
+            "native resize target width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AUTHORITY",
+            requireExactExtrema = false)
+          // A captured .resized clone and its module-scope target can have
+          // different construction witnesses while denoting the same width in
+          // the exact assignment owner. Keep the established one-zero-bit
+          // normalization for this proven equality; no zero-repeat fragment is
+          // needed. The owner, never the projection alone, grants this proof.
+          val zeroPadding = (width.exactDomain, target.exactDomain) match {
+            case (Some(sourceDomain), Some(targetDomain)) if sourceDomain.root eq targetDomain.root =>
+              ElaborationDomainContext.admitted(sourceDomain).forall { rootValue =>
+                sourceDomain.evaluate(rootValue).exists(value => targetDomain.evaluate(rootValue).contains(value))
+              }
+            case _ => false
+          }
+          if (zeroPadding) None
+          else if (target.minimum >= width.maximum)
+            Some("(" + target.verilog + " - " + width.verilog + ")")
+          else {
+            val difference = ElabInt.fromExpression(target) - ElabInt.fromExpression(width)
+            if (difference.expression.minimum >= 0) Some(difference.expression.verilog)
+            else None
+          }
         }
       }
     }
@@ -1440,7 +1468,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         val padding = record.witnessSize - record.inputWitnessSize
-        val symbolicPadding = exactUnsignedResizePadding(record.resize, record.expression)
+        val symbolicPadding = exactUnsignedResizePadding(component, record.assignment, record.resize, record.expression)
         def grow(source: String): String = symbolicPadding match {
           case Some(count) => "{{" + count + "{1'b0}}, " + source + "}"
           case None => "{1'b0, " + source + "}"
@@ -1877,6 +1905,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    private lazy val exactPackedReadSupportAssignments =
+      ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
+
+    private lazy val exactPackedReadSupportTargets = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+      retained
+    }
+
     /** Exact native statements whose logical width and layout are owned by
       * the typed Vec packed-operation validator.  The ordinary native graph
       * deliberately uses finite-capacity carriers and witness-width wrappers;
@@ -1889,6 +1927,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private lazy val exactPackedVecEvidenceAssignments = {
       val retained =
         new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment, java.lang.Boolean.TRUE))
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
@@ -2677,6 +2717,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ) { (known, root) =>
             if (known.exists(_ eq root)) known else known :+ root
           }
+        // These exact partial concatenations are removed by the packed Vec
+        // rewriter after its independent current-AST and emitted-use audits.
+        // Preserve the existing single-root owner projection, but do not
+        // reinterpret proven independent packing roots as one projection.
+        // Their factorized bounds and native witnesses are still validated.
+        if (roots.size > 1 && exactPackedReadSupportTargets.containsKey(declaration)) return None
         if (roots.size != 1) {
           fail(
             "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
@@ -2865,9 +2911,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   // Independently rooted element-width and depth expressions
                   // cannot form one core exact-domain expression. Preserve
                   // their factorized geometry directly for that case.
-                  val elementWidth = shape.elementLeaves
-                    .map(leaf => retained(leaf.width))
-                    .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                  import ParameterizedVecElementLayout._
+                  def geometry(size: Size): WidthExpr = size match {
+                    case Constant(value) => WidthLiteral(value)
+                    case Value(value) => retained(value)
+                    case Sum(values) => values.map(geometry)
+                      .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                    case Product(left, right) => widthMultiply(geometry(left), geometry(right))
+                  }
+                  val elementWidth = geometry(shape.elementLayout.root.size)
                   widthMultiply(retained(shape.depth), elementWidth)
                 }
             }

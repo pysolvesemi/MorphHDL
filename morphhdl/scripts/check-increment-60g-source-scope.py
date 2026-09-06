@@ -11,9 +11,9 @@ import json
 import subprocess
 from pathlib import Path
 
-BASE = "ddbc9ff637ec0c42093111e7f8e48fc87957580f"
+BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "e3cdd1b7435becf5465d166fdb31fb96a60e6d88b65469ff6638db8018a766c0"
+CONTRACT_SHA256 = "13abac049d890fa159238ae89b91eb863da5aa676d9c0d74a4822e315ddd6ac8"
 PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala'])
 PRODUCTION = {
     "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "2729b023267fbc999768b460195c556ed2b5508a277082ab369d5dad5bffcbcc",
@@ -21,7 +21,7 @@ PRODUCTION = {
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "7cc41481ea719daa8fdba1bea905c7a34d0f3d48fb9afdc452a8fc415149e702",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "50b3dba6ec49c2ecdf63ebbbe24ae7c708dcb8a1a532799b31e58bf83ebe3370",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
@@ -55,7 +55,8 @@ def restore_entry(entry: dict, source: str) -> str:
     if digest(source) == entry["before_sha256"]:
         return source
     require(digest(source) == entry["after_sha256"],
-            "sealed writer/checker changed: unreviewed source change outside 59f spans "
+            "sealed oracle/authority/contract changed: sealed writer/checker changed: "
+            "unreviewed source change outside 59f spans "
             "or 60g publication spans: " + entry["path"])
     for edit in reversed(entry["edits"]):
         require(edit["before"] and edit["after"] and source.count(edit["after"]) == 1,
