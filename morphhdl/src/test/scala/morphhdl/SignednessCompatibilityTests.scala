@@ -271,23 +271,39 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
 
   test("60g unsigned generated domains retain native authority beside signed scalars") {
     directory { root =>
-      for (defaultWidth <- Vector(1, 8)) {
-        def parameter = HdlInt.param("WIDTH", default = defaultWidth, min = 1, max = 8)
-        // The existing nested fixture explicitly bridges branch representative
-        // widths with .resized, including the WIDTH=1 elaboration witness.
-        def unsigned = new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(parameter)
-        val defaultPath = root.resolve(s"unsigned-$defaultWidth.v")
-        val legacyPath = root.resolve(s"unsigned-legacy-$defaultWidth.v")
-        morphhdl.MorphVerilog(fresh(defaultPath))(unsigned)
-        morphhdl.MorphVerilog(MorphSignedDeclarations.disable(fresh(legacyPath)))(unsigned)
-        assert(read(defaultPath) == read(legacyPath), "unsigned publication must not change")
+      // Reuse the inherited fixture's qualified unsigned witness. Its legal
+      // WIDTH domain still includes one; the fixture's native representative
+      // bridge cannot itself elaborate with a width-one witness. Preserve that
+      // rejection independently instead of attributing it to signedness.
+      def unsignedWidth = HdlInt.param("WIDTH", default = 6, min = 1, max = 8)
+      def config(path: Path) = fresh(path).copy(defaultConfigForClockDomains =
+        ClockDomainConfig(clockEdge = RISING, resetKind = SYNC, resetActiveLevel = HIGH))
+      def unsigned = new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(unsignedWidth)
+      val defaultPath = root.resolve("unsigned.v")
+      val legacyPath = root.resolve("unsigned-legacy.v")
+      morphhdl.MorphVerilog(config(defaultPath))(unsigned)
+      morphhdl.MorphVerilog(MorphSignedDeclarations.disable(config(legacyPath)))(unsigned)
+      assert(read(defaultPath) == read(legacyPath), "unsigned publication must not change")
+      for ((name, select) <- Vector[(String, SpinalConfig => SpinalConfig)](
+          "default" -> ((c: SpinalConfig) => c), "legacy" -> MorphSignedDeclarations.disable _)) {
+        val output = root.resolve(s"unsupported-witness-$name.v")
+        val result = morphhdl.MorphVerilog.tryGenerate(select(config(output))) {
+          new morphhdl.CapturedAssignmentNormalizationSmoke.NestedInitializedRegisters(
+            HdlInt.param("WIDTH", default = 1, min = 1, max = 8))
+        }
+        assert(result.left.toOption.exists(_.detail.contains(
+          "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH")))
+        assert(!Files.exists(output))
+      }
 
+      for (signedWidth <- Vector(1, 8)) {
         def mixed: Component = {
-          val width = parameter
+          val width = unsignedWidth
+          val signed = HdlInt.param("SIGNED_WIDTH", default = signedWidth, min = 1, max = 8)
           new Component {
             setDefinitionName("MixedSignedAndUnsignedDomains")
-            val a = in(SInt(width bits))
-            val sum = out(SInt(width bits))
+            val a = in(SInt(signed bits))
+            val sum = out(SInt(signed bits))
             val load = in(Bool())
             val raw = in(UInt(width bits))
             val data = out(UInt(width bits))
@@ -298,13 +314,13 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
             data := child.dout
           }
         }
-        val mixedPath = root.resolve(s"mixed-$defaultWidth.v")
-        val explicitPath = root.resolve(s"mixed-explicit-$defaultWidth.v")
-        morphhdl.MorphVerilog(fresh(mixedPath))(mixed)
-        morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(explicitPath)))(mixed)
+        val mixedPath = root.resolve(s"mixed-$signedWidth.v")
+        val explicitPath = root.resolve(s"mixed-explicit-$signedWidth.v")
+        morphhdl.MorphVerilog(config(mixedPath))(mixed)
+        morphhdl.MorphVerilog(MorphSignedCasts.enable(config(explicitPath)))(mixed)
         val rtl = read(mixedPath)
         assert(rtl == read(explicitPath))
-        assert(port(rtl, "a").contains("wire signed [WIDTH-1:0]"))
+        assert(port(rtl, "a").contains("wire signed [SIGNED_WIDTH-1:0]"))
         assert(!port(rtl, "data").contains("signed"))
         assert(rtl.contains("g_outer_wide") && rtl.contains("g_outer_narrow"))
         assert(rtl.contains("g_inner_wide") && rtl.contains("g_inner_middle"))
