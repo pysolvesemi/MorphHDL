@@ -34,16 +34,14 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
-      - name: Exact source scope and inherited native audits
+      - name: Sealed historical source scope and current native audits
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p target/increment-60e
           git rev-parse HEAD > target/increment-60e/head.txt
           git archive HEAD | gzip > target/increment-60e/source.tar.gz
-          python3 morphhdl/scripts/check-increment-60e-signedness-boundaries.py --source-only
-          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py --source-only
-          python3 morphhdl/scripts/check-increment-60c-signed-declarations.py --source-only
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py
@@ -92,8 +90,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-increment-60e-signedness-boundaries.py target/increment-60e/a
-          python3 morphhdl/scripts/check-increment-60d-pure-sint-casts.py target/increment-60e/inherited-a
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --inherited-track 60e target/increment-60e/a
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --inherited-track 60d target/increment-60e/inherited-a
       - name: Retain exact-head source and independent qualification evidence
         if: always()
         uses: actions/upload-artifact@v4

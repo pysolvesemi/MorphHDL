@@ -1,5 +1,6 @@
 package spinal.core.internals
 
+import java.util.IdentityHashMap
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
@@ -13,7 +14,8 @@ private[spinal] final case class UnvalidatedBalancedCallback(
     operands: Vector[Data],
     result: Data,
     declarations: Vector[BaseType],
-    assignments: Vector[AssignmentStatement]
+    assignments: Vector[AssignmentStatement],
+    statements: Vector[Statement] = Vector.empty
 )
 
 private[spinal] final case class UnvalidatedBalancedRow(
@@ -41,22 +43,31 @@ private[spinal] object TypedBalancedReductionCapture {
   private final case class Snapshot(
       declarations: Vector[BaseType],
       assignments: Vector[(AssignmentStatement, Expression, Expression, BaseType)],
-      children: Vector[Component]
+      children: Vector[Component],
+      statements: Vector[Statement]
   )
 
   private def fail(code: String, detail: String): Nothing =
     throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-$code: $detail")
 
+  private def identities[A <: AnyRef](values: Vector[A]): IdentityHashMap[A, java.lang.Boolean] = {
+    val result = new IdentityHashMap[A, java.lang.Boolean]()
+    values.foreach(value => result.put(value, java.lang.Boolean.TRUE))
+    result
+  }
+
   private def snapshot(owner: Component): Snapshot = {
     val declarations = ArrayBuffer.empty[BaseType]
     val assignments = ArrayBuffer.empty[(AssignmentStatement, Expression, Expression, BaseType)]
+    val statements = ArrayBuffer.empty[Statement]
+    owner.dslBody.walkStatements(statements += _)
     owner.dslBody.walkStatements {
       case value: BaseType => declarations += value
       case value: AssignmentStatement =>
         assignments += ((value, value.source, value.target, value.finalTarget))
       case _ =>
     }
-    Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector)
+    Snapshot(declarations.toVector, assignments.toVector, owner.children.toVector, statements.toVector)
   }
 
   /** Retain the original four-argument internal entry point. */
@@ -102,7 +113,7 @@ private[spinal] object TypedBalancedReductionCapture {
             (leaf.getTypeObject.asInstanceOf[AnyRef] ne expected.typeObject) ||
             Option(path).getOrElse("") != expected.path ||
             BigInt(leaf.getBitsWidth) != expected.width.default ||
-            !ElabInt.equivalentExactFunction(width, expected.width))
+            !((width eq expected.width) || ElabInt.equivalentExactFunction(width, expected.width)))
           fail("CAPTURE-SHAPE-CHANGED", "a carrier leaf lost its exact owner, type, path or width authority")
       }
     }
@@ -114,28 +125,40 @@ private[spinal] object TypedBalancedReductionCapture {
     def invoke(operands: Vector[Data])(body: => T): UnvalidatedBalancedCallback = {
       val before = snapshot(owner)
       val result = body
+      if (result != null && !result.isInstanceOf[BaseType])
+        TypedBalancedReductionCompositeReplay.requireAcyclicShape(result)
       if (result == null || result.flatten.isEmpty ||
           result.flatten.exists(_.component ne owner) || (Component.current ne owner))
         fail("CALLBACK-RESULT", "callback result must have nonempty leaves in the same component")
       val after = snapshot(owner)
+      val beforeDeclarations = identities(before.declarations)
+      val afterDeclarations = identities(after.declarations)
+      val beforeAssignments = identities(before.assignments.map(_._1))
+      val afterAssignments = identities(after.assignments.map(_._1))
+      val beforeStatements = identities(before.statements)
+      val afterStatements = identities(after.statements)
       if (before.children.size != after.children.size ||
           before.children.zip(after.children).exists { case (a, b) => a ne b })
         fail("CALLBACK-HIERARCHY", "a callback must not create or replace child components")
-      if (before.declarations.exists(value => !after.declarations.exists(_ eq value)))
+      if (before.declarations.exists(value => !afterDeclarations.containsKey(value)))
         fail("CALLBACK-MUTATION", "a callback removed an existing native declaration")
       before.assignments.foreach { case (statement, source, targetExpression, target) =>
-        if (!after.assignments.exists(_._1 eq statement) ||
+        if (!afterAssignments.containsKey(statement) ||
             (statement.source ne source) || (statement.target ne targetExpression) ||
             (statement.finalTarget ne target))
           fail("CALLBACK-MUTATION", "a callback changed or removed an existing native assignment")
       }
-      val declarations = after.declarations.filterNot(value => before.declarations.exists(_ eq value))
+      val declarations = after.declarations.filterNot(beforeDeclarations.containsKey)
       val assignments = after.assignments.map(_._1)
-        .filterNot(value => before.assignments.exists(_._1 eq value))
-      if (assignments.exists(statement => !declarations.exists(_ eq statement.finalTarget)))
+        .filterNot(beforeAssignments.containsKey)
+      val addedDeclarations = identities(declarations)
+      if (assignments.exists(statement => !addedDeclarations.containsKey(statement.finalTarget)))
         fail("CALLBACK-EXTERNAL-WRITE", "a callback assigned an input or another pre-existing signal")
       validateInputShape()
-      val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments)
+      if (before.statements.exists(value => !afterStatements.containsKey(value)))
+        fail("CALLBACK-MUTATION", "a callback removed an existing native statement")
+      val addedStatements = after.statements.filterNot(beforeStatements.containsKey)
+      val captured = UnvalidatedBalancedCallback(ordinal, operands, result, declarations, assignments, addedStatements)
       onCallback(captured)
       ordinal += 1
       captured

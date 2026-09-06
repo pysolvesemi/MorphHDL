@@ -3,10 +3,14 @@
 
 No native source change from a fixture is pushed or merged. The source checker
 is loaded from the current checkout while each fixture supplies its own root.
+The original source-restoration contracts remain tested on completed 60f,
+which contains the qualified combined 59b and 60c/60d/60e source;
+current descendants use 60f's completed-history and current-native audit gate.
 """
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -14,10 +18,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "morphhdl/scripts/check-increment-60c-signed-declarations.py"
+CURRENT_CHECKER = ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 QUALIFIED = "75e581592334e2e596f6e1043beb9596cc20a99b"
 QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
 QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 QUALIFIED_59B = "b0a4388e3babbc01500a620eefe6c0965e9e6343"
+COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('scope_checker', sys.argv[2])
@@ -37,7 +43,8 @@ def git(root: Path, *arguments: str) -> str:
 
 
 def checked(root: Path, label: str, expected: str | None = None,
-            boundary_expected: str | None = None, boundary_only: bool = False) -> dict:
+            boundary_expected: str | None = None, boundary_only: bool = False,
+            fallback_only: bool = False) -> dict:
     checkers = [(CHECKER, "immutable oracle PASS")]
     pure_checker = CHECKER.with_name("check-increment-60d-pure-sint-casts.py")
     if (root / "morphhdl/scripts" / pure_checker.name).is_file():
@@ -49,6 +56,10 @@ def checked(root: Path, label: str, expected: str | None = None,
         checkers = [(checker, marker) for checker, marker in checkers if checker == boundary_checker]
         if not checkers:
             raise RuntimeError("boundary mutation fixture has no 60e checker")
+    if fallback_only:
+        # The 60c and 60e scopes own this fallback. The independent 60d scope
+        # seals cast authority and native printers, with no fallback edit.
+        checkers = [(checker, marker) for checker, marker in checkers if checker != pure_checker]
     evidence = []
     # Check each inherited gate independently. An early 60c rejection must not
     # hide a weakened or broken 60d guard on the same negative fixture.
@@ -68,6 +79,24 @@ def checked(root: Path, label: str, expected: str | None = None,
     return {"case": label, "expected_rejection": expected, "checks": evidence}
 
 
+def checked_current(root: Path, label: str, expected: str | None = None) -> dict:
+    """Current native changes use the audited descendant contract, not old Vec spans."""
+    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CURRENT_CHECKER)],
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            timeout=120, check=False)
+    marker = "inherited native audits PASS"
+    if expected is None:
+        if result.returncode or marker not in result.stdout:
+            raise RuntimeError(label + " current inherited gate did not pass:\n" + result.stdout)
+    elif not result.returncode or expected not in result.stdout:
+        raise RuntimeError(label + " current inherited gate did not fail for " + expected +
+                           ":\n" + result.stdout)
+    print("PASS:", label, "[" + (expected or "accepted") + "]")
+    return {"case": label, "expected_rejection": expected,
+            "checks": [{"checker": CURRENT_CHECKER.name, "exit_code": result.returncode,
+                        "expected_rejection": expected}]}
+
+
 def commit_fixture(root: Path, path: str) -> None:
     git(root, "add", "--", path)
     git(root, "-c", "user.name=Scope guard negative fixture",
@@ -76,23 +105,62 @@ def commit_fixture(root: Path, path: str) -> None:
 
 
 def main() -> None:
+    if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
+        # Current 59c source audits remain mandatory. Replaced exact mutation
+        # targets are exercised by their unchanged qualified historical fixture.
+        helper = ROOT / "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
+        spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.frozen_inherited_fixture(
+            ROOT, "morphhdl/scripts/test-increment-59b-inherited-source-scope.py", "target/increment-59b-source-scope",
+            lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits")], "exact negative inherited source-scope cases")
+        return
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "combined approved 59b and frozen 60c/60d/60e source")]
+    records = [checked_current(ROOT, "current descendant with qualified history and approved native source")]
+    # Each original exact-span negative remains anchored to the complete tree
+    # it qualified. In particular, a later reviewed Vec implementation must not
+    # turn the original changed-Vec negative into a permanent current-source seal.
     cases = (
-        ("historical", QUALIFIED, None),
-        ("historical-60d", QUALIFIED_60D, None),
-        ("historical-60e", QUALIFIED_60E, None),
-        ("historical-59b", QUALIFIED_59B, None),
-        ("changed-hook", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("changed-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
-        ("dirty-extension", head, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
-        ("changed-boundary-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("changed-vec", head, "unreviewed source change outside 60e spans"),
+        ("historical", QUALIFIED, None, False),
+        ("historical-60d", QUALIFIED_60D, None, False),
+        ("historical-60e", QUALIFIED_60E, None, False),
+        ("historical-59b", QUALIFIED_59B, None, False),
+        ("historical-combined-60f", COMPLETED_60F, None, False),
+        ("changed-hook", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("changed-printer", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("unapproved-path", COMPLETED_60F, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH", False),
+        ("dirty-extension", COMPLETED_60F, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE", False),
+        ("changed-boundary-printer", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("changed-vec", COMPLETED_60F, "unreviewed source change outside 60e spans", False),
+        ("changed-hook", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
+        ("changed-printer", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
+        ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH", True),
+        ("dirty-extension", head, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE", True),
+        ("changed-boundary-printer", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
     )
+    if (ROOT / "morphhdl/contracts/increment-59d-width-publication-edits.json").is_file():
+        cases += (
+            ("changed-width-fallback-hook", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-resize", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-domain", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-session", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-single-driver", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-publication-width", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-width-matcher", head, "missing/duplicate reviewed 59d restoration span", True),
+            ("changed-width-fallback-outside", head,
+             "unreviewed source change outside 59d/59e publisher spans", True),
+        )
     with tempfile.TemporaryDirectory(prefix="morphhdl-59b-source-scope-") as temporary:
-        for label, revision, error in cases:
-            fixture = Path(temporary) / label
+        for label, revision, error, current in cases:
+            case_label = ("current-" if current else "") + label
+            fixture = Path(temporary) / case_label
             git(ROOT, "worktree", "add", "--detach", str(fixture), revision)
             try:
                 if label == "changed-hook":
@@ -131,12 +199,79 @@ def main() -> None:
                     with (fixture / path).open("a") as stream:
                         stream.write("\n// Deliberate unreviewed combined Vec mutation.\n")
                     commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-hook":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "ExternalParameterizedHighBit.rewrite(component, rewrittenValues)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d high-bit publication seam is missing")
+                    (fixture / path).write_text(source.replace(before,
+                        'ExternalParameterizedHighBit.rewrite(component, rewrittenValues + "corrupt")'))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-outside":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    with (fixture / path).open("a") as stream:
+                        stream.write("\n// Deliberate unreviewed fallback mutation outside the width seams.\n")
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-single-driver":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "uint.hasOnlyOneStatement && (uint.head eq assignment) &&"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d native result single-driver seam is missing")
+                    (fixture / path).write_text(source.replace(before, "true && (uint.head eq assignment) &&"))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-publication-width":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "(declaration, expected) => widthInference.retainedDeclarationWidthMismatch(declaration, expected)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d published resize width seam is missing")
+                    (fixture / path).write_text(source.replace(before, "(declaration, expected) => None"))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-width-matcher":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "equivalentWidthExpression(actual, captured) ||"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d declaration width matcher seam is missing")
+                    (fixture / path).write_text(source.replace(before, "true ||"))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-resize":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "ExternalParameterizedNativeResize.rewrite(component, rewrittenResizes)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d native resize publication seam is missing")
+                    (fixture / path).write_text(source.replace(before,
+                        'ExternalParameterizedNativeResize.rewrite(component, rewrittenResizes + "corrupt")'))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-domain":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "widthInference.provesCompleteRelation(left, right)(relation)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d width relation seam is missing")
+                    (fixture / path).write_text(source.replace(before, "true"))
+                    commit_fixture(fixture, path)
+                elif label == "changed-width-fallback-session":
+                    path = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
+                    source = (fixture / path).read_text()
+                    before = "ExternalParameterizedNativeResize.withPublicationValidation(component)"
+                    if source.count(before) != 1:
+                        raise RuntimeError("reviewed 59d publication validation seam is missing")
+                    (fixture / path).write_text(source.replace(before,
+                        "ExternalParameterizedNativeResize.withPublicationValidation(null)"))
+                    commit_fixture(fixture, path)
                 boundary_error = None
                 if label in ("changed-hook", "changed-printer"):
                     boundary_error = "unreviewed source change outside 60e spans"
                 elif label == "changed-boundary-printer":
                     boundary_error = "missing/duplicate 60e span"
-                records.append(checked(fixture, label, error, boundary_error, label == "changed-vec"))
+                if current:
+                    records.append(checked_current(fixture, case_label, error))
+                else:
+                    records.append(checked(fixture, case_label, error, boundary_error, label == "changed-vec"))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:
@@ -144,7 +279,8 @@ def main() -> None:
     output = ROOT / "target/increment-59b-source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: five positive and six exact negative inherited source-scope cases")
+    negatives = sum(record["expected_rejection"] is not None for record in records)
+    print(f"PASS: {len(records) - negatives} positive and {negatives} exact negative inherited source-scope cases")
 
 
 if __name__ == "__main__":

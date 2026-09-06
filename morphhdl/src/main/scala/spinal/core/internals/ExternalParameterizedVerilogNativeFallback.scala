@@ -71,6 +71,17 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       pc: PhaseContext,
       canonicalOf: Component => Component
+  ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
+    ExternalParameterizedNativeResize.withPublicationValidation(component) {
+      rewriteValidated(component, verilog, pc, canonicalOf)
+    }
+  }
+
+  private def rewriteValidated(
+      component: Component,
+      verilog: String,
+      pc: PhaseContext,
+      canonicalOf: Component => Component
   ): String = {
     val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
@@ -122,9 +133,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .split("\\n", -1)
       .map(line => rewriteDeclarationLine(line, widthsByName))
       .mkString("\n")
+    val rewrittenConstants = rewriteRetainedZeroAssignments(
+      component,
+      rewrittenDeclarations,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
+    )
     val rewrittenInitializers = rewriteRetainedZeroInitializers(
       component,
-      rewrittenDeclarations
+      rewrittenConstants
     )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
@@ -132,13 +148,13 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
-      rewrittenValues,
+      ExternalParameterizedHighBit.rewrite(component, rewrittenValues),
       nativeSignedResize = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenNormalizedTypedResizes =
       rewriteNormalizedTypedUIntResizeAssignments(
         component,
-        rewrittenResizes
+        ExternalParameterizedNativeResize.rewrite(component, rewrittenResizes)
       )
     val canonical =
       if (isCanonicalDirectSurface(component))
@@ -759,6 +775,82 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     lines.mkString("\n")
   }
 
+  /** An exact native zero remains zero at every positive retained width.
+    * Publish its own symbolic result width, including combinational carriers
+    * inside ordinary helper graphs. Only one direct, poison-free literal edge
+    * on the exact live typed carrier authorizes an emitted replacement.
+    */
+  private[internals] def rewriteRetainedZeroAssignments(
+      component: Component,
+      verilog: String,
+      nativeSignedLiterals: Boolean = false
+  ): String = {
+    // An ElabValue carrier's literal and a finite fold's zero anchor are
+    // construction witnesses. Their exact registries own publication.
+    val retainedValues = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (value, _) =>
+      retainedValues.put(value, java.lang.Boolean.TRUE)
+    }
+    ElabFiniteRange.countOnesOf(component).foreach { fold =>
+      retainedValues.put(fold.result, java.lang.Boolean.TRUE)
+    }
+    var lines = verilog.split("\n", -1).toVector
+    component.dslBody.walkLeafStatements {
+      case assignment: DataAssignmentStatement =>
+        (assignment.target, assignment.source) match {
+          case (target: BitVector, literal: BitVectorLiteral)
+              if (assignment.finalTarget eq target) &&
+                (target.component eq component) && target.isComb &&
+                !retainedValues.containsKey(target) &&
+                target.hasOnlyOneStatement && (target.head eq assignment) &&
+                !literal.hasPoison() && literal.getValue() == 0 &&
+                literal.getWidth == target.getBitsWidth =>
+            ParameterizedWidth.expressionOf(target)
+              .filter(_.parameters.nonEmpty).foreach { width =>
+                // Reconstruct only the domain belonging to this exact live
+                // declaration. The same owner check covers one-root projections
+                // and composed width authority without reopening a finished
+                // elaboration branch or treating an equal witness as evidence.
+                NativePublicationWidth.validate(width, component, target,
+                  "native zero carrier width")
+                if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth)) {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-MISMATCH",
+                    "one exact native zero carrier lost its positive typed width or witness",
+                    width.sourceLocation)
+                }
+                val name = Option(target.getName()).filter(_.nonEmpty).getOrElse {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-NAME-MISSING",
+                    "one retained native zero carrier has no final emitted name", width.sourceLocation)
+                }
+                val witness = emittedRetainedWitness(literal)
+                val nativeWitness =
+                  if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
+                    witness.replace("'", "'s")
+                  else witness
+                val targetPattern = ("^\\s*assign\\s+" + Pattern.quote(name) + "\\s*=.*$").r
+                val exactPattern = ("^(\\s*assign\\s+" + Pattern.quote(name) + "\\s*=\\s*)" +
+                  Pattern.quote(nativeWitness) + "(;\\s*)$").r
+                val targetEdges = lines.count(line => targetPattern.findFirstIn(line).nonEmpty)
+                var exactEdges = 0
+                lines = lines.map {
+                  case exactPattern(prefix, suffix) =>
+                    exactEdges += 1
+                    prefix + "{" + width.verilog + "{1'b0}}" + suffix
+                  case line => line
+                }
+                if (targetEdges != 1 || exactEdges != 1) {
+                  fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-EMITTED-LINEAGE-MISMATCH",
+                    s"retained native zero carrier '$name' maps to $targetEdges target assignments and $exactEdges exact native literal edges; exactly one of each is required",
+                    width.sourceLocation)
+                }
+              }
+          case _ =>
+        }
+      case _ =>
+    }
+    lines.mkString("\n")
+  }
+
   /** Replace only the concrete witness assignment of compiler-created UInt
     * carriers. The carrier was retained by exact object identity; its final
     * emitted name is read from that object after normal Spinal naming. No port,
@@ -1038,11 +1130,57 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ): Option[ElaborationIntegerExpression] =
     ParameterizedWidth.resizeExpressionOf(resize)
 
+  /** Exact symbolic input carriers and invariant native leaves can name the
+    * complete unsigned padding count. Untagged computed widths keep the prior
+    * conservative publication policy; a native witness alone is not evidence.
+    */
+  private def exactUnsignedResizePadding(
+      component: Component,
+      resize: Resize,
+      targetDeclaration: BitVector,
+      target: ElaborationIntegerExpression
+  ): Option[String] = {
+    def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
+      case access: BitVectorRangedAccessFixed => Some(ElabInt.literal(access.getWidth).expression)
+      case _: BitVectorBitAccessFixed => Some(ElabInt.literal(1).expression)
+      case literal: BitVectorLiteral => Some(ElabInt.literal(literal.getWidth).expression)
+      case _ => None
+    }
+    val source = resize.input match {
+      case value: BitVector =>
+        ParameterizedWidth.expressionOf(value).orElse {
+          if (value.isInput) Some(ElabInt.literal(value.getBitsWidth).expression)
+          else if (value.hasOnlyOneStatement) value.head match {
+            case assignment: DataAssignmentStatement
+                if (assignment.target eq value) && (assignment.finalTarget eq value) =>
+              invariantWidth(assignment.source).filter(_.default == BigInt(value.getBitsWidth))
+            case _ => None
+          }
+          else None
+        }
+      case expression => invariantWidth(expression)
+    }
+    source.flatMap { width =>
+      if (width.minimum < 1 || target.minimum < 1 ||
+          width.default != BigInt(resize.input.getWidth) ||
+          target.default != BigInt(resize.size)) None
+      else {
+        val sourceDeclaration = resize.input match {
+          case value: BitVector => value
+          case _ => targetDeclaration // invariant native leaves have literal widths.
+        }
+        NativePublicationWidth.nonNegativeDifferenceAtOwners(
+          target, targetDeclaration, width, sourceDeclaration, component)
+      }
+    }
+  }
+
   /** Replace target-witness syntax emitted for one exact native Resize. A
     * narrowing slice receives the retained symbolic range; a proven unsigned
-    * widening replaces the native witness-sized zero prefix with one invariant
-    * zero bit, preserving unsignedness while the symbolic target declaration
-    * performs any remaining zero extension. The
+    * widening receives an exact symbolic padding count when the native source
+    * has authoritative width evidence. Other accepted unsigned widenings keep
+    * one invariant zero bit and the target declaration supplies remaining
+    * extension. The
     * eligible assignment, target and Resize node are discovered from the
     * normalized graph by JVM identity; emitted names are used only after that
     * proof to address the corresponding native Verilog assignment. Other
@@ -1073,6 +1211,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           case (target: BitVector, resize: Resize)
               if (target.component eq component) && target.isComb &&
                 target.getBitsWidth == resize.size &&
+                !ExternalParameterizedNativeResize.proves(component, resize) &&
                 !(nativeSignedResize && resize.getClass == classOf[ResizeSInt]) =>
             val capturedAutoResize = ExternalParameterizedAutoResize
               .materializedResizeBoundary(component, resize)
@@ -1291,6 +1430,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         val padding = record.witnessSize - record.inputWitnessSize
+        val symbolicPadding = exactUnsignedResizePadding(
+          component, record.resize, record.target, record.expression)
+        def grow(source: String): String = symbolicPadding match {
+          case Some(count) => "{{" + count + "{1'b0}}, " + source + "}"
+          case None => "{1'b0, " + source + "}"
+        }
         val concreteGrow = (
           "^\\{\\s*" + padding + "'d0\\s*,\\s*(.*?)\\s*\\}$"
         ).r
@@ -1302,7 +1447,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   rhs match {
                     case concreteGrow(source) =>
                       exactRewriteCount += 1
-                      prefix + "{1'b0, " + source.trim + "}" + suffix
+                      prefix + grow(source.trim) + suffix
                     case _ => line
                   }
                 case _ => line
@@ -1319,7 +1464,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               line match {
                 case exactGrowEdge(prefix, suffix) =>
                   exactRewriteCount += 1
-                  prefix + "{1'b0, " + sourceName + "}" + suffix
+                  prefix + grow(sourceName) + suffix
                 case _ => line
               }
             }
@@ -1723,6 +1868,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    private lazy val exactPackedReadSupportAssignments =
+      ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
+
+    private lazy val exactPackedReadSupportTargets = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+      retained
+    }
+
     /** Exact native statements whose logical width and layout are owned by
       * the typed Vec packed-operation validator.  The ordinary native graph
       * deliberately uses finite-capacity carriers and witness-width wrappers;
@@ -1735,6 +1890,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private lazy val exactPackedVecEvidenceAssignments = {
       val retained =
         new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment, java.lang.Boolean.TRUE))
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
@@ -1955,6 +2112,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
       validateParameters()
       validateWidths()
+      ExternalParameterizedNativeResize.validatePublishedWidths(component) {
+        (declaration, expected) => widthInference.retainedDeclarationWidthMismatch(declaration, expected)
+      }
       validateAssignments()
       validateProcesses()
     }
@@ -2061,7 +2221,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               if (
                 !isExactPackedVecEvidenceAssignment(assignment) &&
                 !isExactDynamicVecDecoderAssignment(assignment) &&
-                !isExactRetainedValueEvidenceAssignment(assignment)
+                !isExactRetainedValueEvidenceAssignment(assignment) &&
+                !ExternalParameterizedNativeResize.provesAssignment(component, assignment)
               ) {
                 val targetWidth = widthInference.ofBase(target)
                 val sourceWidth = widthInference.ofExpression(assignment.source)
@@ -2218,6 +2379,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )(
         relation: (BigInt, BigInt) => Boolean
     ): Boolean = {
+      if (widthInference.provesCompleteRelation(left, right)(relation)) return true
       def domainsOf(
           expression: WidthExpr
       ): Vector[ElaborationExactDomain[BigInt]] = expression match {
@@ -2325,7 +2487,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       * is stable modulo the symbolic target width. Native normalization may
       * widen Boolean-to-UInt carriers to the concrete witness, but the whole
       * assignment's LSB truncation/zero extension preserves the exact result
-      * for every positive legal target width.
+      * for every positive legal target width. The same argument applies to a
+      * native inferred result whose one unsigned operand has exactly that
+      * width: retaining its width must not turn normalization's Boolean
+      * extension into an independent fixed-width arithmetic boundary.
       */
     private def isProvenModularUIntUpdate(
         assignment: DataAssignmentStatement,
@@ -2340,6 +2505,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
               (assignment.target eq uint) &&
               (assignment.finalTarget eq uint) =>
           val active = new IdentityHashMap[Expression, java.lang.Boolean]()
+          val retainedNativeResult = uint.isTypeNode && uint.isComb &&
+            uint.isDirectionLess && !uint.isFixedWidth &&
+            uint.hasOnlyOneStatement && (uint.head eq assignment) &&
+            ParameterizedWidth.expressionOf(uint).exists(_.parameters.nonEmpty)
 
           def combine(
               left: Option[ModularUIntFacts],
@@ -2358,6 +2527,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             if (expression eq uint) return Some(ModularUIntFacts(1, 0))
             active.put(expression, java.lang.Boolean.TRUE)
             val result = expression match {
+              case value: UInt
+                  if retainedNativeResult && (value.component eq component) &&
+                    ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty) &&
+                    isProvenCompleteDomainWidthEquivalence(
+                      targetWidth, widthInference.ofBase(value)) =>
+                Some(ModularUIntFacts(1, 0))
               case operator: Operator.BitVector.Add if operator.getTypeObject == TypeUInt =>
                 combine(visit(operator.left), visit(operator.right))
               case operator: Operator.BitVector.Sub if operator.getTypeObject == TypeUInt =>
@@ -2459,6 +2634,58 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       private val activeBases = mutable.HashSet.empty[BaseType]
       private val retainedOrigins =
         new IdentityHashMap[WidthExpr, ElaborationIntegerExpression]()
+      private val completeWidthCache =
+        new IdentityHashMap[WidthExpr, Option[ElaborationIntegerExpression]]()
+
+      /** Rebuild only the supported native width AST from exact retained
+        * origins. Text and concrete defaults never recover missing authority.
+        * Partial captures remain on the existing exact-owner proof path.
+        */
+      private def completeExpressionOf(expression: WidthExpr): Option[ElaborationIntegerExpression] = {
+        if (completeWidthCache.containsKey(expression)) return completeWidthCache.get(expression)
+        val result = expression match {
+          case WidthLiteral(value) => Some(ElabInt.fromBigInt(value).expression)
+          case retained: WidthRetained =>
+            Option(retainedOrigins.get(retained)).filter(origin =>
+              ElaborationWidthAuthority.isAuthoritative(origin) &&
+                ElaborationWidthAuthority.hasCompleteDomain(origin))
+          case binary: WidthBinary =>
+            for {
+              left <- completeExpressionOf(binary.left)
+              right <- completeExpressionOf(binary.right)
+              result <- binary.operator match {
+                case "+" => Some(ElaborationWidthAuthority.add(left, right))
+                case "-" => Some(ElaborationWidthAuthority.subtract(left, right))
+                case "*" => Some(ElaborationWidthAuthority.multiply(left, right))
+                case _ => None
+              }
+            } yield result
+          case select: WidthSelect =>
+            for {
+              yes <- completeExpressionOf(select.whenTrue)
+              no <- completeExpressionOf(select.whenFalse)
+            } yield select.selection match {
+              case WidthMaximum => ElaborationWidthAuthority.maximum(yes, no)
+              case WidthMinimum => ElaborationWidthAuthority.minimum(yes, no)
+            }
+          case _ => None
+        }
+        completeWidthCache.put(expression, result)
+        result
+      }
+
+      def provesCompleteRelation(left: WidthExpr, right: WidthExpr)(
+          relation: (BigInt, BigInt) => Boolean): Boolean = {
+        val expressions = for {
+          l <- completeExpressionOf(left)
+          r <- completeExpressionOf(right)
+        } yield l -> r
+        expressions.exists { case (l, r) =>
+          ElaborationWidthAuthority.provesRelation(l, r) { (a, b) =>
+            a > 0 && b > 0 && relation(a, b)
+          }
+        }
+      }
 
       private def retained(
           expression: ElaborationIntegerExpression
@@ -2466,6 +2693,25 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         val value = retainedWidthExpression(expression)
         retainedOrigins.put(value, expression)
         value
+      }
+
+      /** Native resize reconstruction must use the width this pass will
+        * actually publish, including symbolic geometry inferred through an
+        * otherwise fixed native carrier. A concrete witness is not a proof
+        * that the carrier's published source width is invariant.
+        */
+      def retainedDeclarationWidthMismatch(
+          declaration: BitVector,
+          expected: ElaborationIntegerExpression
+      ): Option[String] = {
+        val actual = ofBase(declaration)
+        val captured = retained(expected)
+        if (equivalentWidthExpression(actual, captured) ||
+            provesCompleteRelation(actual, captured)(_ == _)) None
+        else Some(s"signal '${declaration.getName()}' publishes '${actual.render}' " +
+          s"(default ${actual.default}, bounds ${actual.minimum}..${actual.maximum}) " +
+          s"but retained '${expected.verilog}' (default ${expected.default}, " +
+          s"bounds ${expected.minimum}..${expected.maximum})")
       }
 
       /** Exact bounded evaluation; unsupported or unproven nodes return None. */
@@ -2518,6 +2764,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           if (known.exists(_ eq origin)) known else known :+ origin
         }
         if (origins.isEmpty) return None
+        if (origins.exists(origin =>
+            ElaborationWidthAuthority.isRetained(origin) &&
+              origin.completedParameterRoots.size > 1))
+          return Some(projectedMultiRootResultsOf(declaration, expression, origins))
 
         val roots = origins
           .flatMap(_.exactDomain.map(_.root))
@@ -2526,6 +2776,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ) { (known, root) =>
             if (known.exists(_ eq root)) known else known :+ root
           }
+        // These exact partial concatenations are removed by the packed Vec
+        // rewriter after its independent current-AST and emitted-use audits.
+        // Preserve the existing single-root owner projection, but do not
+        // reinterpret proven independent packing roots as one projection.
+        // Their factorized bounds and native witnesses are still validated.
+        if (roots.size > 1 && exactPackedReadSupportTargets.containsKey(declaration)) return None
         if (roots.size != 1) {
           fail(
             "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
@@ -2584,7 +2840,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       ): Vector[ElaborationIntegerExpression] = expression match {
         case retained: WidthRetained =>
           Option(retainedOrigins.get(retained)).toVector.filter(
-            _.exactDomain.nonEmpty
+            origin => origin.exactDomain.nonEmpty || ElaborationWidthAuthority.isRetained(origin)
           )
         case value: WidthBinary =>
           projectedOriginsOf(value.left) ++ projectedOriginsOf(value.right)
@@ -2592,6 +2848,94 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           projectedOriginsOf(value.whenTrue) ++
             projectedOriginsOf(value.whenFalse)
         case _ => Vector.empty
+      }
+
+      /** Width-specific Cartesian evidence still has to belong to the exact
+        * captured declaration for every root; a finite table never supplies
+        * structural ownership by itself.
+        */
+      private def projectedMultiRootResultsOf(
+          declaration: BitVector,
+          expression: WidthExpr,
+          origins: Vector[ElaborationIntegerExpression]
+      ): Vector[BigInt] = {
+        val source = ParameterizedWidth.sourceLocationOf(declaration)
+        val role = s"signal '${declaration.getName()}' retained width"
+        val owned = new IdentityHashMap[
+          ElaborationIntegerExpression, ElaborationWidthAuthority.OwnerEvaluation]()
+        origins.foreach { origin =>
+          val evaluation = ElaborationWidthAuthority.ownerEvaluation(origin, role, source) {
+            (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
+              component, declaration, root, universe, role, source).values
+          }.getOrElse {
+            val domain = origin.exactDomain.getOrElse {
+              fail("SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-MISSING",
+                s"$role lost its exact width authority", source)
+            }
+            val projection = ParameterizedStructure.projectedDeclarationEvaluationOf(
+              component, declaration, origin, role, source).get
+            ElaborationWidthAuthority.OwnerEvaluation(
+              Vector(domain.root), Vector(projection.rootValues.toVector.sorted),
+              projection.results.map { case (key, value) => Vector(key) -> value }.toMap)
+          }
+          owned.put(origin, evaluation)
+        }
+        val axes = origins.flatMap { origin =>
+          val evaluation = owned.get(origin)
+          evaluation.roots.zip(evaluation.rootValues)
+        }.foldLeft(Vector.empty[(ElaborationIntegerParameterRoot, Vector[BigInt])]) {
+          case (known, (root, values)) =>
+            known.find(_._1.name == root.name) match {
+              case Some((previous, admitted)) if (previous ne root) || admitted != values =>
+                fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-DOMAIN-MISMATCH",
+                  s"$role origins disagree on the exact owner of '${root.name}'", source)
+              case Some(_) => known
+              case None => known :+ (root -> values)
+            }
+        }
+        val size = axes.foldLeft(BigInt(1)) { case (count, (_, values)) => count * values.size }
+        if (size > ElaborationExactDomain.MaximumDomainSize)
+          fail("SPINAL-ELAB-WIDTH-DOMAIN-TOO-LARGE",
+            s"$role exact owner domain has $size combinations", source)
+        val bindings = axes.foldLeft(Vector(Vector.empty[BigInt])) {
+          case (prefixes, (_, values)) => prefixes.flatMap(prefix => values.map(prefix :+ _))
+        }
+        def evaluate(value: WidthExpr, binding: Vector[BigInt]): Option[BigInt] = value match {
+          case WidthLiteral(literal) => Some(literal)
+          case retained: WidthRetained =>
+            Option(retainedOrigins.get(retained)).flatMap(origin => Option(owned.get(origin)))
+              .flatMap { evaluation =>
+                evaluation.results.get(evaluation.roots.map(root =>
+                  binding(axes.indexWhere(_._1 eq root))))
+              }
+          case binary: WidthBinary =>
+            for {
+              left <- evaluate(binary.left, binding)
+              right <- evaluate(binary.right, binding)
+              result <- binary.operator match {
+                case "+" => Some(left + right)
+                case "-" => Some(left - right)
+                case "*" => Some(left * right)
+                case _ => None
+              }
+            } yield result
+          case select: WidthSelect =>
+            for {
+              yes <- evaluate(select.whenTrue, binding)
+              no <- evaluate(select.whenFalse, binding)
+            } yield select.selection.select(yes, no)
+          case _ => None
+        }
+        bindings.map { binding =>
+          val result = evaluate(expression, binding).getOrElse {
+            fail("SPINAL-ELAB-DOMAIN-PROJECTION-WIDTH-EVALUATION-UNPROVEN",
+              s"$role '${expression.render}' cannot be evaluated throughout its exact owner domain", source)
+          }
+          if (result < expression.minimum || result > expression.maximum)
+            fail("SPINAL-ELAB-DOMAIN-PROJECTION-BOUNDS-MISMATCH",
+              s"$role evaluates to $result outside its retained interval", source)
+          result
+        }
       }
 
       private def evaluateProjected(
@@ -2629,6 +2973,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             activeBases += baseType
             val result =
               exactPackedVecWidth(baseType)
+                .orElse(ExternalParameterizedNativeResize.targetWidthOf(component, baseType).map(retained))
                 .orElse {
                   if (
                     isExactPackedVecFiniteCarrier(baseType) ||
@@ -2714,10 +3059,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   // Independently rooted element-width and depth expressions
                   // cannot form one core exact-domain expression. Preserve
                   // their factorized geometry directly for that case.
-                  val elementWidth = shape.elementFields
-                    .map(field => field.dimensions.map(axis => retained(axis.depth))
-                      .foldLeft[WidthExpr](retained(field.width))(widthMultiply))
-                    .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                  import ParameterizedVecElementLayout._
+                  def geometry(size: Size): WidthExpr = size match {
+                    case Constant(value) => WidthLiteral(value)
+                    case Value(value) => retained(value)
+                    case Sum(values) => values.map(geometry)
+                      .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                    case Product(left, right) => widthMultiply(geometry(left), geometry(right))
+                  }
+                  val elementWidth = geometry(shape.elementLayout.root.size)
                   widthMultiply(retained(shape.depth), elementWidth)
                 }
             }
@@ -2937,6 +3287,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         // extension is needed, including domains that cross equality.
         if (morphhdl.MorphSignedCasts.isEnabled(pc.config) &&
             resize.getClass == classOf[ResizeSInt]) return
+        if (ExternalParameterizedNativeResize.proves(component, resize)) return
 
         val exactComparisons = (target, source) match {
           case (left: WidthRetained, right: WidthRetained) =>
@@ -3049,6 +3400,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             val source = ofExpression(resize.input)
             val size = BigInt(resize.size)
             if (!source.isSymbolic) WidthLiteral(size)
+            else if (ExternalParameterizedNativeResize.proves(component, resize)) WidthLiteral(size)
             else if (morphhdl.MorphSignedCasts.isEnabled(pc.config) &&
                 resize.getClass == classOf[ResizeSInt] && size > 0 && source.minimum > 0) WidthLiteral(size)
             else if (size <= source.minimum) WidthLiteral(size)
@@ -3101,7 +3453,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
       private def inferFixedBit(access: BitVectorBitAccessFixed): WidthExpr = {
         val source = ofExpression(access.source)
-        if (source.isSymbolic && BigInt(access.bitId) >= source.minimum) {
+        if (source.isSymbolic && BigInt(access.bitId) >= source.minimum &&
+            !ExternalParameterizedHighBit.proves(component, access)) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-SLICE-DOMAIN-UNSUPPORTED",
             s"fixed bit ${access.bitId} is not valid for the complete symbolic source-width domain '${source.render}' in [${source.minimum}, ${source.maximum}]"

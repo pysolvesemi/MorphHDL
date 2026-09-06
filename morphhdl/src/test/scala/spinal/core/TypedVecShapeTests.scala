@@ -889,7 +889,7 @@ class TypedVecShapeTests extends AnyFunSuite {
       assert(shape.logicalElementWidthMinimum == 11)
       assert(shape.logicalElementWidthMaximum == 40)
       assert(shape.parameters.map(_.name) == Vector("FIELD_WIDTH", "INNER_COUNT", "OUTER_COUNT"))
-      val tree = shape.elementLayout.asInstanceOf[ParameterizedVecLayoutRecord]
+      val tree = shape.fieldLayout.asInstanceOf[ParameterizedVecLayoutRecord]
       val array = tree.children(1).asInstanceOf[ParameterizedVecLayoutArray]
       assert(array.dimension.depth eq value.dimensions.head.depth)
       assert(array.element.asInstanceOf[ParameterizedVecLayoutRecord].children.map {

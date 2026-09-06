@@ -128,6 +128,22 @@ ordering of whole-Vec, static-index and dynamic-index assignments. It rejects
 removed evidence, replaced sources, partial targets and mutated controls;
 matching emitted text cannot authorize a replacement assignment.
 
+Nested writes retain the native forwarding invocation tree for each selected
+axis. Static/static, static/dynamic, dynamic/static and dynamic/dynamic forms
+compose exact scalar coordinates; each dynamic axis keeps its own full runtime
+bounds check. The qualification fixture applies static scalar overrides,
+static-outer/dynamic-inner replacement, dynamic-outer/static-inner replacement,
+and two-axis dynamic replacement in that order. Later active writes win for
+their selected leaves, including when several forms select the same element.
+A rejected dynamic address leaves earlier assignments in force.
+
+Direct writes into a nested `Reg(Vec(...))` retain the exact common clock edge
+and user enable. A disabled or out-of-range write holds the complete prior
+state. This support retains the inherited admission boundary for initialization,
+reset and additional clock-enable wrappers; unsupported state controls fail
+closed. Captured forwarding metadata does not replace the native assignment
+algorithm or authorize altered decoder, source, target or condition identities.
+
 Combining native scalar processes into one field-vector process requires a
 separate dependency check. If an indexed write or its condition reads the
 target carrier and consolidation could change the native process ordering,
@@ -178,7 +194,7 @@ frontend or on the selected publication profile.
 ## Qualification and evidence
 
 The implementation includes interface and compatibility contracts in
-`NamedFieldVecTests`, naming collision controls in `NamedFieldVecCollisionTests`,
+`NamedFieldVecTests`, nested write contracts in `NamedFieldVecNestedWriteTests`, naming collision controls in `NamedFieldVecCollisionTests`,
 direct child/register contracts in `NamedFieldVecHierarchyTests`, and packed
 copy provenance controls in `NamedFieldPackedAliasTests`. `TypedVecShapeTests`
 and `ParameterizedVerilogFieldLayoutTests` cover recursive geometry and packing.
@@ -199,11 +215,23 @@ is not evidence that its executable run passed.
 | Independent specialization equivalence | One COUNT=1-default candidate per static topology/profile; separately elaborated native references and wiring-only interface adapters | Pending final-head results |
 | Scalar matrix | WIDTH in `{1, 5, 8, 32}` and COUNT in `{1, 2, 3, 5, 8, 9, 16, 17}`, with independent unequal field widths | Pending final-head results |
 | Nested and stateful extensions | Independent inner dimensions, count-one and odd shapes, nested access and packing, conditional/static writes, enabled registers and separate child/Vec bindings | Pending final-head results |
+| Direct nested register writes | Eight independent configurations, sixteen layout specializations, complete FF inventory and common-state inductive preservation | Pending final-head results |
 | Tools | Icarus simulation, strict Verilog-2001 parsing, Verilator lint and full Yosys synthesis | Pending final-head results |
-| Mutation controls | Real counterexamples for field swaps, reversed element order, wrong offsets and wrong hierarchy/cross-Vec binding | Pending final-head results |
+| Mutation controls | Real counterexamples for field swaps, reversed element order, wrong offsets and wrong hierarchy/cross-Vec binding, nested write gates/bounds and register enable/axis binding | Pending final-head results |
 | Inherited admission and safety | Existing illegal-domain, ambiguous-width, foreign-write, partial-driver, unknown-effect and graph-mutation rejection controls | Pending final-head results |
 | Native source audit | Exact reviewed file hashes and changed spans; no unreviewed native algorithm changes | Pending settled-source refresh and final-head audit |
 | Shared publication source review | Exact 59c overlap reversal followed by all original signedness source checks and genuine source mutation rejections | Pending settled-source refresh and final-head audit |
+
+`NamedFieldNestedRegisterArtifactWriter` and
+`check-increment-59c-nested-register-writes.py` provide a separate register
+ledger. They enumerate every flip-flop bit and require the result ports to
+observe the complete state. Formal preservation starts from equal corresponding
+states with otherwise unconstrained values and proves equality after an
+unconstrained next write. It assumes no initialized register value and does not
+claim convergence from unrelated starting states. Simulation first writes every
+cell, then checks writes, enable holds and full-width invalid addresses against
+an independent Python state update. Both enable and axis mutations must produce
+real SAT counterexamples whose before/after states validate the intended fault.
 
 Inputs must drive fields, elements and distinct Vecs independently. References
 must assert native scalar kinds and exact result widths without adapting away

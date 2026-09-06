@@ -73,6 +73,7 @@ jobs:
           python3 morphhdl/scripts/check-increment-59c-source-review.py
           python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py --self-test
+          python3 morphhdl/scripts/check-increment-59c-nested-register-writes.py --self-test
       - name: Bootstrap repository-pinned SBT
         shell: bash
         run: |
@@ -103,14 +104,16 @@ jobs:
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
+            'morph/Test/testOnly morphhdl.NamedFieldVecTests morphhdl.NamedFieldVecNestedWriteTests morphhdl.NamedFieldVecHierarchyTests morphhdl.NamedFieldVecCollisionTests spinal.core.NamedFieldPackedAliasTests morphhdl.TypedParameterizedVecTests morphhdl.TypedParameterizedVecFormalEquivalenceTests spinal.core.TypedVecShapeTests spinal.core.StructuralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests' \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/a" \
             "morph/Test/runMain morphhdl.NamedFieldVecArtifactWriter $output/b" \
+            "morph/Test/runMain morphhdl.NamedFieldNestedRegisterArtifactWriter $output/register-a" \
+            "morph/Test/runMain morphhdl.NamedFieldNestedRegisterArtifactWriter $output/register-b" \
             > "$output/sbt.log" 2>&1 || { tail -n 120 "$output/sbt.log"; exit 1; }
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          suites = ['NamedFieldVecTests', 'TypedParameterizedVecTests',
+          suites = ['NamedFieldVecTests', 'NamedFieldVecNestedWriteTests', 'TypedParameterizedVecTests',
                     'NamedFieldVecCollisionTests', 'NamedFieldVecHierarchyTests', 'NamedFieldPackedAliasTests',
                     'TypedParameterizedVecFormalEquivalenceTests',
                     'TypedVecShapeTests', 'ParameterizedVerilogFieldLayoutTests',
@@ -133,7 +136,8 @@ jobs:
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59c"
           python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py "$output/a" "$output/b" --jobs 2
-          printf '%s\n' '59c: named and legacy layouts; 32 common WIDTH/COUNT, 36 independent nested dimension, 16 register/hierarchy and 16 Stream/Flow cases; 16 named mixed-direction Vec/Stream cases; one singleton-default candidate per layout/topology; exact native leaf widths; deterministic generation; strict Verilog-2001 Icarus simulation, Verilator lint, full Yosys synthesis, native-reference equivalence, arbitrary-state register convergence and temporal induction; genuine field/order/offset/cross-Vec and generated parent/child binding counterexamples. The finite matrix is not universal parameter quantification.' >> "$GITHUB_STEP_SUMMARY"
+          python3 morphhdl/scripts/check-increment-59c-nested-register-writes.py "$output/register-a" "$output/register-b"
+          printf '%s\n' '59c: named and legacy layouts; 32 common WIDTH/COUNT, 36 independent nested dimension and ordered write, 16 register/hierarchy and 16 Stream/Flow cases; 16 named mixed-direction Vec/Stream cases; one singleton-default candidate per layout/topology; exact native leaf widths; deterministic generation; strict Verilog-2001 Icarus simulation, Verilator lint, full Yosys synthesis, native-reference equivalence, arbitrary-state register convergence and temporal induction; 11 genuine field/order/offset/cross-Vec, generated parent/child binding and nested write gate/bounds counterexamples; 16 additional nested register specializations with complete FF inventory, common-state inductive preservation and two validated write-enable/axis mutation traces. The finite matrix is not universal parameter quantification.' >> "$GITHUB_STEP_SUMMARY"
       - name: Print failures
         if: failure()
         shell: bash
@@ -152,7 +156,7 @@ jobs:
                           print('FAILED:', case.get('classname'), case.get('name'))
                           print(node.attrib)
                           print((node.text or '')[:6000])
-          logs = sorted(Path('target/increment-59c/a/checks').rglob('*.log'), key=lambda p:p.stat().st_mtime)
+          logs = sorted(Path('target/increment-59c').rglob('*.log'), key=lambda p:p.stat().st_mtime)
           for path in logs[-3:]:
               print('HDL LOG:', path)
               print('\n'.join(path.read_text(errors='replace').splitlines()[-100:]))

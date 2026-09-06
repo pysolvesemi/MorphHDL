@@ -134,8 +134,15 @@ object NamedFieldVecFixture {
     setDefinitionName("NamedFieldVecNested")
     val pixels = in(Vec(Envelope(width, blueWidth, inner), count))
     val result = out(Vec(Envelope(width, blueWidth, inner), count))
-    val outerIndex = in(UInt(5 bits))
-    val innerIndex = in(UInt(2 bits))
+    val outerIndex = in(UInt(64 bits))
+    val innerIndex = in(UInt(64 bits))
+    val writeEnable = in(Bool())
+    val staticEnable = in(Bool())
+    val innerEnable = in(Bool())
+    val outerEnable = in(Bool())
+    val staticGreen = in(UInt(width bits))
+    val staticBlue = in(SInt(blueWidth bits))
+    val replacement = in(Pixel(width, blueWidth))
     val first = out(Pixel(width, blueWidth))
     val selected = out(Pixel(width, blueWidth))
     val selectedTag = out(Bits(3 bits))
@@ -143,6 +150,13 @@ object NamedFieldVecFixture {
     val restored = out(Vec(Envelope(width, blueWidth, inner), count))
     val storage = HardType(pixels)().setName("storage").dontSimplifyIt()
     storage := pixels
+    when(staticEnable) {
+      storage(0).colors(0).green := staticGreen
+      storage(0).colors(0).blue := staticBlue
+    }
+    when(innerEnable) { storage(0).colors(innerIndex) := replacement }
+    when(outerEnable) { storage(outerIndex).colors(0) := replacement }
+    when(writeEnable) { storage(outerIndex).colors(innerIndex) := replacement }
     result := storage
     first := storage(0).colors(0)
     selected := storage(outerIndex).colors(innerIndex)
@@ -154,19 +168,35 @@ object NamedFieldVecFixture {
     setDefinitionName(s"NativeFieldVecNested_w${width}_b${blueWidth}_n${count}_i$inner")
     val pixels = in(Vec(NativeEnvelope(width, blueWidth, inner), count))
     val result = out(Vec(NativeEnvelope(width, blueWidth, inner), count))
-    val outerIndex = in(UInt(5 bits))
-    val innerIndex = in(UInt(2 bits))
+    val outerIndex = in(UInt(64 bits))
+    val innerIndex = in(UInt(64 bits))
+    val writeEnable = in(Bool())
+    val staticEnable = in(Bool())
+    val innerEnable = in(Bool())
+    val outerEnable = in(Bool())
+    val staticGreen = in(UInt(width bits))
+    val staticBlue = in(SInt(blueWidth bits))
+    val replacement = in(NativePixel(width, blueWidth))
     val first = out(NativePixel(width, blueWidth))
     val selected = out(NativePixel(width, blueWidth))
     val selectedTag = out(Bits(3 bits))
     val packedBits = out(Bits((3 + inner * (width * 2 + blueWidth + 1)) * count bits))
     val restored = out(Vec(NativeEnvelope(width, blueWidth, inner), count))
     val storage = HardType(pixels)().setName("storage").dontSimplifyIt()
+    val outerInRange = outerIndex.resize(65) < U(count, 65 bits)
+    val innerInRange = innerIndex.resize(65) < U(inner, 65 bits)
     storage := pixels
+    when(staticEnable) {
+      storage(0).colors(0).green := staticGreen
+      storage(0).colors(0).blue := staticBlue
+    }
+    when(innerEnable && innerInRange) { storage(0).colors(innerIndex.resized) := replacement }
+    when(outerEnable && outerInRange) { storage(outerIndex.resized).colors(0) := replacement }
+    when(writeEnable && outerInRange && innerInRange) {
+      storage(outerIndex.resized).colors(innerIndex.resized) := replacement
+    }
     result := storage
     first := storage(0).colors(0)
-    val outerInRange = outerIndex.resize(6) < U(count, 6 bits)
-    val innerInRange = innerIndex.resize(3) < U(inner, 3 bits)
     val row = Mux(outerInRange, storage(outerIndex.resized), storage(count - 1))
     selected := Mux(innerInRange, row.colors(innerIndex.resized), row.colors(inner - 1))
     selectedTag := row.tag

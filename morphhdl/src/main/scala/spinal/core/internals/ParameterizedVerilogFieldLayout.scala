@@ -358,7 +358,7 @@ private[internals] object ParameterizedVerilogFieldLayout {
       case ParameterizedVecLayoutArray(axis, element) =>
         capture(element, constant, strides :+ logicalWidth(element), axes :+ axis)
     }
-    capture(shape.elementLayout, "0", Vector.empty, Vector.empty)
+    capture(shape.fieldLayout, "0", Vector.empty, Vector.empty)
     if (packing.keySet.toSet != fields.map(_.path).toSet)
       fail("FIELD-PACKING-COVERAGE-MISMATCH", s"Vec '$baseName' packing tree does not cover every retained scalar field", shape.sourceLocation)
     val expectedFieldAtLeaf = fields.flatMap(field => field.leafIndices.map(_ -> field)).toMap
@@ -376,11 +376,11 @@ private[internals] object ParameterizedVerilogFieldLayout {
       case ParameterizedVecLayoutArray(axis, element) =>
         (0 until axis.carrierCapacity).foreach(_ => validateNativeOrder(element))
     }
-    validateNativeOrder(shape.elementLayout)
+    validateNativeOrder(shape.fieldLayout)
     if (nativeOrdinal != shape.elementLeaves.size)
       fail("FIELD-PACKING-CARRIER-ORDER-MISMATCH",
         s"Vec '$baseName' packing tree covers $nativeOrdinal native leaves, expected ${shape.elementLeaves.size}", shape.sourceLocation)
-    val elementWidth = logicalWidth(shape.elementLayout)
+    val elementWidth = logicalWidth(shape.fieldLayout)
     val totalWidth = product(Vector(elementWidth, normalized(shape.depth, renderExpr)))
     new Layout(shape, baseName, fields, elementWidth, totalWidth, renderExpr, packing.toMap)
   }

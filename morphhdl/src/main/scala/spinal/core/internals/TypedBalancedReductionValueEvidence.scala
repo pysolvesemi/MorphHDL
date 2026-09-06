@@ -22,6 +22,15 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     before == after || (before == -1 && width.parameters.isEmpty &&
       width.generateIndex.isEmpty && BigInt(after) == width.default)
 
+  /** Native HardType may materialize the witness of an already retained width.
+    * The live, exact symbolic registry entry remains authoritative; a bare
+    * inferred value or a replaced/frozen entry still cannot make this transfer. */
+  def preservesValueWidth(value: BaseType, before: Int, after: Int,
+      width: ElaborationIntegerExpression): Boolean =
+    preservesFixedWidth(before, after, width) ||
+      (before == -1 && BigInt(after) == width.default &&
+        ParameterizedWidth.expressionOf(value).exists(ElaborationWidthAuthority.equivalent(_, width)))
+
   private def sameWidthIdentity(a: Option[ElaborationIntegerExpression],
       b: Option[ElaborationIntegerExpression]): Boolean = (a, b) match {
     case (None, None) => true
@@ -48,7 +57,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
       if ((value.component ne owner) || (value.parentScope ne scope) ||
           (value.getTypeObject.asInstanceOf[AnyRef] ne kind) ||
           (value.clockDomain ne clock) || value.isReg != register || value.isAnalog ||
-          value.hasTag(tagAutoResize) || !preservesFixedWidth(fixed, currentFixed, width) ||
+          value.hasTag(tagAutoResize) || !preservesValueWidth(value, fixed, currentFixed, width) ||
           BigInt(value.getBitsWidth) != width.default ||
           !sameWidthIdentity(ParameterizedWidth.expressionOf(value), retained))
         fail("the certified native value changed its owner, type or width")
@@ -72,7 +81,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
         fail("replacement value has a different native owner, type or width")
       val actual = ParameterizedWidth.expressionOf(candidate)
         .getOrElse(ElabInt.literal(candidate.getBitsWidth).expression)
-      if (!ElabInt.equivalentExactFunction(actual, width))
+      if (!ElaborationWidthAuthority.equivalent(actual, width))
         fail("replacement value lost the exact symbolic width authority")
     }
   }
@@ -82,8 +91,8 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     if (value == null || width == null || prerequisite == null ||
         !scalarClasses.contains(value.getClass) || value.component == null || value.isAnalog)
       fail("one supported live scalar value and authoritative width are required")
-    ElabInt.requireAuthoritativeIntegerDomain(width, "balanced value width",
-      "MORPH-REDUCE-BALANCED-VALUE-WIDTH-AUTHORITY", requireExactExtrema = false)
+    ElaborationWidthAuthority.requireAuthoritative(width, "balanced value width",
+      "MORPH-REDUCE-BALANCED-VALUE-WIDTH-AUTHORITY")
     if (width.minimum < 1) fail("value width must remain positive")
     val result = new Evidence(value, width, prerequisite)
     result.requireFreshness()
@@ -97,7 +106,7 @@ private[spinal] object TypedBalancedReductionValueEvidence {
     create(value, width, () => ())
   }
 
-  def fromOperator(proof: TypedBalancedReductionOperatorReplay.Proof): Evidence = {
+  def fromOperator(proof: TypedBalancedReductionOperatorCertificate): Evidence = {
     if (proof == null) fail("operator proof must be present")
     create(proof.nativeResult, proof.resultWidth, () => proof.validateFreshness())
   }
@@ -105,5 +114,12 @@ private[spinal] object TypedBalancedReductionValueEvidence {
   def fromBridge(proof: TypedBalancedReductionBridgeReplay.Proof): Evidence = {
     if (proof == null) fail("bridge proof must be present")
     create(proof.nativeResult, proof.resultWidth, () => proof.validateFreshness())
+  }
+
+  def fromComposite(proof: TypedBalancedReductionCompositeReplay.OperatorProof,
+      index: Int): Evidence = {
+    if (proof == null) fail("composite operator proof must be present")
+    create(proof.nativeResult.flatten(index), proof.resultWidths(index),
+      () => proof.validateFreshness())
   }
 }

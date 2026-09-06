@@ -14,6 +14,20 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
   private def parameter(name: String, default: Int, maximum: Int): ElaborationIntegerExpression =
     HdlInt.param(name, default, 1, maximum).bits.expression.get
 
+  // The native packing and named-field metadata retain the same recursive
+  // geometry. These manual fixtures populate both without elaborating Data.
+  private def sharedLayout(tree: ParameterizedVecLayoutNode): ParameterizedVecElementLayout.Layout = {
+    import ParameterizedVecElementLayout._
+    def node(value: ParameterizedVecLayoutNode): Node = value match {
+      case ParameterizedVecLayoutScalar(_, width, kind) => Scalar(kind, width)
+      case ParameterizedVecLayoutArray(dimension, element) =>
+        Dimension(dimension.depth, dimension.carrierCapacity, node(element))
+      case ParameterizedVecLayoutRecord(children) =>
+        Fields(classOf[Bundle], children.zipWithIndex.map { case (child, index) => index.toString -> node(child) })
+    }
+    Layout(node(tree))
+  }
+
   private val tag = Vector("tag")
   private val red = Vector("samples", "red")
   private val delta = Vector("samples", "lanes", "delta")
@@ -60,7 +74,7 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
       ))),
       scalar(checksum)
     ))
-    ParameterizedVecShape(outer, 3, 7, leaves, fields, tree, None)
+    ParameterizedVecShape(outer, 3, 7, leaves, fields, tree, sharedLayout(tree), None)
   }
 
   test("independent nested axes preserve field order and native packed offsets across overrides") {
@@ -145,9 +159,10 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
     val fields = paths.zipWithIndex.map { case (path, index) =>
       ParameterizedVecFieldShape(path, Vector.empty, TypeBool, bit, Vector(index))
     }
+    val tree = ParameterizedVecLayoutRecord(paths.map(path => ParameterizedVecLayoutScalar(path, bit, TypeBool)))
     ParameterizedVecShape(literal(3), 3, 3,
       paths.map(path => ParameterizedVecLeafShape(path.mkString("_"), TypeBool, bit)),
-      fields, ParameterizedVecLayoutRecord(paths.map(path => ParameterizedVecLayoutScalar(path, bit, TypeBool))), None)
+      fields, tree, sharedLayout(tree), None)
   }
 
   test("joined paths escaped characters and occupied names allocate deterministic distinct identifiers") {
@@ -172,14 +187,14 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
 
   test("packing tree field types widths and coverage fail closed on mutated metadata") {
     val shape = flatShape(Vector(Vector("left"), Vector("right")))
-    val changedType = shape.copy(elementLayout = ParameterizedVecLayoutRecord(Vector(
+    val changedType = shape.copy(fieldLayout = ParameterizedVecLayoutRecord(Vector(
       ParameterizedVecLayoutScalar(Vector("left"), literal(1), TypeSInt),
       ParameterizedVecLayoutScalar(Vector("right"), literal(1), TypeBool))))
-    val changedWidth = shape.copy(elementLayout = ParameterizedVecLayoutRecord(Vector(
+    val changedWidth = shape.copy(fieldLayout = ParameterizedVecLayoutRecord(Vector(
       ParameterizedVecLayoutScalar(Vector("left"), literal(2), TypeBool),
       ParameterizedVecLayoutScalar(Vector("right"), literal(1), TypeBool))))
     val repeatedLeaf = shape.copy(elementFields = shape.elementFields.map(_.copy(carrierLeafIndices = Vector(0))))
-    val swappedTree = shape.copy(elementLayout = ParameterizedVecLayoutRecord(Vector(
+    val swappedTree = shape.copy(fieldLayout = ParameterizedVecLayoutRecord(Vector(
       ParameterizedVecLayoutScalar(Vector("right"), literal(1), TypeBool),
       ParameterizedVecLayoutScalar(Vector("left"), literal(1), TypeBool))))
     for (mutant <- Vector(changedType, changedWidth, repeatedLeaf, swappedTree)) {

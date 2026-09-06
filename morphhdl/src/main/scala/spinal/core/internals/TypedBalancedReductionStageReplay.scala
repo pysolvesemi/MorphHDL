@@ -14,9 +14,77 @@ private[spinal] object TypedBalancedReductionStageReplay {
   private def fail(code: String, detail: String): Nothing =
     throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-STAGE-$code: $detail")
 
+  final case class WidthStage(inputFull: ElaborationIntegerExpression,
+      inputTail: ElaborationIntegerExpression, outputFull: ElaborationIntegerExpression,
+      outputTail: ElaborationIntegerExpression, fullPairPossible: Boolean,
+      fullInput: ElaborationIntegerExpression, fullPairActive: ElaborationBooleanExpression,
+      partialLeft: ElaborationIntegerExpression, partialRight: ElaborationIntegerExpression,
+      partialPairActive: ElaborationBooleanExpression, partialPairPossible: Boolean,
+      tailPossible: Boolean, inputPacked: ElaborationIntegerExpression,
+      outputPacked: ElaborationIntegerExpression)
+  final case class WidthSchedule(stages: Vector[WidthStage], terminal: ElaborationIntegerExpression,
+      initialPacked: ElaborationIntegerExpression)
+
+  /** The native topology's full groups and last, possibly smaller group.
+    * Transfer comes exclusively from the closed native operator graph. This
+    * recurrence never recognizes an adder or multiplier callback. */
+  def widths(plan: TypedBalancedReductionPlan, leaf: ElaborationIntegerExpression,
+      operator: Option[TypedBalancedReductionOperatorCertificate]): WidthSchedule = {
+    var full = leaf
+    var tail = leaf
+    val initialPacked = ElaborationWidthAuthority.multiply(leaf, plan.count.expression)
+    var packed = initialPacked
+    val stages = plan.stages.map { geometry =>
+      val proof = operator.getOrElse(fail("WIDTH-PROFILE", "an active stage requires a certified native operator"))
+      val fullActive = plan.count >= ElabInt.fromBigInt(BigInt(1) << (geometry.level + 1))
+      val fullMinimum = ElaborationWidthAuthority.minimumWhen(full, fullActive.expression)
+      val fullMaximum = ElaborationWidthAuthority.maximumWhen(full, fullActive.expression)
+      val fullPairPossible = fullMinimum.nonEmpty
+      // Every admitted native width transfer is monotone in its scalar input
+      // widths. Keep existing geometry when the active domain already attains
+      // its maximum; guard only larger, unreachable full-group widths.
+      val fullInput = if (fullMaximum.exists(_ < full.maximum)) {
+        ElaborationWidthAuthority.choose(fullActive.expression, full,
+          ElabInt.fromBigInt(fullMinimum.get).expression)
+      } else full
+      val paired = geometry.active && !geometry.hasOddTail
+      val leftMinimum = ElaborationWidthAuthority.minimumWhen(full, paired.expression)
+      val rightMinimum = ElaborationWidthAuthority.minimumWhen(tail, paired.expression)
+      val partialPairPossible = leftMinimum.nonEmpty
+      if (leftMinimum.nonEmpty != rightMinimum.nonEmpty)
+        fail("WIDTH-PROFILE", "paired native input widths disagree on their exact active domain")
+      // These positive constants describe only inactive template metadata.
+      // There is no native operand, resize or inserted neutral value on a
+      // bypass path. Actual pair widths are untouched, so overflow on an
+      // active native node remains an error.
+      val partialLeft = leftMinimum.map(minimum => ElaborationWidthAuthority.choose(
+        paired.expression, full, ElabInt.fromBigInt(minimum).expression)).getOrElse(full)
+      val partialRight = rightMinimum.map(minimum => ElaborationWidthAuthority.choose(
+        paired.expression, tail, ElabInt.fromBigInt(minimum).expression)).getOrElse(tail)
+      val nextTail = if (partialPairPossible) {
+        val pairedTail = proof.resultWidthFor(partialLeft, partialRight)
+        ElaborationWidthAuthority.choose(paired.expression, pairedTail, tail)
+      } else tail
+      val nextFull = if (fullPairPossible) proof.resultWidthFor(fullInput, fullInput) else nextTail
+      // Native scalar legality alone does not authorize packing a collection
+      // into one finite-width transport. Prove the exact ragged packed range
+      // before emitting it; positive terms cannot hide intermediate overflow.
+      val outputPacked = ElaborationWidthAuthority.add(
+        ElaborationWidthAuthority.multiply(nextFull, (geometry.outputCount - 1).expression), nextTail)
+      val stage = WidthStage(full, tail, nextFull, nextTail, fullPairPossible,
+        fullInput, fullActive.expression, partialLeft, partialRight, paired.expression, partialPairPossible,
+        !geometry.hasOddTail.isAlwaysFalse, packed, outputPacked)
+      full = nextFull
+      tail = nextTail
+      packed = outputPacked
+      stage
+    }
+    WidthSchedule(stages, tail, initialPacked)
+  }
+
   final class Stage private[TypedBalancedReductionStageReplay] (
       val geometry: TypedBalancedReductionStage,
-      val operators: Vector[TypedBalancedReductionOperatorReplay.Proof],
+      val operators: Vector[TypedBalancedReductionOperatorCertificate],
       val bridges: Vector[TypedBalancedReductionBridgeReplay.Proof]
   ) {
     val registerCountPerRow: Int = bridges.head.registerCount
@@ -27,7 +95,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
       val stages: Vector[Stage],
       val resultEvidence: Evidence,
       private val inputs: Vector[Evidence],
-      private val observations: Vector[TypedBalancedReductionClosedGraph.Observation],
+      private val observations: Vector[() => Unit],
       private val native: ElabBalancedReduction.Native[T],
       private val admittedCounts: Set[Int]
   ) {
@@ -39,7 +107,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
           captured.vector.vec.zip(inputs).exists { case (value, proof) => value ne proof.value })
         fail("SHAPE-CHANGED", "the exact captured receiver or its shape changed after certification")
       inputs.foreach(_.requireFreshness())
-      observations.foreach(_.requireUnchanged())
+      observations.foreach(_.apply())
       resultEvidence.requireFreshness()
     }
 
@@ -68,12 +136,15 @@ private[spinal] object TypedBalancedReductionStageReplay {
       val result = native(values, (left: T, right: T) => {
         calls += 1
         operator.getOrElse(fail("SINGLETON", "singleton-only evidence has no operator body"))
-          .replay(left, right).asInstanceOf[T]
+          .replayWithWidths(left, right,
+            ParameterizedWidth.expressionOf(left).getOrElse(ElabInt.literal(left.getBitsWidth).expression),
+            ParameterizedWidth.expressionOf(right).getOrElse(ElabInt.literal(right.getBitsWidth).expression)).asInstanceOf[T]
       }, (value: T, level: Int) => {
         if (level < 0 || level >= stages.size)
           fail("LEVEL", "native helper requested an uncertified bridge level")
         bridgeCalls(level) += 1
-        stages(level).bridges.head.replay(value).asInstanceOf[T]
+        stages(level).bridges.head.replayWithWidth(value,
+          ParameterizedWidth.expressionOf(value).getOrElse(ElabInt.literal(value.getBitsWidth).expression)).asInstanceOf[T]
       })
       val depth = (BigInt(values.size) - 1).bitLength
       if (calls != values.size - 1 || bridgeCalls.keySet != (0 until depth).toSet ||
@@ -89,7 +160,8 @@ private[spinal] object TypedBalancedReductionStageReplay {
   }
 
   def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
-      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] = {
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None): Certificate[T] = {
     if (vector == null || op == null || bridge == null || native == null)
       fail("NULL", "Vec, callbacks and the authoritative native helper are required")
     val shape = ParameterizedVec.shapeOf(vector)
@@ -104,14 +176,15 @@ private[spinal] object TypedBalancedReductionStageReplay {
     }
     val inputEvidence = vector.vec.toVector.map(TypedBalancedReductionValueEvidence.input)
     inputEvidence.foreach { evidence =>
-      if (!ElabInt.equivalentExactFunction(evidence.width, shape.elementLeaves.head.width) ||
+      if (!ElaborationWidthAuthority.equivalent(evidence.width, shape.elementLeaves.head.width) ||
           (evidence.kind ne shape.elementLeaves.head.typeObject))
         fail("INPUT-SHAPE", "original Vec leaves lost their exact independent element-width authority")
     }
     val values = new IdentityHashMap[BaseType, Evidence]()
     inputEvidence.foreach(evidence => values.put(evidence.value, evidence))
-    val observations = ArrayBuffer.empty[TypedBalancedReductionClosedGraph.Observation]
-    val operators = mutable.Map.empty[Int, TypedBalancedReductionOperatorReplay.Proof]
+    val observations = ArrayBuffer.empty[() => Unit]
+    schema.foreach(value => observations += (() => value.validateBindings()))
+    val operators = mutable.Map.empty[Int, TypedBalancedReductionOperatorCertificate]
     val bridges = mutable.Map.empty[Int, TypedBalancedReductionBridgeReplay.Proof]
 
     def statements(): Vector[Statement] = {
@@ -136,14 +209,20 @@ private[spinal] object TypedBalancedReductionStageReplay {
           fail("STATEMENT-EFFECT", "callback removed a pre-existing native statement")
         val added = currentStatements.filterNot(value => previousStatements.exists(_ eq value))
         if (added.exists(value => !callback.declarations.exists(_ eq value) &&
-            !callback.assignments.exists(_ eq value)))
+            !callback.assignments.exists(_ eq value) &&
+            !(schema.nonEmpty && callback.operands.size == 2 && value.isInstanceOf[WhenStatement])))
           fail("STATEMENT-EFFECT", "callback created a statement outside its recorded scalar data graph")
         previousStatements = currentStatements
-        observations.foreach(_.requireUnchanged())
+        observations.foreach(_.apply())
         val evidence = callback.operands.size match {
           case 2 =>
-            val proof = TypedBalancedReductionOperatorReplay.certify(callback, callback.operands.map(evidenceOf))
+            val proof: TypedBalancedReductionOperatorCertificate = schema match {
+              case Some(captures) => TypedBalancedReductionScalarGraphReplay.certify(
+                callback, callback.operands.map(evidenceOf), captures.hardwareInputs)
+              case None => TypedBalancedReductionOperatorReplay.certify(callback, callback.operands.map(evidenceOf))
+            }
             operators(callback.ordinal) = proof
+            if (schema.nonEmpty) observations += (() => proof.validateFreshness())
             TypedBalancedReductionValueEvidence.fromOperator(proof)
           case 1 =>
             val proof = TypedBalancedReductionBridgeReplay.certify(callback, evidenceOf(callback.operands.head))
@@ -152,7 +231,10 @@ private[spinal] object TypedBalancedReductionStageReplay {
           case _ => fail("ARITY", "native callback has an unexpected arity")
         }
         values.put(evidence.value, evidence)
-        observations += TypedBalancedReductionClosedGraph.observe(callback)
+        if (schema.isEmpty || callback.operands.size == 1) {
+          val observed = TypedBalancedReductionClosedGraph.observe(callback)
+          observations += (() => observed.requireUnchanged())
+        }
       })
     val stages = captured.plan.stages.map { geometry =>
       val rows = captured.rows.filter(_.level == geometry.level)
@@ -166,11 +248,10 @@ private[spinal] object TypedBalancedReductionStageReplay {
     if (clocks.nonEmpty && clocks.exists(_ ne clocks.head))
       fail("CLOCK-NONUNIFORM", "fixed enabled-edge latency requires one exact clock domain across all stages and register chains")
     val allOperators = stages.flatMap(_.operators)
-    if (allOperators.nonEmpty && allOperators.exists(_.operationKey != allOperators.head.operationKey))
-      fail("OPERATOR-NONUNIFORM", "the whole native tree must use one certified associative primitive")
+    if (allOperators.nonEmpty && allOperators.exists(proof =>
+        proof.operationKey != allOperators.head.operationKey || proof.transferKey != allOperators.head.transferKey))
+      fail("OPERATOR-NONUNIFORM", "the whole native tree must use one certified scalar native graph and width transfer")
     val terminal = evidenceOf(captured.result)
-    if (!ElabInt.equivalentExactFunction(terminal.width, shape.elementLeaves.head.width))
-      fail("RESULT-WIDTH", "terminal value lost the certified element-width transfer")
     val certificate = new Certificate(captured, stages, terminal, inputEvidence,
       observations.toVector, native, counts)
     certificate.requireFreshness()

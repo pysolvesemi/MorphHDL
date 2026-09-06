@@ -847,6 +847,10 @@ dependency chain is unchanged and may proceed independently.
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c or 59e through 59h.
 
+  Implementation and qualification record:
+  [Increment 59d](increment-59d-symbolic-widths.md). The checkbox remains open
+  until the complete final-head acceptance gates pass.
+
   Replace the equal-width-only reduction certificate with generic scalar
   input/intermediate/result width functions derived from native typed IR.
   Carry independent WIDTH/COUNT roots through arithmetic, resize, mux/min/max,
@@ -877,7 +881,7 @@ dependency chain is unchanged and may proceed independently.
   detect dropped carry/sign bits, default-frozen widths and incorrect tail
   extension. Widening composite/expanded-bridge combinations are joined in 59i.
 
-- [ ] **Increment 59e — Recursive composite-Data balanced reduction**
+- [x] **Increment 59e — Recursive composite-Data balanced reduction**
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c, 59d or 59f through 59h.
@@ -908,7 +912,13 @@ dependency chain is unchanged and may proceed independently.
   Prove complete records and detect leaf swaps, corrupted tags and cross-field
   wiring. Combined named-field, widening and expanded-bridge behavior is 59i.
 
-- [ ] **Increment 59f — Generic safe callback graphs and explicit captured inputs**
+- [x] **Increment 59f — Generic safe callback graphs and explicit captured inputs**
+
+  **Completed:** [PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166),
+  merged at `c85659a20`. Both Scala lanes passed all 64 callback and 32 inherited
+  publication specializations, mutation controls and the complete regression
+  inventory. All applicable post-merge workflows passed. See the
+  [59f qualification record](increment-59f-callback-graphs.md).
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c through 59e, 59g or 59h.

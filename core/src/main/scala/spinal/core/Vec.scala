@@ -20,7 +20,7 @@
 \*                                                                           */
 package spinal.core
 
-import spinal.core.internals.{BitAssignmentFixed, BitAssignmentFloating, BitVectorAssignmentExpression, RangedAssignmentFixed, RangedAssignmentFloating}
+import spinal.core.internals.{BitAssignmentFixed, BitAssignmentFloating, BitVectorAssignmentExpression, Expression, RangedAssignmentFixed, RangedAssignmentFloating, WhenStatement}
 import spinal.idslplugin.Location
 
 import scala.collection.mutable
@@ -123,22 +123,25 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
   ) = this(enables, tos, vec, address, elementLeafIndex, null, null, null)
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
+    val retained = ParameterizedVec.shapeOf(vec).nonEmpty
+    val forwarding = ArrayBuffer.empty[(WhenStatement, Vector[ParameterizedVecWriteInvocation])]
     def assignNative(): Unit = {
     for ((enable, to) <- (enables, tos).zipped) {
       when(enable) {
-        val thatSafe = that /*match {
-          case that: AssignmentNode => that.clone(to)
-          case _ => that
-        }*/
-        target match {
-          case a : BitVectorAssignmentExpression => to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
-          case bt : BaseType => to.compositAssignFrom(thatSafe, to, kind)
+        def assignTarget(): Unit = target match {
+          case a : BitVectorAssignmentExpression => to.compositAssignFrom(that, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
+          case bt : BaseType => to.compositAssignFrom(that, to, kind)
         }
+        if (retained) {
+          val guard = DslScopeStack.get.parentStatement.asInstanceOf[WhenStatement]
+          val (_, writes) = ParameterizedVec.captureWriteInvocations(assignTarget())
+          forwarding += guard -> writes
+        } else assignTarget()
       }
       }
     }
 
-    if (ParameterizedVec.shapeOf(vec).nonEmpty) {
+    if (retained) {
       if (address == null || elementLeafIndex < 0) {
         ParameterizedVec.rejectUnsupported(
           vec,
@@ -147,6 +150,10 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
       }
       val (_, assignments) =
         ParameterizedVec.captureAssignments(vec)(assignNative())
+      val selected = target match {
+        case value: BitVectorAssignmentExpression => value.finalTarget
+        case value: BaseType => value
+      }
       ParameterizedVec.recordDynamicWrite(
         vec,
         address,
@@ -156,9 +163,13 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
         enables,
         tos,
         elementLeafIndex,
+        selected,
+        that,
+        target.asInstanceOf[Expression],
         assignments,
+        forwarding.toVector,
         kind
-      )
+      ).foreach(operation => ParameterizedVec.recordWriteInvocation(vec, selected, operation))
     } else {
       assignNative()
     }
@@ -189,10 +200,14 @@ private[core] final class ParameterizedVecStaticAccessAssign(
     val active = leaf.compositeAssign
     leaf.compositeAssign = previous
     try {
-      val (_, assignments) = ParameterizedVec.captureAssignments(leaf) {
-        leaf.compositAssignFrom(that, target, kind)
+      val ((_, assignments), writes) = ParameterizedVec.captureWriteInvocations {
+        ParameterizedVec.captureAssignments(leaf) {
+          leaf.compositAssignFrom(that, target, kind)
+        }
       }
-      ParameterizedVec.recordStaticWrite(vector, elementIndex, elementLeafIndex, leaf, assignments, kind)
+      ParameterizedVec.recordStaticWrite(vector, elementIndex, elementLeafIndex, leaf,
+        that, target.asInstanceOf[Expression], assignments, writes, kind)
+        .foreach(operation => ParameterizedVec.recordWriteInvocation(vector, leaf, operation))
     } finally leaf.compositeAssign = active
   }
 
@@ -523,10 +538,11 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
 
   override def asBits: Bits = {
     if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits
-    else if (ParameterizedVec.shapeOf(this).nonEmpty)
-      ParameterizedVec.recordPackedRead(this,
-        ParameterizedVec.withNativeCarrierGeometry(super.asBits))
-    else super.asBits
+    else ParameterizedVec.shapeOf(this) match {
+      case Some(shape) if shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors =>
+        ParameterizedVec.readCompositeBits(this)
+      case _ => ParameterizedVec.recordPackedRead(this, super.asBits)
+    }
   }
 
   override def assignFromBits(bits: Bits): Unit = {

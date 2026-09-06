@@ -1,0 +1,28 @@
+{
+  "base": "c85659a20d428dd58cc6116c12c8b24418c37722",
+  "prior_review_sha256": "24f99ef636cb303bed133bb12a21c3ab53c3d08f3352ad3f517f310e601b5f1b",
+  "files": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "before_sha256": "d5297379cf6cca8d9870387f2fd4e79f0d71bb0b1895b3928af2cef96673109f",
+      "after_sha256": "35e82c305d5f10373f170b4788fe1d8ef09853bbba8fb58997aabde94e5e4974",
+      "edits": [
+        {
+          "id": "unsigned-padding-owner-signature",
+          "before": "    * conservative publication policy; a native witness alone is not evidence.\n    */\n  private def exactUnsignedResizePadding(\n      resize: Resize,\n      target: ElaborationIntegerExpression\n  ): Option[String] = {\n    def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {\n",
+          "after": "    * conservative publication policy; a native witness alone is not evidence.\n    */\n  private def exactUnsignedResizePadding(\n      component: Component,\n      resize: Resize,\n      targetDeclaration: BitVector,\n      target: ElaborationIntegerExpression\n  ): Option[String] = {\n    def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {\n"
+        },
+        {
+          "id": "unsigned-padding-owner-relation",
+          "before": "          width.default != BigInt(resize.input.getWidth) ||\n          target.default != BigInt(resize.size)) None\n      else {\n        ElabInt.requireAuthoritativeIntegerDomain(width,\n          \"native resize source width\", \"SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-AUTHORITY\",\n          requireExactExtrema = false)\n        ElabInt.requireAuthoritativeIntegerDomain(target,\n          \"native resize target width\", \"SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AUTHORITY\",\n          requireExactExtrema = false)\n        if (target.minimum >= width.maximum)\n          Some(\"(\" + target.verilog + \" - \" + width.verilog + \")\")\n        else {\n          val difference = ElabInt.fromExpression(target) - ElabInt.fromExpression(width)\n          if (difference.expression.minimum >= 0) Some(difference.expression.verilog)\n          else None\n        }\n      }\n    }\n  }\n",
+          "after": "          width.default != BigInt(resize.input.getWidth) ||\n          target.default != BigInt(resize.size)) None\n      else {\n        val sourceDeclaration = resize.input match {\n          case value: BitVector => value\n          case _ => targetDeclaration // invariant native leaves have literal widths.\n        }\n        NativePublicationWidth.nonNegativeDifferenceAtOwners(\n          target, targetDeclaration, width, sourceDeclaration, component)\n      }\n    }\n  }\n"
+        },
+        {
+          "id": "unsigned-padding-owner-call",
+          "before": "          )\n        }\n        val padding = record.witnessSize - record.inputWitnessSize\n        val symbolicPadding = exactUnsignedResizePadding(record.resize, record.expression)\n        def grow(source: String): String = symbolicPadding match {\n          case Some(count) => \"{{\" + count + \"{1'b0}}, \" + source + \"}\"\n          case None => \"{1'b0, \" + source + \"}\"\n",
+          "after": "          )\n        }\n        val padding = record.witnessSize - record.inputWitnessSize\n        val symbolicPadding = exactUnsignedResizePadding(\n          component, record.resize, record.target, record.expression)\n        def grow(source: String): String = symbolicPadding match {\n          case Some(count) => \"{{\" + count + \"{1'b0}}, \" + source + \"}\"\n          case None => \"{1'b0, \" + source + \"}\"\n"
+        }
+      ]
+    }
+  ]
+}

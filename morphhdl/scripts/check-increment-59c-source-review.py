@@ -18,12 +18,16 @@ import subprocess
 from pathlib import Path
 
 
-BASE = "d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a"
+BASE = "99b6017d7ac69112a088680457029623620224d3"
 CONTRACT = "morphhdl/contracts/increment-59c-source-review.json"
+CONTRACT_SHA256 = "0b39a3cdfdd00fb6ada6339148d32196e5429accadcb6bf2689264b22fba3837"
 PATHS = (
     "core/src/main/scala/spinal/core/ParameterizedVec.scala",
     "core/src/main/scala/spinal/core/Vec.scala",
+    "morphhdl/scripts/check-increment-59f-source-scope.py",
     "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+    "morphhdl/scripts/check-increment-60f-artifacts.py",
+    "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
     "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
@@ -127,7 +131,10 @@ def restore_reviewed(entry: dict, baseline: bytes, source: bytes) -> bytes:
 
 
 def load_contract(root: Path) -> dict[str, dict]:
-    return validate_contract(json.loads((root / CONTRACT).read_text()))
+    raw = (root / CONTRACT).read_bytes()
+    entries = validate_contract(json.loads(raw))
+    require(digest(raw) == CONTRACT_SHA256, "59c reviewed source manifest changed")
+    return entries
 
 
 def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
@@ -159,15 +166,27 @@ def require_production_inventory(paths: set[str]) -> None:
             repr(sorted(PRODUCTION_PATHS - paths)) + "; unreviewed=" + repr(sorted(paths - PRODUCTION_PATHS)))
 
 
-def verify(root: Path, qualification_base: str = BASE) -> None:
+def verify_spans(root: Path, qualification_base: str = BASE) -> None:
+    """Validate the exact successor layer before inherited source-union checks."""
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
-    require_production_inventory(production_changes(root, qualification_base))
     entries = load_contract(root)
     for path, entry in entries.items():
         baseline = baseline_source(root, path)
         require(baseline == baseline_source(root, path, qualification_base),
                 "59c baseline differs from the inherited qualification source: " + path)
-        restore_reviewed(entry, baseline, (root / path).read_bytes())
+        source = root / path
+        require(source.is_file(), "59c reviewed source is missing: " + path)
+        require(not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "59c reviewed source must be a regular non-executable file: " + path)
+        stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "59c reviewed source is not uniquely tracked: " + path)
+        restore_reviewed(entry, baseline, source.read_bytes())
+
+
+def verify(root: Path, qualification_base: str = BASE) -> None:
+    require_production_inventory(production_changes(root, qualification_base))
+    verify_spans(root, qualification_base)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
 
 

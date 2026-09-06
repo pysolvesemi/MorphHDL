@@ -626,6 +626,85 @@ private object StructuralIdentityAdversarialFixture {
     observed := storage
   }
 
+  final case class NestedWriteRow(width: ElabInt, inner: ElabInt) extends Bundle {
+    val values = Vec(Bits(width bits), inner)
+  }
+
+  final class MutatedForwardedNestedWrite(mutation: String) extends Component {
+    setDefinitionName("MutatedForwardedNestedWrite")
+    val width = morphhdl.frontend.HdlInt.param("WIDTH", 5, 1, 8).asElabInt
+    val count = morphhdl.frontend.HdlInt.param("COUNT", 3, 1, 3).asElabInt
+    val inner = morphhdl.frontend.HdlInt.param("INNER", 3, 1, 3).asElabInt
+    val original = in(Vec(NestedWriteRow(width, inner), count))
+    val outerIndex = in(UInt(64 bits))
+    val innerIndex = in(UInt(64 bits))
+    val unrelatedIndex = in(UInt(2 bits))
+    val writeData = in(Bits(width bits))
+    val unrelatedData = in(Bits(width bits))
+    val enable = in(Bool())
+    val unrelatedEnable = in(Bool())
+    val result = out(Vec(NestedWriteRow(width, inner), count))
+    val storage = cloneOf(original).setName("storage").dontSimplifyIt()
+    storage := original
+    val selectedRow = storage(outerIndex)
+    when(enable) { selectedRow.values(innerIndex) := writeData }
+    val innerWrite = ParameterizedVec.operationsOf(selectedRow.values).collect {
+      case value: ParameterizedVecForwardedDynamicWrite => value
+    }.headOption.getOrElse(throw new IllegalStateException("fixture captured no forwarded inner write"))
+    val outerWrite = ParameterizedVec.operationsOf(storage).collect {
+      case value: ParameterizedVecDynamicWrite if value.address eq outerIndex => value
+    }.headOption.getOrElse(throw new IllegalStateException("fixture captured no downstream outer write"))
+    require(innerWrite.address eq innerIndex, "fixture selected the wrong nested decoder")
+    def mutateDecoder(write: ParameterizedVecWriteDecoderEvidence): Unit = {
+      write.decoderAssignments.head.source match {
+        case shift: spinal.core.internals.Operator.UInt.ShiftLeftByUInt => shift.right = unrelatedIndex
+        case other => throw new IllegalStateException("unexpected native decoder: " + other.getClass.getName)
+      }
+    }
+    mutation match {
+      case "inner-decoder" => mutateDecoder(innerWrite)
+      case "outer-decoder" => mutateDecoder(outerWrite)
+      case "inner-guard" => innerWrite.guards.head.whenStatement.cond = unrelatedEnable
+      case "outer-guard" => outerWrite.guards.head.whenStatement.cond = unrelatedEnable
+      case "source" => innerWrite.assignments.head.source = unrelatedData
+      case "target" =>
+        val assignment = innerWrite.assignments.head
+        val another = storage.asInstanceOf[Data].flatten.find(value => !(value eq assignment.finalTarget)).get
+        assignment.target = another
+      case "removed" => innerWrite.assignments.head.removeStatement()
+      case "removed-forwarded-record" =>
+        // Remove only the parent operation. Native decoder gates and every
+        // downstream physical write survive; neither may become an ordinary
+        // user condition with a frozen witness-sized inner decoder.
+        val registryField = ParameterizedVec.getClass.getDeclaredFields.find(_.getName == "retained").get
+        registryField.setAccessible(true)
+        val registry = registryField.get(ParameterizedVec)
+          .asInstanceOf[scala.collection.mutable.Map[AnyRef, AnyRef]]
+        val entries = registry.values.toVector.flatMap { entry =>
+          entry.getClass.getDeclaredFields.find(_.getName == "operations").map { field =>
+            field.setAccessible(true)
+            field.get(entry).asInstanceOf[scala.collection.mutable.ArrayBuffer[ParameterizedVecOperation]]
+          }
+        }
+        val operations = entries.find(_.exists(_ eq innerWrite)).get
+        operations.remove(operations.indexWhere(_ eq innerWrite))
+        require(!ParameterizedVec.operationsOf(selectedRow.values).exists(_ eq innerWrite))
+      case "empty-forwarded" =>
+        // Corrupt the retained immutable snapshot through reflection without
+        // changing any native graph edge. The registry must audit this record
+        // even when its missing inventory would otherwise match no root.
+        val field = classOf[ParameterizedVecForwardedDynamicWrite].getDeclaredField("assignments")
+        field.setAccessible(true)
+        field.set(innerWrite, Vector.empty[spinal.core.internals.DataAssignmentStatement])
+      case "empty-primitive" =>
+        val field = classOf[ParameterizedVecDynamicWrite].getDeclaredField("assignments")
+        field.setAccessible(true)
+        field.set(outerWrite, Vector.empty[spinal.core.internals.DataAssignmentStatement])
+      case other => throw new IllegalArgumentException(other)
+    }
+    result := storage
+  }
+
   private def redirectDynamicWriteGuards(
       vector: Vec[_],
       unrelatedAddress: UInt
@@ -1424,6 +1503,34 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
         failure.detail
       )
       assert(!Files.exists(rtl), "mutated consolidated guard published partial RTL")
+    }
+  }
+
+  for (mutation <- Vector("inner-decoder", "outer-decoder", "inner-guard", "outer-guard",
+                           "source", "target", "removed", "empty-forwarded", "empty-primitive", "removed-forwarded-record")) {
+    test(s"forwarded nested write $mutation mutation cannot reuse stale native evidence") {
+      withTemporaryDirectory { directory =>
+        val rtl = directory.resolve("forwarded_nested_write.v")
+        val config = morphhdl.MorphNamedFieldVectors.enable(morphConfig(directory, rtl.getFileName.toString))
+        val failure = MorphVerilog.tryGenerate(config) {
+          new MutatedForwardedNestedWrite(mutation)
+        } match {
+          case Left(value) => value
+          case Right(value) => fail(s"mutated forwarded nested write published: $value")
+        }
+        val diagnostics = if (mutation.startsWith("empty-")) Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-MISSING"
+        ) else if (mutation == "removed-forwarded-record") Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-WRITE-EVIDENCE-MISMATCH"
+        ) else Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-GUARD-MISMATCH",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-CONTROL-UNSUPPORTED",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-WRITE-EVIDENCE-MISMATCH",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-STALE"
+        )
+        assert(diagnostics.exists(failure.detail.contains), failure.detail)
+        assert(!Files.exists(rtl), "mutated nested write published partial RTL")
+      }
     }
   }
 

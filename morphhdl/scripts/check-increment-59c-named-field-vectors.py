@@ -29,6 +29,10 @@ INDUCTIVE_PASS = 'Induction step proven: SUCCESS!'
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_$]*\Z')
 SIM_PASS = '59C-NAMED-FIELD-SIM-PASS'
 SIM_FAIL = '59C-NAMED-FIELD-MISMATCH'
+NESTED_ENABLES = ('staticEnable', 'innerEnable', 'outerEnable', 'writeEnable')
+NESTED_MUTATIONS = ('nested-static-write-gate', 'nested-inner-write-gate',
+                    'nested-outer-write-gate', 'nested-dynamic-write-gate',
+                    'nested-inner-write-clamp', 'nested-outer-write-clamp')
 
 
 def fields(case):
@@ -76,7 +80,10 @@ def schema(case):
         outputs.update(coupled=case['width'], signedLess=1,
                        packedBits=pixel_bits(case) * case['count'])
     elif case['kind'] == 'nested':
-        inputs.update(outerIndex=5, innerIndex=2)
+        inputs.update(outerIndex=64, innerIndex=64, writeEnable=1,
+                      staticEnable=1, innerEnable=1, outerEnable=1,
+                      staticGreen=case['width'], staticBlue=case['blue_width'])
+        inputs.update(('replacement_' + path, width) for path, width in fields(case))
         outputs['selectedTag'] = 3
         outputs['packedBits'] = (3 + case['inner'] * pixel_bits(case)) * case['count']
     elif case['kind'] == 'storage':
@@ -119,6 +126,14 @@ def mutated_input(case, name, mutation):
     if not mutation:
         return name
     width, count = case['width'], case['count']
+    if mutation in NESTED_MUTATIONS:
+        gates = dict(zip(NESTED_MUTATIONS[:4], NESTED_ENABLES))
+        if gates.get(mutation) == name:
+            return "1'b0"
+        for axis, dimension in (('inner', 'inner'), ('outer', 'count')):
+            if mutation == 'nested-' + axis + '-write-clamp' and name == axis + 'Index':
+                depth = case[dimension]
+                return f"(({name} < 64'd{depth}) ? {name} : 64'd{depth - 1})"
     if mutation == 'field-swap' and name in ('pixels_red', 'pixels_green'):
         return 'pixels_green' if name == 'pixels_red' else 'pixels_red'
     if mutation == 'cross-vec-binding' and name == 'pixels_red':
@@ -191,7 +206,8 @@ def bindings(case, role, layout, prefix, mutation=None):
                             ports.append(f'.{root}_{outer}_{path}({slice_(signal, outer * width, width)})')
     for name in inputs:
         if name not in vector_names:
-            ports.append(f'.{name}({name})')
+            signal = mutated_input(case, name, mutation) if role == 'candidate' else name
+            ports.append(f'.{name}({signal})')
     for name in outputs:
         if name not in vector_names:
             ports.append(f'.{name}({prefix}_{name})')
@@ -276,9 +292,27 @@ def expected(case, values):
             result['result_' + path] = values['pixels_' + path]
             result['restored_' + path] = values['pixels_' + path]
         for path, width in fields(case):
-            source = values['pixels_colors_' + path]
-            result['first_' + path] = word(source, 0, width)
-            result['selected_' + path] = word(source, chosen, width)
+            updated = values['pixels_colors_' + path]
+            mask = (1 << width) - 1
+            if values['staticEnable'] and path in ('green', 'blue'):
+                static = values['staticGreen' if path == 'green' else 'staticBlue']
+                updated = (updated & ~mask) | static
+            # Independent row-major oracle follows authored statement order.
+            # An invalid coordinate suppresses that write using all 64 bits.
+            writes = ((values['innerEnable'] and values['innerIndex'] < inner,
+                       values['innerIndex']),
+                      (values['outerEnable'] and values['outerIndex'] < count,
+                       values['outerIndex'] * inner),
+                      (values['writeEnable'] and values['outerIndex'] < count and
+                       values['innerIndex'] < inner,
+                       values['outerIndex'] * inner + values['innerIndex']))
+            for enabled, index in writes:
+                if enabled:
+                    offset = index * width
+                    updated = (updated & ~(mask << offset)) | (values['replacement_' + path] << offset)
+            result['result_colors_' + path] = updated
+            result['first_' + path] = word(updated, 0, width)
+            result['selected_' + path] = word(updated, chosen, width)
         result['selectedTag'] = word(values['pixels_tag'], outer, 3)
         packed, offset = 0, 0
         for name, start, width in canonical_packed_bits(case, 'pixels'):
@@ -317,12 +351,43 @@ def samples(case):
                                (1 << 32) | legal, (1 << 63) | legal][index % 7]
             values['writeEnable'] = index % 2
         elif case['kind'] == 'nested':
-            values['outerIndex'] = [0, case['count'] - 1, case['count'], 31, index % case['count']][index % 5]
-            values['innerIndex'] = [0, case['inner'] - 1, case['inner'], 3][index % 4]
+            legal_outer, legal_inner = index % case['count'], index % case['inner']
+            values['outerIndex'] = [0, case['count'] - 1, case['count'], 31,
+                                    legal_outer, (1 << 32) | legal_outer,
+                                    (1 << 63) | legal_outer][index % 7]
+            values['innerIndex'] = [0, case['inner'] - 1, case['inner'], 3,
+                                    legal_inner, (1 << 32) | legal_inner,
+                                    (1 << 63) | legal_inner][(index // 7) % 7]
         elif case['kind'] == 'storage':
             values['clk'] = 0
             values['enable'] = 1 if index == 0 else int(index % 5 != 0 and not 30 <= index < 38)
         stimuli.append(values)
+    if case['kind'] == 'nested':
+        # Exercise every enable combination at every distinct boundary pair;
+        # both axes include values whose low bits alias a valid coordinate.
+        coordinates = sorted({(o, i) for o in (0, case['count'] - 1, case['count'],
+                                               (1 << 32), (1 << 63) | (case['count'] - 1))
+                              for i in (0, case['inner'] - 1, case['inner'],
+                                        (1 << 32), (1 << 63) | (case['inner'] - 1))})
+        for outer, inner in coordinates:
+            for flags in itertools.product((0, 1), repeat=4):
+                values = {name: rng.getrandbits(width) for name, width in inputs.items()}
+                values.update(outerIndex=outer, innerIndex=inner)
+                values.update(zip(NESTED_ENABLES, flags))
+                for path, width in fields(case):
+                    # Distinct from cell zero even for one-bit leaves.
+                    values['replacement_' + path] = word(values['pixels_colors_' + path], 0, width) ^ ((1 << width) - 1)
+                values['staticGreen'] = word(values['pixels_colors_green'], 0, case['width']) ^ ((1 << case['width']) - 1)
+                values['staticBlue'] = word(values['pixels_colors_blue'], 0, case['blue_width']) ^ ((1 << case['blue_width']) - 1)
+                stimuli.append(values)
+        # A separate all-colliding priority set distinguishes static values
+        # from dynamic replacement values, including WIDTH=1 specializations.
+        for flags in itertools.product((0, 1), repeat=4):
+            values = {name: 0 for name in inputs}
+            values.update(zip(NESTED_ENABLES, flags))
+            values.update(staticGreen=(1 << case['width']) - 1,
+                          staticBlue=(1 << case['blue_width']) - 1)
+            stimuli.append(values)
     return stimuli
 
 
@@ -365,7 +430,10 @@ def command(argv, log, timeout=180):
         process = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                  text=True, timeout=timeout, check=False)
     except (OSError, subprocess.TimeoutExpired) as error:
-        log.write_text(str(error) + '\n')
+        captured = getattr(error, 'stdout', None) or ''
+        if isinstance(captured, bytes):
+            captured = captured.decode('utf-8', errors='replace')
+        log.write_text(captured + str(error) + '\n')
         raise RuntimeError(f'tool did not complete; see {log}') from error
     log.write_text(process.stdout)
     if process.returncode:
@@ -555,6 +623,40 @@ def check_case_evidence(case, layouts, records):
         raise RuntimeError('incomplete or reordered case evidence: ' + stem(case))
 
 
+def nested_mutation_constraints(case, mutation):
+    """Isolate the changed write while leaving all data inputs independent."""
+    values = dict.fromkeys(NESTED_ENABLES, 0)
+    values.update(outerIndex=0, innerIndex=0)
+    if mutation in NESTED_MUTATIONS[:4]:
+        values[NESTED_ENABLES[NESTED_MUTATIONS.index(mutation)]] = 1
+    else:
+        values['writeEnable'] = 1
+        values['innerIndex' if mutation == 'nested-inner-write-clamp' else 'outerIndex'] = (
+            case['inner'] if mutation == 'nested-inner-write-clamp' else case['count'])
+    return ''.join(f'-set {name} {value} ' for name, value in values.items())
+
+
+def qualify_nested_mutations(case, root):
+    candidate = checked_rtl(root, 'candidate/nested/NamedFieldVecNested.v')
+    reference = checked_rtl(root, case['reference_rtl'])
+    records = []
+    for mutation in NESTED_MUTATIONS:
+        work = root / 'checks' / 'mutations' / mutation
+        work.mkdir(parents=True, exist_ok=True)
+        top, script, trace = work / 'miter.v', work / 'mutation.ys', work / 'counterexample.vcd'
+        trace.unlink(missing_ok=True)
+        top.write_text(miter(case, 'named', mutation))
+        script.write_text(proof_setup([reference, candidate, top]) +
+                          f'sat {nested_mutation_constraints(case, mutation)}-prove bad 0 -timeout 120 '
+                          f'-show-inputs -show-outputs -dump_vcd {quoted(trace)}\n')
+        proof = command(['yosys', '-Q', '-T', '-s', str(script)], work / 'mutation.log')
+        if COUNTEREXAMPLE not in proof or PASS in proof or not trace.is_file() or trace.stat().st_size == 0:
+            raise RuntimeError('nested write mutation lacks an actual counterexample trace: ' + mutation)
+        records.append(dict(mutation=mutation, location='candidate-input-wiring', status='counterexample',
+                            trace=str(trace.relative_to(root))))
+    return records
+
+
 def qualify(root, replay, only=None, layout_filter=None, jobs=1):
     root, replay = root.resolve(), replay.resolve()
     evidence_path = root / ('evidence.json' if only is None and layout_filter is None else 'focused-evidence.json')
@@ -645,6 +747,9 @@ def qualify(root, replay, only=None, layout_filter=None, jobs=1):
             raise RuntimeError('parent/child mutation lacks an actual counterexample trace')
         mutations.append(dict(mutation='parent-child-binding', location='generated-candidate-child-connection',
                               status='counterexample', trace=str(trace.relative_to(root))))
+        nested_case = next(c for c in nested if c['width'] == 5 and c['blue_width'] == 3
+                           and c['count'] == 3 and c['inner'] == 3)
+        mutations.extend(qualify_nested_mutations(nested_case, root))
     status = 'focused-qualification' if only or layout_filter else 'finite-matrix-qualified'
     if not evidence:
         raise RuntimeError('no supported specialization was selected; mixed directions require the named layout')
@@ -731,8 +836,65 @@ def scheduler_self_test():
             assert not stale.exists(), 'failed rerun retained stale success evidence'
 
 
+def nested_oracle_self_test():
+    for width, blue, count, inner in itertools.product((1, 5), (1, 3), (1, 3), (1, 3)):
+        case = dict(kind='nested', width=width, blue_width=blue, count=count,
+                    inner=inner, reference_module='Reference')
+        base = dict.fromkeys(schema(case)[0], 0)
+        base.update(staticGreen=(1 << width) - 1, staticBlue=(1 << blue) - 1)
+        for flags in itertools.product((0, 1), repeat=4):
+            values = dict(base, **dict(zip(NESTED_ENABLES, flags)))
+            observed = expected(case, values)
+            # Every form collides at (0, 0). Dynamic writes, when present,
+            # replace the earlier static leaf update even for one-bit types.
+            static_wins = flags[0] and not any(flags[1:])
+            assert observed['first_green'] == ((1 << width) - 1 if static_wins else 0)
+            assert observed['first_blue'] == ((1 << blue) - 1 if static_wins else 0)
+        for gate, outer, index in (('innerEnable', 0, inner - 1),
+                                   ('outerEnable', count - 1, 0),
+                                   ('writeEnable', count - 1, inner - 1)):
+            legal = dict(base, **{gate: 1}, outerIndex=outer, innerIndex=index,
+                         replacement_red=1)
+            target = outer * inner + index
+            assert expected(case, legal)['result_colors_red'] == 1 << (target * width)
+            relevant_axes = ('innerIndex',) if gate == 'innerEnable' else (
+                ('outerIndex',) if gate == 'outerEnable' else ('outerIndex', 'innerIndex'))
+            for axis in relevant_axes:
+                depth = inner if axis == 'innerIndex' else count
+                for invalid in (depth, (1 << 32) | legal[axis], (1 << 63) | legal[axis]):
+                    assert expected(case, dict(legal, **{axis: invalid}))['result_colors_red'] == 0
+        stimuli = samples(case)
+        assert {tuple(value[name] for name in NESTED_ENABLES) for value in stimuli} == set(itertools.product((0, 1), repeat=4))
+        for axis in ('outerIndex', 'innerIndex'):
+            assert any(value[axis] & (1 << 32) for value in stimuli)
+            assert any(value[axis] & (1 << 63) for value in stimuli)
+        positive = miter(case, 'named')
+        for mutation in NESTED_MUTATIONS:
+            changed = miter(case, 'named', mutation)
+            assert changed != positive
+            assert changed.split('assign bad =')[1] == positive.split('assign bad =')[1]
+            assert changed.split('Reference g(')[1].split(');')[0] == positive.split('Reference g(')[1].split(');')[0]
+            assert mutated_input(case, 'pixels_colors_red', mutation) == 'pixels_colors_red'
+            assert nested_mutation_constraints(case, mutation)
+            witness = dict(base, replacement_red=1)
+            if mutation in NESTED_MUTATIONS[:4]:
+                gate = NESTED_ENABLES[NESTED_MUTATIONS.index(mutation)]
+                witness[gate] = 1
+                altered = dict(witness, **{gate: 0})
+            else:
+                axis = 'innerIndex' if mutation == 'nested-inner-write-clamp' else 'outerIndex'
+                depth = inner if axis == 'innerIndex' else count
+                witness.update(writeEnable=1, **{axis: depth})
+                altered = dict(witness, **{axis: depth - 1})
+            assert expected(case, witness) != expected(case, altered), mutation
+    total = sum(len(samples(dict(kind='nested', width=w, blue_width=b, count=n, inner=i)))
+                for (w, b), n, i in itertools.product(((1, 5), (5, 3), (8, 1), (32, 7)), (1, 3, 5), (1, 2, 3)))
+    assert total == 16576, total
+
+
 def self_test():
     scheduler_self_test()
+    nested_oracle_self_test()
     for kind, width, blue, count, inner in [('access', 5, 3, 3, 1), ('nested', 5, 3, 3, 2), ('nested', 1, 5, 1, 3),
                                            ('storage', 5, 3, 3, 1), ('streams', 8, 1, 3, 1), ('mixed', 5, 3, 3, 1)]:
         case = dict(kind=kind, width=width, blue_width=blue, count=count, inner=inner, reference_module='Reference')
