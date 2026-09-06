@@ -116,12 +116,8 @@ object NativeWidthProvenance {
     result
   }
 
-  private[core] def retainCloneShape[T <: Data](source: T, result: T): T = {
-    val sourceLeaves = source.flatten
-    if (sourceLeaves.exists(widthOf(_).exists(_.parameters.nonEmpty)))
-      ParameterizedWidth.copyShape(source, result)
-    else result
-  }
+  private[core] def retainCloneShape[T <: Data](source: T, result: T): T =
+    ParameterizedWidth.copyCloneMetadata(source, result)
 
   private final case class HighBit(
       access: WeakReference[BitVectorBitAccessFixed],

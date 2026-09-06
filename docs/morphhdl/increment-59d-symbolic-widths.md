@@ -10,6 +10,10 @@ The integration branch also includes merged 59f callback graphs from
 `c85659a20d428dd58cc6116c12c8b24418c37722`. Their shared callback certificate
 must retain the generic width function as well as ordered graph and capture
 identity. Both increments' qualification remains required on the combined head.
+The branch also integrates 59e composite reductions from
+`b25e367d99604e61b8f2c895b2c51ca1ab90d423`. Scalar widening and fixed recursive
+composite stages retain their own certified geometry under shared capture and
+publication ownership. All three increments require combined-head qualification.
 
 ## Native width provenance
 
@@ -19,6 +23,12 @@ casts, mux construction, cloning, HardType and RegNext. The original native
 width inference and concrete overloads still determine ordinary SpinalHDL
 construction. A native high-bit request retains exact access and source
 identity before its construction index becomes an ordinary integer.
+
+Recursive cloning validates leaf kinds, field paths, native width witnesses
+and nested Vec identities before copying exact authored or native-derived
+geometry. Inspecting a fresh clone does not finalize its width before native
+mux construction recomputes the maximum across its inputs. A clone cannot
+introduce symbolic width authority absent from its source.
 
 Resize and high-bit publication retain their exact native assignment, source,
 target and scope identities. Width checks use the captured declaration owner

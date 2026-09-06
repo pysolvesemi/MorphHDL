@@ -20,13 +20,23 @@ WIDTH_59D_CONTRACT = "morphhdl/contracts/increment-59d-width-publication-edits.j
 REVIEW_59D = "morphhdl/contracts/increment-59d-production-review.json"
 ZERO_59D_59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-zero-edits.json"
 PADDING_59D_59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-padding-edits.json"
+COMPOSITE_59D_59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-publisher-edits.json"
+COMPOSITE_59E_59F_CONTRACT = "morphhdl/contracts/increment-59e-59f-publisher-edits.json"
+PRODUCTION_59D_59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-production-edits.json"
+QUALIFIED_59E = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 root = Path(sys.argv[1])
 spec = importlib.util.spec_from_file_location('reviewed_scope', root / sys.argv[2])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-module.source_scope(root)
+if sys.argv[3] == 'reviewed_59d59e_production':
+    result = module.reviewed_59d59e_production(root)
+    assert len(result) == 1, result
+    print('PASS: exact composite production adapter')
+else:
+    assert sys.argv[3] == 'source_scope', sys.argv[3]
+    module.source_scope(root)
 """
 
 
@@ -35,8 +45,9 @@ def git(root: Path, *arguments: str) -> str:
                                    stderr=subprocess.STDOUT, timeout=120).strip()
 
 
-def check(root: Path, checker: str, label: str, rejection: str | None = None) -> dict:
-    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), checker],
+def check(root: Path, checker: str, label: str, rejection: str | None = None,
+          entrypoint: str = "source_scope") -> dict:
+    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), checker, entrypoint],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=120, check=False)
     if rejection is None:
@@ -45,7 +56,7 @@ def check(root: Path, checker: str, label: str, rejection: str | None = None) ->
     elif not result.returncode or rejection not in result.stdout:
         raise RuntimeError(label + " did not reject for " + rejection + ":\n" + result.stdout)
     print("PASS:", label, "[" + (rejection or "accepted") + "]", flush=True)
-    return {"case": label, "checker": checker, "expected_rejection": rejection,
+    return {"case": label, "checker": checker, "entrypoint": entrypoint, "expected_rejection": rejection,
             "exit_code": result.returncode}
 
 
@@ -54,6 +65,8 @@ def main() -> None:
     has_59d = (ROOT / REVIEW_59D).is_file()
     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()
     has_joint_padding = (ROOT / PADDING_59D_59F_CONTRACT).is_file()
+    has_composite = (ROOT / COMPOSITE_59D_59E_CONTRACT).is_file()
+    has_production_adapter = (ROOT / PRODUCTION_59D_59E_CONTRACT).is_file()
     records = [check(ROOT, HELPER, "current exact publisher delta"),
                check(ROOT, CLOSURE, "current full inherited source gates")]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59f-source-scope-") as temporary:
@@ -76,12 +89,26 @@ def main() -> None:
                 shutil.copyfile(ROOT / ZERO_59D_59F_CONTRACT, fixture / ZERO_59D_59F_CONTRACT)
             if has_joint_padding:
                 shutil.copyfile(ROOT / PADDING_59D_59F_CONTRACT, fixture / PADDING_59D_59F_CONTRACT)
+            if has_composite:
+                for path in (COMPOSITE_59D_59E_CONTRACT, COMPOSITE_59E_59F_CONTRACT):
+                    shutil.copyfile(ROOT / path, fixture / path)
+            if has_production_adapter:
+                shutil.copyfile(ROOT / PRODUCTION_59D_59E_CONTRACT, fixture / PRODUCTION_59D_59E_CONTRACT)
+                production_review = json.loads((ROOT / PRODUCTION_59D_59E_CONTRACT).read_text())
+                for entry in production_review["files"]:
+                    target = fixture / entry["path"]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(ROOT / entry["path"], target)
+                records.append(check(fixture, HELPER, "current composite production adapter",
+                                     entrypoint="reviewed_59d59e_production"))
             fallback = (fixture / FALLBACK).read_text()
             boundary = (fixture / BOUNDARY).read_text()
             manifest = (fixture / CONTRACT).read_text()
             data = json.loads(manifest)
             span = next(entry for entry in data["files"] if entry["path"] == FALLBACK)["edits"][0]["after"]
-            fallback_rejection = ("unreviewed source change outside 59d/59f padding-owner spans"
+            fallback_rejection = ("unreviewed source change outside 59d/59e publisher spans"
+                                  if has_composite else
+                                  "unreviewed source change outside 59d/59f padding-owner spans"
                                   if has_joint_padding else
                                   "unreviewed source change outside 59d/59f zero-owner span"
                                   if has_joint_zero else "unreviewed source change outside 59f spans")
@@ -112,7 +139,7 @@ def main() -> None:
                  "// independent oracle was replaced\n", CLOSURE, "sealed writer/checker changed"),
                 ("dirty native signed hook", "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
                  "// native signed hook was replaced\n", CLOSURE,
-                 "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
+                 "native signed declaration/cast hooks changed after their frozen qualification"),
             )
             mutations = [(label, [(path, replacement)], checker, rejection)
                          for label, path, replacement, checker, rejection in cases]
@@ -212,7 +239,7 @@ def main() -> None:
                     ("joint zero source and manifest changed together", [
                       (FALLBACK, changed_zero_source),
                       (ZERO_59D_59F_CONTRACT, json.dumps(paired_zero, indent=2) + "\n")],
-                     HELPER, zero_manifest_rejection),
+                     HELPER, fallback_rejection if has_composite else zero_manifest_rejection),
                 ]
             if has_joint_padding:
                 padding_manifest = (fixture / PADDING_59D_59F_CONTRACT).read_text()
@@ -281,13 +308,142 @@ def main() -> None:
                       padding_manifest.replace(owner_edit["id"], "unreviewed-padding-owner", 1))],
                      HELPER, padding_manifest_rejection),
                     ("joint padding manifest removed", [(PADDING_59D_59F_CONTRACT, None)],
-                     HELPER, "unreviewed source change outside 59d/59f zero-owner span"),
+                     HELPER, ("missing regular 59d/59f padding-owner review" if has_composite else
+                              "unreviewed source change outside 59d/59f zero-owner span")),
                     ("joint padding source and manifest changed together", [
                       (FALLBACK, changed_padding_source),
                       (PADDING_59D_59F_CONTRACT, json.dumps(paired_padding, indent=2) + "\n")],
                      HELPER, padding_manifest_rejection),
                 ]
-            for label, replacements, checker, rejection in mutations:
+            if has_composite:
+                composite_manifest = (fixture / COMPOSITE_59D_59E_CONTRACT).read_text()
+                composite_data = json.loads(composite_manifest)
+                composite_entry = composite_data["files"][0]
+                composite_edits = composite_entry["edits"]
+                changes = {
+                    "packed-read-support-identities":
+                        ("retained.put(assignment.finalTarget,", "retained.put(null,"),
+                    "packed-read-support-assignment-evidence":
+                        ("retained.put(assignment,", "retained.put(null,"),
+                    "packed-read-independent-owner-roots":
+                        ("exactPackedReadSupportTargets.containsKey(declaration)", "true"),
+                    "recursive-packed-element-geometry":
+                        ("widthMultiply(geometry(left), geometry(right))", "widthAdd(geometry(left), geometry(right))"),
+                }
+                for edit in composite_edits:
+                    before, after = changes[edit["id"]]
+                    if edit["after"].count(before) != 1:
+                        raise RuntimeError("composite publisher mutation target differs: " + edit["id"])
+                    changed_span = edit["after"].replace(before, after, 1)
+                    mutations.append(("composite " + edit["id"] + " changed",
+                                      [(FALLBACK, fallback.replace(edit["after"], changed_span, 1))],
+                                      HELPER, fallback_rejection))
+                owner_edit = next(edit for edit in composite_edits
+                                  if edit["id"] == "packed-read-independent-owner-roots")
+                changed_owner_span = owner_edit["after"].replace(*changes[owner_edit["id"]], 1)
+                changed_composite_source = fallback.replace(owner_edit["after"], changed_owner_span, 1)
+                paired_composite = json.loads(composite_manifest)
+                next(edit for edit in paired_composite["files"][0]["edits"]
+                     if edit["id"] == owner_edit["id"])["after"] = changed_owner_span
+                projected_composite_source = changed_composite_source
+                for edit in reversed(width_data["edits"]):
+                    if projected_composite_source.count(edit["after"]) != 1:
+                        raise RuntimeError("composite fixture cannot restore exact 59d width span")
+                    projected_composite_source = projected_composite_source.replace(edit["after"], edit["before"], 1)
+                paired_composite["files"][0]["after_sha256"] = hashlib.sha256(
+                    projected_composite_source.encode()).hexdigest()
+                changed_before = json.loads(composite_manifest)
+                changed_before["files"][0]["edits"][0]["before"] += "\n// unreviewed baseline span\n"
+                changed_after = json.loads(composite_manifest)
+                changed_after["files"][0]["edits"][0]["after"] += "\n// unreviewed successor span\n"
+                historical_manifest = (fixture / COMPOSITE_59E_59F_CONTRACT).read_text()
+                manifest_rejection = "59d/59e reviewed publisher manifest changed"
+                mutations += [
+                    ("composite publisher span duplicated", [(FALLBACK, fallback + owner_edit["after"])],
+                     HELPER, fallback_rejection),
+                    ("composite manifest baseline changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(composite_data["base"], "0" * 40, 1))], HELPER, manifest_rejection),
+                    ("composite qualified history changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(composite_data["qualified_composite"], "0" * 40, 1))],
+                     HELPER, manifest_rejection),
+                    ("composite historical publisher pin changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(composite_data["historical_publisher_sha256"], "0" * 64, 1))],
+                     HELPER, manifest_rejection),
+                    ("composite manifest before hash changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(composite_entry["before_sha256"], "0" * 64, 1))],
+                     HELPER, manifest_rejection),
+                    ("composite manifest after hash changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(composite_entry["after_sha256"], "0" * 64, 1))],
+                     HELPER, manifest_rejection),
+                    ("composite manifest path broadened", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(FALLBACK, "other/src/main/Unreviewed.scala", 1))],
+                     HELPER, manifest_rejection),
+                    ("composite manifest span identity changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      composite_manifest.replace(owner_edit["id"], "unreviewed-composite-owner", 1))],
+                     HELPER, manifest_rejection),
+                    ("composite manifest before span changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      json.dumps(changed_before, indent=2) + "\n")], HELPER, manifest_rejection),
+                    ("composite manifest after span changed", [(COMPOSITE_59D_59E_CONTRACT,
+                      json.dumps(changed_after, indent=2) + "\n")], HELPER, manifest_rejection),
+                    ("frozen composite publisher manifest changed", [(COMPOSITE_59E_59F_CONTRACT,
+                      historical_manifest + "\n")], HELPER, "frozen 59e/59f publisher manifest changed"),
+                    ("frozen composite publisher manifest removed", [(COMPOSITE_59E_59F_CONTRACT, None)],
+                     HELPER, "missing regular frozen 59e/59f publisher review"),
+                    ("composite publisher adapter removed", [(COMPOSITE_59D_59E_CONTRACT, None)],
+                     HELPER, "unreviewed source change outside 59d/59f padding-owner spans"),
+                    ("composite publisher source and manifest changed together", [
+                      (FALLBACK, changed_composite_source),
+                      (COMPOSITE_59D_59E_CONTRACT, json.dumps(paired_composite, indent=2) + "\n")],
+                     HELPER, manifest_rejection),
+                ]
+            if has_production_adapter:
+                production_manifest = (fixture / PRODUCTION_59D_59E_CONTRACT).read_text()
+                production_data = json.loads(production_manifest)
+                production_entry = production_data["files"][0]
+                production_path = production_entry["path"]
+                production_source = (fixture / production_path).read_text()
+                production_edit = production_entry["edits"][0]
+                if production_source.count(production_edit["after"]) != 1:
+                    raise RuntimeError("composite production fixture cannot locate exact policy span")
+                resized_source = production_source.replace(production_edit["after"], production_edit["before"], 1)
+                paired_production = json.loads(production_manifest)
+                paired_production["files"][0]["edits"][0]["after"] = production_edit["before"]
+                paired_production["files"][0]["after_sha256"] = hashlib.sha256(resized_source.encode()).hexdigest()
+                changed_before = json.loads(production_manifest)
+                changed_before["files"][0]["edits"][0]["before"] += "\n// unreviewed original policy\n"
+                changed_after = json.loads(production_manifest)
+                changed_after["files"][0]["edits"][0]["after"] += "\n// unreviewed successor policy\n"
+                source_rejection = "59d/59e reviewed production source changed"
+                manifest_rejection = "59d/59e reviewed production manifest changed"
+                production_cases = [
+                    ("composite production scalar resized reenabled", [(production_path, resized_source)], source_rejection),
+                    ("composite production unrelated source addition", [(production_path,
+                      production_source + "\n// unreviewed policy addition\n")], source_rejection),
+                    ("composite production manifest baseline changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      production_manifest.replace(production_data["base"], "0" * 40, 1))], manifest_rejection),
+                    ("composite production manifest path broadened", [(PRODUCTION_59D_59E_CONTRACT,
+                      production_manifest.replace(production_path, "other/src/main/Unreviewed.scala", 1))], manifest_rejection),
+                    ("composite production manifest before hash changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      production_manifest.replace(production_entry["before_sha256"], "0" * 64, 1))], manifest_rejection),
+                    ("composite production manifest after hash changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      production_manifest.replace(production_entry["after_sha256"], "0" * 64, 1))], manifest_rejection),
+                    ("composite production manifest before span changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      json.dumps(changed_before, indent=2) + "\n")], manifest_rejection),
+                    ("composite production manifest after span changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      json.dumps(changed_after, indent=2) + "\n")], manifest_rejection),
+                    ("composite production manifest span identity changed", [(PRODUCTION_59D_59E_CONTRACT,
+                      production_manifest.replace(production_edit["id"], "unreviewed-policy-span", 1))], manifest_rejection),
+                    ("composite production source and manifest changed together", [
+                      (production_path, resized_source),
+                      (PRODUCTION_59D_59E_CONTRACT, json.dumps(paired_production, indent=2) + "\n")], manifest_rejection),
+                    ("composite production manifest removed", [(PRODUCTION_59D_59E_CONTRACT, None)],
+                     "missing regular 59d/59e production review"),
+                    ("composite production source removed", [(production_path, None)],
+                     "missing regular 59d/59e production source"),
+                ]
+                mutations += [(label, replacements, HELPER, rejection, "reviewed_59d59e_production")
+                              for label, replacements, rejection in production_cases]
+            for label, replacements, checker, rejection, *entrypoints in mutations:
                 originals = {path: (fixture / path).read_bytes() for path, _ in replacements}
                 try:
                     for path, replacement in replacements:
@@ -298,10 +454,24 @@ def main() -> None:
                             target.unlink()
                         else:
                             target.write_text(replacement)
-                    records.append(check(fixture, checker, label, rejection))
+                    records.append(check(fixture, checker, label, rejection,
+                                         entrypoint=entrypoints[0] if entrypoints else "source_scope"))
                 finally:
                     for path, original in originals.items():
                         (fixture / path).write_bytes(original)
+            # Commit the same outside-span mutation so a dirty-worktree check
+            # cannot substitute for the exact current publisher restoration.
+            (fixture / FALLBACK).write_text(fallback + "\n// committed unrelated mutation\n")
+            try:
+                git(fixture, "add", "--", FALLBACK)
+                git(fixture, "-c", "user.name=Scope guard fixture", "-c",
+                    "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
+                    "-m", "isolated committed publisher mutation")
+                records.append(check(fixture, CLOSURE, "committed unrelated publisher mutation",
+                                     fallback_rejection))
+            finally:
+                git(fixture, "reset", "--mixed", head)
+                (fixture / FALLBACK).write_text(fallback)
             records.append(check(fixture, CLOSURE, "restored fixture preserves inherited gates"))
             if has_joint_zero:
                 # Rebuild both complete frozen 59f blobs from their historical
@@ -335,6 +505,20 @@ def main() -> None:
                         (fixture / path).write_bytes(original)
         finally:
             git(ROOT, "worktree", "remove", "--force", str(fixture))
+        historical = Path(temporary) / "historical-59e"
+        git(ROOT, "worktree", "add", "--detach", str(historical), QUALIFIED_59E)
+        try:
+            records.append(check(historical, HELPER, "historical exact 59e publisher"))
+            source = (historical / FALLBACK).read_text()
+            before = "val owner = ParameterizedStructure.exactAssignmentDomainOf("
+            if source.count(before) != 1:
+                raise RuntimeError("historical 59e assignment-owner padding proof is missing")
+            (historical / FALLBACK).write_text(source.replace(
+                before, "val owner = ParameterizedStructure.unreviewedAssignmentDomainOf(", 1))
+            records.append(check(historical, HELPER, "assignment-owner padding proof changed",
+                                 "unreviewed source change outside 59f spans"))
+        finally:
+            git(ROOT, "worktree", "remove", "--force", str(historical))
     if git(ROOT, "rev-parse", "HEAD") != head:
         raise RuntimeError("source-scope fixtures changed the real checkout HEAD")
     output = ROOT / "target/increment-59f/source-scope"

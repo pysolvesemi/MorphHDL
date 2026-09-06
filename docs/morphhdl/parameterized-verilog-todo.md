@@ -877,7 +877,7 @@ dependency chain is unchanged and may proceed independently.
   detect dropped carry/sign bits, default-frozen widths and incorrect tail
   extension. Widening composite/expanded-bridge combinations are joined in 59i.
 
-- [ ] **Increment 59e — Recursive composite-Data balanced reduction**
+- [x] **Increment 59e — Recursive composite-Data balanced reduction**
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c, 59d or 59f through 59h.

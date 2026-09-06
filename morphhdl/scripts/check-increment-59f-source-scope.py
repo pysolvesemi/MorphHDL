@@ -33,6 +33,21 @@ PADDING_59D59F_IDS = (
     "unsigned-padding-owner-relation",
     "unsigned-padding-owner-call",
 )
+COMPOSITE_59EF_CONTRACT = "morphhdl/contracts/increment-59e-59f-publisher-edits.json"
+COMPOSITE_59EF_SHA256 = "a7413d5d50fcb9a073cdd40a980c1476dddb9ef7d727635d045565b39b5b3f9a"
+COMPOSITE_59EF_BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
+COMPOSITE_59DE_CONTRACT = "morphhdl/contracts/increment-59d-59e-publisher-edits.json"
+COMPOSITE_59DE_SHA256 = "28fb1b3cd9a09aa34a227dff0caef2b709dcda6f6410659c5182ee8c2266efce"
+COMPOSITE_59DE_BASE = "cf353ddd45c766576488ae45748d1d17876c3b11"
+COMPOSITE_59DE_IDS = (
+    "packed-read-support-identities",
+    "packed-read-support-assignment-evidence",
+    "packed-read-independent-owner-roots",
+    "recursive-packed-element-geometry",
+)
+COMPOSITE_59DE_PRODUCTION_CONTRACT = "morphhdl/contracts/increment-59d-59e-production-edits.json"
+COMPOSITE_59DE_PRODUCTION_SHA256 = "dcf69402fb0d91a86aed655b966f1b17644d889e73d87f8b1ed8b436ad30d5c2"
+COMPOSITE_59DE_POLICY = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -46,7 +61,13 @@ def digest(text: str) -> str:
 
 def contract(root: Path) -> dict:
     raw = (root / CONTRACT).read_bytes()
-    require(hashlib.sha256(raw).hexdigest() == CONTRACT_SHA256,
+    # The separately qualified 59e branch published a second complete frozen
+    # manifest. Its historical profile has no 59d review. A combined profile
+    # keeps the original 59f manifest and composes exact successor layers.
+    allowed = {CONTRACT_SHA256}
+    if not (root / REVIEW_59D).exists():
+        allowed.add(COMPOSITE_59EF_SHA256)
+    require(hashlib.sha256(raw).hexdigest() in allowed,
             "59f reviewed publisher manifest changed")
     data = json.loads(raw)
     require(set(data) == {"base", "files"} and data["base"] == BASE,
@@ -120,6 +141,77 @@ def restore_59d59f_padding(root: Path, source: str) -> str:
     return source
 
 
+def restore_59d59e_publisher(root: Path, source: str) -> str:
+    """Restore four composite packing spans after the sealed 59d width seams."""
+    path = root / COMPOSITE_59DE_CONTRACT
+    require(path.is_file() and not path.is_symlink(), "missing regular 59d/59e publisher review")
+    raw = path.read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == COMPOSITE_59DE_SHA256,
+            "59d/59e reviewed publisher manifest changed")
+    data = json.loads(raw)
+    require(set(data) == {"base", "qualified_composite", "historical_publisher_sha256", "files"} and
+            data["base"] == COMPOSITE_59DE_BASE and
+            data["qualified_composite"] == COMPOSITE_59EF_BASE and
+            data["historical_publisher_sha256"] == COMPOSITE_59EF_SHA256 and
+            len(data["files"]) == 1, "59d/59e publisher restoration baseline/schema changed")
+    entry = data["files"][0]
+    require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"} and
+            entry["path"] == FALLBACK and len(entry["edits"]) == len(COMPOSITE_59DE_IDS),
+            "59d/59e publisher restoration exceeds its exact fallback scope")
+    require(tuple(edit.get("id") for edit in entry["edits"]) == COMPOSITE_59DE_IDS and
+            all(set(edit) == {"id", "before", "after"} and edit["before"] and edit["after"]
+                for edit in entry["edits"]), "59d/59e publisher restoration spans changed")
+    historical = root / COMPOSITE_59EF_CONTRACT
+    require(historical.is_file() and not historical.is_symlink(),
+            "missing regular frozen 59e/59f publisher review")
+    require(hashlib.sha256(historical.read_bytes()).hexdigest() == COMPOSITE_59EF_SHA256,
+            "frozen 59e/59f publisher manifest changed")
+    prior = root / PADDING_59D59F_CONTRACT
+    require(prior.is_file() and not prior.is_symlink(), "missing regular 59d/59f padding-owner review")
+    prior_raw = prior.read_bytes()
+    require(hashlib.sha256(prior_raw).hexdigest() == PADDING_59D59F_SHA256,
+            "59d/59f reviewed padding-owner manifest changed")
+    require(entry["before_sha256"] == json.loads(prior_raw)["files"][0]["after_sha256"],
+            "59d/59e publisher restoration differs from frozen padding adapter")
+    require(digest(source) == entry["after_sha256"],
+            "unreviewed source change outside 59d/59e publisher spans")
+    for edit in reversed(entry["edits"]):
+        require(source.count(edit["after"]) == 1, "missing/duplicate 59d/59e publisher span")
+        source = source.replace(edit["after"], edit["before"], 1)
+    require(digest(source) == entry["before_sha256"], "59d/59e restored publisher blob differs")
+    return source
+
+
+def reviewed_59d59e_production(root: Path) -> dict[str, str]:
+    """Authorize only the combined profile's exact auto-resize admission removal."""
+    path = root / COMPOSITE_59DE_PRODUCTION_CONTRACT
+    require(path.is_file() and not path.is_symlink(), "missing regular 59d/59e production review")
+    raw = path.read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == COMPOSITE_59DE_PRODUCTION_SHA256,
+            "59d/59e reviewed production manifest changed")
+    data = json.loads(raw)
+    require(set(data) == {"base", "files"} and data["base"] == COMPOSITE_59EF_BASE and
+            len(data["files"]) == 1, "59d/59e production restoration baseline/schema changed")
+    entry = data["files"][0]
+    require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"} and
+            entry["path"] == COMPOSITE_59DE_POLICY and len(entry["edits"]) == 1,
+            "59d/59e production restoration exceeds its exact callback-policy scope")
+    edit = entry["edits"][0]
+    require(set(edit) == {"id", "before", "after"} and edit["id"] == "reject-scalar-auto-resize" and
+            edit["before"] and edit["after"], "59d/59e production restoration span changed")
+    target = root / entry["path"]
+    require(target.is_file() and not target.is_symlink(), "missing regular 59d/59e production source")
+    source = target.read_text()
+    require(digest(source) == entry["after_sha256"], "59d/59e reviewed production source changed")
+    require(source.count(edit["after"]) == 1, "missing/duplicate 59d/59e production span")
+    restored = source.replace(edit["after"], edit["before"], 1)
+    require(digest(restored) == entry["before_sha256"], "59d/59e restored production blob differs")
+    baseline = subprocess.check_output(["git", "show", COMPOSITE_59EF_BASE + ":" + entry["path"]],
+                                       cwd=root, text=True)
+    require(restored == baseline, "59d/59e production restoration differs from frozen 59e")
+    return {entry["path"]: entry["after_sha256"]}
+
+
 def restore_59f_source(root: Path, path: str, source: str) -> str:
     if path not in PATHS:
         return source
@@ -130,6 +222,8 @@ def restore_59f_source(root: Path, path: str, source: str) -> str:
     # The additional adapter belongs only to the combined width/callback
     # publication. Historical standalone 59d and 59f contracts stay unchanged.
     if path == FALLBACK and (root / REVIEW_59D).exists() and (root / ZERO_59D59F_CONTRACT).exists():
+        if (root / COMPOSITE_59DE_CONTRACT).exists():
+            source = restore_59d59e_publisher(root, source)
         if (root / PADDING_59D59F_CONTRACT).exists():
             source = restore_59d59f_padding(root, source)
         source = restore_59d59f_zero(root, source)

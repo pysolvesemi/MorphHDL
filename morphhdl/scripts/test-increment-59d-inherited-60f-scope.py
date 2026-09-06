@@ -15,6 +15,7 @@ QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 REVIEWED_59D = "4c4aa25ae02b4eb206b4d89027865d7e380e1d30"
 PROFILE_AWARE_60F = "3e80cef258ddfdd6ce74819a2fbf200a8d2c5a64"
 REVIEWED_59F = "c85659a20d428dd58cc6116c12c8b24418c37722"
+REVIEWED_59E = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
@@ -62,12 +63,15 @@ def main() -> None:
         ("historical-60f", QUALIFIED_60F, None),
         ("historical-reviewed-59d", REVIEWED_59D, None),
         ("historical-reviewed-59f", REVIEWED_59F, None),
+        ("historical-reviewed-59e", REVIEWED_59E, None),
         ("historical-profile-aware-60f", PROFILE_AWARE_60F, None),
         ("committed-reviewed-descendant", head, None),
         ("partial-wa07a-production", head, "incomplete reviewed WA-07a production delta"),
         ("ignored-untracked-production", head, "untracked production sources"),
         ("forged-59d-absorbs-wa07a", head, "59d reviewed production inventory differs"),
         ("forged-59d-absorbs-59f-only", head, "59d reviewed production inventory differs"),
+        ("forged-59d-absorbs-59e-only", head, "59d reviewed production inventory differs"),
+        ("changed-59e-only-production", head, "reviewed production source hash differs"),
         ("changed-59f-only-production", head, "reviewed production source hash differs"),
         ("changed-integration-certificate", head, "59d/59f reviewed integration source changed"),
         ("changed-integration-replay", head, "59d/59f reviewed integration source changed"),
@@ -77,6 +81,8 @@ def main() -> None:
         ("unreviewed-production", head, "59d reviewed production inventory differs"),
         ("changed-reviewed-production", head, "59d reviewed production bytes changed"),
         ("dirty-reviewed-production", head, "59d reviewed production bytes changed"),
+        ("staged-reviewed-source-hidden-by-worktree", head, "staged production sources"),
+        ("unstaged-reviewed-source-with-updated-review", head, "unstaged production sources"),
         ("removed-reviewed-production", head, "59d reviewed production bytes changed"),
         ("changed-independent-oracle", head, "sealed writer/checker changed"),
         ("changed-checker-restoration", head, "missing/duplicate reviewed 59d checker restoration span"),
@@ -120,16 +126,19 @@ def main() -> None:
                         if label == "paired-integration-source-and-manifest":
                             entry["after_sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
                             (fixture / manifest_path).write_text(json.dumps(integration, indent=2) + "\n")
-                elif label == "changed-59f-only-production":
-                    path = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala"
+                elif label in ("changed-59f-only-production", "changed-59e-only-production"):
+                    name = "TypedBalancedReductionCaptureSchema.scala" if label == "changed-59f-only-production" else "TypedBalancedReductionCompositeReplay.scala"
+                    path = "morphhdl/src/main/scala/spinal/core/internals/" + name
                     with (fixture / path).open("a") as stream:
                         stream.write("\n// Deliberate unreviewed callback-only mutation.\n")
-                elif label in ("forged-59d-absorbs-wa07a", "forged-59d-absorbs-59f-only"):
+                elif label in ("forged-59d-absorbs-wa07a", "forged-59d-absorbs-59f-only", "forged-59d-absorbs-59e-only"):
                     path = "morphhdl/contracts/increment-59d-production-review.json"
                     review = json.loads((fixture / path).read_text())
                     wa = ("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
                           if label == "forged-59d-absorbs-wa07a" else
-                          "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala")
+                          "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala"
+                          if label == "forged-59d-absorbs-59f-only" else
+                          "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala")
                     review["files"].append({"path": wa,
                                             "sha256": hashlib.sha256((fixture / wa).read_bytes()).hexdigest()})
                     review["files"].sort(key=lambda entry: entry["path"])
@@ -143,6 +152,20 @@ def main() -> None:
                         stream.write("\n// Deliberate unreviewed production mutation.\n")
                     if label == "changed-reviewed-production":
                         commit(fixture, path)
+                elif label in ("staged-reviewed-source-hidden-by-worktree",
+                               "unstaged-reviewed-source-with-updated-review"):
+                    target = fixture / path
+                    original = target.read_text()
+                    target.write_text(original + "\n// Isolated exact-head provenance mutation.\n")
+                    if label == "staged-reviewed-source-hidden-by-worktree":
+                        git(fixture, "add", "--", path)
+                        target.write_text(original)
+                    else:
+                        review_path = fixture / "morphhdl/contracts/increment-59d-production-review.json"
+                        review = json.loads(review_path.read_text())
+                        entry = next(entry for entry in review["files"] if entry["path"] == path)
+                        entry["sha256"] = hashlib.sha256(target.read_bytes()).hexdigest()
+                        review_path.write_text(json.dumps(review, indent=2) + "\n")
                 elif label == "removed-reviewed-production":
                     (fixture / path).unlink()
                     commit(fixture, path)

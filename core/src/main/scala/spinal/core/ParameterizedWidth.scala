@@ -877,6 +877,66 @@ object ParameterizedWidth {
     }
   }
 
+  /** Preserve authored or certified native geometry through the clone boundary.
+    * No symbolic width is inferred from a concrete witness, and the native
+    * clone keeps ownership of concrete construction and width inference.
+    */
+  private[core] def copyCloneMetadata[T <: Data](from: T, to: T): T = {
+    def hasMetadata(data: Data): Boolean = data match {
+      case leaf: BaseType =>
+        NativeWidthProvenance.widthOf(leaf).exists(_.parameters.nonEmpty)
+      case vector: Vec[_] if ParameterizedVec.shapeOf(vector).nonEmpty => true
+      case multi: MultiData => multi.elements.exists(element => hasMetadata(element._2))
+      case _ => false
+    }
+    if (!hasMetadata(from)) return to
+
+    def invalid(detail: String): Nothing = ParameterizedVerilogException.fail(
+      "SPINAL-PARAMETERIZED-VERILOG-CLONE-SHAPE-MISMATCH",
+      detail
+    )
+
+    def rec(source: Data, target: Data): Unit = (source, target) match {
+      case (left: BaseType, right: BaseType) =>
+        if (left.getClass != right.getClass)
+          invalid("typed clone changed native leaf type")
+        // Authored or independently derived native geometry owns the width
+        // witness. Untyped leaves and enum encoding keep native inference.
+        val sourceWidth = NativeWidthProvenance.widthOf(left).filter(_.parameters.nonEmpty)
+        // A native BitVector clone already records its concrete width. Reading
+        // it directly avoids registering a getWidth observation before a mux
+        // type is allowed to recompute the fresh clone's maximum width.
+        def cloneWidth: Int = right match {
+          case value: BitVector if value.isFixedWidth => value.fixedWidth
+          case _ => right.getBitsWidth
+        }
+        if (sourceWidth.nonEmpty && left.getBitsWidth != cloneWidth)
+          invalid("typed clone changed a retained leaf's concrete width")
+        if (sourceWidth.isEmpty && isRetained(right))
+          invalid("typed clone introduced a symbolic width absent from its source leaf")
+        copy(left, right)
+      case (left: MultiData, right: MultiData) =>
+        val sourceElements = left.elements.toVector
+        val targetElements = right.elements.toVector
+        if (sourceElements.map(_._1) != targetElements.map(_._1))
+          invalid("typed clone changed native field paths")
+        sourceElements.zip(targetElements).foreach { case ((_, a), (_, b)) => rec(a, b) }
+        (left, right) match {
+          case (a: Vec[_], b: Vec[_]) =>
+            if (ParameterizedVec.shapeOf(a).isEmpty && ParameterizedVec.shapeOf(b).nonEmpty)
+              invalid("typed clone introduced a symbolic Vec shape absent from its source")
+            ParameterizedVec.copyShape(a.asInstanceOf[Vec[Data]], b.asInstanceOf[Vec[Data]])
+          case (_: Vec[_], _) | (_, _: Vec[_]) =>
+            invalid("typed clone changed a native Vec into a different data kind")
+          case _ =>
+        }
+      case _ =>
+        invalid("typed clone changed native data kinds")
+    }
+    rec(from, to)
+    to
+  }
+
   /** Native transfer records geometry without fixing an inferred native width. */
   private[core] def retainNativeWidth(
       data: BaseType,

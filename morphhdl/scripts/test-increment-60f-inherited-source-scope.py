@@ -39,7 +39,7 @@ def check(root: Path, label: str, rejection: str | None = None) -> dict:
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=120, check=False)
     if rejection is None:
-        if result.returncode or "sealed writers/checkers and inherited native audits PASS" not in result.stdout:
+        if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass:\n" + result.stdout)
     elif not result.returncode or rejection not in result.stdout:
         raise RuntimeError(label + " did not reject for " + rejection + ":\n" + result.stdout)
@@ -58,10 +58,13 @@ def main() -> None:
     cases = (
         ("original-baseline", module.BASE, None, False,
          "qualified 60f must be an ancestor of HEAD"),
-        ("qualified-merge", module.QUALIFIED_60F, None, False, None),
-        ("later-committed-production", module.QUALIFIED_60F, production, True,
+        ("qualified-merge", module.COMPLETED_60F, None, False, None),
+        ("later-committed-production", module.COMPLETED_60F, production, True,
          "unreviewed production delta"),
-        ("later-untracked-production", module.QUALIFIED_60F,
+        ("unreviewed-pass-production", module.COMPLETED_60F,
+         "morphhdl-passes/src/main/scala/Increment60fUnreviewedPass.scala", True,
+         "unreviewed production delta"),
+        ("later-untracked-production", module.COMPLETED_60F,
          "morphhdl/src/main/scala/Increment60fLaterScopeProbe.scala", False,
          "untracked production sources"),
         ("original-committed-production", module.BASE, production, True,
@@ -69,14 +72,14 @@ def main() -> None:
         ("original-untracked-production", module.BASE,
          "new-project/src/main/scala/Increment60fScopeProbe.scala", False,
          "qualified 60f must be an ancestor of HEAD"),
-        ("changed-sealed-oracle", module.QUALIFIED_60F, oracle, True, "sealed writer/checker changed"),
-        ("changed-signed-authority", module.QUALIFIED_60F,
+        ("changed-sealed-oracle", module.COMPLETED_60F, oracle, True, "sealed writer/checker changed"),
+        ("changed-signed-authority", module.COMPLETED_60F,
          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala", True,
          "sealed oracle/authority changed"),
-        ("changed-native-hook", module.QUALIFIED_60F,
+        ("changed-native-hook", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/internals/VerilogBase.scala", True,
          "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("unapproved-native-path", module.QUALIFIED_60F,
+        ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
     )
@@ -103,7 +106,7 @@ def main() -> None:
     output = ROOT / "target/increment-60f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: two positive and nine exact negative inherited 60f source-scope cases", flush=True)
+    print("PASS: two positive and ten exact negative inherited 60f source-scope cases", flush=True)
 
 
 if __name__ == "__main__":

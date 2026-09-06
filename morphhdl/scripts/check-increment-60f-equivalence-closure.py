@@ -16,9 +16,33 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+COMPLETED_59F = "c85659a20d428dd58cc6116c12c8b24418c37722"
+INCREMENT_59E_BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
+COMPLETED_59E = INCREMENT_59E_BASE
+INHERITED_TRACKS = {"60c": "60c-signed-declarations", "60d": "60d-pure-sint-casts",
+                    "60e": "60e-signedness-boundaries"}
+# Exact composite production delta qualified with 59f; it cannot select a profile without 59f.
+COMPOSITE_59E_PRODUCTION_SHA256 = {
+    "core/src/main/scala/spinal/core/BitVector.scala": "4e75d8cbdf88f1dbe0e4632c2494648b7893b96a1cb6242797e55a6c89d31729",
+    "core/src/main/scala/spinal/core/Misc.scala": "8d95a1902af24ff7b1afac6b2b3ac50066fa843330e0864ab6e8e9dc1a16a1fb",
+    "core/src/main/scala/spinal/core/ParameterizedVec.scala": "442a058d9b1ec24e78961aea1c14715f8171194e6747a625568490de9babc161",
+    "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala": "71e01420531be00b60ab621fae6e4a0823ffaa50581ff3c4836593416bf3ed1b",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala": "98a637def36d140b8692b3e099b465eb8f9f95f68218aea86bc6eb973f4965ab",
+    "core/src/main/scala/spinal/core/Vec.scala": "892b0deb762b7d5ab5b19d2280908f72849cfe38060755c400275e7ef40231e0",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "f436d56464ad291904d66ec8381121d3b12dfa58fbfaf35b0206d778fca9ca79",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala": "3d3cd3c0d2dd4fba4bee094395871c8120b3a86dcb7087defca987397ceffb9d",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": "4fa827fa383ab993ce352b1074dea2b17f2c2c36fecac5b795f0f2191730f9c3",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala": "2e9812796df5d1262faa46d47791c4c47c8e30b2400ba07f0b926447dbee0194",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala": "fc3e9e07aba57d40e9c111a4abf8f5e44a3e30a76f0b868603ea081e029a4cf1",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala": "817816959781464c3ece3ebefec9a4e1029bf7d0d6e4f1381d04b46e16ef5a6c",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala": "fd767dfbbca20cf2dd407e39ff5a01a451f2c487f135d0da25476bdfe812e325",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala": "aa97a4ec84c14db60b35684d7ab28adc58cd40ae04d6d7a41233fe1bf45cb1ce"
+}
 QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
 # Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
 # This does not expand 60f's historical qualification-only production scope.
@@ -76,6 +100,9 @@ INTEGRATION_59D59F_SHA256 = "c4e314a6ca8d47ff50c04b1dcc6e7562f0195bdea1831bffbea
 INTEGRATION_59D59F_PATHS = frozenset({
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorCertificate.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala",
+})
+INTEGRATION_59D59E_PATHS = frozenset({
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
 })
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
@@ -156,6 +183,104 @@ def self_test() -> None:
             continue
         raise RuntimeError("failed to reject invalid result: " + repr(args))
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
+    source_scope_self_test()
+
+
+def qualification_interval(root: Path, baseline: str, completed: str) -> None:
+    """Seal this completed increment's scope without freezing later work."""
+    for older, newer in ((baseline, completed), (completed, "HEAD")):
+        subprocess.run(["git", "merge-base", "--is-ancestor", older, newer], cwd=root, check=True)
+    changed = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", baseline, completed], cwd=root, text=True).splitlines()
+    production = sorted(path for path in changed if re.search(r"(?:^|/)src/main/", path))
+    require(not production, "completed 60f interval changed production sources:\n" + "\n".join(production))
+
+
+
+def source_scope_self_test() -> None:
+    """Exercise the historical boundary and the real current native auditor."""
+    audit_path = Path(__file__).with_name("check-native-source-preservation.py")
+    spec = importlib.util.spec_from_file_location("closure_native_audit", audit_path)
+    require(spec is not None and spec.loader is not None, "cannot load native audit controls")
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60f-scope-") as directory:
+        root = Path(directory) / "repository"
+        root.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        git("init", "-q")
+        git("config", "user.name", "MorphHDL scope control")
+        git("config", "user.email", "scope@example.invalid")
+        for index, source_root in enumerate(audit.EXPECTED_SOURCE_ROOTS):
+            marker = root / source_root / "scala" / f"Marker{index}.scala"
+            marker.parent.mkdir(parents=True)
+            marker.write_text(f"object Marker{index}\n")
+        upstream = commit("upstream")
+        config = root / audit.DEFAULT_UPSTREAM_CONFIG
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("UPSTREAM_COMMIT=" + upstream + "\n")
+        initial = "core/src/main/scala/InitialSupport.scala"
+        (root / initial).write_text("object InitialSupport\n")
+        baseline = commit("reviewed implementation before qualification")
+
+        def reviewed_support(path: str) -> dict:
+            return dict(path=path, baseline_path=None, change="added", classification="typed-support-file",
+                        introduced_by=["source-scope control"], reason="explicitly reviewed native support", edits=[])
+
+        policy = dict(schema_version=1, repository=audit.EXPECTED_REPOSITORY,
+                      baseline_commit=upstream, files=[reviewed_support(initial)])
+        policy_path = Path(directory) / "review.json"
+        manifest_path = Path(directory) / "manifest.json"
+
+        def approve_current() -> None:
+            policy_path.write_text(json.dumps(policy))
+            manifest_path.write_text(json.dumps(audit.generate_manifest_value(root, policy_path)))
+            audit.validate_repository(root, manifest_path)
+
+        approve_current()
+        baseline_manifest = manifest_path.read_bytes()
+        (root / "qualification.txt").write_text("tests and evidence only\n")
+        completed = commit("completed qualification-only increment")
+        qualification_interval(root, baseline, completed)
+        audit.validate_repository(root, manifest_path)
+
+        later = "core/src/main/scala/LaterSupport.scala"
+        (root / later).write_text("object LaterSupport\n")
+        current = commit("later implementation increment")
+        qualification_interval(root, baseline, completed)
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("UNAPPROVED-PATH"), "wrong unreviewed-source rejection: " + str(error))
+        else:
+            raise RuntimeError("later native production changes escaped the current approved-source audit")
+        policy["files"].append(reviewed_support(later))
+        approve_current()
+        try:
+            qualification_interval(root, baseline, current)
+        except RuntimeError as error:
+            require("changed production sources" in str(error), "wrong historical source rejection")
+        else:
+            raise RuntimeError("production changes were accepted inside a qualification-only interval")
+
+        (root / later).write_text("object LaterSupport { val unreviewed = true }\n")
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("DIRTY-WORKTREE"), "wrong dirty-source rejection: " + str(error))
+        else:
+            raise RuntimeError("uncommitted native production changes escaped the current source audit")
+        (root / later).write_text("object LaterSupport\n")
+
+        print("60f historical scope and current approved native-source controls PASS", flush=True)
 
 
 def qualification_ancestry(root: Path) -> None:
@@ -168,14 +293,15 @@ def qualification_ancestry(root: Path) -> None:
 
 
 def profile_features(profile: str) -> frozenset[str]:
-    names = ("wa07a", "59d", "59f")
+    names = ("wa07a", "59d", "59e", "59f")
     profiles = {"60f-baseline": frozenset()}
-    for mask in range(1, 8):
+    for mask in range(1, 16):
         selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
+        if "59e" in selected and "59f" not in selected:
+            continue
         profiles["60f-with-" + "-and-".join(selected)] = frozenset(selected)
     require(profile in profiles, "unknown validated source profile: " + profile)
     return profiles[profile]
-
 
 def integration_59d59f(root: Path) -> dict[str, str]:
     """Prove only the two reviewed callback/width integrations against frozen 59f."""
@@ -237,17 +363,20 @@ def production_profile(root: Path) -> str:
     untracked = production_paths(git("ls-files", "--others", "-z"))
     require(not untracked, "untracked production sources: " + str(sorted(untracked)))
     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
-    wa, widths, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
-                             set(CALLBACK_59F_PRODUCTION_SHA256))
-    require(wa and widths and callbacks and not wa & (widths | callbacks),
+    wa, widths, composites, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
+                                         set(COMPOSITE_59E_PRODUCTION_SHA256), set(CALLBACK_59F_PRODUCTION_SHA256))
+    require(wa and widths and composites and callbacks and not wa & (widths | composites | callbacks),
             "reviewed WA-07a production profile overlaps a width/callback profile or is empty")
     profiles = {}
-    for mask in range(8):
-        selected = tuple(name for index, name in enumerate(("wa07a", "59d", "59f"))
-                         if mask & (1 << index))
-        paths = (wa if mask & 1 else set()) | (widths if mask & 2 else set()) | (callbacks if mask & 4 else set())
+    names = ("wa07a", "59d", "59e", "59f")
+    inventories = (wa, widths, composites, callbacks)
+    for mask in range(16):
+        selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
+        if "59e" in selected and "59f" not in selected:
+            continue
+        paths = set().union(*(paths for index, paths in enumerate(inventories) if mask & (1 << index)))
         profiles[frozenset(paths)] = ("60f-with-" + "-and-".join(selected)) if selected else "60f-baseline"
-    require(len(profiles) == 8, "reviewed production feature inventories do not identify eight exact unions")
+    require(len(profiles) == 12, "reviewed production feature inventories do not identify twelve exact unions")
     if changed & wa:
         require(changed & wa == wa,
                 "incomplete reviewed WA-07a production delta: " + str(sorted(changed & wa)))
@@ -259,6 +388,11 @@ def production_profile(root: Path) -> str:
     hashes = dict(WA07A_PRODUCTION_SHA256) if "wa07a" in features else {}
     if "59f" in features:
         hashes.update(CALLBACK_59F_PRODUCTION_SHA256)
+    if "59e" in features:
+        require("59f" in features, "59e composite replay requires the reviewed 59f certificate profile")
+        require(subprocess.run(["git", "merge-base", "--is-ancestor", INCREMENT_59E_BASE, "HEAD"],
+                               cwd=root).returncode == 0, "59e review baseline must be an ancestor of HEAD")
+        hashes.update(COMPOSITE_59E_PRODUCTION_SHA256)
     if "59d" in features:
         require(subprocess.run(["git", "merge-base", "--is-ancestor", INCREMENT_59D_BASE, "HEAD"],
                                cwd=root).returncode == 0, "59d review baseline must be an ancestor of HEAD")
@@ -273,6 +407,15 @@ def production_profile(root: Path) -> str:
         require(INTEGRATION_59D59F_PATHS <= callbacks - widths,
                 "59d/59f integration paths escaped the callback-only scope")
         hashes.update(integration_59d59f(root))
+    if {"59d", "59e", "59f"}.issubset(features):
+        publisher = load(root, "59f-source-scope")
+        validate = getattr(publisher, "reviewed_59d59e_production", None)
+        require(callable(validate), "missing exact 59d/59e production integration validator")
+        integration = validate(root)
+        require(set(integration) == INTEGRATION_59D59E_PATHS and
+                INTEGRATION_59D59E_PATHS <= composites - widths,
+                "59d/59e production integration escaped its exact composite-only scope")
+        hashes.update(integration)
     require(set(hashes) == changed, "validated source hashes do not cover the exact production union")
     for path, digest in hashes.items():
         source = root / path
@@ -286,6 +429,26 @@ def production_profile(root: Path) -> str:
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "reviewed production source is not uniquely tracked: " + path)
+    # Hash checks retain their precise source diagnostics. Independently bind
+    # both index and worktree to HEAD afterwards: restoring the visible bytes
+    # cannot conceal staged production, and paired uncommitted review changes
+    # cannot publish evidence for a different committed source tree.
+    for label, arguments in (("staged", ("diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD")),
+                             ("unstaged", ("diff", "--no-renames", "--name-only", "-z"))):
+        dirty = production_paths(git(*arguments))
+        require(not dirty, label + " production sources: " + str(sorted(dirty)))
+    return profile
+
+
+def regression_profile(root: Path) -> str:
+    """Exact source selection retains completed feature obligations after reversions."""
+    profile = production_profile(root)
+    features = profile_features(profile)
+    for completed, feature in ((COMPLETED_59F, "59f"), (COMPLETED_59E, "59e")):
+        inherited = subprocess.run(["git", "merge-base", "--is-ancestor", completed, "HEAD"], cwd=root,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+        require(not inherited or feature in features,
+                "completed " + feature + " profile cannot disappear from a descendant")
     return profile
 
 
@@ -320,6 +483,7 @@ def source_scope(root: Path) -> None:
     # Preserve the inherited oracle/authority rejection diagnostics. The exact
     # production union is still mandatory after all historical source audits.
     qualification_ancestry(root)
+    qualification_interval(root, BASE, COMPLETED_60F)
     reviewed = reviewed_59d(root) if (root / "morphhdl/contracts/increment-59d-production-review.json").is_file() else None
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
@@ -330,6 +494,10 @@ def source_scope(root: Path) -> None:
         "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
         "morphhdl/src/test/scala/nativeapplication/PureSIntCastFixture.scala",
         "morphhdl/src/test/scala/spinal/core/SignednessBoundaryFixture.scala",
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+        "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
+        "morphhdl/contracts/increment-60d-emitter-edits.json",
+        "morphhdl/contracts/increment-60e-boundary-edits.json",
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
@@ -342,11 +510,47 @@ def source_scope(root: Path) -> None:
         if path == "morphhdl/scripts/check-increment-60e-signedness-boundaries.py" and \
                 (root / "morphhdl/scripts/check-increment-59f-source-scope.py").exists():
             current = load(root, "59f-source-scope").restore_59f_source(root, path, current.decode()).encode()
-        require(current == old, "sealed writer/checker changed: " + path)
-    for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
-        load(root, suffix).source_scope(root)
+        if path.endswith("/MorphHdlSignednessAnalysis.scala"):
+            restore = getattr(load(root, "60e-signedness-boundaries"),
+                              "restore_59d_signed_width_authority", None)
+            if restore is not None:
+                current = restore(root, path, current.decode()).encode()
+            require(current == old, "sealed oracle/authority changed: " + path)
+        else:
+            require(current == old, "sealed writer/checker changed: " + path)
+    # Current native printers and signedness policies remain sealed while 59e
+    # legitimately evolves the independently reviewed Vec publication path.
+    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
+        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
+        require((root / path).read_bytes() == old,
+                "native signed declaration/cast hooks changed after their frozen qualification")
+    publisher = root / "morphhdl/scripts/check-increment-59f-source-scope.py"
+    if publisher.exists():
+        load(root, "59f-source-scope").source_scope(root)
+    for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
+        source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
+        for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
+            require(token not in source, "signedness authority uses forbidden inference: " + token)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    profile = production_profile(root)
+    profile = regression_profile(root)
+    if "59e" in profile_features(profile):
+        # The current exact publisher audit above includes every D width seam.
+        # Run the inherited qualification-only scope against its completed tree;
+        # its unchanged behavioral gates still consume current generated RTL.
+        with tempfile.TemporaryDirectory(prefix="morphhdl-60f-history-") as directory:
+            historical = Path(directory) / "completed"
+            subprocess.run(["git", "worktree", "add", "--quiet", "--detach", str(historical), COMPLETED_60F],
+                           cwd=root, check=True)
+            try:
+                for suffix in INHERITED_TRACKS.values():
+                    load(historical, suffix).source_scope(historical)
+            finally:
+                subprocess.run(["git", "worktree", "remove", "--force", str(historical)], cwd=root, check=True)
+    else:
+        for suffix in INHERITED_TRACKS.values():
+            load(root, suffix).source_scope(root)
+    profile = regression_profile(root)
     print("60f historical qualification-only scope, " + profile +
           ", sealed writers/checkers and inherited native audits PASS", flush=True)
 
@@ -547,16 +751,28 @@ endmodule
         "unbounded_equivalence": "retained inherited 60c/60d induction gates"}, indent=2) + "\n")
 
 
+def qualify_inherited(root: Path, out: Path, track: str) -> None:
+    """Run a sealed predecessor's unchanged behavioral gates on current RTL."""
+    require(track in INHERITED_TRACKS, "unknown inherited qualification track: " + track)
+    inherited = load(root, INHERITED_TRACKS[track])
+    if track == "60e":
+        inherited.qualify(root, out, tuple(inherited.KINDS), ("simulation", "formal", "tools"))
+        inherited.mutations(out)
+    else:
+        # Both 60c and 60d qualify() include their original mutation gates.
+        inherited.qualify(root, out)
+    print(track + " inherited behavioral qualification on current artifacts PASS", flush=True)
+
+
+
 def qualify(root: Path, out: Path, closure_only: bool = False) -> None:
     invalidate_summaries(out)
     for tool in ("yosys", "iverilog", "vvp", "verilator"):
         require(shutil.which(tool) is not None, "missing required tool: " + tool)
     manifest = inventory(root, out)
     if not closure_only:
-        boundary = load(root, "60e-signedness-boundaries")
-        boundary.qualify(root, out / "boundaries", tuple(boundary.KINDS), ("simulation", "formal", "tools"))
-        boundary.mutations(out / "boundaries")
-        load(root, "60d-pure-sint-casts").qualify(root, out / "pure")
+        qualify_inherited(root, out / "boundaries", "60e")
+        qualify_inherited(root, out / "pure", "60d")
     baseline_mutation(root, out)
     memory_validity(root, out)
     require(inventory(root, out) == manifest, "qualification mutated independently generated RTL")
@@ -576,10 +792,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--source-only", action="store_true")
-    parser.add_argument("--self-test", action="store_true", help="run result-classification controls without external tools")
+    parser.add_argument("--self-test", action="store_true", help="run solver-result and real Git/native-audit source-scope controls")
     parser.add_argument("--closure-only", action="store_true", help="run supplementary proofs only; never claims full qualification")
+    parser.add_argument("--inherited-track", choices=tuple(INHERITED_TRACKS),
+                        help="run one unchanged predecessor's full artifact qualification after the historical/current source gate")
     parser.add_argument("--skip-source", action="store_true", help="artifact stages after a separately completed source gate")
     args = parser.parse_args()
+    require(not (args.inherited_track and args.closure_only), "inherited-track cannot select supplementary 60f closure")
     root = Path(__file__).resolve().parents[2]
     output = args.output.resolve() if args.output else None
     if output is not None:
@@ -591,7 +810,10 @@ def main() -> None:
         source_scope(root)
     if not args.source_only:
         require(args.output is not None, "artifact output directory is required")
-        qualify(root, output, args.closure_only)
+        if args.inherited_track:
+            qualify_inherited(root, output, args.inherited_track)
+        else:
+            qualify(root, output, args.closure_only)
 
 
 if __name__ == "__main__":

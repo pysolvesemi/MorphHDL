@@ -23,11 +23,11 @@
     },
     {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
-      "sha256": "d2e5342cbc6370bfe78d45602c6d9f2a6d6bb61b58cdf87f0d2d0cdea2bb468c"
+      "sha256": "f45ed9c60786dc09b999eeb2db96e55988b1fb6201bd0517512d8162d79b7298"
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
-      "sha256": "b174c50bbf8cd21fb7f049332451183a92de229bcac865875d84be11d9a346a5"
+      "sha256": "c20a93e2f582f2b8a12c573258ce23c48730d10f1b583cde2370498e3b292b8b"
     },
     {
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
@@ -43,7 +43,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-      "sha256": "166c9b5cdaa7a7a73e431f810c6e20199367fef2a947c13f5ffe5b7bf4dac887"
+      "sha256": "8c4db8db05812ec382c2c05c6d6acb678514acf5701064cae9d5cd4a53864550"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
@@ -59,7 +59,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
-      "sha256": "01110900bc8445b58dc201d1c8f49a98ed672cd037b6bb5495cf4aea866d56b2"
+      "sha256": "1f7e359d60d87d491ca57727066cf681d436a6cdeb65ba49085f86f3895963ea"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
@@ -67,7 +67,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala",
-      "sha256": "87b8dca4e5c664ebe623d46310b24a812efd4f468dc42fbcf5a182b20b969ee3"
+      "sha256": "6b78d3330bf0e876c1ee1d290728c0cddbad526fe1aab0c365c1894d3acd3c61"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
@@ -83,7 +83,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala",
-      "sha256": "149f4cee7134ca069e1557f3fe27ae93137a1c9f78d3f328239979ed0b6c2484"
+      "sha256": "2f964e677373a00e3393a0f3d236ceca8db5a4cf89742763290c3809a2e6a9ac"
     }
   ],
   "checker_edits": [

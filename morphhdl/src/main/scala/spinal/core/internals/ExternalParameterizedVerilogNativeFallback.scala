@@ -1868,6 +1868,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private val treeStatements = ArrayBuffer.empty[TreeStatement]
     private val widthInference = new WidthInference
 
+    private lazy val exactPackedReadSupportAssignments =
+      ParameterizedVerilogVecs.exactPackedReadSupportAssignments(component)
+
+    private lazy val exactPackedReadSupportTargets = {
+      val retained = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+      retained
+    }
+
     /** Exact native statements whose logical width and layout are owned by
       * the typed Vec packed-operation validator.  The ordinary native graph
       * deliberately uses finite-capacity carriers and witness-width wrappers;
@@ -1880,6 +1890,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     private lazy val exactPackedVecEvidenceAssignments = {
       val retained =
         new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+      exactPackedReadSupportAssignments.foreach(assignment =>
+        retained.put(assignment, java.lang.Boolean.TRUE))
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
@@ -2761,6 +2773,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ) { (known, root) =>
             if (known.exists(_ eq root)) known else known :+ root
           }
+        // These exact partial concatenations are removed by the packed Vec
+        // rewriter after its independent current-AST and emitted-use audits.
+        // Preserve the existing single-root owner projection, but do not
+        // reinterpret proven independent packing roots as one projection.
+        // Their factorized bounds and native witnesses are still validated.
+        if (roots.size > 1 && exactPackedReadSupportTargets.containsKey(declaration)) return None
         if (roots.size != 1) {
           fail(
             "SPINAL-ELAB-DOMAIN-PROJECTION-ROOT-IDENTITY-MISMATCH",
@@ -3038,9 +3056,15 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   // Independently rooted element-width and depth expressions
                   // cannot form one core exact-domain expression. Preserve
                   // their factorized geometry directly for that case.
-                  val elementWidth = shape.elementLeaves
-                    .map(leaf => retained(leaf.width))
-                    .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                  import ParameterizedVecElementLayout._
+                  def geometry(size: Size): WidthExpr = size match {
+                    case Constant(value) => WidthLiteral(value)
+                    case Value(value) => retained(value)
+                    case Sum(values) => values.map(geometry)
+                      .foldLeft[WidthExpr](WidthLiteral(0))(widthAdd)
+                    case Product(left, right) => widthMultiply(geometry(left), geometry(right))
+                  }
+                  val elementWidth = geometry(shape.elementLayout.root.size)
                   widthMultiply(retained(shape.depth), elementWidth)
                 }
             }
