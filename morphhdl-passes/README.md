@@ -423,7 +423,11 @@ each of which may contain several distinct PDR property proofs.
 
 Each nonconstant representative uses a fixed PDR search sequence: default,
 monolithic, then monolithic with structural flop priorities, each with
-`-C100 -D100 -F64`, followed by the original `-m -y -r` search. A later search
+`-C100 -D100 -F64`, then a monolithic search with `-C256 -D256 -F64`, followed
+by the original `-m -y -r` search. The moderate increase retries the monolithic search from the same canonical
+model with a higher conflict limit. Each profile's
+declared bounds drive both its command and its accepted limit diagnostic.
+A later search
 starts only when a successful command explicitly reports the configured
 conflict or frame limit and an undecided property. Counterexamples, timeouts,
 tool errors and malformed evidence stop qualification. All attempts share the

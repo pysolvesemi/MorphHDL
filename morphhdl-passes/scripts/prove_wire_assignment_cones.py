@@ -41,11 +41,14 @@ IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 SHA256 = re.compile(r"[0-9a-f]{64}")
 # Fixed effort bounds make the choice independent of elapsed time. Only an
 # explicit exhaustion of these bounds advances the ordered search portfolio.
+# Limits are (SAT-call conflicts, generalization conflicts, timeframes). The
+# same declaration drives both the command and the permitted limit diagnostic.
 PDR_PROFILES = (
-    ("default", "", True),
-    ("monolithic", "-m", True),
-    ("monolithic-priority", "-m -y", True),
-    ("monolithic-priority-generalization", "-m -y -r", False),
+    ("default", "", (100, 100, 64)),
+    ("monolithic", "-m", (100, 100, 64)),
+    ("monolithic-priority", "-m -y", (100, 100, 64)),
+    ("monolithic-higher-effort", "-m", (256, 256, 64)),
+    ("monolithic-priority-generalization", "-m -y -r", None),
 )
 
 
@@ -244,8 +247,11 @@ def extraction_script(index: int, sequential: bool = True) -> str:
 def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True,
                  attempt: int = 0) -> str:
     stem = attempt_stem(index, attempt)
-    _, options, bounded = PDR_PROFILES[attempt]
-    options = ((options + " ") if options else "") + ("-C 100 -D 100 -F 64 " if bounded else "")
+    _, options, limits = PDR_PROFILES[attempt]
+    options = (options + " ") if options else ""
+    if limits is not None:
+        conflicts, generalization, frames = limits
+        options += f"-C {conflicts} -D {generalization} -F {frames} "
     # Every attempt rebuilds the canonical extraction, including when a dropped
     # output requires proving the original formula. Never use a prior attempt's
     # files, change the model, or turn an elapsed-time failure into a retry.
@@ -341,15 +347,17 @@ def validate_attempt_log(output: str, attempt: int) -> dict[str, Any]:
         if limit_lines:
             raise ConeProofError("proved result contains a contradictory effort-limit diagnostic")
         return {"status": "PASS", "verified_invariant": True}
-    if (not PDR_PROFILES[attempt][2] or len(undecided) != 1
+    limits = PDR_PROFILES[attempt][2]
+    if (limits is None or len(undecided) != 1
             or len(re.findall(r"\bUNDECIDED\b", output, re.I)) != 1
             or re.search(r"(?i)Property proved|Verification of invariant", output)
             or len(limit_lines) != 1):
         raise ConeProofError("ABC PDR undecided result lacks one permitted effort-limit diagnostic")
-    if re.fullmatch(r"Reached conflict limit \(100\) in frame [0-9]+\.", limit_lines[0]):
-        reason = {"kind": "conflicts", "limit": 100}
-    elif limit_lines[0] == "Reached limit on the number of timeframes (64).":
-        reason = {"kind": "frames", "limit": 64}
+    conflicts, _, frames = limits
+    if re.fullmatch(rf"Reached conflict limit \({conflicts}\) in frame [0-9]+\.", limit_lines[0]):
+        reason = {"kind": "conflicts", "limit": conflicts}
+    elif limit_lines[0] == f"Reached limit on the number of timeframes ({frames}).":
+        reason = {"kind": "frames", "limit": frames}
     else:
         raise ConeProofError("ABC PDR reached an unexpected or malformed effort limit")
     return {"status": "UNDECIDED", "verified_invariant": False, "effort_limit": reason}
