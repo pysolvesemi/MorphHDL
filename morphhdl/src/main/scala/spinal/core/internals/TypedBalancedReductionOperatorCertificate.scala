@@ -10,6 +10,11 @@ private[spinal] trait TypedBalancedReductionOperatorCertificate {
   def resultWidth: ElaborationIntegerExpression
   def operatorClass: Class[_]
   def operationKey: Any
+  def transferKey: Any
+  def resultWidthFor(left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression): ElaborationIntegerExpression
   def validateFreshness(): Unit
   def replay(left: BaseType, right: BaseType): BaseType
+  def replayWithWidths(left: BaseType, right: BaseType,
+      leftWidth: ElaborationIntegerExpression, rightWidth: ElaborationIntegerExpression): BaseType
 }

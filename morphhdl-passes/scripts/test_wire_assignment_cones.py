@@ -267,12 +267,61 @@ class PortfolioEvidenceTests(unittest.TestCase):
         self.assertTrue((self.root / cone.canonical_name(2, False)).is_file())
 
     def test_final_unbounded_profile_still_requires_a_real_proof(self):
-        self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
+        self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
         evidence = self.generate()
         self.assertEqual(evidence, self.validate())
         self.assertEqual([a["profile"] for a in evidence["unique_proofs"][0]["attempts"]],
                          [profile[0] for profile in cone.PDR_PROFILES])
-        self.assertNotIn("-C ", (self.root / (cone.attempt_stem(0, 4) + "-prove.abc")).read_text())
+        self.assertNotIn("-C ", (self.root / (cone.attempt_stem(0, 5) + "-prove.abc")).read_text())
+
+    def test_reuse_push_preserves_model_and_requires_previous_effort_limits(self):
+        self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
+        evidence = self.generate()
+        self.assertEqual(evidence, self.validate())
+        for proof in evidence["unique_proofs"]:
+            self.assertEqual([a["profile"] for a in proof["attempts"]],
+                             [p[0] for p in cone.PDR_PROFILES[:5]])
+            self.assertEqual([a["status"] for a in proof["attempts"]], ["UNDECIDED"] * 4 + ["PASS"])
+        script = (self.root / (cone.attempt_stem(0, 4) + "-prove.abc")).read_text()
+        self.assertIn("; pdr -m -i -p -C 256 -D 256 -F 64 -T 10 -v -d -I ", script)
+        self.assertFalse(any(name.startswith(cone.attempt_stem(0, 5)) for name in self.calls))
+
+    def test_reuse_push_failure_never_advances_to_final_profile(self):
+        failures = ("Output 0 was asserted in frame 3.\n",
+                    "Reached time limit (10).\nProperty UNDECIDED. Time = 10.00 sec\n",
+                    "Error: solver input rejected\n", LIMIT_LOG)
+        for failure in failures:
+            with self.subTest(failure=failure):
+                self.outcomes = (LIMIT_LOG, LIMIT_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, failure, GOOD_LOG)
+                with self.assertRaises(cone.ConeProofError): self.generate()
+                self.assertEqual(len([name for name in self.calls if name.endswith("-prove")]), 5)
+                self.assertFalse((self.root / "evidence.json").exists())
+
+    def test_reuse_push_attempt_artifacts_and_budget_remain_mandatory(self):
+        self.outcomes = (LIMIT_LOG, LIMIT_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
+        for suffix in ("-prove.abc", "-prove.log", "-prove.execution", "-canonical-proof.aig", "-proven.aig",
+                       "-invariant.pla", "-invariant.txt", "-invariant.execution"):
+            with self.subTest(suffix=suffix):
+                self.generate()
+                (self.root / (cone.attempt_stem(0, 4) + suffix)).unlink()
+                with self.assertRaises(cone.ConeProofError): self.validate()
+        self.generate()
+        path = self.root / (cone.attempt_stem(0, 4) + "-prove.execution")
+        record = cone._load(path)
+        record["elapsed_seconds"] = 10
+        cone._write(path, record)
+        with self.assertRaisesRegex(cone.ConeProofError, "shared binding timeout"): self.validate()
+
+    def test_reuse_push_attempt_cannot_be_omitted_before_final_success(self):
+        self.outcomes = (LIMIT_LOG, LIMIT_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
+        self.generate()
+        for path in self.root.glob(cone.attempt_stem(0, 4) + "-*"):
+            path.unlink()
+        path = self.root / "evidence.json"
+        data = cone._load(path)
+        data["unique_proofs"][0]["attempts"].pop(4)
+        cone._write(path, data)
+        with self.assertRaises(cone.ConeProofError): self.validate()
 
     def test_higher_effort_fallback_requires_all_three_previous_limits(self):
         self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, GOOD_LOG)
@@ -490,7 +539,7 @@ class PortfolioEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(cone.ConeProofError, "shared binding timeout"): self.validate()
 
     def test_unknown_for_every_profile_never_becomes_pass(self):
-        self.outcomes = (LIMIT_LOG, LIMIT_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG)
+        self.outcomes = (LIMIT_LOG, LIMIT_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG)
         with self.assertRaises(cone.ConeProofError): self.generate()
         self.assertEqual(len([name for name in self.calls if name.endswith("-prove")]), len(cone.PDR_PROFILES))
         self.assertFalse((self.root / "evidence.json").exists())
@@ -601,7 +650,8 @@ class ConeParsingTests(unittest.TestCase):
         for proof, commands in ((False, cone.extraction_script(0)), (True, cone.proof_script(0, True, 10))):
             name = cone.canonical_name(0, proof)
             self.assertIn(f"dc2; &get; &w -u {name}; read_aiger {name}; dch", commands)
-        self.assertIn("pdr -m -y -r -T 10 -v -d -I", cone.proof_script(0, True, 10, attempt=4))
+        self.assertIn("pdr -m -i -p -C 256 -D 256 -F 64 -T 10 -v -d -I", cone.proof_script(0, True, 10, attempt=4))
+        self.assertIn("pdr -m -y -r -T 10 -v -d -I", cone.proof_script(0, True, 10, attempt=5))
         self.assertIn("pdr -m -C 256 -D 256 -F 64 -T 10", cone.proof_script(0, True, 10, attempt=3))
         for attempt, flags in enumerate(("", "-m ", "-m -y ")):
             self.assertIn(f"pdr {flags}-C 100 -D 100 -F 64 -T 10", cone.proof_script(0, True, 10, attempt=attempt))

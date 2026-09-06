@@ -286,7 +286,7 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("native min/max methods preserve concrete and exact symbolic widths") {
+  test("native min/max methods preserve concrete and natural symbolic widths") {
     val operations = Vector[(UInt, UInt) => UInt](_ min _, _ max _)
     for (operation <- operations) {
       generate(new Component {
@@ -300,10 +300,8 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
         val captured = record(words, operation)
         val proof = TypedBalancedReductionOperatorReplay.certify(captured.rows.head.operator.get)
         val replayed = proof.replay(words.vec(0), words.vec(2))
-        assert(ElabInt.equivalentExactFunction(
-          ParameterizedWidth.expressionOf(words.vec.head).get,
-          ParameterizedWidth.expressionOf(replayed).get
-        ))
+        assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(replayed).get,
+          ParameterizedWidth.expressionOf(words.vec.head).get))
         assert(replayed.getBitsWidth == 5)
       }
     }
@@ -324,11 +322,11 @@ class TypedBalancedReductionOperatorReplayTests extends AnyFunSuite {
     }
   }
 
-  test("subtraction and widening arithmetic are not silently certified") {
+  test("unsupported subtraction and witness-frozen widening results remain rejected") {
     val cases = Vector[((UInt, UInt) => UInt, String)](
       ((a, b) => a - b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED"),
-      ((a, b) => a +^ b, "REPLAY-BODY-OPERANDS"),
-      ((a, b) => a * b, "REPLAY-NONASSOCIATIVE-OR-UNSUPPORTED")
+      ((a, b) => { val result = UInt(6 bits); result := a +^ b; result }, "REPLAY-FIXED-WIDTH"),
+      ((a, b) => { val result = UInt(10 bits); result := a * b; result }, "REPLAY-FIXED-WIDTH")
     )
     for ((operation, code) <- cases) {
       withUInt { (words, _) =>

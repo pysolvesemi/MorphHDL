@@ -73,6 +73,27 @@ reject deferred clones and changed count widths. The fresh pre-pass capture may
 have different bytes from the historical hash above; every candidate must still
 use the exact same capture preceding the entire passes phase in its own run.
 
+At integration head `612f07927b4a302d1ae16b29882d99bde1c4c03f`, both Scala
+lanes and native generation passed, but formal shards 7 and 13 exhausted their
+600-second binding budgets on the unnamed-alias candidate at `WIDTH=40,
+DEPTH=8` and `WIDTH=30, DEPTH=8`. Those runs are failures, not qualification.
+The proof runner now adds one fixed, effort-limited `-m -i -p` search before
+the final search. The prepared models, canonical formulas, complete assertion
+coverage, clock and reset assumptions, independent initial state, reachability
+requirements, and shared 600-second budget are unchanged. The attempt must
+produce an actual proved property and verified invariant; no timeout or
+counterexample permits another attempt or a passing result.
+
+Local replays from those two retained CI input models proved all 40 and 50
+output properties twice, each run within 171 seconds, with byte-identical
+complete evidence across repetitions. Regenerated full AIGs matched the
+retained CI AIG bytes. Comparison-phase reachability evidence was retained from
+CI and was not rerun in these local replays. Direct tests of the new search
+profile retained verified invariants for clock and temporal positive controls
+and rejected actual counterexamples for incorrect clock lowering, changed temporal behavior,
+independent initial state, and payload bit 39 at `WIDTH=40, DEPTH=8`.
+These focused checks do not replace fresh full-domain CI qualification.
+
 The implementation revision above qualified before the completion checkbox was
 changed. The completion head, including integration of the qualified base, must
 receive its own full required CI, including fresh native generation, both Scala

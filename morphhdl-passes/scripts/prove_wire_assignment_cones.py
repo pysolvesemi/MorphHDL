@@ -48,6 +48,10 @@ PDR_PROFILES = (
     ("monolithic", "-m", (100, 100, 64)),
     ("monolithic-priority", "-m -y", (100, 100, 64)),
     ("monolithic-higher-effort", "-m", (256, 256, 64)),
+    # Reuse blocked proof obligations and push clauses from an intermediate
+    # frame. These change the search order only; the identical AIG and verified
+    # inductive-invariant acceptance checks remain mandatory for this attempt.
+    ("monolithic-reuse-push", "-m -i -p", (256, 256, 64)),
     ("monolithic-priority-generalization", "-m -y -r", None),
 )
 

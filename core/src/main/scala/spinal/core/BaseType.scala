@@ -304,6 +304,7 @@ abstract class BaseType extends Data with DeclarationStatement with StatementDou
   private[core] def wrapWithWeakClone(e: Expression): this.type = {
     val typeNode = weakClone.setAsTypeNode()
     typeNode.assignFrom(e)
+    NativeWidthProvenance.retainResult(typeNode, e)
     typeNode.asInstanceOf[this.type]
   }
 
@@ -324,6 +325,7 @@ abstract class BaseType extends Data with DeclarationStatement with StatementDou
     node.input = this.asInstanceOf[node.T]
     result.assignFrom(node)
     result.setAsTypeNode()
+    NativeWidthProvenance.retainResult(result, node)
   }
 
   private[core] def wrapConstantOperator(op: ConstantOperator): this.type = {

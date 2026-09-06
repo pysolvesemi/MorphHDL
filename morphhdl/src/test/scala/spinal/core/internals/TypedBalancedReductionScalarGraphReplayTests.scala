@@ -167,6 +167,49 @@ class TypedBalancedReductionScalarGraphReplayTests extends AnyFunSuite {
     }
   }
 
+  test("growing graph operands preserve same-root capture and explicit resize widths") {
+    withWords { (words, width) =>
+      val bias = in(UInt(width bits))
+      val operation = (a: UInt, b: UInt) => (a * b) + bias.resize(width)
+      val proof = certify(record(words, operation), Vector(bias))
+      val wider = Vec(UInt((width * 2) bits), HdlInt.param("WIDER_COUNT", 2, 1, 2))
+      wider.vec.foreach(_ := 0)
+      val widerProof = certify(record(wider, operation), Vector(bias))
+      assert(proof.operationKey == widerProof.operationKey)
+      val right = UInt((width * 3) bits)
+      right := 0
+      val leftWidth = ParameterizedWidth.expressionOf(wider.vec.head).get
+      val rightWidth = ParameterizedWidth.expressionOf(right).get
+      val replay = proof.replayWithWidths(wider.vec.head, right, leftWidth, rightWidth)
+      val expected = ElaborationWidthAuthority.multiply(width.expression, ElabInt.literal(5).expression)
+      assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(replay).get, expected))
+      val addition = replay.dlcLast.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[Operator.UInt.Add]
+      val alignment = addition.right.asInstanceOf[BaseType].dlcLast.asInstanceOf[DataAssignmentStatement]
+        .source.asInstanceOf[ResizeUInt]
+      assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.resizeExpressionOf(alignment).get, expected))
+      val explicit = alignment.input.asInstanceOf[BaseType].dlcLast.asInstanceOf[DataAssignmentStatement]
+        .source.asInstanceOf[ResizeUInt]
+      assert(explicit.input eq bias)
+      assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.resizeExpressionOf(explicit).get, width.expression))
+      assert(ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(bias).get, width.expression))
+    }
+  }
+
+  test("fixed selections are checked again over every substituted operand domain") {
+    val width = HdlInt.param("WIDTH", 4, 4, 8)
+    val narrow = HdlInt.param("NARROW", 4, 1, 4).asElabInt.expression
+    generate(new Component {
+      val words = in(Vec(UInt(width bits), HdlInt.param("COUNT", 2, 1, 2)))
+      val operations = Vector[(UInt, UInt) => UInt](
+        (a, b) => inferredMux(a(3), a, b),
+        (a, b) => a(3 downto 0).resize(width.asElabInt) ^ b)
+      operations.foreach { operation =>
+        val proof = certify(record(words, operation))
+        code("SELECT-DOMAIN") { proof.resultWidthFor(narrow, narrow) }
+      }
+    })
+  }
+
   test("native concatenation and bit selection retain exact symbolic transfer") {
     withWords { (words, width) =>
       val concat = certify(record(words, (a, b) => (a.asBits ## b.asBits).asUInt.resize(width) ^ a))

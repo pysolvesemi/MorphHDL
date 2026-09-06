@@ -1,0 +1,29 @@
+{
+  "base": "b25e367d99604e61b8f2c895b2c51ca1ab90d423",
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
+      "before_sha256": "442a058d9b1ec24e78961aea1c14715f8171194e6747a625568490de9babc161",
+      "after_sha256": "f7d9233246c90687220c3704a4c9f63f0a52c74b1a7ebdaae8d5036df5b4b219",
+      "edits": [
+        {
+          "id": "audited-composite-carrier-construction",
+          "before": "  private[spinal] def recordPackedRead(vector: Vec[_], carrier: Bits): Bits =\n",
+          "after": "  /** Build only the transient native Cat/type-node graph of a retained\n    * composite Vec read. Its public width belongs to the factorized Vec\n    * layout, not a Cartesian scalar sum across independent field roots.\n    * The same exact leaf/driver audit as every packed read runs before the\n    * result is returned; no caller supplies an operation or a bypass flag.\n    */\n  private[core] def readCompositeBits(vector: Vec[_]): Bits = {\n    val shape = shapeOf(vector).getOrElse {\n      fail(\"SPINAL-ELAB-VEC-PACKED-READ-SHAPE-MISSING\",\n        \"composite packing requires one exact retained Vec shape\", None)\n    }\n    if (shape.elementLeaves.size < 2 && !shape.elementLayout.hasNestedVectors)\n      fail(\"SPINAL-ELAB-VEC-PACKED-READ-SHAPE-INVALID\",\n        \"composite packing requires a recursive or multi-leaf Vec element\", shape.sourceLocation)\n    // Preserve the native low-to-high leaf order, including every finite\n    // nested lane. A nested Vec's logical witness resize cannot occur inside\n    // the outer carrier. Each scalar cast still uses its ordinary native API.\n    val leaves = vector.asInstanceOf[Data].flatten.toVector.map(_.asBits)\n    val carrier = leaves.reduceLeft { (low, high) =>\n      val cat = new Operator.Bits.Cat\n      cat.left = high\n      cat.right = low\n      // This is Bits.##'s native weak type-node construction. Only eager\n      // scalar-width retention is deferred for these private packing Cats;\n      // ordinary scalar Cats and later scalar consumers keep their full\n      // authority checks and the exhaustive composition limit.\n      val result = new Bits().setAsTypeNode()\n      result.assignFrom(cat)\n      result\n    }\n    recordPackedRead(vector, carrier)\n  }\n\n  private[spinal] def recordPackedRead(vector: Vec[_], carrier: Bits): Bits =\n"
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "before_sha256": "892b0deb762b7d5ab5b19d2280908f72849cfe38060755c400275e7ef40231e0",
+      "after_sha256": "dbf3d58588860c44d303571e8ea86a130e28050d3fbc14b6f0dbf9c1710f622c",
+      "edits": [
+        {
+          "id": "route-exact-composite-packing",
+          "before": "  override def asBits: Bits = {\n    // The outer packing operation owns the complete recursive carrier. Calling\n    // a nested typed Vec.asBits here would insert its logical witness resize\n    // before the outer exact-carrier proof and lose independently sized lanes.\n    val carrier = ParameterizedVec.shapeOf(this) match {\n      case Some(shape) if shape.elementLayout.hasNestedVectors =>\n        this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)\n      case _ => super.asBits\n    }\n    ParameterizedVec.recordPackedRead(this, carrier)\n  }\n\n",
+          "after": "  override def asBits: Bits = {\n    ParameterizedVec.shapeOf(this) match {\n      case Some(shape) if shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors =>\n        ParameterizedVec.readCompositeBits(this)\n      case _ => ParameterizedVec.recordPackedRead(this, super.asBits)\n    }\n  }\n\n"
+        }
+      ]
+    }
+  ]
+}

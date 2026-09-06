@@ -2,7 +2,7 @@ name: Increment 59b inherited source-scope controls
 
 on:
   push:
-    branches: ['agent/increment-59b-*']
+    branches: ['agent/increment-59b-*', 'agent/increment-59d-*']
     paths:
       - '.github/workflows/increment-59b-inherited-source-scope.yml'
       - 'morphhdl/scripts/check-increment-60c-signed-declarations.py'
@@ -32,7 +32,8 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

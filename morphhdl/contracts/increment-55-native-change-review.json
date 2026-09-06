@@ -4,6 +4,44 @@
   "baseline_commit": "bec73bb9d2ff54897bee66d641b130b66d0db869",
   "files": [
     {
+      "path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+      ],
+      "reason": "Retain exact typed result geometry at the native weak-clone and cast construction seams without changing the native graph or concrete width inference.",
+      "edits": [
+        {
+          "id": "basetype-result-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapWithWeakClone",
+          "reason": "Record scalar operator and resize width provenance on the freshly constructed native result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(typeNode, e)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "basetype-result-width-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapCast",
+          "reason": "Record width-preserving native cast provenance on its freshly constructed result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(result, node)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/BitVector.scala",
       "baseline_path": "core/src/main/scala/spinal/core/BitVector.scala",
       "change": "modified",
@@ -11,11 +49,38 @@
       "introduced_by": [
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Keep the additive ElabInt resize overload concrete by default so existing subclasses remain binary compatible. Preserve a mux result width only when every participating operand owns the same exact typed width function, while retaining native max-width selection and avoiding receiver metadata from recursive clone propagation.",
+      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths.",
       "edits": [
+        {
+          "id": "bitvector-native-msb-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.msb",
+          "reason": "Retain the exact native msb request before lowering its index to a concrete witness.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainHighBit(this, this(high)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-native-clone-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.clone",
+          "reason": "Copy exact typed metadata after the unchanged native clone width calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copy(this, res)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "bitvector-resize-01",
           "kind": "overload",
@@ -30,14 +95,14 @@
           ]
         },
         {
-          "id": "bitvector-mux-width-59e",
+          "id": "bitvector-native-mux-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.BitVector.getMuxType",
-          "reason": "Materialize the non-auto-resized native Mux inputs once, retain native cloning and concrete max-width selection, and attach width authority only after all participating operands prove the same exact width function.",
+          "reason": "Consume input traversal once and retain the native maximum-input width on the fresh mux clone, with the original auto-resize exclusion and native width calculation preserved.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.preserveMuxWidth(this.clone.setWidth(w), inputs",
+              "text": "NativeWidthProvenance.retainMuxType[T](inputs, result)",
               "count": 1
             }
           ]
@@ -180,9 +245,10 @@
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads.",
+      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged.",
       "edits": []
     },
     {
@@ -206,6 +272,17 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)"
       ],
       "reason": "Retain reviewed projection ownership for exact typed elaboration expressions.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+      ],
+      "reason": "Certify finite width-specific expression composition across independent root identities, preserve exact private-object provenance and guarded projection, and reject forged/copy-derived authority or illegal geometry without broadening general elaboration control domains. Conditional extrema and redundant choose arms use exact admitted bindings, including guarded full-group geometry, without granting authority from rendered expressions.",
       "edits": []
     },
     {
@@ -529,9 +606,10 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add exact typed counterparts of log2Up and isPow2 without changing their concrete overloads. Mechanically preserve exact typed leaf and nested Vec metadata across native cloneOf used by HardType, Mux and RegNext.",
+      "reason": "Keep exact typed log2Up/isPow2 overloads and mechanically retain scalar leaf width provenance through the ordinary cloneOf/HardType construction path.",
       "edits": [
         {
           "id": "misc-typed-math-01",
@@ -560,19 +638,31 @@
           ]
         },
         {
-          "id": "misc-clone-shape-59e",
+          "id": "misc-native-clone-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.cloneOf.apply(Data)",
-          "reason": "Copy exact typed leaf and recursive Vec metadata after authoritative native cloning, without inferring symbolic widths from concrete witnesses.",
+          "reason": "Copy proved typed source geometry to the native clone; ordinary concrete clone behavior remains unchanged.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ParameterizedWidth.copyCloneMetadata(that, that.clone().asInstanceOf[T])",
+              "text": "NativeWidthProvenance.retainCloneShape(that, that.clone().asInstanceOf[T])",
               "count": 1
             }
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
+      ],
+      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata.",
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
@@ -601,7 +691,7 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry.",
       "edits": []
     },
     {
@@ -632,10 +722,11 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59f: certified callback graphs and captured inputs"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the six historical Bits, UInt and SInt shadow factory aliases only as deprecated compatibility entry points. Preserve recursive native clone geometry for retained Bundle/Vec metadata and preserve a native Mux result width only when every participating input directly owns an equivalent exact width function; missing or mismatched authority never becomes inferred width provenance.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof.",
       "edits": []
     },
     {
@@ -759,7 +850,7 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path.",
       "edits": [
         {
           "id": "vec-typed-geometry-01",
@@ -1077,7 +1168,7 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Preserve all native scalar leaves when packing a retained nested Vec, avoiding premature inner witness truncation before exact logical packing.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1086,7 +1177,17 @@
             },
             {
               "side": "approved",
-              "text": "this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)",
+              "text": "shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.readCompositeBits(this)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordPackedRead(this, super.asBits)",
               "count": 1
             }
           ]

@@ -1,0 +1,17 @@
+{
+  "base": "c85659a20d428dd58cc6116c12c8b24418c37722",
+  "files": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "before_sha256": "dd2bdf8629d08a0b25fb785e4828c9ae56ef0f5e7c4fc8efd4b086c61140d6a3",
+      "after_sha256": "d5297379cf6cca8d9870387f2fd4e79f0d71bb0b1895b3928af2cef96673109f",
+      "edits": [
+        {
+          "id": "native-zero-width-owner",
+          "before": "                literal.getWidth == target.getBitsWidth =>\n            ParameterizedWidth.expressionOf(target)\n              .filter(_.parameters.nonEmpty).foreach { width =>\n                def validateWidthDomain(): Unit = {\n                  ElabInt.requireAuthoritativeIntegerDomain(width,\n                    \"native zero carrier width\",\n                    \"SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY\",\n                    requireExactExtrema = false)\n                  ()\n                }\n                width.projectionProvenance match {\n                  case Some(_) =>\n                    // Restore only the domain certified by this exact native\n                    // declaration's structural owner, never the width alone.\n                    val evaluation = ParameterizedStructure.projectedDeclarationEvaluationOf(\n                      component, target, width, \"native zero carrier width\", width.sourceLocation\n                    ).getOrElse {\n                      fail(\"SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY\",\n                        \"one projected native zero carrier lost its exact owner-domain evidence\",\n                        width.sourceLocation)\n                    }\n                    ElaborationDomainContext.withAdmitted(\n                      width.exactDomain.get.root, evaluation.rootValues, width.sourceLocation\n                    )(validateWidthDomain())\n                  case None => validateWidthDomain()\n                }\n                if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth)) {\n                  fail(\"SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-MISMATCH\",\n                    \"one exact native zero carrier lost its positive typed width or witness\",\n",
+          "after": "                literal.getWidth == target.getBitsWidth =>\n            ParameterizedWidth.expressionOf(target)\n              .filter(_.parameters.nonEmpty).foreach { width =>\n                // Reconstruct only the domain belonging to this exact live\n                // declaration. The same owner check covers one-root projections\n                // and composed width authority without reopening a finished\n                // elaboration branch or treating an equal witness as evidence.\n                NativePublicationWidth.validate(width, component, target,\n                  \"native zero carrier width\")\n                if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth)) {\n                  fail(\"SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-MISMATCH\",\n                    \"one exact native zero carrier lost its positive typed width or witness\",\n"
+        }
+      ]
+    }
+  ]
+}

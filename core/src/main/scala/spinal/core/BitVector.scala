@@ -45,7 +45,7 @@ abstract class BitVector extends BaseType with Widthable {
   /** Return the upper bound */
   def high: Int = getWidth - 1
   /** Return the most significant bit */
-  def msb: Bool = this(high)
+  def msb: Bool = NativeWidthProvenance.retainHighBit(this, this(high))
   /** Return the least significant bit */
   def lsb: Bool = this(0)
   /** Return the range */
@@ -189,6 +189,7 @@ abstract class BitVector extends BaseType with Widthable {
     } else {
       res.fixedWidth = this.fixedWidth
     }
+    ParameterizedWidth.copy(this, res)
     res.asInstanceOf[this.type]
   }
 
@@ -540,9 +541,12 @@ abstract class BitVector extends BaseType with Widthable {
   }
 
   override def getMuxType[T <: Data](list: TraversableOnce[T]) = {
-    val inputs = list.toVector.filter(!_.hasTag(tagAutoResize))
-    val w = inputs.map(e => widthOf(e)).max
-    ParameterizedWidth.preserveMuxWidth(this.clone.setWidth(w), inputs).asInstanceOf[T]
+    val inputs = list.toVector
+    val w = inputs.filter(!_.hasTag(tagAutoResize)).map(e => widthOf(e)).max
+    HardType {
+      val result = cloneOf(this).setWidth(w).asInstanceOf[T]
+      NativeWidthProvenance.retainMuxType[T](inputs, result)
+    }
   }
 
   def isUnknown: Bool = wrapUnaryWithBool(new Operator.BitVector.IsUnknown)

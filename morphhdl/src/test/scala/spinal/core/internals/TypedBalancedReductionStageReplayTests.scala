@@ -50,8 +50,8 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
       val width = ParameterizedWidth.expressionOf(words.vec.head).get
       assert(ElabInt.equivalentExactFunction(certificate.resultEvidence.width, width))
       assert(certificate.resultEvidence.width.parameters.head eq width.parameters.head)
-      assert(certificate.captured.rows.flatMap(_.operator).exists(record =>
-        record.operands.exists(data => ParameterizedWidth.expressionOf(data.asInstanceOf[BaseType]).isEmpty)))
+      assert(certificate.captured.rows.flatMap(_.operator).forall(record =>
+        record.operands.forall(data => ParameterizedWidth.expressionOf(data.asInstanceOf[BaseType]).nonEmpty)))
       certificate.requireFreshness()
     }
   }
@@ -181,13 +181,14 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
     }
   }
 
-  test("native HardType cannot freeze a certified symbolic source width to its default") {
+  test("native HardType and RegNext preserve a certified symbolic source width") {
     withUInt() { words =>
       val width = ParameterizedWidth.expressionOf(words.vec.head).get
       assert(!TypedBalancedReductionValueEvidence.preservesFixedWidth(-1, 5, width))
-      code("REPLAY-STALE-GRAPH") {
-        capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(0))
-      }
+      val certificate = capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(0))
+      assert(certificate.stages.forall(_.registerCountPerRow == 1))
+      assert(ElaborationWidthAuthority.equivalent(certificate.resultEvidence.width, width))
+      certificate.requireFreshness()
     }
   }
 
