@@ -31,7 +31,7 @@ jobs:
           mkdir -p target/increment-60g-source
           git rev-parse HEAD > target/increment-60g-source/commit.txt
           git archive HEAD | gzip > target/increment-60g-source/source.tar.gz
-          git bundle create target/increment-60g-source/repository.bundle HEAD
+          git bundle create target/increment-60g-source/repository.bundle HEAD refs/remotes/origin/parameterized-verilog
       - name: Source manifests, mutation controls and inherited source audits
         shell: bash
         run: |

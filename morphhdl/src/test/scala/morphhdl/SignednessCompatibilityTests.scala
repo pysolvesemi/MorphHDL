@@ -197,7 +197,10 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       val native = read(root.resolve("native-before.v"))
       SpinalVhdl(fresh(root.resolve("native-before.vhd")))(dut)
       val vhdl = read(root.resolve("native-before.vhd"))
-      morphhdl.MorphVerilog(neutral.copy(netlistFileName = "morph.v"))(dut)
+      // The native leg stays concrete; the same component source receives a
+      // retained parameter on the MorphHDL leg, as required by its front door.
+      morphhdl.MorphVerilog(neutral.copy(netlistFileName = "morph.v"))(
+        new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 5, min = 1, max = 32)))
       assert(read(root.resolve("morph.v")).contains("wire signed"))
       SpinalVerilog(neutral.copy(netlistFileName = "native-after.v"))(dut)
       SpinalVhdl(fresh(root.resolve("native-after.vhd")))(dut)
@@ -210,11 +213,18 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
   test("60g default retains real mixed-type boundaries and is shared by tryGenerate and canonical IR") {
     directory { root =>
       def parameter = HdlInt.param("WIDTH", default = 1, min = 1, max = 32)
-      def dut = new nativeapplication.PureSIntCastFixture.Boundaries(parameter)
+      // Materialized scalar boundaries legitimately need no expression cast.
+      // A dynamic select of an unsigned Vec carrier needs an actual signed
+      // slice boundary; use that established 60e fixture for this contract.
+      def dut = new spinal.core.SignednessBoundaryFixture.Vectors(
+        parameter, HdlInt.param("DEPTH", default = 3, min = 1, max = 8))
       morphhdl.MorphVerilog(fresh(root.resolve("default.v")))(dut)
       val default = read(root.resolve("default.v"))
       assert(signedDeclaration.findFirstIn(default).nonEmpty)
-      assert(casts(default) > 0, "real boundaries must not be erased")
+      assert(default.contains("$signed(updated["), "dynamic signed leaf boundary must not be erased")
+      assert(port(default, "packedIn").contains("[(WIDTH * DEPTH)-1:0]"))
+      assert(!port(default, "packedIn").contains("signed"))
+      assert(!port(default, "packedOut").contains("signed"))
       assert(!default.contains("$signed($signed("))
       val result = morphhdl.MorphVerilog.tryGenerate(fresh(root.resolve("try.v")))(dut)
       assert(result.isRight)
