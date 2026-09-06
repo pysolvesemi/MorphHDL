@@ -8,11 +8,11 @@ bridges or nested structural owners from 59c–59h. Those combinations belong to
 59i. The public source remains ordinary `Vec(...).reduceBalancedTree(op,
 levelBridge)` and ordinary native scalar operations.
 
-Local implementation and the qualification recorded below are complete.
-Integration-head GitHub workflows and merge remain pending. Local results do
-not establish a completed roadmap checkbox or a merged increment. Completion
-requires definitive passing evidence from the exact integration head in both
-Scala lanes.
+Increment 59f is complete and merged into `parameterized-verilog` through
+[PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166) at
+`c85659a20d428dd58cc6116c12c8b24418c37722`. Both supported Scala lanes passed
+the callback, inherited publication and broad compatibility gates on the
+reviewed source tree. All applicable pre-merge and post-merge workflows passed.
 
 ## Admission contract
 
@@ -186,7 +186,44 @@ The tool-independent integer/mutation-guard checks are available via `--self-tes
 Use `--case singleton_w5_n3` only for focused development; it does not replace the
 complete qualification gate.
 
-## Recorded local verification — 2026-09-06
+## Recorded integration verification — 2026-09-06
+
+The reviewed source head `36df037c6a87d8e3cf4be2785e2f82a105e866ca` and merge
+commit `c85659a20d428dd58cc6116c12c8b24418c37722` have the same Git tree,
+`cd6a2c8279748fe6177f0ca1408d78e5f66651b3`. Source-head checks completed with
+36 successful workflow runs and 13 intentionally branch-filtered runs. The
+merge commit completed with 36 successful workflow runs and three intentionally
+branch-filtered runs; none remained pending or failed. Workflow filtering is
+separate from the test inventories below, which contain no skipped tests.
+
+The final merge-head results are recorded in the
+[59f callback workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800506)
+and [60f equivalence-closure workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800440):
+
+| Check | Scala 2.12.18 | Scala 2.13.12 |
+| --- | --- | --- |
+| Full inherited regression inventory | 1,651 tests / 164 suites passed | 1,651 tests / 164 suites passed |
+| MorphHDL subset of that inventory | 860 tests / 82 suites passed | 860 tests / 82 suites passed |
+| Failures, errors and skipped tests | 0 | 0 |
+| Callback specializations, including independent runtime captures | All 64 passed | All 64 passed |
+| Inherited 59b publication specializations | All 32 passed | All 32 passed |
+| Candidate mutation controls | 3 callback and 2 inherited controls produced genuine counterexamples | 3 callback and 2 inherited controls produced genuine counterexamples |
+
+The callback matrix passed repeated artifact comparison, independent simulation,
+strict Verilog-2001 parsing/lint, full synthesis and definitive equivalence.
+The inherited publication proofs retained reset-entry and induction checks.
+The 60f cross-Scala artifact comparison also passed. The regression inventory
+is bound to the validated `60f-with-59f` source profile; both Scala lanes contain
+the same complete suite and test identities.
+
+The final post-merge compatibility closure includes
+[baseline](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800376),
+[Mill](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800482),
+[53g production retirement](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800524)
+and [54 typed layering/canonical IR](https://github.com/pysolvesemi/MorphHDL/actions/runs/34029800466),
+with all applicable jobs successful before the roadmap close-out.
+
+## Historical local verification — 2026-09-06
 
 The implementation and qualification fixtures through `10e7e408c` passed:
 
@@ -231,11 +268,9 @@ callback rejection diagnostic. The follow-up fixes preserve exact owner
 domains and dedicated publication identities, and report unreadable callback
 bytecode as unsupported before execution.
 
-Publication is tracked in [PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166).
-Passing CI on the repaired integration head and merge remain required, so the
-59f roadmap checkbox stays open.
-The published Git tree is checked against the reviewed local tree. The publisher
-audit is anchored to the merged 60f base; both audited before-blobs are
+These follow-up fixes are included in the qualified merge recorded above.
+The published Git tree matches the reviewed local tree. The publisher audit
+is anchored to the merged 60f base; both audited before-blobs are
 byte-identical to the original local checkpoint. Exact span and complete
 before/after hash checks remain in force.
 
