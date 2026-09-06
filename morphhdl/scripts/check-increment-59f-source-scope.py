@@ -26,6 +26,13 @@ CHECKER_59D_EDITS_SHA256 = "3fe12841116bb69c44408df8c02e2b3f03aff0469d09f6d0ce55
 ZERO_59D59F_BASE = "c85659a20d428dd58cc6116c12c8b24418c37722"
 ZERO_59D59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-zero-edits.json"
 ZERO_59D59F_SHA256 = "24f99ef636cb303bed133bb12a21c3ab53c3d08f3352ad3f517f310e601b5f1b"
+PADDING_59D59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-padding-edits.json"
+PADDING_59D59F_SHA256 = "90ed0c4fa539d427cb0c75d7a8673b0e42ccdac20ebe94a064d5788de3259fc7"
+PADDING_59D59F_IDS = (
+    "unsigned-padding-owner-signature",
+    "unsigned-padding-owner-relation",
+    "unsigned-padding-owner-call",
+)
 
 
 def require(ok: bool, detail: str) -> None:
@@ -78,6 +85,41 @@ def restore_59d59f_zero(root: Path, source: str) -> str:
     return source
 
 
+def restore_59d59f_padding(root: Path, source: str) -> str:
+    """Restore exact owner-aware padding into the independently frozen zero adapter."""
+    path = root / PADDING_59D59F_CONTRACT
+    require(path.is_file() and not path.is_symlink(), "missing regular 59d/59f padding-owner review")
+    raw = path.read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == PADDING_59D59F_SHA256,
+            "59d/59f reviewed padding-owner manifest changed")
+    data = json.loads(raw)
+    require(set(data) == {"base", "prior_review_sha256", "files"} and
+            data["base"] == ZERO_59D59F_BASE and
+            data["prior_review_sha256"] == ZERO_59D59F_SHA256 and len(data["files"]) == 1,
+            "59d/59f padding-owner restoration baseline/schema changed")
+    entry = data["files"][0]
+    require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"} and
+            entry["path"] == FALLBACK and len(entry["edits"]) == len(PADDING_59D59F_IDS),
+            "59d/59f padding-owner restoration exceeds its exact fallback scope")
+    require(tuple(edit.get("id") for edit in entry["edits"]) == PADDING_59D59F_IDS and
+            all(set(edit) == {"id", "before", "after"} and edit["before"] and edit["after"]
+                for edit in entry["edits"]), "59d/59f padding-owner restoration spans changed")
+    prior = root / ZERO_59D59F_CONTRACT
+    require(prior.is_file() and not prior.is_symlink(), "missing regular 59d/59f zero-owner review")
+    prior_raw = prior.read_bytes()
+    require(hashlib.sha256(prior_raw).hexdigest() == ZERO_59D59F_SHA256,
+            "59d/59f reviewed zero-owner manifest changed")
+    require(entry["before_sha256"] == json.loads(prior_raw)["files"][0]["after_sha256"],
+            "59d/59f padding-owner restoration differs from frozen zero adapter")
+    require(digest(source) == entry["after_sha256"],
+            "unreviewed source change outside 59d/59f padding-owner spans")
+    for edit in reversed(entry["edits"]):
+        require(source.count(edit["after"]) == 1, "missing/duplicate 59d/59f padding-owner span")
+        source = source.replace(edit["after"], edit["before"], 1)
+    require(digest(source) == entry["before_sha256"], "59d/59f restored padding-owner blob differs")
+    return source
+
+
 def restore_59f_source(root: Path, path: str, source: str) -> str:
     if path not in PATHS:
         return source
@@ -88,6 +130,8 @@ def restore_59f_source(root: Path, path: str, source: str) -> str:
     # The additional adapter belongs only to the combined width/callback
     # publication. Historical standalone 59d and 59f contracts stay unchanged.
     if path == FALLBACK and (root / REVIEW_59D).exists() and (root / ZERO_59D59F_CONTRACT).exists():
+        if (root / PADDING_59D59F_CONTRACT).exists():
+            source = restore_59d59f_padding(root, source)
         source = restore_59d59f_zero(root, source)
     require(digest(source) == entry["after_sha256"],
             "unreviewed source change outside 59f spans: " + path)

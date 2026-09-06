@@ -1135,7 +1135,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * conservative publication policy; a native witness alone is not evidence.
     */
   private def exactUnsignedResizePadding(
+      component: Component,
       resize: Resize,
+      targetDeclaration: BitVector,
       target: ElaborationIntegerExpression
   ): Option[String] = {
     def invariantWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
@@ -1163,19 +1165,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           width.default != BigInt(resize.input.getWidth) ||
           target.default != BigInt(resize.size)) None
       else {
-        ElabInt.requireAuthoritativeIntegerDomain(width,
-          "native resize source width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-SOURCE-AUTHORITY",
-          requireExactExtrema = false)
-        ElabInt.requireAuthoritativeIntegerDomain(target,
-          "native resize target width", "SPINAL-PARAMETERIZED-VERILOG-RESIZE-TARGET-AUTHORITY",
-          requireExactExtrema = false)
-        if (target.minimum >= width.maximum)
-          Some("(" + target.verilog + " - " + width.verilog + ")")
-        else {
-          val difference = ElabInt.fromExpression(target) - ElabInt.fromExpression(width)
-          if (difference.expression.minimum >= 0) Some(difference.expression.verilog)
-          else None
+        val sourceDeclaration = resize.input match {
+          case value: BitVector => value
+          case _ => targetDeclaration // invariant native leaves have literal widths.
         }
+        NativePublicationWidth.nonNegativeDifferenceAtOwners(
+          target, targetDeclaration, width, sourceDeclaration, component)
       }
     }
   }
@@ -1435,7 +1430,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           )
         }
         val padding = record.witnessSize - record.inputWitnessSize
-        val symbolicPadding = exactUnsignedResizePadding(record.resize, record.expression)
+        val symbolicPadding = exactUnsignedResizePadding(
+          component, record.resize, record.target, record.expression)
         def grow(source: String): String = symbolicPadding match {
           case Some(count) => "{{" + count + "{1'b0}}, " + source + "}"
           case None => "{1'b0, " + source + "}"

@@ -37,6 +37,15 @@ The exact recorded `Vec.asBits` wrapper remains owned by its existing packed-Vec
 publisher, which validates its finite carrier and logical result together.
 Ordinary scalar resizes retain their separate source-width check. Rejection
 diagnostics identify the declaration and both captured and published widths.
+An exact poison-free, zero-width literal source remains with native constant
+folding and the retained-zero publisher. It cannot authorize another scalar
+resize or remove the positive result-width requirement.
+
+Unsigned padding compares widths at their own exact declarations after
+construction scope ends. Correlated symbolic widths must retain matching root,
+schema and owner domains before their pointwise difference can authorize an
+explicit padding count. Different owner projections preserve the existing
+conservative native extension; interval bounds do not merge their domains.
 
 Native inferred UInt addition/subtraction with a Boolean increment retains its
 modular width through normalization. The proof still excludes explicit fixed

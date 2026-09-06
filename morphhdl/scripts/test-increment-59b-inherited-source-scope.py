@@ -90,6 +90,8 @@ def main() -> None:
         publisher_rejection = "unreviewed source change outside 59f spans"
         if (ROOT / "morphhdl/contracts/increment-59d-59f-zero-edits.json").is_file():
             publisher_rejection = "unreviewed source change outside 59d/59f zero-owner span"
+        if (ROOT / "morphhdl/contracts/increment-59d-59f-padding-edits.json").is_file():
+            publisher_rejection = "unreviewed source change outside 59d/59f padding-owner spans"
     cases = (
         ("historical", QUALIFIED, None),
         ("historical-60d", QUALIFIED_60D, None),

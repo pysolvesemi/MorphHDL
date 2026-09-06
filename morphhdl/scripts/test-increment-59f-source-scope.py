@@ -19,6 +19,7 @@ CLOSURE = "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 WIDTH_59D_CONTRACT = "morphhdl/contracts/increment-59d-width-publication-edits.json"
 REVIEW_59D = "morphhdl/contracts/increment-59d-production-review.json"
 ZERO_59D_59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-zero-edits.json"
+PADDING_59D_59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-padding-edits.json"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 root = Path(sys.argv[1])
@@ -52,6 +53,7 @@ def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     has_59d = (ROOT / REVIEW_59D).is_file()
     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()
+    has_joint_padding = (ROOT / PADDING_59D_59F_CONTRACT).is_file()
     records = [check(ROOT, HELPER, "current exact publisher delta"),
                check(ROOT, CLOSURE, "current full inherited source gates")]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59f-source-scope-") as temporary:
@@ -65,14 +67,23 @@ def main() -> None:
             if has_59d:
                 for path in (WIDTH_59D_CONTRACT, REVIEW_59D):
                     shutil.copyfile(ROOT / path, fixture / path)
+                reviewed = json.loads((ROOT / REVIEW_59D).read_text())
+                for entry in reviewed["files"]:
+                    target = fixture / entry["path"]
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(ROOT / entry["path"], target)
             if has_joint_zero:
                 shutil.copyfile(ROOT / ZERO_59D_59F_CONTRACT, fixture / ZERO_59D_59F_CONTRACT)
+            if has_joint_padding:
+                shutil.copyfile(ROOT / PADDING_59D_59F_CONTRACT, fixture / PADDING_59D_59F_CONTRACT)
             fallback = (fixture / FALLBACK).read_text()
             boundary = (fixture / BOUNDARY).read_text()
             manifest = (fixture / CONTRACT).read_text()
             data = json.loads(manifest)
             span = next(entry for entry in data["files"] if entry["path"] == FALLBACK)["edits"][0]["after"]
-            fallback_rejection = ("unreviewed source change outside 59d/59f zero-owner span"
+            fallback_rejection = ("unreviewed source change outside 59d/59f padding-owner spans"
+                                  if has_joint_padding else
+                                  "unreviewed source change outside 59d/59f zero-owner span"
                                   if has_joint_zero else "unreviewed source change outside 59f spans")
             cases = (
                 ("unrelated fallback addition", FALLBACK, fallback + "\n// unrelated mutation\n",
@@ -203,6 +214,79 @@ def main() -> None:
                       (ZERO_59D_59F_CONTRACT, json.dumps(paired_zero, indent=2) + "\n")],
                      HELPER, zero_manifest_rejection),
                 ]
+            if has_joint_padding:
+                padding_manifest = (fixture / PADDING_59D_59F_CONTRACT).read_text()
+                padding_data = json.loads(padding_manifest)
+                padding_entry = padding_data["files"][0]
+                padding_edits = padding_entry["edits"]
+                signature_edit = next(edit for edit in padding_edits
+                                      if "private def exactUnsignedResizePadding(" in edit["after"])
+                owner_edit = next(edit for edit in padding_edits
+                                  if "nonNegativeDifferenceAtOwners" in edit["after"])
+                call_edit = next(edit for edit in padding_edits
+                                 if "val symbolicPadding = exactUnsignedResizePadding(" in edit["after"])
+                changed_owner_span = owner_edit["after"].replace(
+                    "width, sourceDeclaration, component)", "width, targetDeclaration, component)", 1)
+                changed_padding_source = fallback.replace(owner_edit["after"], changed_owner_span, 1)
+                paired_padding = json.loads(padding_manifest)
+                next(edit for edit in paired_padding["files"][0]["edits"]
+                     if edit["id"] == owner_edit["id"])["after"] = changed_owner_span
+                projected_padding_source = changed_padding_source
+                for edit in reversed(width_data["edits"]):
+                    if projected_padding_source.count(edit["after"]) != 1:
+                        raise RuntimeError("padding fixture cannot restore exact 59d width span")
+                    projected_padding_source = projected_padding_source.replace(edit["after"], edit["before"], 1)
+                paired_padding["files"][0]["after_sha256"] = hashlib.sha256(
+                    projected_padding_source.encode()).hexdigest()
+                padding_manifest_rejection = "59d/59f reviewed padding-owner manifest changed"
+                mutations += [
+                    ("joint padding owner signature changed", [(FALLBACK, fallback.replace(
+                      signature_edit["after"], signature_edit["after"].replace(
+                          "targetDeclaration: BitVector", "ignoredTargetDeclaration: BitVector", 1), 1))],
+                     HELPER, fallback_rejection),
+                    ("joint padding source owner changed", [(FALLBACK, changed_padding_source)],
+                     HELPER, fallback_rejection),
+                    ("joint padding authority method changed", [(FALLBACK, fallback.replace(
+                      "NativePublicationWidth.nonNegativeDifferenceAtOwners",
+                      "NativePublicationWidth.unreviewedDifferenceAtOwners", 1))],
+                     HELPER, fallback_rejection),
+                    ("joint padding call owner removed", [(FALLBACK, fallback.replace(
+                      call_edit["after"], call_edit["after"].replace("record.target", "null", 1), 1))],
+                     HELPER, fallback_rejection),
+                    ("joint padding owner span duplicated", [(FALLBACK, fallback + owner_edit["after"])],
+                     HELPER, fallback_rejection),
+                    ("joint padding manifest baseline changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(padding_data["base"], "0" * 40, 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding prior review changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(padding_data["prior_review_sha256"], "0" * 64, 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest before hash changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(padding_entry["before_sha256"], "0" * 64, 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest after hash changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(padding_entry["after_sha256"], "0" * 64, 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest path broadened", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(FALLBACK, "other/src/main/Unreviewed.scala", 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest before span changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace("ElabInt.requireAuthoritativeIntegerDomain",
+                                               "ElabInt.bypassAuthoritativeIntegerDomain", 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest after span changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace("nonNegativeDifferenceAtOwners", "unreviewedDifferenceAtOwners", 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest span identity changed", [(PADDING_59D_59F_CONTRACT,
+                      padding_manifest.replace(owner_edit["id"], "unreviewed-padding-owner", 1))],
+                     HELPER, padding_manifest_rejection),
+                    ("joint padding manifest removed", [(PADDING_59D_59F_CONTRACT, None)],
+                     HELPER, "unreviewed source change outside 59d/59f zero-owner span"),
+                    ("joint padding source and manifest changed together", [
+                      (FALLBACK, changed_padding_source),
+                      (PADDING_59D_59F_CONTRACT, json.dumps(paired_padding, indent=2) + "\n")],
+                     HELPER, padding_manifest_rejection),
+                ]
             for label, replacements, checker, rejection in mutations:
                 originals = {path: (fixture / path).read_bytes() for path, _ in replacements}
                 try:
@@ -223,8 +307,10 @@ def main() -> None:
                 # Rebuild both complete frozen 59f blobs from their historical
                 # baseline and reviewed edits. No 59d or joint-zero contract is
                 # needed to accept the original 59f publisher profile.
-                originals = {path: (fixture / path).read_bytes()
-                             for path in (FALLBACK, BOUNDARY, REVIEW_59D, ZERO_59D_59F_CONTRACT)}
+                original_paths = [FALLBACK, BOUNDARY, REVIEW_59D, ZERO_59D_59F_CONTRACT]
+                if has_joint_padding:
+                    original_paths.append(PADDING_59D_59F_CONTRACT)
+                originals = {path: (fixture / path).read_bytes() for path in original_paths}
                 try:
                     for entry in data["files"]:
                         source = subprocess.check_output(
@@ -241,6 +327,8 @@ def main() -> None:
                         (fixture / entry["path"]).write_text(source)
                     (fixture / REVIEW_59D).unlink()
                     (fixture / ZERO_59D_59F_CONTRACT).unlink()
+                    if has_joint_padding:
+                        (fixture / PADDING_59D_59F_CONTRACT).unlink()
                     records.append(check(fixture, HELPER, "historical frozen 59f publisher alone"))
                 finally:
                     for path, original in originals.items():

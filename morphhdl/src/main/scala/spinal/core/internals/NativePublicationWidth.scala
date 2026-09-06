@@ -75,6 +75,41 @@ private[internals] object NativePublicationWidth {
     ()
   }
 
+  /** Optional exact padding for two already-owned native widths. Differently
+    * projected symbolic owners must keep the existing conservative resize
+    * publication; matching interval extrema cannot merge their domains.
+    */
+  def nonNegativeDifferenceAtOwners(
+      left: ElaborationIntegerExpression,
+      leftDeclaration: BaseType,
+      right: ElaborationIntegerExpression,
+      rightDeclaration: BaseType,
+      component: Component
+  ): Option[String] = {
+    val l = evidence(left, component, leftDeclaration, "native resize target width")
+    val r = evidence(right, component, rightDeclaration, "native resize source width")
+    val nonNegative = if (l.roots.isEmpty) {
+      r.results.values.forall(left.default >= _)
+    } else if (r.roots.isEmpty) {
+      l.results.values.forall(_ >= right.default)
+    } else {
+      if (l.roots.size != r.roots.size) return None
+      val indexes = l.roots.map(root => r.roots.indexWhere(_ eq root))
+      if (indexes.exists(_ < 0) || indexes.zipWithIndex.exists { case (rightIndex, leftIndex) =>
+          (l.schemas(leftIndex) ne r.schemas(rightIndex)) ||
+            l.rootValues(leftIndex) != r.rootValues(rightIndex)
+        }) return None
+      l.results.forall { case (leftKey, value) =>
+        val rightKey = r.roots.indices.map { rightIndex =>
+          leftKey(indexes.indexOf(rightIndex))
+        }.toVector
+        r.results.get(rightKey).exists(value >= _)
+      }
+    }
+    if (nonNegative) Some("(" + left.verilog + " - " + right.verilog + ")")
+    else None
+  }
+
   def equivalentAtOwner(left: ElaborationIntegerExpression,
                         right: ElaborationIntegerExpression,
                         component: Component,

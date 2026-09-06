@@ -144,9 +144,30 @@ object ExternalParameterizedNativeResize {
                         "native resize source capture")
                       NativePublicationWidth.validate(targetWidth, component, target,
                         "native resize target capture")
-                      if (sourceWidth.minimum < 1 || targetWidth.minimum < 1 ||
+                      // An unsized native zero has no source bits. Leave only
+                      // its exact poison-free literal edge to normalization and
+                      // the retained-zero publisher, which revalidates the live
+                      // positive-width result after native constant folding.
+                      val literalZeroReservation = sourceWidth.parameters.isEmpty &&
+                        sourceWidth.minimum == 0 && sourceWidth.maximum == 0 &&
+                        source.getBitsWidth == 0 && source.isComb &&
+                        source.hasOnlyOneStatement && (source.head match {
+                          case edge: DataAssignmentStatement
+                              if (edge.target eq source) && (edge.finalTarget eq source) =>
+                            edge.source match {
+                              case literal: BitVectorLiteral => literal.getWidth == 0 &&
+                                !literal.hasPoison() && literal.getValue() == 0
+                              case _ => false
+                            }
+                          case _ => false
+                        })
+                      if ((!literalZeroReservation && sourceWidth.minimum < 1) || targetWidth.minimum < 1 ||
                           sourceWidth.default != source.getBitsWidth || targetWidth.default != target.getBitsWidth)
-                        fail("native resize target and source must retain positive, witness-consistent widths")
+                        fail(s"native resize target '${target.getName()}' width ${target.getBitsWidth} " +
+                          s"(${targetWidth.verilog}; default=${targetWidth.default}, min=${targetWidth.minimum}) " +
+                          s"and source '${source.getName()}' width ${source.getBitsWidth} " +
+                          s"(${sourceWidth.verilog}; default=${sourceWidth.default}, min=${sourceWidth.minimum}) " +
+                          "must retain positive, witness-consistent widths")
                       // Native identity elimination and a fixed narrowing slice
                       // already have the same meaning across the complete owner
                       // domain. Keep those original native graphs and their
@@ -157,7 +178,7 @@ object ExternalParameterizedNativeResize {
                           sourceWidth, targetWidth, component, target)
                       val fixedNarrowing = targetWidth.parameters.isEmpty &&
                         targetWidth.maximum <= sourceWidth.minimum
-                      if (!identity && !fixedNarrowing) {
+                      if (!literalZeroReservation && !identity && !fixedNarrowing) {
                         target.dontSimplifyIt().addTag(noBackendCombMerge)
                         source.dontSimplifyIt().addTag(noBackendCombMerge)
                         if (!target.isNamed) target.setWeakName("morphhdl_resize")

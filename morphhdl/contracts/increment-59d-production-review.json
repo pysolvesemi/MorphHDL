@@ -39,11 +39,11 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
-      "sha256": "233b2505bcae9617ca5ba16c6ad2db0c83398422ce3c7fd0cb70fd190f1c5de7"
+      "sha256": "33047032ea28de572c96153f7eb3ec3e6eeab35b84e0097e00c2c6ed8d7a1ecf"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-      "sha256": "8dc296ab72ac4e5f847d9978b52bf79e1928075c7df623ef18764e537cc4f03b"
+      "sha256": "166c9b5cdaa7a7a73e431f810c6e20199367fef2a947c13f5ffe5b7bf4dac887"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
@@ -55,7 +55,7 @@
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala",
-      "sha256": "2422f34355cf9a124ff6efe0dba1fe95df00248788af9e2ddeb49813de39fce1"
+      "sha256": "cf719524e10eaa6c170303175bb4e4a6f2bfd72887c68e4453e424c336c44b6b"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
