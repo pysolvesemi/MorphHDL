@@ -1,0 +1,41 @@
+name: Increment 60g default signed Verilog
+
+on:
+  push:
+    branches: [agent/increment-60g-default-signed-verilog]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-60g-default-signed-verilog.yml'
+      - 'morphhdl/**'
+      - 'core/**'
+      - 'docs/morphhdl/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-60g-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: Exact source snapshot (not qualification)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Record source identity
+        run: |
+          mkdir -p target/increment-60g-source
+          git rev-parse HEAD > target/increment-60g-source/commit.txt
+          git rev-parse HEAD^{tree} > target/increment-60g-source/tree.txt
+          git archive --format=tar.gz --output=target/increment-60g-source/source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-60g-source
+          path: target/increment-60g-source/
+          retention-days: 7
+          if-no-files-found: error
