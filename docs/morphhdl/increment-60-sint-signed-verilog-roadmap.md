@@ -1,6 +1,6 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60e qualified; 60f and 60g remain unchecked.
+**Status:** 60a through 60e qualified; 60f in qualification; 60f and 60g remain unchecked.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -233,6 +233,11 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
 
   **Dependencies:** Increment 60e implemented and merged.
 
+  **Status:** Implementation in qualification; no successful 60f qualification
+  or merge is recorded yet. The precise proof domains, compatibility corpus,
+  regression minima and completion gates are in the
+  [60f qualification record](increment-60f-equivalence-closure.md).
+
   Generate the feature-disabled cast-heavy reference independently from the
   feature-enabled signed-declaration candidate. Prove combinational and
   sequential equivalence for parameter overrides `WIDTH` in `{1, 5, 8, 32}`
@@ -247,6 +252,14 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   must produce a genuine counterexample. Missing modules, parser failure,
   timeout, `UNKNOWN` or a tool error is not a proof. Re-run the approved native
   source audit and all inherited MorphHDL regression suites.
+
+  The closure adds an exact 60a solver-witness replay and supplementary
+  eight-step memory-validity proofs without replacing inherited unbounded
+  induction. Require deterministic regeneration and downloaded cross-Scala
+  byte comparison of 213 RTL files, native Verilog/VHDL and opt-out mode
+  compatibility, and at least 1,610 non-skipped regression tests per Scala lane,
+  including the isolated pass workspace. No production or default-policy
+  change is included. Keep 60f unchecked until all exact-head gates pass.
 
 - [ ] **Increment 60g — Default rollout, documentation and legacy-cast cleanup**
 
