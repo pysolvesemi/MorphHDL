@@ -9,7 +9,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 import morphhdl.MorphVerilog
 import morphhdl.frontend.HdlInt
-import spinal.core.internals.{BitsBitAccessFixed, Operator, Resize}
+import spinal.core.internals.{BitsBitAccessFixed, Expression, Operator, Resize}
 import spinal.lib._
 
 /** Adversarial packed-Vec fixtures kept in `spinal.core` so they can corrupt
@@ -108,6 +108,34 @@ private object PackedVecIdentityAdversarialFixture {
         )
     }
 
+    bitsOut := packedValue
+  }
+
+  final class MutatedPackedReadSupportRegister(depth: ElabInt) extends Component {
+    setDefinitionName("MutatedPackedReadSupportRegisterMustFailClosed")
+    val vecIn = in(Vec(Bool(), depth)).setName("vec_in")
+    val bitsOut = out(Bits(depth bits)).setName("bits_out")
+    val packedValue = vecIn.asBits.setName("packed_value").dontSimplifyIt()
+    val operation = ParameterizedVec.operationsOf(vecIn)
+      .collect { case value: ParameterizedVecPackedRead => value }.last
+    val carrier = operation.carrierAssignments.find(_.finalTarget eq operation.carrier).get
+    val expected = vecIn.vec.toVector.flatMap(_.flatten)
+    def support(value: Expression): Option[BaseType] = value match {
+      case base: BaseType if expected.exists(_ eq base) => None
+      case base: BaseType if (base ne operation.carrier) && (base ne operation.result) => Some(base)
+      case other =>
+        var result = Option.empty[BaseType]
+        other.foreachExpression(child => if (result.isEmpty) result = support(child))
+        result
+    }
+    val intermediate = support(carrier.source).getOrElse {
+      throw new IllegalStateException("packed-read fixture retained no native intermediate")
+    }
+    require(intermediate.isComb && !intermediate.isIo)
+    // Retain the same declaration, assignment, source and Vec leaf identities,
+    // but introduce one real cycle. Packed publication must preserve the
+    // distinction and reject instead of deleting the stateful intermediary.
+    intermediate.setAsReg()
     bitsOut := packedValue
   }
 
@@ -341,6 +369,14 @@ class PackedVecIdentityAdversarialTests extends AnyFunSuite {
       "mutated_packed_read_order.v",
       "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-LAYOUT-MISMATCH",
       new MutatedPackedReadOrder(parameter("DEPTH", 3, 1, 8))
+    )
+  }
+
+  test("packed Vec read rejects a retained support wire changed into a register") {
+    expectFailure(
+      "mutated_packed_read_support_register.v",
+      "SPINAL-PARAMETERIZED-VERILOG-VEC-PACKED-READ-LAYOUT-MISMATCH",
+      new MutatedPackedReadSupportRegister(parameter("DEPTH", 3, 1, 8))
     )
   }
 

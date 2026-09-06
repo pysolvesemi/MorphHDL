@@ -63,10 +63,14 @@ def main() -> None:
             span = next(entry for entry in data["files"] if entry["path"] == FALLBACK)["edits"][0]["after"]
             cases = (
                 ("unrelated fallback addition", FALLBACK, fallback + "\n// unrelated mutation\n",
-                 CLOSURE, "unreviewed source change outside 59f spans"),
+                 CLOSURE, "unstaged production sources"),
                 ("reviewed zero proof changed", FALLBACK,
                  fallback.replace("literal.getValue() == 0", "literal.getValue() == 1", 1),
-                 CLOSURE, "unreviewed source change outside 59f spans"),
+                 CLOSURE, "unstaged production sources"),
+                ("assignment-owner padding proof changed", FALLBACK,
+                 fallback.replace("val owner = ParameterizedStructure.exactAssignmentDomainOf(",
+                                  "val owner = ParameterizedStructure.unreviewedAssignmentDomainOf(", 1),
+                 HELPER, "unreviewed source change outside 59f spans"),
                 ("duplicate reviewed span", FALLBACK, fallback + span,
                  HELPER, "unreviewed source change outside 59f spans"),
                 ("unrelated sealed checker addition", BOUNDARY, boundary + "\n# unrelated mutation\n",
@@ -82,12 +86,12 @@ def main() -> None:
                 ("manifest span changed", CONTRACT, manifest.replace("literal.getValue() == 0", "literal.getValue() == 1", 1),
                  HELPER, "59f reviewed publisher manifest changed"),
                 ("missing manifest", CONTRACT, None, CLOSURE, "FileNotFoundError"),
-                ("missing restoration helper", HELPER, None, CLOSURE, "sealed writer/checker changed"),
+                ("missing restoration helper", HELPER, None, CLOSURE, "sealed oracle/authority/contract changed"),
                 ("changed independent oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala",
-                 "// independent oracle was replaced\n", CLOSURE, "sealed writer/checker changed"),
+                 "// independent oracle was replaced\n", CLOSURE, "sealed oracle/authority/contract changed"),
                 ("dirty native signed hook", "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
                  "// native signed hook was replaced\n", CLOSURE,
-                 "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
+                 "unstaged production sources"),
             )
             for label, path, replacement, checker, rejection in cases:
                 target = fixture / path
@@ -102,6 +106,16 @@ def main() -> None:
                     records.append(check(fixture, checker, label, rejection))
                 finally:
                     target.write_bytes(original)
+            # A committed mutation bypasses no dirty-worktree check: the
+            # inherited entry point must still enforce the exact span ledger.
+            (fixture / FALLBACK).write_text(fallback + "\n// committed unrelated mutation\n")
+            git(fixture, "add", "--", FALLBACK)
+            git(fixture, "-c", "user.name=Scope guard fixture", "-c",
+                "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
+                "-m", "isolated committed publisher mutation")
+            records.append(check(fixture, CLOSURE, "committed unrelated publisher mutation",
+                                 "unreviewed source change outside 59f spans"))
+            git(fixture, "reset", "--hard", head)
             records.append(check(fixture, CLOSURE, "restored fixture preserves inherited gates"))
         finally:
             git(ROOT, "worktree", "remove", "--force", str(fixture))
@@ -110,7 +124,7 @@ def main() -> None:
     output = ROOT / "target/increment-59f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: three positive and twelve exact negative 59f source-scope controls", flush=True)
+    print("PASS: three positive and fourteen exact negative 59f source-scope controls", flush=True)
 
 
 if __name__ == "__main__":

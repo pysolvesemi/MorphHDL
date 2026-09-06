@@ -21,7 +21,7 @@ REGRESSIONS = {
     "paramrtl": (234, 23),
     "frontend": (257, 22),
     "backends/verilog": (148, 21),
-    "morphhdl": (819, 78),
+    "morphhdl": (858, 81),
     "morphir": (32, 2),
     "morphplugin": (16, 2),
     "core": (5, 1),
@@ -29,8 +29,8 @@ REGRESSIONS = {
 }
 
 
-# Exact suite identities at the 60f qualification boundary. These are frozen
-# data, not runtime discovery or a count-only substitute for inherited suites.
+# Exact inherited suite identities plus the three reviewed 59e additions. These
+# are explicit data, not runtime discovery or a count-only substitute for suites.
 EXPECTED_SUITES = {
     "paramrtl": frozenset("""
         morphhdl.paramrtl.AddressWidthExpressionTests
@@ -153,6 +153,7 @@ EXPECTED_SUITES = {
         spinal.core.FiniteBitsIndexTests
         spinal.core.FiniteFormalBoundaryTests
         spinal.core.FiniteMemIdentityAdversarialTests
+        spinal.core.NativeCloneShapeContractTests
         spinal.core.PackedVecIdentityAdversarialTests
         spinal.core.ProceduralIdentityAdversarialTests
         spinal.core.ScalarStructuralIdentityAdversarialTests
@@ -176,6 +177,8 @@ EXPECTED_SUITES = {
         spinal.core.internals.TypedBalancedReductionCaptureSafetyTests
         spinal.core.internals.TypedBalancedReductionCaptureTests
         spinal.core.internals.TypedBalancedReductionClosedGraphTests
+        spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests
+        spinal.core.internals.TypedBalancedReductionCompositeTests
         spinal.core.internals.TypedBalancedReductionOperatorReplayTests
         spinal.core.internals.TypedBalancedReductionPlanTests
         spinal.core.internals.TypedBalancedReductionPublicationSafetyTests
@@ -213,7 +216,7 @@ EXPECTED_SUITES = {
 # Separately reviewed descendants extend the frozen inherited inventory by exact
 # suite identity. Presence of arbitrary XML or a matching count grants nothing.
 # A complete, tracked feature source inventory activates the reviewed additions;
-# heads without that feature retain exactly the original 78 MorphHDL suites.
+# heads without that feature retain the 81 inherited and reviewed 59e suites.
 SUITE_EXTENSIONS = {
     "59f": {
         "sources": (
@@ -345,7 +348,7 @@ def regressions(root: Path, output: Path) -> None:
     output.unlink(missing_ok=True)
     # The source check runs before report discovery, so reports, suite counts,
     # path presence or branch names cannot opt into a looser contract.
-    profile = closure_module().production_profile(root)
+    profile = closure_module().regression_profile(root)
     counts, suite_inventory = dict(REGRESSIONS), dict(EXPECTED_SUITES)
     require(profile in ("60f-baseline", "60f-with-wa07a", "60f-with-59f",
                         "60f-with-wa07a-and-59f"), "unknown validated source profile: " + profile)
@@ -522,7 +525,7 @@ def self_test() -> None:
                 with contextlib.redirect_stdout(io.StringIO()):
                     regressions(root, output)
                 results = json.loads(output.read_text())
-                require(len(results["morphhdl"]["suites"]) == (82 if callbacks else 78),
+                require(len(results["morphhdl"]["suites"]) == (85 if callbacks else 81),
                         "reviewed callback inventory omitted or replaced a suite")
                 require(len(results["morphhdl-passes"]["suites"]) == (14 if wa else 11),
                         "reviewed WA inventory omitted or replaced a suite")
@@ -614,6 +617,17 @@ def self_test() -> None:
                     with mock.patch.object(closure, "QUALIFIED_60F", renamed_qualification):
                         reject_reports("historical production source renamed outside src/main")
                     git("reset", "--hard", qualified)
+                if callbacks:
+                    callback_completion = git("rev-parse", "HEAD")
+                    # Retain completion ancestry while reverting every tracked
+                    # callback source and suite to the old baseline tree.
+                    git("read-tree", "--reset", "-u", qualified)
+                    commit()
+                    with mock.patch.object(closure, "COMPLETED_59F", callback_completion):
+                        require(closure.production_profile(root) == "60f-baseline",
+                                "complete callback reversion did not restore exact baseline bytes")
+                        reject_reports("complete committed callback reversion cannot drop suite obligations")
+                    git("reset", "--hard", callback_completion)
                 require(closure.production_profile(root) == expected_profile, "fixture restoration failed")
     print(f"60f inventory self-test: four exact source profiles and {rejections} rejection controls PASS")
 
