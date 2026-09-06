@@ -63,6 +63,16 @@ the solvers independently.
 
 ## Completion and merge gate
 
+Integration with the qualified 59e base exposed a test-fixture metadata issue:
+native `cloneOf` now preserves symbolic metadata, so the fixture's intentionally
+retained `.resized` count aliases carried a child-local `DEPTH` root into the
+parent. Its two already-fixed four-bit count outputs now use explicit
+`resize(4)`. This preserves their ABI and full-domain count behavior without
+changing production validators or the pass algorithms. Source regressions
+reject deferred clones and changed count widths. The fresh pre-pass capture may
+have different bytes from the historical hash above; every candidate must still
+use the exact same capture preceding the entire passes phase in its own run.
+
 The implementation revision above qualified before the completion checkbox was
 changed. The completion head, including integration of the qualified base, must
 receive its own full required CI, including fresh native generation, both Scala

@@ -15,6 +15,7 @@ PASS = 'morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperand
 PIPELINE = 'morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala'
 API = 'morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala'
 NATIVE = 'morphhdl-passes/examples/ConstantOperandNativeBridge.scala'
+FIFO = 'morphhdl-passes/examples/ParameterizedStreamFifo.scala'
 RUN = 'morphhdl-passes/scripts/run-wa07a-regression.sh'
 WORKFLOW = '.github/workflows/morphhdl-passes.yml'
 VALIDATOR = 'morphhdl-passes/scripts/validate_wire_assignment_equivalence.py'
@@ -37,6 +38,9 @@ SLOTS = [
     {'activation_item': 'WA-07a', 'candidate': 'morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v', 'pass_id': ALL},
 ]
 MARKERS = {
+    FIFO: ('val occupancy = out UInt (4 bits)', 'val availability = out UInt (4 bits)',
+           'io.occupancy := fifo.io.occupancy.resize(4)',
+           'io.availability := fifo.io.availability.resize(4)'),
     CONES: ('def run_proof', 'def validate_proof', 'def validate_pdr_log',
             'setattr -set keep 1 t:$assert t:$assume', 'clk2fflogic',
             'formalff -ff2anyinit', 'opt -full -keepdc',
@@ -79,6 +83,9 @@ MARKERS = {
                  'value.replace("multiclock on", "multiclock off")',
                  '"REJECTED_UNREACHABLE"', 'WA07A_CLOCK_MODEL_PASS'),
     SCHEDULER_TEST: ('test_native_artifact_paths_ignore_forked_subproject_working_directory',
+                     'test_native_fixture_preserves_fixed_count_output_abi',
+                     'test_deferred_child_count_clone_mutation_is_rejected',
+                     'test_changed_count_output_or_resize_width_is_rejected',
                      'test_relative_native_artifact_path_mutation_is_rejected',
                      'test_pass_status_without_reachability_cannot_publish_success',
                      'test_unreachable_comparison_stops_before_equivalence_proof',

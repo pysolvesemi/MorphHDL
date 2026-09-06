@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import importlib.util
 import io
 import re
 import shlex
@@ -476,6 +477,39 @@ class ClockModelContracts(unittest.TestCase):
                 with self.assertRaisesRegex(gate.ValidationError, "without a retained cover trace"):
                     gate.prove_comparison_reachable(directory, "Miter")
 
+
+
+class NativeFixtureContractTests(unittest.TestCase):
+    """Source regression only; fresh native generation remains mandatory."""
+    @classmethod
+    def setUpClass(cls):
+        root = Path(__file__).resolve().parents[2]
+        spec = importlib.util.spec_from_file_location(
+            'wa07a_native_fixture_contract',
+            root / 'morphhdl-passes/scripts/check-wa07a-constant-pass.py')
+        cls.contract = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.contract)
+        cls.fixture = (root / cls.contract.FIFO).read_text()
+
+    def test_native_fixture_preserves_fixed_count_output_abi(self):
+        self.assertEqual(self.contract.text_failures(self.contract.FIFO, self.fixture), [])
+
+    def test_deferred_child_count_clone_mutation_is_rejected(self):
+        for output in ('occupancy', 'availability'):
+            original = f'io.{output} := fifo.io.{output}.resize(4)'
+            mutant = self.fixture.replace(original, f'io.{output} := fifo.io.{output}.resized')
+            self.assertNotEqual(mutant, self.fixture)
+            self.assertTrue(self.contract.text_failures(self.contract.FIFO, mutant))
+
+    def test_changed_count_output_or_resize_width_is_rejected(self):
+        for output in ('occupancy', 'availability'):
+            for original, replacement in (
+                    (f'val {output} = out UInt (4 bits)', f'val {output} = out UInt (3 bits)'),
+                    (f'io.{output} := fifo.io.{output}.resize(4)',
+                     f'io.{output} := fifo.io.{output}.resize(3)')):
+                mutant = self.fixture.replace(original, replacement)
+                self.assertNotEqual(mutant, self.fixture)
+                self.assertTrue(self.contract.text_failures(self.contract.FIFO, mutant))
 
 
 class RunnerPathTests(unittest.TestCase):

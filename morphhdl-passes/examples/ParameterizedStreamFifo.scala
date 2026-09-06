@@ -59,8 +59,11 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
     directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))
 
   fifo.io.flush := io.flush
-  io.occupancy := fifo.io.occupancy.resized
-  io.availability := fifo.io.availability.resized
+  // These ABI outputs are explicitly four bits. Avoid a deferred .resized
+  // clone carrying the child's definition-local DEPTH root into the parent:
+  // the witness intentionally preserves aliases that production cleans up.
+  io.occupancy := fifo.io.occupancy.resize(4)
+  io.availability := fifo.io.availability.resize(4)
 }
 
 object ParameterizedStreamFifoExample {
