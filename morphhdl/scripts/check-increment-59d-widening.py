@@ -27,31 +27,40 @@ def load(name: str, filename: str):
 
 H = load('widening_tools', 'check-increment-59b-operator-replay.py')
 STIMULUS = load('widening_stimulus', 'check-increment-59b-native-oracle.py')
+SYNTHESIS = load('widening_synthesis', 'check-increment-59d-synthesis.py')
 OUTPUTS = ('uSum', 'sSum', 'uProduct', 'sProduct', 'uMin', 'uMax', 'sMin', 'sMax',
            'uResize', 'sResize', 'uSymbolicResize', 'sSymbolicResize', 'rSum', 'rSignedSum')
 INDUCTIVE_PASS = 'Induction step proven: SUCCESS!'
 
 
-def command(args: list[str], log: Path, timeout: int = 180) -> str:
+def command(args: list[str], log: Path, timeout: int = 180, cwd: Path | None = None) -> str:
     """Retain phase timing without turning an incomplete tool run into evidence."""
     timing = log.with_suffix('.timing.json')
     timing.unlink(missing_ok=True)
     started = time.monotonic()
+
+    def record(status: str, **details) -> float:
+        elapsed = time.monotonic() - started
+        timing.write_text(json.dumps(dict(elapsed_seconds=elapsed, command=args,
+            cwd=str(cwd) if cwd else None, status=status, timeout_seconds=timeout,
+            **details), indent=2) + '\n')
+        return elapsed
+
     print('START:', log.parent.name, log.stem, flush=True)
     try:
         with log.open('w') as output:
             completed = subprocess.run(args, text=True, stdout=output,
-                stderr=subprocess.STDOUT, timeout=timeout, check=False)
+                stderr=subprocess.STDOUT, timeout=timeout, check=False, cwd=cwd)
     except (OSError, subprocess.TimeoutExpired) as error:
         with log.open('a') as output:
             output.write('\n' + str(error) + '\n')
+        record('timeout' if isinstance(error, subprocess.TimeoutExpired) else 'error', error=str(error))
         raise RuntimeError(f'tool did not complete; see {log}') from error
     if completed.returncode:
+        record('failed', returncode=completed.returncode)
         raise RuntimeError(f'tool exited {completed.returncode}; see {log}')
     result = log.read_text()
-    elapsed = time.monotonic() - started
-    timing.write_text(json.dumps(dict(
-        elapsed_seconds=elapsed, command=args), indent=2) + '\n')
+    elapsed = record('passed', returncode=0)
     print('TOOL-PASS:', log.parent.name, log.stem, f'{elapsed:.2f}s', flush=True)
     return result
 
@@ -346,8 +355,7 @@ def qualify(root: Path, duplicate: Path | None, only_case: str | None = None) ->
                 reference_key = (hashlib.sha256(reference.read_bytes()).hexdigest(), module)
                 if role == 'reference' and reference_key in reference_checks:
                     checked_work, checked_summary = reference_checks[reference_key]
-                    for suffix in ('lint.log', 'lint.timing.json', 'synthesis.ys',
-                                   'synthesis.log', 'synthesis.timing.json', 'ports.json'):
+                    for suffix in ('lint.log', 'lint.timing.json', *SYNTHESIS.ARTIFACT_SUFFIXES):
                         shutil.copyfile(checked_work / ('reference-' + suffix),
                                         work / ('reference-' + suffix))
                     synthesis[role] = dict(checked_summary,
@@ -359,20 +367,9 @@ def qualify(root: Path, duplicate: Path | None, only_case: str | None = None) ->
                     continue
                 command(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', module,
                            *map(str, paths)], work / (role + '-lint.log'), timeout=300)
-                script = work / (role + '-synthesis.ys')
-                port_evidence = work / (role + '-ports.json')
-                script.write_text('read_verilog ' + ' '.join(H.quoted(path) for path in paths) +
-                    f'\nhierarchy -check -top {module}\nproc\nwrite_json {H.quoted(port_evidence)}\n' +
-                    f'synth -top {module}\ncheck -assert\nstat\n')
-                synthesis_log = work / (role + '-synthesis.log')
-                result = command(['yosys', '-Q', '-T', '-s', str(script)], synthesis_log, timeout=600)
-                counts = re.findall(r'Number of cells:\s+(\d+)', result)
-                if not counts:
-                    raise RuntimeError('synthesis lacks final cell count: ' + label + '/' + role)
-                synthesis[role] = dict(cells=int(counts[-1]), elapsed_seconds=json.loads(
-                    synthesis_log.with_suffix('.timing.json').read_text())['elapsed_seconds'])
+                synthesis[role] = SYNTHESIS.qualify(module, paths, work, role, command, H.quoted)
                 print('SYNTHESIS:', label, role, synthesis[role], flush=True)
-                check_specialized_ports(case, json.loads(port_evidence.read_text()), role)
+                check_specialized_ports(case, json.loads((work / (role + '-ports.json')).read_text()), role)
                 if role == 'reference':
                     reference_checks[reference_key] = (work, dict(synthesis[role]))
             bench = work / 'tb.v'

@@ -7,6 +7,8 @@ on:
       - '.github/workflows/increment-59d-widening.yml'
       - 'morphhdl/src/**'
       - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/check-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'build.sbt'
       - 'build.mill'
@@ -19,6 +21,8 @@ on:
       - '.github/workflows/increment-59d-widening.yml'
       - 'morphhdl/src/**'
       - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/check-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'build.sbt'
       - 'build.mill'
@@ -42,7 +46,7 @@ jobs:
       github.ref_name == 'parameterized-verilog'
     name: Symbolic widening Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
@@ -74,6 +78,64 @@ jobs:
             --generate-template morphhdl/contracts/increment-55-native-change-review.json \
             --output target/increment-59d-widening/native.json
           cmp morphhdl/contracts/native-source-preservation.json target/increment-59d-widening/native.json
+      - name: Record runner resources and HDL tool versions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os, platform, shutil, subprocess
+          from pathlib import Path
+
+          def read_optional(path):
+              try:
+                  return Path(path).read_text().strip()
+              except OSError as error:
+                  return {'unavailable': str(error)}
+
+          def tool_version(candidates, arguments):
+              executable = next((shutil.which(name) for name in candidates if shutil.which(name)), None)
+              if executable is None:
+                  return {'unavailable': candidates}
+              command = [executable, *arguments]
+              try:
+                  result = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
+                  return {'command': command, 'returncode': result.returncode,
+                          'stdout': result.stdout[:16384], 'stderr': result.stderr[:16384]}
+              except (OSError, subprocess.TimeoutExpired) as error:
+                  return {'command': command, 'unavailable': str(error)}
+
+          meminfo = {}
+          for line in Path('/proc/meminfo').read_text().splitlines():
+              key, value = line.split(':', 1)
+              if key in ('MemTotal', 'MemAvailable'):
+                  amount, unit = value.split()
+                  assert unit == 'kB', (key, unit)
+                  meminfo[key + '_bytes'] = int(amount) * 1024
+          evidence = {
+              'captured_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'host_memory': meminfo,
+              'cgroup_files': {path: read_optional(path) for path in (
+                  '/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory.current',
+                  '/sys/fs/cgroup/cpu.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes')},
+              'cpu_count': os.cpu_count(),
+              'cpu_affinity': sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
+              'libc': {'platform': platform.libc_ver(),
+                       'gnu_libc_version': os.confstr('CS_GNU_LIBC_VERSION') if 'CS_GNU_LIBC_VERSION' in os.confstr_names else None},
+              'tools': {
+                  'yosys': tool_version(['yosys'], ['-V']),
+                  'abc': tool_version(['yosys-abc', 'abc'], ['-c', 'version']),
+                  'iverilog': tool_version(['iverilog'], ['-V']),
+                  'verilator': tool_version(['verilator'], ['--version'])}}
+          output = Path('target/increment-59d-widening/bootstrap/runner-resources.json')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+          print(output.read_text())
+          PY
+      - name: Verify synthesis preparation preserves state interfaces and every mapped cell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/test-increment-59d-synthesis.py \
+            target/increment-59d-widening/synthesis-controls
       - name: Bootstrap the repository-pinned SBT launcher
         shell: bash
         run: |
