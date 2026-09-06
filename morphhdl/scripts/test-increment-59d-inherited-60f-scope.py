@@ -100,6 +100,12 @@ def main() -> None:
             try:
                 path = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
                 if label == "partial-wa07a-production":
+                    # A descendant may already contain the complete WA-07a
+                    # inventory. Restore one reviewed path to pre-WA bytes so
+                    # this fixture still tests a partial inventory, rather
+                    # than a corrupted byte hash within a complete inventory.
+                    git(fixture, "restore", "--source", QUALIFIED_60F, "--worktree", "--",
+                        "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala")
                     path = "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
                     with (fixture / path).open("a") as stream:
                         stream.write("\n// Deliberate unreviewed WA-07a mutation.\n")
