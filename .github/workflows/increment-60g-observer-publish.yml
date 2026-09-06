@@ -1,0 +1,46 @@
+name: Publish reviewed 60g observer coexistence
+
+on:
+  push:
+    branches: [agent/60g-observer-reviewed-publication]
+    paths:
+      - '.github/60g-observer/*.patch'
+      - '.github/workflows/increment-60g-observer-publish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/60g-observer-reviewed-publication'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply readable reviewed diffs to the isolated staging branch
+        shell: bash
+        env:
+          EVENT_HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          branch=refs/heads/agent/60g-observer-reviewed-publication
+          test "$(git rev-parse HEAD)" = "$EVENT_HEAD"
+          test "$(git rev-parse HEAD^)" = dc9272d68e7c37e772479befaf7e0d25e2bb9972
+          test "$(git ls-remote origin "$branch" | cut -f1)" = "$EVENT_HEAD"
+          sha256sum --check <<'HASHES'
+          de331a5c2e21b56b2940f65f0af4f8e87af89a79c05c191e8529c6e6deab6319  .github/60g-observer/code.patch
+          59f802308e75a9195889637e8e005d7c1bfa9e1c5c3ac818917ad465e24fadae  .github/60g-observer/ledger.patch
+          HASHES
+          git apply --check .github/60g-observer/*.patch
+          git apply --index .github/60g-observer/*.patch
+          git rm .github/60g-observer/*.patch
+          git rm --cached .github/workflows/increment-60g-observer-publish.yml
+          test "$(git write-tree)" = 326e2bf425689d3a437070db9c5647ef745e173f
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(morphhdl): preserve strict observers alongside default signed publication'
+          git push origin "HEAD:$branch"
