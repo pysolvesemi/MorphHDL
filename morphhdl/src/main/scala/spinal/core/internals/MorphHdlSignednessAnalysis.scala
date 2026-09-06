@@ -330,15 +330,39 @@ object MorphHdlSignednessAnalysis {
     * another phase inserter must not move analysis before validation or away
     * from the exact emission boundary after this inserter has returned.
     */
-  private final class ObservationPhase(observer: Snapshot => Unit, plan: () => ArrayBuffer[Phase],
-      captureGraph: Component => Snapshot, enabled: () => Boolean)
-      extends PhaseMisc {
+  private final class ObservationPhase(plan: () => ArrayBuffer[Phase]) extends PhaseMisc {
+    private var observer: Option[Snapshot => Unit] = None
+    private var publisher: Option[(Snapshot => Unit, () => Boolean)] = None
+    private var entered = false
+
+    def observe(callback: Snapshot => Unit): Unit = {
+      if (entered || observer.nonEmpty)
+        reject("PHASE-PLAN", "a strict observer may only be installed once before execution")
+      observer = Some(callback)
+    }
+
+    def publish(callback: Snapshot => Unit, enabled: () => Boolean): Unit = {
+      if (entered || publisher.nonEmpty)
+        reject("PHASE-PLAN", "a publication consumer may only be installed once before execution")
+      publisher = Some((callback, enabled))
+    }
+
     override def impl(pc: PhaseContext): Unit = {
+      if (entered) reject("PHASE-PLAN", "a signedness phase may only execute once")
+      entered = true
       val phases = plan()
       val emission = validatedEmission(phases)
       if (phases.count(_ eq this) != 1 || emission == 0 || (phases(emission - 1) ne this))
         reject("PHASE-PLAN", "analysis must remain immediately before the validated Verilog emitter")
-      if (enabled()) observer(captureGraph(pc.topLevel))
+      // Both snapshots precede any caller callback. Observation is still full
+      // and strict; publication retains its independently selected dependency
+      // scope. A callback cannot mutate the graph and obtain fresh publication
+      // permission by causing the second capture to run after its mutation.
+      val observed = observer.map(callback => (callback, capture(pc.topLevel)))
+      val published = publisher.filter { case (_, enabled) => enabled() }
+        .map { case (callback, _) => (callback, capturePublication(pc.topLevel)) }
+      observed.foreach { case (callback, snapshot) => callback(snapshot) }
+      published.foreach { case (callback, snapshot) => callback(snapshot) }
     }
   }
 
@@ -359,24 +383,38 @@ object MorphHdlSignednessAnalysis {
     emitted
   }
 
-  /** Opt-in observer; ordinary SpinalVerilog/MorphVerilog remain untouched. */
-  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit =
-    installCapture(observer, capture _, () => true)(phases)
+  /** A strict read-only observer does not change the publication policy. */
+  def install(observer: Snapshot => Unit)(phases: ArrayBuffer[Phase]): Unit = {
+    if (observer == null) reject("PHASE-PLAN", "analysis requires a non-null observer")
+    sharedPhase(phases).observe(observer)
+  }
 
-  /** Publication selection does not alter the strict observational API or any
-    * fact/transfer rule. Native generation with Morph options is not analyzed.
+  /** The strict observer and publication consumer share one physical validated
+    * boundary in either installation order. Duplicate consumers of either role
+    * remain errors; sharing never repairs a moved or duplicated analysis phase.
     */
   def installPublication(observer: Snapshot => Unit, enabled: () => Boolean)(
-      phases: ArrayBuffer[Phase]): Unit =
-    installCapture(observer, capturePublication _, enabled)(phases)
+      phases: ArrayBuffer[Phase]): Unit = {
+    if (observer == null || enabled == null)
+      reject("PHASE-PLAN", "publication requires a non-null consumer and selector")
+    sharedPhase(phases).publish(observer, enabled)
+  }
 
-  private def installCapture(observer: Snapshot => Unit, captureGraph: Component => Snapshot,
-      enabled: () => Boolean)(phases: ArrayBuffer[Phase]): Unit = {
-    if (observer == null || enabled == null) reject("PHASE-PLAN", "analysis requires a non-null observer and selector")
+  private def sharedPhase(phases: ArrayBuffer[Phase]): ObservationPhase = {
     val emission = validatedEmission(phases)
-    if (phases.exists(_.isInstanceOf[ObservationPhase]))
-      reject("PHASE-PLAN", "signedness analysis may only be installed once per phase plan")
-    phases.insert(emission, new ObservationPhase(observer, () => phases, captureGraph, enabled))
+    val existing = phases.collect { case phase: ObservationPhase => phase }
+    if (existing.size > 1)
+      reject("PHASE-PLAN", "signedness requires exactly one physical capture boundary")
+    if (existing.isEmpty) {
+      val phase = new ObservationPhase(() => phases)
+      phases.insert(emission, phase)
+      phase
+    } else {
+      val phase = existing.head
+      if (emission == 0 || (phases(emission - 1) ne phase))
+        reject("PHASE-PLAN", "an existing analysis must remain immediately before the validated emitter")
+      phase
+    }
   }
 
   private def resolved(width: Width): Boolean = width match {
