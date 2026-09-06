@@ -1,0 +1,178 @@
+--- a/morphhdl/scripts/test-increment-59f-source-scope.py
++++ b/morphhdl/scripts/test-increment-59f-source-scope.py
+@@ -186,4 +186,6 @@
+ def main() -> None:
+     head = git(ROOT, "rev-parse", "HEAD")
++    rollout_helper = "morphhdl/scripts/check-increment-60g-source-scope.py"
++    has_rollout = (ROOT / rollout_helper).is_file()
+     has_59d = (ROOT / REVIEW_59D).is_file()
+     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()
+@@ -575,4 +577,11 @@
+                               for label, replacements, rejection in production_cases]
+             for label, replacements, checker, rejection, *entrypoints in mutations:
++                # 60g's reviewed whole-checker seal is intentionally outside
++                # the inherited 59d seam guard. These exact mutations must now
++                # fail there first; do not weaken them to any failed command.
++                if has_rollout and label in ("restoration hook removed",
++                        "59d checker restoration seam changed",
++                        "59d source and checker contract changed together"):
++                    rejection = "or 60g publication spans: " + BOUNDARY
+                 originals = {path: (fixture / path).read_bytes() for path, _ in replacements}
+                 try:
+@@ -615,4 +624,9 @@
+                 if has_joint_padding:
+                     original_paths.append(PADDING_59D_59F_CONTRACT)
++                if has_rollout:
++                    # This positive control explicitly reconstructs pre-59d
++                    # 59f alone. Its historical source is not a 60g profile;
++                    # restore the current helper in the finally block below.
++                    original_paths.append(rollout_helper)
+                 originals = {path: (fixture / path).read_bytes() for path in original_paths}
+                 try:
+@@ -634,4 +648,6 @@
+                     if has_joint_padding:
+                         (fixture / PADDING_59D_59F_CONTRACT).unlink()
++                    if has_rollout:
++                        (fixture / rollout_helper).unlink()
+                     records.append(check(fixture, HELPER, "historical frozen 59f publisher alone"))
+                 finally:
+--- a/morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala
++++ b/morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala
+@@ -32,4 +32,7 @@
+ 
+   private def install(phases: ArrayBuffer[Phase]): Unit = {
++    // Ordinary native generation must not acquire even an inactive publication
++    // lifecycle phase (notably before verbose native checksum traversal).
++    if (!ParameterizedVerilogMode.isEnabled(GlobalData.get.config)) return
+     val emitters = phases.collect { case phase: PhaseVerilog => phase }
+     // VHDL is deliberately unaffected by this MorphVerilog-only option.
+--- a/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
++++ b/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+@@ -724,5 +724,7 @@
+     phaseInserters += ExternalParameterizedHighBit.install _
+     phaseInserters += TypedBalancedReductionBackend.install _
+-    ParameterizedVerilogMode.enable(config.copy(
++    // Resolve the publication default on a private copy, never on the caller's
++    // native configuration or the independent dual-factory witness path.
++    MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
+       mode = Verilog,
+       flags = config.flags.clone(),
+@@ -733,5 +735,5 @@
+       memBlackBoxers = config.memBlackBoxers.clone(),
+       scopeProperties = config.scopeProperties.clone()
+-    ))
++    )))
+   }
+ 
+--- a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
+@@ -99,5 +99,5 @@
+           !sameIdentity(saved.owners, live.owners))
+         reject("STALE-EVIDENCE", "graph type, width, operand, ownership or boundary changed after capture")
+-      live.parameters.foreach(validateWidth)
++      live.parameters.foreach(validateWidth(_, subject))
+       saved.children.foreach(child => fresh(child, seen))
+     }
+@@ -241,7 +241,8 @@
+       if (key < 0 || key >= widths.size || !contains(fact.width))
+         reject("WIDTH-USE-IDENTITY", "width token does not belong to this validated use")
+-      val result = widths(key)
+-      validateWidth(result)
+-      result
++      // validate above rechecks the complete dependency subtree, including
++      // each retained width at its exact native owner. Revalidating this token
++      // without that owner would lose a captured construction-branch domain.
++      widths(key)
+     }
+ 
+@@ -331,5 +332,12 @@
+     * from the exact emission boundary after this inserter has returned.
+     */
+-  private final class ObservationPhase(plan: () => ArrayBuffer[Phase]) extends PhaseMisc {
++  private final class ObservationPhase(
++      plan: () => ArrayBuffer[Phase],
++      val context: PhaseContext
++  ) extends PhaseMisc {
++    private def requireRegistrationOpen(): Unit =
++      if (context.hasStartedPhaseExecution)
++        reject("PHASE-PLAN", "signedness registration is closed once phase execution starts")
++
+     private var observer: Option[Snapshot => Unit] = None
+     private var publisher: Option[(Snapshot => Unit, () => Boolean)] = None
+@@ -337,4 +345,5 @@
+ 
+     def observe(callback: Snapshot => Unit): Unit = {
++      requireRegistrationOpen()
+       if (entered || observer.nonEmpty)
+         reject("PHASE-PLAN", "a strict observer may only be installed once before execution")
+@@ -343,4 +352,5 @@
+ 
+     def publish(callback: Snapshot => Unit, enabled: () => Boolean): Unit = {
++      requireRegistrationOpen()
+       if (entered || publisher.nonEmpty)
+         reject("PHASE-PLAN", "a publication consumer may only be installed once before execution")
+@@ -349,4 +359,6 @@
+ 
+     override def impl(pc: PhaseContext): Unit = {
++      if ((pc ne context) || !context.hasStartedPhaseExecution)
++        reject("PHASE-PLAN", "capture requires its exact executing native phase context")
+       if (entered) reject("PHASE-PLAN", "a signedness phase may only execute once")
+       entered = true
+@@ -403,15 +415,21 @@
+   private def sharedPhase(phases: ArrayBuffer[Phase]): ObservationPhase = {
+     val emission = validatedEmission(phases)
++    val context = Option(GlobalData.get).flatMap(data => Option(data.phaseContext))
++      .getOrElse(reject("PHASE-PLAN", "registration requires its native phase context"))
++    // This evidence is owned by the native scheduler, not a movable guard
++    // phase or a test of whether top-level elaboration has happened yet.
++    if (context.hasStartedPhaseExecution)
++      reject("PHASE-PLAN", "signedness registration is closed once phase execution starts")
+     val existing = phases.collect { case phase: ObservationPhase => phase }
+     if (existing.size > 1)
+       reject("PHASE-PLAN", "signedness requires exactly one physical capture boundary")
+     if (existing.isEmpty) {
+-      val phase = new ObservationPhase(() => phases)
++      val phase = new ObservationPhase(() => phases, context)
+       phases.insert(emission, phase)
+       phase
+     } else {
+       val phase = existing.head
+-      if (emission == 0 || (phases(emission - 1) ne phase))
+-        reject("PHASE-PLAN", "an existing analysis must remain immediately before the validated emitter")
++      if ((phase.context ne context) || emission == 0 || (phases(emission - 1) ne phase))
++        reject("PHASE-PLAN", "an existing analysis must retain its exact context and validated emission boundary")
+       phase
+     }
+@@ -428,7 +446,15 @@
+   }
+ 
+-  private def validateWidth(value: ElaborationIntegerExpression): Unit = {
+-    ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
+-      "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
++  private def validateWidth(value: ElaborationIntegerExpression, subject: AnyRef): Unit = {
++    subject match {
++      case base: BaseType if ElaborationWidthAuthority.isRetained(value) =>
++        NativePublicationWidth.validate(value, base.component, base, "signedness width authority")
++      case _ if ElaborationWidthAuthority.isRetained(value) =>
++        ElaborationWidthAuthority.requireAuthoritative(value, "signedness width authority",
++          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY")
++      case _ =>
++        ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
++          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
++    }
+     if (value.minimum < 0) reject("WIDTH-AUTHORITY", "negative logical width domain")
+   }
+@@ -608,5 +634,5 @@
+     val widths = ArrayBuffer.empty[ElaborationIntegerExpression]
+     def retained(value: ElaborationIntegerExpression): Width = {
+-      validateWidth(value)
++      // The exact subject's parameters are validated before token allocation.
+       // Root-free generate-index expressions are not necessarily constants.
+       if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)
+@@ -632,5 +658,5 @@
+       entries += null
+       val shape = describe(subject)
+-      shape.parameters.foreach(validateWidth)
++      shape.parameters.foreach(validateWidth(_, subject))
+       val children = shape.children.map(visit)
+       val valueChildren = subject match {

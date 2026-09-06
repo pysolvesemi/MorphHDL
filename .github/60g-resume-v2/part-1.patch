@@ -1,0 +1,184 @@
+--- a/morphhdl/contracts/native-source-preservation.json
++++ b/morphhdl/contracts/native-source-preservation.json
+@@ -13,5 +13,5 @@
+       "path": "core/src/main",
+       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
+-      "approved_tree": "1dc9ee454565b19b2b35e7af2d9f50707845e282"
++      "approved_tree": "5f88bcf3aa0289791089c99e3f1b4f808aa9a675"
+     },
+     {
+@@ -2527,7 +2527,8 @@
+       "classification": "platform-integration-hook",
+       "introduced_by": [
+-        "Increment 57a: typed StreamFifoCC architecture"
++        "Increment 57a: typed StreamFifoCC architecture",
++        "Increment 60g: scheduler-owned registration lifecycle"
+       ],
+-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary.",
++      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
+       "baseline": {
+         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+@@ -2539,8 +2540,54 @@
+         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+         "mode": "100644",
+-        "blob": "887984fc2aeff5438a1dbbfe163f0a877036dbf7",
+-        "sha256": "a71c08a9ad865a07b0e6f21cb2d6252e84886d51d4bd31cc70525f6641213239"
++        "blob": "2f9a94735b66196d07a484cc94747f2118cda504",
++        "sha256": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200"
+       },
+       "edits": [
++        {
++          "id": "phase-context-execution-evidence",
++          "kind": "platform-integration",
++          "owner": "spinal.core.internals.PhaseContext.doPhase",
++          "reason": "Read-only monotonic per-context lifecycle evidence allows optional consumers to reject runtime registration without inserting pre-creation phases.",
++          "baseline_span": {
++            "start": 9673,
++            "end": 9673,
++            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++          },
++          "approved_span": {
++            "start": 9673,
++            "end": 9942,
++            "sha256": "b42f036138f7fd606504dadf776c58833717576de3a8773fce0f5ab34e48b264"
++          },
++          "required_exact_text": [
++            {
++              "side": "approved",
++              "text": "private[spinal] def hasStartedPhaseExecution: Boolean = phaseExecutionStarted",
++              "count": 1
++            }
++          ]
++        },
++        {
++          "id": "phase-context-execution-start",
++          "kind": "platform-integration",
++          "owner": "spinal.core.internals.PhaseContext.doPhase",
++          "reason": "Close registration before invoking even the first custom phase; leave all native phase execution, logging and validation statements intact.",
++          "baseline_span": {
++            "start": 9710,
++            "end": 9710,
++            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
++          },
++          "approved_span": {
++            "start": 9979,
++            "end": 10012,
++            "sha256": "485c7a91982bd189521fe6a133e1a6c9c5203360a791a64d9b4581722c919c08"
++          },
++          "required_exact_text": [
++            {
++              "side": "approved",
++              "text": "phaseExecutionStarted = true",
++              "count": 1
++            }
++          ]
++        },
+         {
+           "id": "spinal-verilog-parameterized-exception-01",
+@@ -2554,6 +2601,6 @@
+           },
+           "approved_span": {
+-            "start": 136911,
+-            "end": 136974,
++            "start": 137213,
++            "end": 137276,
+             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
+           },
+--- a/morphhdl/scripts/check-increment-59f-source-scope.py
++++ b/morphhdl/scripts/check-increment-59f-source-scope.py
+@@ -10,4 +10,5 @@
+ import argparse
+ import hashlib
++import importlib.util
+ import json
+ import subprocess
+@@ -326,4 +327,15 @@
+ 
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+     contract(root)
+@@ -331,5 +343,5 @@
+                else restore_59f_source)
+     for path in sorted(PATHS):
+-        restore(root, path, (root / path).read_text())
++        restore(root, path, restore_rollout(root, path, (root / path).read_text()))
+     print("59f exact reviewed publisher spans and complete before/after blobs PASS", flush=True)
+ 
+--- a/morphhdl/scripts/check-increment-60d-pure-sint-casts.py
++++ b/morphhdl/scripts/check-increment-60d-pure-sint-casts.py
+@@ -91,5 +91,12 @@
+                  "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+                  "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala"):
+-        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed oracle/authority changed: " + path)
++        current = restore_rollout(root, path, (root / path).read_text())
++        boundary_checker = root / "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
++        if boundary_checker.is_file():
++            boundary = load(boundary_checker, "boundary_signed_width_scope")
++            restore = getattr(boundary, "restore_59d_signed_width_authority", None)
++            if restore is not None:
++                current = restore(root, path, current)
++        require(git("show", BASE + ":" + path) == current, "sealed oracle/authority changed: " + path)
+     print("60d exact native hook, unchanged wrapper plan and independent oracle scope PASS")
+ 
+--- a/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
++++ b/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
+@@ -128,4 +128,15 @@
+ 
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+     def git(*args: str) -> str:
+@@ -141,5 +152,5 @@
+         baseline = (QUALIFIED_59B if has_59b and path ==
+                     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala" else BASE)
+-        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", baseline + ":" + path),
++        require(restore_60d_source(root, path, restore_rollout(root, path, (root / path).read_text())) == git("show", baseline + ":" + path),
+                 "unreviewed source change outside 60e spans: " + path)
+     native = set(git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
+@@ -161,9 +172,9 @@
+     for name in ("MorphHdlSignednessAnalysis.scala",):
+         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
+-        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())
++        restored = restore_59d_signed_width_authority(root, path, restore_rollout(root, path, (root / path).read_text()))
+         require(git("show", BASE + ":" + path) == restored, "independent type authority changed")
+     for path in ("morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
+                  "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"):
+-        require(git("show", BASE + ":" + path) == (root / path).read_text(), "sealed baseline changed: " + path)
++        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed baseline changed: " + path)
+     for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
+         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
+--- a/morphhdl/scripts/check-increment-60f-artifacts.py
++++ b/morphhdl/scripts/check-increment-60f-artifacts.py
+@@ -420,4 +420,11 @@
+                             minimum += 4
+                 counts[project] = (minimum, old_suites + len(additions))
++    if "60g" in features:
++        # The production profile is validated before reports are inspected.
++        # Require the entire extended existing suite, not just a global count.
++        tests, total_suites = counts["morphhdl"]
++        counts["morphhdl"] = (tests + 15, total_suites)
++        extension.setdefault("morphhdl", {})[
++            "spinal.core.internals.SignednessCompatibilityTests"] = 20
+     return counts, suites, extension
+ 

@@ -1,0 +1,56 @@
+name: Apply and compile reviewed 60g lifecycle integration
+on:
+  push:
+    branches: [agent/60g-resume-source-99b6017]
+    paths: ['.github/60g-resume-v2/**', '.github/workflows/60g-resume-apply-v2.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: ${{ github.sha }}
+      - name: Apply exact reviewed tree on the existing implementation branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=agent/increment-60g-default-signed-verilog
+          payload=$(mktemp -d)
+          cp -a .github/60g-resume-v2/. "$payload/"
+          mkdir -p /tmp/60g-lifecycle-publication
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 "$payload/apply.py" "$payload" 2>&1 | tee /tmp/60g-lifecycle-publication/apply.log
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py 2>&1 | tee /tmp/60g-lifecycle-publication/source.log
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test 2>&1 | tee /tmp/60g-lifecycle-publication/controls.log
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only 2>&1 | tee /tmp/60g-lifecycle-publication/inherited.log
+          test "$(git rev-parse HEAD^{tree})" = 53a3e4860b67349867ecd923be3db97e5e3b445a
+          test "$(git ls-remote origin refs/heads/$branch | cut -f1)" = "$(cat "$payload/expected-parent.txt")"
+          git push origin HEAD:refs/heads/$branch
+          git rev-parse HEAD HEAD^{tree} > /tmp/60g-lifecycle-publication/identity.txt
+          git bundle create /tmp/60g-lifecycle-publication/repository.bundle HEAD
+      - name: Compile and run all twenty compatibility tests on both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scala in 2.12.18 2.13.12; do
+            sbt -batch "++$scala" 'morph/testOnly spinal.core.internals.SignednessCompatibilityTests' > "/tmp/60g-lifecycle-publication/tests-$scala.log" 2>&1 || { tail -n 200 "/tmp/60g-lifecycle-publication/tests-$scala.log"; exit 1; }
+            mkdir -p "/tmp/60g-lifecycle-publication/reports-$scala"
+            cp morphhdl/target/test-reports/*.xml "/tmp/60g-lifecycle-publication/reports-$scala/"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60g-reviewed-lifecycle-integration
+          path: /tmp/60g-lifecycle-publication
+          retention-days: 7
+          if-no-files-found: error
