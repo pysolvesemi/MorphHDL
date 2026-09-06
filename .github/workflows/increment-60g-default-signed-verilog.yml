@@ -83,13 +83,6 @@ jobs:
           iverilog -V > target/increment-60g/tool-versions.txt 2>&1
           verilator --version >> target/increment-60g/tool-versions.txt
           yosys -V >> target/increment-60g/tool-versions.txt
-      - name: Run inherited compatibility and default-isolation regressions
-        shell: bash
-        run: |
-          set -euo pipefail
-          sbt -batch '++${{ matrix.scala }}' \
-            'morph/testOnly spinal.core.internals.SignednessCompatibilityTests' \
-            > target/increment-60g/tests.log 2>&1 || { tail -n 250 target/increment-60g/tests.log; exit 1; }
       - name: Independently generate native references, explicit and default candidates twice
         shell: bash
         run: |
@@ -109,6 +102,13 @@ jobs:
           mkdir -p "$output/cross"
           cp -a "$output/a" "$output/cross/rtl"
           cp "$output/manifest.json" "$output/cross/manifest.json"
+      - name: Run inherited compatibility and default-isolation regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            'morph/testOnly spinal.core.internals.SignednessCompatibilityTests' \
+            > target/increment-60g/tests.log 2>&1 || { tail -n 250 target/increment-60g/tests.log; exit 1; }
       - name: Prove actual default candidates with strict tools and independent references
         shell: bash
         run: |

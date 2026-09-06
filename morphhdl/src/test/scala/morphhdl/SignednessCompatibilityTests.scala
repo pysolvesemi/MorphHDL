@@ -235,12 +235,16 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       // Canonical IR's simple-wire profile has no nested Vec scopes or compound
       // widths. Exercise its supported scalar surface independently, rather
       // than broadening that producer as part of a signedness-default rollout.
-      def scalar = new Component {
-        setDefinitionName("DefaultSignedCanonicalWire")
+      def scalar: Component = {
+        // Keep the symbolic config outside the native Component val callback.
+        // That callback hashes arbitrary member values for reflective naming.
         val width = parameter
-        val a = in(SInt(width bits))
-        val b = out(SInt(width bits))
-        b := a
+        new Component {
+          setDefinitionName("DefaultSignedCanonicalWire")
+          val a = in(SInt(width bits))
+          val b = out(SInt(width bits))
+          b := a
+        }
       }
       morphhdl.MorphVerilog(fresh(root.resolve("scalar.v")))(scalar)
       val scalarDefault = read(root.resolve("scalar.v"))
