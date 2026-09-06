@@ -285,6 +285,15 @@ passed 533 rejection controls across all four exact original source profiles;
 solver classification and source-evolution checks passed their 12 and six
 rejection controls respectively.
 
+Final-head CI exposed an inherited test fixture that applied frozen 60e Vec
+restoration to the later composite implementation. The fixture now exercises
+its six original negative controls on completed 60f's exact combined source,
+with 60c/60d/60e checked independently wherever applicable. It also checks five
+current native/hook/dirty-source negatives through the existing 60f gate and
+six clean positive states. All 17 cases passed locally. The original changed-Vec
+negative remains an exact historical restoration test; this adds no current
+Vec source freeze and changes no production code, semantic oracle or RTL gate.
+
 The current native manifest SHA-256 is
 `d0b9594b76b109222adaba7818233d239a7f68f553f29b758e062d388c1ad236`.
 The combined broad inventory requires all 85 MorphHDL suites, including every

@@ -3,6 +3,9 @@
 
 No native source change from a fixture is pushed or merged. The source checker
 is loaded from the current checkout while each fixture supplies its own root.
+The original source-restoration contracts remain tested on completed 60f,
+which contains the qualified combined 59b and 60c/60d/60e source;
+current descendants use 60f's completed-history and current-native audit gate.
 """
 from __future__ import annotations
 
@@ -14,10 +17,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "morphhdl/scripts/check-increment-60c-signed-declarations.py"
+CURRENT_CHECKER = ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 QUALIFIED = "75e581592334e2e596f6e1043beb9596cc20a99b"
 QUALIFIED_60D = "6c2d0027c36076942c03bd2a4f6d4df1b7934962"
 QUALIFIED_60E = "dc8cab41cf3fd41b026ba7359f30cb596b14d015"
 QUALIFIED_59B = "b0a4388e3babbc01500a620eefe6c0965e9e6343"
+COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('scope_checker', sys.argv[2])
@@ -68,6 +73,24 @@ def checked(root: Path, label: str, expected: str | None = None,
     return {"case": label, "expected_rejection": expected, "checks": evidence}
 
 
+def checked_current(root: Path, label: str, expected: str | None = None) -> dict:
+    """Current native changes use the audited descendant contract, not old Vec spans."""
+    result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CURRENT_CHECKER)],
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            timeout=120, check=False)
+    marker = "sealed current oracles and current native audits PASS"
+    if expected is None:
+        if result.returncode or marker not in result.stdout:
+            raise RuntimeError(label + " current inherited gate did not pass:\n" + result.stdout)
+    elif not result.returncode or expected not in result.stdout:
+        raise RuntimeError(label + " current inherited gate did not fail for " + expected +
+                           ":\n" + result.stdout)
+    print("PASS:", label, "[" + (expected or "accepted") + "]")
+    return {"case": label, "expected_rejection": expected,
+            "checks": [{"checker": CURRENT_CHECKER.name, "exit_code": result.returncode,
+                        "expected_rejection": expected}]}
+
+
 def commit_fixture(root: Path, path: str) -> None:
     git(root, "add", "--", path)
     git(root, "-c", "user.name=Scope guard negative fixture",
@@ -77,22 +100,38 @@ def commit_fixture(root: Path, path: str) -> None:
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "combined approved 59b and frozen 60c/60d/60e source")]
+    records = [checked_current(ROOT, "current descendant with qualified history and approved native source")]
+    # Each original exact-span negative remains anchored to the complete tree
+    # it qualified. In particular, a later reviewed Vec implementation must not
+    # turn the original changed-Vec negative into a permanent current-source seal.
     cases = (
-        ("historical", QUALIFIED, None),
-        ("historical-60d", QUALIFIED_60D, None),
-        ("historical-60e", QUALIFIED_60E, None),
-        ("historical-59b", QUALIFIED_59B, None),
-        ("changed-hook", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("changed-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
-        ("dirty-extension", head, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE"),
-        ("changed-boundary-printer", head, "native signed declaration/cast hooks changed after their frozen qualification"),
-        ("changed-vec", head, "unreviewed source change outside 60e spans"),
+        ("historical", QUALIFIED, None, False),
+        ("historical-60d", QUALIFIED_60D, None, False),
+        ("historical-60e", QUALIFIED_60E, None, False),
+        ("historical-59b", QUALIFIED_59B, None, False),
+        ("historical-combined-60f", COMPLETED_60F, None, False),
+        ("changed-hook", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("changed-printer", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("unapproved-path", COMPLETED_60F, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH", False),
+        ("dirty-extension", COMPLETED_60F, "MORPH-NATIVE-AUDIT-DIRTY-WORKTREE", False),
+        ("changed-boundary-printer", COMPLETED_60F,
+         "native signed declaration/cast hooks changed after their frozen qualification", False),
+        ("changed-vec", COMPLETED_60F, "unreviewed source change outside 60e spans", False),
+        ("changed-hook", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
+        ("changed-printer", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
+        ("unapproved-path", head, "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH", True),
+        ("dirty-extension", head, "unstaged production sources", True),
+        ("changed-boundary-printer", head,
+         "native signed declaration/cast hooks changed after their frozen qualification", True),
     )
     with tempfile.TemporaryDirectory(prefix="morphhdl-59b-source-scope-") as temporary:
-        for label, revision, error in cases:
-            fixture = Path(temporary) / label
+        for label, revision, error, current in cases:
+            case_label = ("current-" if current else "") + label
+            fixture = Path(temporary) / case_label
             git(ROOT, "worktree", "add", "--detach", str(fixture), revision)
             try:
                 if label == "changed-hook":
@@ -136,7 +175,10 @@ def main() -> None:
                     boundary_error = "unreviewed source change outside 60e spans"
                 elif label == "changed-boundary-printer":
                     boundary_error = "missing/duplicate 60e span"
-                records.append(checked(fixture, label, error, boundary_error, label == "changed-vec"))
+                if current:
+                    records.append(checked_current(fixture, case_label, error))
+                else:
+                    records.append(checked(fixture, case_label, error, boundary_error, label == "changed-vec"))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:
@@ -144,7 +186,7 @@ def main() -> None:
     output = ROOT / "target/increment-59b-source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: five positive and six exact negative inherited source-scope cases")
+    print("PASS: six positive, six original historical negatives and five current native negatives")
 
 
 if __name__ == "__main__":
