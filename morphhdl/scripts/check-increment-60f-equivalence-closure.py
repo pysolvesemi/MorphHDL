@@ -16,9 +16,13 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+COMPLETED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+INHERITED_TRACKS = {"60c": "60c-signed-declarations", "60d": "60d-pure-sint-casts",
+                    "60e": "60e-signedness-boundaries"}
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -98,17 +102,104 @@ def self_test() -> None:
             continue
         raise RuntimeError("failed to reject invalid result: " + repr(args))
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
+    source_scope_self_test()
+
+
+def qualification_interval(root: Path, baseline: str, completed: str) -> None:
+    """Seal this completed increment's scope without freezing later work."""
+    for older, newer in ((baseline, completed), (completed, "HEAD")):
+        subprocess.run(["git", "merge-base", "--is-ancestor", older, newer], cwd=root, check=True)
+    changed = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", baseline, completed], cwd=root, text=True).splitlines()
+    production = sorted(path for path in changed if re.search(r"(?:^|/)src/main/", path))
+    require(not production, "completed 60f interval changed production sources:\n" + "\n".join(production))
+
+
+def source_scope_self_test() -> None:
+    """Exercise the historical boundary and the real current native auditor."""
+    audit_path = Path(__file__).with_name("check-native-source-preservation.py")
+    spec = importlib.util.spec_from_file_location("closure_native_audit", audit_path)
+    require(spec is not None and spec.loader is not None, "cannot load native audit controls")
+    audit = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(audit)
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60f-scope-") as directory:
+        root = Path(directory) / "repository"
+        root.mkdir()
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        git("init", "-q")
+        git("config", "user.name", "MorphHDL scope control")
+        git("config", "user.email", "scope@example.invalid")
+        for index, source_root in enumerate(audit.EXPECTED_SOURCE_ROOTS):
+            marker = root / source_root / "scala" / f"Marker{index}.scala"
+            marker.parent.mkdir(parents=True)
+            marker.write_text(f"object Marker{index}\n")
+        upstream = commit("upstream")
+        config = root / audit.DEFAULT_UPSTREAM_CONFIG
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text("UPSTREAM_COMMIT=" + upstream + "\n")
+        initial = "core/src/main/scala/InitialSupport.scala"
+        (root / initial).write_text("object InitialSupport\n")
+        baseline = commit("reviewed implementation before qualification")
+
+        def reviewed_support(path: str) -> dict:
+            return dict(path=path, baseline_path=None, change="added", classification="typed-support-file",
+                        introduced_by=["source-scope control"], reason="explicitly reviewed native support", edits=[])
+
+        policy = dict(schema_version=1, repository=audit.EXPECTED_REPOSITORY,
+                      baseline_commit=upstream, files=[reviewed_support(initial)])
+        policy_path = Path(directory) / "review.json"
+        manifest_path = Path(directory) / "manifest.json"
+
+        def approve_current() -> None:
+            policy_path.write_text(json.dumps(policy))
+            manifest_path.write_text(json.dumps(audit.generate_manifest_value(root, policy_path)))
+            audit.validate_repository(root, manifest_path)
+
+        approve_current()
+        (root / "qualification.txt").write_text("tests and evidence only\n")
+        completed = commit("completed qualification-only increment")
+        qualification_interval(root, baseline, completed)
+        audit.validate_repository(root, manifest_path)
+
+        later = "core/src/main/scala/LaterSupport.scala"
+        (root / later).write_text("object LaterSupport\n")
+        current = commit("later implementation increment")
+        qualification_interval(root, baseline, completed)
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("UNAPPROVED-PATH"), "wrong unreviewed-source rejection: " + str(error))
+        else:
+            raise RuntimeError("later native production changes escaped the current approved-source audit")
+        policy["files"].append(reviewed_support(later))
+        approve_current()
+        try:
+            qualification_interval(root, baseline, current)
+        except RuntimeError as error:
+            require("changed production sources" in str(error), "wrong historical source rejection")
+        else:
+            raise RuntimeError("production changes were accepted inside a qualification-only interval")
+
+        (root / later).write_text("object LaterSupport { val unreviewed = true }\n")
+        try:
+            audit.validate_repository(root, manifest_path)
+        except audit.AuditError as error:
+            require(error.code.endswith("DIRTY-WORKTREE"), "wrong dirty-source rejection: " + str(error))
+        else:
+            raise RuntimeError("uncommitted native production changes escaped the current source audit")
+    print("60f historical scope and current approved native-source controls PASS", flush=True)
 
 
 def source_scope(root: Path) -> None:
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
-    # Include every production project (also nested backends and new roots),
-    # rather than limiting qualification-only scope to native emitter hooks.
-    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE], cwd=root, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
-                                        cwd=root, text=True).splitlines()
-    changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
-    require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
+    qualification_interval(root, BASE, COMPLETED_60F)
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -118,14 +209,36 @@ def source_scope(root: Path) -> None:
         "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
         "morphhdl/src/test/scala/nativeapplication/PureSIntCastFixture.scala",
         "morphhdl/src/test/scala/spinal/core/SignednessBoundaryFixture.scala",
+        "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+        "morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
+        "morphhdl/contracts/increment-60d-emitter-edits.json",
+        "morphhdl/contracts/increment-60e-boundary-edits.json",
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old, "sealed writer/checker changed: " + path)
-    for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
-        load(root, suffix).source_scope(root)
+        require((root / path).read_bytes() == old, "sealed oracle/authority/contract changed: " + path)
+    # Preserve the predecessor source gates' ongoing inference bans on current
+    # policies; these are not historical diff-scope restrictions.
+    for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
+        source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
+        for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
+            require(token not in source, "signedness authority uses forbidden inference: " + token)
+    # The inherited restoration checks describe the implementation that 60f
+    # qualified. Re-run them on that exact completed tree; later increments
+    # legitimately extend these same production files. Their current native
+    # changes must still pass the complete path/blob/span audit below, and the
+    # current semantic oracles above remain sealed to their original bytes.
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60f-history-") as directory:
+        historical = Path(directory) / "completed"
+        subprocess.run(["git", "worktree", "add", "--quiet", "--detach", str(historical), COMPLETED_60F],
+                       cwd=root, check=True)
+        try:
+            for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
+                load(historical, suffix).source_scope(historical)
+        finally:
+            subprocess.run(["git", "worktree", "remove", "--force", str(historical)], cwd=root, check=True)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    print("60f qualification-only scope, sealed writers/checkers and inherited native audits PASS", flush=True)
+    print("60f completed qualification-only scope, sealed current oracles and current native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:
@@ -324,16 +437,27 @@ endmodule
         "unbounded_equivalence": "retained inherited 60c/60d induction gates"}, indent=2) + "\n")
 
 
+def qualify_inherited(root: Path, out: Path, track: str) -> None:
+    """Run a sealed predecessor's unchanged behavioral gates on current RTL."""
+    require(track in INHERITED_TRACKS, "unknown inherited qualification track: " + track)
+    inherited = load(root, INHERITED_TRACKS[track])
+    if track == "60e":
+        inherited.qualify(root, out, tuple(inherited.KINDS), ("simulation", "formal", "tools"))
+        inherited.mutations(out)
+    else:
+        # Both 60c and 60d qualify() include their original mutation gates.
+        inherited.qualify(root, out)
+    print(track + " inherited behavioral qualification on current artifacts PASS", flush=True)
+
+
 def qualify(root: Path, out: Path, closure_only: bool = False) -> None:
     invalidate_summaries(out)
     for tool in ("yosys", "iverilog", "vvp", "verilator"):
         require(shutil.which(tool) is not None, "missing required tool: " + tool)
     manifest = inventory(root, out)
     if not closure_only:
-        boundary = load(root, "60e-signedness-boundaries")
-        boundary.qualify(root, out / "boundaries", tuple(boundary.KINDS), ("simulation", "formal", "tools"))
-        boundary.mutations(out / "boundaries")
-        load(root, "60d-pure-sint-casts").qualify(root, out / "pure")
+        qualify_inherited(root, out / "boundaries", "60e")
+        qualify_inherited(root, out / "pure", "60d")
     baseline_mutation(root, out)
     memory_validity(root, out)
     require(inventory(root, out) == manifest, "qualification mutated independently generated RTL")
@@ -353,10 +477,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", nargs="?", type=Path)
     parser.add_argument("--source-only", action="store_true")
-    parser.add_argument("--self-test", action="store_true", help="run result-classification controls without external tools")
+    parser.add_argument("--self-test", action="store_true", help="run solver-result and real Git/native-audit source-scope controls")
     parser.add_argument("--closure-only", action="store_true", help="run supplementary proofs only; never claims full qualification")
+    parser.add_argument("--inherited-track", choices=tuple(INHERITED_TRACKS),
+                        help="run one unchanged predecessor's full artifact qualification after the historical/current source gate")
     parser.add_argument("--skip-source", action="store_true", help="artifact stages after a separately completed source gate")
     args = parser.parse_args()
+    require(not (args.inherited_track and args.closure_only), "inherited-track cannot select supplementary 60f closure")
     root = Path(__file__).resolve().parents[2]
     output = args.output.resolve() if args.output else None
     if output is not None:
@@ -368,7 +495,10 @@ def main() -> None:
         source_scope(root)
     if not args.source_only:
         require(args.output is not None, "artifact output directory is required")
-        qualify(root, output, args.closure_only)
+        if args.inherited_track:
+            qualify_inherited(root, output, args.inherited_track)
+        else:
+            qualify(root, output, args.closure_only)
 
 
 if __name__ == "__main__":

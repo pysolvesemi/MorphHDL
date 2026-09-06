@@ -16,12 +16,42 @@ production implementation, library algorithm, default option, native-change
 manifest or sealed semantic oracle. It does not enable the default rollout in
 60g or expand unsupported signedness boundaries.
 
-The source gate requires the recorded base to be an ancestor. It rejects
-production changes in every tracked or untracked `src/main` path, including
-native and MorphHDL implementation roots, and checks the existing 60a/60c/60d/60e writers
-and checkers against their base bytes. The inherited source-scope restoration,
-immutable baseline hashes, production-retirement, native-source preservation
-and typed-overlay audits remain required.
+The source gate seals the completed qualification-only interval from the
+recorded base through merge `5a669d32095ee722c313bd069b771e7c350a1f81`.
+Every `src/main` path, including native and MorphHDL implementation roots, must
+remain unchanged within that interval. Both endpoints must remain ancestors
+of the current build. The inherited 60c/60d/60e source-restoration checks run
+again against that exact completed tree.
+
+Later implementation increments may extend those production files. Their
+current native sources still pass the complete approved path/blob/span audit,
+including rejection of dirty or unreviewed native changes. Current 60a/60c/60d/60e
+writers and checkers remain pinned to their original base bytes. All behavioral
+qualification below still regenerates and verifies the current implementation;
+the historical source audit does not substitute old RTL or old proof results.
+The inherited signedness authority files and edit contracts also remain sealed,
+and all three signedness policies retain the original current-source inference
+bans from 60c/60d/60e.
+Immutable baseline hashes, production-retirement and typed-overlay audits
+remain required. Source-gate controls use a real temporary Git repository and
+the canonical native auditor to distinguish a production change inside 60f's
+sealed interval, an unreviewed later native change and a reviewed later change.
+
+The direct 60c, 60d and 60e workflows use this same historical/current source
+gate on successor increments. Their tool steps select `--inherited-track 60c`,
+`60d` or `60e`, which invokes that sealed checker's original `qualify` function
+on the freshly generated current artifacts, including every original proof and
+mutation. The 60e dispatch also invokes its separate original `mutations`
+function. No workflow trigger, regression suite, tool stage or audit is removed;
+the original checker and fixture bytes remain sealed. Selecting one inherited
+track does not claim the additional 60f closure proofs.
+
+The exact regression inventory now includes three reviewed 59e additions:
+`NativeCloneShapeContractTests`, `TypedBalancedReductionCompositeTests` and
+`TypedBalancedReductionCompositeCallbackPolicyTests`. The MorphHDL floor grows
+from 819 tests in 78 suites to 858 tests in 81 suites. All inherited suite names
+remain mandatory, and inventory controls reject omission of each added suite.
+The recorded historical 60f run counts below remain its original evidence.
 
 The semantic-reference legs remain independent native `SpinalVerilog`
 elaborations of the ordinary fixtures. Parameterized candidates are emitted

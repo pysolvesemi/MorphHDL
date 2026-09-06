@@ -20,7 +20,7 @@ REGRESSIONS = {
     "paramrtl": (234, 23),
     "frontend": (257, 22),
     "backends/verilog": (148, 21),
-    "morphhdl": (819, 78),
+    "morphhdl": (858, 81),
     "morphir": (32, 2),
     "morphplugin": (16, 2),
     "core": (5, 1),
@@ -28,8 +28,8 @@ REGRESSIONS = {
 }
 
 
-# Exact suite identities at the 60f qualification boundary. These are frozen
-# data, not runtime discovery or a count-only substitute for inherited suites.
+# Exact inherited suite identities plus the three reviewed 59e additions. These
+# are explicit data, not runtime discovery or a count-only substitute for suites.
 EXPECTED_SUITES = {
     "paramrtl": frozenset("""
         morphhdl.paramrtl.AddressWidthExpressionTests
@@ -152,6 +152,7 @@ EXPECTED_SUITES = {
         spinal.core.FiniteBitsIndexTests
         spinal.core.FiniteFormalBoundaryTests
         spinal.core.FiniteMemIdentityAdversarialTests
+        spinal.core.NativeCloneShapeContractTests
         spinal.core.PackedVecIdentityAdversarialTests
         spinal.core.ProceduralIdentityAdversarialTests
         spinal.core.ScalarStructuralIdentityAdversarialTests
@@ -175,6 +176,8 @@ EXPECTED_SUITES = {
         spinal.core.internals.TypedBalancedReductionCaptureSafetyTests
         spinal.core.internals.TypedBalancedReductionCaptureTests
         spinal.core.internals.TypedBalancedReductionClosedGraphTests
+        spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests
+        spinal.core.internals.TypedBalancedReductionCompositeTests
         spinal.core.internals.TypedBalancedReductionOperatorReplayTests
         spinal.core.internals.TypedBalancedReductionPlanTests
         spinal.core.internals.TypedBalancedReductionPublicationSafetyTests
@@ -353,6 +356,18 @@ def self_test() -> None:
         with contextlib.redirect_stdout(io.StringIO()):
             regressions(root, output)
         require(output.is_file(), "positive XML control published no inventory")
+        # Reviewed additions are mandatory identities, just like inherited suites.
+        for added in ("spinal.core.NativeCloneShapeContractTests",
+                      "spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests",
+                      "spinal.core.internals.TypedBalancedReductionCompositeTests"):
+            missing = next(path for path in (root / "morphhdl/target/test-reports").glob("*.xml")
+                           if ET.parse(path).getroot().get("name") == added)
+            saved = missing.read_bytes()
+            missing.unlink()
+            with contextlib.redirect_stdout(io.StringIO()):
+                rejected(lambda: regressions(root, output), "missing reviewed addition " + added)
+            require(not output.exists(), "missing reviewed suite retained stale success")
+            missing.write_bytes(saved)
         report = root / "morphhdl/target/test-reports/suite-1.xml"
         original = report.read_bytes()
         tree = ET.parse(report)
