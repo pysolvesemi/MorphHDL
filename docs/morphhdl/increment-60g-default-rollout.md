@@ -83,7 +83,7 @@ unrelated edits, duplicate spans and altered reviewed spans.
 
 ## Required qualification
 
-The existing `SignednessCompatibilityTests` suite gains ten tests covering
+The existing `SignednessCompatibilityTests` suite gains thirteen tests covering
 WIDTH defaults 1/5/8/32, zero redundant pure-arithmetic casts, complete unchanged
 unsigned ports, explicit legacy/declaration-only selection, config copies,
 repeated mode transitions, same-session native Verilog/VHDL bytes, real casts,
@@ -117,7 +117,7 @@ strict Verilog-2001 parsing, Icarus simulation, Verilator lint, Yosys synthesis,
 formal counterexamples, native audits, public golden regeneration, baseline
 and Mill CI are required before closure. The new tests extend an already
 required suite, so the exact named suite inventory remains unchanged and its
-minimum MorphHDL test count increases by ten. Zero failures/errors/skips
+minimum MorphHDL test count increases by thirteen. Zero failures/errors/skips
 remain mandatory. Source-bound results and merge/post-merge checks are not yet
 available in this in-progress record.
 
@@ -137,3 +137,19 @@ keeping strict observer semantics and signed-use checks unchanged. Two additiona
 regressions cover mixed signed/unsigned hierarchy at WIDTH defaults 1 and 8, and
 symbolic signed growth at defaults 4, 8 and 12 with its explicit legacy rejection.
 These repairs still require fresh exact-head Scala, tools and full-regression CI.
+
+## Caller-installed observer compatibility
+
+A strict `MorphHdlSignednessAnalysis.install(observer)` and the default
+publication consumer share one physical phase immediately before native
+emission, in either installation order. The strict observer still receives
+its full, unchanged capture; publication uses its independent signed dependency
+capture. Both snapshots are created before any caller callback. A callback
+mutation therefore cannot acquire newly refreshed publication permission.
+Duplicate strict observers, duplicate publication consumers, duplicated/moved
+physical phases and late registration remain rejected. Three rollout tests
+cover both orders, repeated config use, unchanged native generation, five
+invalid-plan controls and a stale-evidence mutation that must preserve the
+previous public file. The original inferred-width observer regression again
+uses unmodified `MorphVerilog(config)` rather than a default opt-out. Only the
+sealed cast-heavy oracle comparison paths explicitly select legacy output.

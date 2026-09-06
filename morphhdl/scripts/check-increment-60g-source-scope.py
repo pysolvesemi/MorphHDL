@@ -13,17 +13,17 @@ from pathlib import Path
 
 BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "e911ca65f9176e677e9be38bfaeb09eebf3fb58d4da3710d5fc4c3cab37c88dd"
+CONTRACT_SHA256 = "eee43c42919c5e28e340c12ceb0bab2f5270a46663377a87d34edea353e39167"
 PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala'])
 PRODUCTION = {
     "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "1869fd4d2512d904719f21b27630903b8e3de183ce8827cd53d7597332911ceb",
     "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "6b5a13b6fec3997aecd514863304bbc62496bd051c8a58c407f12b665f3ee198",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "c01343b104e2caab8978fc46f80b2c3d7fc4959676430779c76ed50f8e5c3e0d",
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "74b5e84c88526798d48fea03d8e1909a9b7ed13eb0d2261451c5fd8d7052b693"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "6f86d7175aea100244831ba58a47522f344650f765674af20a865c27ec393587",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "5ee573850c9fa0787251415ac97c533c475ec80a17a0c29ae988d3643847e2a3",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"

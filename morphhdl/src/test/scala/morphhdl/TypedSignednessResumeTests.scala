@@ -42,7 +42,7 @@ final class TypedSignednessResumeTests extends AnyFunSuite {
         assert(f.requirements.contains(InferredWidthAuthority))
         rejected("UNKNOWN-FACT")(snapshot.requireKnown(subject, evidence, DeclarationUse))
       }
-      MorphVerilog(morphhdl.MorphSignedDeclarations.disable(config)) { dut = SIntSignedVerilogBaselineFixture.parameterized(); dut }
+      MorphVerilog(config) { dut = SIntSignedVerilogBaselineFixture.parameterized(); dut }
     }
   }
 

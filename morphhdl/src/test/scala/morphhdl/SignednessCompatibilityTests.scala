@@ -351,6 +351,98 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
     }
   }
 
+  test("60g strict observers coexist with default publication in either installation order") {
+    directory { root =>
+      for (width <- Vector(1, 8); publicationFirst <- Vector(false, true)) {
+        val prefix = s"observer-$width-$publicationFirst"
+        def parameter = HdlInt.param("WIDTH", default = width, min = 1, max = 32)
+        val plain = root.resolve(prefix + "-plain.v")
+        morphhdl.MorphVerilog(fresh(plain))(new SIntSignedDeclarationsFixture.Direct(parameter))
+        val output = root.resolve(prefix + ".v")
+        val neutral = fresh(output)
+        val config = if (publicationFirst) MorphSignedCasts.enable(neutral) else neutral
+        var dut: SIntSignedDeclarationsFixture.Direct = null
+        var calls = 0
+        var replays = Vector.empty[String]
+        config.phasesInserters += MorphHdlSignednessAnalysis.install { snapshot =>
+          calls += 1
+          import MorphHdlSignednessAnalysis.DeclarationUse
+          import morphhdl.analysis.SignednessFacts.{SignedScalar, UnsignedScalar}
+          assert(snapshot.validate(dut.a, snapshot.declaration(dut.a), DeclarationUse).intent == SignedScalar)
+          // A strict observer must still see unrelated unsigned declarations.
+          assert(snapshot.validate(dut.bitsIn, snapshot.declaration(dut.bitsIn), DeclarationUse).intent == UnsignedScalar)
+          replays :+= snapshot.replay
+        }
+        val originalInserters = config.phasesInserters.toVector
+        for (iteration <- 1 to 2) {
+          morphhdl.MorphVerilog(config) { dut = new SIntSignedDeclarationsFixture.Direct(parameter); dut }
+          assert(calls == iteration)
+          assert(read(output) == read(plain))
+          assert(config.phasesInserters.toVector == originalInserters)
+        }
+        assert(replays.distinct.size == 1)
+        val native = root.resolve(prefix + "-native.v")
+        SpinalVerilog(config.copy(netlistFileName = native.getFileName.toString)) {
+          dut = new SIntSignedDeclarationsFixture.Direct(HdlInt.literal(width)); dut
+        }
+        assert(calls == 3)
+        assert(signedDeclaration.findFirstIn(read(native)).isEmpty)
+      }
+    }
+  }
+
+  test("60g shared capture retains duplicate-consumer and phase-placement rejection") {
+    directory { root =>
+      for (mutation <- Vector("duplicate-observer", "duplicate-publication", "separate-emitter",
+          "move-observer", "duplicate-phase")) {
+        val output = root.resolve(mutation + ".v")
+        val config = fresh(output)
+        var called = false
+        config.phasesInserters += MorphHdlSignednessAnalysis.install(_ => called = true)
+        config.phasesInserters += { phases =>
+          val emission = phases.indexWhere(_.isInstanceOf[PhaseVerilog])
+          mutation match {
+            case "duplicate-observer" => MorphHdlSignednessAnalysis.install(_ => ())(phases)
+            case "duplicate-publication" =>
+              MorphHdlSignednessAnalysis.installPublication(_ => (), () => true)(phases)
+            case "separate-emitter" => phases.insert(emission, new PhaseMisc {
+              override def impl(pc: PhaseContext): Unit = ()
+            })
+            case "move-observer" =>
+              val observer = phases.remove(emission - 1)
+              phases.insert(phases.indexWhere(_.getClass == classOf[PhaseCheckCrossClock]), observer)
+            case "duplicate-phase" => phases.insert(emission, phases(emission - 1))
+          }
+        }
+        val result = morphhdl.MorphVerilog.tryGenerate(config) {
+          new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
+        }
+        assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-PHASE-PLAN")), mutation)
+        assert(!called, mutation)
+        assert(!Files.exists(output), mutation)
+      }
+    }
+  }
+
+  test("60g caller observation cannot refresh publication evidence after a graph mutation") {
+    directory { root =>
+      val output = root.resolve("preserved.v")
+      val previous = "// previous public artifact\n"
+      Files.write(output, previous.getBytes(StandardCharsets.UTF_8))
+      val config = fresh(output)
+      var dut: SIntSignedDeclarationsFixture.Direct = null
+      config.phasesInserters += MorphHdlSignednessAnalysis.install { snapshot =>
+        assert(snapshot.declaration(dut.a) != null)
+        dut.a.setWidth(dut.a.getWidth + 1)
+      }
+      val result = morphhdl.MorphVerilog.tryGenerate(config) {
+        dut = new SIntSignedDeclarationsFixture.Direct(HdlInt.param("WIDTH", default = 8, min = 1, max = 32)); dut
+      }
+      assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-STALE-EVIDENCE")))
+      assert(read(output) == previous)
+    }
+  }
+
   test("60g null options fail before elaboration without changing later publication") {
     intercept[IllegalArgumentException](MorphSignedDeclarations.enable(null))
     intercept[IllegalArgumentException](MorphSignedDeclarations.disable(null))
