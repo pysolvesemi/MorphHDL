@@ -91,7 +91,7 @@ object MorphHdlSignednessAnalysis {
           !sameIdentity(saved.parameters, live.parameters) ||
           !sameIdentity(saved.owners, live.owners))
         reject("STALE-EVIDENCE", "graph type, width, operand, ownership or boundary changed after capture")
-      live.parameters.foreach(validateWidth)
+      live.parameters.foreach(validateWidth(_, subject))
       saved.children.foreach(child => fresh(child, seen))
     }
 
@@ -233,9 +233,10 @@ object MorphHdlSignednessAnalysis {
       }
       if (key < 0 || key >= widths.size || !contains(fact.width))
         reject("WIDTH-USE-IDENTITY", "width token does not belong to this validated use")
-      val result = widths(key)
-      validateWidth(result)
-      result
+      // validate above rechecks the complete dependency subtree, including
+      // each retained width at its exact native owner. Revalidating this token
+      // without that owner would lose a captured construction-branch domain.
+      widths(key)
     }
 
     /** An exact width object is available only through validated subject use;
@@ -331,9 +332,17 @@ object MorphHdlSignednessAnalysis {
     case _ => true
   }
 
-  private def validateWidth(value: ElaborationIntegerExpression): Unit = {
-    ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
-      "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
+  private def validateWidth(value: ElaborationIntegerExpression, subject: AnyRef): Unit = {
+    subject match {
+      case base: BaseType if ElaborationWidthAuthority.isRetained(value) =>
+        NativePublicationWidth.validate(value, base.component, base, "signedness width authority")
+      case _ if ElaborationWidthAuthority.isRetained(value) =>
+        ElaborationWidthAuthority.requireAuthoritative(value, "signedness width authority",
+          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY")
+      case _ =>
+        ElabInt.requireAuthoritativeIntegerDomain(value, "signedness width authority",
+          "MORPH-SIGNEDNESS-WIDTH-AUTHORITY", requireExactExtrema = false)
+    }
     if (value.minimum < 0) reject("WIDTH-AUTHORITY", "negative logical width domain")
   }
 
@@ -511,7 +520,7 @@ object MorphHdlSignednessAnalysis {
     val widthIndices = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Integer]()
     val widths = ArrayBuffer.empty[ElaborationIntegerExpression]
     def retained(value: ElaborationIntegerExpression): Width = {
-      validateWidth(value)
+      // The exact subject's parameters are validated before token allocation.
       // Root-free generate-index expressions are not necessarily constants.
       if (value.parameters.isEmpty && value.generateIndex.isEmpty && value.minimum == value.maximum)
         return Fixed(value.default)
@@ -535,7 +544,7 @@ object MorphHdlSignednessAnalysis {
       indices.put(subject, java.lang.Integer.valueOf(id))
       entries += null
       val shape = describe(subject)
-      shape.parameters.foreach(validateWidth)
+      shape.parameters.foreach(validateWidth(_, subject))
       val children = shape.children.map(visit)
       val valueChildren = subject match {
         case mux: BinaryMultiplexer => Vector(visit(mux.whenTrue), visit(mux.whenFalse))

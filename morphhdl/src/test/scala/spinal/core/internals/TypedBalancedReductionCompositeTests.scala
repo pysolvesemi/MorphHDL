@@ -393,4 +393,110 @@ class TypedBalancedReductionCompositeTests extends AnyFunSuite {
     assert(detail(error).contains("INACTIVE-DEPENDENCY"), detail(error))
   }
 
+
+  test("scalar widening and composite selection publish together with independent exact results") {
+    val directory = Files.createTempDirectory("balanced-mixed-publication-")
+    val rtl = directory.resolve("BalancedMixedPublication.v")
+    val config = SpinalConfig(targetDirectory = directory.toString,
+      headerWithDate = false)
+    config.netlistFileName = rtl.getFileName.toString
+    val width = HdlInt.param("WIDTH", 3, 1, 5)
+    val count = HdlInt.param("COUNT", 1, 1, 5)
+    val keyWidth = HdlInt.param("KEY_W", 3, 1, 5)
+    val tagWidth = HdlInt.param("TAG_W", 4, 1, 5)
+    val coordinateWidth = HdlInt.param("COORD_W", 2, 1, 5)
+    morphhdl.MorphVerilog(config) {
+      new Component {
+        setDefinitionName("BalancedMixedPublication")
+        val words = in(Vec(UInt(width bits), count)).setName("words")
+        val records = in(Vec(BalancedCompositeRecord(keyWidth, tagWidth, coordinateWidth), count))
+          .setName("records")
+        val product = out(UInt()).setName("product")
+        val selected = out(BalancedCompositeRecord(keyWidth, tagWidth, coordinateWidth)).setName("selected")
+        val sum = out(UInt()).setName("sum")
+        // Both sides of the composite record exercise shared capture ordinals
+        // and sequential template extraction while preserving separate layouts.
+        product := words.reduceBalancedTree((a: UInt, b: UInt) => a * b)
+        selected := records.reduceBalancedTree((a: BalancedCompositeRecord, b: BalancedCompositeRecord) =>
+          Mux(a.key <= b.key, a, b))
+        sum := words.reduceBalancedTree((a: UInt, b: UInt) => a +^ b)
+      }
+    }
+    val text = new String(Files.readAllBytes(rtl), java.nio.charset.StandardCharsets.UTF_8)
+    for (ordinal <- 1 to 3)
+      assert(text.contains(s"morphhdl_balanced_${ordinal}_stage_0"), text)
+    for (name <- Vector("product", "sum")) {
+      val port = text.linesIterator.find(line => line.contains("output") &&
+        ("\\b" + name + "\\b").r.findFirstIn(line).nonEmpty).getOrElse(fail(text))
+      assert(port.contains("WIDTH") && port.contains("COUNT"), port)
+    }
+    def run(arguments: Seq[String]): String = {
+      val output = new StringBuilder
+      val status = scala.sys.process.Process(arguments).!(scala.sys.process.ProcessLogger(
+        line => output.append(line).append('\n'), line => output.append(line).append('\n')))
+      assert(status == 0, arguments.mkString(" ") + "\n" + output)
+      output.toString
+    }
+    // The selected record uses unequal independent leaf widths. A tie in the
+    // last pair must retain the earlier record's tag and both coordinates.
+    for ((width, count) <- Vector(3 -> 1, 3 -> 3, 5 -> 5)) {
+      run(Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module",
+        "BalancedMixedPublication", s"-GWIDTH=$width", s"-GCOUNT=$count", rtl.toString))
+      val values = Vector.tabulate(count)(index => BigInt(index + 2))
+      val keyWidth = 3
+      val tagWidth = 4
+      val coordinateWidth = 2
+      val leafWidth = keyWidth + tagWidth + 2 * coordinateWidth
+      val recordValues = Vector.tabulate(count) { index =>
+        val key = if (index >= count - 2) 0 else count - index
+        val tag = index + 1
+        val x = index % 4
+        val y = (index + 2) % 4
+        Vector(key, tag, x, y)
+      }
+      val winner = recordValues.minBy(_.head)
+      val packedWords = values.zipWithIndex.foldLeft(BigInt(0)) {
+        case (packed, (value, index)) => packed | (value << (width * index))
+      }
+      val packedRecords = recordValues.zipWithIndex.foldLeft(BigInt(0)) {
+        case (packed, (record, index)) =>
+          val leaf = BigInt(record(0)) | (BigInt(record(1)) << keyWidth) |
+            (BigInt(record(2)) << (keyWidth + tagWidth)) |
+            (BigInt(record(3)) << (keyWidth + tagWidth + coordinateWidth))
+          packed | (leaf << (leafWidth * index))
+      }
+      val productWidth = width * count
+      val sumWidth = width + BigInt(count - 1).bitLength
+      val bench = directory.resolve(s"mixed_w${width}_n$count.v")
+      val source = s"""module mixed_tb;
+  reg [${width * count - 1}:0] words;
+  reg [${leafWidth * count - 1}:0] records;
+  wire [${productWidth - 1}:0] product;
+  wire [${sumWidth - 1}:0] sum;
+  wire [2:0] selected_key;
+  wire [3:0] selected_tag;
+  wire [1:0] selected_x, selected_y;
+  BalancedMixedPublication #(.WIDTH($width), .COUNT($count)) dut(
+    .words(words), .records(records), .product(product), .sum(sum),
+    .selected_key(selected_key), .selected_tag(selected_tag), .selected_x(selected_x), .selected_y(selected_y));
+  initial begin
+    words = ${width * count}'h${packedWords.toString(16)};
+    records = ${leafWidth * count}'h${packedRecords.toString(16)};
+    #1;
+    if (product !== ${productWidth}'h${values.product.toString(16)} || sum !== ${sumWidth}'h${values.sum.toString(16)} ||
+        selected_key !== 3'd${winner(0)} || selected_tag !== 4'd${winner(1)} ||
+        selected_x !== 2'd${winner(2)} || selected_y !== 2'd${winner(3)}) begin
+      $$display("MIXED_FAIL"); $$finish;
+    end
+    $$display("MIXED_PASS"); $$finish;
+  end
+endmodule
+"""
+      Files.write(bench, source.getBytes(java.nio.charset.StandardCharsets.UTF_8))
+      val binary = directory.resolve(s"mixed_w${width}_n$count.vvp")
+      run(Seq("iverilog", "-g2001", "-s", "mixed_tb", "-o", binary.toString, rtl.toString, bench.toString))
+      val output = run(Seq("vvp", binary.toString))
+      assert(output.contains("MIXED_PASS") && !output.contains("MIXED_FAIL"), output)
+    }
+  }
 }

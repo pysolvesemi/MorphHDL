@@ -194,7 +194,7 @@ class TypedBalancedReductionClosedGraphTests extends AnyFunSuite {
 
   test("unknown operator classes fail closed rather than inheriting admission") {
     reject("MORPH-REDUCE-BALANCED-GRAPH-EXPRESSION") { words =>
-      capture(words, (a: UInt, b: UInt) => a * b)
+      capture(words, (a: UInt, b: UInt) => a / b)
     }
   }
 

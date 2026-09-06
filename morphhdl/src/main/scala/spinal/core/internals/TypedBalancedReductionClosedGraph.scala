@@ -41,15 +41,16 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     classOf[Operator.Bits.And], classOf[Operator.Bits.Or], classOf[Operator.Bits.Xor],
     classOf[Operator.Bits.Not], classOf[Operator.Bits.Cat],
     classOf[Operator.UInt.And], classOf[Operator.UInt.Or], classOf[Operator.UInt.Xor],
-    classOf[Operator.UInt.Not], classOf[Operator.UInt.Add], classOf[Operator.UInt.Sub],
+    classOf[Operator.UInt.Not], classOf[Operator.UInt.Add], classOf[Operator.UInt.Sub], classOf[Operator.UInt.Mul],
     classOf[Operator.UInt.Smaller], classOf[Operator.UInt.SmallerOrEqual],
     classOf[Operator.UInt.Equal], classOf[Operator.UInt.NotEqual],
     classOf[Operator.SInt.And], classOf[Operator.SInt.Or], classOf[Operator.SInt.Xor],
-    classOf[Operator.SInt.Not], classOf[Operator.SInt.Add], classOf[Operator.SInt.Sub],
+    classOf[Operator.SInt.Not], classOf[Operator.SInt.Add], classOf[Operator.SInt.Sub], classOf[Operator.SInt.Mul],
     classOf[Operator.SInt.Smaller], classOf[Operator.SInt.SmallerOrEqual],
     classOf[Operator.SInt.Equal], classOf[Operator.SInt.NotEqual],
     classOf[CastUIntToBits], classOf[CastSIntToBits], classOf[CastBitsToUInt],
     classOf[CastBitsToSInt], classOf[CastSIntToUInt], classOf[CastUIntToSInt],
+    classOf[BitsBitAccessFixed], classOf[UIntBitAccessFixed], classOf[SIntBitAccessFixed],
     classOf[CastBoolToBits], classOf[ResizeBits], classOf[ResizeUInt], classOf[ResizeSInt],
     classOf[MultiplexerBool], classOf[MultiplexerBits], classOf[MultiplexerUInt], classOf[MultiplexerSInt],
     // Native Mux/min/max use a binary mux, distinct from indexed multi-way muxes.
@@ -231,9 +232,8 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       case leaf: BaseType =>
         val width = ParameterizedWidth.expressionOf(leaf)
         width.foreach { expression =>
-          ElabInt.fromExpression(expression).authoritativeProjectedExpression(
-            "balanced callback retained width", "MORPH-REDUCE-BALANCED-GRAPH-WIDTH-AUTHORITY",
-            requireProjectedExactExtrema = false)
+          ElaborationWidthAuthority.requireAuthoritative(expression,
+            "balanced callback retained width", "MORPH-REDUCE-BALANCED-GRAPH-WIDTH-AUTHORITY")
         }
         Vector(leaf.getBitsWidth, leaf.isReg, leaf.isAnalog, leaf.isTypeNode,
           leaf.isInput, leaf.isOutput, leaf.isInOut,
@@ -244,7 +244,8 @@ private[spinal] object TypedBalancedReductionClosedGraph {
           fail("LITERAL", "poison or uninitialized literal is not closed replay input")
         Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount)
       case literal: BoolLiteral => Vector(literal.value)
-      case resize: Resize => Vector(resize.size)
+      case resize: Resize => Vector(resize.size, ParameterizedWidth.resizeExpressionOf(resize).map(identity))
+      case access: BitVectorBitAccessFixed => Vector(access.bitId, NativeWidthProvenance.isHighBit(access))
       case _: Expression => Vector.empty
     }
     val nodes = expressions.toVector.map(value => Node(

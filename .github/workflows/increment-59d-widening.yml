@@ -1,0 +1,237 @@
+name: Increment 59d generic scalar width and widening qualification
+
+on:
+  push:
+    branches: [parameterized-verilog, 'agent/increment-59d-*']
+    paths:
+      - '.github/workflows/increment-59d-widening.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/bootstrap-increment-59d-verilator.sh'
+      - 'morphhdl/scripts/check-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/test-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
+      - 'build.sbt'
+      - 'build.mill'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'morphruntime/src/**'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59d-widening.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/bootstrap-increment-59d-verilator.sh'
+      - 'morphhdl/scripts/check-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/test-increment-59d-synthesis.py'
+      - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
+      - 'build.sbt'
+      - 'build.mill'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'morphruntime/src/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      github.ref_name == 'parameterized-verilog'
+    name: Symbolic widening Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve exact-head evidence and validate native boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59d-widening/bootstrap
+          git rev-parse HEAD > target/increment-59d-widening/head.txt
+          git archive HEAD | gzip > target/increment-59d-widening/source.tar.gz
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py
+          python3 morphhdl/scripts/test-increment-59d-inherited-60f-scope.py
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            --generate-template morphhdl/contracts/increment-55-native-change-review.json \
+            --output target/increment-59d-widening/native.json
+          cmp morphhdl/contracts/native-source-preservation.json target/increment-59d-widening/native.json
+      - name: Bootstrap pinned upstream Verilator for strict 544-bit signed multiply lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends autoconf g++ flex bison make perl help2man python3 curl libfl-dev zlib1g-dev
+          prefix="$RUNNER_TEMP/increment-59d-verilator-5.020"
+          bash morphhdl/scripts/bootstrap-increment-59d-verilator.sh "$prefix" \
+            "$GITHUB_WORKSPACE/target/increment-59d-widening/bootstrap/verilator"
+          printf '%s\n' "$prefix/bin" >> "$GITHUB_PATH"
+      - name: Record runner resources and HDL tool versions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime, json, os, platform, shutil, subprocess
+          from pathlib import Path
+
+          def read_optional(path):
+              try:
+                  return Path(path).read_text().strip()
+              except OSError as error:
+                  return {'unavailable': str(error)}
+
+          def tool_version(candidates, arguments):
+              executable = next((shutil.which(name) for name in candidates if shutil.which(name)), None)
+              if executable is None:
+                  return {'unavailable': candidates}
+              command = [executable, *arguments]
+              try:
+                  result = subprocess.run(command, capture_output=True, text=True, timeout=15, check=False)
+                  return {'command': command, 'returncode': result.returncode,
+                          'stdout': result.stdout[:16384], 'stderr': result.stderr[:16384]}
+              except (OSError, subprocess.TimeoutExpired) as error:
+                  return {'command': command, 'unavailable': str(error)}
+
+          meminfo = {}
+          for line in Path('/proc/meminfo').read_text().splitlines():
+              key, value = line.split(':', 1)
+              if key in ('MemTotal', 'MemAvailable'):
+                  amount, unit = value.split()
+                  assert unit == 'kB', (key, unit)
+                  meminfo[key + '_bytes'] = int(amount) * 1024
+          evidence = {
+              'captured_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'host_memory': meminfo,
+              'cgroup_files': {path: read_optional(path) for path in (
+                  '/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory.current',
+                  '/sys/fs/cgroup/cpu.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes')},
+              'cpu_count': os.cpu_count(),
+              'cpu_affinity': sorted(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else None,
+              'libc': {'platform': platform.libc_ver(),
+                       'gnu_libc_version': os.confstr('CS_GNU_LIBC_VERSION') if 'CS_GNU_LIBC_VERSION' in os.confstr_names else None},
+              'tools': {
+                  'yosys': tool_version(['yosys'], ['-V']),
+                  'abc': tool_version(['yosys-abc', 'abc'], ['-c', 'version']),
+                  'iverilog': tool_version(['iverilog'], ['-V']),
+                  'verilator': tool_version(['verilator'], ['--version'])}}
+          output = Path('target/increment-59d-widening/bootstrap/runner-resources.json')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+          print(output.read_text())
+          PY
+      - name: Verify synthesis preparation preserves state interfaces and every mapped cell
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/test-increment-59d-synthesis.py \
+            target/increment-59d-widening/synthesis-controls
+      - name: Bootstrap the repository-pinned SBT launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/increment-59d-widening/bootstrap"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59d-widening/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Exercise natural widening syntax and generate two reusable profiles with independent native references
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59d-widening"
+          bootstrap="$output/bootstrap"
+          java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionWideningPublicationTests spinal.core.NativeSymbolicWidthProvenanceTests spinal.core.ElaborationWidthAuthorityTests spinal.core.internals.NativeWidthPublicationSafetyTests spinal.core.internals.NativePublicationWidthTests spinal.core.internals.TypedBalancedReductionWidthTransferTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionStageReplayTests spinal.core.internals.TypedBalancedReductionCallbackPolicyTests spinal.core.internals.TypedBalancedReductionPublicationSafetyTests spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionCaptureSafetyTests spinal.core.internals.TypedBalancedReductionPlanTests' \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionWideningArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionWideningArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 100 "$output/sbt.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',14), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
+              files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              assert len(files) == 1, (name, files)
+              suite = ET.parse(files[0]).getroot()
+              assert int(suite.get('tests','0')) == count, (name, suite.attrib)
+              assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
+              print(name, suite.attrib)
+          PY
+      - name: Prove 64 exact-width specializations and require carry sign default-width and tail counterexamples
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59d-widening"
+          python3 morphhdl/scripts/check-increment-59d-widening.py "$output/a" "$output/b"
+          printf '%s\n' 'Two reusable singleton/alternate default native-helper candidates: 64 WIDTH/COUNT specializations, exact native port widths and UInt/SInt kind evidence, native narrow-tail stage widths, independent native references and mathematical simulation, strict Verilog-2001 parsing, Verilator lint, full Yosys synthesis, reset-entry proofs, unbounded temporal induction and four genuine RTL mutation counterexamples. The finite formal matrix does not claim universal parameter quantification.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Print actual failing test and HDL diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          for path in sorted(Path('morphhdl/target').rglob('*Balanced*.xml')):
+              try:
+                  suite = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in suite.iter('testcase'):
+                  for node in case:
+                      if node.tag in ('failure','error'):
+                          message = node.get('message', '').replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+                          print('::error title=' + case.get('name','test') + '::' + message)
+                          print('\nFAILED:', case.get('classname'), case.get('name'))
+                          print(node.attrib)
+                          print((node.text or '')[:6000])
+          logs = sorted(Path('target/increment-59d-widening/a/checks').rglob('*.log'), key=lambda p:p.stat().st_mtime)
+          for path in logs[-3:]:
+              print('\nHDL LOG:', path)
+              print('\n'.join(path.read_text(errors='replace').splitlines()[-100:]))
+          PY
+      - name: Retain exact-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59d-widening-${{ matrix.scala }}
+          path: |
+            target/increment-59d-widening
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

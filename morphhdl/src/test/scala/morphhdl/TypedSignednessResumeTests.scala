@@ -33,14 +33,34 @@ final class TypedSignednessResumeTests extends AnyFunSuite {
       config.phasesInserters += install { snapshot =>
         val subject = dut.product
         assert(!subject.isFixedWidth)
-        assert(ParameterizedWidth.expressionOf(subject).isEmpty)
+        val width = ParameterizedWidth.expressionOf(subject).get
         val evidence = snapshot.declaration(subject)
-        val f = snapshot.validate(subject, evidence, DeclarationUse)
+        val f = snapshot.requireKnown(subject, evidence, DeclarationUse)
         assert(f.value == SignedScalar)
         assert(f.nativeBits == 16)
-        assert(f.width == UnknownWidth)
-        assert(f.requirements.contains(InferredWidthAuthority))
-        rejected("UNKNOWN-FACT")(snapshot.requireKnown(subject, evidence, DeclarationUse))
+        val key = f.width.asInstanceOf[Retained].key
+        assert(snapshot.widthSource(subject, evidence, DeclarationUse, key) eq width)
+        assert(!f.requirements.contains(InferredWidthAuthority))
+
+        // Native multiplication now carries genuine typed width provenance.
+        // Remove only that proof to keep exercising an unregistered inferred
+        // witness, and verify that copying its public metadata cannot restore it.
+        ParameterizedWidth.retainNativeMuxWidth(subject, None)
+        try {
+          rejected("STALE-EVIDENCE")(snapshot.validate(subject, evidence, DeclarationUse))
+          val unregistered = expressions(Vector(subject))
+          val use = unregistered.expression(subject)
+          val unknown = unregistered.validate(subject, use, ExpressionUse)
+          assert(unknown.value == SignedScalar && unknown.nativeBits == 16)
+          assert(unknown.width == UnknownWidth)
+          assert(unknown.requirements.contains(InferredWidthAuthority))
+          rejected("UNKNOWN-FACT")(unregistered.requireKnown(subject, use, ExpressionUse))
+          intercept[ParameterizedVerilogException] {
+            ParameterizedWidth.retainNativeMuxWidth(subject, Some(width.copy()))
+          }
+          assert(ParameterizedWidth.expressionOf(subject).isEmpty)
+        } finally ParameterizedWidth.retainNativeMuxWidth(subject, Some(width))
+        assert(snapshot.requireKnown(subject, evidence, DeclarationUse) == f)
       }
       MorphVerilog(config) { dut = SIntSignedVerilogBaselineFixture.parameterized(); dut }
     }

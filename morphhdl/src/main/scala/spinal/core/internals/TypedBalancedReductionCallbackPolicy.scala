@@ -14,8 +14,9 @@ import org.objectweb.asm.tree._
   * call the enumerated native scalar/composite construction methods, and return.
   * Composite field access and constructors have a separate exact bytecode
   * inspector, and native clone dispatch is checked against the actual inputs.
-  * Immutable source-location construction is admitted for DSL assignments. Only a
-  * bridge may branch, and its integer data can originate only in the level
+  * Immutable source-location construction is admitted for DSL assignments.
+  * Literal resize widths are allowed; native witness-width queries are not.
+  * Only a bridge may branch, and its integer data can originate only in the level
   * argument or constants. Host fields, arbitrary calls, exceptions, unchecked
   * allocations, callback invokedynamic and loops all reject. This contract authorizes executing the
   * callback once for graph certification; it does not authorize native graph
@@ -51,7 +52,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
   private val scalarNames = Set("Bool", "Bits", "UInt", "SInt").map("spinal/core/" + _)
   private val dataNames = scalarNames ++ Set("spinal/core/Data", "spinal/core/BaseType", "spinal/core/BitVector")
   private val dataDescriptors = dataNames.map(name => "L" + name + ";")
-  private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "min", "max")
+  private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "$times", "min", "max")
   private val nativeModules = Set("RegNext", "U", "S", "B", "package").map("spinal/core/" + _ + "$")
 
   private def check(callback: AnyRef, bridge: Boolean): Unit = {
@@ -194,6 +195,15 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
             Type.getReturnType(call.desc).getDescriptor == "Ljava/lang/Object;")
       }
     if (scalarBinary) return !bridge
+    // This method constructs a fresh native value. In particular, do not
+    // admit setWidth/getWidth: the former mutates an operand and the latter
+    // erases a symbolic width to its current native witness. Width transfer
+    // and graph certification still decide whether a resized result replays.
+    if (call.getOpcode == Opcodes.INVOKEVIRTUAL && scalarNames(call.owner) &&
+        dataDescriptors(Type.getReturnType(call.desc).getDescriptor)) {
+      if (call.name == "resize" && Type.getArgumentTypes(call.desc).toVector.map(_.getDescriptor) == Vector("I"))
+        return true
+    }
     if (!bridge) return false
     if (call.getOpcode == Opcodes.INVOKESPECIAL && call.owner == "spinal/idslplugin/Location" &&
         call.name == "<init>" && call.desc == "(Ljava/lang/String;II)V") return true

@@ -569,7 +569,7 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     }
   }
 
-  test("fixed slices and resize must be valid for every legal symbolic width") {
+  test("fixed slices reject invalid domains while explicit resize supports width crossings") {
     withTemporaryDirectory { directory =>
       val sliceConfig = SpinalConfig(targetDirectory = directory.toString)
       sliceConfig.netlistFileName = "unsafe_slice.v"
@@ -589,21 +589,18 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       }
 
       val resizeConfig = SpinalConfig(targetDirectory = directory.toString)
-      resizeConfig.netlistFileName = "unsafe_resize.v"
-      val unsafeResize = MorphVerilog.tryGenerate(resizeConfig) {
+      resizeConfig.netlistFileName = "crossing_resize.v"
+      val resizeReport = MorphVerilog(resizeConfig) {
         val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
         new Component {
-          setDefinitionName("UnsafeResize")
-          val input = in(morphhdl.frontend.Bits(width bits))
-          val output = out(morphhdl.frontend.Bits(12 bits))
-          output := input.resize(12)
+          setDefinitionName("CrossingResize")
+          val source = in(morphhdl.frontend.Bits(width bits))
+          val observed = out(morphhdl.frontend.Bits(12 bits))
+          observed := source.resize(12)
         }
       }
-      unsafeResize match {
-        case Left(failure) =>
-          assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-RESIZE-DOMAIN-UNSUPPORTED"))
-        case Right(report) => fail(s"Expected domain-crossing resize failure, received $report")
-      }
+      NativeResizeCompatibilitySimulation.check(directory, "crossing_resize.v",
+        resizeReport.toplevelName, "WIDTH", Vector(1, 8, 12, 16).map(value => (value, value, 12)))
     }
   }
 
