@@ -7,6 +7,7 @@ on:
       - '.github/workflows/increment-59d-widening.yml'
       - 'morphhdl/src/**'
       - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/bootstrap-increment-59d-verilator.sh'
       - 'morphhdl/scripts/check-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
@@ -21,6 +22,7 @@ on:
       - '.github/workflows/increment-59d-widening.yml'
       - 'morphhdl/src/**'
       - 'morphhdl/scripts/check-increment-59d-widening.py'
+      - 'morphhdl/scripts/bootstrap-increment-59d-verilator.sh'
       - 'morphhdl/scripts/check-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
@@ -78,6 +80,16 @@ jobs:
             --generate-template morphhdl/contracts/increment-55-native-change-review.json \
             --output target/increment-59d-widening/native.json
           cmp morphhdl/contracts/native-source-preservation.json target/increment-59d-widening/native.json
+      - name: Bootstrap pinned upstream Verilator for strict 544-bit signed multiply lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends autoconf g++ flex bison make perl help2man python3 curl libfl-dev zlib1g-dev
+          prefix="$RUNNER_TEMP/increment-59d-verilator-5.020"
+          bash morphhdl/scripts/bootstrap-increment-59d-verilator.sh "$prefix" \
+            "$GITHUB_WORKSPACE/target/increment-59d-widening/bootstrap/verilator"
+          printf '%s\n' "$prefix/bin" >> "$GITHUB_PATH"
       - name: Record runner resources and HDL tool versions
         shell: bash
         run: |

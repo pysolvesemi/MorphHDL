@@ -113,6 +113,14 @@ extension. Inherited callback, graph, ownership and native-source controls
 remain applicable. A timeout, tool error, missing artifact, UNKNOWN or skipped
 test is not passing evidence.
 
+The dedicated workflow builds unmodified upstream Verilator 5.020 from a pinned
+commit and archive checksum into its own installation prefix. The container's
+4.228 release cannot lint the native 544-bit signed multiplication required by
+WIDTH=32, COUNT=17. Bootstrap checks both that multiplication and a deliberately
+invalid width assignment whose warning must remain fatal. Source, build logs,
+binary identity and tool version are retained. Yosys, ABC and Icarus keep the
+existing container versions; no native reference RTL or lint warning is altered.
+
 For synthesis, the checker records actual specialized ports before flattening
 the native design, then places every native RTLIL cell in its own submodule.
 This bounds individual ABC networks while leaving the native Verilog unchanged.
