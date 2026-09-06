@@ -104,6 +104,11 @@ INTEGRATION_59D59F_PATHS = frozenset({
 INTEGRATION_59D59E_PATHS = frozenset({
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
 })
+PACKING_59D59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-packing-edits.json"
+PACKING_59D59E_PATHS = frozenset({
+    "core/src/main/scala/spinal/core/ParameterizedVec.scala",
+    "core/src/main/scala/spinal/core/Vec.scala",
+})
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -416,6 +421,18 @@ def production_profile(root: Path) -> str:
                 INTEGRATION_59D59E_PATHS <= composites - widths,
                 "59d/59e production integration escaped its exact composite-only scope")
         hashes.update(integration)
+        # Historical combined checkpoints retain the original fourteen 59e
+        # hashes. Only the separately sealed two-file carrier fix can override
+        # these paths; deleting its review leaves the frozen hashes in force.
+        packing_review = root / PACKING_59D59E_CONTRACT
+        if packing_review.exists() or packing_review.is_symlink():
+            validate_packing = getattr(publisher, "reviewed_59d59e_packing", None)
+            require(callable(validate_packing), "missing exact 59d/59e packing integration validator")
+            packing = validate_packing(root)
+            require(set(packing) == PACKING_59D59E_PATHS and
+                    PACKING_59D59E_PATHS <= composites - widths - callbacks,
+                    "59d/59e packing integration escaped its exact composite-only scope")
+            hashes.update(packing)
     require(set(hashes) == changed, "validated source hashes do not cover the exact production union")
     for path, digest in hashes.items():
         source = root / path

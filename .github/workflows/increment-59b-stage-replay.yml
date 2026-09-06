@@ -39,7 +39,9 @@ jobs:
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d'))
     name: Whole-stage replay Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Observed generation reached 57m30s; the required 96-shape proof phase
+    # takes about 7min in addition. Preserve all gates with runner headroom.
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -106,7 +108,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',23), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

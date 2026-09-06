@@ -48,6 +48,12 @@ COMPOSITE_59DE_IDS = (
 COMPOSITE_59DE_PRODUCTION_CONTRACT = "morphhdl/contracts/increment-59d-59e-production-edits.json"
 COMPOSITE_59DE_PRODUCTION_SHA256 = "dcf69402fb0d91a86aed655b966f1b17644d889e73d87f8b1ed8b436ad30d5c2"
 COMPOSITE_59DE_POLICY = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala"
+PACKING_59DE_CONTRACT = "morphhdl/contracts/increment-59d-59e-packing-edits.json"
+PACKING_59DE_SHA256 = "b740eebf7bed4dda5003cdf35e30af418a9f380c8288237efcbb3389f3c39f3d"
+PACKING_59DE_IDS = {
+    "core/src/main/scala/spinal/core/ParameterizedVec.scala": ("audited-composite-carrier-construction",),
+    "core/src/main/scala/spinal/core/Vec.scala": ("route-exact-composite-packing",),
+}
 
 
 def require(ok: bool, detail: str) -> None:
@@ -210,6 +216,48 @@ def reviewed_59d59e_production(root: Path) -> dict[str, str]:
                                        cwd=root, text=True)
     require(restored == baseline, "59d/59e production restoration differs from frozen 59e")
     return {entry["path"]: entry["after_sha256"]}
+
+
+def reviewed_59d59e_packing(root: Path) -> dict[str, str]:
+    """Restore the exact composite carrier construction to the frozen 59e files."""
+    def regular_tracked(relative: str, role: str) -> Path:
+        path = root / relative
+        require(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111,
+                "missing regular non-executable 59d/59e packing " + role)
+        stage = subprocess.check_output(["git", "ls-files", "--stage", "--", relative],
+                                        cwd=root, text=True).split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == relative,
+                "59d/59e packing " + role + " is not uniquely tracked")
+        return path
+
+    path = regular_tracked(PACKING_59DE_CONTRACT, "review")
+    raw = path.read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == PACKING_59DE_SHA256,
+            "59d/59e reviewed packing manifest changed")
+    data = json.loads(raw)
+    require(set(data) == {"base", "files"} and data["base"] == COMPOSITE_59EF_BASE and
+            len(data["files"]) == len(PACKING_59DE_IDS),
+            "59d/59e packing restoration baseline/schema changed")
+    require({entry.get("path") for entry in data["files"]} == set(PACKING_59DE_IDS),
+            "59d/59e packing restoration exceeds its exact two-file scope")
+    hashes = {}
+    for entry in data["files"]:
+        require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"} and
+                tuple(edit.get("id") for edit in entry["edits"]) == PACKING_59DE_IDS[entry["path"]] and
+                all(set(edit) == {"id", "before", "after"} and edit["before"] and edit["after"]
+                    for edit in entry["edits"]), "59d/59e packing restoration spans changed")
+        source = regular_tracked(entry["path"], "source").read_text()
+        require(digest(source) == entry["after_sha256"], "59d/59e reviewed packing source changed")
+        restored = source
+        for edit in reversed(entry["edits"]):
+            require(restored.count(edit["after"]) == 1, "missing/duplicate 59d/59e packing span")
+            restored = restored.replace(edit["after"], edit["before"], 1)
+        require(digest(restored) == entry["before_sha256"], "59d/59e restored packing blob differs")
+        baseline = subprocess.check_output(["git", "show", COMPOSITE_59EF_BASE + ":" + entry["path"]],
+                                           cwd=root, text=True)
+        require(restored == baseline, "59d/59e packing restoration differs from frozen 59e")
+        hashes[entry["path"]] = entry["after_sha256"]
+    return hashes
 
 
 def restore_59f_source(root: Path, path: str, source: str) -> str:

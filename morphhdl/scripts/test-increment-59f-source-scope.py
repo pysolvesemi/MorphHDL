@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -23,17 +24,20 @@ PADDING_59D_59F_CONTRACT = "morphhdl/contracts/increment-59d-59f-padding-edits.j
 COMPOSITE_59D_59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-publisher-edits.json"
 COMPOSITE_59E_59F_CONTRACT = "morphhdl/contracts/increment-59e-59f-publisher-edits.json"
 PRODUCTION_59D_59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-production-edits.json"
+PACKING_59D_59E_CONTRACT = "morphhdl/contracts/increment-59d-59e-packing-edits.json"
 QUALIFIED_59E = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
+PRE_PACKING_59DE = "538dd4e9a2f0074a27d2fa98dc3e18083725cb87"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 root = Path(sys.argv[1])
 spec = importlib.util.spec_from_file_location('reviewed_scope', root / sys.argv[2])
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
-if sys.argv[3] == 'reviewed_59d59e_production':
-    result = module.reviewed_59d59e_production(root)
-    assert len(result) == 1, result
-    print('PASS: exact composite production adapter')
+expected_sizes = {'reviewed_59d59e_production': 1, 'reviewed_59d59e_packing': 2}
+if sys.argv[3] in expected_sizes:
+    result = getattr(module, sys.argv[3])(root)
+    assert len(result) == expected_sizes[sys.argv[3]], result
+    print('PASS: exact reviewed adapter', sys.argv[3])
 else:
     assert sys.argv[3] == 'source_scope', sys.argv[3]
     module.source_scope(root)
@@ -60,6 +64,125 @@ def check(root: Path, checker: str, label: str, rejection: str | None = None,
             "exit_code": result.returncode}
 
 
+def packing_controls(fixture: Path, records: list[dict]) -> None:
+    manifest = (fixture / PACKING_59D_59E_CONTRACT).read_text()
+    data = json.loads(manifest)
+    paths = [PACKING_59D_59E_CONTRACT] + [entry["path"] for entry in data["files"]]
+    originals = {path: (fixture / path).read_bytes() for path in paths}
+    modes = {path: stat.S_IMODE((fixture / path).stat().st_mode) for path in paths}
+    indexes = {path: git(fixture, "ls-files", "--stage", "--", path).split() for path in paths}
+    if any(len(value) != 4 or value[2] != "0" for value in indexes.values()):
+        raise RuntimeError("packing fixture does not start with uniquely tracked source and review")
+    api = "reviewed_59d59e_packing"
+    records.append(check(fixture, HELPER, "current composite packing adapter", entrypoint=api))
+
+    def verify(label: str, change, rejection: str, checker: str = HELPER) -> None:
+        try:
+            change()
+            records.append(check(fixture, checker, label, rejection,
+                                 entrypoint=api if checker == HELPER else "source_scope"))
+        finally:
+            for path, original in originals.items():
+                target = fixture / path
+                if target.is_symlink():
+                    target.unlink()
+                target.write_bytes(original)
+                target.chmod(modes[path])
+                mode, blob, _, _ = indexes[path]
+                git(fixture, "update-index", "--add", "--cacheinfo", mode + "," + blob + "," + path)
+
+    def write_manifest(value: dict) -> None:
+        (fixture / PACKING_59D_59E_CONTRACT).write_text(json.dumps(value, indent=2) + "\n")
+
+    def manifest_mutation(label: str, change) -> None:
+        changed = json.loads(manifest)
+        change(changed)
+        if changed == data:
+            raise RuntimeError("packing manifest mutation made no change: " + label)
+        verify(label, lambda: write_manifest(changed), "59d/59e reviewed packing manifest changed")
+
+    source_rejection = "59d/59e reviewed packing source changed"
+    regular_source = "missing regular non-executable 59d/59e packing source"
+    regular_review = "missing regular non-executable 59d/59e packing review"
+    with tempfile.TemporaryDirectory(prefix="packing-scope-symlink-") as directory:
+        alias = Path(directory) / "original"
+        for entry in data["files"]:
+            relative = entry["path"]
+            target = fixture / relative
+            source = originals[relative].decode()
+            edit = entry["edits"][0]
+            label = "packing " + Path(relative).stem
+            token, replacement = (("cat.left = high", "cat.left = low")
+                                  if relative.endswith("/ParameterizedVec.scala") else
+                                  ("shape.elementLeaves.size > 1", "shape.elementLeaves.size > 0"))
+            if edit["after"].count(token) != 1 or source.count(edit["after"]) != 1:
+                raise RuntimeError("packing source mutation target differs: " + relative)
+            changed_span = edit["after"].replace(token, replacement, 1)
+            changed_source = source.replace(edit["after"], changed_span, 1)
+            verify(label + " inside span changed", lambda: target.write_text(changed_source), source_rejection)
+            verify(label + " outside span changed", lambda: target.write_text(source + "\n// unrelated packing edit\n"),
+                   source_rejection)
+            verify(label + " span duplicated", lambda: target.write_text(source + edit["after"]), source_rejection)
+            verify(label + " span removed", lambda: target.write_text(source.replace(edit["after"], edit["before"], 1)),
+                   source_rejection)
+            verify(label + " source removed", target.unlink, regular_source)
+            alias.write_bytes(originals[relative])
+
+            def link_source() -> None:
+                target.unlink()
+                target.symlink_to(alias)
+
+            verify(label + " source symlink", link_source, regular_source)
+            verify(label + " source executable", lambda: target.chmod(modes[relative] | 0o111), regular_source)
+            verify(label + " source untracked", lambda: git(fixture, "update-index", "--force-remove", "--", relative),
+                   "59d/59e packing source is not uniquely tracked")
+            verify(label + " source executable index", lambda: git(fixture, "update-index", "--chmod=+x", "--", relative),
+                   "59d/59e packing source is not uniquely tracked")
+            paired = json.loads(manifest)
+            paired_entry = next(item for item in paired["files"] if item["path"] == relative)
+            paired_entry["edits"][0]["after"] = changed_span
+            paired_entry["after_sha256"] = hashlib.sha256(changed_source.encode()).hexdigest()
+
+            def paired_forgery() -> None:
+                target.write_text(changed_source)
+                write_manifest(paired)
+
+            verify(label + " source and manifest changed together", paired_forgery,
+                   "59d/59e reviewed packing manifest changed")
+        manifest_mutation("packing manifest baseline changed", lambda value: value.update(base="0" * 40))
+        manifest_mutation("packing manifest path removed", lambda value: value["files"].pop())
+        manifest_mutation("packing manifest path duplicated", lambda value: value["files"].append(value["files"][0]))
+        for index, entry in enumerate(data["files"]):
+            label = "packing manifest " + Path(entry["path"]).stem
+            for field in ("path", "before_sha256", "after_sha256"):
+                replacement = "other/src/main/Unreviewed.scala" if field == "path" else "0" * 64
+                manifest_mutation(label + " " + field + " changed",
+                                  lambda value: value["files"][index].update({field: replacement}))
+            for field in ("id", "before", "after"):
+                manifest_mutation(label + " span " + field + " changed", lambda value:
+                                  value["files"][index]["edits"][0].update({field: "unreviewed packing span"}))
+        target = fixture / PACKING_59D_59E_CONTRACT
+        verify("packing manifest removed", target.unlink, regular_review)
+        verify("packing manifest removed from current profile", target.unlink,
+               "reviewed production source hash differs", CLOSURE)
+        alias.write_bytes(originals[PACKING_59D_59E_CONTRACT])
+
+        def link_review(broken: bool = False) -> None:
+            target.unlink()
+            target.symlink_to(Path(directory) / "missing" if broken else alias)
+
+        verify("packing manifest symlink", link_review, regular_review)
+        verify("packing manifest broken symlink", lambda: link_review(True), regular_review)
+        verify("packing manifest broken symlink in current profile", lambda: link_review(True), regular_review, CLOSURE)
+        verify("packing manifest executable", lambda: target.chmod(modes[PACKING_59D_59E_CONTRACT] | 0o111), regular_review)
+        verify("packing manifest untracked", lambda:
+               git(fixture, "update-index", "--force-remove", "--", PACKING_59D_59E_CONTRACT),
+               "59d/59e packing review is not uniquely tracked")
+        verify("packing manifest executable index", lambda:
+               git(fixture, "update-index", "--chmod=+x", "--", PACKING_59D_59E_CONTRACT),
+               "59d/59e packing review is not uniquely tracked")
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     has_59d = (ROOT / REVIEW_59D).is_file()
@@ -67,6 +190,7 @@ def main() -> None:
     has_joint_padding = (ROOT / PADDING_59D_59F_CONTRACT).is_file()
     has_composite = (ROOT / COMPOSITE_59D_59E_CONTRACT).is_file()
     has_production_adapter = (ROOT / PRODUCTION_59D_59E_CONTRACT).is_file()
+    has_packing_adapter = (ROOT / PACKING_59D_59E_CONTRACT).is_file()
     records = [check(ROOT, HELPER, "current exact publisher delta"),
                check(ROOT, CLOSURE, "current full inherited source gates")]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59f-source-scope-") as temporary:
@@ -101,6 +225,12 @@ def main() -> None:
                     shutil.copyfile(ROOT / entry["path"], target)
                 records.append(check(fixture, HELPER, "current composite production adapter",
                                      entrypoint="reviewed_59d59e_production"))
+            if has_packing_adapter:
+                shutil.copyfile(ROOT / PACKING_59D_59E_CONTRACT, fixture / PACKING_59D_59E_CONTRACT)
+                packing_review = json.loads((ROOT / PACKING_59D_59E_CONTRACT).read_text())
+                for entry in packing_review["files"]:
+                    shutil.copyfile(ROOT / entry["path"], fixture / entry["path"])
+                git(fixture, "add", "-f", "--", PACKING_59D_59E_CONTRACT)
             fallback = (fixture / FALLBACK).read_text()
             boundary = (fixture / BOUNDARY).read_text()
             manifest = (fixture / CONTRACT).read_text()
@@ -459,6 +589,8 @@ def main() -> None:
                 finally:
                     for path, original in originals.items():
                         (fixture / path).write_bytes(original)
+            if has_packing_adapter:
+                packing_controls(fixture, records)
             # Commit the same outside-span mutation so a dirty-worktree check
             # cannot substitute for the exact current publisher restoration.
             (fixture / FALLBACK).write_text(fallback + "\n// committed unrelated mutation\n")
@@ -472,6 +604,8 @@ def main() -> None:
             finally:
                 git(fixture, "reset", "--mixed", head)
                 (fixture / FALLBACK).write_text(fallback)
+                if has_packing_adapter:
+                    git(fixture, "add", "-f", "--", PACKING_59D_59E_CONTRACT)
             records.append(check(fixture, CLOSURE, "restored fixture preserves inherited gates"))
             if has_joint_zero:
                 # Rebuild both complete frozen 59f blobs from their historical
@@ -519,6 +653,14 @@ def main() -> None:
                                  "unreviewed source change outside 59f spans"))
         finally:
             git(ROOT, "worktree", "remove", "--force", str(historical))
+        if has_packing_adapter:
+            historical = Path(temporary) / "historical-pre-packing"
+            git(ROOT, "worktree", "add", "--detach", str(historical), PRE_PACKING_59DE)
+            try:
+                records.append(check(historical, str(ROOT / CLOSURE),
+                                     "historical pre-packing source through current gate"))
+            finally:
+                git(ROOT, "worktree", "remove", "--force", str(historical))
     if git(ROOT, "rev-parse", "HEAD") != head:
         raise RuntimeError("source-scope fixtures changed the real checkout HEAD")
     output = ROOT / "target/increment-59f/source-scope"

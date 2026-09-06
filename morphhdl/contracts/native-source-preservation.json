@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "4f4e98521ab0ebad7d2caf7450fb768c7c0f70dc"
+      "approved_tree": "1dc9ee454565b19b2b35e7af2d9f50707845e282"
     },
     {
       "path": "idslpayload/src/main",
@@ -1222,13 +1222,13 @@
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "d32fc5b15201bc326603474937cc8801673091cf",
-        "sha256": "442a058d9b1ec24e78961aea1c14715f8171194e6747a625568490de9babc161"
+        "blob": "52a867c4ea3080a9c85253cd52d38fec2dd083da",
+        "sha256": "f7d9233246c90687220c3704a4c9f63f0a52c74b1a7ebdaae8d5036df5b4b219"
       },
       "edits": []
     },
@@ -1482,7 +1482,7 @@
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1492,8 +1492,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "88efce89f6b1e8026c677fcf37c1141e92b69433",
-        "sha256": "892b0deb762b7d5ab5b19d2280908f72849cfe38060755c400275e7ef40231e0"
+        "blob": "1bcc69f6bf08e0965fa89060af91948220eee114",
+        "sha256": "dbf3d58588860c44d303571e8ea86a130e28050d3fbc14b6f0dbf9c1710f622c"
       },
       "edits": [
         {
@@ -2052,7 +2052,7 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Preserve all native scalar leaves when packing a retained nested Vec, avoiding premature inner witness truncation before exact logical packing.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation.",
           "baseline_span": {
             "start": 11577,
             "end": 11638,
@@ -2060,8 +2060,8 @@
           },
           "approved_span": {
             "start": 17018,
-            "end": 19606,
-            "sha256": "c44aafb5f6babfe94fbd464f575ec305d3e8b630f7481dd832c7a7c6a792b3af"
+            "end": 19321,
+            "sha256": "19af89908fb7872447e931c85af757503b92df53f59483f7dae8a85933529f03"
           },
           "required_exact_text": [
             {
@@ -2071,7 +2071,17 @@
             },
             {
               "side": "approved",
-              "text": "this.asInstanceOf[Data].flatten.toVector.map(_.asBits).reduceLeft((low, high) => high ## low)",
+              "text": "shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.readCompositeBits(this)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordPackedRead(this, super.asBits)",
               "count": 1
             }
           ]
@@ -2087,8 +2097,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 19936,
-            "end": 20038,
+            "start": 19651,
+            "end": 19753,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2110,8 +2120,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20106,
-            "end": 20249,
+            "start": 19821,
+            "end": 19964,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [

@@ -45,6 +45,12 @@ must also agree with the widths actually selected for publication; a named fixed
 carrier cannot acquire a different symbolic width through its driver.
 The exact recorded `Vec.asBits` wrapper remains owned by its existing packed-Vec
 publisher, which validates its finite carrier and logical result together.
+For retained composite Vec elements, a private packing constructor creates the
+native concatenation graph without eagerly combining independent field domains
+into a scalar width. The existing exact leaf-order, driver and carrier checks
+run before returning the packed result. Its factorized Vec layout owns public
+geometry; ordinary scalar concatenation and subsequent scalar casts still
+require their own width proof and retain the exhaustive domain limit.
 Ordinary scalar resizes retain their separate source-width check. Rejection
 diagnostics identify the declaration and both captured and published widths.
 An exact poison-free, zero-width literal source remains with native constant
@@ -147,5 +153,12 @@ The workflow records runner memory, CPU and tool versions, retains phase timings
 and allows 1,200 seconds per full synthesis and 240 minutes per Scala lane.
 These limits accommodate the largest native multiplication networks; exceeding
 either limit still fails qualification.
+
+The inherited 59b stage workflow allows 90 minutes for its complete job. Observed
+generation reached 57 minutes 30 seconds before a newer revision canceled that
+job. Successful runs required another 6 minutes 47 seconds to 7 minutes for
+the 96-shape proof and mutation phase.
+The budget includes both independent writers and every existing proof; individual
+tool limits and failure requirements remain enforced.
 
 Final evidence and completion status will be recorded after these gates pass.

@@ -1245,6 +1245,39 @@ object ParameterizedVec {
     slices
   }
 
+  /** Build only the transient native Cat/type-node graph of a retained
+    * composite Vec read. Its public width belongs to the factorized Vec
+    * layout, not a Cartesian scalar sum across independent field roots.
+    * The same exact leaf/driver audit as every packed read runs before the
+    * result is returned; no caller supplies an operation or a bypass flag.
+    */
+  private[core] def readCompositeBits(vector: Vec[_]): Bits = {
+    val shape = shapeOf(vector).getOrElse {
+      fail("SPINAL-ELAB-VEC-PACKED-READ-SHAPE-MISSING",
+        "composite packing requires one exact retained Vec shape", None)
+    }
+    if (shape.elementLeaves.size < 2 && !shape.elementLayout.hasNestedVectors)
+      fail("SPINAL-ELAB-VEC-PACKED-READ-SHAPE-INVALID",
+        "composite packing requires a recursive or multi-leaf Vec element", shape.sourceLocation)
+    // Preserve the native low-to-high leaf order, including every finite
+    // nested lane. A nested Vec's logical witness resize cannot occur inside
+    // the outer carrier. Each scalar cast still uses its ordinary native API.
+    val leaves = vector.asInstanceOf[Data].flatten.toVector.map(_.asBits)
+    val carrier = leaves.reduceLeft { (low, high) =>
+      val cat = new Operator.Bits.Cat
+      cat.left = high
+      cat.right = low
+      // This is Bits.##'s native weak type-node construction. Only eager
+      // scalar-width retention is deferred for these private packing Cats;
+      // ordinary scalar Cats and later scalar consumers keep their full
+      // authority checks and the exhaustive composition limit.
+      val result = new Bits().setAsTypeNode()
+      result.assignFrom(cat)
+      result
+    }
+    recordPackedRead(vector, carrier)
+  }
+
   private[spinal] def recordPackedRead(vector: Vec[_], carrier: Bits): Bits =
     shapeOf(vector) match {
       case None => carrier

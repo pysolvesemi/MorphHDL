@@ -94,7 +94,7 @@ jobs:
           paths = list(Path('morphhdl/target').rglob('*TypedBalancedReductionOperatorReplayTests.xml'))
           assert len(paths) == 1, paths
           suite = ET.parse(paths[0]).getroot()
-          assert int(suite.get('tests', '0')) == 23, suite.attrib
+          assert int(suite.get('tests', '0')) == 24, suite.attrib
           assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), suite.attrib
           print('Executed native replay suite:', suite.attrib)
           PY

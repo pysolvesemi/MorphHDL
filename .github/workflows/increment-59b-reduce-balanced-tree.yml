@@ -114,7 +114,7 @@ jobs:
           suites = [('TypedBalancedReductionCaptureTests', 10),
                     ('TypedBalancedReductionCaptureSafetyTests', 12),
                     ('TypedBalancedReductionPlanTests', 8),
-                    ('TypedBalancedReductionOperatorReplayTests', 23),
+                    ('TypedBalancedReductionOperatorReplayTests', 24),
                     ('ReduceBalancedTreeNativeContractTests', 8)]
           for name, count in suites:
               paths = list(Path('morphhdl/target').rglob('*' + name + '.xml'))

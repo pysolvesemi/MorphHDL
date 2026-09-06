@@ -372,8 +372,10 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
-def catalog_for_profile(profile: str) -> tuple[dict, dict, dict]:
+def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
+    require(not packing or {"59d", "59e", "59f"}.issubset(features),
+            "reviewed packing inventory requires the complete width/composite/callback profile")
     counts, suites = dict(REGRESSIONS), dict(EXPECTED_SUITES)
     extension = {}
     if "wa07a" in features:
@@ -411,6 +413,11 @@ def catalog_for_profile(profile: str) -> tuple[dict, dict, dict]:
                                     "joint width/composite count escaped its reviewed suite")
                             minimum += count - exact_new[suite]
                             reviewed_counts[suite] = count
+                        if packing:
+                            suite = "spinal.core.PackedVecIdentityAdversarialTests"
+                            require(reviewed_counts[suite] == 8, "historical packed Vec inventory changed")
+                            reviewed_counts[suite] = 12
+                            minimum += 4
                 counts[project] = (minimum, old_suites + len(additions))
     return counts, suites, extension
 
@@ -445,11 +452,21 @@ def regressions(root: Path, output: Path) -> None:
 
 def _regression_inventory(root: Path, output: Path, profile: str) -> None:
     """Validate reports only after the caller has validated the source profile."""
-    features = closure_module().profile_features(profile)
+    closure = closure_module()
+    features = closure.profile_features(profile)
     extensions = descendant_extensions(root)
     require(extensions == tuple(name for name in SUITE_EXTENSIONS if name in features),
             "committed suite sources differ from the validated production profile")
-    counts, suite_inventory, extension = catalog_for_profile(profile)
+    packing_review = root / closure.PACKING_59D59E_CONTRACT
+    packing = packing_review.exists() or packing_review.is_symlink()
+    if packing:
+        require({"59d", "59e", "59f"}.issubset(features),
+                "reviewed packing inventory requires the complete width/composite/callback profile")
+        publisher = closure.load(root, "59f-source-scope")
+        reviewed = publisher.reviewed_59d59e_packing(root)
+        require(set(reviewed) == closure.PACKING_59D59E_PATHS,
+                "reviewed packing inventory escaped its exact source paths")
+    counts, suite_inventory, extension = catalog_for_profile(profile, packing)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -533,8 +550,10 @@ def self_test() -> None:
         callback_paths = tuple(closure.CALLBACK_59F_PRODUCTION_SHA256)
         feature_sources = SUITE_EXTENSIONS["59f"]["sources"]
         composite_feature_sources = SUITE_EXTENSIONS["59e"]["sources"]
-        composite_paths = tuple(path for path in composite_feature_sources if "/src/main/" in path) + tuple(
-            f"morphhdl/src/main/scala/Synthetic59e{index}.scala" for index in range(11))
+        composite_real_paths = {path for path in composite_feature_sources if "/src/main/" in path} | \
+            set(closure.PACKING_59D59E_PATHS)
+        composite_paths = tuple(sorted(composite_real_paths)) + tuple(
+            f"morphhdl/src/main/scala/Synthetic59e{index}.scala" for index in range(14 - len(composite_real_paths)))
         require(len(composite_paths) == 14, "synthetic 59e fixture changed its exact source inventory")
         callback_new = {path for path in feature_sources if "/src/main/" in path}
         write(".gitignore", b"**/target/\n/ignored/\n/result.json\n")
@@ -592,12 +611,28 @@ def self_test() -> None:
                        "after": composite_integrated_bytes.decode()}]}]}
         composite_integration_manifest = (json.dumps(composite_integration_review, indent=2) + "\n").encode()
         composite_integration_sha256 = hashlib.sha256(composite_integration_manifest).hexdigest()
+        packing_path = closure.PACKING_59D59E_CONTRACT
+        packing_bytes = {path: source_bytes[path] + b"synthetic reviewed exact composite packing\n"
+                         for path in closure.PACKING_59D59E_PATHS}
+        packing_review = {"base": composite_integration_base, "files": [{
+            "path": path,
+            "before_sha256": composite_hashes[path],
+            "after_sha256": hashlib.sha256(data).hexdigest(),
+            "edits": [{"id": publisher.PACKING_59DE_IDS[path][0],
+                       "before": source_bytes[path].decode(), "after": data.decode()}]}
+            for path, data in sorted(packing_bytes.items())]}
+        require(all(len(ids) == 1 for ids in publisher.PACKING_59DE_IDS.values()),
+                "synthetic packing fixture requires each exact reviewed single-span edit")
+        packing_manifest = (json.dumps(packing_review, indent=2) + "\n").encode()
+        packing_sha256 = hashlib.sha256(packing_manifest).hexdigest()
         publisher_source = (repository / publisher_path).read_text()
 
-        def fixture_publisher(manifest_sha256: str = composite_integration_sha256) -> bytes:
+        def fixture_publisher(manifest_sha256: str = composite_integration_sha256,
+                              packing_sha: str = packing_sha256) -> bytes:
             source = publisher_source
             for name, value in (("COMPOSITE_59EF_BASE", composite_integration_base),
-                                ("COMPOSITE_59DE_PRODUCTION_SHA256", manifest_sha256)):
+                                ("COMPOSITE_59DE_PRODUCTION_SHA256", manifest_sha256),
+                                ("PACKING_59DE_SHA256", packing_sha)):
                 before = name + ' = "' + getattr(publisher, name) + '"'
                 after = name + ' = "' + value + '"'
                 require(source.count(before) == 1, "missing unique real publisher fixture identity: " + name)
@@ -626,8 +661,10 @@ def self_test() -> None:
                                                    ("59e", composite), ("59f", callbacks)) if present]
             return "60f-with-" + "-and-".join(selected) if selected else "60f-baseline"
 
-        def reports(wa: bool, descendant: bool, composite: bool, callbacks: bool) -> None:
-            counts, inventories, extension = catalog_for_profile(profile_name(wa, descendant, composite, callbacks))
+        def reports(wa: bool, descendant: bool, composite: bool, callbacks: bool,
+                    packing: bool = False) -> None:
+            counts, inventories, extension = catalog_for_profile(
+                profile_name(wa, descendant, composite, callbacks), packing)
             for project, (minimum, suites) in counts.items():
                 names = inventories[project]
                 require(len(names) == suites, "frozen suite count differs: " + project)
@@ -1011,6 +1048,95 @@ def self_test() -> None:
                                 "complete composite reversion did not retain exact inherited feature bytes")
                         reject_reports("complete committed composite reversion cannot drop suite obligations")
                     git("reset", "--hard", composite_completion)
+                    reports(wa, descendant, composite, callbacks)
+                if not (descendant and composite):
+                    rejected(lambda: catalog_for_profile(expected_profile, packing=True),
+                             "packing inventory without the complete width/composite/callback profile")
+                    write(packing_path, packing_manifest)
+                    reject_reports("packing manifest cannot activate outside the complete integration profile")
+                    (root / packing_path).unlink()
+                else:
+                    historical_head = git("rev-parse", "HEAD")
+                    for path, data in packing_bytes.items():
+                        write(path, data)
+                    write(packing_path, packing_manifest)
+                    write(publisher_path, fixture_publisher())
+                    packing_head = commit()
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        fixture_regressions()
+                    packing_results = json.loads(output.read_text())
+                    require(packing_results["morphhdl"]["tests"] == 902 and
+                            len(packing_results["morphhdl"]["suites"]) == 91,
+                            "reviewed packing inventory changed its exact minimum or suite count")
+                    directory = root / "morphhdl/target/test-reports"
+                    packed_report = next(report for report in directory.glob("*.xml")
+                                         if ET.parse(report).getroot().get("name") ==
+                                         "spinal.core.PackedVecIdentityAdversarialTests")
+                    require(ET.parse(packed_report).getroot().get("tests") == "12",
+                            "reviewed packing inventory omitted its four integration cases")
+                    reports(wa, descendant, composite, callbacks)
+                    reject_reports("packing source cannot use the historical eight-case packed Vec inventory")
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    contract = root / packing_path
+                    contract.unlink()
+                    commit()
+                    reject_reports("committed packing sources cannot lose their required adapter")
+                    git("reset", "--hard", packing_head)
+                    contract.write_bytes(packing_manifest + b" ")
+                    reject_reports("changed pinned packing manifest")
+                    forged = json.loads(packing_manifest)
+                    forged["files"].append(dict(forged["files"][0], path=composite_paths[-1]))
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(packing_sha=hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("packing adapter cannot absorb another composite source")
+                    forged = json.loads(packing_manifest)
+                    forged["files"][0]["edits"][0]["before"] += "unreviewed restored source\n"
+                    forged_bytes = (json.dumps(forged, indent=2) + "\n").encode()
+                    contract.write_bytes(forged_bytes)
+                    write(publisher_path, fixture_publisher(packing_sha=hashlib.sha256(forged_bytes).hexdigest()))
+                    reject_reports("packing adapter must restore the complete frozen composite blob")
+                    contract.write_bytes(packing_manifest)
+                    write(publisher_path, fixture_publisher())
+                    for path, data in packing_bytes.items():
+                        target = root / path
+                        target.write_bytes(data + b"unreviewed packing mutation\n")
+                        reject_reports("reviewed packing source mutation " + path)
+                        target.write_bytes(data)
+                        target.write_bytes(data + b"unreviewed staged packing mutation\n")
+                        git("add", "--", path)
+                        target.write_bytes(data)
+                        reject_reports("staged packing mutation hidden by restored worktree " + path)
+                        git("add", "--", path)
+                        target.unlink()
+                        reject_reports("missing reviewed packing source " + path)
+                        target.write_bytes(data)
+                    for relative in (packing_path, *packing_bytes):
+                        target = root / relative
+                        data = target.read_bytes()
+                        target.chmod(0o755)
+                        reject_reports("executable packing source or manifest " + relative)
+                        target.chmod(0o644)
+                        git("rm", "--cached", "--", relative)
+                        reject_reports("untracked packing source or manifest " + relative)
+                        git("add", "--", relative)
+                        git("update-index", "--chmod=+x", "--", relative)
+                        reject_reports("executable index mode on packing source or manifest " + relative)
+                        git("update-index", "--chmod=-x", "--", relative)
+                        link_target = root / "packing-symlink-target.txt"
+                        link_target.write_bytes(data)
+                        target.unlink()
+                        target.symlink_to(link_target)
+                        reject_reports("symlink packing source or manifest " + relative)
+                        target.unlink()
+                        target.write_bytes(data)
+                        link_target.unlink()
+                    git("reset", "--hard", historical_head)
+                    # A historical source head must not acquire the extra test
+                    # obligation merely because XML includes the new cases.
+                    reports(wa, descendant, composite, callbacks, packing=True)
+                    reject_reports("packing reports cannot activate an absent source adapter")
                     reports(wa, descendant, composite, callbacks)
                 require(closure.production_profile(root) == expected_profile, "fixture restoration failed")
 
