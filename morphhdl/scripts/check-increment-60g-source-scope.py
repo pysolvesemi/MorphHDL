@@ -21,7 +21,7 @@ PRODUCTION = {
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "c860299df12f3d34bd42685b75ffad1b4d67bc7715e93f269acd72c37942bd23"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "50b3dba6ec49c2ecdf63ebbbe24ae7c708dcb8a1a532799b31e58bf83ebe3370",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "ee4d52f85cbb9f58fa4ae5936b2ad33785f1d195589f225496d095ad1b27dcff",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"

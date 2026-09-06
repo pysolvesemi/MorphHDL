@@ -237,8 +237,9 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       // than broadening that producer as part of a signedness-default rollout.
       def scalar = new Component {
         setDefinitionName("DefaultSignedCanonicalWire")
-        val a = in(SInt(parameter bits))
-        val b = out(SInt(parameter bits))
+        val width = parameter
+        val a = in(SInt(width bits))
+        val b = out(SInt(width bits))
         b := a
       }
       morphhdl.MorphVerilog(fresh(root.resolve("scalar.v")))(scalar)
