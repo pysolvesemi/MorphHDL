@@ -6,6 +6,7 @@ import org.objectweb.asm.{ClassReader, Handle, Opcodes, Type}
 import org.objectweb.asm.tree._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
+import scala.util.control.NonFatal
 import spinal.core._
 
 /** Pre-execution effect certification of a deliberately bounded Scala subset.
@@ -95,6 +96,9 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
       val stream = Option(loader.getResourceAsStream(owner + ".class"))
         .getOrElse(fail("exact class bytes are unavailable for " + owner))
       try new ClassReader(stream).accept(result, ClassReader.SKIP_DEBUG | ClassReader.SKIP_FRAMES)
+      catch {
+        case NonFatal(_) => fail("exact class bytes cannot be inspected for " + owner)
+      }
       finally stream.close()
       if (result.name != owner) fail("class resource changed its exact identity")
       result

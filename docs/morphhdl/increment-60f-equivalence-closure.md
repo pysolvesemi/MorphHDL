@@ -329,3 +329,37 @@ Those checks finished by 20:41:09 UTC. The legacy combined-status endpoint
 contained no status entries; its default `pending` value was not evidence of
 unfinished Actions work. The completed push workflows and paginated check-run
 results establish the prerequisite status above.
+
+## Follow-on WA-07a CI compatibility
+
+The historical 60f qualification above remains tied to its recorded source.
+The workflow also runs for changes under `morphhdl-passes/`, so its source and
+test inventory gates must recognize the reviewed WA-07a addition without
+accepting arbitrary production changes or test suites.
+
+The source gate retains the production-zero check from the fixed pre-60f base
+to the qualified 60f commit. For the current checkout it accepts either that
+unchanged production profile or the exact three-file WA-07a production delta
+registered from `f6646f574a1bc2c16050e7c27e93b86523af3bd8`:
+
+- `PassContracts.scala`
+- `WireAliasPassPipeline.scala`
+- `ConstantOperandSimplificationPass.scala`
+
+The checker pins each complete path and source hash. Missing files, changed
+hashes and any other tracked or untracked production change are rejected.
+The sealed native writers/checkers and inherited native audits still run.
+
+The regression inventory follows the validated source profile. The historical
+profile retains its exact 11 pass suites and minimum 99 non-skipped tests.
+The WA-07a profile requires all 14 pass suites and at least 123 non-skipped tests,
+including `ConstantOperandSimplificationPassSpec`, `ConstantOperandFourStateSpec`
+and `ConstantOperandFixedPointSpec`. Other project inventories are unchanged.
+Missing, substituted, duplicated or unexpected suites, failed/skipped tests and
+stale success records remain errors.
+
+This compatibility registration does not qualify WA-07a. Its dedicated workflow
+must still prove every candidate against the common pre-pass reference across
+all 512 bindings, repeat independently and validate the complete shard union.
+The 60f signedness proofs, domains, mutation controls, repeated RTL generation
+and cross-Scala comparison remain required by their existing workflow.

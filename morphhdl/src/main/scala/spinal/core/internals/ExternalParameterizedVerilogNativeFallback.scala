@@ -774,11 +774,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       verilog: String,
       nativeSignedLiterals: Boolean = false
   ): String = {
-    // An ElabValue carrier's literal is only its construction witness. Its
-    // exact value registry owns publication even when that witness is zero.
+    // An ElabValue carrier's literal and a finite fold's zero anchor are
+    // construction witnesses. Their exact registries own publication.
     val retainedValues = new IdentityHashMap[BaseType, java.lang.Boolean]()
     ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (value, _) =>
       retainedValues.put(value, java.lang.Boolean.TRUE)
+    }
+    ElabFiniteRange.countOnesOf(component).foreach { fold =>
+      retainedValues.put(fold.result, java.lang.Boolean.TRUE)
     }
     var lines = verilog.split("\n", -1).toVector
     component.dslBody.walkLeafStatements {
@@ -793,10 +796,29 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                 literal.getWidth == target.getBitsWidth =>
             ParameterizedWidth.expressionOf(target)
               .filter(_.parameters.nonEmpty).foreach { width =>
-                ElabInt.requireAuthoritativeIntegerDomain(width,
-                  "native zero carrier width",
-                  "SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY",
-                  requireExactExtrema = false)
+                def validateWidthDomain(): Unit = {
+                  ElabInt.requireAuthoritativeIntegerDomain(width,
+                    "native zero carrier width",
+                    "SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY",
+                    requireExactExtrema = false)
+                  ()
+                }
+                width.projectionProvenance match {
+                  case Some(_) =>
+                    // Restore only the domain certified by this exact native
+                    // declaration's structural owner, never the width alone.
+                    val evaluation = ParameterizedStructure.projectedDeclarationEvaluationOf(
+                      component, target, width, "native zero carrier width", width.sourceLocation
+                    ).getOrElse {
+                      fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-AUTHORITY",
+                        "one projected native zero carrier lost its exact owner-domain evidence",
+                        width.sourceLocation)
+                    }
+                    ElaborationDomainContext.withAdmitted(
+                      width.exactDomain.get.root, evaluation.rootValues, width.sourceLocation
+                    )(validateWidthDomain())
+                  case None => validateWidthDomain()
+                }
                 if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth)) {
                   fail("SPINAL-PARAMETERIZED-VERILOG-ZERO-WIDTH-MISMATCH",
                     "one exact native zero carrier lost its positive typed width or witness",

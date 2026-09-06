@@ -19,7 +19,33 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
-QUALIFIED_60F = "5a669d32095ee722c313bd069b771e7c350a1f81"
+QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
+# Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
+# This does not expand 60f's historical qualification-only production scope.
+WA07A_PRODUCTION_SHA256 = {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala":
+        "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala":
+        "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
+        "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+}
+# Exact, separately reviewed 59f production delta. Source selection never uses
+# report counts, branch names, partial feature presence, or unchecked paths.
+CALLBACK_59F_PRODUCTION_SHA256 = {
+    "core/src/main/scala/spinal/core/BitVector.scala": "fc59c3f42ff9be5ea6ddfb4a5d7e32c59f57302ad8b806201285dc648425f9f6",
+    "core/src/main/scala/spinal/core/ParameterizedWidth.scala": "f85ea514e70e7be6e46f566bb898bb40f8588d8b42ec68d9c6116a0122ffdce8",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "dd2bdf8629d08a0b25fb785e4828c9ae56ef0f5e7c4fc8efd4b086c61140d6a3",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": "8745879bd3e435ed51c9809e6eb05f9c3d5ede6513fe47b84a1e4dc8bd895064",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala": "b08a77c98c5b9fad4f5a44430b5c9a2edc6fa9055c763503b808c0c2688ccc70",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCaptureSchema.scala": "15fecc14650d5a0fb2f03450977cd91da432816bfa47ab1fc4003c573f557f1c",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala": "db37d6540af715b6f535a78891439020fb7196d450dc403af3cde6a9fedc53fb",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorCertificate.scala": "5abc84b0aeaf26b21d6a21fc0a844f2e8b17833ec4da33cec84f8ce75b7f17d3",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala": "b401b6cece917c84e945efedaca22148ccc4a88bbe8df9ff7f4073fdf4ab35bf",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala": "a1de8e5058d02f66c801f70409f7e208daed3a2a1d1584491e3be837615352ed",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala": "43e5ee1294041a4bf7f46fc92ec56569d0bf20e8180c770749ae976060afcd10",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionValueEvidence.scala": "da743fb98428d5ffb6d2875096293daad1da99dfb4b796e7cc4c540d76d3f899"
+}
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -101,23 +127,57 @@ def self_test() -> None:
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
 
 
-def source_scope(root: Path) -> None:
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+def production_profile(root: Path) -> str:
+    """Select an exact source contract before consulting regression reports."""
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    require(subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F],
+                           cwd=root).returncode == 0,
+            "60f baseline must be an ancestor of the qualified commit")
+    require(subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
+                           cwd=root).returncode == 0,
+            "qualified 60f must be an ancestor of HEAD")
+    historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
+    require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
     # Include every production project (also nested backends and new roots),
-    # rather than limiting qualification-only scope to native emitter hooks.
-    # On descendants, keep the completed qualification-only increment sealed
-    # at its exact merge; later increments own their separate production delta.
-    # Before that merge, continue inspecting the complete working-tree delta.
-    qualified = subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"],
-                               cwd=root, stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL).returncode == 0
-    revision = [QUALIFIED_60F] if qualified else []
-    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE, *revision],
-                                      cwd=root, text=True).splitlines()
-    untracked = [] if qualified else subprocess.check_output(
-        ["git", "ls-files", "--others", "--exclude-standard"], cwd=root, text=True).splitlines()
-    changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
-    require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
+    # including ignored untracked sources; an allowed pathname alone is not a
+    # source contract. New WA files must be tracked and all three bytes exact.
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    wa, callbacks = set(WA07A_PRODUCTION_SHA256), set(CALLBACK_59F_PRODUCTION_SHA256)
+    require(wa and callbacks and not wa & callbacks, "reviewed production profiles overlap or are empty")
+    profiles = {
+        frozenset(): ("60f-baseline", {}),
+        frozenset(wa): ("60f-with-wa07a", WA07A_PRODUCTION_SHA256),
+        frozenset(callbacks): ("60f-with-59f", CALLBACK_59F_PRODUCTION_SHA256),
+        frozenset(wa | callbacks): ("60f-with-wa07a-and-59f",
+                                   {**WA07A_PRODUCTION_SHA256, **CALLBACK_59F_PRODUCTION_SHA256}),
+    }
+    require(frozenset(changed) in profiles,
+            "unreviewed production delta: " + str(sorted(changed)))
+    profile, hashes = profiles[frozenset(changed)]
+    for path, digest in hashes.items():
+        source = root / path
+        require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
+                "reviewed production source hash differs: " + path)
+        stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "reviewed production source is not uniquely tracked: " + path)
+    return profile
+
+
+def source_scope(root: Path) -> None:
+    # Preserve the inherited audits and their precise rejection diagnostics.
+    # The complete production profile remains mandatory after those audits;
+    # report validation also checks it before consulting any XML inventory.
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -139,7 +199,9 @@ def source_scope(root: Path) -> None:
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    print("60f qualification-only scope, sealed writers/checkers and inherited native audits PASS", flush=True)
+    profile = production_profile(root)
+    print("60f historical qualification-only scope, " + profile +
+          ", sealed writers/checkers and inherited native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:

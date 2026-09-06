@@ -414,6 +414,83 @@ class ParameterizedVerilogTests extends AnyFunSuite {
     }
   }
 
+  test("retained finite folds preserve zero anchors until fold publication") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "TypedZeroWitnessFold.v"
+      MorphVerilog(config) {
+        new Component {
+          setDefinitionName("TypedZeroWitnessFold")
+          val width = HdlInt.param("WIDTH", 1, 1, 8).asElabInt
+          val source = in Bits(width.bits)
+          val count = out UInt((width + 1).addressWidth.bits)
+          val zero = out Bits(width.bits)
+          count := ElabFiniteRange.countOne(source, width)(spinal.lib.CountOne(source))
+          zero := 0
+        }
+      }
+      val verilog = read(directory.resolve("TypedZeroWitnessFold.v"))
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(compact.contains("for(morphhdl_finite_fold_index_1=0;"), verilog)
+      assert(compact.contains("morphhdl_finite_fold_index_1<WIDTH;"), verilog)
+      assert(compact.contains("assignzero={WIDTH{1'b0}};"), verilog)
+      assert(!compact.contains("assignmorphhdl_finite_count_one_1="), verilog)
+    }
+  }
+
+  test("retained zero widths are validated within their exact structural owner") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      config.netlistFileName = "TypedScopedZero.v"
+      MorphVerilog(config) {
+        new Component {
+          setDefinitionName("TypedScopedZero")
+          val width: ElabInt = HdlInt.param("WIDTH", 1, 1, 8).asElabInt
+          val source = in Bool()
+          val observed = out Bool()
+          if (width > 1) {
+            val scoped = UInt((width - 1).bits).setName("scoped_zero").dontSimplifyIt()
+            scoped := 0
+            observed := scoped.orR
+          } else {
+            observed := source
+          }
+        }
+      }
+      val verilog = read(directory.resolve("TypedScopedZero.v"))
+      val compact = verilog.replaceAll("\\s+", "")
+      assert(compact.contains("if(((WIDTH)>(1)))begin"), verilog)
+      assert(compact.contains("assignscoped_zero={(WIDTH-1){1'b0}};"), verilog)
+    }
+  }
+
+  test("retained zero publication rejects a projected width on a broader native owner") {
+    withTemporaryDirectory { directory =>
+      val width = HdlInt.param("WIDTH", 5, 1, 8).asElabInt
+      var zero: UInt = null
+      val report = SpinalVerilog(concreteConfig(directory)) {
+        new Component {
+          setDefinitionName("TypedEscapedZeroWidth")
+          val observed = out UInt(5 bits)
+          zero = UInt(5 bits).setName("escaped_zero").dontSimplifyIt()
+          zero := 0
+          observed := zero
+        }
+      }
+      val domain = width.expression.exactDomain.get
+      ElaborationDomainContext.withAdmitted(
+        domain.root, Set[BigInt](5, 6, 7, 8), width.sourceLocation
+      ) {
+        ParameterizedWidth.attach(zero, width.toParameterizedBitCount("escaped zero width"))
+      }
+      val native = read(directory.resolve("TypedEscapedZeroWidth.v"))
+      val error = intercept[ParameterizedVerilogException] {
+        ExternalParameterizedVerilogNativeFallback.rewriteRetainedZeroAssignments(report.toplevel, native)
+      }
+      assert(error.code == "SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH")
+    }
+  }
+
   test("retained resize rewrite rejects an additional same-target assignment") {
     withTemporaryDirectory { directory =>
       val targetWidth =

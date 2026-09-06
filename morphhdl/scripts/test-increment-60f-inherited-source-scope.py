@@ -56,16 +56,19 @@ def main() -> None:
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     cases = (
-        ("original-baseline", module.BASE, None, False, None),
+        ("original-baseline", module.BASE, None, False,
+         "qualified 60f must be an ancestor of HEAD"),
         ("qualified-merge", module.QUALIFIED_60F, None, False, None),
-        ("later-committed-production", module.QUALIFIED_60F, production, True, None),
+        ("later-committed-production", module.QUALIFIED_60F, production, True,
+         "unreviewed production delta"),
         ("later-untracked-production", module.QUALIFIED_60F,
-         "morphhdl/src/main/scala/Increment60fLaterScopeProbe.scala", False, None),
+         "morphhdl/src/main/scala/Increment60fLaterScopeProbe.scala", False,
+         "untracked production sources"),
         ("original-committed-production", module.BASE, production, True,
-         "60f must remain qualification-only; production delta"),
+         "qualified 60f must be an ancestor of HEAD"),
         ("original-untracked-production", module.BASE,
          "new-project/src/main/scala/Increment60fScopeProbe.scala", False,
-         "60f must remain qualification-only; production delta"),
+         "qualified 60f must be an ancestor of HEAD"),
         ("changed-sealed-oracle", module.QUALIFIED_60F, oracle, True, "sealed writer/checker changed"),
         ("changed-signed-authority", module.QUALIFIED_60F,
          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala", True,
@@ -100,7 +103,7 @@ def main() -> None:
     output = ROOT / "target/increment-60f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: five positive and six exact negative inherited 60f source-scope cases", flush=True)
+    print("PASS: two positive and nine exact negative inherited 60f source-scope cases", flush=True)
 
 
 if __name__ == "__main__":

@@ -57,9 +57,12 @@ that carrier's symbolic width. Both transfers require exact native graph and
 emitted-assignment lineage; matching a default literal or width alone grants no
 authority. This keeps part-selection and saturation callbacks free of implicit
 width-extension warnings at WIDTH=1 and at larger overrides.
-Exact registry-owned `ElabValue` carriers are excluded from the zero-literal
+Exact registry-owned `ElabValue` and finite-fold result carriers are excluded from the zero-literal
 transfer: their construction literal is a parameter-value witness, and the
-retained-value publisher owns that assignment even when its default is zero.
+dedicated publisher owns that assignment even when its default is zero.
+Projected zero widths are checked within the domain certified by the exact
+native declaration's structural owner. A width projection alone cannot grant
+publication outside its captured branch.
 
 ## Qualification fixtures
 
@@ -219,10 +222,28 @@ callback publication smoke passed together on both Scala lanes: 22 tests per
 lane, including the new zero-default case. Source restoration controls and the
 inherited source audits passed again with the reviewed fix.
 
-These results are local evidence. Publication is tracked in
-[PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166); remote workflows and
-integration merge remain pending, so the 59f roadmap checkbox stays open.
+The dedicated 59f workflow passed on both Scala lanes at `61a61ee955a660f88338c6aa61050b051e7e7056`
+in [run 34019350514](https://github.com/pysolvesemi/MorphHDL/actions/runs/34019350514),
+including all 64 callback specializations and the inherited publication proofs.
+Broader CI then exposed projected zero-width and finite-fold ownership
+regressions, plus an unsupported Java class-resource version escaping the
+callback rejection diagnostic. The follow-up fixes preserve exact owner
+domains and dedicated publication identities, and report unreadable callback
+bytecode as unsupported before execution.
+
+Publication is tracked in [PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166).
+Passing CI on the repaired integration head and merge remain required, so the
+59f roadmap checkbox stays open.
 The published Git tree is checked against the reviewed local tree. The publisher
 audit is anchored to the merged 60f base; both audited before-blobs are
 byte-identical to the original local checkpoint. Exact span and complete
 before/after hash checks remain in force.
+
+The inherited 60f contracts also retain the merged WA-07a compatibility rules.
+They accept only the exact baseline, WA-07a, 59f, or combined production file
+sets and hashes. The 59f suite extension requires its complete committed source
+inventory and all four additional suite identities. Four real-Git fixture
+profiles and 519 rejection controls cover missing or changed sources, unexpected
+suites, skipped tests, incomplete feature inventories and stale success records.
+Older inherited controls now reject arbitrary later production changes under
+the same strict contract.

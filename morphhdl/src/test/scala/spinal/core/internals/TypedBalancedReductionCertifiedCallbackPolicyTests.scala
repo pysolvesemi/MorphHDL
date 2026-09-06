@@ -1,6 +1,7 @@
 package spinal.core.internals
 
 import java.nio.file.Files
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
@@ -74,6 +75,46 @@ class TypedBalancedReductionCertifiedCallbackPolicyTests extends AnyFunSuite {
     reject((a: UInt, b: UInt) => CertifiedCallbackInitializerFixture.StaticHelper.combine(a, b))
     reject((a: UInt, b: UInt) => CertifiedCallbackInitializerFixture.InterfaceHelper.combine(a, b))
     assert(CertifiedCallbackInitializerFixture.calls == 0)
+  }
+
+  test("unsupported class resource versions reject with a callback diagnostic before execution") {
+    admit(CertifiedReductionClassVersionFixture.operator)
+    val owner = "spinal.core.internals.CertifiedReductionClassVersionFixture$"
+    val resource = owner.replace('.', '/') + ".class"
+    val parent = getClass.getClassLoader
+    val stream = parent.getResourceAsStream(resource)
+    val output = new ByteArrayOutputStream
+    try {
+      val buffer = new Array[Byte](4096)
+      var length = stream.read(buffer)
+      while (length >= 0) {
+        output.write(buffer, 0, length)
+        length = stream.read(buffer)
+      }
+    } finally stream.close()
+    val original = output.toByteArray
+    val unsupported = original.clone()
+    // The JVM loads the valid original class. Its inspection resource reports
+    // a future class version, independent of the JDK running this regression.
+    unsupported(6) = 0x7f.toByte
+    unsupported(7) = 0xff.toByte
+    val loader = new ClassLoader(parent) {
+      override def loadClass(name: String, resolve: Boolean): Class[_] = synchronized {
+        if (name != owner) super.loadClass(name, resolve)
+        else {
+          val loaded = Option(findLoadedClass(name)).getOrElse(defineClass(name, original, 0, original.length))
+          if (resolve) resolveClass(loaded)
+          loaded
+        }
+      }
+      override def getResourceAsStream(name: String): InputStream =
+        if (name == resource) new ByteArrayInputStream(unsupported) else super.getResourceAsStream(name)
+    }
+    val fixture = loader.loadClass(owner)
+    val callback = fixture.getMethod("operator").invoke(fixture.getField("MODULE$").get(null))
+    val error = intercept[IllegalArgumentException](admit(callback))
+    assert(error.getMessage.contains("MORPH-REDUCE-BALANCED-CALLBACK-UNSUPPORTED"))
+    assert(error.getMessage.contains("exact class bytes cannot be inspected for " + owner.replace('.', '/')))
   }
 
   test("module-shaped helper virtual dispatch cannot replace an inspected pure body") {
@@ -180,6 +221,10 @@ private[internals] object CertifiedReductionPureHelpers {
 }
 
 private[internals] object CertifiedReductionHostState { var calls = 0 }
+
+private[internals] object CertifiedReductionClassVersionFixture {
+  def operator: (UInt, UInt) => UInt = (a, b) => a + b
+}
 
 private[internals] object CertifiedReductionEffectfulInitializer {
   CertifiedReductionHostState.calls += 1
