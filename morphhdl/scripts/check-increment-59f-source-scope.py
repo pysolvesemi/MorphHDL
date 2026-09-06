@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import subprocess
 from pathlib import Path
@@ -325,12 +326,23 @@ def restore_59d_then_59f_source(root: Path, path: str, source: str) -> str:
     return restore_59f_source(root, path, source)
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def source_scope(root: Path) -> None:
     contract(root)
     restore = (restore_59d_then_59f_source if (root / REVIEW_59D).exists()
                else restore_59f_source)
     for path in sorted(PATHS):
-        restore(root, path, (root / path).read_text())
+        restore(root, path, restore_rollout(root, path, (root / path).read_text()))
     print("59f exact reviewed publisher spans and complete before/after blobs PASS", flush=True)
 
 

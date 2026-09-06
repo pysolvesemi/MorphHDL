@@ -45,6 +45,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
       github.ref_name == 'parameterized-verilog'
     name: Symbolic widening Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest

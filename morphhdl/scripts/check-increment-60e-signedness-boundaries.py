@@ -127,6 +127,17 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
     return source
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
@@ -140,7 +151,7 @@ def source_scope(root: Path) -> None:
         # all other 60e paths must still reproduce the original 60d baseline.
         baseline = (QUALIFIED_59B if has_59b and path ==
                     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala" else BASE)
-        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", baseline + ":" + path),
+        require(restore_60d_source(root, path, restore_rollout(root, path, (root / path).read_text())) == git("show", baseline + ":" + path),
                 "unreviewed source change outside 60e spans: " + path)
     native = set(git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
                      "idslplugin/src/main", "sim/src/main").splitlines())
@@ -160,11 +171,11 @@ def source_scope(root: Path) -> None:
                        cwd=root, check=True)
     for name in ("MorphHdlSignednessAnalysis.scala",):
         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
-        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())
+        restored = restore_59d_signed_width_authority(root, path, restore_rollout(root, path, (root / path).read_text()))
         require(git("show", BASE + ":" + path) == restored, "independent type authority changed")
     for path in ("morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
                  "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"):
-        require(git("show", BASE + ":" + path) == (root / path).read_text(), "sealed baseline changed: " + path)
+        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed baseline changed: " + path)
     for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
         for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):

@@ -298,6 +298,8 @@ def qualification_ancestry(root: Path) -> None:
 
 
 def profile_features(profile: str) -> frozenset[str]:
+    if profile.endswith("-and-60g"):
+        return profile_features(profile[:-len("-and-60g")]) | frozenset(("60g",))
     names = ("wa07a", "59d", "59e", "59f")
     profiles = {"60f-baseline": frozenset()}
     for mask in range(1, 16):
@@ -354,6 +356,19 @@ def integration_59d59f(root: Path) -> dict[str, str]:
 
 
 def production_profile(root: Path) -> str:
+    """Compose a sealed publication delta with the unchanged inherited union."""
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    rollout = load(root, "60g-source-scope") if helper.is_file() else None
+    profile = inherited_production_profile(root, rollout)
+    if rollout is not None:
+        # The real tree must differ from its merged base in exactly the reviewed
+        # six files. Restoration below never authorizes an extra source path.
+        rollout.source_scope(root)
+        profile += "-and-60g"
+    return profile
+
+
+def inherited_production_profile(root: Path, rollout=None) -> str:
     """Select a complete reviewed source union before consulting any reports."""
     def git(*args: str) -> bytes:
         return subprocess.check_output(["git", *args], cwd=root)
@@ -368,6 +383,9 @@ def production_profile(root: Path) -> str:
     untracked = production_paths(git("ls-files", "--others", "-z"))
     require(not untracked, "untracked production sources: " + str(sorted(untracked)))
     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    if rollout is not None:
+        prior = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, rollout.BASE))
+        changed -= set(rollout.PRODUCTION) - prior
     wa, widths, composites, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
                                          set(COMPOSITE_59E_PRODUCTION_SHA256), set(CALLBACK_59F_PRODUCTION_SHA256))
     require(wa and widths and composites and callbacks and not wa & (widths | composites | callbacks),
@@ -442,7 +460,10 @@ def production_profile(root: Path) -> str:
         require(source.is_file(), diagnostic + path)
         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
-        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest, diagnostic + path)
+        current = source.read_bytes()
+        if rollout is not None and path in rollout.PRODUCTION:
+            current = rollout.restore_60g_source(root, path, current.decode()).encode()
+        require(hashlib.sha256(current).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "reviewed production source is not uniquely tracked: " + path)
@@ -496,6 +517,17 @@ def reviewed_59d(root: Path) -> dict:
     return reviewed
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def source_scope(root: Path) -> None:
     # Preserve the inherited oracle/authority rejection diagnostics. The exact
     # production union is still mandatory after all historical source audits.
@@ -518,7 +550,7 @@ def source_scope(root: Path) -> None:
     ]
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
-        current = (root / path).read_bytes()
+        current = restore_rollout(root, path, (root / path).read_text()).encode()
         if reviewed is not None:
             for edit in reversed([edit for edit in reviewed["checker_edits"] if edit["path"] == path]):
                 before, after = edit["before"].encode(), edit["after"].encode()

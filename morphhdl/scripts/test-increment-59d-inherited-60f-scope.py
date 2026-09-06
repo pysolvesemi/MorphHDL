@@ -93,6 +93,18 @@ def main() -> None:
         ("changed-60d-signed-width-restoration", head, "missing/duplicate reviewed 59d checker restoration span"),
         ("changed-60e-signed-width-restoration", head, "missing/duplicate reviewed 59d checker restoration span"),
     )
+    # On a reviewed 60g descendant the outer complete-blob ledger rejects
+    # these same mutations before the inner 59d seam check. Keep exact causes
+    # and paths, not an arbitrary nonzero exit or broad exception match. The
+    # original historical profiles above still traverse their original gates.
+    rollout_rejections = {
+        "changed-checker-restoration": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+        "changed-60d-signed-width-restoration": "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+        "changed-60e-signed-width-restoration": "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+        "changed-signed-width-proof": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+        "changed-signed-width-outside": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+    }
+    has_rollout = (ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py").is_file()
     with tempfile.TemporaryDirectory(prefix="morphhdl-59d-60f-scope-") as temporary:
         for label, revision, expected in cases:
             fixture = Path(temporary) / label
@@ -223,11 +235,15 @@ def main() -> None:
                 elif label == "changed-60e-signed-width-restoration":
                     path = "morphhdl/scripts/check-increment-60e-signedness-boundaries.py"
                     source = (fixture / path).read_text()
-                    before = "        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())"
+                    argument = ("restore_rollout(root, path, (root / path).read_text())"
+                                if has_rollout else "(root / path).read_text()")
+                    before = "        restored = restore_59d_signed_width_authority(root, path, " + argument + ")"
                     if source.count(before) != 1:
                         raise RuntimeError("reviewed 59d/60e signed-width restoration seam is absent")
                     (fixture / path).write_text(source.replace(before, "        restored = (root / path).read_text()"))
                     commit(fixture, path)
+                if has_rollout and revision == head and label in rollout_rejections:
+                    expected = "or 60g publication spans: " + rollout_rejections[label]
                 records.append(checked(fixture, label, expected))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))

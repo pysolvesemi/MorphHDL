@@ -185,6 +185,8 @@ def packing_controls(fixture: Path, records: list[dict]) -> None:
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
+    rollout_helper = "morphhdl/scripts/check-increment-60g-source-scope.py"
+    has_rollout = (ROOT / rollout_helper).is_file()
     has_59d = (ROOT / REVIEW_59D).is_file()
     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()
     has_joint_padding = (ROOT / PADDING_59D_59F_CONTRACT).is_file()
@@ -574,6 +576,13 @@ def main() -> None:
                 mutations += [(label, replacements, HELPER, rejection, "reviewed_59d59e_production")
                               for label, replacements, rejection in production_cases]
             for label, replacements, checker, rejection, *entrypoints in mutations:
+                # 60g's reviewed whole-checker seal is intentionally outside
+                # the inherited 59d seam guard. These exact mutations must now
+                # fail there first; do not weaken them to any failed command.
+                if has_rollout and label in ("restoration hook removed",
+                        "59d checker restoration seam changed",
+                        "59d source and checker contract changed together"):
+                    rejection = "or 60g publication spans: " + BOUNDARY
                 originals = {path: (fixture / path).read_bytes() for path, _ in replacements}
                 try:
                     for path, replacement in replacements:
@@ -614,6 +623,11 @@ def main() -> None:
                 original_paths = [FALLBACK, BOUNDARY, REVIEW_59D, ZERO_59D_59F_CONTRACT]
                 if has_joint_padding:
                     original_paths.append(PADDING_59D_59F_CONTRACT)
+                if has_rollout:
+                    # This positive control explicitly reconstructs pre-59d
+                    # 59f alone. Its historical source is not a 60g profile;
+                    # restore the current helper in the finally block below.
+                    original_paths.append(rollout_helper)
                 originals = {path: (fixture / path).read_bytes() for path in original_paths}
                 try:
                     for entry in data["files"]:
@@ -633,6 +647,8 @@ def main() -> None:
                     (fixture / ZERO_59D_59F_CONTRACT).unlink()
                     if has_joint_padding:
                         (fixture / PADDING_59D_59F_CONTRACT).unlink()
+                    if has_rollout:
+                        (fixture / rollout_helper).unlink()
                     records.append(check(fixture, HELPER, "historical frozen 59f publisher alone"))
                 finally:
                     for path, original in originals.items():

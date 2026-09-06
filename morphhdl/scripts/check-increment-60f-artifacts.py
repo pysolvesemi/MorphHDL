@@ -419,6 +419,13 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
                             reviewed_counts[suite] = 12
                             minimum += 4
                 counts[project] = (minimum, old_suites + len(additions))
+    if "60g" in features:
+        # The production profile is validated before reports are inspected.
+        # Require the entire extended existing suite, not just a global count.
+        tests, total_suites = counts["morphhdl"]
+        counts["morphhdl"] = (tests + 15, total_suites)
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.SignednessCompatibilityTests"] = 20
     return counts, suites, extension
 
 

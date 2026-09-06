@@ -1444,10 +1444,37 @@
       "change": "modified",
       "classification": "platform-integration-hook",
       "introduced_by": [
-        "Increment 57a: typed StreamFifoCC architecture"
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 60g: scheduler-owned registration lifecycle"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
       "edits": [
+        {
+          "id": "phase-context-execution-evidence",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Read-only monotonic per-context lifecycle evidence allows optional consumers to reject runtime registration without inserting pre-creation phases.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[spinal] def hasStartedPhaseExecution: Boolean = phaseExecutionStarted",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "phase-context-execution-start",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Close registration before invoking even the first custom phase; leave all native phase execution, logging and validation statements intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "phaseExecutionStarted = true",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "spinal-verilog-parameterized-exception-01",
           "kind": "platform-integration",

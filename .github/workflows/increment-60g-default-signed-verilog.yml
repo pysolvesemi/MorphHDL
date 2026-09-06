@@ -1,0 +1,157 @@
+name: Increment 60g default signed Verilog
+
+on:
+  push:
+    branches: ['agent/increment-60g-*', parameterized-verilog]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/**', '.github/workflows/increment-60g-default-signed-verilog.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60g-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: Exact rollout source and inherited source gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Retain exact source and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60g-source
+          git rev-parse HEAD > target/increment-60g-source/commit.txt
+          git archive HEAD | gzip > target/increment-60g-source/source.tar.gz
+          git bundle create target/increment-60g-source/repository.bundle HEAD refs/remotes/origin/parameterized-verilog
+      - name: Source manifests, mutation controls and inherited source audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee target/increment-60g-source/audits.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-60g-source
+          path: target/increment-60g-source
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify:
+    name: Default signed publication Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Require tools and record exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-60g
+          git rev-parse HEAD > target/increment-60g/head.txt
+          for tool in python3 iverilog vvp verilator yosys; do command -v "$tool"; done
+          iverilog -V > target/increment-60g/tool-versions.txt 2>&1
+          verilator --version >> target/increment-60g/tool-versions.txt
+          yosys -V >> target/increment-60g/tool-versions.txt
+      - name: Independently generate native references, explicit and default candidates twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60g"
+          mkdir -p "$output/inherited/pure/baseline"
+          sbt -batch '++${{ matrix.scala }}' \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/inherited/boundaries" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/inherited/pure" \
+            "morph/Test/runMain nativeapplication.SignednessCompatibilityArtifactWriter $output/inherited/compatibility" \
+            "morph/Test/runMain nativeapplication.DefaultSignedVerilogArtifactWriter $output/a" \
+            "morph/Test/runMain nativeapplication.DefaultSignedVerilogArtifactWriter $output/b" \
+            "morph/Test/runMain morphhdl.MorphContractFixtureGenerator --output-dir $output/public" \
+            > "$output/generation.log" 2>&1 || { tail -n 250 "$output/generation.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-60g-default-rollout.py snapshot \
+            "$output/a" "$output/b" "$output/inherited" "$output/manifest.json" --scala '${{ matrix.scala }}'
+          mkdir -p "$output/cross"
+          cp -a "$output/a" "$output/cross/rtl"
+          cp "$output/manifest.json" "$output/cross/manifest.json"
+      - name: Run inherited compatibility and default-isolation regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            'morph/testOnly spinal.core.internals.SignednessCompatibilityTests' \
+            > target/increment-60g/tests.log 2>&1 || { tail -n 250 target/increment-60g/tests.log; exit 1; }
+      - name: Prove actual default candidates with strict tools and independent references
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60g-default-rollout.py qualify \
+            target/increment-60g/a target/increment-60g/inherited target/increment-60g/proof
+      - name: Verify regenerated public signed shape golden
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in target/increment-60g/public/*.v; do
+            cmp "$source" "morphhdl/examples/contracts/$(basename "$source")"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-60g-rtl-${{ matrix.scala }}
+          path: target/increment-60g/cross
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-60g-evidence-${{ matrix.scala }}
+          path: |
+            target/increment-60g
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  cross-scala:
+    name: Cross-Scala actual default RTL bytes
+    needs: [source, qualify]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-60g-rtl-*
+          path: target/increment-60g-cross
+      - name: Compare source identity, manifests and downloaded default RTL
+        run: |
+          python3 morphhdl/scripts/check-increment-60g-default-rollout.py compare \
+            target/increment-60g-cross/increment-60g-rtl-2.12.18 \
+            target/increment-60g-cross/increment-60g-rtl-2.13.12

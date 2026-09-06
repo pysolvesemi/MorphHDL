@@ -583,11 +583,23 @@ bool_ports = {
     "clk", "flow_in_valid", "stream_in_valid", "stream_out_ready",
     "flow_out_valid", "stream_in_ready", "stream_out_valid",
 }
+# This is a fixture contract, not production type inference. Retain every
+# historical width/wiring/control assertion and require the reviewed 60g types.
+signed_ports = {
+    "bundle_in_sint", "bundle_out_sint", "flow_in_payload_sint",
+    "flow_out_payload_sint", "sint_in", "sint_out", "stream_in_payload_sint",
+    "stream_out_payload_sint", "register_out_sint",
+}
 port_pattern = re.compile(
-    r"^  (input|output)\s+wire\s+(?:(\[[^\]]+\])\s+)?([A-Za-z0-9_]+),?$",
+    r"^  (input|output)\s+wire\s+(?:(signed)\s+)?(?:(\[[^\]]+\])\s+)?([A-Za-z0-9_]+),?$",
     re.MULTILINE,
 )
-ports = {name: (direction, packed) for direction, packed, name in port_pattern.findall(source)}
+entries = port_pattern.findall(source)
+ports = {name: (direction, packed) for direction, signed, packed, name in entries}
+if len(entries) != len(ports):
+    raise SystemExit("duplicate native symbolic-data-shape port")
+if {name for _, signed, _, name in entries if signed} != signed_ports:
+    raise SystemExit("signed scalar leaves or unsigned aggregate/control types changed")
 if set(ports) != symbolic_ports | vec_ports | bool_ports:
     raise SystemExit("native symbolic-data-shape port inventory changed")
 if any(ports[name][1] != "[WIDTH-1:0]" for name in symbolic_ports):
@@ -618,10 +630,15 @@ if source.count("[WIDTH-1:0]") != 33:
     raise SystemExit("expected exactly 27 ordinary symbolic ports and six symbolic internals")
 if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
     raise SystemExit("expected exactly one WIDTH public parameter")
-if len(re.findall(r"^  wire\s+\[WIDTH-1:0\]\s+internal_payload_", source, re.MULTILINE)) != 3:
-    raise SystemExit("expected three symbolic internal Bundle leaves")
-if len(re.findall(r"^  reg\s+\[WIDTH-1:0\]\s+payload_register_", source, re.MULTILINE)) != 3:
-    raise SystemExit("expected three symbolic register Bundle leaves")
+for kind, prefix in (("wire", "internal_payload_"), ("reg", "payload_register_")):
+    declarations = re.findall(
+        r"^  " + kind + r"\s+(?:(signed)\s+)?\[WIDTH-1:0\]\s+" + prefix + r"(bits|uint|sint);$",
+        source, re.MULTILINE,
+    )
+    if len(declarations) != 3 or {leaf for _, leaf in declarations} != {"bits", "uint", "sint"}:
+        raise SystemExit("expected three exact symbolic " + prefix + " Bundle leaves")
+    if {leaf for signed, leaf in declarations if signed} != {"sint"}:
+        raise SystemExit("wrong scalar signedness for " + prefix)
 if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 22:
     raise SystemExit("expected the exact direct equal-shape assignment inventory")
 if source.count("  assign vec_out = vec_in;") != 1:
@@ -2037,16 +2054,16 @@ PY
 
 yosys_symbolic_data_shapes_width_mutation_must_fail \
   fixed-packed-input \
-  'input  wire [WIDTH-1:0] bits_in,' \
-  'input  wire [7:0] bits_in,'
+  '[WIDTH-1:0] bits_in,' \
+  '[7:0] bits_in,'
 yosys_symbolic_data_shapes_width_mutation_must_fail \
   fixed-packed-vec-input \
   'input wire [((WIDTH + WIDTH + WIDTH) * 2)-1:0] vec_in,' \
   'input wire [47:0] vec_in,'
 yosys_symbolic_data_shapes_width_mutation_must_fail \
   fixed-register-leaf \
-  'reg        [WIDTH-1:0] payload_register_sint;' \
-  'reg        [7:0] payload_register_sint;'
+  '[WIDTH-1:0] payload_register_sint;' \
+  '[7:0] payload_register_sint;'
 yosys_symbolic_data_shapes_width_mutation_must_fail \
   falling-register-clock \
   'always @(posedge clk) begin' \
