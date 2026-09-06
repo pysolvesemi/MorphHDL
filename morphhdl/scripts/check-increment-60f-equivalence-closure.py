@@ -19,6 +19,17 @@ import subprocess
 from pathlib import Path
 
 BASE = "feca6b9d599d97af92ed9f6a8bc871ef008c395e"
+QUALIFIED_60F = "8ae431f54efcd7b88fb49243e5fe82a9dbcc4ccd"
+# Complete reviewed follow-on production delta, frozen from WA-07a f6646f5.
+# This does not expand 60f's historical qualification-only production scope.
+WA07A_PRODUCTION_SHA256 = {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala":
+        "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala":
+        "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
+        "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+}
 WIDTHS = (1, 5, 8, 32)
 MEMORY_STEPS = 8
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
@@ -100,15 +111,43 @@ def self_test() -> None:
     print(f"60f result classification: {len(accepted)} positive and {len(rejected)} rejection controls PASS", flush=True)
 
 
-def source_scope(root: Path) -> None:
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+def production_profile(root: Path) -> str:
+    """Select an exact source contract before consulting regression reports."""
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", *args], cwd=root)
+
+    def production_paths(data: bytes) -> set[str]:
+        return {path.decode("utf-8") for path in data.split(b"\0")
+                if re.search(rb"(?:^|/)src/main/", path)}
+
+    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, QUALIFIED_60F], cwd=root, check=True)
+    subprocess.run(["git", "merge-base", "--is-ancestor", QUALIFIED_60F, "HEAD"], cwd=root, check=True)
+    historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
+    require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
     # Include every production project (also nested backends and new roots),
-    # rather than limiting qualification-only scope to native emitter hooks.
-    tracked = subprocess.check_output(["git", "diff", "--name-only", BASE], cwd=root, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
-                                        cwd=root, text=True).splitlines()
-    changed = sorted({path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)})
-    require(not changed, "60f must remain qualification-only; production delta:\n" + "\n".join(changed))
+    # including ignored untracked sources; an allowed pathname alone is not a
+    # source contract. New WA files must be tracked and all three bytes exact.
+    untracked = production_paths(git("ls-files", "--others", "-z"))
+    require(not untracked, "untracked production sources: " + str(sorted(untracked)))
+    changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    if not changed:
+        return "60f-baseline"
+    require(changed == set(WA07A_PRODUCTION_SHA256),
+            "unreviewed production delta: " + str(sorted(changed)))
+    for path, digest in WA07A_PRODUCTION_SHA256.items():
+        source = root / path
+        require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+                "reviewed production source must be a regular non-executable file: " + path)
+        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest,
+                "reviewed WA-07a production source hash differs: " + path)
+        stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "reviewed WA-07a production source is not uniquely tracked: " + path)
+    return "60f-with-wa07a"
+
+
+def source_scope(root: Path) -> None:
+    profile = production_profile(root)
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
         "morphhdl/scripts/check-increment-60c-signed-declarations.py",
@@ -125,7 +164,8 @@ def source_scope(root: Path) -> None:
     for suffix in ("60c-signed-declarations", "60d-pure-sint-casts", "60e-signedness-boundaries"):
         load(root, suffix).source_scope(root)
     subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
-    print("60f qualification-only scope, sealed writers/checkers and inherited native audits PASS", flush=True)
+    print("60f historical qualification-only scope, " + profile +
+          ", sealed writers/checkers and inherited native audits PASS", flush=True)
 
 
 def inventory(root: Path, out: Path) -> dict[str, str]:
