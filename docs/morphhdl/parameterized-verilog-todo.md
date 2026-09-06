@@ -904,7 +904,13 @@ dependency chain is unchanged and may proceed independently.
   Prove complete records and detect leaf swaps, corrupted tags and cross-field
   wiring. Combined named-field, widening and expanded-bridge behavior is 59i.
 
-- [ ] **Increment 59f — Generic safe callback graphs and explicit captured inputs**
+- [x] **Increment 59f — Generic safe callback graphs and explicit captured inputs**
+
+  **Completed:** [PR #166](https://github.com/pysolvesemi/MorphHDL/pull/166),
+  merged at `c85659a20`. Both Scala lanes passed all 64 callback and 32 inherited
+  publication specializations, mutation controls and the complete regression
+  inventory. All applicable post-merge workflows passed. See the
+  [59f qualification record](increment-59f-callback-graphs.md).
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c through 59e, 59g or 59h.
