@@ -18,14 +18,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Import the verified clean checkpoint and current documentation base
+      - name: Recover exact source and the immutable reviewed repair
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          work="$RUNNER_TEMP/59g-field-inventory"
+          work="$RUNNER_TEMP/59g-final-source"
           mkdir -p "$work" target/59g-clean-evidence
+          git show 1d566b9f7eca21d1d4685aa4512659154f57e88e:.github/workflows/increment-59g-clean-integration.yml > "$work/reviewed.yml"
           curl --fail --location --retry 3 --header "Authorization: Bearer $GH_TOKEN" \
             --header 'Accept: application/vnd.github+json' \
             https://api.github.com/repos/pysolvesemi/MorphHDL/actions/artifacts/10016353631/zip \
@@ -34,69 +35,24 @@ jobs:
           unzip -q "$work/source.zip" -d "$work/archive"
           git bundle verify "$work/archive/repository.bundle"
           git fetch "$work/archive/repository.bundle" refs/heads/export-59g-clean
-          test "$(git rev-parse FETCH_HEAD)" = fa2c6cfe59b0c040eec2b5c1fd2ebdc02f2df0f8
-          test "$(git rev-parse FETCH_HEAD^{tree})" = 70feae454b2a615bdaf825412421edcd64f9c20e
+          test "$(git rev-parse FETCH_HEAD)" = fa981aa4187b9a9d6b8e099d2343c105ae7aa200
+          test "$(git rev-parse FETCH_HEAD^{tree})" = 70feae023da6fd410f1f796fdf0e0dc05ffb78ec
           git config user.name 'MorphHDL 59g integration'
           git config user.email '59g-integration@users.noreply.github.com'
           git checkout --detach FETCH_HEAD
           git merge --no-edit 0e614d5f0642770c3114b42488bdaf7a9e8b785d
-      - name: Apply the locally checked field inventory composition
-        shell: bash
-        run: |
-          set -euo pipefail
           python3 - <<'PY'
-          import difflib, hashlib, json, subprocess
+          import os, textwrap
           from pathlib import Path
-          root=Path.cwd()
-          checker=root/'morphhdl/scripts/check-increment-59c-source-review.py'
-          old='''    if nested is not None:
-                  paths = nested.inherited_inventory(root, paths, qualification_base)
-              require_production_inventory(paths)
-          '''
-          new='''    if nested is not None:
-                  paths = nested.inherited_inventory(root, paths, qualification_base)
-                  register = getattr(nested, "register_source_review", lambda _: None)(root)
-                  if register is not None:
-                      # The nested/register audits have already verified the complete
-                      # current production tree against the register's pinned merged base.
-                      # Strip only that base's disjoint siblings from this local 59c
-                      # inventory, preserving them for the enclosing 60f profile check.
-                      baseline_paths = subprocess.check_output(
-                          ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
-                          cwd=root, text=True).splitlines()
-                      baseline_paths = {path for path in baseline_paths if re.search(r"(?:^|/)src/main/", path)}
-                      inherited = nested.inherited_inventory(root, baseline_paths, qualification_base)
-                      paths -= inherited - PRODUCTION_PATHS
-              require_production_inventory(paths)
-          '''
-          s=checker.read_text(); assert s.count(old)==1; checker.write_text(s.replace(old,new))
-          contract=root/'morphhdl/contracts/increment-59g-source-review.json'
-          raw=contract.read_bytes();old_digest=hashlib.sha256(raw).hexdigest()
-          assert old_digest=='3b9706cc8d4b06ddf41c885b5f28740f77f779365438c72bcde4e1d0e46dd41c'
-          r=json.loads(raw);base=r['base']; assert base=='5db83983b42c71df4f43d6a7c37c5bd552cd96c5'
-          relative='morphhdl/scripts/check-increment-59c-source-review.py'
-          before=subprocess.check_output(['git','show',base+':'+relative]); after=checker.read_bytes()
-          a,b=before.splitlines(keepends=True),after.splitlines(keepends=True)
-          ao,bo=[0],[0]
-          for line in a: ao.append(ao[-1]+len(line))
-          for line in b: bo.append(bo[-1]+len(line))
-          reason='After complete 59g and nested-owner source verification, remove only already-merged disjoint siblings from the local 59c inventory; preserve those paths for the independent 60f immutable-source union.'
-          edits=[]
-          for tag,i,j,k,l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes():
-              if tag=='equal':continue
-              edits.append(dict(id='59c-register-sibling-inventory-'+str(len(edits)+1),reason=reason,before_start=ao[i],before_end=ao[j],after_start=bo[k],after_end=bo[l],before=b''.join(a[i:j]).decode(),after=b''.join(b[k:l]).decode()))
-          assert len(edits)==1
-          r['files'].insert(0,dict(path=relative,change='modified',reason=reason,baseline_sha256=hashlib.sha256(before).hexdigest(),edits=edits))
-          contract.write_text(json.dumps(r,indent=2)+'\n')
-          p=root/'morphhdl/scripts/check-increment-59g-source-review.py';s=p.read_text()
-          assert s.count(old_digest)==1;assert s.count('PATHS = (\n')==1
-          p.write_text(s.replace(old_digest,hashlib.sha256(contract.read_bytes()).hexdigest()).replace('PATHS = (\n','PATHS = (\n    "'+relative+'",\n'))
-          expected={
-              'morphhdl/scripts/check-increment-59c-source-review.py':'b1723908a3f9274bdb42a4f6acd1746bf3b9cf816cc8db0530e3b839ed2bec9d',
-              'morphhdl/scripts/check-increment-59g-source-review.py':'33459c9b9a6749caf78577a4dd8b0498610a06dd87db3cf5cdde2262271ba687',
-              'morphhdl/contracts/increment-59g-source-review.json':'ffe1de7705296df2aab289cbbf6705377ca050322ae68056588b5266e62f09a0',
-          }
-          for name,sha in expected.items():assert hashlib.sha256((root/name).read_bytes()).hexdigest()==sha,name
+          path=Path(os.environ['RUNNER_TEMP'])/'59g-final-source/reviewed.yml'
+          value=path.read_text()
+          marker='          import difflib, hashlib, json, subprocess\n'
+          assert value.count(marker)==1
+          start=value.index(marker)
+          end=value.index('          PY\n',start)
+          code=textwrap.dedent(value[start:end])
+          assert "expected={" in code and "sha256((root/name).read_bytes()).hexdigest()==sha" in code
+          exec(compile(code,str(path)+':reviewed-python','exec'))
           PY
           git add -- morphhdl/scripts/check-increment-59c-source-review.py \
             morphhdl/scripts/check-increment-59g-source-review.py \
@@ -105,14 +61,14 @@ jobs:
           git commit -m 'Preserve verified merged sibling source in the 59c inventory audit'
           tree=$(git rev-parse HEAD^{tree})
           candidate=$(git rev-parse HEAD)
-          publication=$(printf '%s\n' 'Retain clean, source-qualified 59g integration on staging only' | git commit-tree "$tree" -p '${{ github.sha }}' -p "$candidate")
+          publication=$(printf '%s\n' 'Retain clean source-qualified 59g integration on staging only' | git commit-tree "$tree" -p '${{ github.sha }}' -p "$candidate")
           git checkout --detach "$publication"
           test "$(git rev-parse HEAD^{tree})" = "$tree"
           test ! -e .github/workflows/increment-59g-clean-integration.yml
           git diff --check 0e614d5f0642770c3114b42488bdaf7a9e8b785d HEAD
           git rev-parse HEAD > target/59g-clean-evidence/head.txt
           git rev-parse HEAD^{tree} > target/59g-clean-evidence/tree.txt
-      - name: Verify the complete source union and rejection controls
+      - name: Verify complete source inventories and rejection controls
         shell: bash
         run: |
           set -euo pipefail
@@ -127,7 +83,7 @@ jobs:
           python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test | tee "$output/bridge-model.log"
           git diff --exit-code
           git diff --cached --exit-code
-      - name: Publish source to staging without a force push
+      - name: Publish only to staging without force
         shell: bash
         run: |
           set -euo pipefail
