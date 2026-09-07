@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -166,10 +167,22 @@ def require_production_inventory(paths: set[str]) -> None:
             repr(sorted(PRODUCTION_PATHS - paths)) + "; unreviewed=" + repr(sorted(paths - PRODUCTION_PATHS)))
 
 
+def rollout_review(root: Path):
+    checker = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not checker.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("named_60g_scope", checker)
+    require(spec is not None and spec.loader is not None, "cannot import exact 60g source scope")
+    rollout = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rollout)
+    return rollout
+
+
 def verify_spans(root: Path, qualification_base: str = BASE) -> None:
     """Validate the exact successor layer before inherited source-union checks."""
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     entries = load_contract(root)
+    rollout = rollout_review(root)
     for path, entry in entries.items():
         baseline = baseline_source(root, path)
         require(baseline == baseline_source(root, path, qualification_base),
@@ -181,11 +194,22 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59c reviewed source is not uniquely tracked: " + path)
-        restore_reviewed(entry, baseline, source.read_bytes())
+        current = source.read_bytes()
+        if rollout is not None:
+            current = rollout.restore_60g_source(root, path, current.decode()).encode()
+        restore_reviewed(entry, baseline, current)
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
-    require_production_inventory(production_changes(root, qualification_base))
+    changes = production_changes(root, qualification_base)
+    rollout = rollout_review(root)
+    if rollout is not None:
+        rollout.source_scope(root)
+        prior = subprocess.check_output(["git", "diff", "--no-renames", "--name-only",
+            qualification_base, rollout.BASE], cwd=root, text=True).splitlines()
+        prior_production = {path for path in prior if re.search(r"(?:^|/)src/main/", path)}
+        changes = (changes - set(rollout.PRODUCTION)) | (prior_production & set(rollout.PRODUCTION))
+    require_production_inventory(changes)
     verify_spans(root, qualification_base)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
 

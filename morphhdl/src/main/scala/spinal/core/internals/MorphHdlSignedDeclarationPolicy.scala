@@ -23,6 +23,21 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
   override def signed(occurrence: DeclarationOccurrence): Boolean = {
     if (occurrence == null || (occurrence.emitter ne emitter))
       reject("declaration occurrence belongs to another emitter")
+    // An uncovered unsigned object receives no changed declaration or width
+    // policy. Covered objects still undergo freshness validation even if their
+    // live type was mutated to unsigned after the snapshot was captured.
+    if (!snapshot.contains(occurrence.subject)) {
+      val unsigned = (occurrence.role, occurrence.subject) match {
+        case (ScalarDeclaration | FunctionResultDeclaration | ExpressionWrapper, value: Expression) =>
+          value.getTypeObject != TypeSInt
+        case (MemoryElementDeclaration, value: Mem[_]) =>
+          val leaves = value.wordTypeLeaves
+          !(leaves.size == 1 && leaves.head.isInstanceOf[SInt] &&
+            !leaves.head.parent.isInstanceOf[MultiData])
+        case _ => false
+      }
+      if (unsigned) return false
+    }
     val fact = (occurrence.role, occurrence.subject) match {
       case (FunctionResultDeclaration, value: BaseType) =>
         val result = snapshot.validate(value, snapshot.declaration(value), DeclarationUse)
@@ -65,6 +80,8 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
       reject("wrapper width needs its exact native occurrence")
     occurrence.subject match {
       case _: BaseType => None // Existing declaration/hierarchy width authority.
+      case expression: Expression if expression.getTypeObject != TypeSInt && !snapshot.contains(expression) =>
+        None // Unrelated unsigned wrapper: retain the native width authority.
       case expression: Expression if expression.getTypeObject == TypeSInt ||
           expression.getTypeObject == TypeUInt || expression.getTypeObject == TypeBits =>
         val evidence = snapshot.expression(expression)
@@ -111,7 +128,11 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
     val resize = occurrence.resize
     if (resize.getClass != classOf[ResizeSInt])
       reject("signed resize needs an exact native SInt resize")
+    // Preserve the native resize publisher's exact protected assignment. It
+    // alone rewrites that witness edge after all lineage/width checks. Other
+    // signed resizes retain this policy's typed expression-boundary handling.
     snapshot.validateCastOperand(resize, 0, snapshot.castOperand(resize, 0))
+    if (ExternalParameterizedNativeResize.ownsSignedResize(resize)) return None
     val target = MorphHdlSignedWidth.resolve(snapshot, resize, snapshot.expression(resize), ExpressionUse)
     val source = MorphHdlSignedWidth.resolve(snapshot, resize.input, snapshot.expression(resize.input), ExpressionUse)
     if (!target.symbolic && !source.symbolic) return None

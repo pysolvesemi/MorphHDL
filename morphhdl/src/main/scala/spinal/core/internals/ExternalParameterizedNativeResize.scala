@@ -119,14 +119,16 @@ object ExternalParameterizedNativeResize {
             }
           case _ =>
         }
+        // Capture is shared by signed/default and legacy publication. Signed
+        // declarations do not protect the intermediate geometry from native
+        // normalization; the exact recorded assignment remains its sole owner.
         component.dslBody.walkStatements {
           case assignment: DataAssignmentStatement =>
             (assignment.target, assignment.source) match {
               case (target: BitVector, resize: Resize)
                   if (assignment.finalTarget eq target) && target.isComb &&
                     (target.component eq component) &&
-                    !packedReadWrappers.containsKey(assignment) &&
-                    !(morphhdl.MorphSignedCasts.isEnabled(pc.config) && resize.isInstanceOf[ResizeSInt]) =>
+                    !packedReadWrappers.containsKey(assignment) =>
                 resize.input match {
                   case source: BitVector if source.component eq component =>
                     val typedTargetWidth = ParameterizedWidth.resizeExpressionOf(resize)
@@ -243,6 +245,18 @@ object ExternalParameterizedNativeResize {
          ParameterizedWidth.expressionOf(record.target).isEmpty
        else ParameterizedWidth.expressionOf(record.target)
          .exists(NativePublicationWidth.equivalentAtOwner(_, record.targetWidth, component, record.target)))
+  }
+
+  /** A captured signed resize retains its native witness spelling until the
+    * exact assignment publisher above validates and substitutes its geometry.
+    * This is an identity/lineage decision, never a second text recognizer.
+    */
+  private[internals] def ownsSignedResize(resize: Resize): Boolean = resize match {
+    case signed: ResizeSInt => signed.input match {
+      case source: SInt if source.component != null => proves(source.component, signed)
+      case _ => false
+    }
+    case _ => false
   }
 
   private[internals] def proves(component: Component, resize: Resize): Boolean =

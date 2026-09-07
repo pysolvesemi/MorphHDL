@@ -9,6 +9,7 @@ commit. Its exact source review and canonical native audit still both run.
 from __future__ import annotations
 
 import json
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -111,6 +112,38 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "current 59c production and reviewed metadata")]
+    # Keep the original 59c mutation fixture executable on its exact merged
+    # source. On a rollout descendant, the outer complete-blob ledger catches
+    # the same current mutations before the older inner span check.
+    rollout_path = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    rollout = None
+    historical_rollout_controls = None
+    if rollout_path.is_file():
+        spec = importlib.util.spec_from_file_location("rollout_source_controls", rollout_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("cannot load exact rollout source controls")
+        rollout = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rollout)
+        rollout.source_scope(ROOT)
+        with tempfile.TemporaryDirectory(prefix="morphhdl-60g-frozen-59c-") as directory:
+            historical = Path(directory) / "qualified-named-source"
+            git(ROOT, "worktree", "add", "--detach", str(historical), rollout.BASE)
+            try:
+                result = subprocess.run([sys.executable, str(Path(__file__).relative_to(ROOT))],
+                    cwd=historical, text=True, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, timeout=900, check=False)
+                output = ROOT / "target/increment-59c-source-scope"
+                output.mkdir(parents=True, exist_ok=True)
+                (output / "historical-59c-controls.log").write_text(result.stdout)
+                if result.returncode or "59c current-source controls PASS" not in result.stdout:
+                    raise RuntimeError("unchanged qualified 59c controls failed:\n" + result.stdout)
+                historical_rollout_controls = json.loads(
+                    (historical / "target/increment-59c-source-scope/evidence.json").read_text())
+                if historical_rollout_controls["head"] != rollout.BASE:
+                    raise RuntimeError("historical 59c controls do not identify their exact source")
+            finally:
+                git(ROOT, "worktree", "remove", "--force", str(historical))
+        print("PASS: unchanged qualified 59c mutation controls [separate historical scope]", flush=True)
     with tempfile.TemporaryDirectory(prefix="morphhdl-59c-source-scope-") as temporary:
         directory = Path(temporary)
         historical = directory / "historical-60f"
@@ -157,6 +190,12 @@ def main() -> None:
                 "changed-60f-restore-branch": ("source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()", "source_bytes = source_bytes"),
                 "changed-60f-inventory-branch": ('"59c": {', '"59z": {'),
             }
+            if rollout is not None:
+                branch_mutations["changed-60f-restore-branch"] = (
+                    "if named is not None and path in named.PRODUCTION_PATHS:\n"
+                    "            current = named.restore_source(root, path, current.decode()).encode()",
+                    "if named is not None and path in named.PRODUCTION_PATHS:\n"
+                    "            current = current")
             cases = (
                 ("paired-named-source-and-review", "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala", "59c reviewed source manifest changed"),
                 ("changed-60e-restore-branch", "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "missing/changed 59c reviewed source span"),
@@ -180,6 +219,15 @@ def main() -> None:
                 ("forged-added-baseline", CONTRACT, "59c source-review changed its explicit added-file inventory"),
             )
             for label, path, expected in cases:
+                if rollout is not None and label in (
+                        "changed-60e-restore-branch", "changed-59f-restore-branch",
+                        "changed-60f-restore-branch", "changed-60f-inventory-branch",
+                        "changed-60e-adapter"):
+                    if path not in rollout.PATHS:
+                        raise RuntimeError("missing reviewed outer mutation path: " + path)
+                    expected = "or 60g publication spans: " + path
+                if rollout is not None and label == "new-production-root":
+                    expected = "60g production exceeds eight publication files and one scheduler lifecycle hook"
                 fixture = directory / label
                 git(ROOT, "worktree", "add", "--detach", str(fixture), checkpoint)
                 try:
@@ -233,7 +281,8 @@ def main() -> None:
         raise RuntimeError("source-scope fixtures changed the real branch HEAD")
     output = ROOT / "target/increment-59c-source-scope"
     output.mkdir(parents=True, exist_ok=True)
-    (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
+    (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records,
+        "historical_59c_controls": historical_rollout_controls}, indent=2) + "\n")
     current_negatives = sum(record["expected_rejection"] is not None and record["scope"] == "current-59c"
                             for record in records)
     print(f"59c current-source controls PASS: two positives and {current_negatives} exact rejections; historical 60f/59b controls separately scoped")

@@ -134,6 +134,17 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
     return source
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
@@ -147,7 +158,7 @@ def source_scope(root: Path) -> None:
         # all other 60e paths must still reproduce the original 60d baseline.
         baseline = (QUALIFIED_59B if has_59b and path ==
                     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala" else BASE)
-        require(restore_60d_source(root, path, (root / path).read_text()) == git("show", baseline + ":" + path),
+        require(restore_60d_source(root, path, restore_rollout(root, path, (root / path).read_text())) == git("show", baseline + ":" + path),
                 "unreviewed source change outside 60e spans: " + path)
     native = set(git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
                      "idslplugin/src/main", "sim/src/main").splitlines())
@@ -167,11 +178,11 @@ def source_scope(root: Path) -> None:
                        cwd=root, check=True)
     for name in ("MorphHdlSignednessAnalysis.scala",):
         path = "morphhdl/src/main/scala/spinal/core/internals/" + name
-        restored = restore_59d_signed_width_authority(root, path, (root / path).read_text())
+        restored = restore_59d_signed_width_authority(root, path, restore_rollout(root, path, (root / path).read_text()))
         require(git("show", BASE + ":" + path) == restored, "independent type authority changed")
     for path in ("morphhdl/src/main/scala/morphhdl/analysis/SignednessFacts.scala",
                  "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"):
-        require(git("show", BASE + ":" + path) == (root / path).read_text(), "sealed baseline changed: " + path)
+        require(git("show", BASE + ":" + path) == restore_rollout(root, path, (root / path).read_text()), "sealed baseline changed: " + path)
     for name in ("MorphHdlSignedWidth.scala", "MorphHdlSignedDeclarationPolicy.scala", "MorphHdlPureSIntCastPolicy.scala"):
         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
         for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
@@ -334,7 +345,16 @@ def text_contract(out: Path, kind: str) -> None:
     if kind == "scalars":
         require("$signed(" not in text, "materialized scalar boundaries still carry redundant casts")
         require("function signed [(WIDTH + 1)-1:0]" in text, "constant function range remains a witness")
-        require("[TARGET-1:0] _zz_resizedProduct" in text, "nested resize width boundary disappeared")
+        # Native resize capture preserves the two real intermediate carriers;
+        # their generated names are not the width contract. Require both actual
+        # product operands to remain distinct signed TARGET-bit boundaries.
+        product = re.findall(r"(?m)^\s*assign resizedProduct = \((\w+) \* (\w+)\);$", text)
+        require(len(product) == 1 and product[0][0] != product[0][1],
+                "nested resize product operand inventory changed")
+        for operand in product[0]:
+            declaration = r"(?m)^\s*wire\s+signed\s+\[TARGET-1:0\]\s+" + re.escape(operand) + r";$"
+            require(len(re.findall(declaration, text)) == 1,
+                    "nested resize width boundary disappeared: " + operand)
         require("8'shff" in text and "5'sh1d" in text, "literal interpretation not explicit")
         require("wire       [WIDTH-1:0] _zz_logicalUInt;" in text, "unsigned shift transport changed")
     if kind in ("vectors", "vec-hierarchy"):
@@ -373,6 +393,15 @@ def mutations(out: Path) -> None:
     for label, kind, parameters, before, after in cases:
         directory = out / kind
         text = (directory / "candidate.v").read_text()
+        if label == "sign-extension" and before not in text:
+            # The exact native resize publisher owns the alternate witness
+            # spelling. Follow the real public result edge, then mutate only
+            # its canonical sign-bit replication, never the reference RTL.
+            carrier = re.findall(r"(?m)^\s*assign resized = (\w+);$", text)
+            require(len(carrier) == 1, "sign-extension output must have one carrier")
+            before = ("assign " + carrier[0] + " = " +
+                      "{{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){a[(WIDTH)-1]}},")
+            after = before.replace("a[(WIDTH)-1]", "1'b0")
         require(text.count(before) == 1, label + " mutation must affect exactly one boundary")
         file = "mutant-" + label + ".v"
         (directory / file).write_text(text.replace(before, after, 1))

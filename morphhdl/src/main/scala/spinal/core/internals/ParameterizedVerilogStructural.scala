@@ -4779,6 +4779,9 @@ private[internals] object ParameterizedVerilogStructural {
 
   private val VerilogWords = Set(
     "assign",
+    // Native signed declarations and $signed calls are syntax, not references
+    // that may make one independent template own another template's signals.
+    "signed",
     "wire",
     "reg",
     "input",
