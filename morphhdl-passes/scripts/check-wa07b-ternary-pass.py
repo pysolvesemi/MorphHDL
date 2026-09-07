@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -136,6 +137,16 @@ def manifest_failures(value):
     return []
 
 
+def record_source_signatures(root):
+    """Print actual bytes for an explicit reviewed update; never alter the registry."""
+    actual = json.loads((root / REGISTRY).read_text())
+    paths = set(actual['files']) | set(MARKERS) | {BASE + 'scripts/check-wa07b-ternary-pass.py'}
+    actual['files'] = {path: hashlib.sha256((root / path).read_bytes()).hexdigest() for path in sorted(paths)}
+    print('WA07B_SOURCE_SIGNATURES_BEGIN')
+    print(json.dumps(actual, indent=2, sort_keys=True))
+    print('WA07B_SOURCE_SIGNATURES_END')
+
+
 def check(root, inherited):
     errors = []
     for path in MARKERS:
@@ -187,6 +198,9 @@ def main():
     if args.self_test:
         self_test(args.repo_root, inherited)
         return 0
+    # Read-only fingerprints remain available even when an explicit registry
+    # refresh is still needed. A missing registration remains an error below.
+    record_source_signatures(args.repo_root)
     errors = check(args.repo_root, inherited)
     if errors:
         print('\n'.join(errors), file=sys.stderr)
