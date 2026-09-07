@@ -1,6 +1,6 @@
 # MorphHDL IR simple-wire assignment passes roadmap
 
-This is the controlling checklist for four optional, behavior-preserving
+This is the controlling checklist for five optional, behavior-preserving
 passes over the canonical MorphHDL-owned IR after parameterization/capture
 and before Verilog-2001 emission:
 
@@ -8,22 +8,26 @@ and before Verilog-2001 emission:
 2. remove eligible direct wire aliases represented by explicitly named internal signals;
 3. inline the pure right-hand-side expression of an eligible unnamed continuous
    wire assignment into every continuous receiver, then remove the temporary
-   declaration and its assignment; and
+   declaration and its assignment;
 4. simplify approved constant operands in pure continuous right-hand-side
-   expressions without changing their packed value, width or signedness.
+   expressions without changing their packed value, width or signedness; and
+5. recursively simplify Boolean-valued ternary expressions with opposite
+   constant Boolean branches, preserving truth conversion and packed semantics.
 
-WA-07a is the user-authorized addition to this roadmap. It is inserted before
-WA-08, whose production handoff must include the new pass and its proof gates.
-The four-stage standalone pipeline is implemented and its native witness and
+WA-07b is the user-authorized fifth pass, inserted before WA-08, whose
+production handoff must include the new pass and its proof gates. The existing
+four-stage standalone pipeline is implemented and its native witness and
 formal qualification are recorded in [WA-07a evidence](wa07a-completion-evidence.md).
+WA-07b remains planned, not implemented by this documentation update.
 Production execution and writeback remain the separate WA-08 increment.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
-`true` must execute all four in the fixed order above. Internal proof fixtures
-may select historical stages directly, but those selections are not product
-flags. The complete pipeline must reach an idempotent fixed point: a
-simplification that exposes an alias for an earlier stage must not require a
-second product invocation to finish the optimization.
+WA-07b must extend `true` from the existing four stages to all five in the fixed
+order above. Internal proof fixtures may select historical stages directly,
+but those selections are not product flags. The complete pipeline must reach
+an idempotent fixed point: a simplification that exposes an alias or another
+rewrite for an earlier stage must not require a second product invocation to
+finish the optimization.
 
 No signal-renaming, formatting, generated-Verilog parsing or broader
 optimization pass is authorized by this roadmap.
@@ -50,6 +54,8 @@ canonical MorphHDL-owned IR
         |
         +--> constant-operand expression simplification
         |
+        +--> recursive Boolean ternary simplification (WA-07b; planned)
+        |
         v
 structured Verilog-2001 lowering and emission
         |
@@ -61,8 +67,9 @@ PV-58 realizes the read-only publication into this boundary for the bounded
 `SimpleWireAssignmentsV1` profile. Its `CanonicalIrHandoff` carries the
 validator-normalized graph, producer profile and complete facets directly from
 the typed native graph. WA-07 proves the third standalone pass and the
-historical one-flag pipeline. WA-07a extends that standalone pipeline; WA-08
-implements validated production writeback.
+historical one-flag pipeline. WA-07a adds constant-operand simplification;
+WA-07b will add recursive Boolean ternary simplification. WA-08 implements
+validated production writeback after both additions are complete and merged.
 
 The passes must:
 
@@ -167,8 +174,9 @@ assign sink_b = (left ^ ~right);
 RHS expressions are copied once per receiver; each copy preserves the removed
 assignment's packed type fence. The exact temporary declaration and sole
 assignment are removed. This pass does not simplify, reassociate, fold or
-otherwise change the cloned expression; WA-07a owns approved simplification.
-If any receiver is procedural, the temporary and every use remain unchanged.
+otherwise change the cloned expression; WA-07a and WA-07b own the approved
+simplifications. If any receiver is procedural, the temporary and every use
+remain unchanged.
 
 Conceptually:
 
@@ -239,6 +247,72 @@ The safety contract is deliberately stricter than two-state Boolean algebra:
   idempotent. New simplification opportunities exposed by earlier stages must
   be handled without oscillation or unbounded rewriting.
 
+## Bounded recursive Boolean ternary simplification contract
+
+WA-07b adds a separate pass over canonical `RtlExpr` mux nodes whose true and
+false branches are the opposite constant Boolean values. The condition may
+be any validated pure expression, not just a comparison, logical AND, signal
+reference or the spelling shown in the user example. The pass operates only
+inside eligible pure continuous RHS expressions; it is not a Verilog-text
+postprocessor and does not extend this roadmap to procedural assignments.
+
+For a width-proven one-bit Boolean-normalized condition `p`, the target rules
+in a one-bit result context are:
+
+```text
+p ? 1'b1 : 1'b0 -> p
+p ? 1'b0 : 1'b1 -> ~p
+
+((a == 1) && (b > 5)) ? 1'b1 : 1'b0 -> ((a == 1) && (b > 5))
+((a == 1) && (b > 5)) ? 1'b0 : 1'b1 -> ~((a == 1) && (b > 5))
+```
+
+These are planned transformation examples, not newly generated RTL from this
+documentation-only update. The implementation must obey all of the following:
+
+- Rewrite bottom-up through every represented expression child: mux conditions
+  and both branches, unary and binary operands, concatenations, selects and
+  their expression indices, casts and resizes. A nonmatching parent must not
+  hide a matching descendant. Handle arbitrarily nested supported expression
+  trees without a hard-coded pattern depth, including opportunities exposed
+  after child simplification. Unsupported or opaque nodes fail closed.
+- Preserve the ternary condition's truth conversion. For a multi-bit condition
+  `c`, use canonical Boolean normalization equivalent to `!!c` for the positive
+  form and logical negation `!c` for the inverse form, not raw `c` or `~c`.
+  Bitwise complement is allowed only on a proven one-bit Boolean value with
+  its original result/context type preserved.
+- Preserve four-state X/Z behavior. `p ? 1'b1 : 1'b0` yields X when a raw
+  one-bit `p` is Z, whereas replacing it with raw `p` would yield Z. Direct
+  positive substitution therefore needs a no-Z proof from canonical expression
+  semantics; a Bool declaration alone is insufficient. Otherwise retain a
+  Boolean-normalizing operation or leave the mux unchanged. Unknown-capable
+  conditions must not be treated as two-state by assumption.
+- Recognize branch values by canonical typed constant semantics, never their
+  emitted text. Initially admit opposite one-bit Boolean constants and only
+  normalized equivalents with proven identical value, width and signedness.
+  Do not assume unsized `0`/`1`, wider or signed constants, all-ones masks,
+  X/Z-containing branches or default-bound parameter expressions are equivalent.
+  Unproven cases remain unchanged.
+- Preserve the original mux result type, surrounding evaluation width,
+  truncation, sign/zero extension and cast/resize fences. In particular, fence
+  a one-bit negation before widening so its upper bits cannot become a wider
+  bitwise complement. Prove symbolic-width equivalence over the complete legal
+  parameter domain, not only a default binding.
+- Reuse the component-generic scope, observability, preservation, comment and
+  attribute exclusions of WA-07a. Do not remove declarations or assignments,
+  rename signals, change generate structure or touch state, procedural drivers,
+  memory behavior, clocks, resets or hierarchy boundaries. Visit eligible
+  drivers in represented scopes without changing those scopes.
+- Record each accepted rule by module identity, driver identity and expression
+  path, separately from wire-elimination reports. Revalidate transformed IR and
+  publish the original input on failure. The standalone pass and the complete
+  five-stage pipeline must converge deterministically to an idempotent fixed
+  point, including interactions with WA-07a and the earlier alias stages.
+
+This increment removes the specified redundant Boolean ternaries. It does not
+introduce unrestricted mux algebra, arithmetic reassociation, inter-signal
+constant propagation or special cases for any component or library.
+
 ## Unnamed and named classification
 
 Classification comes from source/elaboration naming metadata retained in the
@@ -262,7 +336,8 @@ per-pass Boolean.
 ## Fixed non-goals
 
 Apart from the exact direct-alias substitution, expression-temporary inlining,
-or constant-operand rewrites described above, the passes must not change:
+constant-operand rewrites or Boolean ternary rewrites described above, the
+passes must not change:
 
 - module, instance, port, parameter, local-parameter or generate-label names;
 - any surviving internal signal name;
@@ -280,10 +355,10 @@ The following remain outside this roadmap:
 - formatting or pretty-printing;
 - dead-code elimination beyond the exact approved alias or expression temporary;
 - inter-signal constant propagation and unrestricted arithmetic constant folding;
-- algebraic or logic simplification beyond WA-07a's explicitly bounded rules;
+- algebraic or logic simplification beyond WA-07a's and WA-07b's explicitly bounded rules;
 - common-subexpression elimination;
 - process merging, retiming, register removal or hierarchy flattening; and
-- any additional pass beyond these four.
+- any additional pass beyond these five.
 
 A signal-renaming pass may be planned later only through a separate explicit
 roadmap update.
@@ -356,8 +431,10 @@ combination in this roadmap:
 - A transforming pass cannot be checked complete without retained formal
   success evidence for the shared StreamFifo witness and a mutation test that
   demonstrates the equivalence harness fails for an intentional functional change.
-- WA-07a additionally requires four-state simulation regressions: ordinary
-  two-state formal equivalence does not by itself prove preservation of X/Z.
+- WA-07a and WA-07b additionally require generic four-state simulation
+  regressions: ordinary two-state formal equivalence does not by itself prove
+  preservation of X/Z. Simulation coverage must include independent small
+  expression fixtures, not only the shared StreamFifo witness.
 
 WA-02 is a read-only adapter and produces no transformed Verilog. WA-03 must
 establish the common pre-pass capture and formal-equivalence harness before
@@ -530,17 +607,62 @@ WA-04 or WA-05 can remove an alias.
   evidence. Do not check this item complete from unit tests or a preceding-pass
   comparison alone.
 
-- [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
+- [ ] **WA-07b — Recursive Boolean ternary expression simplification**
 
-  **Dependencies:** WA-07, WA-07a and PV-58 implemented and merged.
+  **Dependencies:** WA-07a implemented and merged.
 
   **Status:** `READY`.
 
-  Eligible to start once this WA-07a completion is merged into
-  `parameterized-verilog`; an open completion PR does not satisfy its dependency.
-  Expand PV-58's validated
+  Add a component-generic `BooleanTernarySimplificationPass` implementing the
+  bounded contract above over canonical `RtlExpr`, before Verilog emission.
+  Simplify both `p ? 1'b1 : 1'b0` and `p ? 1'b0 : 1'b1`, including the user's
+  compound comparison example. Recursively visit every supported expression
+  child, not merely a top-level assignment or a fixed nesting pattern. Preserve
+  Boolean truth conversion, X/Z behavior, width, signedness, type fences,
+  symbolic parameters, scope and observability; fail closed without a proof.
+
+  Add generic positive and negative fixtures on Scala 2.12.18 and 2.13.12 for
+  both polarities, compound conditions, nested ternaries in conditions and
+  branches, and ternaries nested under each represented expression kind.
+  Include nonmatching parents, expressions exposed by earlier passes, one-bit
+  raw-Z inputs, multi-bit zero/nonzero/unknown conditions, sized and unsized
+  literals, signed/widened contexts, casts/resizes, symbolic widths, protected
+  and procedural drivers, invalid inputs, and renamed unrelated components.
+  Require deterministic diagnostics, byte-identical repeated emission,
+  standalone and cross-stage fixed points, idempotence and rollback tests.
+
+  Add reusable four-state simulation comparisons against the unchanged
+  pre-pass Verilog for independent expression fixtures, not just StreamFifo
+  or this specific example. Cover scalar `0`, `1`, `X`, `Z` and mixed multi-bit
+  conditions, including known-one-plus-unknown bits. Retain mutations showing
+  that wrong polarity, unsafe raw-Z passthrough and an unnormalized multi-bit
+  or widened bitwise complement are detected by the applicable oracle.
+
+  Extend the existing common all-or-none flag to the fixed five-stage pipeline
+  with this pass after WA-07a; do not add a public per-pass switch. Preserve
+  all historical proof legs. Apply the standalone new pass and the complete
+  pipeline to the shared parameterized StreamFifo and formally compare each
+  directly with the same common pre-pass reference over all 512 `WIDTH=1..64`
+  by `DEPTH=1..8` bindings. Also prove independent fixtures that actually trigger
+  the new rules; a no-op StreamFifo result alone cannot establish coverage.
+  Retain strict Verilog-2001 compilation, lint, synthesis, simulation, formal
+  mutation and deterministic-emission gates. Record actual before/after emitted
+  Verilog and proof evidence before marking this increment complete.
+
+  This entry authorizes future implementation; adding it does not implement
+  the pass, change generated Verilog or satisfy its completion gates.
+
+- [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
+
+  **Dependencies:** WA-07, WA-07a, WA-07b and PV-58 implemented and merged.
+
+  **Status:** `BLOCKED` (WA-07b).
+
+  Eligible to start only once WA-07b is implemented, checked complete and
+  merged into `parameterized-verilog`; this planning update or an open
+  implementation PR does not satisfy that dependency. Expand PV-58's validated
   publication profile to carry the approved pure expression algebra and
-  connect the one-flag four-pass pipeline to the MorphHDL single-source
+  connect the one-flag five-pass pipeline to the MorphHDL single-source
   production path after parameterization/capture and before Verilog lowering.
   PV-58 currently publishes a read-only bounded snapshot; it does not execute
   or write back any pass. Keep pass implementation under `morphhdl-passes/` and
@@ -551,7 +673,7 @@ WA-04 or WA-05 can remove an alias.
 
 ## Completion target
 
-This roadmap completes at WA-08 when MorphHDL can optionally run all four
+This roadmap completes at WA-08 when MorphHDL can optionally run all five
 transformations from one flag on its canonical post-parameterization IR and
 write the validated result back into the structured Verilog-2001 production
 path while preserving parameterized RTL behavior and every surviving
