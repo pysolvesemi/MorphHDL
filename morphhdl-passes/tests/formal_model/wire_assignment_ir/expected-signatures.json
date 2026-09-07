@@ -3,7 +3,7 @@
   "files": {
     ".github/workflows/morphhdl-passes.yml": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
     "morphhdl-passes/examples/AllWireAssignmentNativeBridge.scala": "3bc69455ea62820c075ebb54242603d685a5bb6037a58202448f9a7179242d12",
-    "morphhdl-passes/examples/BooleanTernaryNativeBridge.scala": "64e7c0a036fe0bbe33c7b5f44bf30107e0d5b73a2d3cc2028ca25a89c205362c",
+    "morphhdl-passes/examples/BooleanTernaryNativeBridge.scala": "a7ff7af033b8d69e3dc8bdc4d0a0376e05e832efbdce55978ad53388e158f194",
     "morphhdl-passes/examples/ConstantOperandNativeBridge.scala": "7046a8f8ea3ac72a59e1d7d4f2283396312324df69f0359f66fa224888804766",
     "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala": "d2d82eea2b22039828155ca839a09c1ea46d21738a7bc5462218fe82aa75a687",
     "morphhdl-passes/examples/OrderedWireAliasNativeBridge.scala": "51170a7b5f7a3ef88eb214ad81ca4e5286a68541e16229cd440fb6e9edbc0996",
