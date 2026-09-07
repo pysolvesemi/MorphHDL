@@ -36,6 +36,20 @@ QUALIFICATION = {
     "morphhdl/scripts/check-increment-59h-source-review.py": "12561d165c793574ed68ad096c144c102c97514a9902d527478c901f6e914202",
     "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "2191cb92fd901fc6ad7e24e66adc63c4ae8991cd97a14d87525d284c3af8f25b"
 }
+# Separately qualified sibling merged after 60g's implementation closeout.
+# This is the same complete three-file profile already sealed by 60f, not an
+# allowance for arbitrary pass-workspace changes or a new production authority.
+WA07A_MERGED = "5db83983b42c71df4f43d6a7c37c5bd552cd96c5"
+WA07A_PRODUCTION_SHA256 = {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala":
+        "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala":
+        "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala":
+        "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+}
+
+
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
 
 
@@ -95,13 +109,43 @@ def oracle_only(root: Path) -> None:
     print("60g explicit legacy selection restores the exact immutable 60a fixture PASS", flush=True)
 
 
+def sibling_scope(root: Path, extra: set[str]) -> None:
+    """Admit only the complete committed WA-07a sibling with exact source bytes."""
+    inherited = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", WA07A_MERGED, "HEAD"],
+        cwd=root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    if not inherited:
+        require(not extra, "unreviewed production outside 60g: " + str(sorted(extra)))
+        return
+    require(extra == set(WA07A_PRODUCTION_SHA256),
+            "merged WA-07a must retain its exact three-file production delta: " + str(sorted(extra)))
+    for path, expected in WA07A_PRODUCTION_SHA256.items():
+        file = root / path
+        require(file.is_file() and not file.is_symlink() and not file.stat().st_mode & 0o111,
+                "WA-07a source must be a regular non-executable file: " + path)
+        raw = file.read_bytes()
+        require(hashlib.sha256(raw).hexdigest() == expected,
+                "reviewed WA-07a source bytes differ: " + path)
+        stage = subprocess.check_output(
+            ["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
+        require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
+                "WA-07a source must be uniquely tracked: " + path)
+        current = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        committed = subprocess.check_output(
+            ["git", "rev-parse", "HEAD:" + path], cwd=root, text=True).strip()
+        require(stage[1] == current == committed,
+                "WA-07a index, worktree and committed source differ: " + path)
+
+
 def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
-    require(changed == set(PRODUCTION), "60g production exceeds eight publication/serialization files and one scheduler lifecycle hook: " + str(sorted(changed)))
+    require(set(PRODUCTION) <= changed,
+            "60g publication/serialization files or scheduler lifecycle hook disappeared: " + str(sorted(changed)))
+    sibling_scope(root, changed - set(PRODUCTION))
     untracked = {p for p in git("ls-files", "--others").splitlines() if "/src/main/" in "/" + p}
     require(not untracked, "untracked 60g production source: " + str(sorted(untracked)))
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
@@ -131,6 +175,110 @@ def source_scope(root: Path) -> None:
     print("60g eight-file publication/serialization policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
 
 
+def sibling_scope_self_test(repository: Path) -> None:
+    """Real Git/index/filesystem attack cases; synthetic bytes are not RTL proof."""
+    import ast
+    import tempfile
+    from unittest import mock
+
+    # The outer rollout must not diverge from the inherited closed union.
+    parsed = ast.parse((repository / "morphhdl/scripts/check-increment-60f-equivalence-closure.py").read_text())
+    maps = [ast.literal_eval(node.value) for node in parsed.body if isinstance(node, ast.Assign)
+            and any(isinstance(name, ast.Name) and name.id == "WA07A_PRODUCTION_SHA256"
+                    for name in node.targets)]
+    require(maps == [WA07A_PRODUCTION_SHA256], "60g and inherited 60f WA-07a source hashes differ")
+    require(not set(PRODUCTION) & set(WA07A_PRODUCTION_SHA256), "sibling overlaps 60g production")
+    rejected = 0
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60g-wa07a-scope-") as directory:
+        root = Path(directory)
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True,
+                                           stderr=subprocess.PIPE).strip()
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        def reject(extra: set[str], label: str) -> None:
+            nonlocal rejected
+            try:
+                sibling_scope(root, extra)
+            except RuntimeError:
+                rejected += 1
+                return
+            raise RuntimeError("sibling source gate accepted " + label)
+
+        git("init", "-q")
+        git("config", "user.name", "Source control fixture")
+        git("config", "user.email", "scope@example.invalid")
+        (root / "README").write_text("synthetic Git fixture; not HDL qualification\n")
+        baseline = commit("baseline")
+        contents = {path: ("synthetic reviewed sibling " + path + "\n").encode()
+                    for path in WA07A_PRODUCTION_SHA256}
+        hashes = {path: hashlib.sha256(raw).hexdigest() for path, raw in contents.items()}
+        paths = set(contents)
+        with mock.patch.dict(globals(), WA07A_MERGED="0" * 40, WA07A_PRODUCTION_SHA256=hashes):
+            sibling_scope(root, set())
+            for path, raw in contents.items():
+                file = root / path
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(raw)
+            qualified = commit("complete exact sibling")
+            reject(paths, "unmerged lookalike source")
+            with mock.patch.dict(globals(), WA07A_MERGED=qualified):
+                sibling_scope(root, paths)
+                reject(set(), "complete profile disappearance")
+                reject(paths | {"other/src/main/Extra.scala"}, "unreviewed extra production")
+                for path, raw in contents.items():
+                    file = root / path
+                    reject(paths - {path}, "partial sibling inventory")
+                    file.write_bytes(raw + b"unreviewed mutation\n")
+                    reject(paths, "changed working source")
+                    git("add", path)
+                    file.write_bytes(raw)
+                    reject(paths, "staged mutation hidden by restored working source")
+                    git("reset", "-q", "HEAD", "--", path)
+                    file.unlink()
+                    reject(paths, "missing source")
+                    file.write_bytes(raw)
+                    file.chmod(0o755)
+                    reject(paths, "executable source")
+                    file.chmod(0o644)
+                    file.unlink()
+                    referent = root / "referent"
+                    referent.write_bytes(raw)
+                    file.symlink_to(referent)
+                    reject(paths, "symlink source")
+                    file.unlink()
+                    referent.unlink()
+                    file.write_bytes(raw)
+                    git("rm", "--cached", "--", path)
+                    reject(paths, "untracked exact bytes")
+                    git("add", path)
+                    sibling_scope(root, paths)
+                # A committed replacement cannot claim the old source contract.
+                path = sorted(paths)[0]
+                (root / path).write_bytes(contents[path] + b"committed mutation\n")
+                commit("bad committed sibling")
+                reject(paths, "committed hash drift")
+                # Restoring the exact index/worktree without committing is also rejected.
+                (root / path).write_bytes(contents[path])
+                git("add", path)
+                reject(paths, "index/worktree restored over different committed bytes")
+                commit("restore exact sibling")
+                sibling_scope(root, paths)
+                for path in paths:
+                    git("rm", "--", path)
+                commit("remove completed sibling")
+                actual = {path for path in git("diff", "--name-only", baseline, "HEAD").splitlines()
+                          if "/src/main/" in "/" + path}
+                reject(actual, "committed full reversion with completion ancestry")
+    require(rejected == 27, "missing sibling source rejection controls: " + str(rejected))
+    print(f"60g sibling source controls: clean standalone/combined profiles and {rejected} rejections PASS (not RTL proof)", flush=True)
+
+
 def self_test(root: Path) -> None:
     rejected = 0
     for entry in contract(root)["files"]:
@@ -147,6 +295,7 @@ def self_test(root: Path) -> None:
                 raise RuntimeError("60g restoration accepted mutation: " + entry["path"])
     require(rejected == 3 * len(PATHS), "incomplete source mutation controls")
     print(f"60g {len(PATHS)} exact restorations and {rejected} source mutation rejections PASS", flush=True)
+    sibling_scope_self_test(root)
 
 
 if __name__ == "__main__":

@@ -98,7 +98,7 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "UnnamedWireAliasEliminationPass.run",
     "NamedWireAliasEliminationPass.run",
     "CanonicalIrPassAdapter.bind(handoff).design",
-    "output = design",
+    "WireAliasPipelineResult(design, PassExecutionStatus.Failed",
     "PassExecutionStatus.Skipped",
     "PassExecutionStatus.Unchanged",
     "PassExecutionStatus.Changed",
@@ -181,7 +181,7 @@ REQUIRED_README_MARKERS: tuple[str, ...] = (
 )
 
 ROADMAP_ENTRY = re.compile(
-    r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+)\s+—(?P<body>[\s\S]*?)(?=^- \[[ xX]\] \*\*WA-[0-9]+\s+—|\Z)",
+    r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+[a-z]?)\s+—(?P<body>[\s\S]*?)(?=^- \[[ xX]\] \*\*WA-[0-9]+[a-z]?\s+—|\Z)",
     re.MULTILINE,
 )
 PV58 = re.compile(r"^- \[[xX]\] \*\*Increment 58\s+—", re.MULTILINE)
@@ -245,22 +245,23 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         failures.append(f"{path}: WA06-STATUS: WA-06 must remain completed")
     if wa07_checked:
         if "**Status:** `COMPLETED`" not in wa07_body:
-            failures.append(
-                f"{path}: WA06-SUCCESSOR: checked WA-07 must be COMPLETED"
-            )
-        if wa08_checked or "**Status:** `READY`" not in wa08_body:
-            failures.append(
-                f"{path}: WA06-NEXT-STATUS: completed WA-07 requires open READY WA-08"
-            )
-    else:
-        if "**Status:** `IN PROGRESS`" not in wa07_body:
-            failures.append(
-                f"{path}: WA06-SUCCESSOR: open WA-07 must be IN PROGRESS"
-            )
-        if wa08_checked or "**Status:** `BLOCKED`" not in wa08_body:
-            failures.append(
-                f"{path}: WA06-NEXT-STATUS: in-progress WA-07 requires open BLOCKED WA-08"
-            )
+            failures.append(f"{path}: WA06-SUCCESSOR: checked WA-07 must be COMPLETED")
+    elif "**Status:** `IN PROGRESS`" not in wa07_body:
+        failures.append(f"{path}: WA06-SUCCESSOR: open WA-07 must be IN PROGRESS")
+
+    # WA-07a is an authorized prerequisite inserted before the final handoff.
+    # Historical WA-07-only roadmaps still require READY; a new open prerequisite
+    # must instead keep WA-08 BLOCKED. Do not infer completion from its title.
+    wa07a_complete = True
+    if "WA-07a" in entries:
+        checked, body = entries["WA-07a"]
+        wa07a_complete = checked and "**Status:** `COMPLETED`" in body
+        expected = "COMPLETED" if checked else "IN PROGRESS"
+        if f"**Status:** `{expected}`" not in body or not wa07_checked:
+            failures.append(f"{path}: WA06-SUCCESSOR: WA-07a status or dependency is inconsistent")
+    next_status = "READY" if wa07_checked and wa07a_complete else "BLOCKED"
+    if wa08_checked or f"**Status:** `{next_status}`" not in wa08_body:
+        failures.append(f"{path}: WA06-NEXT-STATUS: handoff requires open {next_status} WA-08")
 
     required_scope = (
         "optional MorphHDL-IR pipeline entrypoint",
@@ -281,9 +282,7 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
     for marker in required_scope:
         normalized_marker = " ".join(marker.lower().split())
         if normalized_marker not in normalized_body:
-            failures.append(
-                f"{path}: WA06-ROADMAP-SCOPE: WA-06 entry is missing {marker!r}"
-            )
+            failures.append(f"{path}: WA06-ROADMAP-SCOPE: WA-06 entry is missing {marker!r}")
     return failures
 
 
@@ -296,11 +295,7 @@ def manifest_failures(path: Path, value: object) -> list[str]:
     slots = witness.get("future_pass_outputs")
     if not isinstance(slots, list):
         return [f"{path}: WA06-MANIFEST: future_pass_outputs is missing"]
-    matching = [
-        slot
-        for slot in slots
-        if isinstance(slot, dict) and slot.get("activation_item") == "WA-06"
-    ]
+    matching = [slot for slot in slots if isinstance(slot, dict) and slot.get("activation_item") == "WA-06"]
     if len(matching) != 1:
         return [f"{path}: WA06-MANIFEST: expected exactly one WA-06 slot"]
     expected = {
@@ -309,9 +304,7 @@ def manifest_failures(path: Path, value: object) -> list[str]:
         "pass_id": "wire-alias-unnamed+wire-alias-named",
     }
     if matching[0] != expected:
-        return [
-            f"{path}: WA06-MANIFEST: WA-06 slot changed; expected {expected}, observed {matching[0]}"
-        ]
+        return [f"{path}: WA06-MANIFEST: WA-06 slot changed; expected {expected}, observed {matching[0]}"]
     return []
 
 
@@ -347,43 +340,27 @@ def check_repository(root: Path) -> list[str]:
     workflow_text = paths["workflow"].read_text(encoding="utf-8")
 
     failures.extend(scan_text(paths["source"].relative_to(root), source_text, GENERIC_RULES))
-    failures.extend(require_markers(
-        paths["source"].relative_to(root), source_text, REQUIRED_SOURCE_MARKERS,
-        "WA06-SOURCE-CONTRACT-MISSING",
-    ))
-    failures.extend(require_markers(
-        paths["tests"].relative_to(root), test_text, REQUIRED_TEST_MARKERS,
-        "WA06-TEST-COVERAGE-MISSING",
-    ))
+    failures.extend(require_markers(paths["source"].relative_to(root), source_text, REQUIRED_SOURCE_MARKERS,
+                                    "WA06-SOURCE-CONTRACT-MISSING"))
+    failures.extend(require_markers(paths["tests"].relative_to(root), test_text, REQUIRED_TEST_MARKERS,
+                                    "WA06-TEST-COVERAGE-MISSING"))
     phase_start = bridge_text.find("final class OrderedWireAliasNativePhase extends Phase")
     phase_end = bridge_text.find("final case class OrderedWireAliasNativeReport")
     if phase_start < 0 or phase_end <= phase_start:
-        failures.append(
-            f"{paths['bridge'].relative_to(root)}: WA06-BRIDGE-BOUNDARY: unable to isolate ordered native phase"
-        )
+        failures.append(f"{paths['bridge'].relative_to(root)}: WA06-BRIDGE-BOUNDARY: unable to isolate ordered native phase")
         bridge_phase_text = bridge_text
     else:
         bridge_phase_text = bridge_text[phase_start:phase_end]
     failures.extend(scan_text(paths["bridge"].relative_to(root), bridge_phase_text, BRIDGE_RULES))
-    failures.extend(require_markers(
-        paths["bridge"].relative_to(root), bridge_text, REQUIRED_BRIDGE_MARKERS,
-        "WA06-BRIDGE-CONTRACT-MISSING",
-    ))
-    failures.extend(require_markers(
-        paths["regression"].relative_to(root), regression_text, REQUIRED_REGRESSION_MARKERS,
-        "WA06-REGRESSION-CONTRACT-MISSING",
-    ))
-    failures.extend(require_markers(
-        paths["workflow"].relative_to(root), workflow_text, REQUIRED_WORKFLOW_MARKERS,
-        "WA06-WORKFLOW-GATE-MISSING",
-    ))
-    failures.extend(require_markers(
-        paths["readme"].relative_to(root), readme_text, REQUIRED_README_MARKERS,
-        "WA06-README-CONTRACT-MISSING",
-    ))
-    failures.extend(
-        roadmap_failures(paths["roadmap"].relative_to(root), roadmap_text, pv_text)
-    )
+    failures.extend(require_markers(paths["bridge"].relative_to(root), bridge_text, REQUIRED_BRIDGE_MARKERS,
+                                    "WA06-BRIDGE-CONTRACT-MISSING"))
+    failures.extend(require_markers(paths["regression"].relative_to(root), regression_text, REQUIRED_REGRESSION_MARKERS,
+                                    "WA06-REGRESSION-CONTRACT-MISSING"))
+    failures.extend(require_markers(paths["workflow"].relative_to(root), workflow_text, REQUIRED_WORKFLOW_MARKERS,
+                                    "WA06-WORKFLOW-GATE-MISSING"))
+    failures.extend(require_markers(paths["readme"].relative_to(root), readme_text, REQUIRED_README_MARKERS,
+                                    "WA06-README-CONTRACT-MISSING"))
+    failures.extend(roadmap_failures(paths["roadmap"].relative_to(root), roadmap_text, pv_text))
 
     try:
         manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
@@ -395,22 +372,15 @@ def check_repository(root: Path) -> list[str]:
         registry = json.loads(paths["signatures"].read_text(encoding="utf-8"))
         registered = registry.get("files", {}) if isinstance(registry, dict) else {}
         required_registered = (
-            paths["source"],
-            paths["tests"],
-            paths["bridge"],
-            paths["regression"],
-            paths["wa05_guard"],
-            Path(__file__).resolve(),
+            paths["source"], paths["tests"], paths["bridge"], paths["regression"],
+            paths["wa05_guard"], Path(__file__).resolve(),
         )
         for registered_path in required_registered:
             key = registered_path.relative_to(root).as_posix()
             if key not in registered:
-                failures.append(
-                    f"{paths['signatures'].relative_to(root)}: WA06-SIGNATURE-MISSING: {key}"
-                )
+                failures.append(f"{paths['signatures'].relative_to(root)}: WA06-SIGNATURE-MISSING: {key}")
     except (OSError, json.JSONDecodeError) as error:
         failures.append(f"{paths['signatures'].relative_to(root)}: WA06-SIGNATURES: {error}")
-
     return sorted(failures)
 
 
@@ -421,7 +391,6 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
 """
     if scan_text(Path("Allowed.scala"), allowed, GENERIC_RULES):
         raise AssertionError("component-generic canonical pipeline source was rejected")
-
     mutations = (
         ("val selected = StreamFifo", "WA06-COMPONENT-SPECIAL-CASE"),
         ("module.logicalName == \"special\"", "WA06-MODULE-NAME-RECOGNITION"),
@@ -460,36 +429,36 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
     pv_roadmap = "- [x] **Increment 58 — Retirement**\n"
     if roadmap_failures(Path("roadmap.md"), roadmap, pv_roadmap):
         raise AssertionError("valid WA-06 completion state was rejected")
-    if not roadmap_failures(
-        Path("roadmap.md"),
-        roadmap.replace("- [x] **WA-06", "- [ ] **WA-06"),
-        pv_roadmap,
-    ):
+    if not roadmap_failures(Path("roadmap.md"), roadmap.replace("- [x] **WA-06", "- [ ] **WA-06"), pv_roadmap):
         raise AssertionError("unchecked implemented WA-06 was not rejected")
-    if not roadmap_failures(
-        Path("roadmap.md"),
-        roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."),
-        pv_roadmap,
-    ):
+    if not roadmap_failures(Path("roadmap.md"),
+                            roadmap.replace("**Status:** `READY`.", "**Status:** `BLOCKED` by WA-07."), pv_roadmap):
         raise AssertionError("blocked WA-08 after completed WA-07 was not rejected")
 
-    manifest = {
-        "shared_witness": {
-            "future_pass_outputs": [
-                {
-                    "activation_item": "WA-06",
-                    "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
-                    "pass_id": "wire-alias-unnamed+wire-alias-named",
-                }
-            ]
-        }
-    }
+    inserted = roadmap.replace("- [ ] **WA-08", "- [ ] **WA-07a — Constants**\n\n  **Status:** `IN PROGRESS`.\n\n- [ ] **WA-08")
+    if not roadmap_failures(Path("roadmap.md"), inserted, pv_roadmap):
+        raise AssertionError("READY handoff with incomplete WA-07a was not rejected")
+    blocked = inserted.replace("**Status:** `READY`", "**Status:** `BLOCKED`")
+    if roadmap_failures(Path("roadmap.md"), blocked, pv_roadmap):
+        raise AssertionError("valid WA-07a dependency block was rejected")
+    if not roadmap_failures(Path("roadmap.md"), blocked.replace("- [ ] **WA-07a", "- [x] **WA-07a"), pv_roadmap):
+        raise AssertionError("checked WA-07a without COMPLETED status was not rejected")
+    completed = inserted.replace("- [ ] **WA-07a", "- [x] **WA-07a").replace("**Status:** `IN PROGRESS`", "**Status:** `COMPLETED`")
+    if roadmap_failures(Path("roadmap.md"), completed, pv_roadmap):
+        raise AssertionError("READY handoff after completed WA-07a was rejected")
+    if not roadmap_failures(Path("roadmap.md"), completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv_roadmap):
+        raise AssertionError("stale dependency block after WA-07a completion was not rejected")
+
+    manifest = {"shared_witness": {"future_pass_outputs": [{
+        "activation_item": "WA-06",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-alias-combined.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named",
+    }]}}
     if manifest_failures(Path("manifest.json"), manifest):
         raise AssertionError("valid WA-06 manifest slot was rejected")
     manifest["shared_witness"]["future_pass_outputs"][0]["pass_id"] = "wrong"
     if not manifest_failures(Path("manifest.json"), manifest):
         raise AssertionError("mutated WA-06 manifest slot was not rejected")
-
     print("WA-06 pipeline contract self-tests passed.")
 
 

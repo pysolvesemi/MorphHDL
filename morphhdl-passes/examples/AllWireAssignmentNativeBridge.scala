@@ -39,9 +39,9 @@ import spinal.core._
 import spinal.core.internals._
 
 /**
-  * Test-only native execution of every wire-assignment pass behind one flag.
+  * Test-only native execution of the historical WA-07 three-stage proof leg.
   *
-  * The canonical pipeline first proves the public all-pass order. The reviewed
+  * The canonical pipeline first proves the historical regression selection. The reviewed
   * native identity rewrites are then applied in exactly that order: unnamed
   * direct aliases, named direct aliases, and unnamed continuous expressions.
   * Production publication/writeback remains WA-08 scope.
@@ -60,15 +60,15 @@ private[examples] final class AllWireAssignmentNativePhase extends Phase {
 
     val pipeline = WireAliasPassPipeline.run(
       AllWireAssignmentCanonicalWitness.design,
-      WireAliasPassConfiguration(enabled = true)
+      WireAliasPassConfiguration.selectedForTesting(PassId.historicalWireAssignmentPasses: _*)
     )
     if (
       pipeline.status != PassExecutionStatus.Changed ||
-      pipeline.executedPasses != PassId.allWireAssignmentPasses ||
+      pipeline.executedPasses != PassId.historicalWireAssignmentPasses ||
       pipeline.eliminationReports.map(_.eliminatedCount) != Vector(1, 1, 1)
     )
       throw new IllegalStateException(
-        "WA-07 public flag did not authorize every pass in the fixed production order"
+        "WA-07 historical regression selection did not authorize the three reviewed stages"
       )
 
     unnamed.impl(pc)
@@ -99,7 +99,7 @@ private[examples] final class AllWireAssignmentNativePhase extends Phase {
     if (!completed)
       throw new IllegalStateException("WA-07 all-pass witness phase did not execute")
     AllWireAssignmentNativeReport(
-      executedPasses = PassId.allWireAssignmentPasses.map(_.value),
+      executedPasses = PassId.historicalWireAssignmentPasses.map(_.value),
       unnamed = unnamed.report,
       named = named.report,
       expression = expression.report
@@ -129,7 +129,8 @@ private[examples] final case class AllWireAssignmentNativeReport(
       "  \"schema_version\": 1,",
       "  \"pass_id\": \"wire-alias-unnamed+wire-alias-named+wire-expression-unnamed\",",
       "  \"pipeline_status\": \"changed\",",
-      "  \"common_flag_enabled\": true,",
+      "  \"common_flag_enabled\": false,",
+      "  \"historical_regression_selection\": true,",
       "  \"executed_before_name_allocation\": true,",
       "  \"procedural_receiver_rewrites\": 0,",
       s"""  "executed_passes": [$passes],""",
@@ -364,7 +365,7 @@ object ParameterizedStreamFifoAllPassWitness {
       case Some(value) =>
         val result = value.report
         if (
-          result.executedPasses != PassId.allWireAssignmentPasses.map(_.value) ||
+          result.executedPasses != PassId.historicalWireAssignmentPasses.map(_.value) ||
           result.unnamed.eliminatedCount < 1 ||
           result.named.eliminatedCount < 1 ||
           result.expression.eliminatedCount < 1
