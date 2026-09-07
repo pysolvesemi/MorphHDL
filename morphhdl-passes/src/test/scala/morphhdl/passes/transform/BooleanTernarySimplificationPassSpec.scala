@@ -176,7 +176,8 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
       Observability(complete = true, hierarchyBoundary = true))
     observations.foreach { observation =>
       val input = original.copy(modules = original.modules.map(module => module.copy(
-        declarations = module.declarations.map(d => if (d.id == sinkId) d.copy(observability = observation) else d))))
+        declarations = module.declarations.map(d => if (d.id == sinkId)
+          d.copy(observability = observation.copy(externallyVisible = true)) else d))))
       checked(input).status shouldBe PassExecutionStatus.Unchanged
     }
     Vector(true, false).foreach { onDriver =>
@@ -186,13 +187,29 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
         else module.copy(declarations = module.declarations.map(d => if (d.id == sinkId) d.copy(attributes = attributes) else d))))
       checked(input).status shouldBe PassExecutionStatus.Unchanged
     }
-    val procedural = fixture(mux(ref(rawId, "procedural", processId))).copy(modules =
-      fixture(mux(ref(rawId, "procedural", processId))).modules.map(module => module.copy(
-        scopes = module.scopes :+ Scope(processId, Some(scopeId), ScopeKind.Process),
-        declarations = module.declarations.map(d => if (d.id == sinkId)
-          d.copy(kind = DeclarationKind.Register, observability = Observability.Unobserved) else d),
-        drivers = module.drivers.map(_.copy(owner = processId, kind = DriverKind.Procedural)))))
+    val proceduralBase = fixture(mux(ref(rawId, "procedural", processId)))
+    val procedural = proceduralBase.copy(modules = proceduralBase.modules.map(module => module.copy(
+      scopes = module.scopes :+ Scope(processId, Some(scopeId), ScopeKind.Process),
+      declarations = module.declarations.map(d => if (d.id == sinkId)
+        d.copy(kind = DeclarationKind.Register, observability = Observability.Unobserved) else d),
+      drivers = module.drivers.map(_.copy(owner = processId, kind = DriverKind.Procedural)))))
     checked(procedural).status shouldBe PassExecutionStatus.Unchanged
+  }
+
+  test("continuous drivers inside nested represented scopes retain owners and scope structure") {
+    val generated = ScopeId.unsafe("scope.ternary.generate")
+    val block = ScopeId.unsafe("scope.ternary.generate.block")
+    val condition = ref(rawId, "scoped", block)
+    val original = fixture(mux(condition))
+    val input = original.copy(modules = original.modules.map(module => module.copy(
+      scopes = module.scopes ++ Vector(
+        Scope(generated, Some(scopeId), ScopeKind.Generate, Some("generated")),
+        Scope(block, Some(generated), ScopeKind.Block, Some("nested"))),
+      drivers = module.drivers.map(_.copy(owner = block)))))
+    val result = checked(input)
+    value(result.output) shouldBe truth(condition)
+    result.output.modules.head.drivers.head.owner shouldBe block
+    result.output.modules.head.scopes shouldBe input.modules.head.scopes
   }
 
   test("renamed unrelated components have identical rewrite decisions") {
@@ -218,17 +235,17 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     pipeline.simplifiedExpressions shouldBe empty
   }
 
-  test("WA-07b exposes a WA-07a neutral operand and the common flag closes both in one invocation") {
+  test("WA-07b exposes a WA-07a double-negation rewrite and the common flag closes both in one invocation") {
     val p = predicate()
-    val input = fixture(RtlExpr.Binary(RtlBinaryOperator.BitwiseAnd, mux(p), lit(1)))
-    // WA-07a cannot remove this raw-width mux mask without its local no-Z and
-    // type proof; irrespective of the chosen earlier rewrite, the full result
-    // must close both stages and publish no second-invocation work.
+    val input = fixture(truth(mux(p)))
+    ConstantOperandSimplificationPass.run(input).status shouldBe PassExecutionStatus.Unchanged
+    value(checked(input).output) shouldBe truth(p)
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
     value(first.output) shouldBe p
     first.executedPasses shouldBe PassId.allWireAssignmentPasses
     first.executedPasses.last shouldBe PassId.BooleanTernarySimplification
+    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 1, 1)
     first.eliminated shouldBe empty
     first.eliminatedExpressions shouldBe empty
     first.simplifiedExpressions.map(_.rule) should contain("boolean-ternary-positive")
@@ -240,6 +257,19 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     disabled.status shouldBe PassExecutionStatus.Skipped
     disabled.output shouldBe input
     disabled.stages shouldBe empty
+  }
+
+  test("WA-07a exposes opposite branches for WA-07b without a second product invocation") {
+    val p = predicate()
+    val input = fixture(RtlExpr.Mux(p,
+      RtlExpr.Binary(RtlBinaryOperator.BitwiseAnd, raw("mask-zero"), lit(0)),
+      RtlExpr.Binary(RtlBinaryOperator.BitwiseOr, raw("mask-one"), lit(1))))
+    checked(input).status shouldBe PassExecutionStatus.Unchanged
+    val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
+    withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
+    value(first.output) shouldBe not(p)
+    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 2, 1)
+    WireAliasPassPipeline.run(first.output, WireAliasPassConfiguration(enabled = true)).status shouldBe PassExecutionStatus.Unchanged
   }
 
   test("historical four-stage selection excludes the new ternary rule") {
