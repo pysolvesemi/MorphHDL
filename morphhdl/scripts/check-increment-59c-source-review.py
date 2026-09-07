@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -145,19 +146,45 @@ def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
     return subprocess.check_output(["git", "show", revision + ":" + path], cwd=root)
 
 
+def rollout_scope(root: Path):
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
+    require(spec is not None and spec.loader is not None, "cannot import reviewed 60g source scope")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    rollout = rollout_scope(root)
+    return source if rollout is None else rollout.restore_60g_source(root, path, source)
+
+
 def restore_source(root: Path, path: str, source: str) -> str:
     """Leave unrelated historical hooks to their own exact source contracts."""
     entries = load_contract(root)
     if path not in entries:
         return source
-    return restore_reviewed(entries[path], baseline_source(root, path), source.encode()).decode()
+    return restore_reviewed(entries[path], baseline_source(root, path),
+                            restore_rollout(root, path, source).encode()).decode()
 
 
 def production_changes(root: Path, revision: str) -> set[str]:
     tracked = subprocess.check_output(["git", "diff", "--name-only", revision], cwd=root, text=True).splitlines()
     untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
                                         cwd=root, text=True).splitlines()
-    return {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
+    paths = {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
+    rollout = rollout_scope(root)
+    if rollout is not None:
+        # Only the separately sealed successor's delta is excluded. Existing
+        # 59c paths remain mandatory; neither current bytes nor metadata grant
+        # permission outside that exact outer publication contract.
+        prior = subprocess.check_output(["git", "diff", "--name-only", revision, rollout.BASE],
+                                        cwd=root, text=True).splitlines()
+        paths -= set(rollout.PRODUCTION) - set(prior)
+    return paths
 
 
 def require_production_inventory(paths: set[str]) -> None:
@@ -181,12 +208,15 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59c reviewed source is not uniquely tracked: " + path)
-        restore_reviewed(entry, baseline, source.read_bytes())
+        restore_reviewed(entry, baseline, restore_rollout(root, path, source.read_text()).encode())
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
     require_production_inventory(production_changes(root, qualification_base))
     verify_spans(root, qualification_base)
+    rollout = rollout_scope(root)
+    if rollout is not None:
+        rollout.source_scope(root)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
 
 

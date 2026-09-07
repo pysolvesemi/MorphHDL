@@ -30,6 +30,17 @@ def run(command: list[str], cwd: Path, label: str) -> str:
     return result.stdout
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
@@ -96,7 +107,10 @@ def source_scope(root: Path) -> None:
         for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
             require(token not in source, "signedness authority uses forbidden inference: " + token)
     baseline = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
-    require(git("hash-object", baseline).strip() == "84ed2baf743d2c47f07b6e76ddc9843fbb5fe910",
+    restored_baseline = restore_rollout(root, baseline, (root / baseline).read_text())
+    restored_hash = subprocess.check_output(["git", "hash-object", "--stdin"],
+                                            input=restored_baseline, text=True, cwd=root).strip()
+    require(restored_hash == "84ed2baf743d2c47f07b6e76ddc9843fbb5fe910",
             "independent 60a fixture changed")
     print("60c source scope, unchanged cast printers and immutable oracle PASS")
 

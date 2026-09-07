@@ -68,7 +68,7 @@ def digest(text: str) -> str:
 
 def current_inherited_source(root: Path, path: str) -> str:
     """Remove only the exact reviewed 59c layer before frozen sibling audits."""
-    source = (root / path).read_text()
+    source = restore_rollout(root, path, (root / path).read_text())
     checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
     if checker.exists():
         spec = importlib.util.spec_from_file_location("named_59c_scope", checker)
@@ -338,6 +338,17 @@ def restore_59d_then_59f_source(root: Path, path: str, source: str) -> str:
                 "missing/duplicate reviewed 59d restoration span in " + path)
         source = source.replace(edit["after"], edit["before"], 1)
     return restore_59f_source(root, path, source)
+
+
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return source
+    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
 
 
 def source_scope(root: Path) -> None:

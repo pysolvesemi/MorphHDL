@@ -4781,6 +4781,7 @@ private[internals] object ParameterizedVerilogStructural {
     "assign",
     "wire",
     "reg",
+    "signed", // A declaration qualifier, never a structural dependency.
     "input",
     "output",
     "inout",

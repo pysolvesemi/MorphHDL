@@ -125,8 +125,7 @@ object ExternalParameterizedNativeResize {
               case (target: BitVector, resize: Resize)
                   if (assignment.finalTarget eq target) && target.isComb &&
                     (target.component eq component) &&
-                    !packedReadWrappers.containsKey(assignment) &&
-                    !(morphhdl.MorphSignedCasts.isEnabled(pc.config) && resize.isInstanceOf[ResizeSInt]) =>
+                    !packedReadWrappers.containsKey(assignment) =>
                 resize.input match {
                   case source: BitVector if source.component eq component =>
                     val typedTargetWidth = ParameterizedWidth.resizeExpressionOf(resize)

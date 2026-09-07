@@ -48,12 +48,18 @@ final class SignednessBoundaryTests extends AnyFunSuite {
   test("independent signed resize domains retain truncation before nested multiplication") {
     directory { root =>
       val rtl = emit(root.resolve("resize.v"))(new Fixture.Scalars(width, Writer.target))
-      assert(rtl.contains("signed [TARGET-1:0] _zz_resizedProduct;"))
-      assert(rtl.contains("signed [TARGET-1:0] _zz_resizedProduct_1;"))
-      assert(rtl.contains("assign resizedProduct = (_zz_resizedProduct * _zz_resizedProduct_1);"))
-      assert(rtl.contains("((TARGET > WIDTH) ? (TARGET - WIDTH) : 0)"))
-      assert(rtl.contains("[((TARGET < WIDTH) ? TARGET : WIDTH)-1:0]"))
-      assert(rtl.contains("assign crossedFixed = {{((5 > WIDTH) ? (5 - WIDTH) : 0)"))
+      val product = "assign resizedProduct = \\(([A-Za-z_][A-Za-z0-9_$]*) \\* ([A-Za-z_][A-Za-z0-9_$]*)\\);".r
+        .findAllMatchIn(rtl).toVector
+      assert(product.size == 1, rtl)
+      val operands = Vector(product.head.group(1), product.head.group(2))
+      assert(operands.distinct.size == 2, rtl)
+      operands.foreach { operand =>
+        assert(rtl.contains("signed [TARGET-1:0] " + operand + ";"), rtl)
+      }
+      assert(rtl.contains("(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0)"), rtl)
+      assert(rtl.contains("[(((TARGET) < (WIDTH)) ? (TARGET) : (WIDTH))-1:0]"), rtl)
+      assert(rtl.contains("assign morphhdl_resize_4 = {{(((5) > (WIDTH)) ? ((5) - (WIDTH)) : 0)"), rtl)
+      assert(rtl.contains("assign crossedFixed = morphhdl_resize_4;"), rtl)
     }
   }
 
@@ -65,8 +71,8 @@ final class SignednessBoundaryTests extends AnyFunSuite {
         widened := a.resize(64)
       })
       assert(signed(rtl, "widened"))
-      assert(rtl.contains("a[WIDTH-1]"))
-      assert(rtl.contains("a[WIDTH-1:0]"))
+      assert(rtl.contains("a[(WIDTH)-1]"), rtl)
+      assert(rtl.contains("a[(WIDTH)-1:0]"), rtl)
     }
   }
 
