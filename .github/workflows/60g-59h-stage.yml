@@ -1,0 +1,22 @@
+name: Stage reviewed 60g and 59h integration
+
+on:
+  push:
+    branches: [agent/60g-59h-stage-20260907]
+    paths: ['.github/60g-59h-stage/**', '.github/workflows/60g-59h-stage.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/agent/60g-59h-stage-20260907'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Reconstruct exact reviewed source on staging branch only
+        run: python3 .github/60g-59h-stage/stage.py
