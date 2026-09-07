@@ -1,0 +1,22 @@
+name: Stage exact 60g completion documentation
+
+on:
+  push:
+    branches: [agent/60g-closeout-stage-20260907]
+    paths: ['.github/workflows/60g-closeout-stage.yml', '.github/60g-closeout-stage/**']
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/agent/60g-closeout-stage-20260907'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact three-file documentation transition on staging branch only
+        run: python3 .github/60g-closeout-stage/stage.py
