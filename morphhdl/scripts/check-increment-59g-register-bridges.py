@@ -195,7 +195,8 @@ def miter(case: dict, added_stage: bool = False) -> str:
         if not latency(name, count):
             valid = "1'b1"
         observed = 'added_result' if added_stage and name == 'initResult' else 'c_' + name
-        comparisons.append(f'({valid} && (|(g_{name} ^ {observed})))')
+        lines.append(f'wire bad_{name} = ({valid} && (|(g_{name} ^ {observed})));')
+        comparisons.append('bad_' + name)
     return '\n'.join(lines + ['assign bad = ' + ' | '.join(comparisons) + ';', 'endmodule', ''])
 
 
@@ -372,7 +373,7 @@ def register_correspondence(module: dict, names=OUTPUTS) -> tuple[list[dict], di
             raise RuntimeError('state correspondence escaped independent DUT scopes')
         result.append(dict(reference=gold, candidate=candidate,
                            bits=len(cells[gold]['connections']['Q']), depth=depth(gold),
-                           uninitialized='regResult' in owners[gold]))
+                           uninitialized='regResult' in owners[gold], outputs=sorted(owners[gold])))
     return result, drivers
 
 
@@ -394,8 +395,8 @@ def strengthen_state_invariant(work: Path, design: str, count: int) -> tuple[str
         if name.startswith(('$flatten\\g.', '$flatten\\c.')) and cell['type'] == '$dff':
             if initialized_bits.intersection(cell['connections']['Q']):
                 raise RuntimeError('unexpected DUT initial-state constraint')
-    next_bit = 1 + max(bit for cell in module['cells'].values()
-                       for bits in cell['connections'].values() for bit in bits if isinstance(bit, int))
+    next_bit = 1 + max(bit for net in module['netnames'].values()
+                       for bit in net['bits'] if isinstance(bit, int))
     serial = 0
 
     def expression(kind, a, b=None, width=1):
@@ -414,7 +415,7 @@ def strengthen_state_invariant(work: Path, design: str, count: int) -> tuple[str
         serial += 1
         return result
 
-    bad = module['ports']['bad']['bits'].copy()
+    properties = {name: module['netnames']['bad_' + name]['bits'].copy() for name in OUTPUTS}
     for relation in pairs:
         reference = module['cells'][relation['reference']]['connections']['Q']
         candidate = module['cells'][relation['candidate']]['connections']['Q']
@@ -426,7 +427,14 @@ def strengthen_state_invariant(work: Path, design: str, count: int) -> tuple[str
             valid = [fill[relation['depth'] - 1]]
         else:
             valid = module['netnames']['initialized_valid']['bits']
-        bad.extend(expression('$and', mismatch, valid))
+        checked_relation = expression('$and', mismatch, valid)
+        for name in relation['outputs']:
+            properties[name].extend(checked_relation)
+    bad = []
+    for name, terms in properties.items():
+        property_bits = expression('$reduce_or', terms)
+        module['netnames']['proof_' + name] = dict(hide_name=0, bits=property_bits, attributes={})
+        bad.extend(property_bits)
     strengthened = expression('$reduce_or', bad)
     module['ports']['bad']['bits'] = strengthened
     module['netnames']['bad']['bits'] = strengthened
@@ -437,6 +445,27 @@ def strengthen_state_invariant(work: Path, design: str, count: int) -> tuple[str
         registers=pairs, original_sha256=hashlib.sha256(original.read_bytes()).hexdigest(),
         strengthened_sha256=hashlib.sha256(target.read_bytes()).hexdigest()), indent=2) + '\n')
     return 'read_json ' + H.quoted(target) + '\nhierarchy -check -top miter\ncheck -assert\n', len(pairs)
+
+
+def prove_independent_outputs(work: Path, strengthened: str) -> None:
+    """Conjunction decomposition, with each cone closed over its own state.
+
+    Removing unused output flags only enables ordinary cone-of-influence
+    pruning. No signal is cut and no DUT state is assigned a value or unified.
+    Each property includes every register relation reachable in that output's
+    native/candidate cones. Every property has its own initial-state base case
+    and temporal induction step; proving all eleven proves their conjunction.
+    """
+    for name in OUTPUTS:
+        work_property = work / 'properties' / name
+        work_property.mkdir(parents=True, exist_ok=True)
+        script = work_property / 'induction.ys'
+        script.write_text(strengthened + 'delete -output miter/o:*\nexpose miter/w:proof_' + name +
+            '\nopt_clean -purge\nopt_merge -keepdc t:$add t:$mux t:$logic_not t:$xor t:$or t:$and t:$reduce_or t:$logic_and\n'
+            'check -assert\nsat -seq 1 -tempinduct -prove proof_' + name + ' 0 -verify -maxsteps 24 -timeout 60\n')
+        definite_proof(H.command(['yosys', '-Q', '-T', '-s', str(script)],
+                                work_property / 'induction.log', timeout=300), induction=True)
+    (work / 'induction.log').write_text('PASS: all eleven output cones proved with native state base cases and temporal induction.\n')
 
 
 def definite_proof(output: str, induction: bool = False) -> None:
@@ -502,9 +531,7 @@ def run_case(root: Path, duplicate: Path, case: dict) -> dict:
                       f'-set-at 1 enable {active(case, "enable_active_level")} '
                       '-prove bad 0 -prove-skip 1 -verify -timeout 60\n')
     definite_proof(H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'reset-entry.log'))
-    script = work / 'induction.ys'
-    script.write_text(strengthened + 'sat -seq 1 -tempinduct -prove bad 0 -verify -maxsteps 24 -timeout 60\n')
-    definite_proof(H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'induction.log', timeout=300), induction=True)
+    prove_independent_outputs(work, strengthened)
     result = dict(profile=case['profile'], clock_profile=case['clock_profile'], width=width, count=count,
                   cycles=CYCLES, observations=observations, sha256=digests, reset_entry='PASS', induction='PASS',
                   proved_state_relations=state_relations,
