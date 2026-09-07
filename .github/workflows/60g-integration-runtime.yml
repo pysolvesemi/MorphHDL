@@ -1,0 +1,98 @@
+name: 60g current integration runtime
+on:
+  push:
+    branches: [agent/60g-resume-toolchain-226ac]
+    paths: [.github/workflows/60g-integration-runtime.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 39977b32cc47c54a0481716c181069184a32fbe5
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Retain exact integration source and ancestry
+        run: |
+          mkdir -p target/integration-source
+          git rev-parse HEAD > target/integration-source/head.txt
+          git archive HEAD | gzip > target/integration-source/source.tar.gz
+          git bundle create target/integration-source/repository.bundle HEAD refs/remotes/origin/agent/increment-60g-default-signed-verilog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 60g-integration-source-39977b32
+          path: target/integration-source
+          retention-days: 7
+  compiler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx4G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 39977b32cc47c54a0481716c181069184a32fbe5
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export compiled classpath without home files or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/resume-kit
+          sbt -batch -no-colors '++2.13.12' 'export morph/Test/fullClasspath' 'export morph/Test/scalacOptions' > target/resume-kit/build.log 2>&1 || { tail -n 150 target/resume-kit/build.log; exit 1; }
+          python3 - <<'PY'
+          import hashlib, json, pathlib, re, shutil, subprocess, tarfile
+          root = pathlib.Path.cwd()
+          out = root / 'target/resume-kit'
+          kit = out / 'runtime'
+          kit.mkdir()
+          text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', (out/'build.log').read_text())
+          paths = []
+          for line in text.splitlines():
+              if line.startswith('/') and ':' in line:
+                  parts = line.split(':')
+                  if all(pathlib.Path(p).exists() for p in parts):
+                      paths = parts
+          assert paths, 'missing exact classpath export'
+          mapping = {}
+          for index, original in enumerate(paths):
+              p = pathlib.Path(original)
+              dest = kit / ('cp-%03d.jar' % index)
+              if p.is_dir():
+                  subprocess.run(['jar','cf',str(dest),'-C',str(p),'.'],check=True)
+              else:
+                  assert p.suffix == '.jar', p
+                  shutil.copyfile(p,dest)
+              mapping[original] = dest.name
+          extra = []
+          for name in ('scala-compiler','scala-library','scala-reflect'):
+              matches = list(pathlib.Path('/sbt/.cache/coursier/v1').rglob(name+'-2.13.12.jar'))
+              assert matches, name
+              dest = kit / (name+'-2.13.12.jar')
+              shutil.copyfile(matches[0],dest)
+              extra.append(dest.name)
+          plugins = []
+          for project in ('idslplugin','morphplugin'):
+              for p in sorted((root/project/'target/scala-2.13').glob('*.jar')):
+                  dest = kit / p.name
+                  shutil.copyfile(p,dest)
+                  plugins.append(dest.name)
+          (kit/'manifest.json').write_text(json.dumps({'head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'classpath':mapping,'compiler':extra,'plugins':plugins,'sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in kit.glob('*.jar')}},indent=2)+'\n')
+          with tarfile.open(out/'runtime.tar.gz','w:gz') as archive:
+              archive.add(kit,arcname='runtime')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60g-39977b32-compiler-runtime
+          path: |
+            target/resume-kit/runtime.tar.gz
+            target/resume-kit/build.log
+          if-no-files-found: error
+          retention-days: 7
