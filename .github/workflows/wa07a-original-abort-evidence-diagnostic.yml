@@ -1,0 +1,156 @@
+name: WA-07a original abort evidence diagnostic
+on:
+  push:
+    branches: ['diagnostic/wa07a-original-abort-evidence-2581']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  extract-original-aborts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Inspect exact retained artifacts without executing their contents
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PYCODE'
+          """Read-only extraction of two exact retained CI aborts; executes no artifact code."""
+          import hashlib
+          import json
+          from pathlib import Path, PurePosixPath
+          import stat
+          import subprocess
+          import zipfile
+          
+          REPO = "pysolvesemi/MorphHDL"
+          SOURCE = "2581b7adbe34baab9c7962623a57c8ec87f70afc"
+          RUN = 34063819546
+          ARTIFACTS = [
+              (10000143016, "morphhdl-wa07a-formal-shard-13", 198564425,
+               "957c25b36cd4cac1f6c359210aa8016d2bcd6e08f5f5d0b37ad433cf78aeabbf",
+               "run-a", "wire-alias-unnamed_wire-alias-named_wire-expression-unnamed",
+               "DEPTH-8__WIDTH-46", "property-0011-isolate"),
+              (10000717905, "morphhdl-wa07a-formal-shard-3", 242882069,
+               "1019764e64e549d3fc6f7afdb0eddb7cc14063f1541c6bcb00a8d9c62c17c684",
+               "run-b", "wire-alias-named", "DEPTH-5__WIDTH-36", "property-0006-isolate"),
+          ]
+          OUT = Path("wa07a-original-abort-evidence")
+          MAX_FILE = 2_000_000
+          MAX_TOTAL = 20_000_000
+          
+          
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          
+          
+          def api(endpoint):
+              return subprocess.run(["gh", "api", f"repos/{REPO}/{endpoint}"],
+                                    check=True, capture_output=True, timeout=60).stdout
+          
+          
+          def extract(archive, spec, metadata):
+              aid, name, size, digest, failed_run, candidate, binding, stem = spec
+              assert archive.stat().st_size == size, "archive size mismatch"
+              with archive.open("rb") as f:
+                  assert hashlib.file_digest(f, "sha256").hexdigest() == digest, "archive digest mismatch"
+              base = OUT / str(aid)
+              base.mkdir(parents=True, exist_ok=False)
+              records = []
+              selected_size = 0
+              with zipfile.ZipFile(archive) as z:
+                  infos = {}
+                  for info in z.infolist():
+                      p = PurePosixPath(info.filename)
+                      assert (not p.is_absolute() and p.parts and ".." not in p.parts
+                              and "\\" not in info.filename and ":" not in info.filename
+                              and str(p) == info.filename.rstrip("/")), "unsafe archive path"
+                      assert info.filename not in infos, "duplicate archive path"
+                      kind = stat.S_IFMT(info.external_attr >> 16)
+                      assert kind in (0, stat.S_IFREG, stat.S_IFDIR), "nonregular archive member"
+                      assert not info.flag_bits & 1, "encrypted archive member"
+                      infos[info.filename] = info
+                  suffix = f"/{failed_run}/shared-witness/future-pass-formal/{candidate}/{binding}/cone-proof/{stem}.execution"
+                  matches = [n for n in infos if ("/" + n).endswith(suffix)]
+                  assert len(matches) == 1, f"expected one failed execution, found {len(matches)}"
+                  failed_record = matches[0]
+                  binding_prefix = failed_record.rsplit("/cone-proof/", 1)[0]
+                  prefixes = [binding_prefix]
+                  if failed_run == "run-b":
+                      prefixes.append("/".join("run-a" if p == "run-b" else p for p in PurePosixPath(binding_prefix).parts))
+                  for prefix in prefixes:
+                      execution_name = prefix + f"/cone-proof/{stem}.execution"
+                      assert execution_name in infos, "missing counterpart execution"
+                      selected = []
+                      for n, info in infos.items():
+                          if info.is_dir() or not n.startswith(prefix + "/"):
+                              continue
+                          rel = n[len(prefix) + 1:]
+                          p = PurePosixPath(rel)
+                          if len(p.parts) == 1 and p.suffix in (".json", ".v", ".il", ".ys", ".log", ".sby"):
+                              selected.append(n)
+                          elif len(p.parts) == 2 and p.parts[0] == "cone-proof":
+                              if p.name in ("full.aig", "compile.ys", "compile.log", "compile.execution", "scalar-miter.v", "failure.json", "evidence.json", stem.removesuffix("-isolate") + "-raw.aig") or p.name.startswith(stem + "."):
+                                  selected.append(n)
+                      for n in sorted(selected):
+                          info = infos[n]
+                          assert info.file_size <= MAX_FILE, "selected member exceeds cap"
+                          selected_size += info.file_size
+                          assert selected_size <= MAX_TOTAL, "selected evidence exceeds cap"
+                          data = z.read(n)  # verifies this selected member's CRC
+                          dest = base / n
+                          dest.parent.mkdir(parents=True, exist_ok=True)
+                          dest.write_bytes(data)
+                          records.append({"path": n, "bytes": len(data), "sha256": sha(data)})
+                      raw = (base / execution_name).read_bytes()
+                      execution = json.loads(raw)
+                      log_name = execution_name.removesuffix(".execution") + ".log"
+                      log = (base / log_name).read_bytes()
+                      assert execution["log_sha256"] == sha(log), "execution log hash mismatch"
+                      expected_code = -6 if prefix == binding_prefix else 0
+                      assert execution["returncode"] == expected_code and execution["timed_out"] is False
+                      report = {"artifact_id": aid, "execution_path": execution_name,
+                                "returncode": execution["returncode"], "log_sha256": sha(log),
+                                "log_bytes": len(log), "bounded_log_text": log.decode("utf-8", errors="replace")[-16000:]}
+                      # JSON escaping plus a fixed prefix prevents log text becoming a workflow command.
+                      print("ORIGINAL_ABC_DIAGNOSTIC " + json.dumps(report, sort_keys=True), flush=True)
+              summary = {"artifact_metadata": metadata, "verified_archive_size": size,
+                         "verified_archive_sha256": digest, "source_head": SOURCE,
+                         "source_run": RUN, "selected_files": records,
+                         "selected_bytes": selected_size, "archive_code_executed": False,
+                         "proof_qualification": False}
+              (base / "selection-manifest.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+              return summary
+          
+          
+          def main():
+              OUT.mkdir(exist_ok=False)
+              summaries = []
+              for spec in ARTIFACTS:
+                  aid, name, size, digest, *_ = spec
+                  metadata = json.loads(api(f"actions/artifacts/{aid}"))
+                  assert metadata["id"] == aid and metadata["name"] == name
+                  assert metadata["size_in_bytes"] == size and metadata["digest"] == "sha256:" + digest
+                  assert metadata["workflow_run"]["id"] == RUN
+                  assert metadata["workflow_run"]["head_sha"] == SOURCE and not metadata["expired"]
+                  archive = Path(f"source-artifact-{aid}.zip")
+                  with archive.open("xb") as f:
+                      subprocess.run(["gh", "api", f"repos/{REPO}/actions/artifacts/{aid}/zip"],
+                                     stdout=f, check=True, timeout=300)
+                  summaries.append(extract(archive, spec, metadata))
+                  archive.unlink()
+              (OUT / "diagnostic-summary.json").write_text(json.dumps(summaries, indent=2, sort_keys=True) + "\n")
+              print("Read-only original abort extraction complete; no solver replay or qualification.", flush=True)
+          
+          
+          if __name__ == "__main__":
+              main()
+          PYCODE
+      - name: Upload compact original diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wa07a-original-abort-evidence-2581
+          path: wa07a-original-abort-evidence/
+          if-no-files-found: error
+          retention-days: 14
