@@ -18,7 +18,7 @@ from pathlib import Path
 
 BASE = "0018da2740645e0ac0c419ded7b67c01622d2bb7"
 CONTRACT = "morphhdl/contracts/increment-59g-source-review.json"
-CONTRACT_SHA256 = "c6951e6d32a8253a361e7ef8570e37a307cc2183f4e2f142ba930cdd112859c1"
+CONTRACT_SHA256 = "2af2f16dc0bf5682da63346cb7b204bbd3ada90642bb0c965b60659f22aa9b4c"
 PATHS = (
     "morphhdl/scripts/check-increment-59c-source-review.py",
     "morphhdl/scripts/check-increment-60f-artifacts.py",

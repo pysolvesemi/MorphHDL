@@ -689,6 +689,42 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => false
       })
 
+  /** The historical direct-parameter adapter already validates its complete
+    * public schema and exact declaration root at attachment. Its invariant
+    * zero reset is width independent, but it does not carry a typed owner
+    * evaluation. Admit only that exact, unprojected legacy declaration here;
+    * never infer authority from a zero value, matching name or witness alone.
+    * Typed roots (including a typed expression with erased evidence), copied
+    * expressions, derived widths and nonzero values retain the strict owner
+    * validator below. This does not bind or reconstruct any typed authority.
+    */
+  private[internals] def isLegacyDirectZeroInitializer(
+      target: BitVector,
+      width: ElaborationIntegerExpression,
+      literal: BitVectorLiteral
+  ): Boolean =
+    !literal.hasPoison() && literal.getValue() == 0 &&
+      literal.getWidth == target.getBitsWidth &&
+      (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&
+      width.exactDomain.isEmpty && width.projectionProvenance.isEmpty &&
+      width.generateIndex.isEmpty &&
+      ParameterizedWidth.expressionOf(target).exists(_ eq width) &&
+      ParameterizedWidth.parameterOf(target).exists { parameter =>
+        !parameter.declarationRoot.isAuthoritativeSchema(parameter) &&
+          (width.parameters match {
+            case Vector(schema) => schema eq parameter
+            case _ => false
+          }) &&
+          (width.parameterRoots match {
+            case Vector(root) => root eq parameter.declarationRoot
+            case _ => false
+          }) &&
+          width.verilog == parameter.name &&
+          width.default == parameter.default &&
+          width.minimum == parameter.minimum &&
+          width.maximum == parameter.maximum
+      }
+
   private[internals] def rewriteRetainedConstantInitializers(
       component: Component,
       verilog: String,
@@ -717,8 +753,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                       if !literal.hasPoison() &&
                         (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&
                         literal.getWidth == target.getBitsWidth =>
-                    NativePublicationWidth.validate(width, component, target,
-                      "native constant initializer width")
+                    ElabInt.validateExpression(width, "native constant initializer width")
+                    if (!isLegacyDirectZeroInitializer(target, width, literal))
+                      NativePublicationWidth.validate(width, component, target,
+                        "native constant initializer width")
                     if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth))
                       fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH",
                         "one exact native constant initializer lost its positive typed width or witness",

@@ -227,4 +227,95 @@ class TypedBalancedReductionBridgeReplayTests extends AnyFunSuite {
       boolean.requireFreshness()
     })
   }
+
+  test("legacy direct zero resets remain compatible without authorizing nonzero initialization") {
+    val directory = Files.createTempDirectory("balanced-bridge-legacy-zero-")
+    val parameter = ElaborationIntegerParameter("WIDTH", 5, 1, 32)
+    val bitCount = ParameterizedBitCount(5, parameter)
+    val report = SpinalConfig(targetDirectory = directory.toString,
+      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+      setDefinitionName("LegacyZeroInitializerLineage")
+      val data = in(ParameterizedWidth.Bits(bitCount))
+      val zero = out(ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))) init B(0, 5 bits)
+      zero := data
+    })
+    val rtl = new String(Files.readAllBytes(directory.resolve("LegacyZeroInitializerLineage.v")),
+      StandardCharsets.UTF_8)
+    val rewritten = ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+      report.toplevel, rtl)
+    assert(rewritten.contains("zero <= {WIDTH{1'b0}};"), rewritten)
+    val initializers = scala.collection.mutable.ArrayBuffer.empty[InitAssignmentStatement]
+    report.toplevel.dslBody.walkLeafStatements {
+      case statement: InitAssignmentStatement => initializers += statement
+      case _ =>
+    }
+    assert(initializers.size == 1)
+    val initializer = initializers.head
+    val literal = initializer.source.asInstanceOf[BitsLiteral]
+    literal.value = 1
+    try {
+      val failure = intercept[ParameterizedVerilogException] {
+        ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, rtl)
+      }
+      assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-NATIVE-WIDTH-OWNER-EVIDENCE-MISSING",
+        failure.getMessage)
+    } finally literal.value = 0
+    assert(ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+      report.toplevel, rtl) == rewritten)
+    val missing = rtl.replace("zero <= 5'h0;", "zero <= 5'h1;")
+    assert(missing != rtl, rtl)
+    val lineage = intercept[ParameterizedVerilogException] {
+      ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, missing)
+    }
+    assert(lineage.code == "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
+      lineage.getMessage)
+  }
+
+  test("legacy zero compatibility rejects copied widths foreign roots and erased typed evidence") {
+    val directory = Files.createTempDirectory("balanced-bridge-legacy-authority-")
+    val legacy = ElaborationIntegerParameter("LEGACY_WIDTH", 5, 1, 32)
+    val bitCount = ParameterizedBitCount(5, legacy)
+    val report = SpinalConfig(targetDirectory = directory.toString,
+      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+      val data = in(ParameterizedWidth.Bits(bitCount))
+      val zero = out(ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))) init B(0, 5 bits)
+      val typedData = in(UInt(HdlInt.param("TYPED_WIDTH", 5, 1, 32) bits))
+      val typedZero = out(Reg(cloneOf(typedData))) init U(0, 5 bits)
+      zero := data
+      typedZero := typedData
+    })
+    val initializers = scala.collection.mutable.ArrayBuffer.empty[InitAssignmentStatement]
+    report.toplevel.dslBody.walkLeafStatements {
+      case statement: InitAssignmentStatement => initializers += statement
+      case _ =>
+    }
+    assert(initializers.size == 2)
+    val legacyInit = initializers.find(_.source.isInstanceOf[BitsLiteral]).get
+    val target = legacyInit.finalTarget.asInstanceOf[BitVector]
+    val literal = legacyInit.source.asInstanceOf[BitVectorLiteral]
+    val width = ParameterizedWidth.expressionOf(target).get
+    def accepts(candidate: ElaborationIntegerExpression): Boolean =
+      ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(target, candidate, literal)
+    assert(accepts(width))
+    assert(!accepts(width.copy()))
+    assert(!accepts(width.copy(parameters = Vector(legacy.copy()))))
+    assert(!accepts(width.copy(parameterRoots = Vector(ElaborationIntegerParameterRoot.fresh(legacy.name)))))
+    assert(!accepts(width.copy(verilog = "(LEGACY_WIDTH + 0)")))
+    assert(!accepts(width.copy(generateIndex = Some("i"))))
+    val typedInit = initializers.find(_.source.isInstanceOf[UIntLiteral]).get
+    val typedTarget = typedInit.finalTarget.asInstanceOf[BitVector]
+    val typedLiteral = typedInit.source.asInstanceOf[BitVectorLiteral]
+    val typedWidth = ParameterizedWidth.expressionOf(typedTarget).get
+    assert(typedWidth.exactDomain.nonEmpty)
+    assert(!ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(
+      typedTarget, typedWidth, typedLiteral))
+    val erased = typedWidth.copy(exactDomain = None)
+    assert(!ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(
+      typedTarget, erased, typedLiteral))
+    val failure = intercept[ParameterizedVerilogException] {
+      NativePublicationWidth.validate(erased, report.toplevel, typedTarget, "erased typed zero initializer")
+    }
+    assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-NATIVE-WIDTH-OWNER-EVIDENCE-MISSING",
+      failure.getMessage)
+  }
 }

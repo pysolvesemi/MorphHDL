@@ -263,7 +263,7 @@ SUITE_EXTENSIONS = {
         ))},
         "counts": {
             "spinal.core.internals.TypedBalancedReductionBridgePublicationTests": 3,
-            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests": 10,
+            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests": 12,
             "spinal.core.internals.TypedBalancedReductionCallbackPolicyTests": 16,
         },
     },
