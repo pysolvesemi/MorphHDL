@@ -349,11 +349,14 @@ endmodule
         new Case("parameter-positive", mux(ref(aId, "parameter-positive")), binding, signed),
         new Case("parameter-inverse", mux(ref(aId, "parameter-inverse"), inverse = true), binding, signed))
       val initial = design(values)
+      // Capture one validator-normalized snapshot before either proof leg.
+      // The pipeline's historical alias stages normalize declaration order;
+      // retain exact metadata/order assertions rather than weakening them to sets.
       val before = initial.copy(modules = initial.modules.map(module => module.copy(
         parameters = Vector(IntegerParameter(widthId, "WIDTH", BigInt(1),
           IntegerParameterDomain(BigInt(1), BigInt(8), domain))),
         declarations = module.declarations.map(d => if (d.id == aId || values.exists(_.id == d.id))
-          d.copy(packedType = Some(packed(symbolic, signed))) else d))))
+          d.copy(packedType = Some(packed(symbolic, signed))) else d)))).normalized
       CanonicalIrPassAdapter.bindFixture(before).isRight shouldBe true
       val standalone = BooleanTernarySimplificationPass.run(before)
       standalone.isSuccess shouldBe true
