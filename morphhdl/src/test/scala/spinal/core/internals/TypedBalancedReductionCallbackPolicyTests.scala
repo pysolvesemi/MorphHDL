@@ -74,6 +74,28 @@ class TypedBalancedReductionCallbackPolicyTests extends AnyFunSuite {
     TypedBalancedReductionCallbackPolicy.requireSupportedBridge(bridge)
   }
 
+  test("nonzero native initializers and local register enable helpers are inspectable") {
+    Vector[AnyRef](
+      (value: UInt, _: Int) => RegNext(value).init(U(3)),
+      (value: SInt, _: Int) => RegNext(value).init(S(-2)),
+      (value: Bits, _: Int) => RegNext(value).init(B(3)),
+      (value: UInt, _: Int) => RegNextWhen(value, value.msb).init(U(3)),
+      (value: SInt, _: Int) => RegNextWhen(value, !value.msb).init(S(-2)),
+      (value: Bits, _: Int) => RegNextWhen(value, value(0) ^ value.msb),
+      (value: Bool, _: Int) => RegNextWhen(value, !value)
+    ).foreach(TypedBalancedReductionCallbackPolicy.requireSupportedBridge)
+  }
+
+  test("new register helpers do not admit captured controls or host side effects") {
+    var calls = 0
+    reject((value: UInt, _: Int) => {
+      calls += 1
+      RegNextWhen(value, value.msb)
+    }, bridge = true)
+    assert(calls == 0)
+    reject((value: UInt, _: Int) => RegNextWhen(value, value(value.getWidth - 1)), bridge = true)
+  }
+
   test("an inline inferred register bridge has no captured host state") {
     val bridge = (value: UInt, _: Int) => {
       val register = UInt()

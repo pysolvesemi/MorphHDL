@@ -69,9 +69,12 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       native: Identity, kind: Class[_], source: Identity, target: Identity,
       finalTarget: Identity, scope: Identity
   )
+  private final case class EnableState(native: Identity, condition: Identity,
+      scope: Identity, whenTrue: Vector[Identity], whenFalse: Vector[Identity])
   private final case class Snapshot(
       owner: Identity, operands: Vector[Vector[Identity]], result: Vector[Identity],
-      declarations: Vector[Identity], statements: Vector[StatementState], nodes: Vector[Node]
+      declarations: Vector[Identity], statements: Vector[StatementState], nodes: Vector[Node],
+      enables: Vector[EnableState]
   )
 
   final class Observation private[TypedBalancedReductionClosedGraph] (
@@ -135,6 +138,26 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     val declarations = identitySet(callback.declarations, "declarations")
     val assignments: Vector[AssignmentStatement] = callback.assignments
     val recorded = identitySet(assignments, "assignments")
+    val enables = ArrayBuffer.empty[WhenStatement]
+    def directStatements(scope: ScopeStatement): Vector[Statement] = {
+      val values = ArrayBuffer.empty[Statement]
+      scope.foreachStatements(values += _)
+      values.toVector
+    }
+    def enableOf(value: AssignmentStatement): Option[WhenStatement] = {
+      if (value.parentScope eq owner.dslBody) return None
+      val scope = value.parentScope
+      val statement = Option(scope).map(_.parentStatement).collect { case when: WhenStatement => when }
+        .getOrElse(fail("ASSIGNMENT-SHAPE", "only one native register-enable scope is admitted"))
+      if (!value.isInstanceOf[DataAssignmentStatement] || !value.finalTarget.isReg ||
+          (statement.parentScope ne owner.dslBody) || (scope ne statement.whenTrue) ||
+          !statement.whenFalse.isEmpty || directStatements(scope).exists { child =>
+            !child.isInstanceOf[DataAssignmentStatement] || !recorded.containsKey(child.asInstanceOf[AssignmentStatement])
+          })
+        fail("ASSIGNMENT-SHAPE", "only full register updates in one native enable true arm are closed here")
+      if (!enables.exists(_ eq statement)) enables += statement
+      Some(statement)
+    }
     val operands = new IdentityHashMap[BaseType, java.lang.Boolean]()
     operandLeaves.flatten.foreach(value => operands.put(value, java.lang.Boolean.TRUE))
     if (callback.declarations.exists(operands.containsKey))
@@ -158,12 +181,18 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     assignments.foreach { value =>
       if (!liveAssignments.containsKey(value) || !declarations.containsKey(value.finalTarget))
         fail("ASSIGNMENT", "an assignment is missing or targets data outside this callback")
-      if ((value.parentScope ne owner.dslBody) || (value.target ne value.finalTarget))
-        fail("ASSIGNMENT-SHAPE", "only unconditional full-object callback assignments are closed here")
+      if (value.target ne value.finalTarget)
+        fail("ASSIGNMENT-SHAPE", "only full-object callback assignments are closed here")
+      enableOf(value)
       if (value.getClass != classOf[DataAssignmentStatement] &&
           value.getClass != classOf[InitAssignmentStatement])
         fail("ASSIGNMENT-KIND", "unsupported callback assignment kind")
     }
+    if (callback.statements.exists {
+        case statement: WhenStatement => !enables.exists(_ eq statement)
+        case _: BaseType | _: AssignmentStatement => false
+        case _ => true
+      }) fail("UNRECORDED-EFFECT", "callback contains a statement outside its register-enable data graph")
 
     val drivers = new IdentityHashMap[BaseType, Vector[AssignmentStatement]]()
     callback.declarations.foreach { value =>
@@ -197,7 +226,9 @@ private[spinal] object TypedBalancedReductionClosedGraph {
           if (!leafClasses.contains(leaf.getClass) || leaf.isAnalog)
             fail("LEAF-TYPE", "callback leaf is outside the reviewed scalar data types")
           if (operands.containsKey(leaf)) Vector.empty
-          else if (declarations.containsKey(leaf)) drivers.get(leaf).map(_.source)
+          else if (declarations.containsKey(leaf)) drivers.get(leaf).flatMap { driver =>
+            Vector(driver.source) ++ enableOf(driver).map(_.cond)
+          }
           else fail("EXTERNAL-READ", "callback expression reads data other than its operands or local declarations")
         case _ =>
           if (!expressionClasses.contains(value.getClass))
@@ -257,6 +288,9 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     Snapshot(identity(owner), operandLeaves.map(_.map(identity)), resultLeaves.map(identity),
       callback.declarations.map(identity), assignments.map(value => StatementState(
         identity(value), value.getClass, identity(value.source), identity(value.target),
-        identity(value.finalTarget), identity(value.parentScope))), nodes)
+        identity(value.finalTarget), identity(value.parentScope))), nodes,
+      enables.toVector.map(value => EnableState(identity(value), identity(value.cond),
+        identity(value.parentScope), directStatements(value.whenTrue).map(identity),
+        directStatements(value.whenFalse).map(identity))))
   }
 }

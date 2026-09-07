@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -151,8 +152,39 @@ def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
     return subprocess.check_output(["git", "show", revision + ":" + path], cwd=root)
 
 
+def register_source_review(root: Path):
+    """Restore a separately pinned register successor before the frozen owner audit."""
+    checker = root / "morphhdl/scripts/check-increment-59g-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59g-source-review.json"
+    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
+        return None
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink(),
+            "59g source-review checker or contract is missing")
+    spec = importlib.util.spec_from_file_location("register_59g_review", checker)
+    require(spec is not None and spec.loader is not None, "cannot load exact 59g source review")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def register_inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    register = register_source_review(root)
+    if register is None:
+        return paths
+    register.verify(root)
+    historical = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+        cwd=root, text=True).splitlines()
+    inherited = {path for path in historical if re.search(r"(?:^|/)src/main/", path)}
+    return (paths - register.PRODUCTION_PATHS) | (inherited & register.PRODUCTION_PATHS)
+
+
 def restore_source(root: Path, path: str, source: str) -> str:
     """Leave unrelated historical hooks to their own exact source contracts."""
+    register = register_source_review(root)
+    if register is not None:
+        source = register.restore_source(root, path, source)
     entries = load_contract(root)
     if path not in entries:
         return source
@@ -175,6 +207,9 @@ def require_production_inventory(paths: set[str]) -> None:
 def verify_spans(root: Path, qualification_base: str = BASE) -> None:
     """Validate the exact successor layer before inherited source-union checks."""
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    register = register_source_review(root)
+    if register is not None:
+        register.verify_spans(root)
     entries = load_contract(root)
     for path, entry in entries.items():
         baseline = baseline_source(root, path)
@@ -187,12 +222,16 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59h reviewed source is not uniquely tracked: " + path)
-        restore_reviewed(entry, baseline, source.read_bytes())
+        current = source.read_bytes()
+        if register is not None:
+            current = register.restore_source(root, path, current.decode()).encode()
+        restore_reviewed(entry, baseline, current)
 
 
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
     """Remove only this verified successor delta from an older production view."""
     verify(root)
+    paths = register_inherited_inventory(root, paths, qualification_base)
     historical = subprocess.check_output(
         ["git", "diff", "--no-renames", "--name-only", qualification_base, BASE],
         cwd=root, text=True).splitlines()
@@ -201,7 +240,22 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
-    require_production_inventory(production_changes(root, qualification_base))
+    paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)
+    register = register_source_review(root)
+    if register is not None:
+        # The complete register audit above binds current production to its
+        # pinned merged baseline. Disjoint production changes already present
+        # in that baseline are not new 59h edits. Exclude them only from this
+        # local inventory: inherited_inventory must preserve those paths for
+        # the outer 60f source-union and immutable-content checks.
+        historical = subprocess.check_output(
+            ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+            cwd=root, text=True).splitlines()
+        siblings = {path for path in historical if re.search(r"(?:^|/)src/main/", path)} - PRODUCTION_PATHS
+        require(not siblings & register.PRODUCTION_PATHS,
+                "59h disjoint inherited production overlaps the register review")
+        paths -= siblings
+    require_production_inventory(paths)
     verify_spans(root, qualification_base)
     print("59h complete production inventory and exact source spans restore the merged baseline PASS", flush=True)
 
