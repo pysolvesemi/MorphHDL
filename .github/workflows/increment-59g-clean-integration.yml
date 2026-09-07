@@ -12,7 +12,7 @@ permissions:
 jobs:
   integrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,27 +44,132 @@ jobs:
           git merge --no-edit 5db83983b42c71df4f43d6a7c37c5bd552cd96c5
           git merge-base --is-ancestor 38eddd226837a48b028094585b5ce5eeae3439cd HEAD
           git merge-base --is-ancestor 5db83983b42c71df4f43d6a7c37c5bd552cd96c5 HEAD
+      - name: Apply the reviewed disjoint-baseline audit integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYREPAIR'
+          import difflib
+          import hashlib
+          import json
+          import subprocess
+          from pathlib import Path
+          ROOT = Path.cwd()
+          OLD_BASE = 'cba4717abc9192917d819e1f84cb246162488286'
+          BASE = '5db83983b42c71df4f43d6a7c37c5bd552cd96c5'
+          CONTRACT = ROOT/'morphhdl/contracts/increment-59g-source-review.json'
+          OLD_DIGEST = '6afc16b035e7591d781370b81d554911320d3d686f8f892e3af609531d4c61aa'
+          raw = CONTRACT.read_bytes()
+          assert hashlib.sha256(raw).hexdigest() == OLD_DIGEST
+          review = json.loads(raw)
+          assert review['base'] == OLD_BASE
+          siblings = set(subprocess.check_output(['git', 'diff', '--name-only', OLD_BASE, BASE], text=True).splitlines())
+          production = {p for p in siblings if '/src/main/' in p}
+          assert production == {
+              'morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala',
+              'morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala',
+              'morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala',
+          }, production
+          assert not siblings.intersection(e['path'] for e in review['files'])
+          path = ROOT/'morphhdl/scripts/check-increment-59h-source-review.py'
+          old = '''    paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)
+              require_production_inventory(paths)
+          '''
+          new = '''    paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)
+              register = register_source_review(root)
+              if register is not None:
+                  # The complete register audit above binds current production to its
+                  # pinned merged baseline. Disjoint production changes already present
+                  # in that baseline are not new 59h edits. Exclude them only from this
+                  # local inventory: inherited_inventory must preserve those paths for
+                  # the outer 60f source-union and immutable-content checks.
+                  historical = subprocess.check_output(
+                      ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+                      cwd=root, text=True).splitlines()
+                  siblings = {path for path in historical if re.search(r"(?:^|/)src/main/", path)} - PRODUCTION_PATHS
+                  require(not siblings & register.PRODUCTION_PATHS,
+                          "59h disjoint inherited production overlaps the register review")
+                  paths -= siblings
+              require_production_inventory(paths)
+          '''
+          text = path.read_text()
+          assert text.count(old) == 1
+          path.write_text(text.replace(old, new))
+          p = ROOT/'morphhdl/scripts/test-increment-59g-source-review.py'
+          text = p.read_text()
+          old = '''        ("extra production file", "foreign/src/main/Unreviewed.scala", "suffix", "unreviewed production delta"),'''
+          new = '''        ("extra production file", "foreign/src/main/Unreviewed.scala", "suffix", "unreviewed production delta"),
+                  ("changed merged sibling source", "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala", "suffix", "unreviewed production delta"),
+                  ("removed merged sibling source", "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala", "remove", "unreviewed production delta"),'''
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, new))
+          review['base'] = BASE
+          for entry in review['files']:
+              relative = entry['path']
+              baseline = subprocess.check_output(['git', 'show', BASE+':'+relative])
+              assert hashlib.sha256(baseline).hexdigest() == entry['baseline_sha256'], relative
+              if relative != 'morphhdl/scripts/check-increment-59h-source-review.py':
+                  continue
+              current = (ROOT/relative).read_bytes()
+              a, b = baseline.splitlines(keepends=True), current.splitlines(keepends=True)
+              ao, bo = [0], [0]
+              for line in a: ao.append(ao[-1]+len(line))
+              for line in b: bo.append(bo[-1]+len(line))
+              reason = entry['reason']+' Preserve disjoint production already fixed by the current merged baseline in the outer 60f union while checking the unchanged 59h inventory independently.'
+              edits = []
+              for tag, i, j, k, l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes():
+                  if tag == 'equal': continue
+                  edits.append(dict(id='59h-register-union-'+str(len(edits)+1),reason=reason,
+                      before_start=ao[i],before_end=ao[j],after_start=bo[k],after_end=bo[l],
+                      before=b''.join(a[i:j]).decode(),after=b''.join(b[k:l]).decode()))
+              entry['reason'], entry['edits'] = reason, edits
+          CONTRACT.write_text(json.dumps(review, indent=2)+'\n')
+          p = ROOT/'morphhdl/scripts/check-increment-59g-source-review.py'
+          text = p.read_text()
+          assert text.count(OLD_BASE) == 1 and text.count(OLD_DIGEST) == 1
+          text = text.replace(OLD_BASE, BASE).replace(OLD_DIGEST, hashlib.sha256(CONTRACT.read_bytes()).hexdigest())
+          text = text.replace('Each unchanged interval must equal the merged 59h baseline.', 'Each unchanged interval must equal the pinned merged integration baseline.')
+          p.write_text(text)
+          print('Updated four audit/contract files; native and MorphHDL production source unchanged.')
+          PYREPAIR
+          git add -- morphhdl/contracts/increment-59g-source-review.json \
+            morphhdl/scripts/check-increment-59g-source-review.py \
+            morphhdl/scripts/check-increment-59h-source-review.py \
+            morphhdl/scripts/test-increment-59g-source-review.py
+          test "$(git diff --cached --name-only | wc -l)" = 4
           git rm -- .github/59g-integrate-reviewed-source.py \
             .github/workflows/increment-59g-joint-source-validation.yml \
             .github/workflows/increment-59g-resume-repair.yml \
             .github/workflows/increment-59g-source-validation.yml \
             .github/workflows/increment-59g-clean-integration.yml
-          git commit -m 'Remove temporary 59g repair and integration workflows'
+          git commit -m 'Integrate 59g source audits with merged 59h and WA-07a; remove staging helpers'
           git diff --check 5db83983b42c71df4f43d6a7c37c5bd552cd96c5 HEAD
           git rev-parse HEAD > target/59g-clean-evidence/head.txt
           git rev-parse HEAD^{tree} > target/59g-clean-evidence/tree.txt
-      - name: Retain the combined work on the existing staging branch only
+      - name: Verify all exact source inventories and rejection controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/59g-clean-evidence
+          python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test | tee "$output/register-spans.log"
+          python3 morphhdl/scripts/check-increment-59h-source-review.py --self-test | tee "$output/owner-spans.log"
+          python3 morphhdl/scripts/check-increment-59g-source-review.py | tee "$output/register-source.log"
+          python3 morphhdl/scripts/check-increment-59h-source-review.py | tee "$output/owner-source.log"
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only > "$output/source-audit.log" 2>&1 || { tail -n 30 "$output/source-audit.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test | tee "$output/inventory.log"
+          python3 morphhdl/scripts/test-increment-59g-source-review.py > "$output/register-current-controls.log" 2>&1 || { tail -n 50 "$output/register-current-controls.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/owner-current-controls.log" 2>&1 || { tail -n 50 "$output/owner-current-controls.log"; exit 1; }
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test | tee "$output/boundary.log"
+          python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test | tee "$output/bridge-model.log"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - name: Retain verified source on the existing staging branch only
         shell: bash
         run: |
           set -euo pipefail
           test "$(git ls-remote origin refs/heads/agent/increment-59g-source-validation | cut -f1)" = '${{ github.sha }}'
           git push origin HEAD:refs/heads/agent/increment-59g-source-validation
-      - name: Check the exact combined source without nested staging copies
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only \
-            > target/59g-clean-evidence/source-audit.log 2>&1 || { tail -n 30 target/59g-clean-evidence/source-audit.log; exit 1; }
+          git rev-parse HEAD > target/59g-clean-evidence/published-head.txt
       - name: Preserve source and diagnostics
         if: always()
         shell: bash
