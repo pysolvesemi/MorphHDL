@@ -28,10 +28,29 @@ H = load('nested_owner_tools', 'check-increment-59b-operator-replay.py')
 STIMULUS = load('nested_owner_stimulus', 'check-increment-59b-native-oracle.py')
 SCOPE = 'balanced-nested-typed-owners'
 MODES = (0, 1, 2)
-POINTS = ((1, 1, 1), (5, 1, 3), (5, 2, 2), (8, 3, 3), (5, 5, 2), (8, 9, 3), (1, 5, 2))
+WIDTHS = (1, 5, 8, 32)
+COUNTS = (1, 2, 3, 5, 8, 9, 16, 17)
+ORIGINAL_POINTS = ((1, 1, 1), (5, 1, 3), (5, 2, 2), (8, 3, 3), (5, 5, 2), (8, 9, 3), (1, 5, 2))
+POINTS = tuple(dict.fromkeys(ORIGINAL_POINTS + tuple(
+    (width, count, 3) for width in WIDTHS for count in COUNTS)))
 PROFILES = ('conditional', 'loop', 'hierarchy', 'registered-loop', 'hierarchy-loop')
 LOOP_PROFILES = ('loop', 'registered-loop', 'hierarchy-loop')
 INDUCTIVE_PASS = 'Induction step proven: SUCCESS!'
+
+
+def shape(case: dict) -> tuple[str, int, int, int, int]:
+    return (case['profile'], case['width'], case['count'], case['rows'], case['mode'])
+
+
+def required_shapes() -> set[tuple[str, int, int, int, int]]:
+    return {(profile, width, count, rows if profile in LOOP_PROFILES else 1, mode)
+            for profile in PROFILES for width, count, rows in POINTS for mode in MODES}
+
+
+def validate_matrix(cases: list[dict]) -> None:
+    required = required_shapes()
+    if len(cases) != len(required) or {shape(case) for case in cases} != required:
+        raise RuntimeError('incomplete or duplicated nested branch/loop/hierarchy specialization matrix')
 
 
 def ports(case: dict) -> tuple[dict[str, int], dict[str, int]]:
@@ -263,11 +282,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
     if manifest_path.read_bytes() != (duplicate / 'manifest.json').read_bytes():
         raise RuntimeError('nondeterministic nested-owner manifest')
     cases = manifest['configurations']
-    shape = lambda case: (case['profile'], case['width'], case['count'], case['rows'], case['mode'])
-    required = {(profile, width, count, rows if profile in LOOP_PROFILES else 1, mode)
-        for profile in PROFILES for width, count, rows in POINTS for mode in MODES}
-    if len(cases) != len(required) or {shape(case) for case in cases} != required:
-        raise RuntimeError('incomplete or duplicated nested branch/loop/hierarchy specialization matrix')
+    validate_matrix(cases)
     for profile in PROFILES:
         artifacts = {(case['candidate_module'], case['candidate_rtl']) for case in cases if case['profile'] == profile}
         if len(artifacts) != 1:
@@ -381,6 +396,34 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
 
 
 def self_test() -> None:
+    required = required_shapes()
+    assert len(required) == 516, 'roadmap and original row witnesses must both remain present'
+    # Independently pin the roadmap minimum so narrowing the generator and
+    # checker together cannot silently turn the old 105-case subset green.
+    for profile in PROFILES:
+        for mode in (0, 1, 2):
+            actual = {(width, count) for p, width, count, _, m in required
+                      if p == profile and m == mode}
+            assert actual == set(itertools.product((1, 5, 8, 32), (1, 2, 3, 5, 8, 9, 16, 17)))
+    keys = ('profile', 'width', 'count', 'rows', 'mode')
+    complete = [dict(zip(keys, item)) for item in sorted(required)]
+    validate_matrix(complete)
+    old = [case for case in complete if shape(case) in {
+        (profile, width, count, rows if profile in LOOP_PROFILES else 1, mode)
+        for profile in PROFILES for width, count, rows in ORIGINAL_POINTS for mode in MODES}]
+    assert len(old) == 105
+    # Every single omitted specialization, the old matrix, a duplicate and
+    # a count outside the declared finite domain must be rejected.
+    negatives = [complete[:index] + complete[index + 1:] for index in range(len(complete))]
+    negatives += [old, complete + [complete[0]],
+                  [dict(complete[0], count=18)] + complete[1:]]
+    for incomplete in negatives:
+        try:
+            validate_matrix(incomplete)
+        except RuntimeError:
+            pass
+        else:
+            raise RuntimeError('incomplete or corrupted roadmap matrix accepted')
     case = dict(profile='loop', width=5, count=3, rows=2, mode=0)
     assert expected(case, {'words': 1 | (2 << 5) | (3 << 10), 'biases': 0 | (4 << 5)}) == {'result': 6 | (18 << 5)}
     hierarchy = dict(profile='hierarchy', width=5, count=2, rows=1, mode=2)
@@ -403,7 +446,7 @@ def self_test() -> None:
             pass
         else:
             raise RuntimeError('missing mutation anchor accepted')
-    print('PASS: independent row/branch/hierarchy models, deterministic stimuli and mutation guards')
+    print('PASS: 516 required specializations, 519 matrix rejection controls, independent models, stimuli and mutation guards')
 
 
 def main() -> None:
