@@ -149,7 +149,7 @@ final class BalancedNestedHierarchyLoop(width: HdlInt, count: HdlInt, rows: HdlI
       lane(local) := lane(words) ^ row(biases)
     }
     child.words := local
-    row(result) := child.result.asBits.asUInt
+    row(result) := child.result
   }
 }
 
