@@ -394,9 +394,13 @@ private[frontend] final class NativeGenerateCaseToken(
       )
     }
     if (parameterized) {
-      val block = ParameterizedStructure.captureBlock(
+      val block = ExternalAnalyzedStructuralPublisher.captureStructuralCaseBranch(
+        analyzedSelector,
+        selector,
         component,
-        Some(callOrigin.rendered)
+        Set(value),
+        isDefault = false,
+        sourceLocation = Some(callOrigin.rendered)
       )(body)
       choices += ((value, label, block))
     } else if (!matched && selector.witness == value) {
@@ -419,9 +423,13 @@ private[frontend] final class NativeGenerateCaseToken(
       )
     }
     if (parameterized) {
-      val defaultBlock = ParameterizedStructure.captureBlock(
+      val defaultBlock = ExternalAnalyzedStructuralPublisher.captureStructuralCaseBranch(
+        analyzedSelector,
+        selector,
         component,
-        Some(callOrigin.rendered)
+        values.toSet,
+        isDefault = true,
+        sourceLocation = Some(callOrigin.rendered)
       )(body)
       ExternalAnalyzedStructuralPublisher.registerStructuralCase(
         analyzedSelector,

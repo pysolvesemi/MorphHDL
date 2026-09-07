@@ -300,11 +300,13 @@ def qualification_ancestry(root: Path) -> None:
 def profile_features(profile: str) -> frozenset[str]:
     if profile.endswith("-and-60g"):
         return profile_features(profile[:-len("-and-60g")]) | frozenset(("60g",))
-    names = ("wa07a", "59d", "59e", "59f", "59c")
+    names = ("wa07a", "59d", "59e", "59f", "59c", "59h")
     profiles = {"60f-baseline": frozenset()}
-    for mask in range(1, 32):
+    for mask in range(1, 64):
         selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
         if "59e" in selected and "59f" not in selected:
+            continue
+        if "59h" in selected and not {"59d", "59e", "59f", "59c"}.issubset(selected):
             continue
         profiles["60f-with-" + "-and-".join(selected)] = frozenset(selected)
     require(profile in profiles, "unknown validated source profile: " + profile)
@@ -373,7 +375,7 @@ def production_profile(root: Path) -> str:
     profile = inherited_production_profile(root, rollout)
     if rollout is not None:
         # The real tree must differ from its merged base in exactly the reviewed
-        # six files. Restoration below never authorizes an extra source path.
+        # publication files. Restoration never authorizes an extra source path.
         rollout.source_scope(root)
         profile += "-and-60g"
     return profile
@@ -390,8 +392,11 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
 
     qualification_ancestry(root)
     named = named_source_review(root)
+    nested = None
     if named is not None:
         named.verify_spans(root)
+        successor = getattr(named, "nested_source_review", None)
+        nested = successor(root) if callable(successor) else None
     historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
     require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
     untracked = production_paths(git("ls-files", "--others", "-z"))
@@ -400,6 +405,8 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
     if rollout is not None:
         prior = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, rollout.BASE))
         changed -= set(rollout.PRODUCTION) - prior
+    if nested is not None:
+        changed = nested.inherited_inventory(root, changed, BASE)
     if named is not None:
         # Source qualification above binds the entire current 59c delta to the
         # completed sibling tree. Audit that exact inherited view below.
@@ -483,6 +490,8 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         current = source.read_bytes()
         if rollout is not None and path in rollout.PRODUCTION:
             current = rollout.restore_60g_source(root, path, current.decode()).encode()
+        if nested is not None and path in nested.PRODUCTION_PATHS and path not in named.PRODUCTION_PATHS:
+            current = nested.restore_source(root, path, current.decode()).encode()
         if named is not None and path in named.PRODUCTION_PATHS:
             current = named.restore_source(root, path, current.decode()).encode()
         require(hashlib.sha256(current).hexdigest() == digest, diagnostic + path)
@@ -499,7 +508,11 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         require(not dirty, label + " production sources: " + str(sorted(dirty)))
     if named is not None:
         named.verify(root)
-    return profile + "-and-59c" if named is not None else profile
+    if named is not None:
+        profile += "-and-59c"
+    if nested is not None:
+        profile += "-and-59h"
+    return profile
 
 
 def regression_profile(root: Path) -> str:

@@ -44,6 +44,8 @@ jobs:
             python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
             python3 morphhdl/scripts/test-increment-59f-source-scope.py
             python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
             python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
             python3 morphhdl/scripts/check-native-source-preservation.py
             python3 morphhdl/scripts/check-typed-native-source-overlay.py

@@ -1000,7 +1000,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1015,6 +1015,21 @@
             {
               "side": "approved",
               "text": "finally leaf.compositeAssign = active",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private[core] def isCertifiedReadOf(expected: BaseType): Boolean =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
               "count": 1
             }
           ]

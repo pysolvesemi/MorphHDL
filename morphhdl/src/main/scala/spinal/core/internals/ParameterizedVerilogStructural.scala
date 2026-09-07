@@ -155,8 +155,28 @@ private[internals] object ParameterizedVerilogStructural {
       allBlocks,
       lines
     )
+    // A parent parameter may occur only in a captured child's actual, with no
+    // local width or generate predicate referring to it. Read those actuals
+    // through the exact component-identity registry, and validate declaration
+    // identities before merging schemas. This is a parameter inventory only;
+    // ordinary child connection lowering keeps its existing publication order.
+    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
+      component,
+      includeChildActuals = true
+    )
+    val childActualParameters = component.children.toVector.flatMap { child =>
+      // An explicit formal may be unused by its constructor. Only exact roots
+      // present in the child's semantic parameter inventory reach its emitted
+      // definition, so unused actuals must not enlarge the parent's header.
+      val usedFormalRoots = MorphHdlExternalParameterizedVerilog
+        .componentParameters(child).map(_.declarationRoot)
+      ExternalFormalParameterRegistry.bindingsOf(child)
+        .filter(binding => usedFormalRoots.exists(_ eq binding.formal.declarationRoot))
+        .flatMap(_.actual.parameters)
+    }
     val parameters = mergeParameters(
-      ParameterizedWidth.parametersOf(component) ++
+      childActualParameters ++
+        ParameterizedWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
@@ -332,7 +352,10 @@ private[internals] object ParameterizedVerilogStructural {
       withoutCaptured,
       parameters
     )
-    val planByBlock = plans.map(plan => plan.block -> plan).toMap
+    val planByBlock = plans.map { plan =>
+      plan.block -> plan.copy(body = TypedBalancedReductionBackend.rewriteScoped(
+        component, plan.block, plan.body, pc, canonicalOf))
+    }.toMap
     val renderedRegions = regions.map(region => renderRegion(region, planByBlock))
 
     val endmodule = withHeader.lastIndexWhere(_.trim == "endmodule")

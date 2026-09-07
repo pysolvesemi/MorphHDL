@@ -3,9 +3,11 @@
 **Status:** Implementation in progress; final-head qualification and merge are
 not yet recorded. Both 60g and parent 60 remain unchecked.
 
-**Integration source base:** `39977b32cc47c54a0481716c181069184a32fbe5`,
-including merged 59c, 59d, 59e, 59f and 60f. The later documentation-only
-59d closeout at `0018da2740645e0ac0c419ded7b67c01622d2bb7` is preserved on publication. The original branch began at
+**Integration source base:** `cba4717abc9192917d819e1f84cb246162488286`,
+including merged 59c, 59d, 59e, 59f, 59h and 60f, and the 59d documentation
+closeout at `0018da2740645e0ac0c419ded7b67c01622d2bb7`. The previously
+qualified 60g head `bebe490c49aa99ec2a8223419c23c64e2d66786c` preceded
+59h's integration and does not qualify the combined source. The original branch began at
 `ddbc9ff637ec0c42093111e7f8e48fc87957580f`; the 60g production delta and
 reversible checker spans are measured against the merged integration state,
 not against the earlier base. Integration target: `parameterized-verilog`.
@@ -32,7 +34,7 @@ they cannot fail merely because an unrelated branch has a narrower width domain.
 The full original analysis and policy restore exactly through the scoped ledger. The final native-source manifest is
 `morphhdl/contracts/native-source-preservation.json`, SHA-256:
 
-`070d4b336c6035eb7f7c30a8d6c76cdb760a8cf16d5d4cd04f51b9a3f4cdc449`
+`d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0`
 
 The existing native helpers `emitSignedOperand`,
 `operatorImplAsBinaryOperatorSigned`, `operatorImplAsBinaryOperatorLeftSigned`,
@@ -122,7 +124,8 @@ strict Verilog-2001 parsing, Icarus simulation, Verilator lint, Yosys synthesis,
 formal counterexamples, native audits, public golden regeneration, baseline
 and Mill CI are required before closure. The new tests extend an already
 required suite, so the exact named suite inventory remains unchanged and its
-minimum MorphHDL test count increases by fifteen. Zero failures/errors/skips
+minimum MorphHDL test count increases by eighteen (seventeen compatibility
+cases and one lexical case). Zero failures/errors/skips
 remain mandatory. Source-bound results and merge/post-merge checks are not yet
 available in this in-progress record.
 
@@ -168,10 +171,11 @@ sealed cast-heavy oracle comparison paths explicitly select legacy output.
 The current integration includes 59d's exact owner-aware width authority and
 its independent widening matrix, without altering its reviewed native code or
 arithmetic proofs. The 60g source ledger restores all nine changed production
-files to the complete merged 59c/59d/59e/59f source before the inherited profile
-checks run. Eighteen complete source restorations and fifty-four source
-mutation rejections are required. The twelve exact inherited source profiles
-retain all 3,048 inventory rejection controls. On current 60g source, mutations
+files to the complete merged 59c/59d/59e/59f/59h source before the inherited
+profile checks run. Twenty-four complete source restorations and seventy-two
+source mutation rejections are required. The twelve inherited source profiles
+and named-field/nested-owner extensions retain all 3,051 inventory rejection
+controls. On current 60g source, mutations
 of a checker wrapped by the rollout ledger are rejected at that outer exact
 blob boundary before reaching the historical 59d seam check; the fixture
 expectations distinguish those exact errors and preserve historical profiles.
@@ -253,3 +257,37 @@ proofs require their recorded terminal results. Local incremental compilation
 uses verified archived classpaths with changed source rebuilt; it is not a
 substitute for the complete exact-head SBT/Mill and hardware CI lanes. Final
 qualification and merge remain pending.
+
+
+## Integration with merged 59h
+
+PR #170 merged at `cba4717abc9192917d819e1f84cb246162488286` during 60g's
+qualification. Its lexical-owner, branch-domain, finite-index, static-Vec and
+child-parameter work is retained in full. The two shared production files merge
+without an algorithm change: the structural scanner still excludes the `signed`
+keyword and the native publisher still preserves the signed reset-zero witness.
+No old public golden patch is reapplied.
+
+Source audits compose in strict reverse order: 60g publication changes, then
+59h nested-owner changes, then the earlier 59c/59d/59e/59f authorities. The
+immutable 59h source-review manifest is unchanged. The outer 60g ledger records
+the reviewed integration adapters and updated native manifest, including full
+before/after hashes. Shared-file mutations must fail at the outer exact-file
+boundary; unshared files retain the original 59h diagnostics. All original
+59h mutation controls are additionally replayed on its pre-rollout tree, with
+the historical commit recorded separately from current-source evidence.
+
+The complete regression catalog retains all nested-owner suites and all
+reviewed rollout counts. The nested-owner hardware workflow runs for this 60g
+integration and future integration-branch changes, so the 105-case native
+reference matrix and three mutations cannot be bypassed by a branch-name
+routing condition. No independent RTL oracle or arithmetic proof assumption is
+changed. New combined-head CI is mandatory before completion or merge.
+
+Before this integration, `bebe490c` passed both full 1,833-test/179-suite lanes,
+both 60g lanes and CI cross-Scala comparisons, both 59c/59f integration lanes,
+baseline, Mill and the other completed inherited checks. The structural/process
+setup failure was a Mill-download connection error, and its retry passed without
+source changes. The 59d hardware matrix was still running when 59h merged.
+Those recorded results remain historical evidence for `bebe490c`, not a claim
+that this new integration head is qualified.
