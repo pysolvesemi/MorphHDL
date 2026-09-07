@@ -1,0 +1,141 @@
+name: Increment 59g native register bridge qualification
+
+on:
+  push:
+    branches: [parameterized-verilog, 'agent/increment-59g-*']
+    paths:
+      - '.github/workflows/increment-59g-register-bridges.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/**'
+      - 'morphhdl/contracts/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59g-register-bridges.yml'
+      - 'morphhdl/src/**'
+      - 'morphhdl/scripts/**'
+      - 'morphhdl/contracts/**'
+      - 'core/src/**'
+      - 'lib/src/**'
+      - 'build.sbt'
+      - 'build.mill'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59g-register-bridges-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Native register bridges Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+      MORPHDL_BRIDGE_JOBS: '4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve source and check exact inherited contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-59g/bootstrap
+          git rev-parse HEAD > target/increment-59g/head.txt
+          git archive HEAD | gzip > target/increment-59g/source.tar.gz
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test
+          python3 morphhdl/scripts/check-increment-59g-source-review.py
+          python3 morphhdl/scripts/test-increment-59g-source-review.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test
+      - name: Bootstrap the repository-pinned SBT launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/increment-59g/bootstrap"
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59g/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+      - name: Test bridge certificates and generate reusable candidates and independent references twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59g"
+          bootstrap="$output/bootstrap"
+          java -Xmx3G -XX:ActiveProcessorCount=4 -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReduction*Tests' \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionBridgeArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionBridgeArtifactWriter $output/b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 150 "$output/sbt.log"; exit 1; }
+          python3 - <<'PYTEST'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          required = {'TypedBalancedReductionBridgePublicationTests': 3,
+                      'TypedBalancedReductionBridgeReplayTests': 10,
+                      'TypedBalancedReductionCallbackPolicyTests': 16,
+                      'TypedBalancedReductionStageReplayTests': 23,
+                      'TypedBalancedReductionClosedGraphTests': 20}
+          reports = list(Path('morphhdl/target').rglob('TEST-*TypedBalancedReduction*Tests.xml'))
+          assert reports, 'no bridge/reduction test reports'
+          seen = set()
+          for path in reports:
+              suite = ET.parse(path).getroot()
+              name = suite.get('name','').split('.')[-1]
+              assert all(int(suite.get(key,'0')) == 0 for key in ('errors','failures','skipped')), (path,suite.attrib)
+              if name in required:
+                  assert name not in seen and int(suite.get('tests','0')) == required[name], (path,suite.attrib)
+                  seen.add(name)
+          assert seen == set(required), (seen,required)
+          PYTEST
+      - name: Prove reset entry stalls and in-flight resets and require functional mutation counterexamples
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59g"
+          python3 morphhdl/scripts/check-increment-59g-register-bridges.py "$output/a" "$output/b"
+      - name: Retain exact source generated RTL tests and proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59g-register-bridges-${{ matrix.scala }}
+          path: |
+            target/increment-59g
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30

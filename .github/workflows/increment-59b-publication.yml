@@ -2,7 +2,7 @@ name: Increment 59b parameterized balanced publication
 
 on:
   push:
-    branches: ['agent/increment-59b-*', 'agent/increment-59d-*', parameterized-verilog]
+    branches: ['agent/increment-59b-*', 'agent/increment-59d-*', parameterized-verilog, 'agent/increment-59g-*']
     paths:
       - '.github/workflows/increment-59b-publication.yml'
       - 'morphhdl/src/**'
@@ -38,6 +38,8 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d'))
@@ -110,7 +112,13 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',14), ('TypedBalancedReductionPublicationSafetyTests',8), ('FiniteAffineVecReadTests',8)]:
+          bridge_policy_count = 14
+          bridge_review = Path('morphhdl/scripts/check-increment-59g-source-review.py')
+          if bridge_review.is_file():
+              import runpy
+              runpy.run_path(str(bridge_review))['verify'](Path.cwd())
+              bridge_policy_count = 16
+          for name, count in [('TypedBalancedReductionPublicationTests',4), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('FiniteAffineVecReadTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

@@ -53,7 +53,7 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
   private val dataNames = scalarNames ++ Set("spinal/core/Data", "spinal/core/BaseType", "spinal/core/BitVector")
   private val dataDescriptors = dataNames.map(name => "L" + name + ";")
   private val binaryNames = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "$times", "min", "max")
-  private val nativeModules = Set("RegNext", "U", "S", "B", "package").map("spinal/core/" + _ + "$")
+  private val nativeModules = Set("RegNext", "RegNextWhen", "U", "S", "B", "package").map("spinal/core/" + _ + "$")
 
   private def check(callback: AnyRef, bridge: Boolean): Unit = {
     if (callback == null) fail("callback must be present")
@@ -194,7 +194,11 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
           (dataDescriptors(Type.getReturnType(call.desc).getDescriptor) ||
             Type.getReturnType(call.desc).getDescriptor == "Ljava/lang/Object;")
       }
-    if (scalarBinary) return !bridge
+    // Boolean expressions in a bridge construct a local native register
+    // enable. The closed bridge graph separately proves that they read only
+    // the register's exact input; arithmetic bridge expressions still reject.
+    if (scalarBinary) return !bridge || (call.owner == "spinal/core/Bool" &&
+      Set("$amp", "$bar", "$up")(call.name))
     // This method constructs a fresh native value. In particular, do not
     // admit setWidth/getWidth: the former mutates an operand and the latter
     // erases a symbolic width to its current native witness. Width transfer
@@ -205,6 +209,12 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
         return true
     }
     if (!bridge) return false
+    if (call.getOpcode == Opcodes.INVOKEVIRTUAL && scalarNames(call.owner)) {
+      if (Set("msb", "lsb")(call.name) && call.desc == "()Lspinal/core/Bool;") return true
+      if (call.name == "apply" && call.desc == "(I)Lspinal/core/Bool;") return true
+      if (call.owner == "spinal/core/Bool" && call.name == "unary_$bang" &&
+          call.desc == "()Lspinal/core/Bool;") return true
+    }
     if (call.getOpcode == Opcodes.INVOKESPECIAL && call.owner == "spinal/idslplugin/Location" &&
         call.name == "<init>" && call.desc == "(Ljava/lang/String;II)V") return true
     if (call.getOpcode == Opcodes.INVOKEINTERFACE && call.owner == "spinal/core/DataPrimitives" &&
@@ -213,6 +223,8 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
         call.name == "unboxToInt" && call.desc == "(Ljava/lang/Object;)I") return true
     if (call.getOpcode != Opcodes.INVOKEVIRTUAL) return false
     if (call.owner == "spinal/core/package$") {
+      if (Set("True", "False")(call.name) &&
+          call.desc == "(Lspinal/idslplugin/Location;)Lspinal/core/Bool;") return true
       if (Set("UInt", "SInt", "Bits", "Bool")(call.name) &&
           call.desc == "(Lscala/runtime/BoxedUnit;)Lspinal/core/" + call.name + ";") return true
       if (Set("UInt$default$1", "SInt$default$1", "Bits$default$1", "Bool$default$1")(call.name) &&
@@ -221,6 +233,10 @@ private[spinal] object TypedBalancedReductionCallbackPolicy {
     if (call.owner == "spinal/core/RegNext$")
       return (call.name == "apply" && call.desc == "(Lspinal/core/Data;Lspinal/core/Data;)Lspinal/core/Data;") ||
         (call.name == "apply$default$2" && call.desc == "()Lspinal/core/Data;")
+    if (call.owner == "spinal/core/RegNextWhen$")
+      return (call.name == "apply" && call.desc ==
+        "(Lspinal/core/Data;Lspinal/core/Bool;Lspinal/core/Data;Lspinal/idslplugin/Location;)Lspinal/core/Data;") ||
+        (call.name == "apply$default$3" && call.desc == "()Lspinal/core/Data;")
     if (Set("spinal/core/U$", "spinal/core/S$", "spinal/core/B$")(call.owner))
       return call.name == "apply" && call.desc == "(I)Lspinal/core/BitVector;"
     if (dataNames(call.owner)) {

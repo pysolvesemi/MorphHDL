@@ -138,9 +138,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       rewrittenDeclarations,
       nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
-    val rewrittenInitializers = rewriteRetainedZeroInitializers(
+    val rewrittenInitializers = rewriteRetainedConstantInitializers(
       component,
-      rewrittenConstants
+      rewrittenConstants,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
@@ -654,16 +655,16 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     }
   }
 
-  /** Rewrite only graph-proven zero initializers of retained-width registers.
+  /** Rewrite only graph-proven constant initializers of retained-width registers.
     *
-    * The native emitter correctly sizes an initializer to the construction
-    * witness, but that literal must grow with a later parameter specialization.
-    * Authorization starts from the exact InitAssignmentStatement target and
-    * its poison-free zero BitVectorLiteral source. Every direct, full-target
-    * invariant-zero write to that same retained register is then counted in
-    * the graph, and the emitted signal name and witness literal may rewrite
-    * exactly that many Verilog edges. This preserves lineage when an ordinary
-    * register also has a clear, wrap or flush-to-zero assignment.
+    * The native emitter sizes its literal to the construction witness. A later
+    * specialization must extend the typed value, including a negative SInt's
+    * sign. Authorization starts from the exact full InitAssignmentStatement
+    * target and its poison-free, same-kind BitVectorLiteral source. Every
+    * identical direct constant write to that register is counted in the graph;
+    * its emitted name and literal may replace exactly those native edges.
+    * Existing invariant-zero cast/resize writes retain their zero proof.
+    * Process syntax remains entirely owned by the native emitter.
     */
   private def isInvariantZero(expression: Expression): Boolean =
     expression match {
@@ -688,42 +689,56 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case _ => false
       })
 
-  private def rewriteRetainedZeroInitializers(
+  private[internals] def rewriteRetainedConstantInitializers(
       component: Component,
-      verilog: String
+      verilog: String,
+      nativeSignedLiterals: Boolean = false
   ): String = {
-    final case class RetainedZeroInitializer(
+    final case class RetainedConstantInitializer(
         target: BitVector,
         name: String,
         width: ElaborationIntegerExpression,
+        literal: BitVectorLiteral,
         witness: String
     )
 
-    val initializers = ArrayBuffer.empty[RetainedZeroInitializer]
+    val initializers = ArrayBuffer.empty[RetainedConstantInitializer]
     component.dslBody.walkLeafStatements {
       case statement: InitAssignmentStatement =>
         statement.finalTarget match {
-          case target: BitVector if target.component eq component =>
+          case target: BitVector if (target.component eq component) &&
+              (statement.target eq target) && target.isReg =>
             ParameterizedWidth
               .expressionOf(target)
               .filter(_.parameters.nonEmpty)
               .foreach { width =>
                 statement.source match {
                   case literal: BitVectorLiteral
-                      if !literal.hasPoison() && literal.getValue() == 0 &&
+                      if !literal.hasPoison() &&
+                        (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&
                         literal.getWidth == target.getBitsWidth =>
+                    NativePublicationWidth.validate(width, component, target,
+                      "native constant initializer width")
+                    if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth))
+                      fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH",
+                        "one exact native constant initializer lost its positive typed width or witness",
+                        width.sourceLocation)
                     val name = Option(target.getName()).filter(_.nonEmpty).getOrElse {
                       fail(
-                        "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-MISSING",
-                        "one retained-width zero-initialized register has no final emitted name",
+                        "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-NAME-MISSING",
+                        "one retained-width constant-initialized register has no final emitted name",
                         ParameterizedWidth.sourceLocationOf(target)
                       )
                     }
-                    initializers += RetainedZeroInitializer(
+                    val witness = emittedRetainedWitness(literal)
+                    initializers += RetainedConstantInitializer(
                       target,
                       name,
                       width,
-                      emittedRetainedWitness(literal)
+                      literal,
+                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
+                        witness.replace("'", "'s")
+                      else witness
                     )
                   case _ =>
                 }
@@ -739,8 +754,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .collectFirst { case (name, values) if values.size != 1 => name }
       .foreach { name =>
         fail(
-          "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-CONFLICT",
-          s"multiple retained-width zero initializers resolved to emitted name '$name'"
+          "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-NAME-CONFLICT",
+          s"multiple retained-width constant initializers resolved to emitted name '$name'"
         )
       }
 
@@ -749,7 +764,18 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       var authorizedEdges = 0
       component.dslBody.walkLeafStatements {
         case statement: AssignmentStatement
-            if isAuthorizedZeroAssignment(statement, initializer.target) =>
+            if (statement.target eq initializer.target) &&
+              (statement.finalTarget eq initializer.target) &&
+              (if (initializer.literal.getValue() == 0)
+                isAuthorizedZeroAssignment(statement, initializer.target)
+              else statement.source match {
+                case literal: BitVectorLiteral =>
+                  !literal.hasPoison() &&
+                    (literal.getTypeObject.asInstanceOf[AnyRef] eq initializer.literal.getTypeObject.asInstanceOf[AnyRef]) &&
+                    literal.getWidth == initializer.literal.getWidth &&
+                    literal.getValue() == initializer.literal.getValue()
+                case _ => false
+              }) =>
           authorizedEdges += 1
         case _ =>
       }
@@ -757,17 +783,32 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         "^(\\s*" + Pattern.quote(initializer.name) +
           "\\s*(?:<=|=)\\s*)" + Pattern.quote(initializer.witness) + "(;.*)$"
       ).r
+      val value = initializer.literal.getValue()
+      val fill = if (initializer.literal.isSignedKind && value < 0) '1' else '0'
+      val replacement = if (value == 0 || value == -1) {
+        "{" + initializer.width.verilog + "{1'b" + fill + "}}"
+      } else {
+        val bits = initializer.literal.minimalValueBitWidth.max(1)
+        val width = initializer.width.verilog
+        // Inactive typed templates can use a narrower positive placeholder.
+        // A zero padding count keeps that constant syntactically legal; the
+        // native assignment truncates its unused high bits in that case.
+        val padding = if (initializer.width.minimum >= bits) s"($width - $bits)"
+          else s"(($width > $bits) ? ($width - $bits) : 0)"
+        "{{" + padding + "{1'b" + fill + "}}, " + bits + "'b" +
+          initializer.literal.getBitsStringOn(bits, 'x') + "}"
+      }
       var exactEdges = 0
       lines = lines.map {
         case pattern(prefix, suffix) =>
           exactEdges += 1
-          prefix + "{" + initializer.width.verilog + "{1'b0}}" + suffix
+          prefix + replacement + suffix
         case line => line
       }
       if (authorizedEdges == 0 || exactEdges != authorizedEdges) {
         fail(
-          "SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-EMITTED-LINEAGE-MISMATCH",
-          s"retained-width zero initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges direct invariant-zero assignments",
+          "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
+          s"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges exact constant assignments",
           initializer.width.sourceLocation
         )
       }

@@ -2,7 +2,7 @@ name: Increment 59b closed callback graphs
 
 on:
   push:
-    branches: ['agent/increment-59b-*']
+    branches: ['agent/increment-59b-*', 'agent/increment-59g-*']
     paths:
       - '.github/workflows/increment-59b-closed-graph.yml'
       - 'morphhdl/src/**'
@@ -28,6 +28,8 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-')
     name: Closed graphs Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest

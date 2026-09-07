@@ -1,0 +1,799 @@
+{
+  "schema_version": 2,
+  "base": "0018da2740645e0ac0c419ded7b67c01622d2bb7",
+  "offset_format": "utf8-bytes",
+  "files": [
+    {
+      "path": "morphhdl/scripts/check-increment-59c-source-review.py",
+      "change": "modified",
+      "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories.",
+      "baseline_sha256": "1941fa59340440161bb3851faeab68cb33a85b0beda2d2144a32deaea70f46bf",
+      "edits": [
+        {
+          "id": "check-increment-59c-source-review-59g-1",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: publication declarations.",
+          "before_start": 561,
+          "before_end": 561,
+          "after_start": 561,
+          "after_end": 583,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59g-2",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: baseline_source.",
+          "before_start": 8065,
+          "before_end": 8065,
+          "after_start": 8087,
+          "after_end": 8946,
+          "before": "",
+          "after": "def register_source_review(root: Path):\n    \"\"\"Compose the exact 59g successor without changing the frozen 59c review.\"\"\"\n    checker = root / \"morphhdl/scripts/check-increment-59g-source-review.py\"\n    contract = root / \"morphhdl/contracts/increment-59g-source-review.json\"\n    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):\n        return None\n    require(checker.is_file() and not checker.is_symlink() and contract.is_file() and\n            not contract.is_symlink(), \"59g source-review checker or contract is missing\")\n    spec = importlib.util.spec_from_file_location(\"register_59g_review\", checker)\n    require(spec is not None and spec.loader is not None, \"cannot load exact 59g source review\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59g-3",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: restore_source.",
+          "before_start": 8208,
+          "before_end": 8208,
+          "after_start": 9089,
+          "after_end": 9226,
+          "before": "",
+          "after": "    successor = register_source_review(root)\n    if successor is not None:\n        source = successor.restore_source(root, path, source)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59g-4",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: verify_spans.",
+          "before_start": 9381,
+          "before_end": 9381,
+          "after_start": 10399,
+          "after_end": 10511,
+          "before": "",
+          "after": "    successor = register_source_review(root)\n    if successor is not None:\n        successor.verify_spans(root)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59g-5",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: verify_spans.",
+          "before_start": 10223,
+          "before_end": 10286,
+          "after_start": 11353,
+          "after_end": 11562,
+          "before": "        restore_reviewed(entry, baseline, source.read_bytes())\n",
+          "after": "        current = source.read_bytes()\n        if successor is not None:\n            current = successor.restore_source(root, path, current.decode()).encode()\n        restore_reviewed(entry, baseline, current)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59g-6",
+          "reason": "Validate and reverse only the exact 59g successor spans before every frozen 59c span and inventory check; retain all inherited manifest hashes and complete production inventories. Reviewed source context: verify.",
+          "before_start": 10352,
+          "before_end": 10431,
+          "after_start": 11628,
+          "after_end": 12127,
+          "before": "    require_production_inventory(production_changes(root, qualification_base))\n",
+          "after": "    changes = production_changes(root, qualification_base)\n    successor = register_source_review(root)\n    if successor is not None:\n        successor.verify(root)\n        inherited = subprocess.check_output(\n            [\"git\", \"diff\", \"--no-renames\", \"--name-only\", qualification_base, successor.BASE],\n            cwd=root, text=True).splitlines()\n        changes = (changes - successor.PRODUCTION_PATHS) | (set(inherited) & successor.PRODUCTION_PATHS)\n    require_production_inventory(changes)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
+      "change": "modified",
+      "reason": "Add exactly the two register-bridge suites and their counts, plus two callback-policy cases; preserve every inherited suite identity and exact count and reject missing bridge suites.",
+      "baseline_sha256": "ad9f861bab1d66e4f852c9fae644a313c06c4836615c55099fdc08a4809291f0",
+      "edits": [
+        {
+          "id": "check-increment-60f-artifacts-59g-1",
+          "reason": "Add exactly the two register-bridge suites and their counts, plus two callback-policy cases; preserve every inherited suite identity and exact count and reject missing bridge suites. Reviewed source context: publication declarations.",
+          "before_start": 12520,
+          "before_end": 12520,
+          "after_start": 12520,
+          "after_end": 13288,
+          "before": "",
+          "after": "    \"59g\": {\n        \"sources\": (\n            \"morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgePublicationTests.scala\",\n            \"morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala\",\n        ),\n        \"projects\": {\"morphhdl\": frozenset((\n            \"spinal.core.internals.TypedBalancedReductionBridgePublicationTests\",\n            \"spinal.core.internals.TypedBalancedReductionBridgeReplayTests\",\n        ))},\n        \"counts\": {\n            \"spinal.core.internals.TypedBalancedReductionBridgePublicationTests\": 3,\n            \"spinal.core.internals.TypedBalancedReductionBridgeReplayTests\": 10,\n            \"spinal.core.internals.TypedBalancedReductionCallbackPolicyTests\": 16,\n        },\n    },\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59g-2",
+          "reason": "Add exactly the two register-bridge suites and their counts, plus two callback-policy cases; preserve every inherited suite identity and exact count and reject missing bridge suites. Reviewed source context: catalog_for_profile.",
+          "before_start": 21575,
+          "before_end": 21575,
+          "after_start": 22343,
+          "after_end": 23034,
+          "before": "",
+          "after": "                if name == \"59g\":\n                    exact = SUITE_EXTENSIONS[name][\"counts\"]\n                    require(set(exact) == set(additions) |\n                            {\"spinal.core.internals.TypedBalancedReductionCallbackPolicyTests\"},\n                            \"59g exact test counts escaped register-bridge scope\")\n                    reviewed_counts = extension.setdefault(project, {})\n                    require(not set(reviewed_counts).intersection(exact),\n                            \"59g exact test counts replaced another reviewed feature\")\n                    reviewed_counts.update(exact)\n                    minimum += sum(exact[name] for name in additions) + 2\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59g-3",
+          "reason": "Add exactly the two register-bridge suites and their counts, plus two callback-policy cases; preserve every inherited suite identity and exact count and reject missing bridge suites. Reviewed source context: reject_reports.",
+          "before_start": 70879,
+          "before_end": 70879,
+          "after_start": 72338,
+          "after_end": 73066,
+          "before": "",
+          "after": "    bridges = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59g\", True)\n    bridge_additions = SUITE_EXTENSIONS[\"59g\"][\"projects\"][\"morphhdl\"]\n    require(bridges[1][\"morphhdl\"] == named[1][\"morphhdl\"] | bridge_additions,\n            \"59g changed an inherited exact suite identity\")\n    require(bridges[2][\"morphhdl\"] == dict(named[2][\"morphhdl\"],\n            **SUITE_EXTENSIONS[\"59g\"][\"counts\"]), \"59g changed an inherited exact test obligation\")\n    for missing in bridge_additions:\n        rejected(lambda missing=missing: exact_names(set(bridges[1][\"morphhdl\"]) - {missing},\n                 set(bridges[1][\"morphhdl\"]), \"missing reviewed register-bridge suite\"),\n                 \"missing exact 59g suite\")\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59g-4",
+          "reason": "Add exactly the two register-bridge suites and their counts, plus two callback-policy cases; preserve every inherited suite identity and exact count and reject missing bridge suites. Reviewed source context: reject_reports.",
+          "before_start": 71230,
+          "before_end": 71378,
+          "after_start": 73417,
+          "after_end": 73582,
+          "before": "    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field suite extension and {rejections} rejection controls PASS\")\n",
+          "after": "    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field/register-bridge suite extensions and {rejections} rejection controls PASS\")\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
+      "change": "modified",
+      "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks.",
+      "baseline_sha256": "9b88a24ee2e25435e576d996970701bd9bcbeec5434552ebf821b8a139be3b8a",
+      "edits": [
+        {
+          "id": "check-increment-60f-equivalence-closure-59g-1",
+          "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks. Reviewed source context: profile_features.",
+          "before_start": 18338,
+          "before_end": 18388,
+          "after_start": 18338,
+          "after_end": 18395,
+          "before": "    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\")\n",
+          "after": "    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59g\")\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59g-2",
+          "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks. Reviewed source context: profile_features.",
+          "before_start": 18433,
+          "before_end": 18463,
+          "after_start": 18440,
+          "after_end": 18470,
+          "before": "    for mask in range(1, 32):\n",
+          "after": "    for mask in range(1, 64):\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59g-3",
+          "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks. Reviewed source context: profile_features.",
+          "before_start": 18609,
+          "before_end": 18609,
+          "after_start": 18616,
+          "after_end": 18723,
+          "before": "",
+          "after": "            continue\n        if \"59g\" in selected and not {\"59d\", \"59e\", \"59f\", \"59c\"}.issubset(selected):\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59g-4",
+          "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks. Reviewed source context: production_paths.",
+          "before_start": 28723,
+          "before_end": 28788,
+          "after_start": 28837,
+          "after_end": 28867,
+          "before": "        if named is not None and path in named.PRODUCTION_PATHS:\n",
+          "after": "        if named is not None:\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59g-5",
+          "reason": "Identify the complete register-bridge successor source profile and restore its exact source spans through the existing 59c adapter before unchanged inherited hashes, native audits, and source-state checks. Reviewed source context: production_paths.",
+          "before_start": 29910,
+          "before_end": 29976,
+          "after_start": 29989,
+          "after_end": 30162,
+          "before": "    return profile + \"-and-59c\" if named is not None else profile\n",
+          "after": "        profile += \"-and-59c\"\n        if getattr(named, \"register_source_review\", lambda root: None)(root) is not None:\n            profile += \"-and-59g\"\n    return profile\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
+      "change": "modified",
+      "reason": "Require the current complete 59g and inherited source audit while running all unchanged historical 59c negative controls against their frozen completed tree with separately identified evidence.",
+      "baseline_sha256": "a80a0e31c5df76419f7e1eca0147f1539bf5e23fd01d4d30279b035f7d428ea5",
+      "edits": [
+        {
+          "id": "test-increment-59c-inherited-source-scope-59g-1",
+          "reason": "Require the current complete 59g and inherited source audit while running all unchanged historical 59c negative controls against their frozen completed tree with separately identified evidence. Reviewed source context: publication declarations.",
+          "before_start": 465,
+          "before_end": 465,
+          "after_start": 465,
+          "after_end": 487,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "test-increment-59c-inherited-source-scope-59g-2",
+          "reason": "Require the current complete 59g and inherited source audit while running all unchanged historical 59c negative controls against their frozen completed tree with separately identified evidence. Reviewed source context: main.",
+          "before_start": 5619,
+          "before_end": 5619,
+          "after_start": 5641,
+          "after_end": 6064,
+          "before": "",
+          "after": "    successor = ROOT / \"morphhdl/scripts/test-increment-59g-source-review.py\"\n    if successor.is_file():\n        spec = importlib.util.spec_from_file_location(\"bridge_successor_controls\", successor)\n        module = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(module)\n        module.frozen_59c_controls(ROOT, lambda: checked(ROOT, \"current 59g and inherited exact source audits\"))\n        return\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "change": "modified",
+      "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged.",
+      "baseline_sha256": "08fd507b942ea7d22f91956a3a93fec9991a27d458c46132f473a21dd806e5d1",
+      "edits": [
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-1",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteValidated.",
+          "before_start": 5859,
+          "before_end": 5924,
+          "after_start": 5859,
+          "after_end": 5928,
+          "before": "    val rewrittenInitializers = rewriteRetainedZeroInitializers(\n",
+          "after": "    val rewrittenInitializers = rewriteRetainedConstantInitializers(\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-2",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteValidated.",
+          "before_start": 5941,
+          "before_end": 5966,
+          "after_start": 5945,
+          "after_end": 6047,
+          "before": "      rewrittenConstants\n",
+          "after": "      rewrittenConstants,\n      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-3",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteDeclarationLine.",
+          "before_start": 24154,
+          "before_end": 24233,
+          "after_start": 24235,
+          "after_end": 24318,
+          "before": "  /** Rewrite only graph-proven zero initializers of retained-width registers.\n",
+          "after": "  /** Rewrite only graph-proven constant initializers of retained-width registers.\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-4",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteDeclarationLine.",
+          "before_start": 24239,
+          "before_end": 24851,
+          "after_start": 24324,
+          "after_end": 24930,
+          "before": "    * The native emitter correctly sizes an initializer to the construction\n    * witness, but that literal must grow with a later parameter specialization.\n    * Authorization starts from the exact InitAssignmentStatement target and\n    * its poison-free zero BitVectorLiteral source. Every direct, full-target\n    * invariant-zero write to that same retained register is then counted in\n    * the graph, and the emitted signal name and witness literal may rewrite\n    * exactly that many Verilog edges. This preserves lineage when an ordinary\n    * register also has a clear, wrap or flush-to-zero assignment.\n",
+          "after": "    * The native emitter sizes its literal to the construction witness. A later\n    * specialization must extend the typed value, including a negative SInt's\n    * sign. Authorization starts from the exact full InitAssignmentStatement\n    * target and its poison-free, same-kind BitVectorLiteral source. Every\n    * identical direct constant write to that register is counted in the graph;\n    * its emitted name and literal may replace exactly those native edges.\n    * Existing invariant-zero cast/resize writes retain their zero proof.\n    * Process syntax remains entirely owned by the native emitter.\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-5",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: isAuthorizedZeroAssignment.",
+          "before_start": 25621,
+          "before_end": 25668,
+          "after_start": 25700,
+          "after_end": 25762,
+          "before": "  private def rewriteRetainedZeroInitializers(\n",
+          "after": "  private[internals] def rewriteRetainedConstantInitializers(\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-6",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteRetainedConstantInitializers.",
+          "before_start": 25696,
+          "before_end": 25718,
+          "after_start": 25790,
+          "after_end": 25857,
+          "before": "      verilog: String\n",
+          "after": "      verilog: String,\n      nativeSignedLiterals: Boolean = false\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-7",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: rewriteRetainedConstantInitializers.",
+          "before_start": 25734,
+          "before_end": 25780,
+          "after_start": 25873,
+          "after_end": 25923,
+          "before": "    final case class RetainedZeroInitializer(\n",
+          "after": "    final case class RetainedConstantInitializer(\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-8",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 25874,
+          "before_end": 25874,
+          "after_start": 26017,
+          "after_end": 26052,
+          "before": "",
+          "after": "        literal: BitVectorLiteral,\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-9",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 25905,
+          "before_end": 25971,
+          "after_start": 26083,
+          "after_end": 26153,
+          "before": "    val initializers = ArrayBuffer.empty[RetainedZeroInitializer]\n",
+          "after": "    val initializers = ArrayBuffer.empty[RetainedConstantInitializer]\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-10",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 26101,
+          "before_end": 26170,
+          "after_start": 26283,
+          "after_end": 26416,
+          "before": "          case target: BitVector if target.component eq component =>\n",
+          "after": "          case target: BitVector if (target.component eq component) &&\n              (statement.target eq target) && target.isReg =>\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-11",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 26406,
+          "before_end": 26482,
+          "after_start": 26652,
+          "after_end": 26818,
+          "before": "                      if !literal.hasPoison() && literal.getValue() == 0 &&\n",
+          "after": "                      if !literal.hasPoison() &&\n                        (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-12",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 26549,
+          "before_end": 26549,
+          "after_start": 26885,
+          "after_end": 27353,
+          "before": "",
+          "after": "                    NativePublicationWidth.validate(width, component, target,\n                      \"native constant initializer width\")\n                    if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth))\n                      fail(\"SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH\",\n                        \"one exact native constant initializer lost its positive typed width or witness\",\n                        width.sourceLocation)\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-13",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 26664,
+          "before_end": 26841,
+          "after_start": 27468,
+          "after_end": 27653,
+          "before": "                        \"SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-MISSING\",\n                        \"one retained-width zero-initialized register has no final emitted name\",\n",
+          "after": "                        \"SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-NAME-MISSING\",\n                        \"one retained-width constant-initialized register has no final emitted name\",\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-14",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 26955,
+          "before_end": 27016,
+          "after_start": 27767,
+          "after_end": 27898,
+          "before": "                    initializers += RetainedZeroInitializer(\n",
+          "after": "                    val witness = emittedRetainedWitness(literal)\n                    initializers += RetainedConstantInitializer(\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-15",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 27103,
+          "before_end": 27157,
+          "after_start": 27985,
+          "after_end": 28194,
+          "before": "                      emittedRetainedWitness(literal)\n",
+          "after": "                      literal,\n                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])\n                        witness.replace(\"'\", \"'s\")\n                      else witness\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-16",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 27490,
+          "before_end": 27644,
+          "after_start": 28527,
+          "after_end": 28689,
+          "before": "          \"SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-NAME-CONFLICT\",\n          s\"multiple retained-width zero initializers resolved to emitted name '$name'\"\n",
+          "after": "          \"SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-NAME-CONFLICT\",\n          s\"multiple retained-width constant initializers resolved to emitted name '$name'\"\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-17",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 27910,
+          "before_end": 27986,
+          "after_start": 28955,
+          "after_end": 29666,
+          "before": "            if isAuthorizedZeroAssignment(statement, initializer.target) =>\n",
+          "after": "            if (statement.target eq initializer.target) &&\n              (statement.finalTarget eq initializer.target) &&\n              (if (initializer.literal.getValue() == 0)\n                isAuthorizedZeroAssignment(statement, initializer.target)\n              else statement.source match {\n                case literal: BitVectorLiteral =>\n                  !literal.hasPoison() &&\n                    (literal.getTypeObject.asInstanceOf[AnyRef] eq initializer.literal.getTypeObject.asInstanceOf[AnyRef]) &&\n                    literal.getWidth == initializer.literal.getWidth &&\n                    literal.getValue() == initializer.literal.getValue()\n                case _ => false\n              }) =>\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-18",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 28206,
+          "before_end": 28206,
+          "after_start": 29886,
+          "after_end": 30768,
+          "before": "",
+          "after": "      val value = initializer.literal.getValue()\n      val fill = if (initializer.literal.isSignedKind && value < 0) '1' else '0'\n      val replacement = if (value == 0 || value == -1) {\n        \"{\" + initializer.width.verilog + \"{1'b\" + fill + \"}}\"\n      } else {\n        val bits = initializer.literal.minimalValueBitWidth.max(1)\n        val width = initializer.width.verilog\n        // Inactive typed templates can use a narrower positive placeholder.\n        // A zero padding count keeps that constant syntactically legal; the\n        // native assignment truncates its unused high bits in that case.\n        val padding = if (initializer.width.minimum >= bits) s\"($width - $bits)\"\n          else s\"(($width > $bits) ? ($width - $bits) : 0)\"\n        \"{{\" + padding + \"{1'b\" + fill + \"}}, \" + bits + \"'b\" +\n          initializer.literal.getBitsStringOn(bits, 'x') + \"}\"\n      }\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-19",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 28323,
+          "before_end": 28395,
+          "after_start": 30885,
+          "after_end": 30925,
+          "before": "          prefix + \"{\" + initializer.width.verilog + \"{1'b0}}\" + suffix\n",
+          "after": "          prefix + replacement + suffix\n"
+        },
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59g-20",
+          "reason": "Generalize the exact retained-register initializer lineage proof from zero to poison-free same-kind constants, preserving signed extension and matching the authorized native assignment count; leave native process emission unchanged. Reviewed source context: RetainedConstantInitializer.",
+          "before_start": 28510,
+          "before_end": 28780,
+          "after_start": 31040,
+          "after_end": 31311,
+          "before": "          \"SPINAL-PARAMETERIZED-VERILOG-ZERO-INIT-EMITTED-LINEAGE-MISMATCH\",\n          s\"retained-width zero initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges direct invariant-zero assignments\",\n",
+          "after": "          \"SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH\",\n          s\"retained-width constant initializer '${initializer.name}' maps to $exactEdges exact emitted witness edges, but the graph authorizes $authorizedEdges exact constant assignments\",\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
+      "change": "modified",
+      "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects.",
+      "baseline_sha256": "89efca3085fcb04e216bfbb0d59730cab973a401779487455c93fb89c96a83f5",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-1",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: publication declarations.",
+          "before_start": 182,
+          "before_end": 256,
+          "after_start": 182,
+          "after_end": 249,
+          "before": "/** Exact scalar identity/alias and unconditional register-chain bridges.\n",
+          "after": "/** Exact scalar identity/alias and native register-chain bridges.\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-2",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: fail.",
+          "before_start": 616,
+          "before_end": 702,
+          "after_start": 609,
+          "after_end": 1952,
+          "before": "  private final case class RegisterStep(clock: ClockDomain, zeroInitialized: Boolean)\n",
+          "after": "  private sealed trait Enable {\n    def replay(value: BaseType): Bool\n    def minimumWidth: Int = 1\n  }\n  private case object BooleanInput extends Enable {\n    def replay(value: BaseType): Bool = value.asInstanceOf[Bool]\n  }\n  private final case class Constant(value: Boolean) extends Enable {\n    def replay(input: BaseType): Bool = Bool(value)\n  }\n  private final case class Bit(index: Int, high: Boolean) extends Enable {\n    override def minimumWidth: Int = if (high) 1 else index + 1\n    def replay(value: BaseType): Bool = {\n      val bits = value.asInstanceOf[BitVector]\n      if (high) bits.msb else bits(index)\n    }\n  }\n  private final case class Not(value: Enable) extends Enable {\n    override def minimumWidth: Int = value.minimumWidth\n    def replay(input: BaseType): Bool = !value.replay(input)\n  }\n  private final case class Binary(operation: Int, left: Enable, right: Enable) extends Enable {\n    override def minimumWidth: Int = left.minimumWidth.max(right.minimumWidth)\n    def replay(input: BaseType): Bool = operation match {\n      case 0 => left.replay(input) && right.replay(input)\n      case 1 => left.replay(input) || right.replay(input)\n      case 2 => left.replay(input) ^ right.replay(input)\n    }\n  }\n  private final case class RegisterStep(clock: ClockDomain, initializer: Option[BigInt], enable: Option[Enable])\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-3",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: Proof.",
+          "before_start": 1168,
+          "before_end": 1168,
+          "after_start": 2418,
+          "after_end": 2489,
+          "before": "",
+          "after": "    val hasLocalEnables: Boolean = registers.exists(_.enable.nonEmpty)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-4",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: sameBehavior.",
+          "before_start": 1724,
+          "before_end": 1797,
+          "after_start": 3045,
+          "after_end": 3134,
+          "before": "          (a.clock eq b.clock) && a.zeroInitialized == b.zeroInitialized\n",
+          "after": "          (a.clock eq b.clock) && a.initializer == b.initializer && a.enable == b.enable\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-5",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: replayWithWidthWhen.",
+          "before_start": 3378,
+          "before_end": 3378,
+          "after_start": 4715,
+          "after_end": 4918,
+          "before": "",
+          "after": "      if (registers.flatMap(_.enable).exists(enable => activeMinimum.exists(_ < enable.minimumWidth)))\n        fail(\"ENABLE-WIDTH\", \"replayed narrower native lane cannot contain a certified enable bit\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-6",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: replayWithWidthWhen.",
+          "before_start": 4092,
+          "before_end": 4163,
+          "after_start": 5632,
+          "after_end": 5857,
+          "before": "          next.assignFrom(prior)\n          if (step.zeroInitialized) {\n",
+          "after": "          step.enable match {\n            case Some(enable) => when(enable.replay(prior)) { next.assignFrom(prior) }\n            case None => next.assignFrom(prior)\n          }\n          step.initializer.foreach { initial =>\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-7",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: replayWithWidthWhen.",
+          "before_start": 4214,
+          "before_end": 4438,
+          "after_start": 5908,
+          "after_end": 6133,
+          "before": "              case _: Bool => new BoolLiteral(false)\n              case _: Bits => BitsLiteral(BigInt(0), -1)\n              case _: UInt => UIntLiteral(BigInt(0), -1)\n              case _: SInt => SIntLiteral(BigInt(0), -1)\n",
+          "after": "              case _: Bool => new BoolLiteral(initial != 0)\n              case _: Bits => BitsLiteral(initial, -1)\n              case _: UInt => UIntLiteral(initial, -1)\n              case _: SInt => SIntLiteral(initial, -1)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-8",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: certify.",
+          "before_start": 5635,
+          "before_end": 5713,
+          "after_start": 7330,
+          "after_end": 7470,
+          "before": "    val initializerNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()\n",
+          "after": "    val initializerNodes = new IdentityHashMap[BaseType, BigInt]()\n    val enableNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-9",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: certify.",
+          "before_start": 5854,
+          "before_end": 5895,
+          "after_start": 7611,
+          "after_end": 7680,
+          "before": "    def local(value: BaseType): Unit = {\n",
+          "after": "    def local(value: BaseType, predicate: Boolean = false): Unit = {\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-10",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: local.",
+          "before_start": 6137,
+          "before_end": 6252,
+          "after_start": 7922,
+          "after_end": 8093,
+          "before": "          (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) ||\n          value.getClass != source.getClass)\n",
+          "after": "          (if (predicate) value.getClass != classOf[Bool] else\n            (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.getClass != source.getClass))\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-11",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: assignmentsOf.",
+          "before_start": 6536,
+          "before_end": 6713,
+          "after_start": 8377,
+          "after_end": 8604,
+          "before": "        if ((assignment.target ne value) || (assignment.parentScope ne input.owner.dslBody))\n          fail(\"DRIVER\", \"partial and conditional bridge drivers are not admitted\")\n",
+          "after": "        if ((assignment.target ne value) ||\n            ((assignment.parentScope ne input.owner.dslBody) && !value.isReg))\n          fail(\"DRIVER\", \"partial or conditionally driven combinational bridge nodes are not admitted\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-12",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: assignmentsOf.",
+          "before_start": 7039,
+          "before_end": 7114,
+          "after_start": 8930,
+          "after_end": 9003,
+          "before": "    def zeroInitializer(expression: Expression): Unit = expression match {\n",
+          "after": "    def initializer(expression: Expression): BigInt = expression match {\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-13",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 7151,
+          "before_end": 7216,
+          "after_start": 9040,
+          "after_end": 9075,
+          "before": "          if !literal.hasPoison && literal.value == BigInt(0) &&\n",
+          "after": "          if !literal.hasPoison &&\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-14",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 7529,
+          "before_end": 7610,
+          "after_start": 9388,
+          "after_end": 9471,
+          "before": "      case literal: BoolLiteral if (input.kind eq TypeBool) && !literal.value =>\n",
+          "after": "        literal.value\n      case literal: BoolLiteral if input.kind eq TypeBool =>\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-15",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 7675,
+          "before_end": 7675,
+          "after_start": 9536,
+          "after_end": 9588,
+          "before": "",
+          "after": "        if (literal.value) BigInt(1) else BigInt(0)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-16",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 8469,
+          "before_end": 8586,
+          "after_start": 10382,
+          "after_end": 10509,
+          "before": "          assignments match {\n            case Vector(data: DataAssignmentStatement) => zeroInitializer(data.source)\n",
+          "after": "          val initial = assignments match {\n            case Vector(data: DataAssignmentStatement) => initializer(data.source)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-17",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 9088,
+          "before_end": 9150,
+          "after_start": 11011,
+          "after_end": 11058,
+          "before": "          initializerNodes.put(value, java.lang.Boolean.TRUE)\n",
+          "after": "          initializerNodes.put(value, initial)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-18",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: initializer.",
+          "before_start": 9160,
+          "before_end": 9267,
+          "after_start": 11068,
+          "after_end": 14378,
+          "before": "      case _ => fail(\"INITIALIZER\", \"only native zero initializers are width-independent in this profile\")\n",
+          "after": "        initializerNodes.get(value)\n      case _ => fail(\"INITIALIZER\", \"initializers must be typed native constants or transparent local constant aliases\")\n    }\n\n    def enable(expression: Expression, driver: BaseType, depth: Int = 0): Enable = {\n      if (depth > 512) fail(\"ENABLE\", \"local enable graph exceeds its certified depth\")\n      def child(value: Expression): Enable = enable(value, driver, depth + 1)\n      expression match {\n        case value: Bool if value eq driver => BooleanInput\n        case literal: BoolLiteral => Constant(literal.value)\n        case value: Bool =>\n          local(value, predicate = true)\n          if (value.isReg || initializerNodes.containsKey(value))\n            fail(\"ENABLE\", \"enable predicates must be local combinational Bool expressions\")\n          if (!enableNodes.containsKey(value)) {\n            if (seen.put(value, java.lang.Boolean.TRUE) != null)\n              fail(\"ENABLE\", \"enable predicates cannot overlap another local data path\")\n            enableNodes.put(value, java.lang.Boolean.TRUE)\n          }\n          assignmentsOf(value) match {\n            case Vector(data: DataAssignmentStatement) => child(data.source)\n            case _ => fail(\"ENABLE\", \"enable aliases need one complete combinational driver\")\n          }\n        case access: BitVectorBitAccessFixed if access.source eq driver =>\n          val high = NativeWidthProvenance.isHighBit(access)\n          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= input.width.minimum))\n            fail(\"ENABLE-WIDTH\", \"enable index is outside the smallest certified data width\")\n          Bit(if (high) 0 else access.bitId, high)\n        case operator: Operator.Bool.Not => Not(child(operator.source))\n        case operator: Operator.Bool.And => Binary(0, child(operator.left), child(operator.right))\n        case operator: Operator.Bool.Or => Binary(1, child(operator.left), child(operator.right))\n        case operator: Operator.Bool.Xor => Binary(2, child(operator.left), child(operator.right))\n        case _ => fail(\"ENABLE\", \"enable must be a closed Bool predicate of the register's exact data input\")\n      }\n    }\n\n    def clock(clock: ClockDomain, initialized: Boolean): Unit = {\n      if (clock == null || clock.clock == null || clock.softReset != null ||\n          (clock.config.resetKind != SYNC && clock.config.resetKind != ASYNC) ||\n          (clock.config.clockEdge != RISING && clock.config.clockEdge != FALLING) ||\n          (clock.config.resetActiveLevel != HIGH && clock.config.resetActiveLevel != LOW) ||\n          (clock.config.clockEnableActiveLevel != HIGH && clock.config.clockEnableActiveLevel != LOW) ||\n          (initialized && !clock.hasResetSignal))\n        fail(\"CLOCK\", \"bridge clock must use a qualified native edge, optional clock enable, and SYNC/ASYNC reset; initialized state needs a reset pin\")\n      val config = clock.config\n      val signals = Vector(clock.clock, clock.reset, clock.softReset, clock.clockEnable)\n      localGuards += (() => {\n        if ((clock.config ne config) || Vector(clock.clock, clock.reset, clock.softReset, clock.clockEnable)\n            .zip(signals).exists { case (current, saved) => current ne saved })\n          fail(\"STALE-CLOCK\", \"native bridge clock configuration or control signal identity changed\")\n      })\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-19",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: inspect.",
+          "before_start": 10980,
+          "before_end": 11302,
+          "after_start": 16091,
+          "after_end": 16139,
+          "before": "        if (value.clockDomain == null || (init.nonEmpty && !value.clockDomain.canInit))\n          fail(\"CLOCK\", \"initialized bridge register needs its real native reset/boot domain\")\n        init.foreach(assignment => zeroInitializer(assignment.source))\n        registers += RegisterStep(value.clockDomain, init.nonEmpty)\n",
+          "after": "        clock(value.clockDomain, init.nonEmpty)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBridgeReplay-59g-20",
+          "reason": "Certify typed constant initializers and closed local Bool register enables, preserve minimum widths and native clock/reset configuration, replay exact native register chains, and reject stale or unqualified effects. Reviewed source context: inspect.",
+          "before_start": 11341,
+          "before_end": 11386,
+          "after_start": 16178,
+          "after_end": 16670,
+          "before": "        case next: BaseType => inspect(next)\n",
+          "after": "        case next: BaseType =>\n          val localEnable = if (data.head.parentScope eq input.owner.dslBody) None else {\n            val scope = data.head.parentScope\n            val statement = scope.parentStatement.asInstanceOf[WhenStatement]\n            Some(enable(statement.cond, next))\n          }\n          if (value.isReg) registers += RegisterStep(value.clockDomain,\n            init.headOption.map(assignment => initializer(assignment.source)), localEnable)\n          inspect(next)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala",
+      "change": "modified",
+      "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection.",
+      "baseline_sha256": "6b78d3330bf0e876c1ee1d290728c0cddbad526fe1aab0c365c1894d3acd3c61",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionCallbackPolicy-59g-1",
+          "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection. Reviewed source context: requireSupportedBridge.",
+          "before_start": 3043,
+          "before_end": 3144,
+          "after_start": 3043,
+          "after_end": 3159,
+          "before": "  private val nativeModules = Set(\"RegNext\", \"U\", \"S\", \"B\", \"package\").map(\"spinal/core/\" + _ + \"$\")\n",
+          "after": "  private val nativeModules = Set(\"RegNext\", \"RegNextWhen\", \"U\", \"S\", \"B\", \"package\").map(\"spinal/core/\" + _ + \"$\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionCallbackPolicy-59g-2",
+          "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection. Reviewed source context: nativeCall.",
+          "before_start": 11498,
+          "before_end": 11535,
+          "after_start": 11513,
+          "after_end": 11864,
+          "before": "    if (scalarBinary) return !bridge\n",
+          "after": "    // Boolean expressions in a bridge construct a local native register\n    // enable. The closed bridge graph separately proves that they read only\n    // the register's exact input; arithmetic bridge expressions still reject.\n    if (scalarBinary) return !bridge || (call.owner == \"spinal/core/Bool\" &&\n      Set(\"$amp\", \"$bar\", \"$up\")(call.name))\n"
+        },
+        {
+          "id": "TypedBalancedReductionCallbackPolicy-59g-3",
+          "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection. Reviewed source context: nativeCall.",
+          "before_start": 12161,
+          "before_end": 12161,
+          "after_start": 12490,
+          "after_end": 12884,
+          "before": "",
+          "after": "    if (call.getOpcode == Opcodes.INVOKEVIRTUAL && scalarNames(call.owner)) {\n      if (Set(\"msb\", \"lsb\")(call.name) && call.desc == \"()Lspinal/core/Bool;\") return true\n      if (call.name == \"apply\" && call.desc == \"(I)Lspinal/core/Bool;\") return true\n      if (call.owner == \"spinal/core/Bool\" && call.name == \"unary_$bang\" &&\n          call.desc == \"()Lspinal/core/Bool;\") return true\n    }\n"
+        },
+        {
+          "id": "TypedBalancedReductionCallbackPolicy-59g-4",
+          "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection. Reviewed source context: nativeCall.",
+          "before_start": 12833,
+          "before_end": 12833,
+          "after_start": 13556,
+          "after_end": 13688,
+          "before": "",
+          "after": "      if (Set(\"True\", \"False\")(call.name) &&\n          call.desc == \"(Lspinal/idslplugin/Location;)Lspinal/core/Bool;\") return true\n"
+        },
+        {
+          "id": "TypedBalancedReductionCallbackPolicy-59g-5",
+          "reason": "Admit only reviewed native RegNextWhen, scalar-bit access, Bool logic and typed Bool constant signatures for bridges while preserving host-effect and arithmetic bridge rejection. Reviewed source context: nativeCall.",
+          "before_start": 13378,
+          "before_end": 13378,
+          "after_start": 14233,
+          "after_end": 14531,
+          "before": "",
+          "after": "    if (call.owner == \"spinal/core/RegNextWhen$\")\n      return (call.name == \"apply\" && call.desc ==\n        \"(Lspinal/core/Data;Lspinal/core/Bool;Lspinal/core/Data;Lspinal/idslplugin/Location;)Lspinal/core/Data;\") ||\n        (call.name == \"apply$default$3\" && call.desc == \"()Lspinal/core/Data;\")\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
+      "change": "modified",
+      "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads.",
+      "baseline_sha256": "782d9ade175e41e703ac822c000efd2096d98bff9d9ea2ceb6f157443f265d2b",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-1",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: StatementState.",
+          "before_start": 3881,
+          "before_end": 3881,
+          "after_start": 3881,
+          "after_end": 4039,
+          "before": "",
+          "after": "  private final case class EnableState(native: Identity, condition: Identity,\n      scope: Identity, whenTrue: Vector[Identity], whenFalse: Vector[Identity])\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-2",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: Snapshot.",
+          "before_start": 4003,
+          "before_end": 4097,
+          "after_start": 4161,
+          "after_end": 4291,
+          "before": "      declarations: Vector[Identity], statements: Vector[StatementState], nodes: Vector[Node]\n",
+          "after": "      declarations: Vector[Identity], statements: Vector[StatementState], nodes: Vector[Node],\n      enables: Vector[EnableState]\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-3",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: inspect.",
+          "before_start": 6987,
+          "before_end": 6987,
+          "after_start": 7181,
+          "after_end": 8384,
+          "before": "",
+          "after": "    val enables = ArrayBuffer.empty[WhenStatement]\n    def directStatements(scope: ScopeStatement): Vector[Statement] = {\n      val values = ArrayBuffer.empty[Statement]\n      scope.foreachStatements(values += _)\n      values.toVector\n    }\n    def enableOf(value: AssignmentStatement): Option[WhenStatement] = {\n      if (value.parentScope eq owner.dslBody) return None\n      val scope = value.parentScope\n      val statement = Option(scope).map(_.parentStatement).collect { case when: WhenStatement => when }\n        .getOrElse(fail(\"ASSIGNMENT-SHAPE\", \"only one native register-enable scope is admitted\"))\n      if (!value.isInstanceOf[DataAssignmentStatement] || !value.finalTarget.isReg ||\n          (statement.parentScope ne owner.dslBody) || (scope ne statement.whenTrue) ||\n          !statement.whenFalse.isEmpty || directStatements(scope).exists { child =>\n            !child.isInstanceOf[DataAssignmentStatement] || !recorded.containsKey(child.asInstanceOf[AssignmentStatement])\n          })\n        fail(\"ASSIGNMENT-SHAPE\", \"only full register updates in one native enable true arm are closed here\")\n      if (!enables.exists(_ eq statement)) enables += statement\n      Some(statement)\n    }\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-4",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: enableOf.",
+          "before_start": 8421,
+          "before_end": 8612,
+          "after_start": 9818,
+          "after_end": 9975,
+          "before": "      if ((value.parentScope ne owner.dslBody) || (value.target ne value.finalTarget))\n        fail(\"ASSIGNMENT-SHAPE\", \"only unconditional full-object callback assignments are closed here\")\n",
+          "after": "      if (value.target ne value.finalTarget)\n        fail(\"ASSIGNMENT-SHAPE\", \"only full-object callback assignments are closed here\")\n      enableOf(value)\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-5",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: enableOf.",
+          "before_start": 8816,
+          "before_end": 8816,
+          "after_start": 10179,
+          "after_end": 10478,
+          "before": "",
+          "after": "    if (callback.statements.exists {\n        case statement: WhenStatement => !enables.exists(_ eq statement)\n        case _: BaseType | _: AssignmentStatement => false\n        case _ => true\n      }) fail(\"UNRECORDED-EFFECT\", \"callback contains a statement outside its register-enable data graph\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-6",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: visit.",
+          "before_start": 10706,
+          "before_end": 10789,
+          "after_start": 12368,
+          "after_end": 12535,
+          "before": "          else if (declarations.containsKey(leaf)) drivers.get(leaf).map(_.source)\n",
+          "after": "          else if (declarations.containsKey(leaf)) drivers.get(leaf).flatMap { driver =>\n            Vector(driver.source) ++ enableOf(driver).map(_.cond)\n          }\n"
+        },
+        {
+          "id": "TypedBalancedReductionClosedGraph-59g-7",
+          "reason": "Include one exact native register-enable true arm and its predicate in the closed graph and freshness snapshot while rejecting extra branches, unrecorded statements and external reads. Reviewed source context: properties.",
+          "before_start": 14212,
+          "before_end": 14287,
+          "after_start": 15958,
+          "after_end": 16264,
+          "before": "        identity(value.finalTarget), identity(value.parentScope))), nodes)\n",
+          "after": "        identity(value.finalTarget), identity(value.parentScope))), nodes,\n      enables.toVector.map(value => EnableState(identity(value), identity(value.cond),\n        identity(value.parentScope), directStatements(value.whenTrue).map(identity),\n        directStatements(value.whenFalse).map(identity))))\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
+      "change": "modified",
+      "reason": "Accept only recorded bridge When statements under the closed-graph proof and expose local enables so structural minimum depth is distinguished from fixed transaction latency.",
+      "baseline_sha256": "3ce9cd765e3f8273ea156fee2a54909308bdbd77aadb79d537f016c6e88bdfc5",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionStageReplay-59g-1",
+          "reason": "Accept only recorded bridge When statements under the closed-graph proof and expose local enables so structural minimum depth is distinguished from fixed transaction latency. Reviewed source context: Certificate.",
+          "before_start": 5922,
+          "before_end": 5922,
+          "after_start": 5922,
+          "after_end": 6008,
+          "before": "",
+          "after": "    val hasLocalEnables: Boolean = stages.exists(_.bridges.exists(_.hasLocalEnables))\n"
+        },
+        {
+          "id": "TypedBalancedReductionStageReplay-59g-2",
+          "reason": "Accept only recorded bridge When statements under the closed-graph proof and expose local enables so structural minimum depth is distinguished from fixed transaction latency. Reviewed source context: requireFreshness.",
+          "before_start": 6424,
+          "before_end": 6511,
+          "after_start": 6510,
+          "after_end": 6820,
+          "before": "    /** Pipeline depth in enabled sampling edges of the one certified clock domain. */\n",
+          "after": "    /** Structural pipeline depth in enabled sampling edges of the one certified\n      * clock domain. Local data-dependent enables can stall individual rows;\n      * when hasLocalEnables is true this is a minimum depth, not a fixed\n      * transaction latency or a claim that every lane advances together. */\n"
+        },
+        {
+          "id": "TypedBalancedReductionStageReplay-59g-3",
+          "reason": "Accept only recorded bridge When statements under the closed-graph proof and expose local enables so structural minimum depth is distinguished from fixed transaction latency. Reviewed source context: evidenceOf.",
+          "before_start": 12083,
+          "before_end": 12184,
+          "after_start": 12392,
+          "after_end": 12495,
+          "before": "            !(schema.nonEmpty && callback.operands.size == 2 && value.isInstanceOf[WhenStatement])))\n",
+          "after": "            !((callback.operands.size == 1 || schema.nonEmpty) && value.isInstanceOf[WhenStatement])))\n"
+        }
+      ]
+    }
+  ]
+}

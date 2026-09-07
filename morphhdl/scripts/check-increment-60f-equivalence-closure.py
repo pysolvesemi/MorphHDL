@@ -298,11 +298,13 @@ def qualification_ancestry(root: Path) -> None:
 
 
 def profile_features(profile: str) -> frozenset[str]:
-    names = ("wa07a", "59d", "59e", "59f", "59c")
+    names = ("wa07a", "59d", "59e", "59f", "59c", "59g")
     profiles = {"60f-baseline": frozenset()}
-    for mask in range(1, 32):
+    for mask in range(1, 64):
         selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
         if "59e" in selected and "59f" not in selected:
+            continue
+        if "59g" in selected and not {"59d", "59e", "59f", "59c"}.issubset(selected):
             continue
         profiles["60f-with-" + "-and-".join(selected)] = frozenset(selected)
     require(profile in profiles, "unknown validated source profile: " + profile)
@@ -463,7 +465,7 @@ def production_profile(root: Path) -> str:
         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
         source_bytes = source.read_bytes()
-        if named is not None and path in named.PRODUCTION_PATHS:
+        if named is not None:
             source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
         require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
@@ -479,7 +481,10 @@ def production_profile(root: Path) -> str:
         require(not dirty, label + " production sources: " + str(sorted(dirty)))
     if named is not None:
         named.verify(root)
-    return profile + "-and-59c" if named is not None else profile
+        profile += "-and-59c"
+        if getattr(named, "register_source_review", lambda root: None)(root) is not None:
+            profile += "-and-59g"
+    return profile
 
 
 def regression_profile(root: Path) -> str:
