@@ -85,7 +85,7 @@ class TreeModel:
     """Independent cycle model: adjacent sums, odd tail, then each native bridge.
 
     None means unconstrained/uninitialized state, never an implicit zero. All
-    next-state inputs use old state; local enables inspect the stage input MSB.
+    next-state inputs use old state; local enables inspect each stage input.
     """
     def __init__(self, width: int, count: int, name: str):
         self.width, self.count, self.name = width, count, name
@@ -612,6 +612,7 @@ def run_mutations(root: Path, cases: list[dict]) -> list[str]:
         top = work / 'miter.v'
         top.write_text(miter(case, added_stage=label == 'added-stage'))
         trace = work / 'counterexample.vcd'
+        trace.unlink(missing_ok=True)
         script = work / 'mutation.ys'
         script.write_text(setup([reference, source, top]) +
                           f'sat -seq 12 -set-at 1 reset {active(case, "reset_active_level")} '
@@ -625,6 +626,10 @@ def run_mutations(root: Path, cases: list[dict]) -> list[str]:
 
 def qualify(root: Path, duplicate: Path, only_case: str | None, jobs: int) -> None:
     root, duplicate = root.resolve(), duplicate.resolve()
+    if only_case is None:
+        if root == duplicate:
+            raise RuntimeError('full evidence requires two independently generated artifact directories')
+        (root / 'evidence.json').unlink(missing_ok=True)
     for tool in ('iverilog', 'vvp', 'verilator', 'yosys'):
         if shutil.which(tool) is None:
             raise RuntimeError('required tool missing: ' + tool)
@@ -682,7 +687,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None, jobs: int) -> No
         temporal_contract='Unbounded induction with arbitrary subsequent reset, clock enable and inputs; no set-init-zero, zinit or assume-equal DUT state.',
         induction_contract='Validity-gated actual intermediate register equality is included in bad and proved, never assumed. Native and candidate state remain separate.',
         asynchronous_contract='Native simulation checks assertion between edges and both clock transitions; sequential formal uses Yosys async2sync edge semantics.',
-        local_enable_contract='MSB and complemented-MSB guards inspect each native stage input; their stall latency is data dependent.',
+        local_enable_contract='UInt MSB/complemented-MSB, SInt complemented-MSB, Bits bit-zero and complemented-Bool guards inspect each native stage input; their stall latency is data dependent.',
         configurations=evidence, mutation_controls=mutations), indent=2) + '\n')
     print('PASS: 222 parameterized bridge specializations, 24 clock/enable profiles and four functional mutations', flush=True)
 

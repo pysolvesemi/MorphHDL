@@ -85,13 +85,32 @@ gates. The inherited 59b, 59c, 59d, 59e and 59f checks remain in force.
 ## Example
 
 ```scala
-val values = in Vec(UInt(width bits), count)
-val result = out UInt(width bits)
-result := values.reduceBalancedTree(
+val dataIn = in Vec(UInt(width bits), count)
+val localEnableResult = out UInt(width bits)
+localEnableResult := dataIn.reduceBalancedTree(
   (a: UInt, b: UInt) => a + b,
   (value: UInt, _: Int) => RegNextWhen(value, value.msb) init U(1)
 )
 ```
 
-The completion record will include the actual generated Verilog and the
-tested source/merge revisions after qualification.
+This is the actual emitted first-level register process from the synchronous,
+active-high clock-enable candidate. Its condition is the MSB of the native
+pair sum; the same bridge also applies to an odd tail. The reset literal
+retains WIDTH instead of the Scala construction default.
+
+```verilog
+always @(posedge clk) begin
+  if(enable) begin
+    if(reset) begin
+    _zz_morphhdl_balanced_7_l0_pair_result <= {{(WIDTH - 1){1'b0}}, 1'b1};
+    end else begin
+      if(when_TypedBalancedReductionBridgeReplay_l120) begin
+        _zz_morphhdl_balanced_7_l0_pair_result <= morphhdl_high_bit_source;
+      end
+    end
+  end
+end
+```
+
+The tested source/merge revisions and complete evidence are recorded after
+qualification.
