@@ -167,7 +167,7 @@ jobs:
           }
           files = []
           for name in sorted(expected):
-              matches = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+              matches = list(Path('morphhdl/target').rglob('*.' + name + '.xml'))
               assert len(matches) == 1, ('required suite missing or duplicated', name, matches)
               files.append((name, matches[0]))
           total = 0
