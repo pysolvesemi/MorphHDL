@@ -21,6 +21,8 @@ jobs:
           import json
           from pathlib import Path, PurePosixPath
           import stat
+          import shutil
+          import tarfile
           import subprocess
           import zipfile
           
@@ -60,63 +62,73 @@ jobs:
               records = []
               selected_size = 0
               with zipfile.ZipFile(archive) as z:
-                  infos = {}
-                  for info in z.infolist():
-                      p = PurePosixPath(info.filename)
-                      assert (not p.is_absolute() and p.parts and ".." not in p.parts
-                              and "\\" not in info.filename and ":" not in info.filename
-                              and str(p) == info.filename.rstrip("/")), "unsafe archive path"
-                      assert info.filename not in infos, "duplicate archive path"
-                      kind = stat.S_IFMT(info.external_attr >> 16)
-                      assert kind in (0, stat.S_IFREG, stat.S_IFDIR), "nonregular archive member"
-                      assert not info.flag_bits & 1, "encrypted archive member"
-                      infos[info.filename] = info
-                  suffix = f"/{failed_run}/shared-witness/future-pass-formal/{candidate}/{binding}/cone-proof/{stem}.execution"
-                  matches = [n for n in infos if ("/" + n).endswith(suffix)]
-                  assert len(matches) == 1, f"expected one failed execution, found {len(matches)}"
-                  failed_record = matches[0]
-                  binding_prefix = failed_record.rsplit("/cone-proof/", 1)[0]
-                  prefixes = [binding_prefix]
-                  if failed_run == "run-b":
-                      prefixes.append("/".join("run-a" if p == "run-b" else p for p in PurePosixPath(binding_prefix).parts))
-                  for prefix in prefixes:
-                      execution_name = prefix + f"/cone-proof/{stem}.execution"
-                      assert execution_name in infos, "missing counterpart execution"
-                      selected = []
-                      for n, info in infos.items():
-                          if info.is_dir() or not n.startswith(prefix + "/"):
-                              continue
-                          rel = n[len(prefix) + 1:]
-                          p = PurePosixPath(rel)
-                          if len(p.parts) == 1 and p.suffix in (".json", ".v", ".il", ".ys", ".log", ".sby"):
-                              selected.append(n)
-                          elif len(p.parts) == 2 and p.parts[0] == "cone-proof":
-                              if p.name in ("full.aig", "compile.ys", "compile.log", "compile.execution", "scalar-miter.v", "failure.json", "evidence.json", stem.removesuffix("-isolate") + "-raw.aig") or p.name.startswith(stem + "."):
-                                  selected.append(n)
-                      for n in sorted(selected):
-                          info = infos[n]
-                          assert info.file_size <= MAX_FILE, "selected member exceeds cap"
-                          selected_size += info.file_size
-                          assert selected_size <= MAX_TOTAL, "selected evidence exceeds cap"
-                          data = z.read(n)  # verifies this selected member's CRC
-                          dest = base / n
-                          dest.parent.mkdir(parents=True, exist_ok=True)
-                          dest.write_bytes(data)
-                          records.append({"path": n, "bytes": len(data), "sha256": sha(data)})
-                      raw = (base / execution_name).read_bytes()
-                      execution = json.loads(raw)
-                      log_name = execution_name.removesuffix(".execution") + ".log"
-                      log = (base / log_name).read_bytes()
-                      assert execution["log_sha256"] == sha(log), "execution log hash mismatch"
-                      expected_code = -6 if prefix == binding_prefix else 0
-                      assert execution["returncode"] == expected_code and execution["timed_out"] is False
-                      report = {"artifact_id": aid, "execution_path": execution_name,
-                                "returncode": execution["returncode"], "log_sha256": sha(log),
-                                "log_bytes": len(log), "bounded_log_text": log.decode("utf-8", errors="replace")[-16000:]}
-                      # JSON escaping plus a fixed prefix prevents log text becoming a workflow command.
-                      print("ORIGINAL_ABC_DIAGNOSTIC " + json.dumps(report, sort_keys=True), flush=True)
+                  assert z.namelist() == ["evidence.tar.gz"], "unexpected outer archive layout"
+                  info = z.infolist()[0]
+                  assert stat.S_IFMT(info.external_attr >> 16) in (0, stat.S_IFREG)
+                  assert not info.flag_bits & 1 and 0 < info.file_size < 1_000_000_000
+                  tar_path = archive.with_suffix(".tar.gz")
+                  with z.open(info) as source, tar_path.open("xb") as target:
+                      shutil.copyfileobj(source, target, 1024 * 1024)  # consume and verify ZIP CRC
+                  assert tar_path.stat().st_size == info.file_size
+              with tar_path.open("rb") as f:
+                  tar_sha256 = hashlib.file_digest(f, "sha256").hexdigest()
+              binding_prefix = f"{failed_run}/shared-witness/future-pass-formal/{candidate}/{binding}"
+              prefixes = [binding_prefix]
+              if failed_run == "run-b":
+                  prefixes.append(binding_prefix.replace("run-b/", "run-a/", 1))
+              seen = set()
+              with tarfile.open(tar_path, mode="r|gz") as contents:
+                  for member in contents:
+                      n = member.name
+                      p = PurePosixPath(n)
+                      assert (p.parts and not p.is_absolute() and ".." not in p.parts
+                              and "\\" not in n and ":" not in n and str(p) == n), "unsafe tar path"
+                      assert n not in seen, "duplicate tar member"
+                      seen.add(n)
+                      assert member.type in (tarfile.REGTYPE, tarfile.AREGTYPE, tarfile.DIRTYPE)
+                      assert member.sparse is None and member.size >= 0, "unsupported tar member"
+                      if member.isdir():
+                          assert member.size == 0
+                          continue
+                      prefix = next((v for v in prefixes if n.startswith(v + "/")), None)
+                      if prefix is None:
+                          continue
+                      rel = PurePosixPath(n[len(prefix) + 1:])
+                      selected = len(rel.parts) == 1 and rel.suffix in (".json", ".v", ".il", ".ys", ".log", ".sby")
+                      if len(rel.parts) == 2 and rel.parts[0] == "cone-proof":
+                          selected = (rel.name in ("full.aig", "compile.ys", "compile.log", "compile.execution", "scalar-miter.v", "failure.json", "evidence.json", stem.removesuffix("-isolate") + "-raw.aig") or rel.name.startswith(stem + "."))
+                      if not selected:
+                          continue
+                      assert member.size <= MAX_FILE, "selected member exceeds cap"
+                      selected_size += member.size
+                      assert selected_size <= MAX_TOTAL, "selected evidence exceeds cap"
+                      source = contents.extractfile(member)
+                      assert source is not None
+                      with source:
+                          data = source.read(MAX_FILE + 1)
+                      assert len(data) == member.size
+                      dest = base / n
+                      dest.parent.mkdir(parents=True, exist_ok=True)
+                      with dest.open("xb") as f:
+                          f.write(data)
+                      records.append({"path": n, "bytes": len(data), "sha256": sha(data)})
+              for prefix in prefixes:
+                  execution_name = prefix + f"/cone-proof/{stem}.execution"
+                  assert execution_name in seen, "missing expected original execution"
+                  execution = json.loads((base / execution_name).read_bytes())
+                  log_name = execution_name.removesuffix(".execution") + ".log"
+                  log = (base / log_name).read_bytes()
+                  assert execution["log_sha256"] == sha(log), "execution log hash mismatch"
+                  expected_code = -6 if prefix == binding_prefix else 0
+                  assert execution["returncode"] == expected_code and execution["timed_out"] is False
+                  report = {"artifact_id": aid, "execution_path": execution_name,
+                            "returncode": execution["returncode"], "log_sha256": sha(log),
+                            "log_bytes": len(log), "bounded_log_text": log.decode("utf-8", errors="replace")[-16000:]}
+                  # JSON escaping plus a fixed prefix prevents log text becoming a workflow command.
+                  print("ORIGINAL_ABC_DIAGNOSTIC " + json.dumps(report, sort_keys=True), flush=True)
+              tar_path.unlink()
               summary = {"artifact_metadata": metadata, "verified_archive_size": size,
-                         "verified_archive_sha256": digest, "source_head": SOURCE,
+                         "verified_archive_sha256": digest, "inner_tar_sha256": tar_sha256, "source_head": SOURCE,
                          "source_run": RUN, "selected_files": records,
                          "selected_bytes": selected_size, "archive_code_executed": False,
                          "proof_qualification": False}
@@ -148,6 +160,7 @@ jobs:
               main()
           PYCODE
       - name: Upload compact original diagnostic evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: wa07a-original-abort-evidence-2581
