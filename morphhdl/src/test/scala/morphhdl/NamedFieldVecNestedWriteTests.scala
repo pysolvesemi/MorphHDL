@@ -1,7 +1,10 @@
 package morphhdl
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
+import java.util.concurrent.TimeUnit
+
+import scala.collection.JavaConverters._
 
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
@@ -87,9 +90,126 @@ class NamedFieldVecNestedWriteTests extends AnyFunSuite {
     val text = generate(named)(new Writes(outerDynamic, innerDynamic))
     assert(text.contains("COUNT") && text.contains("INNER"), text)
     if (named) assert(text.contains("storage_colors_red"), text)
-    if (outerDynamic) assert(text.contains("outerIndex") && text.contains("<"), text)
-    if (innerDynamic) assert(text.contains("innerIndex") && text.contains("<"), text)
+    if (outerDynamic) assert(text.contains("outerIndex[1:0]") && text.contains("<"), text)
+    if (innerDynamic) assert(text.contains("innerIndex[1:0]") && text.contains("<"), text)
     assert(text.contains("enable"), text)
+  }
+
+  private case class CoordinateRow(depth: ElabInt) extends Bundle {
+    val words = Vec(UInt(5 bits), depth)
+  }
+
+  /** The same root proves address capacity pointwise. Its address width crosses
+    * the three-bit coordinate width below, at, and above DEPTH=3.
+    */
+  private class CorrelatedCoordinateWidths extends Component {
+    setDefinitionName("NestedWrite")
+    val depth = parameter("DEPTH", 1, 5)
+    val values = in(Vec(CoordinateRow(depth), depth))
+    val outerIndex = in(UInt(depth bits))
+    val innerIndex = in(UInt(depth bits))
+    val enable = in(Bool())
+    val replacement = in(UInt(5 bits))
+    val result = out(Vec(CoordinateRow(depth), depth))
+    val selected = out(UInt(5 bits))
+    val storage = cloneOf(values).setName("storage").dontSimplifyIt()
+    storage := values
+    when(enable) { storage(outerIndex).words(innerIndex) := replacement }
+    result := storage
+    selected := storage(outerIndex).words(innerIndex)
+  }
+
+  private def executable(name: String): Option[String] =
+    sys.env.getOrElse("PATH", "").split(java.io.File.pathSeparator).iterator
+      .map(directory => Paths.get(directory, name)).find(Files.isExecutable(_)).map(_.toString)
+
+  private def checkedProcess(directory: Path, name: String, command: Seq[String]): String = {
+    val log = directory.resolve(name + ".log")
+    val process = new ProcessBuilder(command.asJava).directory(directory.toFile)
+      .redirectErrorStream(true).redirectOutput(log.toFile).start()
+    if (!process.waitFor(60, TimeUnit.SECONDS)) {
+      process.destroyForcibly()
+      fail(s"$name exceeded its 60-second limit: $log")
+    }
+    val output = new String(Files.readAllBytes(log), StandardCharsets.UTF_8)
+    assert(process.exitValue() == 0, s"$name failed:\n$output")
+    output
+  }
+
+  for (named <- Vector(true, false)) {
+    test(s"nested symbolic address widths straddle coordinate width safely named=$named") {
+      val directory = Files.createTempDirectory("59c-coordinate-width-")
+      MorphVerilog(configuration(directory, named))(new CorrelatedCoordinateWidths)
+      val rtl = directory.resolve("NestedWrite.v")
+      val text = new String(Files.readAllBytes(rtl), StandardCharsets.UTF_8)
+      assert(text.contains("(DEPTH) < 3 ? (DEPTH) : 3"), text)
+      Vector("outerIndex", "innerIndex").foreach { address =>
+        assert(text.contains(s"$address[(((DEPTH) < 3 ? (DEPTH) : 3))-1:0]"), text)
+        assert(text.contains(s"{{(32 - (DEPTH)){1'b0}}, $address}"), text)
+      }
+      executable("verilator") match {
+        case Some(verilator) =>
+          for (depth <- 1 to 5) {
+            checkedProcess(directory, s"lint-$depth",
+              Seq(verilator, "--lint-only", "--language", "1364-2001", "--top-module", "NestedWrite",
+                s"-GDEPTH=$depth", rtl.toString))
+          }
+        case _ => info("Verilator unavailable; symbolic-coordinate publication assertions completed")
+      }
+      (executable("iverilog"), executable("vvp")) match {
+        case (Some(iverilog), Some(vvp)) =>
+          // Constants are calculated independently from the emitted indexing
+          // expressions. Invalid writes preserve all cells; reads clamp each axis.
+          for (depth <- 1 to 5) {
+            val packedWidth = depth * depth * 5
+            val original = (0 until depth * depth).foldLeft(BigInt(0)) { (bits, cell) =>
+              bits | (BigInt((cell + 7) % 31) << (cell * 5))
+            }
+            val addresses = ((0 until depth) ++ Seq(depth, (1 << depth) - 1, 1 << (depth - 1))).distinct
+            val samples = for (enabled <- 0 to 1; outer <- addresses; inner <- addresses) yield {
+              val offset = (outer * depth + inner) * 5
+              val expected = if (enabled == 1 && outer < depth && inner < depth)
+                (original & ~(BigInt(31) << offset)) | (BigInt(31) << offset)
+              else original
+              val selectedOffset = (outer.min(depth - 1) * depth + inner.min(depth - 1)) * 5
+              val selectedValue = (expected >> selectedOffset) & 31
+              s"""    enable = 1'd$enabled; outerIndex = $depth'd$outer; innerIndex = $depth'd$inner;
+                 |    #1;
+                 |    if (result !== $packedWidth'h${expected.toString(16)} || selected !== 5'd$selectedValue) begin
+                 |      $$display("FAIL depth=$depth enable=$enabled outer=$outer inner=$inner"); $$finish(1);
+                 |    end
+                 |""".stripMargin
+            }
+            val valuesPort = if (named) "values_words" else "values"
+            val resultPort = if (named) "result_words" else "result"
+            val bench = s"""module CoordinateWidthBench;
+              |  reg [$packedWidth-1:0] values;
+              |  reg [$depth-1:0] outerIndex, innerIndex;
+              |  reg enable;
+              |  wire [$packedWidth-1:0] result;
+              |  wire [4:0] selected;
+              |  NestedWrite #(.DEPTH($depth)) dut(.$valuesPort(values), .outerIndex(outerIndex),
+              |    .innerIndex(innerIndex), .enable(enable), .replacement(5'd31),
+              |    .$resultPort(result), .selected(selected));
+              |  initial begin
+              |    values = $packedWidth'h${original.toString(16)};
+              |${samples.mkString}
+              |    $$display("PASS ${samples.size} samples"); $$finish;
+              |  end
+              |endmodule
+              |""".stripMargin
+            val benchPath = directory.resolve(s"depth-$depth.v")
+            val binary = directory.resolve(s"depth-$depth.vvp")
+            Files.write(benchPath, bench.getBytes(StandardCharsets.UTF_8))
+            checkedProcess(directory, s"compile-$depth",
+              Seq(iverilog, "-g2001", "-s", "CoordinateWidthBench", "-o", binary.toString,
+                rtl.toString, benchPath.toString))
+            val output = checkedProcess(directory, s"simulate-$depth", Seq(vvp, binary.toString))
+            assert(output.contains(s"PASS ${samples.size} samples"), output)
+          }
+        case _ => info("Icarus unavailable; symbolic-coordinate publication assertions completed")
+      }
+    }
   }
 
   for (named <- Vector(true, false)) {

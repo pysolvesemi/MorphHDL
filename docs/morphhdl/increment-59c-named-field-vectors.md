@@ -139,6 +139,16 @@ and two-axis dynamic replacement in that order. Later active writes win for
 their selected leaves, including when several forms select the same element.
 A rejected dynamic address leaves earlier assignments in force.
 
+The coordinate used in indexed part-select arithmetic is sized from the
+certified maximum depth: `max(1, ceil(log2(maximumDepth)))` bits. This bound
+covers every legal override, including singleton and non-power-of-two depths.
+The original full-width address still controls write admission and read
+clamping. Symbolic address widths below, equal to and above the coordinate
+width use legal slices and zero extension. The retained low bits are explicitly
+zero-extended to the 32-bit operand width used by parameter arithmetic, so
+strict lint sees consistent widths and synthesis sees constant high bits.
+This avoids oversized dynamic shift logic without narrowing the bounds check.
+
 A separate journal retains completed native write calls. Before pruning or
 choosing publication owners, the publisher requires an exact one-to-one match
 between that journal and retained indexed-write operations, including the
@@ -329,6 +339,22 @@ ordering control that rejects the previous bypass behavior. This follow-up
 changes no production RTL, proof inputs or tool deadlines, and final-head CI
 remains its merge gate. The workflow allows 75 minutes for the complete matrix;
 each individual proof and tool deadline remains unchanged.
+
+CI at `37898fc` completed the full 232-layout, 13-mutation qualification in its
+Scala 2.12 push lane. The Scala 2.13 push lane instead timed out during ABC on
+the largest legacy nested case (`WIDTH=32`, `BLUE_WIDTH=7`, `COUNT=5`,
+`INNER=3`): full synthesis had extracted 158,988 gates before reaching the
+180-second command limit. That lane is a failure. The subsequent coordinate
+normalization addresses the oversized arithmetic in the production publisher;
+it retains full synthesis, every unconstrained equivalence input and output,
+and the existing deadlines. Final-head qualification is required for this
+production change.
+
+With the exact CI Yosys 0.41 toolchain, a focused largest-case probe using the
+narrowed coordinates passed full synthesis in 138.374 seconds, with 118,910
+gates entering ABC. Both symbolic-width regressions passed 676 independent
+Icarus simulation samples across depth overrides one through five. The focused
+synthesis probe does not replace the regenerated full-layout qualification.
 
 Inputs must drive fields, elements and distinct Vecs independently. References
 must assert native scalar kinds and exact result widths without adapting away

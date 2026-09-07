@@ -164,9 +164,9 @@ private[internals] object ParameterizedVerilogVecs {
 
   private final case class DynamicCoordinate(value: String, inRange: String, selected: String)
 
-  /** Verilog integer parameters and indexed part-select coordinates are
-    * 32-bit values. Compare every original address bit before using a bounded
-    * coordinate; a wide invalid address must never wrap into a legal element.
+  /** Compare every original address bit before using a coordinate sized for
+    * the certified depth domain. Narrowing only the guarded coordinate keeps
+    * invalid wide addresses from wrapping while avoiding oversized shift logic.
     */
   private def dynamicCoordinate(
       address: UInt,
@@ -192,10 +192,13 @@ private[internals] object ParameterizedVerilogVecs {
     val fullDepth = if (comparisonWidth == 32) depth
       else extend(s"(32'd0 | ($depth))", "32", comparisonWidth)
     val inRange = s"(($fullAddress) < ($fullDepth))"
-    val coordinate = if (maximum <= 32) extend(name, width, 32)
-      else if (minimum >= 32) s"$name[31:0]"
+    val coordinateWidth = (shape.depth.maximum - 1).bitLength.max(1)
+    // Parameter arithmetic uses 32-bit operands. Keep its width explicit while
+    // making every bit above the admitted coordinate domain a constant zero.
+    val coordinate = if (maximum <= coordinateWidth) extend(name, width, 32)
+      else if (minimum >= coordinateWidth) extend(s"$name[${coordinateWidth - 1}:0]", coordinateWidth.toString, 32)
       else {
-        val lowWidth = s"(($width) < 32 ? ($width) : 32)"
+        val lowWidth = s"(($width) < $coordinateWidth ? ($width) : $coordinateWidth)"
         extend(s"$name[($lowWidth)-1:0]", lowWidth, 32)
       }
     DynamicCoordinate(coordinate, inRange, s"($inRange ? ($coordinate) : (($depth) - 1))")
