@@ -15,14 +15,15 @@ import org.scalatest.matchers.should.Matchers
 final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
   import BooleanTernaryTestSupport._
   private val root = Paths.get("build", "wa07b-rule-oracle")
-  private final case class Case(label: String, expression: RtlExpr, width: Int = 1, signed: Boolean = false) {
+  private final class Case(val label: String, val expression: RtlExpr, val width: Int = 1,
+      val signed: Boolean = false) {
     val id: SymbolId = SymbolId.unsafe("symbol.ternary.output." + label)
   }
 
   private def cases: Vector[Case] = {
     val result = Vector.newBuilder[Case]
     def add(label: String, expression: RtlExpr, width: Int = 1, signed: Boolean = false): Unit =
-      result += Case(label, expression, width, signed)
+      result += new Case(label, expression, width, signed)
     for (width <- Vector(1, 8, 32); inverse <- Vector(false, true); kind <- Vector("raw", "word", "predicate", "bitwise", "signed")) {
       val label = s"$kind-$inverse-$width"
       val condition = kind match {
@@ -31,6 +32,7 @@ final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
         case "predicate" => predicate(label)
         case "bitwise" => RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, raw(label))
         case "signed" => RtlExpr.Cast(ref(aId, label), Signedness.Signed)
+        case other => throw new IllegalArgumentException(s"unsupported oracle condition: $other")
       }
       add(label, mux(condition, inverse), width)
     }
@@ -81,7 +83,7 @@ final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
         value.id, DriverKind.Continuous, DriverCoverage.FullObject, value.expression)))))
   }
 
-  private def render(input: Design, name: String): String = {
+  private def render(input: Design, name: String, parameterBinding: Option[Int] = None): String = {
     val module = input.modules.head
     val names = module.declarations.map(d => d.id -> d.nameOrigin.explicitName.get).toMap
     val types = module.declarations.map(d => d.id -> d.packedType.get).toMap
@@ -89,7 +91,9 @@ final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
     var fenceIndex = 0
     def width(value: IntExpr): Int = value match {
       case IntExpr.Literal(n) => n.toInt
-      case other => throw new IllegalArgumentException(s"nonliteral rule-oracle width: $other")
+      case IntExpr.ParameterRef(parameter) if parameter == widthId =>
+        parameterBinding.getOrElse(throw new IllegalArgumentException("missing explicit WIDTH proof binding"))
+      case other => throw new IllegalArgumentException(s"unsupported rule-oracle width: $other")
     }
     def shape(value: RtlExpr): (Int, Boolean) = value match {
       case RtlExpr.Ref(_, target, _, _) => (width(types(target).width), types(target).signedness == Signedness.Signed)
@@ -186,7 +190,7 @@ final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
     s"module $name(\n${ports.mkString(",\n")}\n);\n${fences.mkString("\n")}\n${assignments.mkString("\n")}\nendmodule\n"
   }
 
-  private def miter(values: Vector[Case], simulation: Boolean): String = {
+  private def miter(values: Vector[Case], simulation: Boolean, inputWidth: Int = 3): String = {
     val signals = values.indices.flatMap(i => Vector(
       s"wire [${values(i).width - 1}:0] before_$i;", s"wire [${values(i).width - 1}:0] after_$i;")).mkString("\n")
     def instance(name: String, prefix: String): String = {
@@ -196,8 +200,9 @@ final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
     val body = signals + "\n" + instance("before_pass", "before") + "\n" + instance("after_pass", "after")
     if (!simulation) {
       val checks = values.indices.map(i => s"(before_$i == after_$i)").mkString(" && ")
-      s"module miter(input wire [2:0] a, b, input wire p, output wire ok);\n$body\nassign ok = $checks;\nendmodule\n"
+      s"module miter(input wire [${inputWidth - 1}:0] a, input wire [2:0] b, input wire p, output wire ok);\n$body\nassign ok = $checks;\nendmodule\n"
     } else {
+      require(inputWidth == 3, "exhaustive four-state oracle has exactly seven input bits")
       val checks = values.indices.map(i =>
         s"""if (before_$i !== after_$i) begin $$display("WA07B_MISMATCH ${values(i).label} a=%b b=%b p=%b before=%b after=%b", a, b, p, before_$i, after_$i); $$finish; end""").mkString("\n")
       s"""module tb;
@@ -266,6 +271,7 @@ endmodule
         case "vector" => "word-false-8" -> ref(aId, "mutant-vector")
         case "vector-complement" => "word-true-8" -> RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, ref(aId, "mutant-vector-not"))
         case "widened-complement" => "predicate-true-8" -> RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, predicate("mutant-wide-not"))
+        case other => throw new IllegalArgumentException(s"unsupported oracle mutation: $other")
       }
       val selected = values.find(_.label == label).get.id
       after = after.copy(modules = after.modules.map(module => module.copy(drivers = module.drivers.map(d =>
@@ -333,5 +339,47 @@ endmodule
         }
       }
     }
+  }
+
+  test("symbolic input and result widths retain their full admitted domain through both proof legs") {
+    val symbolic = IntExpr.ParameterRef(widthId)
+    val domain = (1 to 8).map(BigInt(_)).toVector
+    for (binding <- domain.map(_.toInt); signed <- Vector(false, true); all <- Vector(false, true)) {
+      val values = Vector(
+        new Case("parameter-positive", mux(ref(aId, "parameter-positive")), binding, signed),
+        new Case("parameter-inverse", mux(ref(aId, "parameter-inverse"), inverse = true), binding, signed))
+      val initial = design(values)
+      val before = initial.copy(modules = initial.modules.map(module => module.copy(
+        parameters = Vector(IntegerParameter(widthId, "WIDTH", BigInt(1),
+          IntegerParameterDomain(BigInt(1), BigInt(8), domain))),
+        declarations = module.declarations.map(d => if (d.id == aId || values.exists(_.id == d.id))
+          d.copy(packedType = Some(packed(symbolic, signed))) else d))))
+      CanonicalIrPassAdapter.bindFixture(before).isRight shouldBe true
+      val standalone = BooleanTernarySimplificationPass.run(before)
+      standalone.isSuccess shouldBe true
+      standalone.rewrites.size shouldBe 2
+      val pipeline = WireAliasPassPipeline.run(before, WireAliasPassConfiguration(enabled = true))
+      withClue(pipeline.diagnostics.mkString("; ")) { pipeline.isSuccess shouldBe true }
+      val after = if (all) pipeline.output else standalone.output
+      after.modules.head.parameters shouldBe before.modules.head.parameters
+      after.modules.head.declarations shouldBe before.modules.head.declarations
+      val stem = s"parameter-WIDTH-$binding-signed-$signed-all-$all"
+      val rtl = root.resolve(stem + ".v")
+      val top = root.resolve(stem + "-miter.v")
+      write(rtl, render(before, "before_pass", Some(binding)) + render(after, "after_pass", Some(binding)))
+      // Every input bit remains unconstrained at every admitted WIDTH, not just
+      // the default or the three-bit exhaustive-simulation fixture width.
+      write(top, miter(values, simulation = false, inputWidth = binding))
+      val compile = command(Seq("iverilog", "-g2001", "-s", "miter", "-o",
+        root.resolve(stem + ".vvp").toString, rtl.toString, top.toString), root.resolve(stem + "-compile.log"))
+      withClue(compile._2) { compile._1 shouldBe 0 }
+      val script = s"read_verilog $rtl $top; prep -top miter; flatten; opt; sat -verify -prove ok 1 -show-inputs"
+      val formal = command(Seq("yosys", "-Q", "-p", script), root.resolve(stem + "-formal.log"))
+      withClue(formal._2) {
+        formal._1 shouldBe 0
+        formal._2 should include("SUCCESS")
+      }
+    }
+    write(root.resolve("parameter-domain.txt"), "WA07B_PARAMETER_DOMAIN_PASS WIDTH=1..8 signed=false,true candidates=standalone,all-five\n")
   }
 }
