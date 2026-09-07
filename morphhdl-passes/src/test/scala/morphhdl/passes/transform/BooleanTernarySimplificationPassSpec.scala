@@ -59,7 +59,7 @@ private[transform] object BooleanTernaryTestSupport {
 }
 
 final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matchers {
-  import BooleanTernaryTestSupport.{not => logicalNot, _}
+  import BooleanTernaryTestSupport.{not => logicalNot, value => rhsValue, _}
 
   private def checked(input: Design): BooleanTernarySimplificationResult = {
     withClue("input validation: ") { CanonicalIrPassAdapter.bindFixture(input).isRight shouldBe true }
@@ -76,7 +76,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     Vector(false, true).foreach { inverted =>
       val result = checked(fixture(mux(p, inverted)))
       result.status shouldBe PassExecutionStatus.Changed
-      value(result.output) shouldBe (if (inverted) logicalNot(p) else p)
+      rhsValue(result.output) shouldBe (if (inverted) logicalNot(p) else p)
       result.rewrites.map(_.rule) shouldBe Vector(if (inverted) "boolean-ternary-inverse" else "boolean-ternary-positive")
       result.rewrites.head.expressionPath shouldBe "rhs"
       result.rewrites.head.module shouldBe moduleId
@@ -86,8 +86,8 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
 
   test("raw Bool Z and multi-bit conditions retain truth conversion") {
     Vector(raw(), ref(aId, "word"), RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, raw("bitwise"))).foreach { condition =>
-      value(checked(fixture(mux(condition))).output) shouldBe truth(condition)
-      value(checked(fixture(mux(condition, inverse = true))).output) shouldBe logicalNot(condition)
+      rhsValue(checked(fixture(mux(condition))).output) shouldBe truth(condition)
+      rhsValue(checked(fixture(mux(condition, inverse = true))).output) shouldBe logicalNot(condition)
     }
   }
 
@@ -96,7 +96,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     for (width <- Vector(w(1), w(8), w(32), IntExpr.ParameterRef(widthId)); signed <- Vector(false, true)) {
       val input = fixture(mux(p, inverse = true), width, signed)
       val result = checked(input)
-      value(result.output) shouldBe logicalNot(p)
+      rhsValue(result.output) shouldBe logicalNot(p)
       result.output.modules.head.parameters shouldBe input.modules.head.parameters
     }
   }
@@ -121,7 +121,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
       val p = predicate()
       val result = checked(fixture(parent(mux(p)), w(8)))
       withClue(path + ": ") {
-        value(result.output) shouldBe parent(p)
+        rhsValue(result.output) shouldBe parent(p)
         result.rewrites.map(_.expressionPath) shouldBe Vector(path)
       }
     }
@@ -132,7 +132,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     val nested = (0 until 128).foldLeft(p)((value, _) => mux(value, inverse = true))
     val input = fixture(nested)
     val first = checked(input)
-    value(first.output) shouldBe truth(p)
+    rhsValue(first.output) shouldBe truth(p)
     first.rewrites.size shouldBe 128
     checked(input) shouldBe first
     val again = checked(first.output)
@@ -144,7 +144,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
   test("opposite constants exposed by recursive branch rewrites are handled immediately") {
     val input = fixture(RtlExpr.Mux(predicate(), mux(lit(1)), mux(lit(0))))
     val result = checked(input)
-    value(result.output) shouldBe predicate()
+    rhsValue(result.output) shouldBe predicate()
     result.rewrites.size shouldBe 3
   }
 
@@ -152,7 +152,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     val p = predicate()
     val accepted = RtlExpr.Mux(p, RtlExpr.Resize(lit(1), w(1), Signedness.Unsigned),
       RtlExpr.Cast(lit(0), Signedness.Unsigned))
-    value(checked(fixture(accepted)).output) shouldBe p
+    rhsValue(checked(fixture(accepted)).output) shouldBe p
     Vector(
       RtlExpr.Mux(p, lit(1, 8), lit(0, 8)),
       RtlExpr.Mux(p, lit(1, 32, signed = true), lit(0, 32, signed = true)),
@@ -207,7 +207,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
         Scope(block, Some(generated), ScopeKind.Block, Some("nested"))),
       drivers = module.drivers.map(_.copy(owner = block)))))
     val result = checked(input)
-    value(result.output) shouldBe truth(condition)
+    rhsValue(result.output) shouldBe truth(condition)
     result.output.modules.head.drivers.head.owner shouldBe block
     result.output.modules.head.scopes shouldBe input.modules.head.scopes
   }
@@ -217,7 +217,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     val renamed = input.copy(modules = input.modules.map(_.copy(logicalName = "UnrelatedComponent",
       sourceLocation = Some(SourceLocation("unrelated.scala", 17, 2)))))
     checked(input).rewrites shouldBe checked(renamed).rewrites
-    value(checked(input).output) shouldBe value(checked(renamed).output)
+    rhsValue(checked(input).output) shouldBe rhsValue(checked(renamed).output)
   }
 
   test("invalid inputs roll back standalone and pipeline output without rewrite evidence") {
@@ -239,10 +239,10 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     val p = predicate()
     val input = fixture(truth(mux(p)))
     ConstantOperandSimplificationPass.run(input).status shouldBe PassExecutionStatus.Unchanged
-    value(checked(input).output) shouldBe truth(p)
+    rhsValue(checked(input).output) shouldBe truth(p)
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
-    value(first.output) shouldBe p
+    rhsValue(first.output) shouldBe p
     first.executedPasses shouldBe PassId.allWireAssignmentPasses
     first.executedPasses.last shouldBe PassId.BooleanTernarySimplification
     first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 1, 1)
@@ -267,7 +267,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     checked(input).status shouldBe PassExecutionStatus.Unchanged
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
-    value(first.output) shouldBe logicalNot(p)
+    rhsValue(first.output) shouldBe logicalNot(p)
     first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 2, 1)
     WireAliasPassPipeline.run(first.output, WireAliasPassConfiguration(enabled = true)).status shouldBe PassExecutionStatus.Unchanged
   }
