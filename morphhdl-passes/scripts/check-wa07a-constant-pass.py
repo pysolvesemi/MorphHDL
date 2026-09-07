@@ -106,7 +106,8 @@ MARKERS = {
              'isEmptyOfTag', 'preserved(target)', 'target.hasOnlyOneStatement',
              'assignment.parentScope eq target.rootScopeStatement',
              'actual_rhs_capture_writeback', 'executionRounds :+= executed',
-             'WireAliasPassConfiguration(enabled = true)', 'progress = aliases.sum + constant.changedCount > 0'),
+             'WireAliasPassConfiguration.selectedForTesting(', 'PassId.historicalConstantOperandPasses: _*',
+             'progress = aliases.sum + constant.changedCount > 0'),
     RUN: ('root="${repo_root}/morphhdl-passes/build"',
           'test -s "${new_reference}/parameterized_stream_fifo.v"',
           'python3 morphhdl-passes/scripts/test_wire_assignment_clock_model.py',
@@ -200,6 +201,33 @@ def text_failures(path, text):
     return errors
 
 
+def roadmap_failures(roadmap):
+    entries = re.findall(r'^- \[([ xX])\] \*\*(WA-[0-9]+[a-z]?)\s+—(.*?)(?=^- \[[ xX]\] \*\*WA-|\Z)', roadmap, re.M | re.S)
+    items = {name: (flag.lower() == 'x', body) for flag, name, body in entries}
+    errors = []
+    if len(items) != len(entries):
+        errors.append('WA07A-ROADMAP: duplicate increment')
+    if 'WA-07a' not in items or not items.get('WA-07', (False,))[0]:
+        return errors + ['WA07A-DEPENDENCY: completed WA-07 and separate WA-07a are required']
+    done, body = items['WA-07a']
+    status = 'COMPLETED' if done else 'IN PROGRESS'
+    if f'**Status:** `{status}`' not in body:
+        errors.append('WA07A-STATUS: checkbox/status disagree')
+    handoff_ready = done
+    if 'WA-07b' in items:
+        ternary_done, ternary_body = items['WA-07b']
+        allowed = ('COMPLETED',) if ternary_done else ('READY', 'IN PROGRESS')
+        if not done or not any(f'**Status:** `{value}`' in ternary_body for value in allowed):
+            errors.append('WA07A-SUCCESSOR: WA-07b status or dependency disagree')
+        handoff_ready = done and ternary_done
+    successor = 'READY' if handoff_ready else 'BLOCKED'
+    if f'**Status:** `{successor}`' not in items.get('WA-08', (False, ''))[1]:
+        errors.append('WA07A-STATUS: WA-08 dependency disagree')
+    if items.get('WA-08', (False,))[0]:
+        errors.append('WA07A-SCOPE: this increment must not complete WA-08')
+    return errors
+
+
 def check(root):
     errors = []
     for path in MARKERS:
@@ -209,21 +237,7 @@ def check(root):
             errors.append(f'WA07A-MISSING: {path}: {error}')
     manifest = root/'morphhdl-passes/tests/formal/wire_assignment_ir/manifest.json'
     errors += manifest_failures(json.loads(manifest.read_text()))
-    roadmap = (root/'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md').read_text()
-    entries = re.findall(r'^- \[([ xX])\] \*\*(WA-[0-9]+[a-z]?)\s+—(.*?)(?=^- \[[ xX]\] \*\*WA-|\Z)', roadmap, re.M | re.S)
-    items = {name: (flag.lower() == 'x', body) for flag, name, body in entries}
-    if len(items) != len(entries):
-        errors.append('WA07A-ROADMAP: duplicate increment')
-    if 'WA-07a' not in items or not items.get('WA-07', (False,))[0]:
-        errors.append('WA07A-DEPENDENCY: completed WA-07 and separate WA-07a are required')
-    else:
-        done, body = items['WA-07a']
-        status = 'COMPLETED' if done else 'IN PROGRESS'
-        successor = 'READY' if done else 'BLOCKED'
-        if f'**Status:** `{status}`' not in body or f'**Status:** `{successor}`' not in items.get('WA-08', (False, ''))[1]:
-            errors.append('WA07A-STATUS: checkbox/status/WA-08 dependency disagree')
-        if items.get('WA-08', (False,))[0]:
-            errors.append('WA07A-SCOPE: this increment must not complete WA-08')
+    errors += roadmap_failures((root/'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md').read_text())
     registry = json.loads((root/'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json').read_text())['files']
     for path in list(MARKERS) + ['morphhdl-passes/scripts/check-wa07a-constant-pass.py',
                                  'morphhdl-passes/scripts/test_wire_assignment_cones.py',
@@ -252,6 +266,18 @@ def self_test(root):
         mutant = copy.deepcopy(valid)
         mutant['shared_witness'][key] = val
         assert manifest_failures(mutant), key
+    completed = ('- [x] **WA-07 — Expressions**\n  **Status:** `COMPLETED`.\n'
+                 '- [x] **WA-07a — Constants**\n  **Status:** `COMPLETED`.\n'
+                 '- [ ] **WA-08 — Handoff**\n  **Status:** `READY`.\n')
+    assert not roadmap_failures(completed)
+    inserted = completed.replace('- [ ] **WA-08', '- [ ] **WA-07b — Ternaries**\n  **Status:** `IN PROGRESS`.\n- [ ] **WA-08')
+    assert roadmap_failures(inserted), 'open WA-07b must block WA-08'
+    blocked = inserted.replace('**Status:** `READY`', '**Status:** `BLOCKED`')
+    assert not roadmap_failures(blocked)
+    assert roadmap_failures(blocked.replace('- [ ] **WA-07b', '- [x] **WA-07b'))
+    finished = inserted.replace('- [ ] **WA-07b', '- [x] **WA-07b').replace('**Status:** `IN PROGRESS`', '**Status:** `COMPLETED`')
+    assert not roadmap_failures(finished)
+    assert roadmap_failures(finished.replace('**Status:** `READY`', '**Status:** `BLOCKED`'))
     print('WA-07a constant-pass contract self-tests passed.')
 
 
