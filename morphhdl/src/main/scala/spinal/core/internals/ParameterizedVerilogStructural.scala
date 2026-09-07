@@ -155,8 +155,19 @@ private[internals] object ParameterizedVerilogStructural {
       allBlocks,
       lines
     )
+    // A parent parameter may occur only in a captured child's actual, with no
+    // local width or generate predicate referring to it. Build the header from
+    // the same exact canonical-instance binding analysis used by hierarchy
+    // publication, and validate declaration identities before merging schemas.
+    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
+      component,
+      includeChildActuals = true
+    )
+    val hierarchyParameters =
+      ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf).parameters
     val parameters = mergeParameters(
-      ParameterizedWidth.parametersOf(component) ++
+      hierarchyParameters ++
+        ParameterizedWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
@@ -332,7 +343,10 @@ private[internals] object ParameterizedVerilogStructural {
       withoutCaptured,
       parameters
     )
-    val planByBlock = plans.map(plan => plan.block -> plan).toMap
+    val planByBlock = plans.map { plan =>
+      plan.block -> plan.copy(body = TypedBalancedReductionBackend.rewriteScoped(
+        component, plan.block, plan.body, pc, canonicalOf))
+    }.toMap
     val renderedRegions = regions.map(region => renderRegion(region, planByBlock))
 
     val endmodule = withHeader.lastIndexWhere(_.trim == "endmodule")

@@ -542,6 +542,7 @@ object ElabFiniteRange {
       positiveRootValues,
       expression.sourceLocation
     ) {
+      ParameterizedStructure.bindFiniteIndexToken(indexToken)
       body(new ElabFiniteIndex(indexExpression, expression, indexToken))
     }
     ParameterizedStructure.registerExactFor(

@@ -63,6 +63,20 @@ final class ParameterizedStructuralOwner private[core] (
     private[core] val sourceLocation: Option[String]
 )
 
+/** Exact lexical publication owner, independent of a helper's control root.
+  * The registered structural block retains its complete branch path and
+  * domains; a lexical handle must never borrow the root of an unrelated
+  * count, width or enclosing finite range.
+  */
+final class ParameterizedStructuralLexicalOwner private[core] (
+    private[core] val component: Component,
+    private[core] val captureId: Long,
+    private[core] val sourceLocation: Option[String],
+    private[core] val role: String
+) {
+  def isModuleScope: Boolean = captureId == 0L
+}
+
 /** Opaque completion guard for the mandatory otherwise/default continuation. */
 final class ParameterizedStructuralPending private[core] (
     private[core] val component: Component,
@@ -96,6 +110,17 @@ object ParameterizedStructure {
       Long,
       ParameterizedStructuralBlock
     ]
+    val lexicalOwners = new IdentityHashMap[
+      ParameterizedStructuralLexicalOwner,
+      CaptureState
+    ]()
+    val lexicalRegionOwners = new IdentityHashMap[
+      StructuralRegion,
+      CaptureState
+    ]()
+    val finiteIndexOwners = new IdentityHashMap[ElabFiniteIndexToken, CaptureState]()
+    val exactCaseCaptures = new IdentityHashMap[ParameterizedStructuralBlock, ExactCaseCapture]()
+    val typedCaseRegions = new IdentityHashMap[StructuralCase, Vector[Set[BigInt]]]()
     var nextPendingId = 0L
     var nextCaptureId = 0L
     var nextVecAliasId = 0L
@@ -106,13 +131,20 @@ object ParameterizedStructure {
       val component: Component,
       val sourceLocation: Option[String],
       val id: Long,
-      val ownerRoot: Option[ElaborationIntegerParameterRoot]
+      val ownerRoot: Option[ElaborationIntegerParameterRoot],
+      val ownerAdmitted: Option[Set[BigInt]],
+      val parent: Option[CaptureState]
   ) {
     val slices = ArrayBuffer.empty[StructuralSlice]
     val vecIndices = ArrayBuffer.empty[StructuralVecIndex]
     val memoryIndices = ArrayBuffer.empty[StructuralMemoryIndex]
     val regions = ArrayBuffer.empty[StructuralRegion]
   }
+
+  private final case class ExactCaseCapture(
+      domain: ElaborationExactDomain[BigInt],
+      admitted: Set[BigInt]
+  )
 
   private[core] final case class StructuralSlice(
       source: BitVector,
@@ -368,13 +400,48 @@ object ParameterizedStructure {
       sourceLocation: Option[String]
   )(body: => Unit): ParameterizedStructuralBlock =
     ElaborationDomainContext.withAdmitted(root, admitted, sourceLocation) {
-      captureBlockWithOwnerRoot(component, sourceLocation, Some(root))(body)
+      captureBlockWithOwnerRoot(component, sourceLocation, Some(root), Some(admitted))(body)
     }
+
+  /** Capture a case alternative under the exact root values which select it.
+    * A proven unreachable alternative contributes only an empty synthetic
+    * block, so its Scala callback cannot create unsupported probe hardware.
+    */
+  private[spinal] def captureExactCaseBlock(
+      component: Component,
+      selector: ElaborationIntegerExpression,
+      choices: Set[BigInt],
+      isDefault: Boolean,
+      sourceLocation: Option[String]
+  )(body: => Unit): ParameterizedStructuralBlock = {
+    val domain = ElabInt.requireAuthoritativeIntegerDomain(
+      selector,
+      "typed structural case selector",
+      "SPINAL-ELAB-CASE-DOMAIN-UNPROVEN",
+      requireExactExtrema = false
+    ).getOrElse {
+      fail(
+        "SPINAL-ELAB-CASE-DOMAIN-UNPROVEN",
+        "typed case branch capture requires an authoritative selector root",
+        sourceLocation
+      )
+    }
+    if (choices == null || choices.exists(_ == null))
+      fail("SPINAL-ELAB-CASE-CHOICES-INVALID", "typed case choices must be non-null", sourceLocation)
+    val allowed = ElaborationDomainContext.admitted(domain).filter { rootValue =>
+      domain.evaluate(rootValue).exists(result => choices.contains(result) != isDefault)
+    }
+    val block = if (allowed.isEmpty) ParameterizedStructuralSynthetic.emptyBlock(sourceLocation)
+      else captureExactBlock(component, domain.root, allowed, sourceLocation)(body)
+    storageOf(component).exactCaseCaptures.put(block, ExactCaseCapture(domain, allowed))
+    block
+  }
 
   private def captureBlockWithOwnerRoot(
       component: Component,
       sourceLocation: Option[String],
-      ownerRoot: Option[ElaborationIntegerParameterRoot]
+      ownerRoot: Option[ElaborationIntegerParameterRoot],
+      ownerAdmitted: Option[Set[BigInt]] = None
   )(body: => Unit): ParameterizedStructuralBlock = {
     if (component eq null) {
       fail(
@@ -385,11 +452,20 @@ object ParameterizedStructure {
     }
     val previousCapture = activeCapture.get()
     if ((previousCapture ne null) && (previousCapture.component ne component)) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
-        "nested structural capture crossed an active Component boundary",
-        sourceLocation
-      )
+      // An ordinary child constructed inside a generate body owns a separate
+      // module. Its internal captures temporarily suspend the ancestor's
+      // capture; the ancestor still records the child instance when it closes.
+      // An unrelated component or one outside current elaboration cannot
+      // borrow this rule.
+      var ancestor = component.parent
+      while ((ancestor ne null) && (ancestor ne previousCapture.component))
+        ancestor = ancestor.parent
+      if ((Component.current ne component) || (ancestor eq null))
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
+          "nested structural capture crossed an unrelated active Component boundary",
+          sourceLocation
+        )
     }
 
     val beforeStatements = component.dslBody.statementIterable.toVector
@@ -401,7 +477,9 @@ object ParameterizedStructure {
       component,
       sourceLocation,
       storage.nextCaptureId,
-      ownerRoot
+      ownerRoot,
+      ownerAdmitted,
+      Option(previousCapture).filter(_.component eq component)
     )
     activeCapture.set(state)
 
@@ -763,6 +841,204 @@ object ParameterizedStructure {
       }
     }
     direct
+  }
+
+  /** Retain one exact lexical owner without assuming that the helper and its
+    * enclosing branch use the same typed parameter root. An ancestor's active
+    * capture owns its child instance, never the child's module-internal RTL.
+    */
+  private[spinal] def currentLexicalOwner(
+      role: String
+  ): ParameterizedStructuralLexicalOwner = {
+    if (role == null || role.trim.isEmpty)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-ROLE-MISSING",
+        "lexical ownership requires a nonempty publication role"
+      )
+    if (!captureEnabled)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-DISABLED",
+        s"$role requires parameterized structural capture"
+      )
+    val component = Component.current
+    val active = activeCapture.get()
+    val state = if ((active ne null) && (active.component eq component)) active else null
+    if ((active ne null) && (state eq null)) {
+      var ancestor = component.parent
+      while ((ancestor ne null) && (ancestor ne active.component)) ancestor = ancestor.parent
+      if (ancestor eq null)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-COMPONENT-MISMATCH",
+          s"$role crossed an unrelated active Component capture",
+          active.sourceLocation
+        )
+    }
+    val owner = new ParameterizedStructuralLexicalOwner(
+      component,
+      if (state eq null) 0L else state.id,
+      Option(state).flatMap(_.sourceLocation),
+      role
+    )
+    storageOf(component).lexicalOwners.put(owner, state)
+    owner
+  }
+
+  /** Bind a finite index before its callback can capture any reads. The
+    * callback receives no API for moving this identity to another owner.
+    */
+  private[core] def bindFiniteIndexToken(token: ElabFiniteIndexToken): Unit = {
+    val state = activeCapture.get()
+    if (token == null || state == null || (state.component ne Component.current))
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-MISSING",
+        "finite index binding requires its exact active Component capture"
+      )
+    val storage = storageOf(state.component)
+    if (storage.finiteIndexOwners.containsKey(token))
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-DUPLICATE",
+        "a finite index identity cannot be rebound to another capture",
+        state.sourceLocation
+      )
+    storage.finiteIndexOwners.put(token, state)
+  }
+
+  /** Resolve only the registered capture which issued this exact handle.
+    * Resolution happens after capture has completed, so rolled-back,
+    * detached or multiply published blocks cannot become lexical authority.
+    */
+  private[spinal] def blockOfLexicalOwner(
+      owner: ParameterizedStructuralLexicalOwner
+  ): Option[ParameterizedStructuralBlock] = {
+    if (owner == null || owner.component == null)
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-OWNER-MISSING",
+        "lexical publication requires its retained exact owner"
+      )
+    val storage = storageOption(owner.component).getOrElse {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-STORAGE-MISSING",
+        s"${owner.role} lost its exact Component capture storage",
+        owner.sourceLocation
+      )
+    }
+    if (!storage.lexicalOwners.containsKey(owner))
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-IDENTITY-MISMATCH",
+        s"${owner.role} did not retain its issued lexical owner identity",
+        owner.sourceLocation
+      )
+    val state = storage.lexicalOwners.get(owner)
+    if (state eq null) {
+      if (!owner.isModuleScope)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISMATCH",
+          s"${owner.role} changed its component-scope capture identity",
+          owner.sourceLocation
+        )
+      None
+    } else {
+      if ((state.component ne owner.component) || state.id != owner.captureId)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISMATCH",
+          s"${owner.role} changed its exact lexical capture identity",
+          owner.sourceLocation
+        )
+      val block = storage.blocksByCaptureId.getOrElse(owner.captureId, {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISSING",
+          s"${owner.role} has no successfully completed native capture",
+          owner.sourceLocation
+        )
+      })
+      val paths = ArrayBuffer.empty[Vector[(StructuralRegion, Option[ParameterizedStructuralBlock])]]
+      def visit(
+          regions: Vector[StructuralRegion],
+          parent: Option[ParameterizedStructuralBlock],
+          path: Vector[(StructuralRegion, Option[ParameterizedStructuralBlock])]
+      ): Unit = regions.foreach { region =>
+        if (path.exists { case (ancestor, _) => ancestor eq region })
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-PATH-CYCLE",
+            s"${owner.role} has a cyclic structural publication path",
+            owner.sourceLocation
+          )
+        val next = path :+ (region -> parent)
+        region.blocks.foreach { current =>
+          if (current eq block) paths += next
+          visit(current.regions, Some(current), next)
+        }
+      }
+      visit(storage.regions.toVector, None, Vector.empty)
+      if (paths.size != 1)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-PUBLICATION-MISMATCH",
+          s"${owner.role} belongs to ${paths.size} published lexical blocks; exactly one is required",
+          owner.sourceLocation
+        )
+      paths.head.foreach { case (region, actualParent) =>
+        if (!storage.lexicalRegionOwners.containsKey(region))
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-REGION-IDENTITY-MISMATCH",
+            s"${owner.role} no longer belongs to its exact registered branch region",
+            owner.sourceLocation
+          )
+        val registeredParent = storage.lexicalRegionOwners.get(region)
+        val sameParent = if (registeredParent eq null) actualParent.isEmpty
+          else actualParent.exists { expected =>
+            (registeredParent.component eq owner.component) &&
+              storage.blocksByCaptureId.get(registeredParent.id).exists(_ eq expected)
+          }
+        if (!sameParent)
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-ANCESTRY-MISMATCH",
+            s"${owner.role} no longer belongs to its exact registered outer owner",
+            owner.sourceLocation
+          )
+      }
+      Some(block)
+    }
+  }
+
+  /** Re-enter only the immutable exact branch domains which originally owned
+    * this handle. Native graph freshness checks run after elaboration, when
+    * the original dynamic domain stack has already been restored.
+    */
+  private[spinal] def withLexicalOwnerDomain[T](
+      owner: ParameterizedStructuralLexicalOwner
+  )(body: => T): T = {
+    blockOfLexicalOwner(owner)
+    val storage = storageOption(owner.component).get
+    var state = Option(storage.lexicalOwners.get(owner))
+    val lineage = ArrayBuffer.empty[CaptureState]
+    while (state.nonEmpty) {
+      val current = state.get
+      if (current.component ne owner.component)
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-OWNER-MISMATCH",
+          s"${owner.role} cannot borrow an unrelated component's branch domain",
+          owner.sourceLocation
+        )
+      lineage.prepend(current)
+      state = current.parent
+    }
+    def enter(index: Int): T = if (index == lineage.size) body else {
+      val current = lineage(index)
+      (current.ownerRoot, current.ownerAdmitted) match {
+        case (Some(root), Some(admitted)) =>
+          ElaborationDomainContext.withAdmitted(root, admitted, current.sourceLocation) {
+            enter(index + 1)
+          }
+        case (None, None) => enter(index + 1)
+        case _ =>
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-EVIDENCE-MISSING",
+            s"${owner.role} lost its exact captured branch-domain evidence",
+            owner.sourceLocation
+          )
+      }
+    }
+    enter(0)
   }
 
   /** Retain the exact active structural owner for a later native helper.
@@ -2878,11 +3154,37 @@ object ParameterizedStructure {
           } else remaining
 
         case value: StructuralCase =>
-          fail(
-            "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
-            s"$role is captured below a structural case without exact per-alternative root evidence",
-            sourceLocation.orElse(value.sourceLocation)
-          )
+          val domain = value.selector.exactDomain.getOrElse {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+              s"$role is captured below a structural case without exact per-alternative root evidence",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          val capturedDomains = storageOption(component)
+            .flatMap(storage => Option(storage.typedCaseRegions.get(value))).getOrElse {
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
+              s"$role case branches do not retain exact registered selector-domain bindings",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          }
+          val selected = capturedDomains.lift(step.branch).getOrElse(Set.empty[BigInt])
+          if (selected.isEmpty)
+            fail(
+              "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-EMPTY",
+              s"$role is captured below an impossible or invalid typed case alternative",
+              sourceLocation.orElse(value.sourceLocation)
+            )
+          if (domain.root eq root) {
+            if (domain.universe != universe)
+              fail(
+                "SPINAL-ELAB-PROJECTION-ROOT-DOMAIN-MISMATCH",
+                s"$role case root '${root.name}' has a universe different from its retained exact evidence",
+                sourceLocation.orElse(value.sourceLocation)
+              )
+            remaining intersect selected
+          } else remaining
 
         case value =>
           fail(
@@ -2994,14 +3296,15 @@ object ParameterizedStructure {
       body: ParameterizedStructuralBlock,
       sourceLocation: Option[String]
   ): Unit =
-    registerExactFor(
+    registerForImpl(
       component,
       label,
       indexName,
       count,
       body,
-      new ElabFiniteIndexToken(),
-      sourceLocation
+      Some(new ElabFiniteIndexToken()),
+      sourceLocation,
+      requireExactDomain = true
     )
 
   /** Exact typed finite-range registration carrying the same opaque identity
@@ -3031,7 +3334,8 @@ object ParameterizedStructure {
       body,
       Some(finiteIndexToken),
       sourceLocation,
-      requireExactDomain = true
+      requireExactDomain = true,
+      requireIssuedOwner = true
     )
   }
 
@@ -3043,7 +3347,8 @@ object ParameterizedStructure {
       body: ParameterizedStructuralBlock,
       finiteIndexToken: Option[ElabFiniteIndexToken],
       sourceLocation: Option[String],
-      requireExactDomain: Boolean
+      requireExactDomain: Boolean,
+      requireIssuedOwner: Boolean = false
   ): Unit = {
     if (
       finiteIndexToken == null ||
@@ -3092,10 +3397,30 @@ object ParameterizedStructure {
       )
     }
     finiteIndexToken.foreach { token =>
+      val storage = storageOf(component)
+      val tokenOwner = storage.finiteIndexOwners.get(token)
+      if (requireIssuedOwner && (tokenOwner == null || (tokenOwner.component ne component) ||
+          !storage.blocksByCaptureId.get(tokenOwner.id).exists(_ eq body)))
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-MISMATCH",
+          "a finite loop must publish the exact body which issued its index identity",
+          sourceLocation
+        )
+      def ancestorRead(selection: StructuralVecIndex, existing: ElabFiniteIndexToken): Boolean = {
+        if (tokenOwner == null) return false
+        val owner = storage.finiteIndexOwners.get(existing)
+        val leaves = selection.result.flatten
+        val written = body.assignments.exists(assignment => leaves.exists(_ eq assignment.finalTarget))
+        var ancestor = tokenOwner.parent
+        while (ancestor.nonEmpty && !ancestor.exists(_ eq owner)) ancestor = ancestor.get.parent
+        owner != null && (owner.component eq component) && ancestor.nonEmpty &&
+          selection.affineRead.isEmpty && !written
+      }
       body.synchronized {
         body.vecIndices = body.vecIndices.map { selection =>
           selection.finiteIndexToken match {
             case Some(existing) if existing eq token => selection
+            case Some(existing) if ancestorRead(selection, existing) => selection
             case Some(_) =>
               fail(
                 "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-VEC-FINITE-INDEX-TOKEN-CONFLICT",
@@ -3352,6 +3677,13 @@ object ParameterizedStructure {
   ): Unit = {
     ElabInt.validateExpression(selector, "generate-case selector")
     val normalizedSelector = ElabInt.withCompleteParameterRoots(selector)
+    if (normalizedSelector.exactDomain.nonEmpty)
+      ElabInt.requireAuthoritativeIntegerDomain(
+        normalizedSelector,
+        "typed structural case selector",
+        "SPINAL-ELAB-CASE-DOMAIN-UNPROVEN",
+        requireExactExtrema = false
+      )
     val storage = storageOf(pending.component)
     requirePending(storage, pending)
     validateIntegerExpression(normalizedSelector, "generate-case selector")
@@ -3378,20 +3710,40 @@ object ParameterizedStructure {
       reserveName(storage, label, "generate-case choice label", sourceLocation)
     }
     reserveName(storage, defaultLabel, "generate-case default label", sourceLocation)
-    registerRegion(
-      pending.component,
-      pending.captureId,
-      StructuralCase(
-        normalizedSelector,
-        choices.map { case (value, label, body) =>
-          StructuralCaseChoice(value, label, body)
-        },
-        defaultLabel,
-        defaultBody,
-        sourceLocation
-      ),
+    val region = StructuralCase(
+      normalizedSelector,
+      choices.map { case (value, label, body) => StructuralCaseChoice(value, label, body) },
+      defaultLabel,
+      defaultBody,
       sourceLocation
     )
+    normalizedSelector.exactDomain.foreach { domain =>
+      val captured = region.blocks.map(block => Option(storage.exactCaseCaptures.get(block)))
+      if (captured.exists(_.nonEmpty)) {
+        if (captured.exists(_.isEmpty))
+          fail(
+            "SPINAL-ELAB-CASE-BLOCK-DOMAIN-UNPROVEN",
+            "typed case publication requires exact captured-domain evidence for every branch",
+            sourceLocation
+          )
+        val active = ElaborationDomainContext.admitted(domain)
+        val explicit = choices.map(_._1).toSet
+        val expected = choices.map { case (literal, _, _) =>
+          active.filter(rootValue => domain.evaluate(rootValue).contains(literal))
+        } :+ active.filter(rootValue => domain.evaluate(rootValue).exists(value => !explicit.contains(value)))
+        captured.flatten.zip(expected).foreach { case (evidence, selected) =>
+          if ((evidence.domain.root ne domain.root) || (evidence.domain.parameter ne domain.parameter) ||
+              evidence.domain.evaluations != domain.evaluations || evidence.admitted != selected)
+            fail(
+              "SPINAL-ELAB-CASE-BLOCK-DOMAIN-MISMATCH",
+              "typed case branch does not retain the selector and admitted domain which captured it",
+              sourceLocation
+            )
+        }
+        storage.typedCaseRegions.put(region, expected)
+      }
+    }
+    registerRegion(pending.component, pending.captureId, region, sourceLocation)
     storage.pending.remove(pending.id)
   }
 
@@ -3497,16 +3849,29 @@ object ParameterizedStructure {
   private def currentCaptureId(
       component: Component,
       sourceLocation: Option[String]
-  ): Option[Long] = {
+  ): Option[Long] = Option(activeCaptureOf(component, sourceLocation)).map(_.id)
+
+  /** An active ancestor captures this component's instance, while structural
+    * regions created inside the component start at that component's own root.
+    */
+  private def activeCaptureOf(
+      component: Component,
+      sourceLocation: Option[String]
+  ): CaptureState = {
     val capture = activeCapture.get()
     if ((capture ne null) && (capture.component ne component)) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
-        "structural region registration crossed an active Component boundary",
-        sourceLocation
-      )
+      var ancestor = component.parent
+      while ((ancestor ne null) && (ancestor ne capture.component)) ancestor = ancestor.parent
+      if ((Component.current ne component) || (ancestor eq null))
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH",
+          "structural region registration crossed an unrelated active Component boundary",
+          sourceLocation
+        )
+      null
+    } else {
+      capture
     }
-    Option(capture).map(_.id)
   }
 
   private def registerRegion(
@@ -3516,7 +3881,7 @@ object ParameterizedStructure {
       sourceLocation: Option[String]
   ): Unit = {
     scheduleAssignmentValidation(component)
-    val capture = activeCapture.get()
+    val capture = activeCaptureOf(component, sourceLocation)
     val actualCaptureId = Option(capture).map(_.id)
     if (actualCaptureId != expectedCaptureId) {
       fail(
@@ -3537,6 +3902,7 @@ object ParameterizedStructure {
       }
       capture.regions += region
     }
+    storageOf(component).lexicalRegionOwners.put(region, capture)
   }
 
   private def requireCapture(

@@ -35,8 +35,11 @@ object TypedBalancedReductionBackend {
   private final case class Record(vector: Vec[Data], shape: ParameterizedVecShape,
       input: Bits, output: Data, plan: TypedBalancedReductionPlan,
       stages: Vector[Stage], ordinal: Int,
-      outputObservation: TypedBalancedReductionClosedGraph.Observation) {
+      outputObservation: TypedBalancedReductionClosedGraph.Observation,
+      lexicalOwner: ParameterizedStructuralLexicalOwner) {
     var handedOff = false
+    var handoffOwner: Option[ParameterizedStructuralBlock] = None
+    var published = false
   }
 
   private def fail(code: String, detail: String): Nothing =
@@ -52,6 +55,15 @@ object TypedBalancedReductionBackend {
     vector != null && vector.component != null &&
       vector.component.userCache.get(StorageKey)
         .exists(_.asInstanceOf[Storage].recursiveTransport.containsKey(vector))
+
+  /** Scoped topology has already replaced these exact zero witness drivers.
+    * The ordinary expression publisher must not reinterpret the private
+    * anchors as user-authored zero assignments after that checked handoff.
+    */
+  private[internals] def publishedScopedAnchors(component: Component): Vector[BaseType] =
+    records(component).filter(record => record.published && !record.lexicalOwner.isModuleScope)
+      .flatMap(record => record.output.flatten.toVector ++ record.stages.flatMap(_.bodies)
+        .flatMap(body => body.left.flatten.toVector ++ body.right.toVector.flatMap(_.flatten)))
 
   private def claimRecursiveTransport(value: Data): Unit = {
     val owner = Component.current
@@ -87,6 +99,39 @@ object TypedBalancedReductionBackend {
     }
   }
 
+  private def validateResultOwnership(record: Record, block: ParameterizedStructuralBlock): Unit = {
+    val allowed = new IdentityHashMap[Statement, java.lang.Boolean]()
+    def retain(statement: Statement): Unit = {
+      if (!allowed.containsKey(statement)) {
+        allowed.put(statement, java.lang.Boolean.TRUE)
+        statement match {
+          case tree: TreeStatement => tree.foreachStatements(retain)
+          case _ =>
+        }
+      }
+    }
+    (Vector(block) ++ block.regions.flatMap(ParameterizedStructure.allBlocks))
+      .flatMap(_.statements).foreach(retain)
+    val leaves = record.output.flatten.toVector
+    record.vector.component.dslBody.walkStatements { statement =>
+      if (!allowed.containsKey(statement)) {
+        val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+        def inspect(expression: Expression): Unit = {
+          if (expression != null && !visited.containsKey(expression)) {
+            visited.put(expression, java.lang.Boolean.TRUE)
+            if (leaves.exists(_ eq expression))
+              fail("RESULT-ESCAPE", "a reduction result is consumed outside its exact lexical owner")
+            expression match {
+              case _: BaseType => // Only direct references, not transitive native drivers.
+              case _ => expression.foreachExpression(inspect)
+            }
+          }
+        }
+        statement.foreachExpression(inspect)
+      }
+    }
+  }
+
   /** Scoped inside the native elaboration closure, including native retries. */
   def elaborate[A](body: => A): A = ElabBalancedReduction.withBackend(Backend)(body)
 
@@ -99,11 +144,29 @@ object TypedBalancedReductionBackend {
     phases.insert(boundary, new PhaseMisc {
       override def impl(pc: PhaseContext): Unit = pc.walkComponents { owner =>
         records(owner).foreach { record =>
-          validatePackedWidths(record, pc)
-          val bodies = record.stages.flatMap(_.bodies)
-          bodies.foreach(validateNativeAnchors)
-          bodies.flatMap(_.observations).foreach(_.apply())
-          record.outputObservation.requireUnchanged()
+          val lexicalBlock = ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner)
+          if (record.lexicalOwner.component ne owner)
+            fail("LEXICAL-OWNER", "reduction storage lost its exact owning component")
+          val lexicalBlocks = ParameterizedStructure.regionsOf(owner).flatMap(ParameterizedStructure.allBlocks)
+          val declarations = Vector(record.input) ++ record.output.flatten.toVector ++
+            record.stages.flatMap(_.bodies.flatMap(_.block.declarations))
+          declarations.foreach { declaration =>
+            val owners = lexicalBlocks.filter(_.declarations.exists(_ eq declaration))
+            if (owners.size != lexicalBlock.size ||
+                owners.zip(lexicalBlock).exists { case (actual, expected) => actual ne expected })
+              fail("LEXICAL-DECLARATION", "reduction anchors and templates must retain one exact direct lexical owner")
+          }
+          lexicalBlock.foreach { block =>
+            validateResultOwnership(record, block)
+          }
+          ParameterizedStructure.withLexicalOwnerDomain(record.lexicalOwner) {
+            validatePackedWidths(record, pc)
+            val bodies = record.stages.flatMap(_.bodies)
+            bodies.foreach(validateNativeAnchors)
+            bodies.flatMap(_.observations).foreach(_.apply())
+            record.outputObservation.requireUnchanged()
+          }
+          record.handoffOwner = lexicalBlock
           record.handedOff = true
         }
       }
@@ -117,8 +180,6 @@ object TypedBalancedReductionBackend {
         fail("MODE", "symbolic reduction requires parameterized native elaboration")
       val plan = TypedBalancedReductionPlan.forVec(vector).get
       if (plan.count.expression.maximum == 1) return vector(0)
-      if (ParameterizedStructure.currentOwner(plan.count, "balanced publication").captureId != 0L)
-        fail("NESTED-OWNER", "balanced stage publication currently requires the native component scope")
       // Callback code admission precedes its first execution. Graph sampling
       // is not used to infer the absence of host state or external effects.
       TypedBalancedReductionCallbackPolicy.requireSupportedValues(vector.vec)
@@ -171,6 +232,7 @@ object TypedBalancedReductionBackend {
       native: ElabBalancedReduction.Native[BaseType],
       schema: TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema): BaseType = {
     val owner = Component.current
+    val lexicalOwner = ParameterizedStructure.currentLexicalOwner("balanced scalar publication")
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
@@ -297,7 +359,7 @@ object TypedBalancedReductionBackend {
     val outputObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
       0, Vector(vector.vec.head), output, outputBlock.declarations,
       outputBlock.statements.collect { case a: AssignmentStatement => a }))
-    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation)
+    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)
     output
   }
 
@@ -305,6 +367,9 @@ object TypedBalancedReductionBackend {
       bridge: (Data, Int) => Data,
       native: ElabBalancedReduction.Native[Data]): Data = {
     val owner = Component.current
+    val lexicalOwner = ParameterizedStructure.currentLexicalOwner("balanced composite publication")
+    if (!lexicalOwner.isModuleScope)
+      fail("NESTED-COMPOSITE", "nested composite reduction qualification belongs to the cross-feature join")
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
@@ -378,7 +443,7 @@ object TypedBalancedReductionBackend {
     val outputObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
       0, Vector(vector.vec.head), output, outputBlock.declarations,
       outputBlock.statements.collect { case a: AssignmentStatement => a }))
-    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation)
+    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)
     output
   }
 
@@ -394,28 +459,72 @@ object TypedBalancedReductionBackend {
   private def indent(text: String, spaces: Int): String =
     text.split("\n", -1).map(" " * spaces + _).mkString("\n")
 
+  private def structuralNames(component: Component): Set[String] = {
+    def names(region: ParameterizedStructure.StructuralRegion): Vector[String] = {
+      val direct = region match {
+        case value: ParameterizedStructure.StructuralFor => Vector(value.label, value.indexName)
+        case value: ParameterizedStructure.StructuralIf => Vector(value.whenTrueLabel, value.whenFalseLabel)
+        case value: ParameterizedStructure.StructuralCase => value.choices.map(_.label) :+ value.defaultLabel
+      }
+      direct ++ region.blocks.flatMap(_.regions.flatMap(names))
+    }
+    ParameterizedStructure.regionsOf(component).flatMap(names).toSet
+  }
+
   private[internals] def rewrite(component: Component, verilog: String,
       pc: PhaseContext, canonicalOf: Component => Component): String = {
-    records(component).foldLeft(verilog) { (current, record) =>
+    records(component).filterNot(_.lexicalOwner.isModuleScope).foreach { record =>
+      if (!record.published)
+        fail("LEXICAL-PUBLICATION", "a nested reduction was not consumed by its exact structural block")
+    }
+    rewriteRecords(component, records(component).filter { record =>
+      ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner).isEmpty
+    }, verilog, pc, canonicalOf, nested = false)
+  }
+
+  /** Called only after the structural publisher has validated and normalized
+    * the complete native graph of this exact lexical block. Its native inputs,
+    * templates and output remain subject to the ordinary owner/driver checks.
+    */
+  private[internals] def rewriteScoped(component: Component,
+      block: ParameterizedStructuralBlock, body: String,
+      pc: PhaseContext, canonicalOf: Component => Component): String =
+    rewriteRecords(component, records(component).filter { record =>
+      ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner).exists(_ eq block)
+    }, body, pc, canonicalOf, nested = true)
+
+  private def rewriteRecords(component: Component, selected: Vector[Record], verilog: String,
+      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {
+    selected.foldLeft(verilog) { (current, record) =>
+      if (record.published)
+        fail("DUPLICATE-PUBLICATION", "one exact native reduction cannot be published more than once")
       if (ParameterizedVec.shapeOf(record.vector).forall(_ ne record.shape))
         fail("SHAPE-CHANGED", "the captured Vec no longer owns its original shape")
       if (!record.handedOff)
         fail("HANDOFF", "native template graph was not validated before normalization")
-      validatePackedWidths(record, pc)
-      record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)
-      if (record.output.isInstanceOf[BaseType]) rewriteScalar(component, current, record, pc, canonicalOf)
+      val lexicalBlock = ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner)
+      if (lexicalBlock.size != record.handoffOwner.size ||
+          lexicalBlock.zip(record.handoffOwner).exists { case (actual, frozen) => actual ne frozen })
+        fail("LEXICAL-OWNER", "native normalization changed the exact reduction owner")
+      ParameterizedStructure.withLexicalOwnerDomain(record.lexicalOwner) {
+        validatePackedWidths(record, pc)
+        record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)
+      }
+      val updated = if (record.output.isInstanceOf[BaseType]) rewriteScalar(component, current, record, pc, canonicalOf, nested)
       else rewriteComposite(component, current, record, pc, canonicalOf)
+      record.published = true
+      updated
     }
   }
 
   private def rewriteScalar(component: Component, current: String, record: Record,
-      pc: PhaseContext, canonicalOf: Component => Component): String = {
+      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {
     val stages = record.stages.map {
       case stage: ScalarStage => stage
       case _ => fail("TRANSPORT-LAYOUT", "a certified transport changed its scalar/composite stage kind")
     }
     val base = s"morphhdl_balanced_${record.ordinal}"
-    val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet
+    val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet ++ structuralNames(component)
     def reserved(prefix: String): Vector[String] =
       (0 to stages.size).map(i => prefix + "_stage_" + i).toVector ++
         stages.indices.flatMap(i => Vector(prefix + "_i_" + i,
@@ -433,8 +542,11 @@ object TypedBalancedReductionBackend {
         width: ElaborationIntegerExpression): String =
       s"$source[(($index) * (${stride.verilog})) +: (${width.verilog})]"
     val lines = ArrayBuffer.empty[String]
+    val scopedDeclarations = ArrayBuffer.empty[String]
+    def declare(line: String): Unit =
+      if (nested) scopedDeclarations += line else lines += line
     val first = prefix + "_stage_0"
-    lines += s"  wire [(${stages.head.inputPackedWidth.verilog})-1:0] $first;"
+    declare(s"  wire [(${stages.head.inputPackedWidth.verilog})-1:0] $first;")
     lines += s"  assign $first = ${record.input.getName()};"
     var bodyIndex = 0
     stages.zipWithIndex.foreach { case (stage, index) =>
@@ -465,9 +577,9 @@ object TypedBalancedReductionBackend {
         bodyIndex += 1
         text
       }
-      lines += s"  wire [(${stage.outputPackedWidth.verilog})-1:0] $after;"
-      lines += s"  genvar $genvar;"
-      lines += "  generate"
+      declare(s"  wire [(${stage.outputPackedWidth.verilog})-1:0] $after;")
+      declare(s"  genvar $genvar;")
+      if (!nested) lines += "  generate"
       lines += s"    if (${geometry.active.expression.verilog}) begin : ${prefix}_active_$index"
       lines += s"      for ($genvar = 0; $genvar < ($pairs); $genvar = $genvar + 1) begin : pairs"
       stage.partialPair match {
@@ -493,12 +605,13 @@ object TypedBalancedReductionBackend {
       lines += s"    end else begin : ${prefix}_bypass_$index"
       lines += s"      assign $after = $before;"
       lines += "    end"
-      lines += "  endgenerate"
+      if (!nested) lines += "  endgenerate"
     }
     val last = prefix + "_stage_" + stages.size
     val finalWidth = stages.last.outputTailWidth
     val updated = replaceDriver(remaining, record.output,
       slice(last, "0", stages.last.outputFullWidth, finalWidth))
+    if (nested) return scopedDeclarations.mkString("\n") + "\n" + updated + "\n" + lines.mkString("\n")
     val end = updated.lastIndexOf("endmodule")
     if (end < 0) fail("MODULE", "native module terminator missing")
     updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)

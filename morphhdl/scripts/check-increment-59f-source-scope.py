@@ -221,7 +221,7 @@ def reviewed_59d59e_production(root: Path) -> dict[str, str]:
             edit["before"] and edit["after"], "59d/59e production restoration span changed")
     target = root / entry["path"]
     require(target.is_file() and not target.is_symlink(), "missing regular 59d/59e production source")
-    source = target.read_text()
+    source = current_inherited_source(root, entry["path"])
     require(digest(source) == entry["after_sha256"], "59d/59e reviewed production source changed")
     require(source.count(edit["after"]) == 1, "missing/duplicate 59d/59e production span")
     restored = source.replace(edit["after"], edit["before"], 1)

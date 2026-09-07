@@ -1,0 +1,1301 @@
+{
+  "schema_version": 2,
+  "base": "0018da2740645e0ac0c419ded7b67c01622d2bb7",
+  "offset_format": "utf8-bytes",
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "change": "modified",
+      "reason": "Expose exact read-only certification of the native final scalar static-read assignment wrapper without permitting arbitrary callback execution.",
+      "baseline_sha256": "cd39310765dc9bcc67f545510974ab053e44ea72655601bdd6d340c94e6b728a",
+      "edits": [
+        {
+          "id": "Vec-59h-1",
+          "reason": "Expose exact read-only certification of the native final scalar static-read assignment wrapper without permitting arbitrary callback execution.",
+          "before_start": 8308,
+          "before_end": 8308,
+          "after_start": 8308,
+          "after_end": 9169,
+          "before": "",
+          "after": "\n  /** A scalar read may retain these mechanical assignment hooks. Inspect only\n    * native identities and metadata; never invoke an Assignable or flatten an\n    * unaudited composite element while certifying a callback input.\n    */\n  private[core] def isCertifiedReadOf(expected: BaseType): Boolean =\n    (leaf eq expected) && vector != null && vector.getClass == classOf[Vec[_]] &&\n      elementLeafIndex == 0 && elementIndex >= 0 && elementIndex < vector.vec.size &&\n      (vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected) &&\n      ParameterizedVec.shapeOf(vector).exists(shape =>\n        shape.carrierCapacity == vector.vec.size && shape.elementLeaves.size == 1) &&\n      (previous match {\n        case null => true\n        case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)\n        case _ => false\n      })\n"
+        }
+      ]
+    },
+    {
+      "path": "frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala",
+      "change": "modified",
+      "reason": "Capture proved same-owner structural case branches under their exact admitted typed domains before callbacks execute, preserving rejected projection for unproved selectors.",
+      "baseline_sha256": "2957ab7f27e146b5d65df237f56a835ca9793c1e0bb00cfa35e52c013dbef3a2",
+      "edits": [
+        {
+          "id": "NativeStructuralFrontend-59h-1",
+          "reason": "Capture proved same-owner structural case branches under their exact admitted typed domains before callbacks execute, preserving rejected projection for unproved selectors.",
+          "before_start": 12353,
+          "before_end": 12408,
+          "after_start": 12353,
+          "after_end": 12480,
+          "before": "      val block = ParameterizedStructure.captureBlock(\n",
+          "after": "      val block = ExternalAnalyzedStructuralPublisher.captureStructuralCaseBranch(\n        analyzedSelector,\n        selector,\n"
+        },
+        {
+          "id": "NativeStructuralFrontend-59h-2",
+          "reason": "Capture proved same-owner structural case branches under their exact admitted typed domains before callbacks execute, preserving rejected projection for unproved selectors.",
+          "before_start": 12427,
+          "before_end": 12461,
+          "after_start": 12499,
+          "after_end": 12597,
+          "before": "        Some(callOrigin.rendered)\n",
+          "after": "        Set(value),\n        isDefault = false,\n        sourceLocation = Some(callOrigin.rendered)\n"
+        },
+        {
+          "id": "NativeStructuralFrontend-59h-3",
+          "reason": "Capture proved same-owner structural case branches under their exact admitted typed domains before callbacks execute, preserving rejected projection for unproved selectors.",
+          "before_start": 13008,
+          "before_end": 13070,
+          "after_start": 13144,
+          "after_end": 13278,
+          "before": "      val defaultBlock = ParameterizedStructure.captureBlock(\n",
+          "after": "      val defaultBlock = ExternalAnalyzedStructuralPublisher.captureStructuralCaseBranch(\n        analyzedSelector,\n        selector,\n"
+        },
+        {
+          "id": "NativeStructuralFrontend-59h-4",
+          "reason": "Capture proved same-owner structural case branches under their exact admitted typed domains before callbacks execute, preserving rejected projection for unproved selectors.",
+          "before_start": 13089,
+          "before_end": 13123,
+          "after_start": 13297,
+          "after_end": 13396,
+          "before": "        Some(callOrigin.rendered)\n",
+          "after": "        values.toSet,\n        isDefault = true,\n        sourceLocation = Some(callOrigin.rendered)\n"
+        }
+      ]
+    },
+    {
+      "path": "frontend/src/main/scala/spinal/core/ExternalAnalyzedStructuralPublisher.scala",
+      "change": "modified",
+      "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+      "baseline_sha256": "c279f018b0260f5b640e0e9e9b550e929632909dddb07249ac315f9e5a9debe7",
+      "edits": [
+        {
+          "id": "ExternalAnalyzedStructuralPublisher-59h-1",
+          "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+          "before_start": 175,
+          "before_end": 207,
+          "after_start": 175,
+          "after_end": 217,
+          "before": "  AnalyzedStructuralIntegerKind\n",
+          "after": "  AnalyzedStructuralIntegerKind,\n  HdlInt\n"
+        },
+        {
+          "id": "ExternalAnalyzedStructuralPublisher-59h-2",
+          "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+          "before_start": 11004,
+          "before_end": 11004,
+          "after_start": 11014,
+          "after_end": 12213,
+          "before": "",
+          "after": "  /** Bind typed case capture to the analyzer's original immutable source.\n    * Registration still consumes the analyzer's one-shot publication claim.\n    */\n  def captureStructuralCaseBranch(\n      analyzed: AnalyzedStructuralInteger,\n      source: HdlInt,\n      component: Component,\n      choices: Set[BigInt],\n      isDefault: Boolean,\n      sourceLocation: Option[String]\n  )(body: => Unit): ParameterizedStructuralBlock = {\n    requireReference(analyzed, \"analyzed generate-case wrapper\", sourceLocation)\n    requireReference(source, \"generate-case source\", sourceLocation)\n    requireReference(component, \"generate-case component\", sourceLocation)\n    if (analyzed.sourceIdentity ne source)\n      ParameterizedVerilogException.fail(\n        \"SPINAL-ELAB-CASE-SOURCE-IDENTITY-MISMATCH\",\n        \"typed case capture requires the analyzer's exact original source\",\n        sourceLocation\n      )\n    val expression = source.asElabInt.expression\n    if (expression.exactDomain.nonEmpty)\n      ParameterizedStructure.captureExactCaseBlock(\n        component, expression, choices, isDefault, sourceLocation)(body)\n    else ParameterizedStructure.captureBlock(component, sourceLocation)(body)\n  }\n\n"
+        },
+        {
+          "id": "ExternalAnalyzedStructuralPublisher-59h-3",
+          "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+          "before_start": 11598,
+          "before_end": 11638,
+          "after_start": 12807,
+          "after_end": 12852,
+          "before": "    val (_, selector) = analyzed.claim(\n",
+          "after": "    val (source, selector) = analyzed.claim(\n"
+        },
+        {
+          "id": "ExternalAnalyzedStructuralPublisher-59h-4",
+          "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+          "before_start": 11755,
+          "before_end": 11755,
+          "after_start": 12969,
+          "after_end": 13197,
+          "before": "",
+          "after": "    val authoritativeSelector = source match {\n      case value: HdlInt =>\n        val expression = value.asElabInt.expression\n        if (expression.exactDomain.nonEmpty) expression else selector\n      case _ => selector\n    }\n"
+        },
+        {
+          "id": "ExternalAnalyzedStructuralPublisher-59h-5",
+          "reason": "Preserve exact authenticated selector authority in retained structural case publication so nested literal/default reduction branches retain their native domain certificate.",
+          "before_start": 11811,
+          "before_end": 11827,
+          "after_start": 13253,
+          "after_end": 13282,
+          "before": "      selector,\n",
+          "after": "      authoritativeSelector,\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/contracts/increment-55-native-change-review.json",
+      "change": "modified",
+      "reason": "Explicitly review the narrow native scalar static-read certification method while preserving all existing native review entries.",
+      "baseline_sha256": "e761e4fdd79bef8f7206fc2e33d2cad5be9e1fe880781a38025f8ebd34c9f5bd",
+      "edits": [
+        {
+          "id": "increment-55-native-change-review-59h-1",
+          "reason": "Explicitly review the narrow native scalar static-read certification method while preserving all existing native review entries.",
+          "before_start": 41284,
+          "before_end": 41489,
+          "after_start": 41284,
+          "after_end": 41721,
+          "before": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions.\",\n",
+          "after": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.\",\n"
+        },
+        {
+          "id": "increment-55-native-change-review-59h-2",
+          "reason": "Explicitly review the narrow native scalar static-read certification method while preserving all existing native review entries.",
+          "before_start": 41940,
+          "before_end": 41940,
+          "after_start": 42172,
+          "after_end": 42726,
+          "before": "",
+          "after": "              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"private[core] def isCertifiedReadOf(expected: BaseType): Boolean =\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"(vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)\",\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/contracts/native-source-preservation.json",
+      "change": "modified",
+      "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+      "baseline_sha256": "cbc2b1623224ced553bdbce94113f82d0f4d0c8a0736ae1fb9f6d0cda3225fd6",
+      "edits": [
+        {
+          "id": "native-source-preservation-59h-1",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 441,
+          "before_end": 507,
+          "after_start": 441,
+          "after_end": 507,
+          "before": "      \"approved_tree\": \"e8d9e56bdc3b59db4e3242c3bc5c23c28e6cc6d7\"\n",
+          "after": "      \"approved_tree\": \"88c0ac65967c4377626cec7eb0d83536a09e4a6c\"\n"
+        },
+        {
+          "id": "native-source-preservation-59h-2",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 60642,
+          "before_end": 60787,
+          "after_start": 60642,
+          "after_end": 60787,
+          "before": "        \"blob\": \"fd1d88257b85794df5011008139f2dde0e98e63f\",\n        \"sha256\": \"cd39310765dc9bcc67f545510974ab053e44ea72655601bdd6d340c94e6b728a\"\n",
+          "after": "        \"blob\": \"07d1bca29389bda24a587ea3d145b302fec972df\",\n        \"sha256\": \"189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c\"\n"
+        },
+        {
+          "id": "native-source-preservation-59h-3",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 69288,
+          "before_end": 69493,
+          "after_start": 69288,
+          "after_end": 69725,
+          "before": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions.\",\n",
+          "after": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.\",\n"
+        },
+        {
+          "id": "native-source-preservation-59h-4",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 69732,
+          "before_end": 69846,
+          "after_start": 69964,
+          "after_end": 70078,
+          "before": "            \"end\": 9114,\n            \"sha256\": \"2b07adaa3d5a09ed996432f486287cde5d2e5b08e5833f1b4e9a6f842137d22e\"\n",
+          "after": "            \"end\": 9975,\n            \"sha256\": \"7a80c3125be70e0dcffb2b9b321c4898af2ec3a9ac1cc3eb252a7d703a2067f7\"\n"
+        },
+        {
+          "id": "native-source-preservation-59h-5",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 70335,
+          "before_end": 70335,
+          "after_start": 70567,
+          "after_end": 71121,
+          "before": "",
+          "after": "            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"private[core] def isCertifiedReadOf(expected: BaseType): Boolean =\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"(vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)\",\n              \"count\": 1\n"
+        },
+        {
+          "id": "native-source-preservation-59h-6",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 70860,
+          "before_end": 70914,
+          "after_start": 71646,
+          "after_end": 71700,
+          "before": "            \"start\": 10129,\n            \"end\": 10491,\n",
+          "after": "            \"start\": 10990,\n            \"end\": 11352,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-7",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 71693,
+          "before_end": 71747,
+          "after_start": 72479,
+          "after_end": 72533,
+          "before": "            \"start\": 10495,\n            \"end\": 10968,\n",
+          "after": "            \"start\": 11356,\n            \"end\": 11829,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-8",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 72526,
+          "before_end": 72580,
+          "after_start": 73312,
+          "after_end": 73366,
+          "before": "            \"start\": 11980,\n            \"end\": 12032,\n",
+          "after": "            \"start\": 12841,\n            \"end\": 12893,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-9",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 73377,
+          "before_end": 73431,
+          "after_start": 74163,
+          "after_end": 74217,
+          "before": "            \"start\": 12216,\n            \"end\": 12284,\n",
+          "after": "            \"start\": 13077,\n            \"end\": 13145,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-10",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 74226,
+          "before_end": 74280,
+          "after_start": 75012,
+          "after_end": 75066,
+          "before": "            \"start\": 12799,\n            \"end\": 13388,\n",
+          "after": "            \"start\": 13660,\n            \"end\": 14249,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-11",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 75065,
+          "before_end": 75119,
+          "after_start": 75851,
+          "after_end": 75905,
+          "before": "            \"start\": 13721,\n            \"end\": 13735,\n",
+          "after": "            \"start\": 14582,\n            \"end\": 14596,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-12",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 75881,
+          "before_end": 75935,
+          "after_start": 76667,
+          "after_end": 76721,
+          "before": "            \"start\": 14601,\n            \"end\": 14740,\n",
+          "after": "            \"start\": 15462,\n            \"end\": 15601,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-13",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 76735,
+          "before_end": 76789,
+          "after_start": 77521,
+          "after_end": 77575,
+          "before": "            \"start\": 15024,\n            \"end\": 15030,\n",
+          "after": "            \"start\": 15885,\n            \"end\": 15891,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-14",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 77551,
+          "before_end": 77605,
+          "after_start": 78337,
+          "after_end": 78391,
+          "before": "            \"start\": 15239,\n            \"end\": 15322,\n",
+          "after": "            \"start\": 16100,\n            \"end\": 16183,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-15",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 78402,
+          "before_end": 78456,
+          "after_start": 79188,
+          "after_end": 79242,
+          "before": "            \"start\": 15587,\n            \"end\": 16236,\n",
+          "after": "            \"start\": 16448,\n            \"end\": 17097,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-16",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 79246,
+          "before_end": 79300,
+          "after_start": 80032,
+          "after_end": 80086,
+          "before": "            \"start\": 16247,\n            \"end\": 16524,\n",
+          "after": "            \"start\": 17108,\n            \"end\": 17385,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-17",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 80084,
+          "before_end": 80138,
+          "after_start": 80870,
+          "after_end": 80924,
+          "before": "            \"start\": 16532,\n            \"end\": 16615,\n",
+          "after": "            \"start\": 17393,\n            \"end\": 17476,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-18",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 80935,
+          "before_end": 80989,
+          "after_start": 81721,
+          "after_end": 81775,
+          "before": "            \"start\": 16659,\n            \"end\": 16818,\n",
+          "after": "            \"start\": 17520,\n            \"end\": 17679,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-19",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 81764,
+          "before_end": 81818,
+          "after_start": 82550,
+          "after_end": 82604,
+          "before": "            \"start\": 16995,\n            \"end\": 17063,\n",
+          "after": "            \"start\": 17856,\n            \"end\": 17924,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-20",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 82629,
+          "before_end": 82683,
+          "after_start": 83415,
+          "after_end": 83469,
+          "before": "            \"start\": 17985,\n            \"end\": 18060,\n",
+          "after": "            \"start\": 18846,\n            \"end\": 18921,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-21",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 83494,
+          "before_end": 83548,
+          "after_start": 84280,
+          "after_end": 84334,
+          "before": "            \"start\": 18174,\n            \"end\": 18213,\n",
+          "after": "            \"start\": 19035,\n            \"end\": 19074,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-22",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 84337,
+          "before_end": 84391,
+          "after_start": 85123,
+          "after_end": 85177,
+          "before": "            \"start\": 18311,\n            \"end\": 18647,\n",
+          "after": "            \"start\": 19172,\n            \"end\": 19508,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-23",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 85206,
+          "before_end": 85260,
+          "after_start": 85992,
+          "after_end": 86046,
+          "before": "            \"start\": 19076,\n            \"end\": 19410,\n",
+          "after": "            \"start\": 19937,\n            \"end\": 20271,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-24",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 86382,
+          "before_end": 86436,
+          "after_start": 87168,
+          "after_end": 87222,
+          "before": "            \"start\": 19427,\n            \"end\": 21902,\n",
+          "after": "            \"start\": 20288,\n            \"end\": 22763,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-25",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 87931,
+          "before_end": 87985,
+          "after_start": 88717,
+          "after_end": 88771,
+          "before": "            \"start\": 22232,\n            \"end\": 22334,\n",
+          "after": "            \"start\": 23093,\n            \"end\": 23195,\n"
+        },
+        {
+          "id": "native-source-preservation-59h-26",
+          "reason": "Update only the exact approved native scalar static-read wrapper span and its complete source hashes.",
+          "before_start": 88796,
+          "before_end": 88850,
+          "after_start": 89582,
+          "after_end": 89636,
+          "before": "            \"start\": 22402,\n            \"end\": 22545,\n",
+          "after": "            \"start\": 23263,\n            \"end\": 23406,\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59c-source-review.py",
+      "change": "modified",
+      "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+      "baseline_sha256": "1941fa59340440161bb3851faeab68cb33a85b0beda2d2144a32deaea70f46bf",
+      "edits": [
+        {
+          "id": "check-increment-59c-source-review-59h-1",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 561,
+          "before_end": 561,
+          "after_start": 561,
+          "after_end": 583,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59h-2",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 8065,
+          "before_end": 8065,
+          "after_start": 8087,
+          "after_end": 8957,
+          "before": "",
+          "after": "def nested_source_review(root: Path):\n    \"\"\"Compose a separately pinned successor before this immutable 59c review.\"\"\"\n    checker = root / \"morphhdl/scripts/check-increment-59h-source-review.py\"\n    contract = root / \"morphhdl/contracts/increment-59h-source-review.json\"\n    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):\n        return None\n    require(checker.is_file() and not checker.is_symlink() and\n            contract.is_file() and not contract.is_symlink(),\n            \"59h source-review checker or contract is missing\")\n    spec = importlib.util.spec_from_file_location(\"nested_59h_scope\", checker)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 59h source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59h-3",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 8208,
+          "before_end": 8208,
+          "after_start": 9100,
+          "after_end": 9226,
+          "before": "",
+          "after": "    nested = nested_source_review(root)\n    if nested is not None:\n        source = nested.restore_source(root, path, source)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59h-4",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 9415,
+          "before_end": 9415,
+          "after_start": 10433,
+          "after_end": 10534,
+          "before": "",
+          "after": "    nested = nested_source_review(root)\n    if nested is not None:\n        nested.verify_spans(root)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59h-5",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 10223,
+          "before_end": 10286,
+          "after_start": 11342,
+          "after_end": 11545,
+          "before": "        restore_reviewed(entry, baseline, source.read_bytes())\n",
+          "after": "        current = source.read_bytes()\n        if nested is not None:\n            current = nested.restore_source(root, path, current.decode()).encode()\n        restore_reviewed(entry, baseline, current)\n"
+        },
+        {
+          "id": "check-increment-59c-source-review-59h-6",
+          "reason": "Validate and reverse the exact separately pinned 59h successor before the unchanged 59c source spans and complete inherited inventory.",
+          "before_start": 10352,
+          "before_end": 10431,
+          "after_start": 11611,
+          "after_end": 11851,
+          "before": "    require_production_inventory(production_changes(root, qualification_base))\n",
+          "after": "    paths = production_changes(root, qualification_base)\n    nested = nested_source_review(root)\n    if nested is not None:\n        paths = nested.inherited_inventory(root, paths, qualification_base)\n    require_production_inventory(paths)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
+      "change": "modified",
+      "reason": "Audit the inherited exact composite callback-policy bytes after reversal of the separately pinned scalar static-read certification change.",
+      "baseline_sha256": "21994326677281de2cde2bbc0286cf5dc2a6997fbb6dd15260cb9379fec47c75",
+      "edits": [
+        {
+          "id": "check-increment-59f-source-scope-59h-1",
+          "reason": "Audit the inherited exact composite callback-policy bytes after reversal of the separately pinned scalar static-read certification change.",
+          "before_start": 12896,
+          "before_end": 12928,
+          "after_start": 12896,
+          "after_end": 12955,
+          "before": "    source = target.read_text()\n",
+          "after": "    source = current_inherited_source(root, entry[\"path\"])\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
+      "change": "modified",
+      "reason": "Activate only the complete audited 59h source profile and exact additional test suites while retaining every inherited suite identity and count.",
+      "baseline_sha256": "ad9f861bab1d66e4f852c9fae644a313c06c4836615c55099fdc08a4809291f0",
+      "edits": [
+        {
+          "id": "check-increment-60f-artifacts-59h-1",
+          "reason": "Activate only the complete audited 59h source profile and exact additional test suites while retaining every inherited suite identity and count.",
+          "before_start": 12167,
+          "before_end": 12167,
+          "after_start": 12167,
+          "after_end": 12448,
+          "before": "",
+          "after": "INCREMENT_59H_SUITES = {\n    \"morphhdl\": {\n        \"spinal.core.ParameterizedStructuralLexicalOwnerTests\": 18,\n        \"spinal.core.internals.TypedBalancedReductionNestedOwnerTests\": 17,\n        \"spinal.core.internals.TypedBalancedReductionStaticRedirectPolicyTests\": 3,\n    },\n}\n\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59h-2",
+          "reason": "Activate only the complete audited 59h source profile and exact additional test suites while retaining every inherited suite identity and count.",
+          "before_start": 12520,
+          "before_end": 12520,
+          "after_start": 12801,
+          "after_end": 13416,
+          "before": "",
+          "after": "    \"59h\": {\n        \"sources\": (\n            \"morphhdl/contracts/increment-59h-source-review.json\",\n            \"morphhdl/scripts/check-increment-59h-source-review.py\",\n            \"morphhdl/src/test/scala/spinal/core/ParameterizedStructuralLexicalOwnerTests.scala\",\n            \"morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerTests.scala\",\n            \"morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionStaticRedirectPolicyTests.scala\",\n        ),\n        \"projects\": {project: frozenset(additions) for project, additions in INCREMENT_59H_SUITES.items()},\n    },\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59h-3",
+          "reason": "Activate only the complete audited 59h source profile and exact additional test suites while retaining every inherited suite identity and count.",
+          "before_start": 21575,
+          "before_end": 21575,
+          "after_start": 22471,
+          "after_end": 22913,
+          "before": "",
+          "after": "                if name == \"59h\":\n                    exact_new = INCREMENT_59H_SUITES[project]\n                    reviewed_counts = extension.setdefault(project, {})\n                    require(not set(reviewed_counts).intersection(exact_new),\n                            \"59h exact test counts replaced another reviewed feature\")\n                    reviewed_counts.update(exact_new)\n                    minimum += sum(exact_new.values())\n"
+        },
+        {
+          "id": "check-increment-60f-artifacts-59h-4",
+          "reason": "Activate only the complete audited 59h source profile and exact additional test suites while retaining every inherited suite identity and count.",
+          "before_start": 71230,
+          "before_end": 71378,
+          "after_start": 72568,
+          "after_end": 73662,
+          "before": "    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field suite extension and {rejections} rejection controls PASS\")\n",
+          "after": "    nested = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59h\", True)\n    nested_additions = INCREMENT_59H_SUITES[\"morphhdl\"]\n    require(nested[1][\"morphhdl\"] == named[1][\"morphhdl\"] | set(nested_additions) and\n            nested[0][\"morphhdl\"] == (named[0][\"morphhdl\"][0] + sum(nested_additions.values()),\n                                     named[0][\"morphhdl\"][1] + len(nested_additions)) and\n            nested[2][\"morphhdl\"] == {**named[2][\"morphhdl\"], **nested_additions},\n            \"59h changed an inherited exact suite/test obligation\")\n    for missing in nested_additions:\n        try:\n            exact_names(set(nested[1][\"morphhdl\"]) - {missing}, set(nested[1][\"morphhdl\"]),\n                        \"missing reviewed nested-owner suite\")\n        except RuntimeError:\n            rejections += 1\n        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field and nested-owner suite extensions and {rejections} rejection controls PASS\")\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
+      "change": "modified",
+      "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+      "baseline_sha256": "9b88a24ee2e25435e576d996970701bd9bcbeec5434552ebf821b8a139be3b8a",
+      "edits": [
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-1",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 18338,
+          "before_end": 18388,
+          "after_start": 18338,
+          "after_end": 18395,
+          "before": "    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\")\n",
+          "after": "    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59h\")\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-2",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 18433,
+          "before_end": 18463,
+          "after_start": 18440,
+          "after_end": 18470,
+          "before": "    for mask in range(1, 32):\n",
+          "after": "    for mask in range(1, 64):\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-3",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 18609,
+          "before_end": 18609,
+          "after_start": 18616,
+          "after_end": 18723,
+          "before": "",
+          "after": "            continue\n        if \"59h\" in selected and not {\"59d\", \"59e\", \"59f\", \"59c\"}.issubset(selected):\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-4",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 22614,
+          "before_end": 22614,
+          "after_start": 22728,
+          "after_end": 22746,
+          "before": "",
+          "after": "    nested = None\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-5",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 22673,
+          "before_end": 22673,
+          "after_start": 22805,
+          "after_end": 22936,
+          "before": "",
+          "after": "        successor = getattr(named, \"nested_source_review\", None)\n        nested = successor(root) if callable(successor) else None\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-6",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 23120,
+          "before_end": 23120,
+          "after_start": 23383,
+          "after_end": 23476,
+          "before": "",
+          "after": "    if nested is not None:\n        changed = nested.inherited_inventory(root, changed, BASE)\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-7",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 28723,
+          "before_end": 28723,
+          "after_start": 29079,
+          "after_end": 29278,
+          "before": "",
+          "after": "        if nested is not None and path in nested.PRODUCTION_PATHS and path not in named.PRODUCTION_PATHS:\n            source_bytes = nested.restore_source(root, path, source_bytes.decode()).encode()\n"
+        },
+        {
+          "id": "check-increment-60f-equivalence-closure-59h-8",
+          "reason": "Normalize only the verified 59h source delta before the unchanged historical production union, byte hashes, authority and native audits; retain source cleanliness checks.",
+          "before_start": 29910,
+          "before_end": 29976,
+          "after_start": 30465,
+          "after_end": 30597,
+          "before": "    return profile + \"-and-59c\" if named is not None else profile\n",
+          "after": "    if named is not None:\n        profile += \"-and-59c\"\n    if nested is not None:\n        profile += \"-and-59h\"\n    return profile\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
+      "change": "modified",
+      "reason": "Keep complete current successor audits separate from the unchanged original 59c source mutation controls executed at the frozen completed commit.",
+      "baseline_sha256": "a80a0e31c5df76419f7e1eca0147f1539bf5e23fd01d4d30279b035f7d428ea5",
+      "edits": [
+        {
+          "id": "test-increment-59c-inherited-source-scope-59h-1",
+          "reason": "Keep complete current successor audits separate from the unchanged original 59c source mutation controls executed at the frozen completed commit.",
+          "before_start": 465,
+          "before_end": 465,
+          "after_start": 465,
+          "after_end": 487,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "test-increment-59c-inherited-source-scope-59h-2",
+          "reason": "Keep complete current successor audits separate from the unchanged original 59c source mutation controls executed at the frozen completed commit.",
+          "before_start": 5619,
+          "before_end": 5619,
+          "after_start": 5641,
+          "after_end": 6496,
+          "before": "",
+          "after": "    successor = ROOT / \"morphhdl/scripts/test-increment-59h-inherited-source-scope.py\"\n    if (ROOT / \"morphhdl/contracts/increment-59h-source-review.json\").is_file():\n        # Current 59h source is audited independently. Retain every original\n        # 59c mutation and rejection against its unchanged completed source.\n        spec = importlib.util.spec_from_file_location(\"nested_inherited_controls\", successor)\n        module = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(module)\n        module.frozen_inherited_fixture(\n            ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n            \"target/increment-59c-source-scope\",\n            lambda: [checked(ROOT, \"current descendant through complete 59h and inherited source audits\")],\n            \"59c current-source controls PASS\")\n        return\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "change": "modified",
+      "reason": "Preserve exact scoped reduction output anchors as retained values during native fallback publication so nested results keep their owning region identity.",
+      "baseline_sha256": "08fd507b942ea7d22f91956a3a93fec9991a27d458c46132f473a21dd806e5d1",
+      "edits": [
+        {
+          "id": "ExternalParameterizedVerilogNativeFallback-59h-1",
+          "reason": "Preserve exact scoped reduction output anchors as retained values during native fallback publication so nested results keep their owning region identity.",
+          "before_start": 29850,
+          "before_end": 29850,
+          "after_start": 29850,
+          "after_end": 30001,
+          "before": "",
+          "after": "    }\n    TypedBalancedReductionBackend.publishedScopedAnchors(component).foreach { anchor =>\n      retainedValues.put(anchor, java.lang.Boolean.TRUE)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+      "change": "modified",
+      "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+      "baseline_sha256": "4155844f4472d285efabde0edf0537eb9199b2f25c2b0c640ee0748ef34b795e",
+      "edits": [
+        {
+          "id": "ParameterizedVerilogStructural-59h-1",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "before_start": 6098,
+          "before_end": 6098,
+          "after_start": 6098,
+          "after_end": 6672,
+          "before": "",
+          "after": "    // A parent parameter may occur only in a captured child's actual, with no\n    // local width or generate predicate referring to it. Build the header from\n    // the same exact canonical-instance binding analysis used by hierarchy\n    // publication, and validate declaration identities before merging schemas.\n    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(\n      component,\n      includeChildActuals = true\n    )\n    val hierarchyParameters =\n      ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf).parameters\n"
+        },
+        {
+          "id": "ParameterizedVerilogStructural-59h-2",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "before_start": 6136,
+          "before_end": 6188,
+          "after_start": 6710,
+          "after_end": 6793,
+          "before": "      ParameterizedWidth.parametersOf(component) ++\n",
+          "after": "      hierarchyParameters ++\n        ParameterizedWidth.parametersOf(component) ++\n"
+        },
+        {
+          "id": "ParameterizedVerilogStructural-59h-3",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "before_start": 12436,
+          "before_end": 12502,
+          "after_start": 13041,
+          "after_end": 13237,
+          "before": "    val planByBlock = plans.map(plan => plan.block -> plan).toMap\n",
+          "after": "    val planByBlock = plans.map { plan =>\n      plan.block -> plan.copy(body = TypedBalancedReductionBackend.rewriteScoped(\n        component, plan.block, plan.body, pc, canonicalOf))\n    }.toMap\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+      "change": "modified",
+      "reason": "Retain exact child static-read wrapper mirrors only when the live parent assignment proves a complete input Vec aggregate boundary; preserve stale evidence rejection for other operations.",
+      "baseline_sha256": "83505edeffcf680b9dbcd632d641b0a6cf291716ca56587d1254ef101605250b",
+      "edits": [
+        {
+          "id": "ParameterizedVerilogVecs-59h-1",
+          "reason": "Retain exact child static-read wrapper mirrors only when the live parent assignment proves a complete input Vec aggregate boundary; preserve stale evidence rejection for other operations.",
+          "before_start": 67075,
+          "before_end": 67265,
+          "after_start": 67075,
+          "after_end": 67455,
+          "before": "        requireLiveAssignmentEvidence(operationAssignmentEvidence(operation), liveAssignments,\n          \"captured indexed Vec write\", operation.sourceLocation.orElse(owner.sourceLocation))\n",
+          "after": "        operation match {\n          case write: ParameterizedVecStaticWrite\n              if isExactParentInputStaticMirror(component, owner, write) =>\n          case _ =>\n            requireLiveAssignmentEvidence(operationAssignmentEvidence(operation), liveAssignments,\n              \"captured indexed Vec write\", operation.sourceLocation.orElse(owner.sourceLocation))\n        }\n"
+        },
+        {
+          "id": "ParameterizedVerilogVecs-59h-2",
+          "reason": "Retain exact child static-read wrapper mirrors only when the live parent assignment proves a complete input Vec aggregate boundary; preserve stale evidence rejection for other operations.",
+          "before_start": 301354,
+          "before_end": 301354,
+          "after_start": 301544,
+          "after_end": 303265,
+          "before": "",
+          "after": "  /** Reading a child port by a static index installs a native assignment\n    * wrapper before its parent connects the complete Vec. That wrapper also\n    * observes the parent's aggregate connection. Its scalar record belongs\n    * to the exact live parent boundary, not to this child's module body.\n    * Neither an authored scalar connection nor stale mirror metadata can\n    * acquire that ownership merely by matching the emitted port name.\n    */\n  private def isExactParentInputStaticMirror(\n      component: Component,\n      plan: VecPlan,\n      write: ParameterizedVecStaticWrite\n  ): Boolean = {\n    val assignment = write.assignment\n    if (assignment == null || write.selected == null ||\n        !write.selected.isInput || write.selected.isOutput ||\n        (write.selected.component ne component) ||\n        !plan.leaves.exists(leaf => leaf.elementIndex == write.elementIndex &&\n          leaf.leafIndex == write.elementLeafIndex && (leaf.value eq write.selected)) ||\n        (write.target ne write.selected) || (assignment.target ne write.target) ||\n        (assignment.finalTarget ne write.selected) || (assignment.source ne write.source) ||\n        write.enclosingConditions.nonEmpty) return false\n    ParameterizedVec.operationsOf(plan.vector).exists {\n      case boundary: ParameterizedVecWholeAssignment =>\n        boundary.assignments.exists(_ eq assignment) &&\n          isExactParentInputBoundary(component, plan.vector, boundary.source, boundary.assignments)\n      case boundary: ParameterizedVecAutoConnect =>\n        boundary.assignments.exists(_ eq assignment) &&\n          isExactParentInputBoundary(component, plan.vector, boundary.peer, boundary.assignments)\n      case _ => false\n    }\n  }\n\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "change": "modified",
+      "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+      "baseline_sha256": "1f7e359d60d87d491ca57727066cf681d436a6cdeb65ba49085f86f3895963ea",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionBackend-59h-1",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 1781,
+          "before_end": 1855,
+          "after_start": 1781,
+          "after_end": 1912,
+          "before": "      outputObservation: TypedBalancedReductionClosedGraph.Observation) {\n",
+          "after": "      outputObservation: TypedBalancedReductionClosedGraph.Observation,\n      lexicalOwner: ParameterizedStructuralLexicalOwner) {\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-2",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 1881,
+          "before_end": 1881,
+          "after_start": 1938,
+          "after_end": 2030,
+          "before": "",
+          "after": "    var handoffOwner: Option[ParameterizedStructuralBlock] = None\n    var published = false\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-3",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 2681,
+          "before_end": 2681,
+          "after_start": 2830,
+          "after_end": 3437,
+          "before": "",
+          "after": "\n  /** Scoped topology has already replaced these exact zero witness drivers.\n    * The ordinary expression publisher must not reinterpret the private\n    * anchors as user-authored zero assignments after that checked handoff.\n    */\n  private[internals] def publishedScopedAnchors(component: Component): Vector[BaseType] =\n    records(component).filter(record => record.published && !record.lexicalOwner.isModuleScope)\n      .flatMap(record => record.output.flatten.toVector ++ record.stages.flatMap(_.bodies)\n        .flatMap(body => body.left.flatten.toVector ++ body.right.toVector.flatMap(_.flatten)))\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-4",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 4654,
+          "before_end": 4654,
+          "after_start": 5410,
+          "after_end": 6846,
+          "before": "",
+          "after": "  private def validateResultOwnership(record: Record, block: ParameterizedStructuralBlock): Unit = {\n    val allowed = new IdentityHashMap[Statement, java.lang.Boolean]()\n    def retain(statement: Statement): Unit = {\n      if (!allowed.containsKey(statement)) {\n        allowed.put(statement, java.lang.Boolean.TRUE)\n        statement match {\n          case tree: TreeStatement => tree.foreachStatements(retain)\n          case _ =>\n        }\n      }\n    }\n    (Vector(block) ++ block.regions.flatMap(ParameterizedStructure.allBlocks))\n      .flatMap(_.statements).foreach(retain)\n    val leaves = record.output.flatten.toVector\n    record.vector.component.dslBody.walkStatements { statement =>\n      if (!allowed.containsKey(statement)) {\n        val visited = new IdentityHashMap[Expression, java.lang.Boolean]()\n        def inspect(expression: Expression): Unit = {\n          if (expression != null && !visited.containsKey(expression)) {\n            visited.put(expression, java.lang.Boolean.TRUE)\n            if (leaves.exists(_ eq expression))\n              fail(\"RESULT-ESCAPE\", \"a reduction result is consumed outside its exact lexical owner\")\n            expression match {\n              case _: BaseType => // Only direct references, not transitive native drivers.\n              case _ => expression.foreachExpression(inspect)\n            }\n          }\n        }\n        statement.foreachExpression(inspect)\n      }\n    }\n  }\n\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-5",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 5365,
+          "before_end": 5625,
+          "after_start": 7557,
+          "after_end": 8993,
+          "before": "          validatePackedWidths(record, pc)\n          val bodies = record.stages.flatMap(_.bodies)\n          bodies.foreach(validateNativeAnchors)\n          bodies.flatMap(_.observations).foreach(_.apply())\n          record.outputObservation.requireUnchanged()\n",
+          "after": "          val lexicalBlock = ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner)\n          if (record.lexicalOwner.component ne owner)\n            fail(\"LEXICAL-OWNER\", \"reduction storage lost its exact owning component\")\n          val lexicalBlocks = ParameterizedStructure.regionsOf(owner).flatMap(ParameterizedStructure.allBlocks)\n          val declarations = Vector(record.input) ++ record.output.flatten.toVector ++\n            record.stages.flatMap(_.bodies.flatMap(_.block.declarations))\n          declarations.foreach { declaration =>\n            val owners = lexicalBlocks.filter(_.declarations.exists(_ eq declaration))\n            if (owners.size != lexicalBlock.size ||\n                owners.zip(lexicalBlock).exists { case (actual, expected) => actual ne expected })\n              fail(\"LEXICAL-DECLARATION\", \"reduction anchors and templates must retain one exact direct lexical owner\")\n          }\n          lexicalBlock.foreach { block =>\n            validateResultOwnership(record, block)\n          }\n          ParameterizedStructure.withLexicalOwnerDomain(record.lexicalOwner) {\n            validatePackedWidths(record, pc)\n            val bodies = record.stages.flatMap(_.bodies)\n            bodies.foreach(validateNativeAnchors)\n            bodies.flatMap(_.observations).foreach(_.apply())\n            record.outputObservation.requireUnchanged()\n          }\n          record.handoffOwner = lexicalBlock\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-6",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 6162,
+          "before_end": 6366,
+          "after_start": 9530,
+          "after_end": 9530,
+          "before": "      if (ParameterizedStructure.currentOwner(plan.count, \"balanced publication\").captureId != 0L)\n        fail(\"NESTED-OWNER\", \"balanced stage publication currently requires the native component scope\")\n",
+          "after": ""
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-7",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 9038,
+          "before_end": 9038,
+          "after_start": 12202,
+          "after_end": 12299,
+          "before": "",
+          "after": "    val lexicalOwner = ParameterizedStructure.currentLexicalOwner(\"balanced scalar publication\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-8",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 16229,
+          "before_end": 16355,
+          "after_start": 19490,
+          "after_end": 19630,
+          "before": "    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation)\n",
+          "after": "    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-9",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 16574,
+          "before_end": 16574,
+          "after_start": 19849,
+          "after_end": 20095,
+          "before": "",
+          "after": "    val lexicalOwner = ParameterizedStructure.currentLexicalOwner(\"balanced composite publication\")\n    if (!lexicalOwner.isModuleScope)\n      fail(\"NESTED-COMPOSITE\", \"nested composite reduction qualification belongs to the cross-feature join\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-10",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 20489,
+          "before_end": 20591,
+          "after_start": 24010,
+          "after_end": 24126,
+          "before": "    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation)\n",
+          "after": "    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-11",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 21280,
+          "before_end": 21280,
+          "after_start": 24815,
+          "after_end": 25469,
+          "before": "",
+          "after": "  private def structuralNames(component: Component): Set[String] = {\n    def names(region: ParameterizedStructure.StructuralRegion): Vector[String] = {\n      val direct = region match {\n        case value: ParameterizedStructure.StructuralFor => Vector(value.label, value.indexName)\n        case value: ParameterizedStructure.StructuralIf => Vector(value.whenTrueLabel, value.whenFalseLabel)\n        case value: ParameterizedStructure.StructuralCase => value.choices.map(_.label) :+ value.defaultLabel\n      }\n      direct ++ region.blocks.flatMap(_.regions.flatMap(names))\n    }\n    ParameterizedStructure.regionsOf(component).flatMap(names).toSet\n  }\n\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-12",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 21425,
+          "before_end": 21489,
+          "after_start": 25614,
+          "after_end": 27042,
+          "before": "    records(component).foldLeft(verilog) { (current, record) =>\n",
+          "after": "    records(component).filterNot(_.lexicalOwner.isModuleScope).foreach { record =>\n      if (!record.published)\n        fail(\"LEXICAL-PUBLICATION\", \"a nested reduction was not consumed by its exact structural block\")\n    }\n    rewriteRecords(component, records(component).filter { record =>\n      ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner).isEmpty\n    }, verilog, pc, canonicalOf, nested = false)\n  }\n\n  /** Called only after the structural publisher has validated and normalized\n    * the complete native graph of this exact lexical block. Its native inputs,\n    * templates and output remain subject to the ordinary owner/driver checks.\n    */\n  private[internals] def rewriteScoped(component: Component,\n      block: ParameterizedStructuralBlock, body: String,\n      pc: PhaseContext, canonicalOf: Component => Component): String =\n    rewriteRecords(component, records(component).filter { record =>\n      ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner).exists(_ eq block)\n    }, body, pc, canonicalOf, nested = true)\n\n  private def rewriteRecords(component: Component, selected: Vector[Record], verilog: String,\n      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {\n    selected.foldLeft(verilog) { (current, record) =>\n      if (record.published)\n        fail(\"DUPLICATE-PUBLICATION\", \"one exact native reduction cannot be published more than once\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-13",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 21767,
+          "before_end": 21982,
+          "after_start": 27320,
+          "after_end": 27982,
+          "before": "      validatePackedWidths(record, pc)\n      record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)\n      if (record.output.isInstanceOf[BaseType]) rewriteScalar(component, current, record, pc, canonicalOf)\n",
+          "after": "      val lexicalBlock = ParameterizedStructure.blockOfLexicalOwner(record.lexicalOwner)\n      if (lexicalBlock.size != record.handoffOwner.size ||\n          lexicalBlock.zip(record.handoffOwner).exists { case (actual, frozen) => actual ne frozen })\n        fail(\"LEXICAL-OWNER\", \"native normalization changed the exact reduction owner\")\n      ParameterizedStructure.withLexicalOwnerDomain(record.lexicalOwner) {\n        validatePackedWidths(record, pc)\n        record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)\n      }\n      val updated = if (record.output.isInstanceOf[BaseType]) rewriteScalar(component, current, record, pc, canonicalOf, nested)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-14",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 22055,
+          "before_end": 22055,
+          "after_start": 28055,
+          "after_end": 28099,
+          "before": "",
+          "after": "      record.published = true\n      updated\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-15",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 22149,
+          "before_end": 22222,
+          "after_start": 28193,
+          "after_end": 28283,
+          "before": "      pc: PhaseContext, canonicalOf: Component => Component): String = {\n",
+          "after": "      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-16",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 22464,
+          "before_end": 22539,
+          "after_start": 28525,
+          "after_end": 28630,
+          "before": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet\n",
+          "after": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet ++ structuralNames(component)\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-17",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 23379,
+          "before_end": 23379,
+          "after_start": 29470,
+          "after_end": 29627,
+          "before": "",
+          "after": "    val scopedDeclarations = ArrayBuffer.empty[String]\n    def declare(line: String): Unit =\n      if (nested) scopedDeclarations += line else lines += line\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-18",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 23415,
+          "before_end": 23494,
+          "after_start": 29663,
+          "after_end": 29742,
+          "before": "    lines += s\"  wire [(${stages.head.inputPackedWidth.verilog})-1:0] $first;\"\n",
+          "after": "    declare(s\"  wire [(${stages.head.inputPackedWidth.verilog})-1:0] $first;\")\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-19",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 25040,
+          "before_end": 25180,
+          "after_start": 31288,
+          "after_end": 31441,
+          "before": "      lines += s\"  wire [(${stage.outputPackedWidth.verilog})-1:0] $after;\"\n      lines += s\"  genvar $genvar;\"\n      lines += \"  generate\"\n",
+          "after": "      declare(s\"  wire [(${stage.outputPackedWidth.verilog})-1:0] $after;\")\n      declare(s\"  genvar $genvar;\")\n      if (!nested) lines += \"  generate\"\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-20",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 26669,
+          "before_end": 26700,
+          "after_start": 32930,
+          "after_end": 32974,
+          "before": "      lines += \"  endgenerate\"\n",
+          "after": "      if (!nested) lines += \"  endgenerate\"\n"
+        },
+        {
+          "id": "TypedBalancedReductionBackend-59h-21",
+          "reason": "Admit reduction publication only under exact certified lexical ownership and install generated declarations before assignments and processes inside that owner so strict Verilog-2001 tools resolve lexical widths correctly.",
+          "before_start": 26926,
+          "before_end": 26926,
+          "after_start": 33200,
+          "after_end": 33304,
+          "before": "",
+          "after": "    if (nested) return scopedDeclarations.mkString(\"\\n\") + \"\\n\" + updated + \"\\n\" + lines.mkString(\"\\n\")\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala",
+      "change": "modified",
+      "reason": "Restrict native reduction replay to the certified same-root branch count using an identity-preserving prefix of the original validated scalar carrier while preserving all original shape and operand evidence.",
+      "baseline_sha256": "fc3e9e07aba57d40e9c111a4abf8f5e44a3e30a76f0b868603ea081e029a4cf1",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionCapture-59h-1",
+          "reason": "Restrict native reduction replay to the certified same-root branch count using an identity-preserving prefix of the original validated scalar carrier while preserving all original shape and operand evidence.",
+          "before_start": 8890,
+          "before_end": 8952,
+          "after_start": 8890,
+          "after_end": 9666,
+          "before": "    val result = native(vector.vec, wrappedOp, wrappedBridge)\n",
+          "after": "    // A Vec declared outside a typed branch retains its complete native\n    // carrier. Only the prefix admitted by this exact branch's count domain\n    // participates in its reduction. Keep the original receiver and validate\n    // every retained carrier leaf above; the prefix preserves those same Data\n    // identities instead of creating a new Vec or reconstructing its shape.\n    val admittedMaximum = plan.count.expression.maximum\n    if (admittedMaximum < 1 || admittedMaximum > BigInt(vector.vec.size))\n      fail(\"CAPTURE-ACTIVE-CAPACITY\", \"the admitted count exceeds the exact retained native carrier\")\n    val nativeCount = admittedMaximum.toInt\n    val nativeInputs = vector.vec.take(nativeCount)\n    val result = native(nativeInputs, wrappedOp, wrappedBridge)\n"
+        },
+        {
+          "id": "TypedBalancedReductionCapture-59h-2",
+          "reason": "Restrict native reduction replay to the certified same-root branch count using an identity-preserving prefix of the original validated scalar carrier while preserving all original shape and operand evidence.",
+          "before_start": 9150,
+          "before_end": 9203,
+          "after_start": 9864,
+          "after_end": 9919,
+          "before": "    var prior = vector.vec.map(_.asInstanceOf[Data])\n",
+          "after": "    var prior = nativeInputs.map(_.asInstanceOf[Data])\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+      "change": "modified",
+      "reason": "Trust only the native exact scalar static-read certification method instead of accepting arbitrary redirect behavior during callback replay.",
+      "baseline_sha256": "fa847826bc5efbae047595cbfa548dfa5fdffaffdd709591205d94ea3e61e59f",
+      "edits": [
+        {
+          "id": "TypedBalancedReductionCompositeCallbackPolicy-59h-1",
+          "reason": "Trust only the native exact scalar static-read certification method instead of accepting arbitrary redirect behavior during callback replay.",
+          "before_start": 3399,
+          "before_end": 3531,
+          "after_start": 3399,
+          "after_end": 3741,
+          "before": "      if (data.compositeAssign != null)\n        fail(\"composite callback input has an opaque native assignment redirect: \" + owner)\n",
+          "after": "      data.compositeAssign match {\n        case null =>\n        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign\n            if scalarNames(owner) && wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType]) =>\n        case _ => fail(\"composite callback input has an opaque native assignment redirect: \" + owner)\n      }\n"
+        }
+      ]
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala",
+      "change": "modified",
+      "reason": "Bind each generated finite-loop index token to its exact retained structural owner so nested expressions can verify index ancestry.",
+      "baseline_sha256": "bc99db330c4b22f6839e5953e15288192ea7ee2f4f1dd7871a4f8fdeeeae4d90",
+      "edits": [
+        {
+          "id": "ElabFiniteRange-59h-1",
+          "reason": "Bind each generated finite-loop index token to its exact retained structural owner so nested expressions can verify index ancestry.",
+          "before_start": 21429,
+          "before_end": 21429,
+          "after_start": 21429,
+          "after_end": 21491,
+          "before": "",
+          "after": "      ParameterizedStructure.bindFiniteIndexToken(indexToken)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
+      "change": "modified",
+      "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+      "baseline_sha256": "241da7153ff59f11ed2625a7ac11b5c7951d75053fba375516e08816c738993c",
+      "edits": [
+        {
+          "id": "ParameterizedStructure-59h-1",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 2860,
+          "before_end": 2860,
+          "after_start": 2860,
+          "after_end": 3422,
+          "before": "",
+          "after": "/** Exact lexical publication owner, independent of a helper's control root.\n  * The registered structural block retains its complete branch path and\n  * domains; a lexical handle must never borrow the root of an unrelated\n  * count, width or enclosing finite range.\n  */\nfinal class ParameterizedStructuralLexicalOwner private[core] (\n    private[core] val component: Component,\n    private[core] val captureId: Long,\n    private[core] val sourceLocation: Option[String],\n    private[core] val role: String\n) {\n  def isModuleScope: Boolean = captureId == 0L\n}\n\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-2",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 4232,
+          "before_end": 4232,
+          "after_start": 4794,
+          "after_end": 5281,
+          "before": "",
+          "after": "    val lexicalOwners = new IdentityHashMap[\n      ParameterizedStructuralLexicalOwner,\n      CaptureState\n    ]()\n    val lexicalRegionOwners = new IdentityHashMap[\n      StructuralRegion,\n      CaptureState\n    ]()\n    val finiteIndexOwners = new IdentityHashMap[ElabFiniteIndexToken, CaptureState]()\n    val exactCaseCaptures = new IdentityHashMap[ParameterizedStructuralBlock, ExactCaseCapture]()\n    val typedCaseRegions = new IdentityHashMap[StructuralCase, Vector[Set[BigInt]]]()\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-3",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 4495,
+          "before_end": 4556,
+          "after_start": 5544,
+          "after_end": 5691,
+          "before": "      val ownerRoot: Option[ElaborationIntegerParameterRoot]\n",
+          "after": "      val ownerRoot: Option[ElaborationIntegerParameterRoot],\n      val ownerAdmitted: Option[Set[BigInt]],\n      val parent: Option[CaptureState]\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-4",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 4796,
+          "before_end": 4796,
+          "after_start": 5931,
+          "after_end": 6055,
+          "before": "",
+          "after": "\n  private final case class ExactCaseCapture(\n      domain: ElaborationExactDomain[BigInt],\n      admitted: Set[BigInt]\n  )\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-5",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 14286,
+          "before_end": 14363,
+          "after_start": 15545,
+          "after_end": 15638,
+          "before": "      captureBlockWithOwnerRoot(component, sourceLocation, Some(root))(body)\n",
+          "after": "      captureBlockWithOwnerRoot(component, sourceLocation, Some(root), Some(admitted))(body)\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-6",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 14369,
+          "before_end": 14369,
+          "after_start": 15644,
+          "after_end": 17142,
+          "before": "",
+          "after": "\n  /** Capture a case alternative under the exact root values which select it.\n    * A proven unreachable alternative contributes only an empty synthetic\n    * block, so its Scala callback cannot create unsupported probe hardware.\n    */\n  private[spinal] def captureExactCaseBlock(\n      component: Component,\n      selector: ElaborationIntegerExpression,\n      choices: Set[BigInt],\n      isDefault: Boolean,\n      sourceLocation: Option[String]\n  )(body: => Unit): ParameterizedStructuralBlock = {\n    val domain = ElabInt.requireAuthoritativeIntegerDomain(\n      selector,\n      \"typed structural case selector\",\n      \"SPINAL-ELAB-CASE-DOMAIN-UNPROVEN\",\n      requireExactExtrema = false\n    ).getOrElse {\n      fail(\n        \"SPINAL-ELAB-CASE-DOMAIN-UNPROVEN\",\n        \"typed case branch capture requires an authoritative selector root\",\n        sourceLocation\n      )\n    }\n    if (choices == null || choices.exists(_ == null))\n      fail(\"SPINAL-ELAB-CASE-CHOICES-INVALID\", \"typed case choices must be non-null\", sourceLocation)\n    val allowed = ElaborationDomainContext.admitted(domain).filter { rootValue =>\n      domain.evaluate(rootValue).exists(result => choices.contains(result) != isDefault)\n    }\n    val block = if (allowed.isEmpty) ParameterizedStructuralSynthetic.emptyBlock(sourceLocation)\n      else captureExactBlock(component, domain.root, allowed, sourceLocation)(body)\n    storageOf(component).exactCaseCaptures.put(block, ExactCaseCapture(domain, allowed))\n    block\n  }\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-7",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 14477,
+          "before_end": 14534,
+          "after_start": 17250,
+          "after_end": 17356,
+          "before": "      ownerRoot: Option[ElaborationIntegerParameterRoot]\n",
+          "after": "      ownerRoot: Option[ElaborationIntegerParameterRoot],\n      ownerAdmitted: Option[Set[BigInt]] = None\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-8",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 14920,
+          "before_end": 15115,
+          "after_start": 17742,
+          "after_end": 18505,
+          "before": "      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH\",\n        \"nested structural capture crossed an active Component boundary\",\n        sourceLocation\n      )\n",
+          "after": "      // An ordinary child constructed inside a generate body owns a separate\n      // module. Its internal captures temporarily suspend the ancestor's\n      // capture; the ancestor still records the child instance when it closes.\n      // An unrelated component or one outside current elaboration cannot\n      // borrow this rule.\n      var ancestor = component.parent\n      while ((ancestor ne null) && (ancestor ne previousCapture.component))\n        ancestor = ancestor.parent\n      if ((Component.current ne component) || (ancestor eq null))\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH\",\n          \"nested structural capture crossed an unrelated active Component boundary\",\n          sourceLocation\n        )\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-9",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 15481,
+          "before_end": 15497,
+          "after_start": 18871,
+          "after_end": 18972,
+          "before": "      ownerRoot\n",
+          "after": "      ownerRoot,\n      ownerAdmitted,\n      Option(previousCapture).filter(_.component eq component)\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-10",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 31127,
+          "before_end": 31127,
+          "after_start": 34602,
+          "after_end": 42777,
+          "before": "",
+          "after": "  }\n\n  /** Retain one exact lexical owner without assuming that the helper and its\n    * enclosing branch use the same typed parameter root. An ancestor's active\n    * capture owns its child instance, never the child's module-internal RTL.\n    */\n  private[spinal] def currentLexicalOwner(\n      role: String\n  ): ParameterizedStructuralLexicalOwner = {\n    if (role == null || role.trim.isEmpty)\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-ROLE-MISSING\",\n        \"lexical ownership requires a nonempty publication role\"\n      )\n    if (!captureEnabled)\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-DISABLED\",\n        s\"$role requires parameterized structural capture\"\n      )\n    val component = Component.current\n    val active = activeCapture.get()\n    val state = if ((active ne null) && (active.component eq component)) active else null\n    if ((active ne null) && (state eq null)) {\n      var ancestor = component.parent\n      while ((ancestor ne null) && (ancestor ne active.component)) ancestor = ancestor.parent\n      if (ancestor eq null)\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-COMPONENT-MISMATCH\",\n          s\"$role crossed an unrelated active Component capture\",\n          active.sourceLocation\n        )\n    }\n    val owner = new ParameterizedStructuralLexicalOwner(\n      component,\n      if (state eq null) 0L else state.id,\n      Option(state).flatMap(_.sourceLocation),\n      role\n    )\n    storageOf(component).lexicalOwners.put(owner, state)\n    owner\n  }\n\n  /** Bind a finite index before its callback can capture any reads. The\n    * callback receives no API for moving this identity to another owner.\n    */\n  private[core] def bindFiniteIndexToken(token: ElabFiniteIndexToken): Unit = {\n    val state = activeCapture.get()\n    if (token == null || state == null || (state.component ne Component.current))\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-MISSING\",\n        \"finite index binding requires its exact active Component capture\"\n      )\n    val storage = storageOf(state.component)\n    if (storage.finiteIndexOwners.containsKey(token))\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-DUPLICATE\",\n        \"a finite index identity cannot be rebound to another capture\",\n        state.sourceLocation\n      )\n    storage.finiteIndexOwners.put(token, state)\n  }\n\n  /** Resolve only the registered capture which issued this exact handle.\n    * Resolution happens after capture has completed, so rolled-back,\n    * detached or multiply published blocks cannot become lexical authority.\n    */\n  private[spinal] def blockOfLexicalOwner(\n      owner: ParameterizedStructuralLexicalOwner\n  ): Option[ParameterizedStructuralBlock] = {\n    if (owner == null || owner.component == null)\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-OWNER-MISSING\",\n        \"lexical publication requires its retained exact owner\"\n      )\n    val storage = storageOption(owner.component).getOrElse {\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-STORAGE-MISSING\",\n        s\"${owner.role} lost its exact Component capture storage\",\n        owner.sourceLocation\n      )\n    }\n    if (!storage.lexicalOwners.containsKey(owner))\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-IDENTITY-MISMATCH\",\n        s\"${owner.role} did not retain its issued lexical owner identity\",\n        owner.sourceLocation\n      )\n    val state = storage.lexicalOwners.get(owner)\n    if (state eq null) {\n      if (!owner.isModuleScope)\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISMATCH\",\n          s\"${owner.role} changed its component-scope capture identity\",\n          owner.sourceLocation\n        )\n      None\n    } else {\n      if ((state.component ne owner.component) || state.id != owner.captureId)\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISMATCH\",\n          s\"${owner.role} changed its exact lexical capture identity\",\n          owner.sourceLocation\n        )\n      val block = storage.blocksByCaptureId.getOrElse(owner.captureId, {\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-CAPTURE-MISSING\",\n          s\"${owner.role} has no successfully completed native capture\",\n          owner.sourceLocation\n        )\n      })\n      val paths = ArrayBuffer.empty[Vector[(StructuralRegion, Option[ParameterizedStructuralBlock])]]\n      def visit(\n          regions: Vector[StructuralRegion],\n          parent: Option[ParameterizedStructuralBlock],\n          path: Vector[(StructuralRegion, Option[ParameterizedStructuralBlock])]\n      ): Unit = regions.foreach { region =>\n        if (path.exists { case (ancestor, _) => ancestor eq region })\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-PATH-CYCLE\",\n            s\"${owner.role} has a cyclic structural publication path\",\n            owner.sourceLocation\n          )\n        val next = path :+ (region -> parent)\n        region.blocks.foreach { current =>\n          if (current eq block) paths += next\n          visit(current.regions, Some(current), next)\n        }\n      }\n      visit(storage.regions.toVector, None, Vector.empty)\n      if (paths.size != 1)\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-PUBLICATION-MISMATCH\",\n          s\"${owner.role} belongs to ${paths.size} published lexical blocks; exactly one is required\",\n          owner.sourceLocation\n        )\n      paths.head.foreach { case (region, actualParent) =>\n        if (!storage.lexicalRegionOwners.containsKey(region))\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-REGION-IDENTITY-MISMATCH\",\n            s\"${owner.role} no longer belongs to its exact registered branch region\",\n            owner.sourceLocation\n          )\n        val registeredParent = storage.lexicalRegionOwners.get(region)\n        val sameParent = if (registeredParent eq null) actualParent.isEmpty\n          else actualParent.exists { expected =>\n            (registeredParent.component eq owner.component) &&\n              storage.blocksByCaptureId.get(registeredParent.id).exists(_ eq expected)\n          }\n        if (!sameParent)\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-ANCESTRY-MISMATCH\",\n            s\"${owner.role} no longer belongs to its exact registered outer owner\",\n            owner.sourceLocation\n          )\n      }\n      Some(block)\n    }\n  }\n\n  /** Re-enter only the immutable exact branch domains which originally owned\n    * this handle. Native graph freshness checks run after elaboration, when\n    * the original dynamic domain stack has already been restored.\n    */\n  private[spinal] def withLexicalOwnerDomain[T](\n      owner: ParameterizedStructuralLexicalOwner\n  )(body: => T): T = {\n    blockOfLexicalOwner(owner)\n    val storage = storageOption(owner.component).get\n    var state = Option(storage.lexicalOwners.get(owner))\n    val lineage = ArrayBuffer.empty[CaptureState]\n    while (state.nonEmpty) {\n      val current = state.get\n      if (current.component ne owner.component)\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-OWNER-MISMATCH\",\n          s\"${owner.role} cannot borrow an unrelated component's branch domain\",\n          owner.sourceLocation\n        )\n      lineage.prepend(current)\n      state = current.parent\n    }\n    def enter(index: Int): T = if (index == lineage.size) body else {\n      val current = lineage(index)\n      (current.ownerRoot, current.ownerAdmitted) match {\n        case (Some(root), Some(admitted)) =>\n          ElaborationDomainContext.withAdmitted(root, admitted, current.sourceLocation) {\n            enter(index + 1)\n          }\n        case (None, None) => enter(index + 1)\n        case _ =>\n          fail(\n            \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-EVIDENCE-MISSING\",\n            s\"${owner.role} lost its exact captured branch-domain evidence\",\n            owner.sourceLocation\n          )\n      }\n    }\n    enter(0)\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-11",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 107866,
+          "before_end": 108117,
+          "after_start": 119516,
+          "after_end": 121042,
+          "before": "          fail(\n            \"SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN\",\n            s\"$role is captured below a structural case without exact per-alternative root evidence\",\n            sourceLocation.orElse(value.sourceLocation)\n          )\n",
+          "after": "          val domain = value.selector.exactDomain.getOrElse {\n            fail(\n              \"SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN\",\n              s\"$role is captured below a structural case without exact per-alternative root evidence\",\n              sourceLocation.orElse(value.sourceLocation)\n            )\n          }\n          val capturedDomains = storageOption(component)\n            .flatMap(storage => Option(storage.typedCaseRegions.get(value))).getOrElse {\n            fail(\n              \"SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN\",\n              s\"$role case branches do not retain exact registered selector-domain bindings\",\n              sourceLocation.orElse(value.sourceLocation)\n            )\n          }\n          val selected = capturedDomains.lift(step.branch).getOrElse(Set.empty[BigInt])\n          if (selected.isEmpty)\n            fail(\n              \"SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-EMPTY\",\n              s\"$role is captured below an impossible or invalid typed case alternative\",\n              sourceLocation.orElse(value.sourceLocation)\n            )\n          if (domain.root eq root) {\n            if (domain.universe != universe)\n              fail(\n                \"SPINAL-ELAB-PROJECTION-ROOT-DOMAIN-MISMATCH\",\n                s\"$role case root '${root.name}' has a universe different from its retained exact evidence\",\n                sourceLocation.orElse(value.sourceLocation)\n              )\n            remaining intersect selected\n          } else remaining\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-12",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 111813,
+          "before_end": 111835,
+          "after_start": 124738,
+          "after_end": 124759,
+          "before": "    registerExactFor(\n",
+          "after": "    registerForImpl(\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-13",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 111907,
+          "before_end": 111962,
+          "after_start": 124831,
+          "after_end": 124925,
+          "before": "      new ElabFiniteIndexToken(),\n      sourceLocation\n",
+          "after": "      Some(new ElabFiniteIndexToken()),\n      sourceLocation,\n      requireExactDomain = true\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-14",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 112793,
+          "before_end": 112825,
+          "after_start": 125756,
+          "after_end": 125821,
+          "before": "      requireExactDomain = true\n",
+          "after": "      requireExactDomain = true,\n      requireIssuedOwner = true\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-15",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 113118,
+          "before_end": 113152,
+          "after_start": 126114,
+          "after_end": 126191,
+          "before": "      requireExactDomain: Boolean\n",
+          "after": "      requireExactDomain: Boolean,\n      requireIssuedOwner: Boolean = false\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-16",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 114988,
+          "before_end": 114988,
+          "after_start": 128027,
+          "after_end": 129146,
+          "before": "",
+          "after": "      val storage = storageOf(component)\n      val tokenOwner = storage.finiteIndexOwners.get(token)\n      if (requireIssuedOwner && (tokenOwner == null || (tokenOwner.component ne component) ||\n          !storage.blocksByCaptureId.get(tokenOwner.id).exists(_ eq body)))\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-FINITE-INDEX-OWNER-MISMATCH\",\n          \"a finite loop must publish the exact body which issued its index identity\",\n          sourceLocation\n        )\n      def ancestorRead(selection: StructuralVecIndex, existing: ElabFiniteIndexToken): Boolean = {\n        if (tokenOwner == null) return false\n        val owner = storage.finiteIndexOwners.get(existing)\n        val leaves = selection.result.flatten\n        val written = body.assignments.exists(assignment => leaves.exists(_ eq assignment.finalTarget))\n        var ancestor = tokenOwner.parent\n        while (ancestor.nonEmpty && !ancestor.exists(_ eq owner)) ancestor = ancestor.get.parent\n        owner != null && (owner.component eq component) && ancestor.nonEmpty &&\n          selection.affineRead.isEmpty && !written\n      }\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-17",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 115186,
+          "before_end": 115186,
+          "after_start": 129344,
+          "after_end": 129426,
+          "before": "",
+          "after": "            case Some(existing) if ancestorRead(selection, existing) => selection\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-18",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 124250,
+          "before_end": 124250,
+          "after_start": 138490,
+          "after_end": 138746,
+          "before": "",
+          "after": "    if (normalizedSelector.exactDomain.nonEmpty)\n      ElabInt.requireAuthoritativeIntegerDomain(\n        normalizedSelector,\n        \"typed structural case selector\",\n        \"SPINAL-ELAB-CASE-DOMAIN-UNPROVEN\",\n        requireExactExtrema = false\n      )\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-19",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 125191,
+          "before_end": 125499,
+          "after_start": 139687,
+          "after_end": 139878,
+          "before": "    registerRegion(\n      pending.component,\n      pending.captureId,\n      StructuralCase(\n        normalizedSelector,\n        choices.map { case (value, label, body) =>\n          StructuralCaseChoice(value, label, body)\n        },\n        defaultLabel,\n        defaultBody,\n        sourceLocation\n      ),\n",
+          "after": "    val region = StructuralCase(\n      normalizedSelector,\n      choices.map { case (value, label, body) => StructuralCaseChoice(value, label, body) },\n      defaultLabel,\n      defaultBody,\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-20",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 125526,
+          "before_end": 125526,
+          "after_start": 139905,
+          "after_end": 141365,
+          "before": "",
+          "after": "    normalizedSelector.exactDomain.foreach { domain =>\n      val captured = region.blocks.map(block => Option(storage.exactCaseCaptures.get(block)))\n      if (captured.exists(_.nonEmpty)) {\n        if (captured.exists(_.isEmpty))\n          fail(\n            \"SPINAL-ELAB-CASE-BLOCK-DOMAIN-UNPROVEN\",\n            \"typed case publication requires exact captured-domain evidence for every branch\",\n            sourceLocation\n          )\n        val active = ElaborationDomainContext.admitted(domain)\n        val explicit = choices.map(_._1).toSet\n        val expected = choices.map { case (literal, _, _) =>\n          active.filter(rootValue => domain.evaluate(rootValue).contains(literal))\n        } :+ active.filter(rootValue => domain.evaluate(rootValue).exists(value => !explicit.contains(value)))\n        captured.flatten.zip(expected).foreach { case (evidence, selected) =>\n          if ((evidence.domain.root ne domain.root) || (evidence.domain.parameter ne domain.parameter) ||\n              evidence.domain.evaluations != domain.evaluations || evidence.admitted != selected)\n            fail(\n              \"SPINAL-ELAB-CASE-BLOCK-DOMAIN-MISMATCH\",\n              \"typed case branch does not retain the selector and admitted domain which captured it\",\n              sourceLocation\n            )\n        }\n        storage.typedCaseRegions.put(region, expected)\n      }\n    }\n    registerRegion(pending.component, pending.captureId, region, sourceLocation)\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-21",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 129087,
+          "before_end": 129109,
+          "after_start": 144926,
+          "after_end": 145290,
+          "before": "  ): Option[Long] = {\n",
+          "after": "  ): Option[Long] = Option(activeCaptureOf(component, sourceLocation)).map(_.id)\n\n  /** An active ancestor captures this component's instance, while structural\n    * regions created inside the component start at that component's own root.\n    */\n  private def activeCaptureOf(\n      component: Component,\n      sourceLocation: Option[String]\n  ): CaptureState = {\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-22",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 129212,
+          "before_end": 129412,
+          "after_start": 145393,
+          "after_end": 145850,
+          "before": "      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH\",\n        \"structural region registration crossed an active Component boundary\",\n        sourceLocation\n      )\n",
+          "after": "      var ancestor = component.parent\n      while ((ancestor ne null) && (ancestor ne capture.component)) ancestor = ancestor.parent\n      if ((Component.current ne component) || (ancestor eq null))\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-COMPONENT-MISMATCH\",\n          \"structural region registration crossed an unrelated active Component boundary\",\n          sourceLocation\n        )\n      null\n    } else {\n      capture\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-23",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 129418,
+          "before_end": 129448,
+          "after_start": 145856,
+          "after_end": 145856,
+          "before": "    Option(capture).map(_.id)\n",
+          "after": ""
+        },
+        {
+          "id": "ParameterizedStructure-59h-24",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 129677,
+          "before_end": 129715,
+          "after_start": 146085,
+          "after_end": 146146,
+          "before": "    val capture = activeCapture.get()\n",
+          "after": "    val capture = activeCaptureOf(component, sourceLocation)\n"
+        },
+        {
+          "id": "ParameterizedStructure-59h-25",
+          "reason": "Issue, bind, validate and roll back exact structural lexical owner capabilities across nested controls, finite loops and child component capture boundaries.",
+          "before_start": 130463,
+          "before_end": 130463,
+          "after_start": 146894,
+          "after_end": 146960,
+          "before": "",
+          "after": "    storageOf(component).lexicalRegionOwners.put(region, capture)\n"
+        }
+      ]
+    }
+  ]
+}

@@ -182,12 +182,22 @@ private[spinal] object TypedBalancedReductionCapture {
       pending = None
       captured.result.asInstanceOf[T]
     }
-    val result = native(vector.vec, wrappedOp, wrappedBridge)
+    // A Vec declared outside a typed branch retains its complete native
+    // carrier. Only the prefix admitted by this exact branch's count domain
+    // participates in its reduction. Keep the original receiver and validate
+    // every retained carrier leaf above; the prefix preserves those same Data
+    // identities instead of creating a new Vec or reconstructing its shape.
+    val admittedMaximum = plan.count.expression.maximum
+    if (admittedMaximum < 1 || admittedMaximum > BigInt(vector.vec.size))
+      fail("CAPTURE-ACTIVE-CAPACITY", "the admitted count exceeds the exact retained native carrier")
+    val nativeCount = admittedMaximum.toInt
+    val nativeInputs = vector.vec.take(nativeCount)
+    val result = native(nativeInputs, wrappedOp, wrappedBridge)
     if (pending.nonEmpty)
       fail("NATIVE-ORDER", "native reduction returned before bridging an operator result")
 
     // Check evidence by identity; do not evaluate or reimplement the operator.
-    var prior = vector.vec.map(_.asInstanceOf[Data])
+    var prior = nativeInputs.map(_.asInstanceOf[Data])
     var consumed = 0
     plan.stages.foreach { stage =>
       val stageRows = rows.filter(_.level == stage.level).toVector

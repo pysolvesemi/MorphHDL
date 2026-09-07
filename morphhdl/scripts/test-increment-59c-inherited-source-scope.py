@@ -9,6 +9,7 @@ commit. Its exact source review and canonical native audit still both run.
 from __future__ import annotations
 
 import json
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -109,6 +110,19 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
 
 
 def main() -> None:
+    successor = ROOT / "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
+    if (ROOT / "morphhdl/contracts/increment-59h-source-review.json").is_file():
+        # Current 59h source is audited independently. Retain every original
+        # 59c mutation and rejection against its unchanged completed source.
+        spec = importlib.util.spec_from_file_location("nested_inherited_controls", successor)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.frozen_inherited_fixture(
+            ROOT, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
+            "target/increment-59c-source-scope",
+            lambda: [checked(ROOT, "current descendant through complete 59h and inherited source audits")],
+            "59c current-source controls PASS")
+        return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "current 59c production and reviewed metadata")]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59c-source-scope-") as temporary:
