@@ -965,6 +965,10 @@ dependency chain is unchanged and may proceed independently.
 
 - [ ] **Increment 59g — Register-bridge semantics and clock/reset qualification closure**
 
+  Implementation and qualification are in progress on
+  `agent/increment-59g-register-bridges`. See the
+  [bridge semantics and qualification record](increment-59g-register-bridges.md).
+
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c through 59f or 59h.
 

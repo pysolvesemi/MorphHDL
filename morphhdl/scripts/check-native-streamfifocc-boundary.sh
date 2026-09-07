@@ -759,7 +759,21 @@ require(
     "retained-zero authorization must require exact target identity and an exact-width invariant-zero source",
 )
 require(
-    r"final\s+case\s+class\s+RetainedZeroInitializer\s*\(\s*target:\s*BitVector\s*,.*?var\s+authorizedEdges\s*=\s*0.*?component\.dslBody\.walkLeafStatements\s*\{.*?isAuthorizedZeroAssignment\s*\(\s*statement\s*,\s*initializer\.target\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1.*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
+    r"final\s+case\s+class\s+RetainedConstantInitializer\s*\(\s*target:\s*BitVector\s*,"
+    r".*?var\s+authorizedEdges\s*=\s*0\s*\n\s*component\.dslBody\.walkLeafStatements\s*\{"
+    r"\s*case\s+statement:\s*AssignmentStatement\s+if\s+"
+    r"\(\s*statement\.target\s+eq\s+initializer\.target\s*\)\s*&&\s*"
+    r"\(\s*statement\.finalTarget\s+eq\s+initializer\.target\s*\)\s*&&\s*"
+    r"\(\s*if\s*\(\s*initializer\.literal\.getValue\(\)\s*==\s*0\s*\)\s*"
+    r"isAuthorizedZeroAssignment\s*\(\s*statement\s*,\s*initializer\.target\s*\)\s*"
+    r"else\s+statement\.source\s+match\s*\{\s*case\s+literal:\s*BitVectorLiteral\s*=>\s*"
+    r"!literal\.hasPoison\(\)\s*&&\s*"
+    r"\(\s*literal\.getTypeObject\.asInstanceOf\[AnyRef\]\s+eq\s+"
+    r"initializer\.literal\.getTypeObject\.asInstanceOf\[AnyRef\]\s*\)\s*&&\s*"
+    r"literal\.getWidth\s*==\s*initializer\.literal\.getWidth\s*&&\s*"
+    r"literal\.getValue\(\)\s*==\s*initializer\.literal\.getValue\(\)\s*"
+    r"case\s+_\s*=>\s*false\s*\}\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1\s*\n"
+    r".*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
     fallback,
     "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
     "retained-zero rewriting must carry exact target identity and require emitted/authorized edge cardinality equality",

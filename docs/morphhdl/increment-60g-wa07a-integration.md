@@ -90,3 +90,46 @@ now passes locally; broader current-head CI remains required before merge.
 This repair does not affect generated Verilog. Previous actual generated
 examples and the qualified implementation record remain unchanged. Final-head
 CI and post-merge results must retain their own source identities.
+
+
+## Integration with the merged 59g register bridges
+
+During the audit repair, PR #169 merged into the target as
+`424a548f60a6c1fe003e3d4d908e3b0f75e56632`. The combined 60g branch preserves
+that complete qualified register implementation, its original source-review
+contract, native initializer ownership, test suites and hardware workflow. It
+also retains the WA-07b roadmap change. This is a new integration revision,
+not a claim that either predecessor's evidence qualifies their combination.
+
+The outer 60g ledger is now measured against that actual merged baseline.
+Seven MorphHDL production files and the six-line native PhaseContext lifecycle
+hook remain the exact 60g implementation delta. The native fallback publisher
+is byte-identical to the 59g baseline: that sibling already incorporates signed
+initializer spelling and the current retained-initializer handling. It is
+pinned unchanged, rather than claiming a redundant 60g restoration for it.
+All native arithmetic/emitter code, the approved native manifest, independent
+reference arithmetic and the already regenerated public goldens are retained.
+
+The 59c, 59h and 59g source auditors first reverse the exact outer 60g layer,
+then apply their unchanged predecessor contracts. Each inventory excludes only
+proven later-layer paths while retaining historical overlap. WA-07a's three
+files stay in the outer union with exact hashes and real merge ancestry; they
+are not silently dropped when the inherited baseline already contains them.
+The 25-entry outer ledger includes the register auditor and its mutation-test
+adapter. Every original register mutation remains mandatory; overlapping
+source mutations now require the precise earlier 60g diagnostic. No accepted
+source set or test suite is selected by a passing report alone.
+
+Local combined-source checks passed the complete 60f source-only/native audit
+chain and all 22 current register-source rejection controls. Changed production
+Scala and all current MorphHDL Java/Scala test sources compile with Scala
+2.13.12 against the hash-verified archived dependency classpath. The compiler
+configuration follows the repository's project-specific plugins and mixed
+Java/Scala symbol analysis. This is an incremental local build, not a fresh
+SBT or Mill build and not current-head hardware qualification.
+
+The source-audit repair itself does not affect generated Verilog. The joined
+register/default-signed behavior still requires the dedicated 59g and 60g
+matrices, full inherited regression catalog, strict tools, independent formal
+references, negative controls and cross-Scala determinism on the published
+integration revision before merge. The original golden patch is not reapplied.

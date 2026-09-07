@@ -5,7 +5,7 @@ import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 import TypedBalancedReductionValueEvidence.Evidence
 
-/** Exact scalar identity/alias and unconditional register-chain bridges.
+/** Exact scalar identity/alias and native register-chain bridges.
   * Register reset and enable semantics remain owned by the native clock
   * domain and register implementation. No Scala levelBridge is replayed.
   */
@@ -13,7 +13,36 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
   private def fail(code: String, detail: String): Nothing =
     throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-BRIDGE-$code: $detail")
 
-  private final case class RegisterStep(clock: ClockDomain, zeroInitialized: Boolean)
+  private sealed trait Enable {
+    def replay(value: BaseType): Bool
+    def minimumWidth: Int = 1
+  }
+  private case object BooleanInput extends Enable {
+    def replay(value: BaseType): Bool = value.asInstanceOf[Bool]
+  }
+  private final case class Constant(value: Boolean) extends Enable {
+    def replay(input: BaseType): Bool = Bool(value)
+  }
+  private final case class Bit(index: Int, high: Boolean) extends Enable {
+    override def minimumWidth: Int = if (high) 1 else index + 1
+    def replay(value: BaseType): Bool = {
+      val bits = value.asInstanceOf[BitVector]
+      if (high) bits.msb else bits(index)
+    }
+  }
+  private final case class Not(value: Enable) extends Enable {
+    override def minimumWidth: Int = value.minimumWidth
+    def replay(input: BaseType): Bool = !value.replay(input)
+  }
+  private final case class Binary(operation: Int, left: Enable, right: Enable) extends Enable {
+    override def minimumWidth: Int = left.minimumWidth.max(right.minimumWidth)
+    def replay(input: BaseType): Bool = operation match {
+      case 0 => left.replay(input) && right.replay(input)
+      case 1 => left.replay(input) || right.replay(input)
+      case 2 => left.replay(input) ^ right.replay(input)
+    }
+  }
+  private final case class RegisterStep(clock: ClockDomain, initializer: Option[BigInt], enable: Option[Enable])
 
   final class Proof private[TypedBalancedReductionBridgeReplay] (
       val nativeResult: BaseType,
@@ -25,6 +54,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       private val localGuards: Vector[() => Unit]
   ) {
     val registerCount: Int = registers.size
+    val hasLocalEnables: Boolean = registers.exists(_.enable.nonEmpty)
 
     def validateFreshness(): Unit = {
       input.requireFreshness()
@@ -40,7 +70,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
         minimumInitializerWidth == other.minimumInitializerWidth &&
         registers.size == other.registers.size &&
         registers.zip(other.registers).forall { case (a, b) =>
-          (a.clock eq b.clock) && a.zeroInitialized == b.zeroInitialized
+          (a.clock eq b.clock) && a.initializer == b.initializer && a.enable == b.enable
         }
     }
 
@@ -72,6 +102,8 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
         .getOrElse(Some(width.minimum))
       if (activeMinimum.exists(_ < minimumInitializerWidth))
         fail("INITIALIZER-WIDTH", "replayed narrower native lane cannot contain the certified initializer width")
+      if (registers.flatMap(_.enable).exists(enable => activeMinimum.exists(_ < enable.minimumWidth)))
+        fail("ENABLE-WIDTH", "replayed narrower native lane cannot contain a certified enable bit")
       if (value == null || (value.component ne input.owner) ||
           (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.isAnalog ||
           value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||
@@ -84,13 +116,16 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
           val next = ParameterizedWidth.cloneOf(prior)
           next.setAsDirectionLess()
           next.setAsReg()
-          next.assignFrom(prior)
-          if (step.zeroInitialized) {
+          step.enable match {
+            case Some(enable) => when(enable.replay(prior)) { next.assignFrom(prior) }
+            case None => next.assignFrom(prior)
+          }
+          step.initializer.foreach { initial =>
             val literal: Expression = next match {
-              case _: Bool => new BoolLiteral(false)
-              case _: Bits => BitsLiteral(BigInt(0), -1)
-              case _: UInt => UIntLiteral(BigInt(0), -1)
-              case _: SInt => SIntLiteral(BigInt(0), -1)
+              case _: Bool => new BoolLiteral(initial != 0)
+              case _: Bits => BitsLiteral(initial, -1)
+              case _: UInt => UIntLiteral(initial, -1)
+              case _: SInt => SIntLiteral(initial, -1)
               case _ => fail("TYPE", "unsupported native bridge result type")
             }
             next.initFrom(literal)
@@ -119,26 +154,28 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     val observation = TypedBalancedReductionClosedGraph.observe(callback)
     val seen = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val consumed = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
-    val initializerNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    val initializerNodes = new IdentityHashMap[BaseType, BigInt]()
+    val enableNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val registers = ArrayBuffer.empty[RegisterStep]
     var minimumInitializerWidth = 0
     val localGuards = ArrayBuffer.empty[() => Unit]
 
-    def local(value: BaseType): Unit = {
+    def local(value: BaseType, predicate: Boolean = false): Unit = {
       if (!callback.declarations.exists(_ eq value) ||
           (value.component ne input.owner) || !value.isDirectionLess ||
           value.isAnalog || value.hasTag(tagAutoResize) ||
           (value.parentScope ne input.owner.dslBody) ||
-          (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) ||
-          value.getClass != source.getClass)
+          (if (predicate) value.getClass != classOf[Bool] else
+            (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.getClass != source.getClass))
         fail("TYPE", "bridge locals must retain the exact scalar type and root scope")
     }
 
     def assignmentsOf(value: BaseType): Vector[AssignmentStatement] = {
       val assignments = callback.assignments.filter(_.finalTarget eq value)
       assignments.foreach { assignment =>
-        if ((assignment.target ne value) || (assignment.parentScope ne input.owner.dslBody))
-          fail("DRIVER", "partial and conditional bridge drivers are not admitted")
+        if ((assignment.target ne value) ||
+            ((assignment.parentScope ne input.owner.dslBody) && !value.isReg))
+          fail("DRIVER", "partial or conditionally driven combinational bridge nodes are not admitted")
         consumed.put(assignment, java.lang.Boolean.TRUE)
       }
       assignments
@@ -148,15 +185,17 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       * Follow only their exact full-object constant aliases. Do not evaluate
       * arbitrary expressions or accept a pre-existing external constant.
       */
-    def zeroInitializer(expression: Expression): Unit = expression match {
+    def initializer(expression: Expression): BigInt = expression match {
       case literal: BitVectorLiteral
-          if !literal.hasPoison && literal.value == BigInt(0) &&
+          if !literal.hasPoison &&
             (literal.getTypeObject.asInstanceOf[AnyRef] eq input.kind) =>
         minimumInitializerWidth = minimumInitializerWidth.max(literal.getWidth)
         if (BigInt(literal.getWidth) > input.width.minimum)
           fail("INITIALIZER-WIDTH", "initializer width exceeds the smallest certified data width")
-      case literal: BoolLiteral if (input.kind eq TypeBool) && !literal.value =>
+        literal.value
+      case literal: BoolLiteral if input.kind eq TypeBool =>
         minimumInitializerWidth = minimumInitializerWidth.max(1)
+        if (literal.value) BigInt(1) else BigInt(0)
       case value: BaseType =>
         local(value)
         if (value.isReg || (value eq source) ||
@@ -169,8 +208,8 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
           if (seen.put(value, java.lang.Boolean.TRUE) != null)
             fail("INITIALIZER", "initializer aliases cannot overlap the data path or form cycles")
           val assignments = assignmentsOf(value)
-          assignments match {
-            case Vector(data: DataAssignmentStatement) => zeroInitializer(data.source)
+          val initial = assignments match {
+            case Vector(data: DataAssignmentStatement) => initializer(data.source)
             case _ => fail("INITIALIZER", "initializer alias must have exactly one native constant driver")
           }
           val fixed = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
@@ -179,9 +218,59 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
             if (now != fixed || value.hasTag(tagAutoResize))
               fail("STALE-SHAPE", "initializer alias changed its width or resize policy")
           })
-          initializerNodes.put(value, java.lang.Boolean.TRUE)
+          initializerNodes.put(value, initial)
         }
-      case _ => fail("INITIALIZER", "only native zero initializers are width-independent in this profile")
+        initializerNodes.get(value)
+      case _ => fail("INITIALIZER", "initializers must be typed native constants or transparent local constant aliases")
+    }
+
+    def enable(expression: Expression, driver: BaseType, depth: Int = 0): Enable = {
+      if (depth > 512) fail("ENABLE", "local enable graph exceeds its certified depth")
+      def child(value: Expression): Enable = enable(value, driver, depth + 1)
+      expression match {
+        case value: Bool if value eq driver => BooleanInput
+        case literal: BoolLiteral => Constant(literal.value)
+        case value: Bool =>
+          local(value, predicate = true)
+          if (value.isReg || initializerNodes.containsKey(value))
+            fail("ENABLE", "enable predicates must be local combinational Bool expressions")
+          if (!enableNodes.containsKey(value)) {
+            if (seen.put(value, java.lang.Boolean.TRUE) != null)
+              fail("ENABLE", "enable predicates cannot overlap another local data path")
+            enableNodes.put(value, java.lang.Boolean.TRUE)
+          }
+          assignmentsOf(value) match {
+            case Vector(data: DataAssignmentStatement) => child(data.source)
+            case _ => fail("ENABLE", "enable aliases need one complete combinational driver")
+          }
+        case access: BitVectorBitAccessFixed if access.source eq driver =>
+          val high = NativeWidthProvenance.isHighBit(access)
+          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= input.width.minimum))
+            fail("ENABLE-WIDTH", "enable index is outside the smallest certified data width")
+          Bit(if (high) 0 else access.bitId, high)
+        case operator: Operator.Bool.Not => Not(child(operator.source))
+        case operator: Operator.Bool.And => Binary(0, child(operator.left), child(operator.right))
+        case operator: Operator.Bool.Or => Binary(1, child(operator.left), child(operator.right))
+        case operator: Operator.Bool.Xor => Binary(2, child(operator.left), child(operator.right))
+        case _ => fail("ENABLE", "enable must be a closed Bool predicate of the register's exact data input")
+      }
+    }
+
+    def clock(clock: ClockDomain, initialized: Boolean): Unit = {
+      if (clock == null || clock.clock == null || clock.softReset != null ||
+          (clock.config.resetKind != SYNC && clock.config.resetKind != ASYNC) ||
+          (clock.config.clockEdge != RISING && clock.config.clockEdge != FALLING) ||
+          (clock.config.resetActiveLevel != HIGH && clock.config.resetActiveLevel != LOW) ||
+          (clock.config.clockEnableActiveLevel != HIGH && clock.config.clockEnableActiveLevel != LOW) ||
+          (initialized && !clock.hasResetSignal))
+        fail("CLOCK", "bridge clock must use a qualified native edge, optional clock enable, and SYNC/ASYNC reset; initialized state needs a reset pin")
+      val config = clock.config
+      val signals = Vector(clock.clock, clock.reset, clock.softReset, clock.clockEnable)
+      localGuards += (() => {
+        if ((clock.config ne config) || Vector(clock.clock, clock.reset, clock.softReset, clock.clockEnable)
+            .zip(signals).exists { case (current, saved) => current ne saved })
+          fail("STALE-CLOCK", "native bridge clock configuration or control signal identity changed")
+      })
     }
 
     def inspect(value: BaseType): Unit = {
@@ -210,13 +299,18 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
           data.size + init.size != assignments.size)
         fail("DRIVER", "bridge needs one full driver and at most one register initializer")
       if (value.isReg) {
-        if (value.clockDomain == null || (init.nonEmpty && !value.clockDomain.canInit))
-          fail("CLOCK", "initialized bridge register needs its real native reset/boot domain")
-        init.foreach(assignment => zeroInitializer(assignment.source))
-        registers += RegisterStep(value.clockDomain, init.nonEmpty)
+        clock(value.clockDomain, init.nonEmpty)
       }
       data.head.source match {
-        case next: BaseType => inspect(next)
+        case next: BaseType =>
+          val localEnable = if (data.head.parentScope eq input.owner.dslBody) None else {
+            val scope = data.head.parentScope
+            val statement = scope.parentStatement.asInstanceOf[WhenStatement]
+            Some(enable(statement.cond, next))
+          }
+          if (value.isReg) registers += RegisterStep(value.clockDomain,
+            init.headOption.map(assignment => initializer(assignment.source)), localEnable)
+          inspect(next)
         case _ => fail("EXPRESSION", "bridge data path must be identity/aliases or native registers, not an arithmetic expression")
       }
     }

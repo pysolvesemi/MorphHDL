@@ -146,17 +146,6 @@ def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
     return subprocess.check_output(["git", "show", revision + ":" + path], cwd=root)
 
 
-def rollout_scope(root: Path):
-    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
-    if not helper.is_file():
-        return None
-    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
-    require(spec is not None and spec.loader is not None, "cannot import reviewed 60g source scope")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def nested_source_review(root: Path):
     """Compose a separately pinned successor before this immutable 59c review."""
     checker = root / "morphhdl/scripts/check-increment-59h-source-review.py"
@@ -173,14 +162,26 @@ def nested_source_review(root: Path):
     return module
 
 
+def rollout_scope(root: Path):
+    """Load the separately pinned outer publication contract, when present."""
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
+    require(spec is not None and spec.loader is not None, "cannot import reviewed 60g source scope")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def restore_rollout(root: Path, path: str, source: str) -> str:
     rollout = rollout_scope(root)
     return source if rollout is None else rollout.restore_60g_source(root, path, source)
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
-    """Reverse the exact publication layer before nested-owner and 59c layers."""
     source = restore_rollout(root, path, source)
+    """Leave unrelated historical hooks to their own exact source contracts."""
     nested = nested_source_review(root)
     if nested is not None:
         source = nested.restore_source(root, path, source)
@@ -197,9 +198,6 @@ def production_changes(root: Path, revision: str) -> set[str]:
     paths = {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
     rollout = rollout_scope(root)
     if rollout is not None:
-        # Only the separately sealed successor's delta is excluded. Existing
-        # 59c paths remain mandatory; neither current bytes nor metadata grant
-        # permission outside that exact outer publication contract.
         prior = subprocess.check_output(["git", "diff", "--name-only", revision, rollout.BASE],
                                         cwd=root, text=True).splitlines()
         paths -= set(rollout.PRODUCTION) - set(prior)
@@ -238,15 +236,27 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
+    rollout = rollout_scope(root)
+    if rollout is not None:
+        rollout.source_scope(root)
     paths = production_changes(root, qualification_base)
     nested = nested_source_review(root)
     if nested is not None:
         paths = nested.inherited_inventory(root, paths, qualification_base)
+        register = getattr(nested, "register_source_review", lambda _: None)(root)
+        if register is not None:
+            # The nested/register audits have already verified the complete
+            # current production tree against the register's pinned merged base.
+            # Strip only that base's disjoint siblings from this local 59c
+            # inventory, preserving them for the enclosing 60f profile check.
+            baseline_paths = subprocess.check_output(
+                ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+                cwd=root, text=True).splitlines()
+            baseline_paths = {path for path in baseline_paths if re.search(r"(?:^|/)src/main/", path)}
+            inherited = nested.inherited_inventory(root, baseline_paths, qualification_base)
+            paths -= inherited - PRODUCTION_PATHS
     require_production_inventory(paths)
     verify_spans(root, qualification_base)
-    rollout = rollout_scope(root)
-    if rollout is not None:
-        rollout.source_scope(root)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
 
 
