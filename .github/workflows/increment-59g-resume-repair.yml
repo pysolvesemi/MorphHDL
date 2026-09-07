@@ -1,0 +1,350 @@
+name: Scoped 59g resume repair
+
+on:
+  push:
+    branches: ['agent/increment-59g-register-bridges']
+    paths: ['.github/workflows/increment-59g-resume-repair.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scoped-59g-resume-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Apply only the reviewed repair to the exact paused head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          test "$(git rev-parse HEAD^)" = d52978d825a3fef6005233da5c94530086ed5ff8
+          test "$(git diff --name-only HEAD^ HEAD)" = .github/workflows/increment-59g-resume-repair.yml
+          mkdir -p target/59g-resume/bootstrap
+          cat > target/59g-resume/repair.patch <<'PATCH'
+          --- a/morphhdl/scripts/check-increment-60f-artifacts.py
+          +++ b/morphhdl/scripts/check-increment-60f-artifacts.py
+          @@ -263,7 +263,7 @@
+                   ))},
+                   "counts": {
+                       "spinal.core.internals.TypedBalancedReductionBridgePublicationTests": 3,
+          -            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests": 10,
+          +            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests": 12,
+                       "spinal.core.internals.TypedBalancedReductionCallbackPolicyTests": 16,
+                   },
+               },
+          --- a/morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          +++ b/morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          @@ -759,7 +759,21 @@
+               "retained-zero authorization must require exact target identity and an exact-width invariant-zero source",
+           )
+           require(
+          -    r"final\s+case\s+class\s+RetainedZeroInitializer\s*\(\s*target:\s*BitVector\s*,.*?var\s+authorizedEdges\s*=\s*0.*?component\.dslBody\.walkLeafStatements\s*\{.*?isAuthorizedZeroAssignment\s*\(\s*statement\s*,\s*initializer\.target\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1.*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
+          +    r"final\s+case\s+class\s+RetainedConstantInitializer\s*\(\s*target:\s*BitVector\s*,"
+          +    r".*?var\s+authorizedEdges\s*=\s*0\s*\n\s*component\.dslBody\.walkLeafStatements\s*\{"
+          +    r"\s*case\s+statement:\s*AssignmentStatement\s+if\s+"
+          +    r"\(\s*statement\.target\s+eq\s+initializer\.target\s*\)\s*&&\s*"
+          +    r"\(\s*statement\.finalTarget\s+eq\s+initializer\.target\s*\)\s*&&\s*"
+          +    r"\(\s*if\s*\(\s*initializer\.literal\.getValue\(\)\s*==\s*0\s*\)\s*"
+          +    r"isAuthorizedZeroAssignment\s*\(\s*statement\s*,\s*initializer\.target\s*\)\s*"
+          +    r"else\s+statement\.source\s+match\s*\{\s*case\s+literal:\s*BitVectorLiteral\s*=>\s*"
+          +    r"!literal\.hasPoison\(\)\s*&&\s*"
+          +    r"\(\s*literal\.getTypeObject\.asInstanceOf\[AnyRef\]\s+eq\s+"
+          +    r"initializer\.literal\.getTypeObject\.asInstanceOf\[AnyRef\]\s*\)\s*&&\s*"
+          +    r"literal\.getWidth\s*==\s*initializer\.literal\.getWidth\s*&&\s*"
+          +    r"literal\.getValue\(\)\s*==\s*initializer\.literal\.getValue\(\)\s*"
+          +    r"case\s+_\s*=>\s*false\s*\}\s*\)\s*=>\s*authorizedEdges\s*\+=\s*1\s*\n"
+          +    r".*?if\s*\(\s*authorizedEdges\s*==\s*0\s*\|\|\s*exactEdges\s*!=\s*authorizedEdges\s*\)",
+               fallback,
+               "RETAINED-ZERO-CARDINALITY-AUTHORITY-MISSING",
+               "retained-zero rewriting must carry exact target identity and require emitted/authorized edge cardinality equality",
+          --- a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          +++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+          @@ -689,6 +689,42 @@
+                   case _ => false
+                 })
+           
+          +  /** The historical direct-parameter adapter already validates its complete
+          +    * public schema and exact declaration root at attachment. Its invariant
+          +    * zero reset is width independent, but it does not carry a typed owner
+          +    * evaluation. Admit only that exact, unprojected legacy declaration here;
+          +    * never infer authority from a zero value, matching name or witness alone.
+          +    * Typed roots (including a typed expression with erased evidence), copied
+          +    * expressions, derived widths and nonzero values retain the strict owner
+          +    * validator below. This does not bind or reconstruct any typed authority.
+          +    */
+          +  private[internals] def isLegacyDirectZeroInitializer(
+          +      target: BitVector,
+          +      width: ElaborationIntegerExpression,
+          +      literal: BitVectorLiteral
+          +  ): Boolean =
+          +    !literal.hasPoison() && literal.getValue() == 0 &&
+          +      literal.getWidth == target.getBitsWidth &&
+          +      (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&
+          +      width.exactDomain.isEmpty && width.projectionProvenance.isEmpty &&
+          +      width.generateIndex.isEmpty &&
+          +      ParameterizedWidth.expressionOf(target).exists(_ eq width) &&
+          +      ParameterizedWidth.parameterOf(target).exists { parameter =>
+          +        !parameter.declarationRoot.isAuthoritativeSchema(parameter) &&
+          +          (width.parameters match {
+          +            case Vector(schema) => schema eq parameter
+          +            case _ => false
+          +          }) &&
+          +          (width.parameterRoots match {
+          +            case Vector(root) => root eq parameter.declarationRoot
+          +            case _ => false
+          +          }) &&
+          +          width.verilog == parameter.name &&
+          +          width.default == parameter.default &&
+          +          width.minimum == parameter.minimum &&
+          +          width.maximum == parameter.maximum
+          +      }
+          +
+             private[internals] def rewriteRetainedConstantInitializers(
+                 component: Component,
+                 verilog: String,
+          @@ -717,8 +753,10 @@
+                                 if !literal.hasPoison() &&
+                                   (literal.getTypeObject.asInstanceOf[AnyRef] eq target.getTypeObject.asInstanceOf[AnyRef]) &&
+                                   literal.getWidth == target.getBitsWidth =>
+          -                    NativePublicationWidth.validate(width, component, target,
+          -                      "native constant initializer width")
+          +                    ElabInt.validateExpression(width, "native constant initializer width")
+          +                    if (!isLegacyDirectZeroInitializer(target, width, literal))
+          +                      NativePublicationWidth.validate(width, component, target,
+          +                        "native constant initializer width")
+                               if (width.minimum < 1 || width.default != BigInt(target.getBitsWidth))
+                                 fail("SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-WIDTH-MISMATCH",
+                                   "one exact native constant initializer lost its positive typed width or witness",
+          --- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala
+          +++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala
+          @@ -227,4 +227,95 @@
+                 boolean.requireFreshness()
+               })
+             }
+          +
+          +  test("legacy direct zero resets remain compatible without authorizing nonzero initialization") {
+          +    val directory = Files.createTempDirectory("balanced-bridge-legacy-zero-")
+          +    val parameter = ElaborationIntegerParameter("WIDTH", 5, 1, 32)
+          +    val bitCount = ParameterizedBitCount(5, parameter)
+          +    val report = SpinalConfig(targetDirectory = directory.toString,
+          +      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+          +      setDefinitionName("LegacyZeroInitializerLineage")
+          +      val data = in(ParameterizedWidth.Bits(bitCount))
+          +      val zero = out(ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))) init B(0, 5 bits)
+          +      zero := data
+          +    })
+          +    val rtl = new String(Files.readAllBytes(directory.resolve("LegacyZeroInitializerLineage.v")),
+          +      StandardCharsets.UTF_8)
+          +    val rewritten = ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+          +      report.toplevel, rtl)
+          +    assert(rewritten.contains("zero <= {WIDTH{1'b0}};"), rewritten)
+          +    val initializers = scala.collection.mutable.ArrayBuffer.empty[InitAssignmentStatement]
+          +    report.toplevel.dslBody.walkLeafStatements {
+          +      case statement: InitAssignmentStatement => initializers += statement
+          +      case _ =>
+          +    }
+          +    assert(initializers.size == 1)
+          +    val initializer = initializers.head
+          +    val literal = initializer.source.asInstanceOf[BitsLiteral]
+          +    literal.value = 1
+          +    try {
+          +      val failure = intercept[ParameterizedVerilogException] {
+          +        ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, rtl)
+          +      }
+          +      assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-NATIVE-WIDTH-OWNER-EVIDENCE-MISSING",
+          +        failure.getMessage)
+          +    } finally literal.value = 0
+          +    assert(ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(
+          +      report.toplevel, rtl) == rewritten)
+          +    val missing = rtl.replace("zero <= 5'h0;", "zero <= 5'h1;")
+          +    assert(missing != rtl, rtl)
+          +    val lineage = intercept[ParameterizedVerilogException] {
+          +      ExternalParameterizedVerilogNativeFallback.rewriteRetainedConstantInitializers(report.toplevel, missing)
+          +    }
+          +    assert(lineage.code == "SPINAL-PARAMETERIZED-VERILOG-CONSTANT-INIT-EMITTED-LINEAGE-MISMATCH",
+          +      lineage.getMessage)
+          +  }
+          +
+          +  test("legacy zero compatibility rejects copied widths foreign roots and erased typed evidence") {
+          +    val directory = Files.createTempDirectory("balanced-bridge-legacy-authority-")
+          +    val legacy = ElaborationIntegerParameter("LEGACY_WIDTH", 5, 1, 32)
+          +    val bitCount = ParameterizedBitCount(5, legacy)
+          +    val report = SpinalConfig(targetDirectory = directory.toString,
+          +      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+          +      val data = in(ParameterizedWidth.Bits(bitCount))
+          +      val zero = out(ParameterizedWidth.Reg(ParameterizedWidth.Bits(bitCount))) init B(0, 5 bits)
+          +      val typedData = in(UInt(HdlInt.param("TYPED_WIDTH", 5, 1, 32) bits))
+          +      val typedZero = out(Reg(cloneOf(typedData))) init U(0, 5 bits)
+          +      zero := data
+          +      typedZero := typedData
+          +    })
+          +    val initializers = scala.collection.mutable.ArrayBuffer.empty[InitAssignmentStatement]
+          +    report.toplevel.dslBody.walkLeafStatements {
+          +      case statement: InitAssignmentStatement => initializers += statement
+          +      case _ =>
+          +    }
+          +    assert(initializers.size == 2)
+          +    val legacyInit = initializers.find(_.source.isInstanceOf[BitsLiteral]).get
+          +    val target = legacyInit.finalTarget.asInstanceOf[BitVector]
+          +    val literal = legacyInit.source.asInstanceOf[BitVectorLiteral]
+          +    val width = ParameterizedWidth.expressionOf(target).get
+          +    def accepts(candidate: ElaborationIntegerExpression): Boolean =
+          +      ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(target, candidate, literal)
+          +    assert(accepts(width))
+          +    assert(!accepts(width.copy()))
+          +    assert(!accepts(width.copy(parameters = Vector(legacy.copy()))))
+          +    assert(!accepts(width.copy(parameterRoots = Vector(ElaborationIntegerParameterRoot.fresh(legacy.name)))))
+          +    assert(!accepts(width.copy(verilog = "(LEGACY_WIDTH + 0)")))
+          +    assert(!accepts(width.copy(generateIndex = Some("i"))))
+          +    val typedInit = initializers.find(_.source.isInstanceOf[UIntLiteral]).get
+          +    val typedTarget = typedInit.finalTarget.asInstanceOf[BitVector]
+          +    val typedLiteral = typedInit.source.asInstanceOf[BitVectorLiteral]
+          +    val typedWidth = ParameterizedWidth.expressionOf(typedTarget).get
+          +    assert(typedWidth.exactDomain.nonEmpty)
+          +    assert(!ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(
+          +      typedTarget, typedWidth, typedLiteral))
+          +    val erased = typedWidth.copy(exactDomain = None)
+          +    assert(!ExternalParameterizedVerilogNativeFallback.isLegacyDirectZeroInitializer(
+          +      typedTarget, erased, typedLiteral))
+          +    val failure = intercept[ParameterizedVerilogException] {
+          +      NativePublicationWidth.validate(erased, report.toplevel, typedTarget, "erased typed zero initializer")
+          +    }
+          +    assert(failure.code == "SPINAL-PARAMETERIZED-VERILOG-NATIVE-WIDTH-OWNER-EVIDENCE-MISSING",
+          +      failure.getMessage)
+          +  }
+           }
+          PATCH
+          git apply --check target/59g-resume/repair.patch
+          git apply target/59g-resume/repair.patch
+          python3 - <<'PYREVIEW'
+          import difflib,hashlib,json,subprocess
+          from pathlib import Path
+          root=Path('.')
+          contract=root/'morphhdl/contracts/increment-59g-source-review.json'
+          old=contract.read_bytes()
+          assert hashlib.sha256(old).hexdigest()=='c6951e6d32a8253a361e7ef8570e37a307cc2183f4e2f142ba930cdd112859c1'
+          review=json.loads(old)
+          assert review['base']=='0018da2740645e0ac0c419ded7b67c01622d2bb7'
+          changed={'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala','morphhdl/scripts/check-increment-60f-artifacts.py'}
+          for entry in review['files']:
+              path=entry['path']
+              if path not in changed:continue
+              baseline=subprocess.check_output(['git','show',review['base']+':'+path])
+              assert hashlib.sha256(baseline).hexdigest()==entry['baseline_sha256'],path
+              new=(root/path).read_bytes()
+              a,b=baseline.splitlines(keepends=True),new.splitlines(keepends=True)
+              ao=[0];bo=[0]
+              for line in a:ao.append(ao[-1]+len(line))
+              for line in b:bo.append(bo[-1]+len(line))
+              edits=[]
+              reason=entry['reason']+' Resume repair: preserve exact legacy direct-zero compatibility and its negative controls; retain typed nonzero owner validation and all inherited obligations.'
+              for tag,i,j,k,l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes():
+                  if tag=='equal':continue
+                  edits.append(dict(id=Path(path).stem+'-59g-resume-'+str(len(edits)+1),reason=reason,before_start=ao[i],before_end=ao[j],after_start=bo[k],after_end=bo[l],before=b''.join(a[i:j]).decode(),after=b''.join(b[k:l]).decode()))
+              entry['reason']=reason;entry['edits']=edits
+          contract.write_text(json.dumps(review,indent=2)+'\n')
+          checker=root/'morphhdl/scripts/check-increment-59g-source-review.py'
+          s=checker.read_text();old_digest='c6951e6d32a8253a361e7ef8570e37a307cc2183f4e2f142ba930cdd112859c1'
+          assert s.count(old_digest)==1
+          checker.write_text(s.replace(old_digest,hashlib.sha256(contract.read_bytes()).hexdigest()))
+          expected={'morphhdl/contracts/increment-59g-source-review.json': '2af2f16dc0bf5682da63346cb7b204bbd3ada90642bb0c965b60659f22aa9b4c', 'morphhdl/scripts/check-increment-59g-source-review.py': '8f34fae9baafce62d0c6a3bc25c7701e825f02108c11e588ae6b37cc1123144c', 'morphhdl/scripts/check-increment-60f-artifacts.py': 'ef6cad3c455e49d9fa8cb57f0a1a6fc63187a249eb0493aa7824272d7ffa1d13', 'morphhdl/scripts/check-native-streamfifocc-boundary.sh': 'e29df1e91d8dfb87627a48e6c9f399e138a28e7b40df44aa9823d64c4a797618', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala': 'f5c8f9814b64c2ffff9128456bf50372f3dbb5a9d0ca45e38d1feb354ae71391', 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala': '5f231b646430f2af1c5619000b3177b9114727dc688b0efb24176d5ce9152133'}
+          for path,digest in expected.items():
+              assert hashlib.sha256(Path(path).read_bytes()).hexdigest()==digest,path
+          PYREVIEW
+          git config user.name 'MorphHDL 59gg repair'
+          git config user.email '59g-repair@users.noreply.github.com'
+          git add -- \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala \
+            morphhdl/scripts/check-native-streamfifocc-boundary.sh \
+            morphhdl/scripts/check-increment-60f-artifacts.py \
+            morphhdl/contracts/increment-59g-source-review.json \
+            morphhdl/scripts/check-increment-59g-source-review.py
+          test "$(git diff --cached --name-only | wc -l)" = 6
+          git commit -m 'Fix 59g legacy direct-zero initialization and retained-edge guard'
+          git rev-parse HEAD > target/59g-resume/local-head.txt
+      - name: Check exact source contracts and all boundary mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test | tee target/59g-resume/boundary.log
+          python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test | tee target/59g-resume/source-mutations.log
+          python3 morphhdl/scripts/check-increment-59g-source-review.py | tee target/59g-resume/source-review.log
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only > target/59g-resume/inherited-source.log 2>&1 || { tail -n 100 target/59g-resume/inherited-source.log; exit 1; }
+      - name: Run initialized-register compatibility and all balanced-reduction tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          dir="$GITHUB_WORKSPACE/target/59g-resume/bootstrap"
+          url="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$url" -o "$dir/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$url.sha1" -o "$dir/sbt-launch.jar.sha1"
+          python3 - <<'PYHASH'
+          import hashlib,re
+          from pathlib import Path
+          p=Path('target/59g-resume/bootstrap');expected=(p/'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}',expected)
+          assert hashlib.sha1((p/'sbt-launch.jar').read_bytes()).hexdigest()==expected.lower()
+          PYHASH
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+          java -Xmx3G -XX:ActiveProcessorCount=4 -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$dir/repositories" -Dsbt.override.build.repos=true \
+            -jar "$dir/sbt-launch.jar" '++2.13.12' \
+            'morph/Test/testOnly spinal.core.internals.ParameterizedDataShapeTests spinal.core.internals.TypedBalancedReduction*Tests' \
+            > target/59g-resume/sbt.log 2>&1 || { tail -n 160 target/59g-resume/sbt.log; exit 1; }
+          python3 - <<'PYTEST'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          reports=list(Path('morphhdl/target/test-reports').glob('TEST-*.xml'))
+          seen={}
+          for path in reports:
+              suite=ET.parse(path).getroot()
+              assert all(int(suite.get(k,'0'))==0 for k in ('errors','failures','skipped')),(path,suite.attrib)
+              seen[suite.get('name','').split('.')[-1]]=int(suite.get('tests','0'))
+          assert seen.get('TypedBalancedReductionBridgeReplayTests')==12,seen
+          assert seen.get('ParameterizedDataShapeTests',0)>0,seen
+          print('Focused source repair tests passed:',seen)
+          PYTEST
+      - name: Publish the tested repair without a force push
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/agent/increment-59g-register-bridges | cut -f1)" = '${{ github.sha }}'
+          git push origin HEAD:refs/heads/agent/increment-59g-register-bridges
+          git rev-parse HEAD > target/59g-resume/pushed-head.txt
+      - name: Preserve repair source and qualification evidence
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target/59g-resume
+          git status --short > target/59g-resume/status.txt
+          git archive HEAD | gzip > target/59g-resume/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59g-resume-repair
+          path: |
+            target/59g-resume
+            morphhdl/target/test-reports
+          retention-days: 30
+          if-no-files-found: error
