@@ -1,0 +1,215 @@
+diff --git a/morphhdl/scripts/check-increment-59f-source-scope.py b/morphhdl/scripts/check-increment-59f-source-scope.py
+index ce7eff1c5..679446ba6 100644
+--- a/morphhdl/scripts/check-increment-59f-source-scope.py
++++ b/morphhdl/scripts/check-increment-59f-source-scope.py
+@@ -70,3 +70,3 @@ def current_inherited_source(root: Path, path: str) -> str:
+     """Remove only the exact reviewed 59c layer before frozen sibling audits."""
+-    source = (root / path).read_text()
++    source = restore_rollout(root, path, (root / path).read_text())
+     checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+@@ -342,2 +342,13 @@ def restore_59d_then_59f_source(root: Path, path: str, source: str) -> str:
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+diff --git a/morphhdl/scripts/check-increment-60f-artifacts.py b/morphhdl/scripts/check-increment-60f-artifacts.py
+index 111f3201a..5e015f510 100644
+--- a/morphhdl/scripts/check-increment-60f-artifacts.py
++++ b/morphhdl/scripts/check-increment-60f-artifacts.py
+@@ -445,5 +445,5 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
+         tests, total_suites = counts["morphhdl"]
+-        counts["morphhdl"] = (tests + 15, total_suites)
++        counts["morphhdl"] = (tests + 20, total_suites)
+         extension.setdefault("morphhdl", {})[
+-            "spinal.core.internals.SignednessCompatibilityTests"] = 20
++            "spinal.core.internals.SignednessCompatibilityTests"] = 25
+     return counts, suites, extension
+diff --git a/morphhdl/scripts/check-increment-60f-equivalence-closure.py b/morphhdl/scripts/check-increment-60f-equivalence-closure.py
+index 7c45762d1..eb1e9dba5 100644
+--- a/morphhdl/scripts/check-increment-60f-equivalence-closure.py
++++ b/morphhdl/scripts/check-increment-60f-equivalence-closure.py
+@@ -300,2 +300,4 @@ def qualification_ancestry(root: Path) -> None:
+ def profile_features(profile: str) -> frozenset[str]:
++    if profile.endswith("-and-60g"):
++        return profile_features(profile[:-len("-and-60g")]) | frozenset(("60g",))
+     names = ("wa07a", "59d", "59e", "59f", "59c")
+@@ -367,2 +369,15 @@ def named_source_review(root: Path):
+ def production_profile(root: Path) -> str:
++    """Compose a sealed publication delta with the unchanged inherited union."""
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    rollout = load(root, "60g-source-scope") if helper.is_file() else None
++    profile = inherited_production_profile(root, rollout)
++    if rollout is not None:
++        # The real tree must differ from its merged base in exactly the reviewed
++        # seven files. Restoration below never authorizes an extra source path.
++        rollout.source_scope(root)
++        profile += "-and-60g"
++    return profile
++
++
++def inherited_production_profile(root: Path, rollout=None) -> str:
+     """Select a complete reviewed source union before consulting any reports."""
+@@ -384,8 +399,9 @@ def production_profile(root: Path) -> str:
+     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
++    if rollout is not None:
++        prior = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, rollout.BASE))
++        changed -= set(rollout.PRODUCTION) - prior
+     if named is not None:
+-        # Source qualification above binds the entire current 59c delta to the
+-        # completed sibling tree. Audit that exact inherited view below.
++        # Each exact successor layer is restored in reverse integration order.
+         inherited_changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, named.BASE))
+         changed = (changed - named.PRODUCTION_PATHS) | (inherited_changed & named.PRODUCTION_PATHS)
+-
+     wa, widths, composites, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
+@@ -464,6 +480,8 @@ def production_profile(root: Path) -> str:
+                 "reviewed production source must be a regular non-executable file: " + path)
+-        source_bytes = source.read_bytes()
++        current = source.read_bytes()
++        if rollout is not None and path in rollout.PRODUCTION:
++            current = rollout.restore_60g_source(root, path, current.decode()).encode()
+         if named is not None and path in named.PRODUCTION_PATHS:
+-            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
+-        require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
++            current = named.restore_source(root, path, current.decode()).encode()
++        require(hashlib.sha256(current).hexdigest() == digest, diagnostic + path)
+         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
+@@ -523,2 +541,13 @@ def reviewed_59d(root: Path) -> dict:
+ 
++def restore_rollout(root: Path, path: str, source: str) -> str:
++    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
++    if not helper.is_file():
++        return source
++    spec = importlib.util.spec_from_file_location("rollout_scope", helper)
++    module = importlib.util.module_from_spec(spec)
++    assert spec.loader is not None
++    spec.loader.exec_module(module)
++    return module.restore_60g_source(root, path, source)
++
++
+ def source_scope(root: Path) -> None:
+@@ -549,3 +578,3 @@ def source_scope(root: Path) -> None:
+         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
+-        current = (root / path).read_bytes()
++        current = restore_rollout(root, path, (root / path).read_text()).encode()
+         if named is not None and path in named.PATHS:
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
+index cb7193ff5..4eb9e20de 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
+@@ -121,2 +121,5 @@ object ExternalParameterizedNativeResize {
+         }
++        // Capture is shared by signed/default and legacy publication. Signed
++        // declarations do not protect the intermediate geometry from native
++        // normalization; the exact recorded assignment remains its sole owner.
+         component.dslBody.walkStatements {
+@@ -127,4 +130,3 @@ object ExternalParameterizedNativeResize {
+                     (target.component eq component) &&
+-                    !packedReadWrappers.containsKey(assignment) &&
+-                    !(morphhdl.MorphSignedCasts.isEnabled(pc.config) && resize.isInstanceOf[ResizeSInt]) =>
++                    !packedReadWrappers.containsKey(assignment) =>
+                 resize.input match {
+@@ -247,2 +249,14 @@ object ExternalParameterizedNativeResize {
+ 
++  /** A captured signed resize retains its native witness spelling until the
++    * exact assignment publisher above validates and substitutes its geometry.
++    * This is an identity/lineage decision, never a second text recognizer.
++    */
++  private[internals] def ownsSignedResize(resize: Resize): Boolean = resize match {
++    case signed: ResizeSInt => signed.input match {
++      case source: SInt if source.component != null => proves(source.component, signed)
++      case _ => false
++    }
++    case _ => false
++  }
++
+   private[internals] def proves(component: Component, resize: Resize): Boolean =
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+index 9bfb8cb7e..8a68d21a8 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+@@ -142,3 +142,4 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
+       component,
+-      rewrittenConstants
++      rewrittenConstants,
++      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
+     )
+@@ -692,3 +693,4 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
+       component: Component,
+-      verilog: String
++      verilog: String,
++      nativeSignedLiterals: Boolean
+   ): String = {
+@@ -725,3 +727,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
+                       width,
+-                      emittedRetainedWitness(literal)
++                      // The normalized literal identity and active native
++                      // printer policy select one exact witness spelling. Do
++                      // not accept both signed and unsigned text indiscriminately.
++                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
++                        emittedRetainedWitness(literal).replace("'", "'s")
++                      else emittedRetainedWitness(literal)
+                     )
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala
+index ac4b82978..e4efcac1d 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala
+@@ -130,3 +130,7 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
+       reject("signed resize needs an exact native SInt resize")
++    // Preserve the native resize publisher's exact protected assignment. It
++    // alone rewrites that witness edge after all lineage/width checks. Other
++    // signed resizes retain this policy's typed expression-boundary handling.
+     snapshot.validateCastOperand(resize, 0, snapshot.castOperand(resize, 0))
++    if (ExternalParameterizedNativeResize.ownsSignedResize(resize)) return None
+     val target = MorphHdlSignedWidth.resolve(snapshot, resize, snapshot.expression(resize), ExpressionUse)
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
+index ee281d825..a66e17a54 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala
+@@ -59,2 +59,11 @@ object MorphHdlSignednessAnalysis {
+ 
++    /** Check captured objects after selector evaluation, even when it opts out.
++      * A selector cannot mutate a captured graph and hide that mutation by
++      * returning false. This checks freshness only; it grants no use evidence.
++      */
++    private[MorphHdlSignednessAnalysis] def validateCapturedGraph(): Unit = {
++      val seen = new IdentityHashMap[AnyRef, java.lang.Boolean]()
++      entries.foreach(value => fresh(value.subject, seen))
++    }
++
+     /** Immutable observations for inspection/replay; these are not use evidence. */
+@@ -373,6 +382,12 @@ object MorphHdlSignednessAnalysis {
+       val observed = observer.map(callback => (callback, capture(pc.topLevel)))
+-      val published = publisher.filter { case (_, enabled) => enabled() }
+-        .map { case (callback, _) => (callback, capturePublication(pc.topLevel)) }
++      val published = publisher.map { case (callback, enabled) =>
++        (callback, enabled, capturePublication(pc.topLevel))
++      }
++      // Selectors are caller code too. Never capture after evaluating one;
++      // reject changes even if the selector disables its publication consumer.
++      val selected = published.filter { case (_, enabled, _) => enabled() }
++      observed.foreach { case (_, snapshot) => snapshot.validateCapturedGraph() }
++      published.foreach { case (_, _, snapshot) => snapshot.validateCapturedGraph() }
+       observed.foreach { case (callback, snapshot) => callback(snapshot) }
+-      published.foreach { case (callback, snapshot) => callback(snapshot) }
++      selected.foreach { case (callback, _, snapshot) => callback(snapshot) }
+     }
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+index f80ddcb51..638fb288a 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+@@ -4781,2 +4781,5 @@ private[internals] object ParameterizedVerilogStructural {
+     "assign",
++    // Native signed declarations and $signed calls are syntax, not references
++    // that may make one independent template own another template's signals.
++    "signed",
+     "wire",

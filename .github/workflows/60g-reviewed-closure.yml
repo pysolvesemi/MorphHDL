@@ -1,0 +1,77 @@
+name: Materialize exact reviewed 60g closure objects
+on:
+  push:
+    branches: [agent/60g-reviewed-closure-20260907]
+    paths: ['.github/60g-reviewed-closure/**', '.github/workflows/60g-reviewed-closure.yml']
+permissions:
+  contents: write
+jobs:
+  materialize:
+    if: github.ref == 'refs/heads/agent/60g-reviewed-closure-20260907'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify readable patch and exact merged source on an isolated worktree
+        shell: bash
+        env:
+          EXPECTED_HELPER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HELPER"
+          test "$(git ls-remote origin refs/heads/agent/60g-reviewed-closure-20260907 | cut -f1)" = "$EXPECTED_HELPER"
+          mkdir -p target/60g-source-transfer
+          cat .github/60g-reviewed-closure/code-{0,1,2,3}.diff > /tmp/60g-reviewed.diff
+          cp .github/60g-reviewed-closure/rebuild-ledger.py /tmp/60g-rebuild-ledger.py
+          echo 'ba00c16c5f75baf5ddb1e735fbbf4a25ffe86faefbedc6eb97a83865f5036247  /tmp/60g-reviewed.diff' | sha256sum -c -
+          echo '341e2bf04363af19a5b0247bf9382b4b691d242f3db7e691256a830a51696a33  /tmp/60g-rebuild-ledger.py' | sha256sum -c -
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git worktree add --detach /tmp/60g-reviewed-source 39977b32cc47c54a0481716c181069184a32fbe5
+          (
+            cd /tmp/60g-reviewed-source
+            set +e
+            git merge --no-commit --no-ff 226ac68e416c7456617991bb709127dc892ea6a3
+            result=$?
+            set -e
+            test "$result" = 1
+            python3 - <<'PY'
+          import subprocess
+          actual = set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],text=True).splitlines())
+          expected = {'morphhdl/contracts/native-source-preservation.json',
+                      'morphhdl/scripts/check-increment-59f-source-scope.py',
+                      'morphhdl/scripts/check-increment-60f-equivalence-closure.py'}
+          assert actual == expected, (actual, expected)
+          PY
+            git checkout --ours -- morphhdl/contracts/native-source-preservation.json morphhdl/scripts/check-increment-59f-source-scope.py morphhdl/scripts/check-increment-60f-equivalence-closure.py
+            git add morphhdl/contracts/native-source-preservation.json morphhdl/scripts/check-increment-59f-source-scope.py morphhdl/scripts/check-increment-60f-equivalence-closure.py
+            test "$(git write-tree)" = 3fb4abff6ca4431c3b005a019a5943f319ce52be
+            git apply --check /tmp/60g-reviewed.diff
+            git apply --index /tmp/60g-reviewed.diff
+            MORPH_60G_ROOT="$PWD" python3 /tmp/60g-rebuild-ledger.py 39977b32cc47c54a0481716c181069184a32fbe5
+            git add morphhdl/contracts/increment-60g-publication-edits.json morphhdl/scripts/check-increment-60g-source-scope.py
+            git diff --cached --check
+            test "$(git write-tree)" = 753a9db446d6428e642dd5f1930403f33602b579
+            echo 753a9db446d6428e642dd5f1930403f33602b579 > "$GITHUB_WORKSPACE/target/60g-source-transfer/desired-tree.txt"
+            # This job publishes only ordinary source objects on its helper
+            # branch. Keep its workflow directory byte-identical. The connected
+            # GitHub action separately owns the implementation's workflow tree.
+            git restore --source="$EXPECTED_HELPER" --staged --worktree -- .github/workflows
+            test "$(git diff --cached --name-only "$EXPECTED_HELPER" -- .github/workflows | wc -l)" = 0
+            tree=$(git write-tree)
+            commit=$(printf '%s\n' 'chore(morphhdl): retain verified 60g source objects without workflow changes' | git commit-tree "$tree" -p "$EXPECTED_HELPER")
+            printf '%s\n' "$tree" > "$GITHUB_WORKSPACE/target/60g-source-transfer/staging-tree.txt"
+            printf '%s\n' "$commit" > "$GITHUB_WORKSPACE/target/60g-source-transfer/staging-commit.txt"
+            test "$(git ls-remote origin refs/heads/agent/60g-reviewed-closure-20260907 | cut -f1)" = "$EXPECTED_HELPER"
+            git push origin "$commit":refs/heads/agent/60g-reviewed-closure-20260907
+          )
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60g-reviewed-source-transfer
+          path: target/60g-source-transfer
+          if-no-files-found: error
+          retention-days: 7
