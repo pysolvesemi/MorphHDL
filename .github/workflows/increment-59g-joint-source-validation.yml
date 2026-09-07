@@ -1,0 +1,105 @@
+name: Validate 59g integration with merged 59h
+
+on:
+  push:
+    branches: ['agent/increment-59g-source-validation']
+    paths: ['.github/workflows/increment-59g-joint-source-validation.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  joint-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Merge the tested register repair with pinned merged owners
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL 59g integration'
+          git config user.email '59g-integration@users.noreply.github.com'
+          git merge-base --is-ancestor cba4717abc9192917d819e1f84cb246162488286 HEAD
+          test -z "$(git diff --name-only cba4717abc9192917d819e1f84cb246162488286 HEAD -- '*/src/main/*' 'morphhdl/scripts/*' 'morphhdl/contracts/*')"
+          export JOINT_WORK="$GITHUB_WORKSPACE/target/59g-joint-source"
+          export REPAIRED_SOURCE="$JOINT_WORK/repaired-registers"
+          export OWNER_SOURCE="$JOINT_WORK/merged-owners"
+          mkdir -p "$REPAIRED_SOURCE" "$OWNER_SOURCE"
+          git cat-file -e 38eddd226837a48b028094585b5ce5eeae3439cd^{commit}
+          git archive 38eddd226837a48b028094585b5ce5eeae3439cd | tar -x -C "$REPAIRED_SOURCE"
+          git archive cba4717abc9192917d819e1f84cb246162488286 | tar -x -C "$OWNER_SOURCE"
+          set +e
+          git merge --no-ff --no-commit 38eddd226837a48b028094585b5ce5eeae3439cd > "$JOINT_WORK/merge.log" 2>&1
+          result=$?
+          set -e
+          test "$result" = 1
+          git diff --name-only --diff-filter=U > "$JOINT_WORK/conflicts.txt"
+          printf '%s\n' \
+            morphhdl/scripts/check-increment-59c-source-review.py \
+            morphhdl/scripts/check-increment-60f-artifacts.py \
+            morphhdl/scripts/check-increment-60f-equivalence-closure.py \
+            morphhdl/scripts/test-increment-59c-inherited-source-scope.py > "$JOINT_WORK/expected-conflicts.txt"
+          diff -u "$JOINT_WORK/expected-conflicts.txt" "$JOINT_WORK/conflicts.txt"
+          python3 .github/59g-integrate-reviewed-source.py
+          python3 - <<'PYCOUNT'
+          from pathlib import Path
+          p=Path('.github/workflows/increment-59g-register-bridges.yml')
+          s=p.read_text();old="'TypedBalancedReductionBridgeReplayTests': 10"
+          assert s.count(old)==1
+          p.write_text(s.replace(old,"'TypedBalancedReductionBridgeReplayTests': 12"))
+          PYCOUNT
+          git add -- .github/workflows/increment-59g-register-bridges.yml
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git diff --cached --check -- morphhdl
+          git commit -m 'Integrate tested 59g register repair with merged 59h and compose exact source audits'
+          git rev-parse HEAD > "$JOINT_WORK/candidate-head.txt"
+          git rev-parse HEAD^{tree} > "$JOINT_WORK/candidate-tree.txt"
+      - name: Verify both current source layers and all rejection controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/59g-joint-source
+          python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test | tee "$output/register-span-mutations.log"
+          python3 morphhdl/scripts/check-increment-59h-source-review.py --self-test | tee "$output/owner-span-mutations.log"
+          python3 morphhdl/scripts/check-increment-59g-source-review.py | tee "$output/register-source.log"
+          python3 morphhdl/scripts/check-increment-59h-source-review.py | tee "$output/owner-source.log"
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only > "$output/inherited-source.log" 2>&1 || { tail -n 100 "$output/inherited-source.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test | tee "$output/inventory-mutations.log"
+          python3 morphhdl/scripts/test-increment-59g-source-review.py > "$output/register-current-controls.log" 2>&1 || { tail -n 100 "$output/register-current-controls.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/owner-current-controls.log" 2>&1 || { tail -n 100 "$output/owner-current-controls.log"; exit 1; }
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test | tee "$output/boundary-controls.log"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - name: Publish only to the temporary integration branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/agent/increment-59g-source-validation | cut -f1)" = '${{ github.sha }}'
+          git push origin HEAD:refs/heads/agent/increment-59g-source-validation
+          git rev-parse HEAD > target/59g-joint-source/published-head.txt
+      - name: Retain source and diagnostics without credentials
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target/59g-joint-evidence
+          cp target/59g-joint-source/*.log target/59g-joint-source/*.txt target/59g-joint-evidence/ 2>/dev/null || true
+          git diff > target/59g-joint-evidence/unstaged.patch
+          git diff --cached > target/59g-joint-evidence/staged.patch
+          git archive HEAD | gzip > target/59g-joint-evidence/source.tar.gz
+          git update-ref refs/heads/export-59g-joint HEAD
+          git bundle create target/59g-joint-evidence/repository.bundle refs/heads/export-59g-joint
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59g-joint-source-evidence
+          path: |
+            target/59g-joint-evidence
+            target/increment-59g/source-scope
+            target/increment-59h-source-scope
+            target/increment-59c-source-scope
+          retention-days: 14
+          if-no-files-found: error
