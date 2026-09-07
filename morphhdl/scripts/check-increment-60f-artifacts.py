@@ -464,6 +464,15 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
                             reviewed_counts[suite] = 12
                             minimum += 4
                 counts[project] = (minimum, old_suites + len(additions))
+    if "60g" in features:
+        # The production profile is validated before reports are inspected.
+        # Require the entire extended existing suite, not just a global count.
+        tests, total_suites = counts["morphhdl"]
+        counts["morphhdl"] = (tests + 18, total_suites)
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.SignednessCompatibilityTests"] = 22
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests"] = 2
     return counts, suites, extension
 
 
@@ -1232,6 +1241,17 @@ def self_test() -> None:
             rejections += 1
         else:
             raise RuntimeError("missing nested-owner suite was accepted: " + missing)
+    # The rollout extends existing suites, not the nested-owner suite set.
+    # Its union must retain every pre-rollout exact obligation and require the
+    # two reviewed new counts, independent of arbitrary report contents.
+    joined = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59h-and-60g", True)
+    expected_joined = {**nested[2]["morphhdl"],
+        "spinal.core.internals.SignednessCompatibilityTests": 22,
+        "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests": 2}
+    require(joined[1] == nested[1] and joined[2]["morphhdl"] == expected_joined and
+            joined[0]["morphhdl"] == (nested[0]["morphhdl"][0] + 18, nested[0]["morphhdl"][1]),
+            "60g/59h integration lost an exact suite or test obligation")
+    print("60g/59h combined inventory retains nested owners and exact rollout test counts PASS")
     print(f"60f inventory self-test: twelve inherited exact source profiles, named-field and nested-owner suite extensions and {rejections} rejection controls PASS")
 
 

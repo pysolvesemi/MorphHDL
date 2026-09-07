@@ -140,7 +140,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     val rewrittenInitializers = rewriteRetainedZeroInitializers(
       component,
-      rewrittenConstants
+      rewrittenConstants,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
@@ -690,7 +691,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
   private def rewriteRetainedZeroInitializers(
       component: Component,
-      verilog: String
+      verilog: String,
+      nativeSignedLiterals: Boolean
   ): String = {
     final case class RetainedZeroInitializer(
         target: BitVector,
@@ -723,7 +725,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                       target,
                       name,
                       width,
-                      emittedRetainedWitness(literal)
+                      // Match exactly the native policy's literal spelling;
+                      // the graph still authorizes every direct zero edge.
+                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
+                        emittedRetainedWitness(literal).replace("'", "'s")
+                      else emittedRetainedWitness(literal)
                     )
                   case _ =>
                 }

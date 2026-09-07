@@ -166,7 +166,8 @@ object SIntSignedDeclarationsArtifactWriter {
     Files.createDirectories(output.getParent)
     val value = SpinalConfig(targetDirectory = output.getParent.toString)
     value.netlistFileName = output.getFileName.toString
-    value
+    // This shared writer preserves the sealed 60a-60f legacy reference profile.
+    MorphSignedDeclarations.disable(value)
   }
 
   def canonicalNative(output: Path): Unit = {
