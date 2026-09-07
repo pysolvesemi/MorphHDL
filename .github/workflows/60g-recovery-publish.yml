@@ -1,0 +1,22 @@
+name: Stage exact reviewed 60g recovery
+
+on:
+  push:
+    branches: [agent/60g-resume-publish-20260907]
+    paths: ['.github/workflows/60g-recovery-publish.yml', '.github/60g-recovery-publish/**']
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/agent/60g-resume-publish-20260907'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact source reconstruction on staging branch only
+        run: python3 .github/60g-recovery-publish/stage.py
