@@ -10,6 +10,7 @@ current descendants use 60f's completed-history and current-native audit gate.
 from __future__ import annotations
 
 import json
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -104,6 +105,17 @@ def commit_fixture(root: Path, path: str) -> None:
 
 
 def main() -> None:
+    if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
+        # Current 59c source audits remain mandatory. Replaced exact mutation
+        # targets are exercised by their unchanged qualified historical fixture.
+        helper = ROOT / "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
+        spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.frozen_inherited_fixture(
+            ROOT, "morphhdl/scripts/test-increment-59b-inherited-source-scope.py", "target/increment-59b-source-scope",
+            lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits")], "exact negative inherited source-scope cases")
+        return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked_current(ROOT, "current descendant with qualified history and approved native source")]
     # Each original exact-span negative remains anchored to the complete tree

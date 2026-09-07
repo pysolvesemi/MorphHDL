@@ -20,7 +20,7 @@
 \*                                                                           */
 package spinal.core
 
-import spinal.core.internals.{BitAssignmentFixed, BitAssignmentFloating, BitVectorAssignmentExpression, RangedAssignmentFixed, RangedAssignmentFloating}
+import spinal.core.internals.{BitAssignmentFixed, BitAssignmentFloating, BitVectorAssignmentExpression, Expression, RangedAssignmentFixed, RangedAssignmentFloating, WhenStatement}
 import spinal.idslplugin.Location
 
 import scala.collection.mutable
@@ -123,22 +123,25 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
   ) = this(enables, tos, vec, address, elementLeafIndex, null, null, null)
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
+    val retained = ParameterizedVec.shapeOf(vec).nonEmpty
+    val forwarding = ArrayBuffer.empty[(WhenStatement, Vector[ParameterizedVecWriteInvocation])]
     def assignNative(): Unit = {
     for ((enable, to) <- (enables, tos).zipped) {
       when(enable) {
-        val thatSafe = that /*match {
-          case that: AssignmentNode => that.clone(to)
-          case _ => that
-        }*/
-        target match {
-          case a : BitVectorAssignmentExpression => to.compositAssignFrom(thatSafe, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
-          case bt : BaseType => to.compositAssignFrom(thatSafe, to, kind)
+        def assignTarget(): Unit = target match {
+          case a : BitVectorAssignmentExpression => to.compositAssignFrom(that, a.copyWithTarget(to.asInstanceOf[BitVector]), kind)
+          case bt : BaseType => to.compositAssignFrom(that, to, kind)
         }
+        if (retained) {
+          val guard = DslScopeStack.get.parentStatement.asInstanceOf[WhenStatement]
+          val (_, writes) = ParameterizedVec.captureWriteInvocations(assignTarget())
+          forwarding += guard -> writes
+        } else assignTarget()
       }
       }
     }
 
-    if (ParameterizedVec.shapeOf(vec).nonEmpty) {
+    if (retained) {
       if (address == null || elementLeafIndex < 0) {
         ParameterizedVec.rejectUnsupported(
           vec,
@@ -147,6 +150,10 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
       }
       val (_, assignments) =
         ParameterizedVec.captureAssignments(vec)(assignNative())
+      val selected = target match {
+        case value: BitVectorAssignmentExpression => value.finalTarget
+        case value: BaseType => value
+      }
       ParameterizedVec.recordDynamicWrite(
         vec,
         address,
@@ -156,9 +163,13 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
         enables,
         tos,
         elementLeafIndex,
+        selected,
+        that,
+        target.asInstanceOf[Expression],
         assignments,
+        forwarding.toVector,
         kind
-      )
+      ).foreach(operation => ParameterizedVec.recordWriteInvocation(vec, selected, operation))
     } else {
       assignNative()
     }
@@ -167,6 +178,42 @@ class VecAccessAssign[T <: Data](enables: Seq[Bool], tos: Seq[BaseType], vec: Ve
   override def getRealSourceNoRec: Any = vec
 }
 
+
+/** Mechanical evidence wrapper installed only on a retained typed static
+  * index. Delegation preserves every pre-existing composite assignment path;
+  * the finite native scalar assignment remains authoritative.
+  */
+private[core] final class ParameterizedVecStaticAccessAssign(
+    val vector: Vec[_],
+    val elementIndex: Int,
+    val elementLeafIndex: Int,
+    leaf: BaseType,
+    previous: Assignable
+) extends Assignable {
+  private[core] def captures(owner: Vec[_], index: Int, leafIndex: Int): Boolean =
+    ((vector eq owner) && elementIndex == index && elementLeafIndex == leafIndex) || (previous match {
+      case wrapped: ParameterizedVecStaticAccessAssign => wrapped.captures(owner, index, leafIndex)
+      case _ => false
+    })
+
+  override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
+    val active = leaf.compositeAssign
+    leaf.compositeAssign = previous
+    try {
+      val ((_, assignments), writes) = ParameterizedVec.captureWriteInvocations {
+        ParameterizedVec.captureAssignments(leaf) {
+          leaf.compositAssignFrom(that, target, kind)
+        }
+      }
+      ParameterizedVec.recordStaticWrite(vector, elementIndex, elementLeafIndex, leaf,
+        that, target.asInstanceOf[Expression], assignments, writes, kind)
+        .foreach(operation => ParameterizedVec.recordWriteInvocation(vector, leaf, operation))
+    } finally leaf.compositeAssign = active
+  }
+
+  override def getRealSourceNoRec: Any =
+    if (previous == null) leaf else previous.getRealSource
+}
 
 /** A `Vec` is a composite type that defines a group of indexed signals (of any SpinalHDL basic type) under a single name
   *
@@ -207,7 +254,8 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     */
   private[core] def carrierLength: Int = vec.size
   private[core] def carrierRange = vec.indices
-  private[core] def carrierBitsWidth: Int = super.getBitsWidth
+  private[core] def carrierBitsWidth: Int =
+    ParameterizedVec.withNativeCarrierGeometry(super.getBitsWidth)
 
   def range =
     ParameterizedVec
@@ -221,9 +269,10 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
       .getOrElse(carrierLength)
 
   override def getBitsWidth: Int =
-    ParameterizedVec
+    if (ParameterizedVec.usesNativeCarrierGeometry) carrierBitsWidth
+    else ParameterizedVec
       .logicalBitsWidthOf(this, "Vec.getBitsWidth")
-      .getOrElse(carrierBitsWidth)
+      .getOrElse(super.getBitsWidth)
 
   override def equals(that: Any): Boolean = that match {
     case that: Vec[_] => instanceCounter == that.instanceCounter
@@ -282,11 +331,14 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
     ParameterizedVec.shapeOf(this) match {
       case Some(shape) =>
         val carrierWidth = log2Up(shape.carrierCapacity)
-        if (carrierWidth > 0 && finalAddress.getWidth != carrierWidth) {
+        if (carrierWidth > 0) {
           // This resized node belongs only to the finite audited carrier graph.
           // Publication consumes the operation record and original typed
           // address, never this witness implementation detail.
           finalAddress = address.resize(carrierWidth)
+            .setName("morphhdl_typed_vec_read_address", weak = true)
+            .dontSimplifyIt()
+            .setAsVital()
         }
       case None =>
         val bitNeeded = log2Up(elements.size)
@@ -485,7 +537,8 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   override def asBits: Bits = {
-    ParameterizedVec.shapeOf(this) match {
+    if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits
+    else ParameterizedVec.shapeOf(this) match {
       case Some(shape) if shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors =>
         ParameterizedVec.readCompositeBits(this)
       case _ => ParameterizedVec.recordPackedRead(this, super.asBits)
@@ -493,14 +546,15 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   override def assignFromBits(bits: Bits): Unit = {
-    if (ParameterizedVec.shapeOf(this).nonEmpty) {
+    if (ParameterizedVec.shapeOf(this).nonEmpty && !ParameterizedVec.usesNativeCarrierGeometry) {
       ParameterizedVec.validatePackedAssignment(this, bits)
       val physicalWidth = carrierBitsWidth
       val carrier =
         if (bits.getBitsWidth == physicalWidth) bits
         else bits.resize(physicalWidth).dontSimplifyIt()
       val (_, assignments) =
-        ParameterizedVec.captureAssignments(this)(super.assignFromBits(carrier))
+        ParameterizedVec.captureAssignments(this)(
+          ParameterizedVec.withNativeCarrierGeometry(super.assignFromBits(carrier)))
       ParameterizedVec.recordPackedAssignment(this, bits, carrier, assignments)
     } else {
       super.assignFromBits(bits)

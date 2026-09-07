@@ -85,6 +85,13 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
     # separately reviewed seams. Undo those first, including seams inside a 60e resize
     # call. The complete restored source is still compared with its historical
     # baseline by every inherited scope guard; no unrelated edit is admitted.
+    named_checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    if named_checker.exists():
+        spec = importlib.util.spec_from_file_location("named_59c_scope", named_checker)
+        require(spec is not None and spec.loader is not None, "cannot import reviewed 59c source scope")
+        named = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(named)
+        source = named.restore_source(root, path, source)
     width_contract = root / "morphhdl/contracts/increment-59d-width-publication-edits.json"
     fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     if width_contract.is_file() and path == fallback:

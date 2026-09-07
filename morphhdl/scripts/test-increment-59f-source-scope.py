@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import importlib.util
 import shutil
 import stat
 import subprocess
@@ -184,6 +185,17 @@ def packing_controls(fixture: Path, records: list[dict]) -> None:
 
 
 def main() -> None:
+    if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
+        # Current 59c source audits remain mandatory. Replaced exact mutation
+        # targets are exercised by their unchanged qualified historical fixture.
+        helper = ROOT / "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
+        spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.frozen_inherited_fixture(
+            ROOT, "morphhdl/scripts/test-increment-59f-source-scope.py", "target/increment-59f/source-scope",
+            lambda: [check(ROOT, HELPER, "current restored publisher delta"), check(ROOT, CLOSURE, "current complete 59c and inherited source audits")], "exact negative 59f source-scope controls")
+        return
     head = git(ROOT, "rev-parse", "HEAD")
     has_59d = (ROOT / REVIEW_59D).is_file()
     has_joint_zero = (ROOT / ZERO_59D_59F_CONTRACT).is_file()

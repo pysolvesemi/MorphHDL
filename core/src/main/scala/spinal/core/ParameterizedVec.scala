@@ -19,6 +19,7 @@ import spinal.core.internals.{
   CastUIntToBits,
   DataAssignmentStatement,
   Expression,
+  Multiplexer,
   Operator,
   Resize,
   ResizeUInt,
@@ -45,6 +46,66 @@ private[spinal] final case class ParameterizedVecLeafShape(
     width: ElaborationIntegerExpression
 )
 
+/** One exact recursive Vec dimension. The first retained axis is the
+  * outermost; native element zero occupies the least significant slice.
+  */
+private[spinal] final case class ParameterizedVecDimensionShape(
+    depth: ElaborationIntegerExpression,
+    witnessDepth: Int,
+    carrierCapacity: Int
+)
+
+/** One scalar field path through an element's recursive Bundle/Vec shape.
+  *
+  * Field names come directly from native MultiData element ownership. Vec
+  * indices never become field names: every intervening Vec contributes one
+  * dimension instead. `carrierLeafIndices` indexes the unchanged flattened
+  * native element, in row-major order with the last Vec axis varying fastest.
+  * These exact indices also retain the direction-bearing BaseType identities;
+  * direction must be observed after the user applies in/out/master/slave.
+  */
+private[spinal] final case class ParameterizedVecFieldShape(
+    path: Vector[String],
+    dimensions: Vector[ParameterizedVecDimensionShape],
+    typeObject: AnyRef,
+    width: ElaborationIntegerExpression,
+    carrierLeafIndices: Vector[Int]
+) {
+  def geometryExpressions: Vector[ElaborationIntegerExpression] =
+    dimensions.map(_.depth) :+ width
+
+  def packedWidthVerilog: String =
+    geometryExpressions.map(value => s"(${value.verilog})").mkString(" * ")
+
+  def packedWidthDefault: BigInt =
+    geometryExpressions.map(_.default).product
+
+  def packedWidthMinimum: BigInt =
+    geometryExpressions.map(_.minimum).product
+
+  def packedWidthMaximum: BigInt =
+    geometryExpressions.map(_.maximum).product
+}
+
+/** Exact native packing topology. Records preserve native declaration order;
+  * arrays preserve element-major ordering. The publication bridge uses this
+  * tree to compute symbolic sibling offsets without reconstructing shape from
+  * flattened names or concrete witness offsets.
+  */
+private[spinal] sealed trait ParameterizedVecLayoutNode
+private[spinal] final case class ParameterizedVecLayoutScalar(
+    path: Vector[String],
+    width: ElaborationIntegerExpression,
+    typeObject: AnyRef
+) extends ParameterizedVecLayoutNode
+private[spinal] final case class ParameterizedVecLayoutRecord(
+    children: Vector[ParameterizedVecLayoutNode]
+) extends ParameterizedVecLayoutNode
+private[spinal] final case class ParameterizedVecLayoutArray(
+    dimension: ParameterizedVecDimensionShape,
+    element: ParameterizedVecLayoutNode
+) extends ParameterizedVecLayoutNode
+
 /** Logical shape retained beside one ordinary native Vec.
   *
   * `carrierCapacity` is the audited finite native capacity used to let the
@@ -57,6 +118,8 @@ private[spinal] final case class ParameterizedVecShape(
     witnessDepth: Int,
     carrierCapacity: Int,
     elementLeaves: Vector[ParameterizedVecLeafShape],
+    elementFields: Vector[ParameterizedVecFieldShape],
+    fieldLayout: ParameterizedVecLayoutNode,
     elementLayout: ParameterizedVecElementLayout.Layout,
     sourceLocation: Option[String]
 ) {
@@ -69,9 +132,20 @@ private[spinal] final case class ParameterizedVecShape(
   def elementWidthMaximum: BigInt =
     elementLeaves.foldLeft(BigInt(0))((sum, leaf) => sum + leaf.width.maximum)
 
+  /** Logical recursive geometry, distinct from the finite flattened carrier
+    * widths above. Independent nested dimensions remain separate factors.
+    */
   def logicalElementWidthDefault: BigInt = elementLayout.evaluate(_.default)
-
+  def logicalElementWidthMinimum: BigInt = elementFields.map(_.packedWidthMinimum).sum
   def logicalElementWidthMaximum: BigInt = elementLayout.evaluate(_.maximum)
+  def logicalElementWidthVerilog: String =
+    elementFields.map { field =>
+      if (field.dimensions.isEmpty) s"(${field.width.verilog})"
+      else s"(${field.packedWidthVerilog})"
+    }.mkString(" + ")
+
+  def geometryExpressions: Vector[ElaborationIntegerExpression] =
+    depth +: elementFields.flatMap(_.geometryExpressions)
 
   /** Factorized Verilog-2001 expression for one logical element.  Keeping
     * this textual composition here avoids constructing an [[ElabInt]] across
@@ -83,15 +157,39 @@ private[spinal] final case class ParameterizedVecShape(
 
   /** Factorized Verilog-2001 expression for the flattened packed boundary. */
   def totalPackedWidthVerilog: String =
-    s"(${depth.verilog}) * ($elementWidthVerilog)"
+    s"(${depth.verilog}) * ($logicalElementWidthVerilog)"
 
   def parameters: Vector[ElaborationIntegerParameter] =
-    (depth.parameters ++ elementLayout.expressions.flatMap(_.parameters))
+    geometryExpressions.flatMap(_.parameters)
       .groupBy(_.name)
       .toVector
       .map(_._2.head)
       .sortBy(_.name)
 }
+
+/** Exact mapping from one descendant Vec's native leaf to its enclosing
+  * retained Vec. Both element/leaf ordinals refer to native carrier order.
+  */
+private[spinal] final case class ParameterizedVecNestedLeafProjection(
+    elementIndex: Int,
+    elementLeafIndex: Int,
+    rootElementIndex: Int,
+    rootElementLeafIndex: Int
+)
+
+/** One structurally owned descendant Vec. The ancestor coordinates include
+  * the enclosing Vec's element index and every intervening Vec element index,
+  * in outermost-first order. Their length is the descendant's own varying axis
+  * position in each enclosing field vector. `fieldPath` contains only exact
+  * Bundle/MultiData ownership names before the descendant Vec.
+  */
+private[spinal] final case class ParameterizedVecNestedProjection(
+    root: Vec[_],
+    vector: Vec[_],
+    fieldPath: Vector[String],
+    ancestorCoordinates: Vector[Int],
+    leaves: Vector[ParameterizedVecNestedLeafProjection]
+)
 
 /** Exact native operations whose witness graph must be generalized by the
   * parameterized Vec publication pass.  Unrecorded witness-wide operations are
@@ -107,13 +205,54 @@ private[spinal] final case class ParameterizedVecStaticIndex(
     sourceLocation: Option[String]
 ) extends ParameterizedVecOperation
 
+/** One exact scalar assignment made through an ordinary static Vec index.
+  * The native assignment algorithm still owns the operation; these snapshots
+  * prevent later driver, source, slice or control mutations being reclassified
+  * as an authored static write.
+  */
+private[spinal] final case class ParameterizedVecStaticWrite(
+    elementIndex: Int,
+    elementLeafIndex: Int,
+    selected: BaseType,
+    assignment: DataAssignmentStatement,
+    source: Expression,
+    target: Expression,
+    enclosingConditions: Vector[ParameterizedVecWriteCondition],
+    assignmentKind: String,
+    sourceLocation: Option[String]
+) extends ParameterizedVecOperation
+
+/** Exact per-access native carrier select. Distinct retained select identities
+  * keep separate Vec muxes from becoming one backend wrapper solely because
+  * callers supplied the same address object.
+  */
+private[spinal] final case class ParameterizedVecReadSelect(
+    select: UInt,
+    assignments: Vector[DataAssignmentStatement],
+    sources: Vector[Expression],
+    carrierWidth: Int
+)
+
 private[spinal] final case class ParameterizedVecDynamicAccess(
     address: UInt,
     result: Data,
     assignments: Vector[DataAssignmentStatement],
     writable: Boolean,
+    readSelect: Option[ParameterizedVecReadSelect],
     sourceLocation: Option[String]
 ) extends ParameterizedVecOperation
+
+/** Common exact native decoder lineage for direct and delegated writes. */
+private[spinal] trait ParameterizedVecWriteDecoderEvidence {
+  def address: UInt
+  def carrierAddress: UInt
+  def carrierAddressAssignments: Vector[DataAssignmentStatement]
+  def decoderOne: UInt
+  def decoderOneAssignments: Vector[DataAssignmentStatement]
+  def decoder: UInt
+  def decoderAssignments: Vector[DataAssignmentStatement]
+  def sourceLocation: Option[String]
+}
 
 private[spinal] final case class ParameterizedVecDynamicWrite(
     address: UInt,
@@ -128,15 +267,78 @@ private[spinal] final case class ParameterizedVecDynamicWrite(
     assignments: Vector[DataAssignmentStatement],
     assignmentKind: String,
     sourceLocation: Option[String]
-) extends ParameterizedVecOperation
+) extends ParameterizedVecOperation with ParameterizedVecWriteDecoderEvidence
+
+/** Immutable native control evidence captured before normalization. */
+private[spinal] final case class ParameterizedVecWriteCondition(
+    whenStatement: WhenStatement,
+    condition: Expression,
+    whenTrue: Boolean
+)
 
 private[spinal] final case class ParameterizedVecDynamicWriteGuard(
     elementIndex: Int,
     enable: Bool,
     enableAssignments: Vector[DataAssignmentStatement],
     whenStatement: WhenStatement,
-    assignment: DataAssignmentStatement
+    assignment: DataAssignmentStatement,
+    enclosingConditions: Vector[ParameterizedVecWriteCondition]
 )
+
+/** One immediate invocation of an existing native assignment delegate. The
+  * exact selected scalar and owner distinguish transient nested access aliases
+  * from their eventual physical carrier targets.
+  */
+private[spinal] final case class ParameterizedVecWriteInvocation(
+    vector: Vec[_],
+    selected: BaseType,
+    operation: ParameterizedVecOperation
+)
+
+private[spinal] final case class ParameterizedVecForwardedStaticWrite(
+    elementIndex: Int,
+    elementLeafIndex: Int,
+    selected: BaseType,
+    source: AnyRef,
+    target: Expression,
+    assignments: Vector[DataAssignmentStatement],
+    sources: Vector[Expression],
+    targets: Vector[Expression],
+    enclosingConditions: Vector[ParameterizedVecWriteCondition],
+    writes: Vector[ParameterizedVecWriteInvocation],
+    assignmentKind: String,
+    sourceLocation: Option[String]
+) extends ParameterizedVecOperation
+
+private[spinal] final case class ParameterizedVecForwardedDynamicWriteGuard(
+    elementIndex: Int,
+    target: BaseType,
+    enable: Bool,
+    enableAssignments: Vector[DataAssignmentStatement],
+    whenStatement: WhenStatement,
+    enclosingConditions: Vector[ParameterizedVecWriteCondition],
+    writes: Vector[ParameterizedVecWriteInvocation]
+)
+
+private[spinal] final case class ParameterizedVecForwardedDynamicWrite(
+    address: UInt,
+    carrierAddress: UInt,
+    carrierAddressAssignments: Vector[DataAssignmentStatement],
+    decoderOne: UInt,
+    decoderOneAssignments: Vector[DataAssignmentStatement],
+    decoder: UInt,
+    decoderAssignments: Vector[DataAssignmentStatement],
+    guards: Vector[ParameterizedVecForwardedDynamicWriteGuard],
+    elementLeafIndex: Int,
+    selected: BaseType,
+    source: AnyRef,
+    target: Expression,
+    assignments: Vector[DataAssignmentStatement],
+    sources: Vector[Expression],
+    targets: Vector[Expression],
+    assignmentKind: String,
+    sourceLocation: Option[String]
+) extends ParameterizedVecOperation with ParameterizedVecWriteDecoderEvidence
 
 private[spinal] final case class ParameterizedVecWholeAssignment(
     source: Vec[_],
@@ -151,7 +353,8 @@ private[spinal] final case class ParameterizedVecPackedRead(
     resultAssignments: Vector[DataAssignmentStatement],
     carrierAssignments: Vector[DataAssignmentStatement],
     carrierLeavesLowToHigh: Vector[BaseType],
-    sourceLocation: Option[String]
+    sourceLocation: Option[String],
+    supportAssignments: Vector[DataAssignmentStatement] = Vector.empty
 ) extends ParameterizedVecOperation
 
 /** One exact fixed native slice used by MultiData.assignFromBits for a typed
@@ -170,8 +373,15 @@ private[spinal] final case class ParameterizedVecPackedAssignment(
     assignments: Vector[DataAssignmentStatement],
     carrierAssignments: Vector[DataAssignmentStatement],
     slices: Vector[ParameterizedVecPackedSlice],
-    sourceLocation: Option[String]
+    sourceLocation: Option[String],
+    sourceAliases: Vector[ParameterizedVecPackedSourceAlias] = Vector.empty
 ) extends ParameterizedVecOperation
+
+private[spinal] final case class ParameterizedVecPackedSourceAlias(
+    target: Bits,
+    source: Bits,
+    assignment: DataAssignmentStatement
+)
 
 private[spinal] final case class ParameterizedVecAutoConnect(
     peer: Vec[_],
@@ -235,8 +445,72 @@ private[core] final class ParameterizedVecPackedIdentityRef(
   * native carrier graph with one parameterized packed Verilog-2001 vector.
   */
 object ParameterizedVec {
+  // Only inherited Vec packing algorithms enter this scope. It prevents an
+  // inner Vec from publishing an intermediate witness-width wrapper while the
+  // enclosing native MultiData algorithm is constructing its audited carrier.
+  private val nativeCarrierDepth = new ThreadLocal[Int] {
+    override def initialValue(): Int = 0
+  }
+
+  private[core] def usesNativeCarrierGeometry: Boolean = nativeCarrierDepth.get() != 0
+
+  private[core] def withNativeCarrierGeometry[A](body: => A): A = {
+    val previous = nativeCarrierDepth.get()
+    nativeCarrierDepth.set(previous + 1)
+    try body finally nativeCarrierDepth.set(previous)
+  }
+
+  // A nested native delegate records its own immediate children before its
+  // caller sees the completed invocation. Do not flatten this stack: the
+  // exact forwarding tree is needed to compose independently indexed axes.
+  private val writeInvocations = new ThreadLocal[ArrayBuffer[ParameterizedVecWriteInvocation]]
+
+  private[core] def captureWriteInvocations[A](body: => A): (A, Vector[ParameterizedVecWriteInvocation]) = {
+    val previous = writeInvocations.get()
+    val captured = ArrayBuffer.empty[ParameterizedVecWriteInvocation]
+    writeInvocations.set(captured)
+    try body -> captured.toVector
+    finally {
+      if (previous == null) writeInvocations.remove()
+      else writeInvocations.set(previous)
+    }
+  }
+
+  private[core] def recordWriteInvocation(
+      vector: Vec[_], selected: BaseType, operation: ParameterizedVecOperation
+  ): Unit = synchronized {
+    val invocation = ParameterizedVecWriteInvocation(vector, selected, operation)
+    // Keep the completed native call independently of the mutable operation
+    // inventory. Otherwise removing a forwarding parent could leave its inner
+    // decoder scopes attached to primitive writes and disguise them as user
+    // conditions with a fixed native carrier width.
+    reap()
+    retained.get(new ParameterizedVecIdentityRef(vector, null)).getOrElse {
+      throw new IllegalStateException("typed Vec write invocation has no retained shape")
+    }.completedWriteInvocations += selected -> operation
+    val captured = writeInvocations.get()
+    if (captured != null) captured += invocation
+  }
+
+  private def writeAssignments(operation: ParameterizedVecOperation): Vector[DataAssignmentStatement] = operation match {
+    case value: ParameterizedVecStaticWrite => Vector(value.assignment)
+    case value: ParameterizedVecDynamicWrite => value.assignments
+    case value: ParameterizedVecForwardedStaticWrite => value.assignments
+    case value: ParameterizedVecForwardedDynamicWrite => value.assignments
+    case _ => fail("SPINAL-ELAB-VEC-WRITE-FORWARDING-MISMATCH",
+      "native write forwarding retained an operation which is not an indexed assignment", operation.sourceLocation)
+  }
+
+  private def distinctAssignments(values: Vector[DataAssignmentStatement]): Vector[DataAssignmentStatement] =
+    values.foldLeft(Vector.empty[DataAssignmentStatement]) { (known, value) =>
+      if (known.exists(_ eq value)) known else known :+ value
+    }
+
   private final class Entry(val shape: ParameterizedVecShape) {
     val operations = ArrayBuffer.empty[ParameterizedVecOperation]
+    // The owning Vec is the registry's weak key. Do not retain that key again
+    // through the journal value; recover it only while returning a snapshot.
+    val completedWriteInvocations = ArrayBuffer.empty[(BaseType, ParameterizedVecOperation)]
     val formalBindings = ArrayBuffer.empty[ParameterizedVecFormalBinding]
   }
 
@@ -295,7 +569,9 @@ object ParameterizedVec {
     */
   private[spinal] def packedShapeOf(
       packed: Bits
-  ): Option[ParameterizedVecShape] = synchronized {
+  ): Option[ParameterizedVecShape] = exactPackedSource(packed).map(_._1)
+
+  private def directPackedShapeOf(packed: Bits): Option[ParameterizedVecShape] = synchronized {
     reapPacked()
     if (packed == null) None
     else retainedPacked.get(new ParameterizedVecPackedIdentityRef(packed, null))
@@ -376,9 +652,7 @@ object ParameterizedVec {
   ): Vec[T] = {
     if (
       vector != null && vector.vec.nonEmpty &&
-      (ParameterizedVecElementLayout.nestedVectors(vector.vec.head)
-          .exists(nested => shapeOf(nested).exists(_.parameters.nonEmpty)) ||
-        vector.vec.head.flatten.exists(leaf => ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)))
+      containsSymbolicGeometry(vector.vec.head)
     ) {
       val sourceLocation = vector.vec.head.flatten.iterator
         .flatMap(ParameterizedWidth.sourceLocationOf)
@@ -393,6 +667,17 @@ object ParameterizedVec {
       )
     }
     vector
+  }
+
+  private def containsSymbolicGeometry(data: Data): Boolean = data match {
+    case vector: Vec[_] =>
+      shapeOf(vector).exists(_.geometryExpressions.exists(_.parameters.nonEmpty)) ||
+        vector.vec.exists(element => containsSymbolicGeometry(element.asInstanceOf[Data]))
+    case composite: MultiData =>
+      composite.elements.exists { case (_, child) => containsSymbolicGeometry(child) }
+    case leaf: BaseType =>
+      ParameterizedWidth.expressionOf(leaf).exists(_.parameters.nonEmpty)
+    case _ => false
   }
 
   private def validateDepth(
@@ -454,17 +739,27 @@ object ParameterizedVec {
     }
     val layout = ParameterizedVecElementLayout.capture(vector.vec.head)
     val leaves = elementShape(vector.vec.head, sourceLocation)
+    val fields = recursiveElementFields(vector.vec.head, sourceLocation)
     vector.vec.zipWithIndex.foreach { case (element, index) =>
       if (!ParameterizedVecElementLayout.equivalent(layout.root, ParameterizedVecElementLayout.capture(element).root))
         fail("SPINAL-ELAB-VEC-RECURSIVE-LAYOUT-MISMATCH",
           s"typed Vec element $index has a different recursive type or dimension schema", sourceLocation)
       validateElementShape(element, leaves, index, sourceLocation)
+      if (!equivalentFields(fields, recursiveElementFields(element, sourceLocation))) {
+        fail(
+          "SPINAL-ELAB-VEC-ELEMENT-LAYOUT-MISMATCH",
+          s"typed Vec element $index changed its recursive field paths or dimensions",
+          sourceLocation
+        )
+      }
     }
     val shape = ParameterizedVecShape(
       depth = depth,
       witnessDepth = witnessDepth,
       carrierCapacity = carrierCapacity,
       elementLeaves = leaves,
+      elementFields = fields,
+      fieldLayout = recursiveElementLayout(vector.vec.head, Vector.empty, sourceLocation),
       elementLayout = layout,
       sourceLocation = sourceLocation
     )
@@ -506,6 +801,93 @@ object ParameterizedVec {
         width = width
       )
     }
+  }
+
+  /** Traverse exact structural ownership before flattened names lose Vec
+    * dimensions and nested Bundle boundaries. Every actual carrier leaf must
+    * agree with the first leaf of its field; equal widths alone are insufficient.
+    */
+  private def recursiveElementFields(
+      element: Data,
+      sourceLocation: Option[String]
+  ): Vector[ParameterizedVecFieldShape] = {
+    val fields = mutable.LinkedHashMap.empty[Vector[String], ParameterizedVecFieldShape]
+    var leafIndex = 0
+    def visit(
+        data: Data,
+        path: Vector[String],
+        dimensions: Vector[ParameterizedVecDimensionShape]
+    ): Unit = data match {
+      case vector: Vec[_] =>
+        if (vector.vec.isEmpty) {
+          fail("SPINAL-ELAB-VEC-ELEMENT-SHAPE-INVALID",
+            s"typed Vec field '${path.mkString(".")}' contains an empty nested Vec", sourceLocation)
+        }
+        val dimension = shapeOf(vector) match {
+          case Some(shape) =>
+            ParameterizedVecDimensionShape(shape.depth, shape.witnessDepth, shape.carrierCapacity)
+          case None =>
+            ParameterizedVecDimensionShape(literal(vector.vec.size), vector.vec.size, vector.vec.size)
+        }
+        vector.vec.foreach(child => visit(child.asInstanceOf[Data], path, dimensions :+ dimension))
+      case composite: MultiData =>
+        composite.elements.foreach { case (name, child) =>
+          visit(child, path :+ name, dimensions)
+        }
+      case leaf: BaseType =>
+        val width = ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth))
+        val current = ParameterizedVecFieldShape(path, dimensions,
+          exactLeafTypeObject(leaf, leafIndex, sourceLocation), width, Vector(leafIndex))
+        fields.get(path) match {
+          case Some(previous) =>
+            if (!equivalentFieldGeometry(previous, current)) {
+              fail("SPINAL-ELAB-VEC-ELEMENT-LAYOUT-MISMATCH",
+                s"typed Vec field '${path.mkString(".")}' changed its native leaf type, width or recursive dimensions",
+                sourceLocation)
+            }
+            fields.update(path, previous.copy(carrierLeafIndices = previous.carrierLeafIndices :+ leafIndex))
+          case None => fields.update(path, current)
+        }
+        leafIndex += 1
+      case _ =>
+        fail("SPINAL-ELAB-VEC-ELEMENT-SHAPE-INVALID",
+          "typed Vec recursive shape contains an unsupported native Data node", sourceLocation)
+    }
+    visit(element, Vector.empty, Vector.empty)
+    val result = fields.values.toVector
+    if (leafIndex != element.flatten.size || result.exists { field =>
+        field.dimensions.map(dimension => BigInt(dimension.carrierCapacity)).product !=
+          BigInt(field.carrierLeafIndices.size)
+      }) {
+      fail("SPINAL-ELAB-VEC-ELEMENT-LAYOUT-MISMATCH",
+        "typed Vec recursive fields do not exactly partition the native carrier leaves", sourceLocation)
+    }
+    result
+  }
+
+  private def recursiveElementLayout(
+      data: Data,
+      path: Vector[String],
+      sourceLocation: Option[String]
+  ): ParameterizedVecLayoutNode = data match {
+    case vector: Vec[_] =>
+      val dimension = shapeOf(vector) match {
+        case Some(shape) => ParameterizedVecDimensionShape(shape.depth, shape.witnessDepth, shape.carrierCapacity)
+        case None => ParameterizedVecDimensionShape(literal(vector.vec.size), vector.vec.size, vector.vec.size)
+      }
+      ParameterizedVecLayoutArray(dimension,
+        recursiveElementLayout(vector.vec.head.asInstanceOf[Data], path, sourceLocation))
+    case composite: MultiData =>
+      ParameterizedVecLayoutRecord(composite.elements.map { case (name, child) =>
+        recursiveElementLayout(child, path :+ name, sourceLocation)
+      }.toVector)
+    case leaf: BaseType =>
+      ParameterizedVecLayoutScalar(path,
+        ParameterizedWidth.expressionOf(leaf).getOrElse(literal(leaf.getBitsWidth)),
+        exactLeafTypeObject(leaf, 0, sourceLocation))
+    case _ =>
+      fail("SPINAL-ELAB-VEC-ELEMENT-SHAPE-INVALID",
+        "typed Vec packing topology contains an unsupported native Data node", sourceLocation)
   }
 
   private def exactLeafTypeObject(
@@ -646,6 +1028,24 @@ object ParameterizedVec {
     }
   }
 
+  /** Completed native assignment calls are an independent identity inventory,
+    * including parents whose terminal writes belong to another retained Vec.
+    */
+  private[spinal] def writeInvocationsOf(
+      vector: Vec[_]
+  ): Vector[ParameterizedVecWriteInvocation] = synchronized {
+    if (vector == null) Vector.empty
+    else {
+      reap()
+      retained
+        .get(new ParameterizedVecIdentityRef(vector, null))
+        .map(_.completedWriteInvocations.toVector.map { case (selected, operation) =>
+          ParameterizedVecWriteInvocation(vector, selected, operation)
+        })
+        .getOrElse(Vector.empty)
+    }
+  }
+
   private[spinal] def vectorsOf(component: Component): Vector[Vec[_]] = synchronized {
     if (component == null) Vector.empty
     else {
@@ -691,6 +1091,74 @@ object ParameterizedVec {
     }
   }
 
+  /** Exact recursively owned Vec identities below one native vector. Dynamic
+    * selection results are separate Data objects and therefore never appear as
+    * descendants of the source vector. Unretained concrete Vecs are included
+    * so callers can audit all intervening structural dimensions.
+    */
+  private[spinal] def nestedVectorsOf(vector: Vec[_]): Vector[Vec[_]] = {
+    val result = ArrayBuffer.empty[Vec[_]]
+    def visit(data: Data): Unit = data match {
+      case child: Vec[_] =>
+        result += child
+        child.vec.foreach(value => visit(value.asInstanceOf[Data]))
+      case composite: MultiData => composite.elements.foreach { case (_, child) => visit(child) }
+      case _ =>
+    }
+    if (vector != null) vector.vec.foreach(value => visit(value.asInstanceOf[Data]))
+    result.toVector
+  }
+
+  private[spinal] def descendantVectorsOf(vector: Vec[_]): Vector[Vec[_]] =
+    nestedVectorsOf(vector)
+
+  private[spinal] def nestedVectorProjection(
+      root: Vec[_],
+      child: Vec[_]
+  ): Option[ParameterizedVecNestedProjection] = {
+    if (root == null || child == null || (root eq child)) return None
+    val locations = ArrayBuffer.empty[(Vector[String], Vector[Int])]
+    def visit(data: Data, path: Vector[String], coordinates: Vector[Int]): Unit = data match {
+      case vector: Vec[_] =>
+        if (vector eq child) locations += ((path, coordinates))
+        vector.vec.zipWithIndex.foreach { case (element, index) =>
+          visit(element.asInstanceOf[Data], path, coordinates :+ index)
+        }
+      case composite: MultiData => composite.elements.foreach { case (name, value) =>
+        visit(value, path :+ name, coordinates)
+      }
+      case _ =>
+    }
+    root.vec.zipWithIndex.foreach { case (element, index) =>
+      visit(element.asInstanceOf[Data], Vector.empty, Vector(index))
+    }
+    if (locations.isEmpty) return None
+    if (locations.size != 1) {
+      fail("SPINAL-ELAB-VEC-NESTED-OWNERSHIP-AMBIGUOUS",
+        "one descendant Vec occupies multiple native structural positions", shapeOf(root).flatMap(_.sourceLocation))
+    }
+    val rootLeaves = new IdentityHashMap[BaseType, (Int, Int)]()
+    root.vec.zipWithIndex.foreach { case (element, elementIndex) =>
+      element.asInstanceOf[Data].flatten.zipWithIndex.foreach { case (leaf, leafIndex) =>
+        if (rootLeaves.put(leaf, (elementIndex, leafIndex)) != null) {
+          fail("SPINAL-ELAB-VEC-NESTED-OWNERSHIP-AMBIGUOUS",
+            "one native carrier leaf occupies multiple enclosing Vec positions", shapeOf(root).flatMap(_.sourceLocation))
+        }
+      }
+    }
+    val projected = child.vec.zipWithIndex.flatMap { case (element, elementIndex) =>
+      element.asInstanceOf[Data].flatten.zipWithIndex.map { case (leaf, leafIndex) =>
+        val position = rootLeaves.get(leaf)
+        if (position == null) {
+          fail("SPINAL-ELAB-VEC-NESTED-OWNERSHIP-MISMATCH",
+            "a descendant Vec leaf is absent from its exact enclosing native carrier", shapeOf(root).flatMap(_.sourceLocation))
+        }
+        ParameterizedVecNestedLeafProjection(elementIndex, leafIndex, position._1, position._2)
+      }
+    }.toVector
+    Some(ParameterizedVecNestedProjection(root, child, locations.head._1, locations.head._2, projected))
+  }
+
   /** Mechanically attach one typed child formal to every logical Vec owned by
     * that exact component.  Called by the typed ElabInt child adapter after
     * construction; no native Int shadow or emitted-name inference is involved.
@@ -730,7 +1198,7 @@ object ParameterizedVec {
     val vectors = vectorsOf(component)
     val expressions = vectors.flatMap { vector =>
       val shape = shapeOf(vector).get
-      shape.depth +: shape.elementLayout.expressions
+      shape.geometryExpressions
     }
     ElabInt.validateParameterRootInventory(
       s"typed Vec component '${component.definitionName}'",
@@ -764,7 +1232,8 @@ object ParameterizedVec {
       val recursiveMatches = to.vec.forall(element => ParameterizedVecElementLayout.equivalent(
         shape.elementLayout.root, ParameterizedVecElementLayout.capture(element).root))
       val actual = elementShape(to.vec.head, shape.sourceLocation)
-      if (!equivalentLeaves(shape.elementLeaves, actual) || !recursiveMatches) {
+      if (!recursiveMatches || !equivalentLeaves(shape.elementLeaves, actual) ||
+          !equivalentFields(shape.elementFields, recursiveElementFields(to.vec.head, shape.sourceLocation))) {
         fail(
           "SPINAL-ELAB-VEC-CLONE-SHAPE-MISMATCH",
           "typed Vec clone changed its logical element layout",
@@ -792,6 +1261,14 @@ object ParameterizedVec {
           shape.sourceLocation.orElse(projected.sourceLocation)
         )
       }
+      vector.vec(index).flatten.zipWithIndex.foreach { case (leaf, leafIndex) =>
+        leaf.compositeAssign match {
+          case existing: ParameterizedVecStaticAccessAssign
+              if existing.captures(vector, index, leafIndex) =>
+          case previous =>
+            leaf.compositeAssign = new ParameterizedVecStaticAccessAssign(vector, index, leafIndex, leaf, previous)
+        }
+      }
       append(
         vector,
         ParameterizedVecStaticIndex(
@@ -800,6 +1277,51 @@ object ParameterizedVec {
           shape.sourceLocation
         )
       )
+    }
+  }
+
+  private[core] def recordStaticWrite(
+      vector: Vec[_],
+      elementIndex: Int,
+      elementLeafIndex: Int,
+      selected: BaseType,
+      source: AnyRef,
+      target: Expression,
+      assignments: Vector[DataAssignmentStatement],
+      writes: Vector[ParameterizedVecWriteInvocation],
+      kind: AnyRef
+  ): Vector[ParameterizedVecOperation] = shapeOf(vector).toVector.flatMap { shape =>
+    val delegated = distinctAssignments(writes.flatMap(value => writeAssignments(value.operation)))
+    val terminal = distinctAssignments(assignments ++ delegated)
+    if (terminal.exists(_.finalTarget ne selected)) {
+      if (writes.isEmpty || terminal.isEmpty ||
+          !writes.forall(_.selected eq selected) ||
+          terminal.size != delegated.size || !terminal.forall(value => delegated.exists(_ eq value)))
+        fail("SPINAL-ELAB-VEC-WRITE-FORWARDING-MISMATCH",
+          "static Vec write lost its exact delegated scalar invocation and terminal assignment inventory", shape.sourceLocation)
+      val operation = ParameterizedVecForwardedStaticWrite(elementIndex, elementLeafIndex,
+        selected, source, target, terminal, terminal.map(_.source), terminal.map(_.target),
+        capturedConditions(DslScopeStack.get), writes, kindName(kind), shape.sourceLocation)
+      append(vector, operation)
+      Vector(operation)
+    } else terminal.map { assignment =>
+      // Preserve external scalar source identities. A source inside this Vec
+      // already belongs to its exact carrier inventory: pinning that one leaf
+      // would turn an otherwise fully simplified internal copy chain into a
+      // partially retained aggregate. Publication still requires every exact
+      // carrier and validates the captured source identity whenever the Vec
+      // survives native simplification.
+      assignment.source match {
+        case value: BaseType
+            if !vector.vec.exists(_.asInstanceOf[Data].flatten.exists(_ eq value)) =>
+          value.dontSimplifyIt()
+        case _ =>
+      }
+      val operation = ParameterizedVecStaticWrite(elementIndex, elementLeafIndex, selected,
+        assignment, assignment.source, assignment.target,
+        capturedConditions(assignment.parentScope), kindName(kind), shape.sourceLocation)
+      append(vector, operation)
+      operation
     }
   }
 
@@ -875,17 +1397,36 @@ object ParameterizedVec {
       // Keep each exact typed mux result addressable so publication can consume
       // its retained assignment identity. This prevents native optimization
       // from coalescing it with an unrelated expression or procedural block.
+      // Retain unused sibling leaves too: selecting one Bundle field must not
+      // partially erase the exact native read evidence for the other fields.
+      // Stale/replaced assignments still fail the publication identity audit.
       // The ordinary concrete Vec path has no retained shape and is unchanged.
-      result.flatten.foreach(_.dontSimplifyIt())
+      // Native pruning protects a vital scalar only when it is named. Give
+      // the exact result aggregate a weak name so nested field ownership still
+      // supplies readable leaf names and later user naming remains stronger.
+      result.setName("morphhdl_typed_vec_access_result", weak = true)
+      result.flatten.foreach(_.dontSimplifyIt().setAsVital())
+      val assignments = assignmentStatementsOf(result)
+      val selections = assignments.collect { case assignment if assignment.source.isInstanceOf[Multiplexer] =>
+        assignment.source.asInstanceOf[Multiplexer].select
+      }.foldLeft(Vector.empty[Expression]) { (known, selection) =>
+        if (known.exists(_ eq selection)) known else known :+ selection
+      }
+      val readSelect = if (shape.carrierCapacity <= 1) None else selections match {
+        case Vector(selection: UInt) if selection ne address =>
+          val drivers = assignmentStatementsOf(selection).filter(_.finalTarget eq selection)
+          if (drivers.size != 1) {
+            fail("SPINAL-ELAB-VEC-READ-SELECT-EVIDENCE-MISMATCH",
+              "typed Vec read lost its exact single native carrier-select driver", shape.sourceLocation)
+          }
+          Some(ParameterizedVecReadSelect(selection, drivers, drivers.map(_.source), log2Up(shape.carrierCapacity)))
+        case _ =>
+          fail("SPINAL-ELAB-VEC-READ-SELECT-EVIDENCE-MISMATCH",
+            "typed Vec read lost its exact distinct per-access native select identity", shape.sourceLocation)
+      }
       append(
         vector,
-        ParameterizedVecDynamicAccess(
-          address,
-          result,
-          assignmentStatementsOf(result),
-          writable,
-          shape.sourceLocation
-        )
+        ParameterizedVecDynamicAccess(address, result, assignments, writable, readSelect, shape.sourceLocation)
       )
     }
 
@@ -898,10 +1439,14 @@ object ParameterizedVec {
       enables: Seq[Bool],
       targets: Seq[BaseType],
       elementLeafIndex: Int,
+      selected: BaseType,
+      source: AnyRef,
+      target: Expression,
       assignments: Vector[DataAssignmentStatement],
+      forwarding: Vector[(WhenStatement, Vector[ParameterizedVecWriteInvocation])],
       kind: AnyRef
-  ): Unit =
-    shapeOf(vector).foreach { shape =>
+  ): Option[ParameterizedVecOperation] =
+    shapeOf(vector).map { shape =>
       if (elementLeafIndex < 0 || elementLeafIndex >= shape.elementLeaves.size) {
         fail(
           "SPINAL-ELAB-VEC-DYNAMIC-WRITE-LAYOUT-MISMATCH",
@@ -913,7 +1458,8 @@ object ParameterizedVec {
         carrierAddress == null || decoderOne == null || decoder == null ||
         enables.size != decoder.getBitsWidth ||
         enables.size < shape.carrierCapacity ||
-        targets.size != shape.carrierCapacity
+        targets.size != shape.carrierCapacity ||
+        forwarding.size != targets.size
       ) {
         fail(
           "SPINAL-ELAB-VEC-DYNAMIC-WRITE-GUARD-MISMATCH",
@@ -980,11 +1526,53 @@ object ParameterizedVec {
           shape.sourceLocation
         )
       }
+      val delegated = distinctAssignments(forwarding.flatMap(_._2).flatMap(value => writeAssignments(value.operation)))
+      val terminal = distinctAssignments(assignments ++ delegated)
+      val isForwarded = targets.exists(value => terminal.count(_.finalTarget eq value) != 1)
+      val operation: ParameterizedVecOperation = if (isForwarded) {
+        if (terminal.isEmpty || terminal.size != delegated.size ||
+            !terminal.forall(value => delegated.exists(_ eq value)))
+          fail("SPINAL-ELAB-VEC-WRITE-FORWARDING-MISMATCH",
+            "dynamic Vec write lost its complete delegated terminal assignment inventory", shape.sourceLocation)
+        val guards = targets.zip(enables).zip(forwarding).zipWithIndex.map {
+          case (((selectedTarget, enable), (guard, writes)), elementIndex) =>
+            val enableAssignments = assignmentStatementsOf(enable).filter(_.finalTarget eq enable)
+            val exactEnable = enableAssignments match {
+              case Vector(driver) => driver.source match {
+                case access: UIntBitAccessFixed => (access.source eq decoder) && access.bitId == elementIndex
+                case _ => false
+              }
+              case _ => false
+            }
+            def guarded(assignment: DataAssignmentStatement): Boolean = {
+              var scope = assignment.parentScope
+              while (scope != null && scope.parentStatement != null) {
+                if (scope.parentStatement eq guard) return scope eq guard.whenTrue
+                scope = scope.parentStatement.parentScope
+              }
+              false
+            }
+            val children = distinctAssignments(writes.flatMap(value => writeAssignments(value.operation)))
+            val guardedTerminals = terminal.filter(guarded)
+            if (!exactEnable || guard == null || (guard.cond ne enable) || writes.isEmpty ||
+                !writes.forall(_.selected eq selectedTarget) || children.isEmpty ||
+                children.size != guardedTerminals.size || !children.forall(value => guardedTerminals.exists(_ eq value)))
+              fail("SPINAL-ELAB-VEC-DYNAMIC-WRITE-GUARD-MISMATCH",
+                s"forwarded dynamic Vec write carrier element $elementIndex lost its exact decoder-bit When subtree and invocation inventory",
+                shape.sourceLocation)
+            ParameterizedVecForwardedDynamicWriteGuard(elementIndex, selectedTarget, enable,
+              enableAssignments, guard, capturedWriteConditions(guard), writes)
+        }.toVector
+        ParameterizedVecForwardedDynamicWrite(address, carrierAddress, carrierAddressAssignments,
+          decoderOne, decoderOneAssignments, decoder, decoderAssignments, guards, elementLeafIndex,
+          selected, source, target, terminal, terminal.map(_.source), terminal.map(_.target),
+          kindName(kind), shape.sourceLocation)
+      } else {
       val guards = targets
         .zip(enables)
         .zipWithIndex
         .map { case ((target, enable), elementIndex) =>
-          val matching = assignments.filter(_.finalTarget eq target)
+          val matching = terminal.filter(_.finalTarget eq target)
           val enableAssignments = assignmentStatementsOf(enable)
             .filter(_.finalTarget eq enable)
           val exactEnable = enableAssignments match {
@@ -1016,12 +1604,11 @@ object ParameterizedVec {
             enable,
             enableAssignments,
             parentWhen.get,
-            matching.head
+            matching.head,
+            capturedWriteConditions(parentWhen.get)
           )
         }
         .toVector
-      append(
-        vector,
         ParameterizedVecDynamicWrite(
           address,
           carrierAddress,
@@ -1032,12 +1619,43 @@ object ParameterizedVec {
           decoderAssignments,
           guards,
           elementLeafIndex,
-          assignments,
+          terminal,
           kindName(kind),
           shape.sourceLocation
         )
-      )
+      }
+      append(vector, operation)
+      operation
     }
+
+  private def capturedWriteConditions(
+      guard: WhenStatement
+  ): Vector[ParameterizedVecWriteCondition] = {
+    capturedConditions(guard.parentScope)
+  }
+
+  private def capturedConditions(
+      initialScope: spinal.core.internals.ScopeStatement
+  ): Vector[ParameterizedVecWriteCondition] = {
+    val conditions = ArrayBuffer.empty[ParameterizedVecWriteCondition]
+    var scope = initialScope
+    var complete = false
+    while (scope != null && scope.parentStatement != null && !complete) {
+      scope.parentStatement match {
+        case parent: WhenStatement =>
+          // Preserve this exact Bool identity through ordinary alias cleanup.
+          // Publication still validates the native condition and scope graph.
+          parent.cond match {
+            case value: Bool => value.dontSimplifyIt()
+            case _ =>
+          }
+          conditions += ParameterizedVecWriteCondition(parent, parent.cond, scope eq parent.whenTrue)
+          scope = parent.parentScope
+        case _ => complete = true // Unsupported ownership remains fail-closed at publication.
+      }
+    }
+    conditions.reverse.toVector
+  }
 
   private[spinal] def requireCompatible(
       target: Vec[_],
@@ -1096,7 +1714,8 @@ object ParameterizedVec {
   private def exactPackedReadLeaves(
       root: Expression,
       expected: Vector[BaseType],
-      blocked: BaseType
+      blocked: BaseType,
+      supportAssignments: ArrayBuffer[DataAssignmentStatement]
   ): Option[Vector[BaseType]] = {
     val expectedSet = new IdentityHashMap[BaseType, java.lang.Boolean]()
     expected.foreach(leaf => expectedSet.put(leaf, java.lang.Boolean.TRUE))
@@ -1123,6 +1742,7 @@ object ParameterizedVec {
           if (drivers.size == 1) {
             val proof = trace(drivers.head.source)
             proof.foreach { _ =>
+              if (!supportAssignments.exists(_ eq drivers.head)) supportAssignments += drivers.head
               // Preserve only an intermediate already proven to be on this
               // exact native packing path.  Otherwise native alias folding can
               // give it the emitted name of an unrelated multi-driver leaf,
@@ -1145,13 +1765,14 @@ object ParameterizedVec {
       vector: Vec[_],
       carrier: Bits,
       assignments: Vector[DataAssignmentStatement],
-      shape: ParameterizedVecShape
+      shape: ParameterizedVecShape,
+      supportAssignments: ArrayBuffer[DataAssignmentStatement]
   ): Vector[BaseType] = {
     val expected = vector.vec.flatMap(element => element.asInstanceOf[Data].flatten).toVector
     val drivers = assignments.filter(_.finalTarget eq carrier)
     val actual =
       if (drivers.size == 1)
-        exactPackedReadLeaves(drivers.head.source, expected, carrier)
+        exactPackedReadLeaves(drivers.head.source, expected, carrier, supportAssignments)
       else None
     if (
       actual.isEmpty || actual.get.size != expected.size ||
@@ -1324,11 +1945,13 @@ object ParameterizedVec {
               .dontSimplifyIt()
               .setAsVital()
         val carrierAssignments = assignmentStatementsOf(carrier)
+        val supportAssignments = ArrayBuffer.empty[DataAssignmentStatement]
         val carrierLeaves = validatePackedReadCarrierLineage(
           vector,
           carrier,
           carrierAssignments,
-          shape
+          shape,
+          supportAssignments
         )
         val resultAssignments = assignmentStatementsOf(result)
         if (result ne carrier) {
@@ -1362,7 +1985,8 @@ object ParameterizedVec {
             resultAssignments,
             carrierAssignments,
             carrierLeaves,
-            shape.sourceLocation
+            shape.sourceLocation,
+            supportAssignments.toVector
           )
         )
         result
@@ -1386,7 +2010,7 @@ object ParameterizedVec {
           "typed Vec packed assignment requires a non-null Bits source",
           targetShape.sourceLocation
         )
-      packedShapeOf(source) match {
+      exactPackedSource(source).map(_._1) match {
         case Some(sourceShape) if equivalentShape(targetShape, sourceShape) =>
         case Some(sourceShape) =>
           fail(
@@ -1421,6 +2045,43 @@ object ParameterizedVec {
           }
       }
     }
+
+  /** Follow only complete, unconditional, same-owner native Bits copies.
+    * The returned assignment identities are frozen into the consuming Vec
+    * operation and re-audited before publication; width coincidence is never
+    * used to discover an alias.
+    */
+  private def exactPackedSource(
+      source: Bits
+  ): Option[(ParameterizedVecShape, Vector[ParameterizedVecPackedSourceAlias])] = {
+    val visited = new IdentityHashMap[Bits, java.lang.Boolean]()
+    def visit(value: Bits): Option[(ParameterizedVecShape, Vector[ParameterizedVecPackedSourceAlias])] = {
+      if (value == null || visited.put(value, java.lang.Boolean.TRUE) != null) return None
+      directPackedShapeOf(value) match {
+        case Some(shape) => Some(shape -> Vector.empty)
+        case None if !value.isReg && value.component != null =>
+          val drivers = assignmentStatementsOf(value).filter(_.finalTarget eq value)
+          drivers match {
+            case Vector(driver) if (driver.target eq value) && (driver.parentScope eq value.component.dslBody) =>
+              driver.source match {
+                case upstream: Bits if upstream.component eq value.component =>
+                  visit(upstream).filter { case (shape, _) =>
+                    !value.isFixedWidth || (for {
+                      width <- ParameterizedWidth.expressionOf(value)
+                      expected <- expectedPackedWidth(shape)
+                    } yield equivalentPackedWidth(width, expected)).getOrElse(false)
+                  }.map { case (shape, aliases) =>
+                    shape -> (ParameterizedVecPackedSourceAlias(value, upstream, driver) +: aliases)
+                  }
+                case _ => None
+              }
+            case _ => None
+          }
+        case _ => None
+      }
+    }
+    visit(source)
+  }
 
   private[spinal] def recordPackedAssignment(
       vector: Vec[_],
@@ -1467,6 +2128,11 @@ object ParameterizedVec {
         assignments,
         shape
       )
+      val sourceAliases = exactPackedSource(source).map(_._2).getOrElse(Vector.empty)
+      sourceAliases.foreach { alias =>
+        alias.target.dontSimplifyIt()
+        alias.source.dontSimplifyIt()
+      }
       append(
         vector,
         ParameterizedVecPackedAssignment(
@@ -1475,7 +2141,8 @@ object ParameterizedVec {
           assignments,
           carrierAssignments,
           slices,
-          shape.sourceLocation
+          shape.sourceLocation,
+          sourceAliases
         )
       )
     }
@@ -1546,7 +2213,7 @@ object ParameterizedVec {
   private def expectedPackedWidth(
       shape: ParameterizedVecShape
   ): Option[ElaborationIntegerExpression] = {
-    val expressions = shape.depth +: shape.elementLayout.expressions
+    val expressions = shape.geometryExpressions
     val roots = expressions
       .flatMap(_.completedParameterRoots)
       .foldLeft(
@@ -1584,6 +2251,7 @@ object ParameterizedVec {
       left.witnessDepth == right.witnessDepth &&
       left.carrierCapacity == right.carrierCapacity &&
       equivalentLeaves(left.elementLeaves, right.elementLeaves) &&
+      equivalentFields(left.elementFields, right.elementFields) &&
       ParameterizedVecElementLayout.equivalent(left.elementLayout.root, right.elementLayout.root)
 
   /** Recover one parent-side formal actual from two exact corresponding Vec
@@ -1613,6 +2281,7 @@ object ParameterizedVec {
     if (
       canonical.witnessDepth != actual.witnessDepth ||
       canonical.carrierCapacity != actual.carrierCapacity ||
+      !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
       !ParameterizedVecElementLayout.equivalentWith(canonical.elementLayout.root, actual.elementLayout.root)((_, _) => true) ||
       !canonical.elementLeaves.zip(actual.elementLeaves).forall { case (left, right) =>
@@ -1621,9 +2290,7 @@ object ParameterizedVec {
       }
     ) return None
 
-    val dimensions =
-      (canonical.depth -> actual.depth) +:
-        canonical.elementLayout.expressions.zip(actual.elementLayout.expressions)
+    val dimensions = canonical.geometryExpressions.zip(actual.geometryExpressions)
     val retainedCanonical = formalBindingsOf(canonicalVector).filter(binding => binding.formal eq canonicalFormal)
     val retainedActual = formalBindingsOf(actualVector).filter(binding => binding.formal eq actualFormal)
     if (
@@ -1680,6 +2347,7 @@ object ParameterizedVec {
     if (
       canonical.witnessDepth != actual.witnessDepth ||
       canonical.carrierCapacity != actual.carrierCapacity ||
+      !equivalentFieldLayout(canonical.elementFields, actual.elementFields) ||
       canonical.elementLeaves.size != actual.elementLeaves.size ||
       !ParameterizedVecElementLayout.equivalentWith(canonical.elementLayout.root, actual.elementLayout.root)((_, _) => true) ||
       !canonical.elementLeaves.zip(actual.elementLeaves).forall { case (left, right) =>
@@ -1688,9 +2356,7 @@ object ParameterizedVec {
       }
     ) return None
 
-    val dimensions =
-      (canonical.depth -> actual.depth) +:
-        canonical.elementLayout.expressions.zip(actual.elementLayout.expressions)
+    val dimensions = canonical.geometryExpressions.zip(actual.geometryExpressions)
     if (
       !dimensions.forall { case (definition, instance) =>
         ElabInt.equivalentExactFunction(definition, instance)
@@ -1806,6 +2472,12 @@ object ParameterizedVec {
         parentShape.depth,
         bindings
       ) &&
+      equivalentFieldLayout(childShape.elementFields, parentShape.elementFields) &&
+      childShape.elementFields.zip(parentShape.elementFields).forall { case (childField, parentField) =>
+        childField.geometryExpressions.zip(parentField.geometryExpressions).forall { case (childExpression, parentExpression) =>
+          equivalentBoundaryExpression(childExpression, parentExpression, bindings)
+        }
+      } &&
       ParameterizedVecElementLayout.equivalentWith(childShape.elementLayout.root, parentShape.elementLayout.root) {
         (childExpression, parentExpression) => equivalentBoundaryExpression(childExpression, parentExpression, bindings)
       } &&
@@ -1916,6 +2588,36 @@ object ParameterizedVec {
           rootValue == result
         }
       }
+
+  private def equivalentFieldLayout(
+      left: Vector[ParameterizedVecFieldShape],
+      right: Vector[ParameterizedVecFieldShape]
+  ): Boolean = left.size == right.size && left.zip(right).forall { case (l, r) =>
+    l.path == r.path && (l.typeObject eq r.typeObject) &&
+      l.carrierLeafIndices == r.carrierLeafIndices &&
+      l.dimensions.size == r.dimensions.size &&
+      l.dimensions.zip(r.dimensions).forall { case (ld, rd) =>
+        ld.witnessDepth == rd.witnessDepth && ld.carrierCapacity == rd.carrierCapacity
+      }
+  }
+
+  private def equivalentFieldGeometry(
+      left: ParameterizedVecFieldShape,
+      right: ParameterizedVecFieldShape
+  ): Boolean =
+    left.path == right.path && (left.typeObject eq right.typeObject) &&
+      ElabInt.equivalentExactFunction(left.width, right.width) &&
+      left.dimensions.size == right.dimensions.size &&
+      left.dimensions.zip(right.dimensions).forall { case (l, r) =>
+        l.witnessDepth == r.witnessDepth && l.carrierCapacity == r.carrierCapacity &&
+          ElabInt.equivalentExactFunction(l.depth, r.depth)
+      }
+
+  private def equivalentFields(
+      left: Vector[ParameterizedVecFieldShape],
+      right: Vector[ParameterizedVecFieldShape]
+  ): Boolean = equivalentFieldLayout(left, right) &&
+    left.zip(right).forall { case (l, r) => equivalentFieldGeometry(l, r) }
 
   private def equivalentLeaves(
       left: Vector[ParameterizedVecLeafShape],

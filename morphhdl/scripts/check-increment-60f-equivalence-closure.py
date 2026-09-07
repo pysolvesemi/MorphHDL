@@ -298,9 +298,9 @@ def qualification_ancestry(root: Path) -> None:
 
 
 def profile_features(profile: str) -> frozenset[str]:
-    names = ("wa07a", "59d", "59e", "59f")
+    names = ("wa07a", "59d", "59e", "59f", "59c")
     profiles = {"60f-baseline": frozenset()}
-    for mask in range(1, 16):
+    for mask in range(1, 32):
         selected = tuple(name for index, name in enumerate(names) if mask & (1 << index))
         if "59e" in selected and "59f" not in selected:
             continue
@@ -353,6 +353,17 @@ def integration_59d59f(root: Path) -> dict[str, str]:
     return hashes
 
 
+def named_source_review(root: Path):
+    checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59c-source-review.json"
+    marker = root / "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala"
+    if checker.exists() or contract.exists() or marker.exists():
+        require(checker.is_file() and contract.is_file(),
+                "59c source-review checker or contract is missing")
+        return load(root, "59c-source-review")
+    return None
+
+
 def production_profile(root: Path) -> str:
     """Select a complete reviewed source union before consulting any reports."""
     def git(*args: str) -> bytes:
@@ -363,11 +374,20 @@ def production_profile(root: Path) -> str:
                 if re.search(rb"(?:^|/)src/main/", path)}
 
     qualification_ancestry(root)
+    named = named_source_review(root)
+    if named is not None:
+        named.verify_spans(root)
     historical = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, QUALIFIED_60F))
     require(not historical, "qualified 60f must remain production-zero: " + str(sorted(historical)))
     untracked = production_paths(git("ls-files", "--others", "-z"))
     require(not untracked, "untracked production sources: " + str(sorted(untracked)))
     changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE))
+    if named is not None:
+        # Source qualification above binds the entire current 59c delta to the
+        # completed sibling tree. Audit that exact inherited view below.
+        inherited_changed = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, named.BASE))
+        changed = (changed - named.PRODUCTION_PATHS) | (inherited_changed & named.PRODUCTION_PATHS)
+
     wa, widths, composites, callbacks = (set(WA07A_PRODUCTION_SHA256), set(INCREMENT_59D_PRODUCTION_PATHS),
                                          set(COMPOSITE_59E_PRODUCTION_SHA256), set(CALLBACK_59F_PRODUCTION_SHA256))
     require(wa and widths and composites and callbacks and not wa & (widths | composites | callbacks),
@@ -442,7 +462,10 @@ def production_profile(root: Path) -> str:
         require(source.is_file(), diagnostic + path)
         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
-        require(hashlib.sha256(source.read_bytes()).hexdigest() == digest, diagnostic + path)
+        source_bytes = source.read_bytes()
+        if named is not None and path in named.PRODUCTION_PATHS:
+            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
+        require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "reviewed production source is not uniquely tracked: " + path)
@@ -454,7 +477,9 @@ def production_profile(root: Path) -> str:
                              ("unstaged", ("diff", "--no-renames", "--name-only", "-z"))):
         dirty = production_paths(git(*arguments))
         require(not dirty, label + " production sources: " + str(sorted(dirty)))
-    return profile
+    if named is not None:
+        named.verify(root)
+    return profile + "-and-59c" if named is not None else profile
 
 
 def regression_profile(root: Path) -> str:
@@ -501,6 +526,10 @@ def source_scope(root: Path) -> None:
     # production union is still mandatory after all historical source audits.
     qualification_ancestry(root)
     qualification_interval(root, BASE, COMPLETED_60F)
+    named = named_source_review(root)
+    if named is not None:
+        named.verify_spans(root)
+
     reviewed = reviewed_59d(root) if (root / "morphhdl/contracts/increment-59d-production-review.json").is_file() else None
     frozen = [
         "morphhdl/scripts/check-increment-60a-sint-baseline.py",
@@ -519,6 +548,8 @@ def source_scope(root: Path) -> None:
     for path in frozen:
         old = subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
         current = (root / path).read_bytes()
+        if named is not None and path in named.PATHS:
+            current = named.restore_source(root, path, current.decode()).encode()
         if reviewed is not None:
             for edit in reversed([edit for edit in reviewed["checker_edits"] if edit["path"] == path]):
                 before, after = edit["before"].encode(), edit["after"].encode()

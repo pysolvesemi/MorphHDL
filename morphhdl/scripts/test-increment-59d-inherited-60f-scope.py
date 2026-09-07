@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import hashlib
 import subprocess
 import sys
@@ -54,6 +55,17 @@ def commit(root: Path, *paths: str) -> None:
 
 
 def main() -> None:
+    if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
+        # Current 59c source audits remain mandatory. Replaced exact mutation
+        # targets are exercised by their unchanged qualified historical fixture.
+        helper = ROOT / "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
+        spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.frozen_inherited_fixture(
+            ROOT, "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py", "target/increment-59d-inherited-60f-scope",
+            lambda: [checked(ROOT, "current descendant through complete 59c and inherited source audits")], "exact negative inherited 60f source-scope cases")
+        return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "working reviewed descendant")]
     has_callbacks = (ROOT / "morphhdl/scripts/check-increment-59f-source-scope.py").is_file()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import subprocess
 from pathlib import Path
@@ -63,6 +64,19 @@ def require(ok: bool, detail: str) -> None:
 
 def digest(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def current_inherited_source(root: Path, path: str) -> str:
+    """Remove only the exact reviewed 59c layer before frozen sibling audits."""
+    source = (root / path).read_text()
+    checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    if checker.exists():
+        spec = importlib.util.spec_from_file_location("named_59c_scope", checker)
+        require(spec is not None and spec.loader is not None, "cannot import reviewed 59c source scope")
+        named = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(named)
+        source = named.restore_source(root, path, source)
+    return source
 
 
 def contract(root: Path) -> dict:
@@ -246,7 +260,8 @@ def reviewed_59d59e_packing(root: Path) -> dict[str, str]:
                 tuple(edit.get("id") for edit in entry["edits"]) == PACKING_59DE_IDS[entry["path"]] and
                 all(set(edit) == {"id", "before", "after"} and edit["before"] and edit["after"]
                     for edit in entry["edits"]), "59d/59e packing restoration spans changed")
-        source = regular_tracked(entry["path"], "source").read_text()
+        regular_tracked(entry["path"], "source")
+        source = current_inherited_source(root, entry["path"])
         require(digest(source) == entry["after_sha256"], "59d/59e reviewed packing source changed")
         restored = source
         for edit in reversed(entry["edits"]):
@@ -330,7 +345,7 @@ def source_scope(root: Path) -> None:
     restore = (restore_59d_then_59f_source if (root / REVIEW_59D).exists()
                else restore_59f_source)
     for path in sorted(PATHS):
-        restore(root, path, (root / path).read_text())
+        restore(root, path, current_inherited_source(root, path))
     print("59f exact reviewed publisher spans and complete before/after blobs PASS", flush=True)
 
 

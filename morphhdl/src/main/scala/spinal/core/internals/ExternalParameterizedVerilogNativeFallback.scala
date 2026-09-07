@@ -1895,7 +1895,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
-            (value.resultAssignments ++ value.carrierAssignments)
+            (value.resultAssignments ++ value.carrierAssignments ++ value.supportAssignments)
               .foreach(assignment => retained.put(assignment, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment =>
             (value.assignments ++ value.carrierAssignments)
@@ -1917,6 +1917,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead if value.carrier ne value.result =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+          case value: ParameterizedVecPackedRead =>
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment if value.carrier ne value.source =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
           case _ =>
