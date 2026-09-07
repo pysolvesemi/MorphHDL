@@ -29,13 +29,19 @@ object PassId {
   val NamedWireAliasElimination: PassId = unsafe("wire-alias-named")
   val UnnamedWireExpressionElimination: PassId =
     unsafe("wire-expression-unnamed")
+  val ConstantOperandSimplification: PassId =
+    unsafe("constant-operand-simplification")
 
-  /** The only production order when the common pass flag is enabled. */
-  val allWireAssignmentPasses: Vector[PassId] = Vector(
+  /** Historical WA-07 order retained only for independent regression evidence. */
+  val historicalWireAssignmentPasses: Vector[PassId] = Vector(
     UnnamedWireAliasElimination,
     NamedWireAliasElimination,
     UnnamedWireExpressionElimination
   )
+
+  /** The only production order when the common pass flag is enabled. */
+  val allWireAssignmentPasses: Vector[PassId] =
+    historicalWireAssignmentPasses :+ ConstantOperandSimplification
 }
 
 /** Opaque identity supplied by the canonical MorphHDL IR adapter in WA-02. */
@@ -95,7 +101,6 @@ final case class PassDiagnostic(
   * [[PassId.allWireAssignmentPasses]]. There is deliberately no public flag for
   * selecting one production pass independently.
   */
-
 final class WireAliasPassConfiguration private (
     val enabled: Boolean,
     private[morphhdl] val regressionSelection: Option[Vector[PassId]]
@@ -106,7 +111,6 @@ final class WireAliasPassConfiguration private (
 
   def isEnabled(passId: PassId): Boolean = enabledPasses.contains(passId)
   def isDisabled: Boolean = enabledPasses.isEmpty
-
 
   override def equals(other: Any): Boolean = other match {
     case value: WireAliasPassConfiguration =>
@@ -126,8 +130,8 @@ object WireAliasPassConfiguration {
     new WireAliasPassConfiguration(enabled, None)
 
   /**
-    * Internal-only selection used to keep the historical WA-04, WA-05 and
-    * WA-06 individual proof legs executable. Product callers cannot access it.
+    * Internal-only selection used to keep historical individual proof legs
+    * executable. Product callers cannot access it.
     */
   private[morphhdl] def selectedForTesting(
       passes: PassId*
@@ -185,6 +189,18 @@ final case class EliminatedWireExpression(
     copy(referencedSymbols = referencedSymbols.distinct.sortBy(_.value))
 }
 
+/** One local expression rewrite; this is not a removed wire or assignment. */
+final case class SimplifiedExpression(
+    moduleIdentity: String,
+    driverIdentity: String,
+    expressionPath: String,
+    rule: String
+) {
+  require(Vector(moduleIdentity, driverIdentity, expressionPath, rule)
+    .forall(value => Option(value).exists(_.trim.nonEmpty)),
+    "expression rewrite identities, path and rule must be non-empty")
+}
+
 /** Candidate retained because one or more safety conditions were not proven. */
 final case class RejectedWireAlias(
     aliasSymbol: IrSymbolId,
@@ -202,12 +218,14 @@ final case class EliminationReport(
     passId: PassId,
     eliminated: Vector[EliminatedWireAlias] = Vector.empty,
     eliminatedExpressions: Vector[EliminatedWireExpression] = Vector.empty,
-    rejected: Vector[RejectedWireAlias] = Vector.empty
+    rejected: Vector[RejectedWireAlias] = Vector.empty,
+    simplifiedExpressions: Vector[SimplifiedExpression] = Vector.empty
 ) {
   def eliminatedCount: Int = eliminated.size + eliminatedExpressions.size
+  def simplifiedCount: Int = simplifiedExpressions.size
+  def changedCount: Int = eliminatedCount + simplifiedCount
   def rejectedCount: Int = rejected.size
-  def isEmpty: Boolean =
-    eliminated.isEmpty && eliminatedExpressions.isEmpty && rejected.isEmpty
+  def isEmpty: Boolean = changedCount == 0 && rejected.isEmpty
 
   def normalized: EliminationReport =
     copy(
@@ -215,7 +233,9 @@ final case class EliminationReport(
       eliminatedExpressions = eliminatedExpressions
         .map(_.normalized)
         .sortBy(EliminationReport.expressionKey),
-      rejected = rejected.sortBy(EliminationReport.rejectedKey)
+      rejected = rejected.sortBy(EliminationReport.rejectedKey),
+      simplifiedExpressions = simplifiedExpressions.sortBy(value =>
+        (value.moduleIdentity, value.driverIdentity, value.expressionPath, value.rule))
     )
 }
 
@@ -314,12 +334,12 @@ final case class PassResult[A](
   )
 
   require(
-    status != PassExecutionStatus.Changed || eliminationReport.eliminatedCount > 0,
-    "a changed wire-assignment pass result must report eliminated evidence"
+    status != PassExecutionStatus.Changed || eliminationReport.changedCount > 0,
+    "a changed wire-assignment pass result must report transformation evidence"
   )
   require(
-    status == PassExecutionStatus.Changed || eliminationReport.eliminatedCount == 0,
-    "a non-changing wire-assignment pass result cannot report eliminated evidence"
+    status == PassExecutionStatus.Changed || eliminationReport.changedCount == 0,
+    "a non-changing wire-assignment pass result cannot report transformation evidence"
   )
   require(
     status.failed == hasErrorDiagnostic,

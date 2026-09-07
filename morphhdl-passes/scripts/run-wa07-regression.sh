@@ -76,6 +76,7 @@ sbt -batch \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala")' \
+  'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/ParameterizedStreamFifo.scala")' \
   'set morph / Test / unmanagedSources += file("morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala")' \
@@ -217,8 +218,8 @@ expected_all = [
 ]
 if all_passes.get("pass_id") != "+".join(expected_all):
     raise SystemExit("WA-07 all-pass report has the wrong pass id")
-if all_passes.get("common_flag_enabled") is not True:
-    raise SystemExit("WA-07 all-pass candidate was not controlled by the common flag")
+if all_passes.get("common_flag_enabled") is not False or all_passes.get("historical_regression_selection") is not True:
+    raise SystemExit("WA-07 historical candidate must not claim execution of the current four-pass flag")
 if all_passes.get("executed_passes") != expected_all:
     raise SystemExit("WA-07 all-pass order changed")
 if all_passes.get("procedural_receiver_rewrites") != 0:

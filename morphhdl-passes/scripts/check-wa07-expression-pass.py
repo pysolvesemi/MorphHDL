@@ -174,12 +174,13 @@ REQUIRED_EXPRESSION_BRIDGE_MARKERS: tuple[str, ...] = (
 
 REQUIRED_ALL_BRIDGE_MARKERS: tuple[str, ...] = (
     "final class AllWireAssignmentNativePhase extends Phase",
-    "WireAliasPassConfiguration(enabled = true)",
-    "PassId.allWireAssignmentPasses",
+    "WireAliasPassConfiguration.selectedForTesting",
+    "PassId.historicalWireAssignmentPasses",
     "unnamed.impl(pc)",
     "named.impl(pc)",
     "expression.impl(pc)",
     "common_flag_enabled",
+    "historical_regression_selection",
     "procedural_receiver_rewrites",
     "ParameterizedStreamFifoAllPassWitness",
 )
@@ -234,7 +235,7 @@ REQUIRED_README_MARKERS: tuple[str, ...] = (
 )
 
 ROADMAP_ENTRY = re.compile(
-    r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+)\s+—(?P<body>[\s\S]*?)(?=^- \[[ xX]\] \*\*WA-[0-9]+\s+—|\Z)",
+    r"^- \[(?P<checked>[ xX])\] \*\*(?P<id>WA-[0-9]+[a-z]?)\s+—(?P<body>[\s\S]*?)(?=^- \[[ xX]\] \*\*WA-[0-9]+[a-z]?\s+—|\Z)",
     re.MULTILINE,
 )
 PV58 = re.compile(r"^- \[[xX]\] \*\*Increment 58\s+—", re.MULTILINE)
@@ -300,19 +301,19 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
             failures.append(
                 f"{path}: WA07-STATUS: checked WA-07 must be COMPLETED"
             )
-        if "**Status:** `READY`" not in wa08_body:
-            failures.append(
-                f"{path}: WA07-NEXT-STATUS: completed WA-07 requires READY WA-08"
-            )
-    else:
-        if "**Status:** `IN PROGRESS`" not in wa07_body:
-            failures.append(
-                f"{path}: WA07-STATUS: open WA-07 must be IN PROGRESS"
-            )
-        if "**Status:** `BLOCKED`" not in wa08_body:
-            failures.append(
-                f"{path}: WA07-NEXT-STATUS: in-progress WA-07 requires BLOCKED WA-08"
-            )
+    elif "**Status:** `IN PROGRESS`" not in wa07_body:
+        failures.append(f"{path}: WA07-STATUS: open WA-07 must be IN PROGRESS")
+
+    wa07a_complete = True
+    if "WA-07a" in entries:
+        checked, body = entries["WA-07a"]
+        wa07a_complete = checked and "**Status:** `COMPLETED`" in body
+        expected = "COMPLETED" if checked else "IN PROGRESS"
+        if f"**Status:** `{expected}`" not in body or not wa07_checked:
+            failures.append(f"{path}: WA07-SUCCESSOR: WA-07a status or dependency is inconsistent")
+    next_status = "READY" if wa07_checked and wa07a_complete else "BLOCKED"
+    if f"**Status:** `{next_status}`" not in wa08_body:
+        failures.append(f"{path}: WA07-NEXT-STATUS: handoff requires {next_status} WA-08")
 
     required_scope = (
         "one `enabled` flag",
@@ -591,6 +592,20 @@ object ExpressionPass { def run(value: RtlExpr) = value }
         pv,
     ):
         raise AssertionError("unchecked completed WA-07 state was not rejected")
+
+    inserted = roadmap.replace("- [ ] **WA-08", "- [ ] **WA-07a — Constants**\n\n  **Status:** `IN PROGRESS`.\n\n- [ ] **WA-08")
+    if not roadmap_failures(Path("roadmap.md"), inserted, pv):
+        raise AssertionError("premature READY handoff with open WA-07a was accepted")
+    blocked = inserted.replace("**Status:** `READY`", "**Status:** `BLOCKED`")
+    if roadmap_failures(Path("roadmap.md"), blocked, pv):
+        raise AssertionError("authorized WA-07a prerequisite was not parsed separately")
+    if not roadmap_failures(Path("roadmap.md"), blocked.replace("- [ ] **WA-07a", "- [x] **WA-07a"), pv):
+        raise AssertionError("checked WA-07a without COMPLETED status was accepted")
+    completed = inserted.replace("- [ ] **WA-07a", "- [x] **WA-07a").replace("**Status:** `IN PROGRESS`", "**Status:** `COMPLETED`")
+    if roadmap_failures(Path("roadmap.md"), completed, pv):
+        raise AssertionError("READY handoff after completed WA-07a was rejected")
+    if not roadmap_failures(Path("roadmap.md"), completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv):
+        raise AssertionError("stale WA-07a dependency block was accepted")
 
     manifest = {
         "shared_witness": {
