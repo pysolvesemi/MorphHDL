@@ -100,6 +100,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
       private val admittedCounts: Set[Int]
   ) {
     val operatorClass: Option[Class[_]] = stages.flatMap(_.operators).headOption.map(_.operatorClass)
+    val hasLocalEnables: Boolean = stages.exists(_.bridges.exists(_.hasLocalEnables))
 
     def requireFreshness(): Unit = {
       if (ParameterizedVec.shapeOf(captured.vector).forall(_ ne captured.shape) ||
@@ -111,7 +112,10 @@ private[spinal] object TypedBalancedReductionStageReplay {
       resultEvidence.requireFreshness()
     }
 
-    /** Pipeline depth in enabled sampling edges of the one certified clock domain. */
+    /** Structural pipeline depth in enabled sampling edges of the one certified
+      * clock domain. Local data-dependent enables can stall individual rows;
+      * when hasLocalEnables is true this is a minimum depth, not a fixed
+      * transaction latency or a claim that every lane advances together. */
     def latencyFor(count: Int): Int = {
       requireFreshness()
       if (!admittedCounts.contains(count)) fail("COUNT", "count is outside the exact captured domain")
@@ -210,7 +214,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
         val added = currentStatements.filterNot(value => previousStatements.exists(_ eq value))
         if (added.exists(value => !callback.declarations.exists(_ eq value) &&
             !callback.assignments.exists(_ eq value) &&
-            !(schema.nonEmpty && callback.operands.size == 2 && value.isInstanceOf[WhenStatement])))
+            !((callback.operands.size == 1 || schema.nonEmpty) && value.isInstanceOf[WhenStatement])))
           fail("STATEMENT-EFFECT", "callback created a statement outside its recorded scalar data graph")
         previousStatements = currentStatements
         observations.foreach(_.apply())
