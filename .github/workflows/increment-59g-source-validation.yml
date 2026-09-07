@@ -1,0 +1,38 @@
+name: Pinned 59g integration source history
+
+on:
+  push:
+    branches: ['agent/increment-59g-source-validation']
+    paths: ['.github/workflows/increment-59g-source-validation.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  source-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Retain only the two approved ancestry closures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/59g-source-history
+          git cat-file -e d52978d825a3fef6005233da5c94530086ed5ff8^{commit}
+          git cat-file -e cba4717abc9192917d819e1f84cb246162488286^{commit}
+          git update-ref refs/heads/export-59g-paused d52978d825a3fef6005233da5c94530086ed5ff8
+          git update-ref refs/heads/export-59h-merged cba4717abc9192917d819e1f84cb246162488286
+          git bundle create target/59g-source-history/repository.bundle refs/heads/export-59g-paused refs/heads/export-59h-merged
+          git bundle verify target/59g-source-history/repository.bundle
+          git bundle list-heads target/59g-source-history/repository.bundle > target/59g-source-history/heads.txt
+          sha256sum target/59g-source-history/repository.bundle > target/59g-source-history/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-59g-pinned-source-history
+          path: target/59g-source-history
+          retention-days: 7
+          if-no-files-found: error
