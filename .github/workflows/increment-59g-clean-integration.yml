@@ -1,0 +1,84 @@
+name: Clean 59g integration recovery
+
+on:
+  push:
+    branches: ['agent/increment-59g-source-validation']
+    paths: ['.github/workflows/increment-59g-clean-integration.yml']
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Import the retained integration and incorporate the current base
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          export RECOVERY="$RUNNER_TEMP/59g-clean-recovery"
+          mkdir -p "$RECOVERY" target/59g-clean-evidence
+          curl --fail --location --retry 3 --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            https://api.github.com/repos/pysolvesemi/MorphHDL/actions/artifacts/10014940041/zip \
+            -o "$RECOVERY/source.zip"
+          echo "e86e0244f6aab4ea25c7fea26583bc343e750d26a50a6040f595dc57697e884c  $RECOVERY/source.zip" | sha256sum -c -
+          unzip -q "$RECOVERY/source.zip" -d "$RECOVERY/archive"
+          bundle="$RECOVERY/archive/59g-joint-evidence/repository.bundle"
+          git bundle verify "$bundle"
+          git fetch "$bundle" refs/heads/export-59g-joint
+          test "$(git rev-parse FETCH_HEAD)" = 1f951357f62836fc4c97436d32b4f46a61785142
+          test "$(git rev-parse FETCH_HEAD^{tree})" = 66a85201f901ce43420d7319edc9959b70fe49d3
+          git config user.name 'MorphHDL 59g integration'
+          git config user.email '59g-integration@users.noreply.github.com'
+          git checkout --detach FETCH_HEAD
+          git merge --no-edit '${{ github.sha }}'
+          git merge --no-edit 5db83983b42c71df4f43d6a7c37c5bd552cd96c5
+          git merge-base --is-ancestor 38eddd226837a48b028094585b5ce5eeae3439cd HEAD
+          git merge-base --is-ancestor 5db83983b42c71df4f43d6a7c37c5bd552cd96c5 HEAD
+          git rm -- .github/59g-integrate-reviewed-source.py \
+            .github/workflows/increment-59g-joint-source-validation.yml \
+            .github/workflows/increment-59g-resume-repair.yml \
+            .github/workflows/increment-59g-source-validation.yml \
+            .github/workflows/increment-59g-clean-integration.yml
+          git commit -m 'Remove temporary 59g repair and integration workflows'
+          git diff --check 5db83983b42c71df4f43d6a7c37c5bd552cd96c5 HEAD
+          git rev-parse HEAD > target/59g-clean-evidence/head.txt
+          git rev-parse HEAD^{tree} > target/59g-clean-evidence/tree.txt
+      - name: Retain the combined work on the existing staging branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote origin refs/heads/agent/increment-59g-source-validation | cut -f1)" = '${{ github.sha }}'
+          git push origin HEAD:refs/heads/agent/increment-59g-source-validation
+      - name: Check the exact combined source without nested staging copies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only \
+            > target/59g-clean-evidence/source-audit.log 2>&1 || { tail -n 30 target/59g-clean-evidence/source-audit.log; exit 1; }
+      - name: Preserve source and diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/59g-clean-evidence
+          git status --short > target/59g-clean-evidence/status.txt
+          git archive HEAD | gzip > target/59g-clean-evidence/source.tar.gz
+          git update-ref refs/heads/export-59g-clean HEAD
+          git bundle create target/59g-clean-evidence/repository.bundle refs/heads/export-59g-clean
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59g-clean-integration
+          path: target/59g-clean-evidence
+          retention-days: 14
+          if-no-files-found: error
