@@ -91,6 +91,31 @@ def main() -> int:
 """)
     controls["explicit_clock"] = prove(output / "explicit-clock", clock_sensitive)
 
+    # Different data inputs keep these two state cones distinct before
+    # canonicalization. Both still require a temporal PDR proof. GIA snapshots
+    # must permit exact-byte proof reuse and remain identical across runs.
+    isomorphic = miter("""
+  reg [1:0] a;
+  reg [1:0] b;
+  always @(posedge clk) begin
+    if (reset) begin a <= 0; b <= 0; end
+    else begin a <= a + data; b <= b + other; end
+  end
+  always @* if (phase == 2) begin
+    assume(clk); assume(!reset);
+    assert(a == 0); assert(b == 0);
+  end
+""").replace("input data)", "input data, input other)")
+    reused = prove(output / "isomorphic-snapshots", isomorphic, 2)
+    assert [row["representative_index"] for row in reused["properties"]] == [0, 0], reused
+    assert len(reused["unique_proofs"]) == 1, reused
+    assert reused["unique_proofs"][0]["proof_method"] == "abc-pdr", reused
+    assert reused["unique_proofs"][0]["verified_invariant"] is True, reused
+    repeated = prove(output / "isomorphic-snapshots-repeat", isomorphic, 2)
+    assert repeated == reused, "canonical snapshot evidence changed across identical runs"
+    controls["isomorphic_snapshot_reuse"] = reused
+    controls["isomorphic_snapshot_repeat"] = repeated
+
     original_compile = cones.compile_script
 
     # Preserve every formal statement even when its condition is repeated.

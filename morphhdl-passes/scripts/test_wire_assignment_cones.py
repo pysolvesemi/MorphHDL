@@ -274,6 +274,35 @@ class PortfolioEvidenceTests(unittest.TestCase):
                          [profile[0] for profile in cone.PDR_PROFILES])
         self.assertNotIn("-C ", (self.root / (cone.attempt_stem(0, 5) + "-prove.abc")).read_text())
 
+    def test_legacy_snapshot_writer_rejected_even_with_refreshed_artifact_hash(self):
+        self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
+        evidence = self.generate()
+        scripts = [self.root / "property-0000-isolate.abc",
+                   self.root / "property-0000-extract.abc"]
+        scripts.extend(self.root / (cone.attempt_stem(0, attempt) + "-prove.abc")
+                       for attempt in range(len(cone.PDR_PROFILES)))
+        for path in scripts:
+            original = path.read_text()
+            snapshots = [command.strip() for command in original.split(";")
+                         if command.strip().startswith("&w -u ")]
+            self.assertTrue(snapshots)
+            for snapshot in snapshots:
+                with self.subTest(script=path.name, snapshot=snapshot):
+                    legacy = original.replace("&get; " + snapshot,
+                                              snapshot.replace("&w -u ", "write_aiger -u "), 1)
+                    self.assertNotEqual(legacy, original)
+                    path.write_text(legacy)
+                    changed = json.loads(json.dumps(evidence))
+                    changed["artifacts"][path.name] = cone.digest(path)
+                    cone._write(self.root / "evidence.json", changed)
+                    try:
+                        with self.assertRaises(cone.ConeProofError):
+                            self.validate()
+                    finally:
+                        path.write_text(original)
+                        cone._write(self.root / "evidence.json", evidence)
+        self.assertEqual(self.validate(), evidence)
+
     def test_reuse_push_preserves_model_and_requires_previous_effort_limits(self):
         self.outcomes = (LIMIT_LOG, FRAME_LOG, LIMIT_LOG, HIGHER_LIMIT_LOG, GOOD_LOG)
         evidence = self.generate()
@@ -616,6 +645,27 @@ class CommandDiagnosticTests(unittest.TestCase):
 
 
 class ConeParsingTests(unittest.TestCase):
+    def test_every_snapshot_uses_separate_gia_workspace(self):
+        scripts = [(cone.isolation_script(0), 1)]
+        for sequential in (False, True):
+            scripts.append((cone.extraction_script(0, sequential), 3))
+            scripts.extend((cone.proof_script(0, normalize, 10, sequential, attempt), 2)
+                           for normalize in (False, True)
+                           for attempt in range(len(cone.PDR_PROFILES)))
+        for script, expected_count in scripts:
+            with self.subTest(script=script):
+                # Legacy SAIG serialization can abort before PDR. Check every
+                # execution path, including original-formula fallback attempts.
+                self.assertNotIn("write_aiger", script)
+                commands = [command.strip() for command in script.split(";")]
+                snapshots = [i for i, command in enumerate(commands)
+                             if command.startswith("&w ")]
+                self.assertEqual(len(snapshots), expected_count)
+                for i in snapshots:
+                    self.assertGreater(i, 0)
+                    self.assertEqual(commands[i - 1], "&get")
+                    self.assertTrue(commands[i].startswith("&w -u "))
+
     def test_strict_pdr_status(self):
         self.assertEqual(cone.validate_pdr_log(GOOD_LOG), "PASS")
         for bad in ("PASS", GOOD_LOG + GOOD_LOG, GOOD_LOG + "UNKNOWN\n", GOOD_LOG + "UNDECIDED\n",

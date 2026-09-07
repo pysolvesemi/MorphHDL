@@ -175,7 +175,7 @@ def zero_initialized_single(path: Path) -> dict[str, int]:
 def constant_false_certificate(path: Path) -> dict[str, Any] | None:
     """Certify only an exact unconstrained, zero-state, zero-gate false AIG.
 
-    ABC's canonical ``write_aiger -u`` has no symbols or comment text, only an
+    ABC's canonical GIA writer ``&w -u`` has no symbols or comment text, only an
     optional final ``c`` marker. Reject any extra body data instead of guessing
     where gates, symbols or comments end. Literal zero is false independently
     of every input; no reachability or initial-state premise is needed.
@@ -220,10 +220,19 @@ def canonical_name(index: int, proof: bool, attempt: int = 0) -> str:
             else property_stem(index) + "-canonical-extract.aig")
 
 
+def snapshot_commands(filename: str) -> str:
+    # Legacy `write_aiger -u` interleaves SAIG integer ranks and copied-node
+    # pointers in one union, causing process-dependent canonicalizer aborts.
+    # GIA computes the order before copying. &get updates its separate workspace
+    # and leaves the current ABC network used by normalization/PDR unchanged.
+    return f"&get; &w -u {filename}"
+
+
 def normalization_commands(index: int, sequential: bool, proof: bool, attempt: int = 0) -> str:
     canonical = canonical_name(index, proof, attempt)
     return ("&get; &trim -o; &put" + ("; scorr" if sequential else "")
-            + f"; dc2; &get; &w -u {canonical}; read_aiger {canonical}; dch; dc2")
+            + "; dc2; " + snapshot_commands(canonical)
+            + f"; read_aiger {canonical}; dch; dc2")
 
 
 def cone_commands(index: int, normalize: bool, sequential: bool = True, attempt: int = 0) -> str:
@@ -237,15 +246,15 @@ def cone_commands(index: int, normalize: bool, sequential: bool = True, attempt:
 
 def isolation_script(index: int) -> str:
     return (cone_commands(index, False, False)
-            + f"; write_aiger -u {property_stem(index)}-raw.aig\n")
+            + "; " + snapshot_commands(f"{property_stem(index)}-raw.aig") + "\n")
 
 
 def extraction_script(index: int, sequential: bool = True) -> str:
     stem = property_stem(index)
     return (cone_commands(index, False, sequential)
-            + f"; write_aiger -u {stem}-original.aig; "
-            + normalization_commands(index, sequential, False)
-            + f"; write_aiger -u {stem}-normalized.aig\n")
+            + "; " + snapshot_commands(f"{stem}-original.aig")
+            + "; " + normalization_commands(index, sequential, False)
+            + "; " + snapshot_commands(f"{stem}-normalized.aig") + "\n")
 
 
 def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = True,
@@ -262,7 +271,7 @@ def proof_script(index: int, normalize: bool, timeout: int, sequential: bool = T
     commands = cone_commands(index, True, sequential, attempt)
     if not normalize:
         commands += "; " + cone_commands(index, False, sequential)
-    return (commands + f"; write_aiger -u {stem}-proven.aig"
+    return (commands + "; " + snapshot_commands(f"{stem}-proven.aig")
             + f"; pdr {options}-T {timeout} -v -d -I {stem}-invariant.pla\n")
 
 

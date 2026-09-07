@@ -94,6 +94,38 @@ and rejected actual counterexamples for incorrect clock lowering, changed tempor
 independent initial state, and payload bit 39 at `WIDTH=40, DEPTH=8`.
 These focused checks do not replace fresh full-domain CI qualification.
 
+At integration head `2581b7adbe34baab9c7962623a57c8ec87f70afc`, two
+bindings aborted before PDR in legacy ABC `write_aiger -u`: the historical
+three-pass candidate at `WIDTH=46, DEPTH=8` in run A, and named aliases at
+`WIDTH=36, DEPTH=5` in run B. The latter binding passed in run A with an
+identical full AIG. Both retained logs identify the same assertion in
+`Saig_ManDupIsoCanonical_rec`, which interleaves integer ranks and copied-node
+pointers in shared union storage. The original archives were hash-verified and
+their exact logs/models recovered by the separate read-only
+[diagnostic run](https://github.com/pysolvesemi/MorphHDL/actions/runs/34072942279).
+These aborts are neither RTL counterexamples nor qualification passes.
+
+Every canonical snapshot now uses `&get; &w -u`, the GIA writer already used
+before DCH. It computes ordering before copying, avoiding the legacy SAIG
+canonicalizer. The separate GIA workspace leaves the current ABC network used
+by normalization and PDR unchanged. Snapshots remain deterministic, and the
+checker still requires complete property coverage, exact extraction/proven
+snapshot equality, zero initial state at the canonicalization boundary, actual
+proved properties and verified invariants. Constant-false certificates remain
+strict. The parameter domain, clock/reset/initial-state assumptions, proof
+portfolio, comparison covers, mutation controls and shared binding budget are
+unchanged. This serializer repair requires fresh exact-head qualification.
+
+Local replays of the exact retained models now prove all 56 and 46 output
+properties twice, respectively, with fresh comparison covers and identical
+accepted evidence and deterministic artifacts. Every checked preparation,
+Verilog/RTLIL, miter, configuration and full-AIG file matches the original CI
+bytes. All 146 Python regressions and 14 real-tool controls pass, including
+isomorphic sequential-cone proof reuse and repetition, strict constant
+certificates, incorrect-clock and temporal counterexamples, independent initial
+state, and a later-output mutation. These focused results do not replace the
+complete fresh CI matrix.
+
 The implementation revision above qualified before the completion checkbox was
 changed. The completion head, including integration of the qualified base, must
 receive its own full required CI, including fresh native generation, both Scala
