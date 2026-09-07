@@ -156,17 +156,26 @@ private[internals] object ParameterizedVerilogStructural {
       lines
     )
     // A parent parameter may occur only in a captured child's actual, with no
-    // local width or generate predicate referring to it. Build the header from
-    // the same exact canonical-instance binding analysis used by hierarchy
-    // publication, and validate declaration identities before merging schemas.
+    // local width or generate predicate referring to it. Read those actuals
+    // through the exact component-identity registry, and validate declaration
+    // identities before merging schemas. This is a parameter inventory only;
+    // ordinary child connection lowering keeps its existing publication order.
     MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
       component,
       includeChildActuals = true
     )
-    val hierarchyParameters =
-      ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf).parameters
+    val childActualParameters = component.children.toVector.flatMap { child =>
+      // An explicit formal may be unused by its constructor. Only exact roots
+      // present in the child's semantic parameter inventory reach its emitted
+      // definition, so unused actuals must not enlarge the parent's header.
+      val usedFormalRoots = MorphHdlExternalParameterizedVerilog
+        .componentParameters(child).map(_.declarationRoot)
+      ExternalFormalParameterRegistry.bindingsOf(child)
+        .filter(binding => usedFormalRoots.exists(_ eq binding.formal.declarationRoot))
+        .flatMap(_.actual.parameters)
+    }
     val parameters = mergeParameters(
-      hierarchyParameters ++
+      childActualParameters ++
         ParameterizedWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++

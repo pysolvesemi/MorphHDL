@@ -250,7 +250,7 @@ INCREMENT_59D59E_JOINT_TESTS = {
 INCREMENT_59H_SUITES = {
     "morphhdl": {
         "spinal.core.ParameterizedStructuralLexicalOwnerTests": 18,
-        "spinal.core.internals.TypedBalancedReductionNestedOwnerTests": 17,
+        "spinal.core.internals.TypedBalancedReductionNestedOwnerTests": 18,
         "spinal.core.internals.TypedBalancedReductionStaticRedirectPolicyTests": 3,
     },
 }

@@ -122,6 +122,29 @@ private[internals] final class BalancedNestedCountCaseReference(count: Int) exte
   }
 }
 
+private[internals] final class BalancedNestedFixedChild extends Component {
+  setDefinitionName("BalancedNestedFixedChild")
+  val din = in(UInt(5 bits))
+  val result = out(UInt(5 bits))
+  result := din
+}
+
+private[internals] final class BalancedNestedUnusedFormal(width: HdlInt, mode: HdlInt)
+    extends Component {
+  setDefinitionName("BalancedNestedUnusedFormal")
+  val din = in(UInt(5 bits))
+  val result = out(UInt(5 bits))
+  (width > HdlInt.literal(4)).generateIf("g_wide", "g_small") {
+    val child = ElabFormalComponent.parameter(mode.asElabInt + 1, "MODE", BigInt(1), BigInt(3)) {
+      _ => new BalancedNestedFixedChild
+    }.setName("child")
+    child.din := din
+    result := child.result
+  }.otherwise {
+    result := din
+  }
+}
+
 private[internals] final class BalancedNestedMirrorChild(count: ElabInt) extends Component {
   val words = in(Vec(UInt(5 bits), count))
   val result = out(UInt(5 bits))
@@ -338,6 +361,21 @@ class TypedBalancedReductionNestedOwnerTests extends AnyFunSuite {
     }
     val modeBinding = "\\.MODE\\s*\\(\\s*\\(*\\s*MODE\\b\\s*\\)*\\s*\\+\\s*\\(*\\s*1\\b\\s*\\)*\\s*\\)".r
     assert(modeBinding.findAllIn(rtl).size == 1, rtl)
+  }
+
+  test("an unused child formal does not add its actual parameter to the structural parent header") {
+    val directory = Files.createTempDirectory("balanced-nested-unused-formal-")
+    MorphVerilog(TypedBalancedReductionNestedOwnerArtifactWriter.config(directory, "unused_formal.v")) {
+      new BalancedNestedUnusedFormal(
+        HdlInt.param("WIDTH", 5, 1, 8), HdlInt.param("MODE", 0, 0, 2))
+    }
+    val rtl = text(directory.resolve("unused_formal.v"))
+    val parentHeader = "(?s)module\\s+BalancedNestedUnusedFormal\\s*#\\((.*?)\\)\\s*\\(".r
+      .findFirstMatchIn(rtl).getOrElse(fail("parent parameter header is missing:\n" + rtl)).group(1)
+    assert(parentHeader.contains("WIDTH = 5"), parentHeader)
+    assert(!parentHeader.contains("MODE"), parentHeader)
+    assert(rtl.contains("begin : g_wide") && rtl.contains("begin : g_small"), rtl)
+    assert("(?m)^\\s+BalancedNestedFixedChild\\s+child\\s*\\(".r.findFirstIn(rtl).nonEmpty, rtl)
   }
 
   test("fresh nested publication has deterministic names and no duplicate component definitions") {

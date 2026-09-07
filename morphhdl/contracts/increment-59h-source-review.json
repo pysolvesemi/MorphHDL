@@ -523,7 +523,7 @@
           "after_start": 12167,
           "after_end": 12448,
           "before": "",
-          "after": "INCREMENT_59H_SUITES = {\n    \"morphhdl\": {\n        \"spinal.core.ParameterizedStructuralLexicalOwnerTests\": 18,\n        \"spinal.core.internals.TypedBalancedReductionNestedOwnerTests\": 17,\n        \"spinal.core.internals.TypedBalancedReductionStaticRedirectPolicyTests\": 3,\n    },\n}\n\n"
+          "after": "INCREMENT_59H_SUITES = {\n    \"morphhdl\": {\n        \"spinal.core.ParameterizedStructuralLexicalOwnerTests\": 18,\n        \"spinal.core.internals.TypedBalancedReductionNestedOwnerTests\": 18,\n        \"spinal.core.internals.TypedBalancedReductionStaticRedirectPolicyTests\": 3,\n    },\n}\n\n"
         },
         {
           "id": "check-increment-60f-artifacts-59h-2",
@@ -694,36 +694,36 @@
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
       "change": "modified",
-      "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+      "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain direct-child registry actual parameters only for exact formal declaration identities in the child semantic inventory after parent declaration-root validation while preserving ordinary child connection publication order.",
       "baseline_sha256": "4155844f4472d285efabde0edf0537eb9199b2f25c2b0c640ee0748ef34b795e",
       "edits": [
         {
           "id": "ParameterizedVerilogStructural-59h-1",
-          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain direct-child registry actual parameters only for exact formal declaration identities in the child semantic inventory after parent declaration-root validation while preserving ordinary child connection publication order.",
           "before_start": 6098,
           "before_end": 6098,
           "after_start": 6098,
-          "after_end": 6672,
+          "after_end": 7255,
           "before": "",
-          "after": "    // A parent parameter may occur only in a captured child's actual, with no\n    // local width or generate predicate referring to it. Build the header from\n    // the same exact canonical-instance binding analysis used by hierarchy\n    // publication, and validate declaration identities before merging schemas.\n    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(\n      component,\n      includeChildActuals = true\n    )\n    val hierarchyParameters =\n      ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf).parameters\n"
+          "after": "    // A parent parameter may occur only in a captured child's actual, with no\n    // local width or generate predicate referring to it. Read those actuals\n    // through the exact component-identity registry, and validate declaration\n    // identities before merging schemas. This is a parameter inventory only;\n    // ordinary child connection lowering keeps its existing publication order.\n    MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(\n      component,\n      includeChildActuals = true\n    )\n    val childActualParameters = component.children.toVector.flatMap { child =>\n      // An explicit formal may be unused by its constructor. Only exact roots\n      // present in the child's semantic parameter inventory reach its emitted\n      // definition, so unused actuals must not enlarge the parent's header.\n      val usedFormalRoots = MorphHdlExternalParameterizedVerilog\n        .componentParameters(child).map(_.declarationRoot)\n      ExternalFormalParameterRegistry.bindingsOf(child)\n        .filter(binding => usedFormalRoots.exists(_ eq binding.formal.declarationRoot))\n        .flatMap(_.actual.parameters)\n    }\n"
         },
         {
           "id": "ParameterizedVerilogStructural-59h-2",
-          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain direct-child registry actual parameters only for exact formal declaration identities in the child semantic inventory after parent declaration-root validation while preserving ordinary child connection publication order.",
           "before_start": 6136,
           "before_end": 6188,
-          "after_start": 6710,
-          "after_end": 6793,
+          "after_start": 7293,
+          "after_end": 7378,
           "before": "      ParameterizedWidth.parametersOf(component) ++\n",
-          "after": "      hierarchyParameters ++\n        ParameterizedWidth.parametersOf(component) ++\n"
+          "after": "      childActualParameters ++\n        ParameterizedWidth.parametersOf(component) ++\n"
         },
         {
           "id": "ParameterizedVerilogStructural-59h-3",
-          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain strictly validated child actual parameters in the parent header before scoped publication.",
+          "reason": "Pass the exact lexical capture owner through structural fragment publication, retaining named nested scopes for generated reduction declarations and processes; retain direct-child registry actual parameters only for exact formal declaration identities in the child semantic inventory after parent declaration-root validation while preserving ordinary child connection publication order.",
           "before_start": 12436,
           "before_end": 12502,
-          "after_start": 13041,
-          "after_end": 13237,
+          "after_start": 13626,
+          "after_end": 13822,
           "before": "    val planByBlock = plans.map(plan => plan.block -> plan).toMap\n",
           "after": "    val planByBlock = plans.map { plan =>\n      plan.block -> plan.copy(body = TypedBalancedReductionBackend.rewriteScoped(\n        component, plan.block, plan.body, pc, canonicalOf))\n    }.toMap\n"
         }

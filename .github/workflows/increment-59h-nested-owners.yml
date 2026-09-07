@@ -117,7 +117,7 @@ jobs:
             -Dsbt.repository.config="$bootstrap/repositories" -Dsbt.override.build.repos=true \
             -jar "$bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
             'morph/Test/testOnly spinal.core.internals.TypedBalancedReduction*Tests spinal.core.FiniteAffineVecReadTests' \
-            'morph/Test/testOnly spinal.core.ParameterizedStructuralLexicalOwnerTests spinal.core.internals.ParameterizedVerilogStructuralLexicalTests morphhdl.StructuralGenerateControlTests' \
+            'morph/Test/testOnly spinal.core.ParameterizedStructuralLexicalOwnerTests spinal.core.internals.ParameterizedVerilogStructuralLexicalTests morphhdl.StructuralGenerateControlTests morphhdl.TypedElaborationControlTests' \
             'morph/Test/testOnly spinal.core.StructuralIdentityAdversarialTests spinal.core.ScalarStructuralIdentityAdversarialTests spinal.core.internals.NativePublicationWidthTests' \
             'morph/Test/testOnly spinal.core.internals.ParameterizedVerilogTests -- -z retained' \
             'morph/Test/testOnly morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.CapturedAssignmentNormalizationTests' \
@@ -152,6 +152,7 @@ jobs:
               'ParameterizedStructuralLexicalOwnerTests',
               'ParameterizedVerilogStructuralLexicalTests',
               'StructuralGenerateControlTests',
+              'TypedElaborationControlTests',
               'StructuralIdentityAdversarialTests',
               'ScalarStructuralIdentityAdversarialTests',
               'NativePublicationWidthTests',
@@ -162,7 +163,7 @@ jobs:
           }
           exact_counts = {
               'ParameterizedStructuralLexicalOwnerTests': 18,
-              'TypedBalancedReductionNestedOwnerTests': 17,
+              'TypedBalancedReductionNestedOwnerTests': 18,
               'TypedBalancedReductionStaticRedirectPolicyTests': 3,
           }
           files = []
