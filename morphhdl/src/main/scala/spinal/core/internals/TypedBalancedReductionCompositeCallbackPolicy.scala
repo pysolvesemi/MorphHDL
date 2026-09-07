@@ -54,8 +54,12 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
       // per-instance Assignable. Such a hook can run host code without adding
       // an IR assignment, so post-callback external-write checks cannot detect
       // it. Read this inherited property only after the class audit above.
-      if (data.compositeAssign != null)
-        fail("composite callback input has an opaque native assignment redirect: " + owner)
+      data.compositeAssign match {
+        case null =>
+        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign
+            if scalarNames(owner) && wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType]) =>
+        case _ => fail("composite callback input has an opaque native assignment redirect: " + owner)
+      }
       path.remove(data)
     }
     visit(value, 0)

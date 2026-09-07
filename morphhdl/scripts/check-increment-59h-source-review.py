@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Restore only reviewed 59c publication edits before inherited source checks.
+"""Restore only reviewed 59h lexical-owner edits before inherited source checks.
 
-The exact 59c production delta and inherited-checker adapter carry reviewed
+The exact 59h production delta and inherited-checker adapters carry reviewed
 before/after byte spans against the merged base. Every byte between spans must
 remain identical. Explicitly added files have one complete addition span and
 must be absent from that base. Restoring these spans does not replace the
@@ -12,34 +12,36 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
-import importlib.util
 import json
 import re
 import subprocess
 from pathlib import Path
 
 
-BASE = "99b6017d7ac69112a088680457029623620224d3"
-CONTRACT = "morphhdl/contracts/increment-59c-source-review.json"
-CONTRACT_SHA256 = "172d3a63121c441ade2e836de371a16937346ad82c6b607b14fec758483068af"
+BASE = "0018da2740645e0ac0c419ded7b67c01622d2bb7"
+CONTRACT = "morphhdl/contracts/increment-59h-source-review.json"
+CONTRACT_SHA256 = "8a1fdfeead9e591d71f4051563af24b01dd88a6748c362061eef32b18f890449"
 PATHS = (
-    "core/src/main/scala/spinal/core/ParameterizedVec.scala",
     "core/src/main/scala/spinal/core/Vec.scala",
+    "frontend/src/main/scala/morphhdl/frontend/NativeStructuralFrontend.scala",
+    "frontend/src/main/scala/spinal/core/ExternalAnalyzedStructuralPublisher.scala",
+    "morphhdl/contracts/increment-55-native-change-review.json",
+    "morphhdl/contracts/native-source-preservation.json",
+    "morphhdl/scripts/check-increment-59c-source-review.py",
     "morphhdl/scripts/check-increment-59f-source-scope.py",
-    "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
     "morphhdl/scripts/check-increment-60f-artifacts.py",
     "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
-    "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
+    "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+    "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala",
+    "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala",
 )
-ADDED_PATHS = frozenset((
-    "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala",
-    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala",
-))
+ADDED_PATHS = frozenset()
 PRODUCTION_PATHS = frozenset(path for path in PATHS if "/src/main/" in path)
 
 
@@ -54,54 +56,54 @@ def digest(value: bytes) -> str:
 
 def validate_contract(value: dict) -> dict[str, dict]:
     require(isinstance(value, dict) and set(value) ==
-            {"schema_version", "base", "offset_format", "files"}, "invalid 59c source-review schema")
+            {"schema_version", "base", "offset_format", "files"}, "invalid 59h source-review schema")
     require(value["schema_version"] == 2 and value["base"] == BASE and
-            value["offset_format"] == "utf8-bytes", "59c source-review baseline or offset format changed")
+            value["offset_format"] == "utf8-bytes", "59h source-review baseline or offset format changed")
     files = value["files"]
     require(isinstance(files, list) and tuple(entry.get("path") for entry in files) == PATHS,
-            "59c source-review must retain its exact production and checker path inventory")
+            "59h source-review must retain its exact production and checker path inventory")
     result = {}
     identifiers = set()
     for entry in files:
         require(set(entry) == {"path", "change", "reason", "baseline_sha256", "edits"},
-                "invalid 59c reviewed file schema")
+                "invalid 59h reviewed file schema")
         added = entry["path"] in ADDED_PATHS
         require(entry["change"] == ("added" if added else "modified"),
-                "59c source-review changed its explicit added-file inventory")
+                "59h source-review changed its explicit added-file inventory")
         require(isinstance(entry["reason"], str) and entry["reason"].strip(),
-                "59c reviewed file requires an explanation")
+                "59h reviewed file requires an explanation")
         require((entry["baseline_sha256"] is None) if added else
                 (isinstance(entry["baseline_sha256"], str) and len(entry["baseline_sha256"]) == 64 and
                  all(character in "0123456789abcdef" for character in entry["baseline_sha256"])),
-                "invalid 59c baseline content hash")
+                "invalid 59h baseline content hash")
         require(isinstance(entry["edits"], list) and entry["edits"],
-                "59c source-review requires explicit changed spans")
+                "59h source-review requires explicit changed spans")
         previous_before = previous_after = 0
         for edit in entry["edits"]:
             require(isinstance(edit, dict) and set(edit) ==
                     {"id", "reason", "before_start", "before_end", "after_start", "after_end", "before", "after"},
-                    "invalid 59c reviewed edit schema")
+                    "invalid 59h reviewed edit schema")
             require(isinstance(edit["id"], str) and edit["id"] and edit["id"] not in identifiers,
-                    "missing or duplicate 59c reviewed edit identifier")
+                    "missing or duplicate 59h reviewed edit identifier")
             identifiers.add(edit["id"])
             require(isinstance(edit["reason"], str) and edit["reason"].strip(),
-                    "59c reviewed edit requires an explanation")
+                    "59h reviewed edit requires an explanation")
             for key in ("before_start", "before_end", "after_start", "after_end"):
-                require(type(edit[key]) is int and edit[key] >= 0, "invalid 59c reviewed byte offset")
+                require(type(edit[key]) is int and edit[key] >= 0, "invalid 59h reviewed byte offset")
             require(isinstance(edit["before"], str) and isinstance(edit["after"], str) and
-                    edit["before"] != edit["after"], "59c reviewed span must contain an exact change")
+                    edit["before"] != edit["after"], "59h reviewed span must contain an exact change")
             require(edit["before_end"] - edit["before_start"] == len(edit["before"].encode()) and
                     edit["after_end"] - edit["after_start"] == len(edit["after"].encode()),
-                    "59c span text disagrees with its exact byte offsets")
+                    "59h span text disagrees with its exact byte offsets")
             require(edit["before_start"] >= previous_before and edit["after_start"] >= previous_after and
                     edit["before_start"] - previous_before == edit["after_start"] - previous_after,
-                    "overlapping or non-corresponding 59c reviewed spans")
+                    "overlapping or non-corresponding 59h reviewed spans")
             previous_before, previous_after = edit["before_end"], edit["after_end"]
         if added:
             edit = entry["edits"][0]
             require(len(entry["edits"]) == 1 and edit["before_start"] == edit["before_end"] ==
                     edit["after_start"] == 0 and edit["before"] == "" and edit["after"],
-                    "59c added source requires one explicit whole-file addition span")
+                    "59h added source requires one explicit whole-file addition span")
         result[entry["path"]] = entry
     return result
 
@@ -109,64 +111,48 @@ def validate_contract(value: dict) -> dict[str, dict]:
 def restore_reviewed(entry: dict, baseline: bytes, source: bytes) -> bytes:
     path = entry["path"]
     require((baseline == b"" and entry["baseline_sha256"] is None) if entry["change"] == "added" else
-            digest(baseline) == entry["baseline_sha256"], "59c frozen baseline hash changed: " + path)
+            digest(baseline) == entry["baseline_sha256"], "59h frozen baseline hash changed: " + path)
     restored = []
     previous_before = previous_after = 0
     for edit in entry["edits"]:
         old_start, old_end = edit["before_start"], edit["before_end"]
         new_start, new_end = edit["after_start"], edit["after_end"]
         require(baseline[old_start:old_end] == edit["before"].encode(),
-                "59c reviewed before span does not belong to the frozen baseline: " + edit["id"])
+                "59h reviewed before span does not belong to the frozen baseline: " + edit["id"])
         require(source[previous_after:new_start] == baseline[previous_before:old_start],
-                "unreviewed source change outside 60e spans: " + path + " (outside reviewed 59c spans)")
+                "unreviewed source change outside 59h spans: " + path + "")
         require(source[new_start:new_end] == edit["after"].encode(),
-                "missing/changed 59c reviewed source span: " + edit["id"])
+                "missing/changed 59h reviewed source span: " + edit["id"])
         restored.extend((source[previous_after:new_start], edit["before"].encode()))
         previous_before, previous_after = old_end, new_end
     require(source[previous_after:] == baseline[previous_before:],
-            "unreviewed source change outside 60e spans: " + path + " (outside reviewed 59c spans)")
+            "unreviewed source change outside 59h spans: " + path + "")
     restored.append(source[previous_after:])
     result = b"".join(restored)
-    require(result == baseline, "59c exact reversal did not reproduce its frozen baseline: " + path)
+    require(result == baseline, "59h exact reversal did not reproduce its frozen baseline: " + path)
     return result
 
 
 def load_contract(root: Path) -> dict[str, dict]:
-    raw = (root / CONTRACT).read_bytes()
+    path = root / CONTRACT
+    require(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111,
+            "59h source review must be a regular non-executable file")
+    raw = path.read_bytes()
     entries = validate_contract(json.loads(raw))
-    require(digest(raw) == CONTRACT_SHA256, "59c reviewed source manifest changed")
+    require(digest(raw) == CONTRACT_SHA256, "59h reviewed source manifest changed")
     return entries
 
 
 def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
     if path in ADDED_PATHS:
         entry = subprocess.check_output(["git", "ls-tree", revision, "--", path], cwd=root)
-        require(not entry, "59c explicitly added source already exists in the frozen baseline: " + path)
+        require(not entry, "59h explicitly added source already exists in the frozen baseline: " + path)
         return b""
     return subprocess.check_output(["git", "show", revision + ":" + path], cwd=root)
 
 
-def nested_source_review(root: Path):
-    """Compose a separately pinned successor before this immutable 59c review."""
-    checker = root / "morphhdl/scripts/check-increment-59h-source-review.py"
-    contract = root / "morphhdl/contracts/increment-59h-source-review.json"
-    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
-        return None
-    require(checker.is_file() and not checker.is_symlink() and
-            contract.is_file() and not contract.is_symlink(),
-            "59h source-review checker or contract is missing")
-    spec = importlib.util.spec_from_file_location("nested_59h_scope", checker)
-    require(spec is not None and spec.loader is not None, "cannot import reviewed 59h source scope")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 def restore_source(root: Path, path: str, source: str) -> str:
     """Leave unrelated historical hooks to their own exact source contracts."""
-    nested = nested_source_review(root)
-    if nested is not None:
-        source = nested.restore_source(root, path, source)
     entries = load_contract(root)
     if path not in entries:
         return source
@@ -182,7 +168,7 @@ def production_changes(root: Path, revision: str) -> set[str]:
 
 def require_production_inventory(paths: set[str]) -> None:
     require(paths == PRODUCTION_PATHS,
-            "59c production delta differs from the complete reviewed inventory; missing=" +
+            "59h production delta differs from the complete reviewed inventory; missing=" +
             repr(sorted(PRODUCTION_PATHS - paths)) + "; unreviewed=" + repr(sorted(paths - PRODUCTION_PATHS)))
 
 
@@ -190,44 +176,44 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
     """Validate the exact successor layer before inherited source-union checks."""
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     entries = load_contract(root)
-    nested = nested_source_review(root)
-    if nested is not None:
-        nested.verify_spans(root)
     for path, entry in entries.items():
         baseline = baseline_source(root, path)
         require(baseline == baseline_source(root, path, qualification_base),
-                "59c baseline differs from the inherited qualification source: " + path)
+                "59h baseline differs from the inherited qualification source: " + path)
         source = root / path
-        require(source.is_file(), "59c reviewed source is missing: " + path)
+        require(source.is_file(), "59h reviewed source is missing: " + path)
         require(not source.is_symlink() and not source.stat().st_mode & 0o111,
-                "59c reviewed source must be a regular non-executable file: " + path)
+                "59h reviewed source must be a regular non-executable file: " + path)
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
-                "59c reviewed source is not uniquely tracked: " + path)
-        current = source.read_bytes()
-        if nested is not None:
-            current = nested.restore_source(root, path, current.decode()).encode()
-        restore_reviewed(entry, baseline, current)
+                "59h reviewed source is not uniquely tracked: " + path)
+        restore_reviewed(entry, baseline, source.read_bytes())
+
+
+def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    """Remove only this verified successor delta from an older production view."""
+    verify(root)
+    historical = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", qualification_base, BASE],
+        cwd=root, text=True).splitlines()
+    inherited = {path for path in historical if re.search(r"(?:^|/)src/main/", path)}
+    return (paths - PRODUCTION_PATHS) | (inherited & PRODUCTION_PATHS)
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
-    paths = production_changes(root, qualification_base)
-    nested = nested_source_review(root)
-    if nested is not None:
-        paths = nested.inherited_inventory(root, paths, qualification_base)
-    require_production_inventory(paths)
+    require_production_inventory(production_changes(root, qualification_base))
     verify_spans(root, qualification_base)
-    print("59c complete production inventory and exact source spans restore the merged baseline PASS")
+    print("59h complete production inventory and exact source spans restore the merged baseline PASS", flush=True)
 
 
 def expect_failure(label: str, function, expected: str) -> None:
     try:
         function()
     except RuntimeError as error:
-        require(expected in str(error), "59c source-review mutation failed for an unrelated reason: " +
+        require(expected in str(error), "59h source-review mutation failed for an unrelated reason: " +
                 label + ": " + str(error))
         return
-    raise RuntimeError("59c source-review mutation was accepted: " + label)
+    raise RuntimeError("59h source-review mutation was accepted: " + label)
 
 
 def self_test(root: Path) -> None:
@@ -246,11 +232,11 @@ def self_test(root: Path) -> None:
             previous = edit["before_end"]
         parts.append(baseline[previous:])
         source = b"".join(parts)
-        require(restore_reviewed(entry, baseline, source) == baseline, "59c positive source reversal failed")
+        require(restore_reviewed(entry, baseline, source) == baseline, "59h positive source reversal failed")
         edit = next(edit for edit in entry["edits"] if edit["after"])
         start, end = edit["after_start"], edit["after_end"]
-        outside = "unreviewed source change outside 60e spans"
-        changed_span = "missing/changed 59c reviewed source span"
+        outside = "unreviewed source change outside 59h spans"
+        changed_span = "missing/changed 59h reviewed source span"
         mutations = (
             ("unreviewed prefix", b"// unreviewed\n" + source, changed_span if start == 0 else outside),
             ("unreviewed suffix", source + b"\n// unreviewed\n", outside),
@@ -265,13 +251,13 @@ def self_test(root: Path) -> None:
         changed = copy.deepcopy(entry)
         changed["edits"][0]["before"] = "corrupt" + changed["edits"][0]["before"]
         expect_failure(path + " forged baseline span", lambda: restore_reviewed(changed, baseline, source),
-                       "59c reviewed before span does not belong to the frozen baseline")
+                       "59h reviewed before span does not belong to the frozen baseline")
         negatives += 1
     contract = json.loads((root / CONTRACT).read_text())
     changed = copy.deepcopy(contract)
     changed["files"].pop()
     expect_failure("removed reviewed file", lambda: validate_contract(changed),
-                   "59c source-review must retain its exact production and checker path inventory")
+                   "59h source-review must retain its exact production and checker path inventory")
     changed = copy.deepcopy(contract)
     changed["files"][0]["edits"].pop()
     first = entries[PATHS[0]]
@@ -284,7 +270,7 @@ def self_test(root: Path) -> None:
     source = b"".join(parts + [baseline[previous:]])
     expect_failure("removed reviewed edit", lambda: restore_reviewed(
         changed["files"][0], baseline, source),
-        "unreviewed source change outside 60e spans")
+        "unreviewed source change outside 59h spans")
     require_production_inventory(set(PRODUCTION_PATHS))
     for label, paths in (
         ("unreviewed production file", set(PRODUCTION_PATHS) | {"foreign/src/main/Unreviewed.scala"}),
@@ -293,9 +279,9 @@ def self_test(root: Path) -> None:
          {"foreign/src/main/Unreviewed.scala"}),
     ):
         expect_failure(label, lambda paths=paths: require_production_inventory(paths),
-                       "59c production delta differs from the complete reviewed inventory")
+                       "59h production delta differs from the complete reviewed inventory")
         negatives += 1
-    print(f"59c source-review controls PASS: {len(entries)} reviewed-snapshot reversals and {negatives + 2} rejected mutations")
+    print(f"59h source-review controls PASS: {len(entries)} reviewed-snapshot reversals and {negatives + 2} rejected mutations")
 
 
 def main() -> None:

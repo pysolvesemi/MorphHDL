@@ -94,7 +94,7 @@ private[internals] final class BalancedPublicationNestedOwnerFixture(count: HdlI
   ElabControl.selectSymbolic(count.asElabInt > 2, "balanced-nested-owner", 1) {
     output := words.reduceBalancedTree((a: UInt, b: UInt) => a + b)
   } {
-    output := words.vec.head
+    output := words(0)
   }
 }
 
@@ -167,10 +167,8 @@ class TypedBalancedReductionPublicationSafetyTests extends AnyFunSuite {
     }
   }
 
-  test("uncertified outer generate ownership prevents module-scope tree publication") {
-    val error = intercept[Exception](emit(new BalancedPublicationNestedOwnerFixture(
-      HdlInt.param("COUNT", 1, 1, 5))))
-    assert(messages(error).contains("OWNER"), messages(error))
+  test("exact outer generate ownership retains the tree in its lexical branch") {
+    emit(new BalancedPublicationNestedOwnerFixture(HdlInt.param("COUNT", 1, 1, 5)))
   }
 
   test("removing a native template operand preservation policy prevents publication") {

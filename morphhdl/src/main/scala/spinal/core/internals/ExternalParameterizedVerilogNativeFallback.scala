@@ -794,6 +794,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     ElabFiniteRange.countOnesOf(component).foreach { fold =>
       retainedValues.put(fold.result, java.lang.Boolean.TRUE)
     }
+    TypedBalancedReductionBackend.publishedScopedAnchors(component).foreach { anchor =>
+      retainedValues.put(anchor, java.lang.Boolean.TRUE)
+    }
     var lines = verilog.split("\n", -1).toVector
     component.dslBody.walkLeafStatements {
       case assignment: DataAssignmentStatement =>

@@ -6,7 +6,8 @@ import morphhdl.frontend.{
   AnalyzedStructuralBoolean,
   AnalyzedStructuralBooleanKind,
   AnalyzedStructuralInteger,
-  AnalyzedStructuralIntegerKind
+  AnalyzedStructuralIntegerKind,
+  HdlInt
 }
 
 /** Opaque prepared publication for one analyzer-sealed structural predicate.
@@ -330,6 +331,33 @@ object ExternalAnalyzedStructuralPublisher {
     )
   }
 
+  /** Bind typed case capture to the analyzer's original immutable source.
+    * Registration still consumes the analyzer's one-shot publication claim.
+    */
+  def captureStructuralCaseBranch(
+      analyzed: AnalyzedStructuralInteger,
+      source: HdlInt,
+      component: Component,
+      choices: Set[BigInt],
+      isDefault: Boolean,
+      sourceLocation: Option[String]
+  )(body: => Unit): ParameterizedStructuralBlock = {
+    requireReference(analyzed, "analyzed generate-case wrapper", sourceLocation)
+    requireReference(source, "generate-case source", sourceLocation)
+    requireReference(component, "generate-case component", sourceLocation)
+    if (analyzed.sourceIdentity ne source)
+      ParameterizedVerilogException.fail(
+        "SPINAL-ELAB-CASE-SOURCE-IDENTITY-MISMATCH",
+        "typed case capture requires the analyzer's exact original source",
+        sourceLocation
+      )
+    val expression = source.asElabInt.expression
+    if (expression.exactDomain.nonEmpty)
+      ParameterizedStructure.captureExactCaseBlock(
+        component, expression, choices, isDefault, sourceLocation)(body)
+    else ParameterizedStructure.captureBlock(component, sourceLocation)(body)
+  }
+
   def registerStructuralCase(
       analyzed: AnalyzedStructuralInteger,
       operationIdentity: AnyRef,
@@ -342,13 +370,19 @@ object ExternalAnalyzedStructuralPublisher {
     requireReference(analyzed, "analyzed generate-case wrapper", sourceLocation)
     requireReference(operationIdentity, "generate-case operation", sourceLocation)
     requireReference(pending, "generate-case pending target", sourceLocation)
-    val (_, selector) = analyzed.claim(
+    val (source, selector) = analyzed.claim(
       AnalyzedStructuralIntegerKind.StructuralCaseSelector,
       Vector(pending.component, operationIdentity)
     )
+    val authoritativeSelector = source match {
+      case value: HdlInt =>
+        val expression = value.asElabInt.expression
+        if (expression.exactDomain.nonEmpty) expression else selector
+      case _ => selector
+    }
     ParameterizedStructure.registerCase(
       pending,
-      selector,
+      authoritativeSelector,
       choices,
       defaultLabel,
       defaultBody,

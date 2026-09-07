@@ -196,6 +196,22 @@ private[core] final class ParameterizedVecStaticAccessAssign(
       case _ => false
     })
 
+  /** A scalar read may retain these mechanical assignment hooks. Inspect only
+    * native identities and metadata; never invoke an Assignable or flatten an
+    * unaudited composite element while certifying a callback input.
+    */
+  private[core] def isCertifiedReadOf(expected: BaseType): Boolean =
+    (leaf eq expected) && vector != null && vector.getClass == classOf[Vec[_]] &&
+      elementLeafIndex == 0 && elementIndex >= 0 && elementIndex < vector.vec.size &&
+      (vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected) &&
+      ParameterizedVec.shapeOf(vector).exists(shape =>
+        shape.carrierCapacity == vector.vec.size && shape.elementLeaves.size == 1) &&
+      (previous match {
+        case null => true
+        case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)
+        case _ => false
+      })
+
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     val active = leaf.compositeAssign
     leaf.compositeAssign = previous
