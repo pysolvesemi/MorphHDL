@@ -266,8 +266,38 @@ def mutate_cross_instance(rtl: str) -> str:
     return changed
 
 
+def mutate_register_control(rtl: str, control: str) -> str:
+    # Qualification-only mutation of actual generated RTL. The native
+    # production capture/publisher does not inspect emitted signal names.
+    patterns = {
+        'ignored-enable': (r'\bif\s*\(\s*enable\s*\)', "if (1'b1)"),
+        'wrong-reset-value': (r"<=\s*\{WIDTH\{1'b0\}\}\s*;", "<= {WIDTH{1'b1}};"),
+        'nonzero-initial-state': (
+            r'(?m)^(\s*reg\s+\[WIDTH-1:0\]\s+\w+)\s*;',
+            r"\1 = {WIDTH{1'b1}};"),
+    }
+    if control not in patterns:
+        raise RuntimeError('unknown sequential mutation: ' + control)
+    pattern, replacement = patterns[control]
+    changed, count = re.subn(pattern, replacement, rtl)
+    if not count or changed == rtl:
+        raise RuntimeError('native register mutation anchor missing: ' + control)
+    return changed
+
+
 def setup(paths: list[Path]) -> str:
     return 'read_verilog ' + ' '.join(H.quoted(path) for path in paths) + '\nprep -top miter -flatten\ndffunmap\ncheck -assert\n'
+
+
+def induction_setup(paths: list[Path]) -> str:
+    # Materialize the EXISTING zero-state induction contract before optimizing
+    # register control logic. zinit preserves explicit nonzero initial values
+    # by inversion; -all initializes only otherwise-uninitialized state. No
+    # primary input is constrained and the independent reset-entry proof above
+    # this boundary continues to use the original, uninitialized setup.
+    # keepdc retains don't-care semantics. Canonicalizing enables/resets lets
+    # Yosys share equivalent native registers without name-based state pairing.
+    return setup(paths) + 'zinit -all\nopt -full -keepdc\ndffunmap\ncheck -assert\n'
 
 
 def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
@@ -339,7 +369,7 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
             if H.PASS not in proof or H.COUNTEREXAMPLE in proof:
                 raise RuntimeError('reset-entry proof lacks definitive SUCCESS: ' + label)
             script = work / 'induction.ys'
-            script.write_text(setup([reference, candidate, top]) +
+            script.write_text(induction_setup([reference, candidate, top]) +
                 'sat -seq 1 -tempinduct -set-init-zero -prove bad 0 -verify -maxsteps 24 -timeout 90\n')
             proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'induction.log')
             if INDUCTIVE_PASS not in proof:
@@ -387,12 +417,38 @@ def qualify(root: Path, duplicate: Path, only_case: str | None = None) -> None:
             raise RuntimeError('mutation lacks a genuine counterexample: ' + label)
         H.require_counterexample_vcd(trace)
         print('PASS: genuine bad=1 candidate counterexample:', label, flush=True)
+    sequential_mutations = ('ignored-enable', 'wrong-reset-value', 'nonzero-initial-state')
+    case = next(case for case in cases if shape(case) == ('registered-loop', 5, 5, 2, 0))
+    candidate, reference = (H.checked_rtl(root, case[role + '_rtl']) for role in ('candidate', 'reference'))
+    for control in sequential_mutations:
+        work = root / 'checks' / ('registered-' + control)
+        work.mkdir(parents=True, exist_ok=True)
+        mutated = work / 'candidate-mutated.v'
+        mutated.write_text(mutate_register_control(candidate.read_text(), control))
+        top = work / 'miter.v'
+        top.write_text(miter(case))
+        # The exact same zero-initialized optimizer used by positive induction
+        # must preserve real clock-enable, reset-value and explicit-init errors.
+        # A bounded falsification with fully independent inputs is sufficient
+        # here: mutations are required to FAIL, never accepted as positive proof.
+        script = work / 'mutation.ys'
+        trace = work / 'counterexample.vcd'
+        script.write_text(induction_setup([reference, mutated, top]) +
+            'sat -seq 6 -set-init-zero -prove bad 0 -show-inputs -show-outputs '
+            '-timeout 90 -dump_vcd ' + H.quoted(trace) + '\n')
+        proof = H.command(['yosys', '-Q', '-T', '-s', str(script)], work / 'mutation.log')
+        if H.COUNTEREXAMPLE not in proof or H.PASS in proof or INDUCTIVE_PASS in proof:
+            raise RuntimeError('sequential mutation lacks a genuine counterexample: ' + control)
+        H.require_counterexample_vcd(trace)
+        print('PASS: genuine bad=1 registered candidate counterexample:', control, flush=True)
     (root / 'evidence.json').write_text(json.dumps(dict(scope=SCOPE,
         finite_matrix_note='Finite specialization evidence is not universal parameter quantification.',
         formal_inputs='Every packed Vec element, row bias, ordinary child-instance input and sequential control independently unconstrained.',
         candidate_default=manifest['candidate_default'], configurations=evidence,
-        mutation_controls=[label for label, _, _, _ in mutations]), indent=2) + '\n')
-    print(f'PASS: {len(evidence)} nested-owner specializations and three genuine candidate mutation controls', flush=True)
+        mutation_controls=[label for label, _, _, _ in mutations],
+        sequential_mutation_controls=list(sequential_mutations),
+        induction_preparation='zinit -all; opt -full -keepdc; dffunmap; check -assert'), indent=2) + '\n')
+    print(f'PASS: {len(evidence)} nested-owner specializations, three original and three registered candidate mutation controls', flush=True)
 
 
 def self_test() -> None:
@@ -446,6 +502,22 @@ def self_test() -> None:
             pass
         else:
             raise RuntimeError('missing mutation anchor accepted')
+    register_rtl = "reg [WIDTH-1:0] stage;\nif (enable) begin\nif (reset) stage <= {WIDTH{1'b0}};\nend\n"
+    for control in ('ignored-enable', 'wrong-reset-value', 'nonzero-initial-state'):
+        assert mutate_register_control(register_rtl, control) != register_rtl
+        try:
+            mutate_register_control('module no_registers; endmodule', control)
+        except RuntimeError:
+            pass
+        else:
+            raise RuntimeError('missing register mutation anchor accepted')
+    # No zero initialization or optimization may leak into the separate
+    # arbitrary-initial-state reset-entry setup. Keep the zero-state operation
+    # before optimization so constant-register folding cannot erase startup.
+    ordinary = setup([Path('reference.v'), Path('candidate.v'), Path('miter.v')])
+    induction = induction_setup([Path('reference.v'), Path('candidate.v'), Path('miter.v')])
+    assert 'zinit' not in ordinary and 'opt -full' not in ordinary
+    assert induction == ordinary + 'zinit -all\nopt -full -keepdc\ndffunmap\ncheck -assert\n'
     print('PASS: 516 required specializations, 519 matrix rejection controls, independent models, stimuli and mutation guards')
 
 

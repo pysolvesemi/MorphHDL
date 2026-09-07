@@ -6,7 +6,83 @@ The implementation head is `9c8cbb0951aca28a89d522717e7a6bacfd67afe0`; its merge
 commit is `cba4717abc9192917d819e1f84cb246162488286`. The implementation branch
 started from merged base `0018da2740645e0ac0c419ded7b67c01622d2bb7`.
 
-## September 7 qualification review
+## Induction scalability repair — September 7, 2026
+
+The expanded CI run [34109938793](https://github.com/pysolvesemi/MorphHDL/actions/runs/34109938793)
+failed on both Scala lanes at `registered-loop_w32_n16_r3_m0`. The preceding
+simulation and arbitrary-initial-state reset-entry check passed. The induction
+log ended with `Called with -verify and proof did time out!` at the fifth
+induction step, with 608,450 variables and 1,712,963 clauses. A failed short
+induction hypothesis is not a reachable zero-state counterexample; the final
+timeout was not accepted as proof or as successful qualification.
+
+The repair applies generic Yosys preparation only to the existing zero-state
+induction path:
+
+```text
+zinit -all
+opt -full -keepdc
+dffunmap
+check -assert
+```
+
+`zinit -all` makes the already-required initial-state contract explicit before
+register optimization, while preserving explicit nonzero initial values by
+inversion. `opt -full -keepdc` can then normalize equivalent native clock-enable
+and reset structures without dropping don't-care semantics. State is not
+paired by emitted names, and no primary input is constrained. The separate
+reset-entry check continues to use the original uninitialized miter setup.
+The original SAT commands, 90-second solver timeout, maximum induction steps,
+parameter matrix, native RTL, and reference/model bodies are unchanged.
+
+Three additional mutations pass through this exact induction preparation:
+ignored clock enable, wrong reset value, and explicit nonzero initial state.
+Each must produce a real SAT `bad=1` counterexample VCD. They supplement, rather
+than replace, the original wrong-branch, stale-index and cross-instance controls.
+The existing 519 matrix rejection controls remain required. Self-tests also
+reject missing sequential mutation anchors and guard separation of zero-state
+induction from arbitrary-initial-state reset entry.
+
+### Local hardware requalification
+
+The repaired checker was run against the complete, unchanged A/B Verilog from
+CI head `be728de13d2d6ae0b618ea01e61de911014258b3`, not handwritten replacement
+RTL. Both failed-run archives were digest-checked, their source archive/head
+identities matched, and all **521 original candidate/reference RTL files** and
+manifests matched across A/B and Scala 2.12.18/2.13.12. Each archived Scala lane
+had passed **388 safety tests in 30 suites**, with zero failures/errors/skips.
+
+The complete local replay of the Scala 2.12.18-generated artifact passed:
+
+| Gate | Result |
+| --- | --- |
+| Expanded native-reference matrix | 516 / 516 specializations |
+| Independent simulation | 86,514 input vectors; 20,988 registered clock cycles |
+| Combinational SAT equivalence | 408 / 408 |
+| Registered reset entry and unbounded induction | 108 / 108, both checks |
+| Genuine RTL mutation counterexamples | All three original and all three new registered controls |
+| Inherited 59b publication matrix | 32 / 32, including original reset-entry/induction and both mutations |
+
+The previously timing-out 32-bit, 16-element registered case now reaches
+`Induction step proven: SUCCESS!` at length one without increasing the timeout.
+The local tool binaries were recovered from a digest-verified CI tool kit:
+Yosys 0.41 (`c1ad37779`), Icarus 11.0 and Verilator 4.228. All 21 existing checker
+helper/model/miter/mutation functions remained byte-identical; only the new
+induction preparation and supplementary controls alter the qualification path.
+
+Source-bound local evidence identifiers:
+
+- Repaired checker SHA-256: `d7f94b55930e645de3057ac78fe01e926f2e9c76b55d3e5fcd3b1d6fb1cdd41e`.
+- Expanded manifest SHA-256: `74ee8b4bfb4ad7ed1c727cf05a7987d789c52c9db3c8e628b19058caa01fca08`.
+- Repaired local evidence SHA-256: `f7bcdb4a6571464f20fc463979e768846aced6cfa2b2c8469d8fb1bc1a526e91`.
+- Current expanded `BalancedNestedLoop.v` SHA-256: `e907a0c4e1072470c38ee75c73d75998d7f88b433ac6fdea823f07a6dd0f3b78`.
+
+This is a local HDL-tool replay of CI-generated RTL, not a new clean Scala
+build or a claim of passing fresh exact-head CI. The new dual-Scala dedicated
+workflow, applicable inherited gates, final review and roadmap closeout remain
+required. The 59h checkbox stays unchecked until that qualification completes.
+
+## September 7 qualification review (matrix-expansion checkpoint)
 
 The merged-head dedicated workflow and full inherited regressions passed.
 However, the dedicated matrix covered WIDTH `{1, 5, 8}` and COUNT
@@ -28,11 +104,12 @@ case, the old matrix, a duplicate and an out-of-domain count: **519 negative
 matrix controls**. All self-tests passed locally. These parser/model controls
 are not a substitute for Scala generation, hardware simulation or solver proof.
 
-The follow-up does not change production algorithms, native source manifests,
+The initial matrix-only follow-up did not change production algorithms, native source manifests,
 independent native reference bodies, reset/enable assumptions, solver commands
-or any existing hardware mutation. Both Scala lanes must newly generate and
-qualify the complete matrix before the roadmap checkbox can be closed. The
-historical results below cannot qualify the expanded candidate domain.
+or any existing hardware mutation. The later induction-preparation repair is
+recorded above. Both Scala lanes must newly generate and qualify the complete
+matrix before the roadmap checkbox can be closed. The historical results below
+cannot qualify the expanded candidate domain.
 
 ## Scope
 
@@ -87,7 +164,8 @@ finite reads, without a handwritten candidate datapath.
 simulation, synthesis, native-reference equivalence, reset entry and induction
 for registered cases, and wrong-branch, stale-index and cross-instance RTL
 mutations. The inherited 59b qualifications and both supported Scala lanes
-remain required. Final expanded-matrix results remain pending.
+remain required. Local expanded-matrix results are recorded above; fresh
+exact-head CI qualification remains pending.
 
 ### Verified historical post-merge evidence
 
