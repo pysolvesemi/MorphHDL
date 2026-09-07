@@ -182,7 +182,7 @@ object BooleanTernaryGenericNativeWitness {
       case "all" => Some(new BooleanTernaryPipelineNativePhase(true))
       case other => throw new IllegalArgumentException(s"unsupported witness mode $other")
     }
-    val name = args(0) match {
+    val witnessDefinitionName = args(0) match {
       case "reference" => "BooleanTernaryNativeReference"
       case "ternary" => "BooleanTernaryNativeCandidate"
       case "all" => "BooleanTernaryNativeAll"
@@ -197,7 +197,7 @@ object BooleanTernaryGenericNativeWitness {
     ConstantOperandWitnessPhasePlan.install(config, phase)
     SpinalVerilog(config) {
       new Component {
-        setDefinitionName(name)
+        setDefinitionName(witnessDefinitionName)
         val a = in Bool()
         val b = in Bool()
         val y0, y1, y2, y3, y4, y5, y6, y7 = out Bool()
