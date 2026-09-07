@@ -1050,15 +1050,20 @@ dependency chain is unchanged and may proceed independently.
 
 ### Native signed-Verilog track (Increment 60)
 
-- [ ] **Increment 60 — Native signed `SInt` Verilog**
+- [x] **Increment 60 — Native signed `SInt` Verilog**
 
   **Dependencies:** Increment 59 implemented and merged.
 
   Follow [the Increment 60 child roadmap](increment-60-sint-signed-verilog-roadmap.md)
   and [signedness semantic contract](increment-60-signedness-contract.md).
-  The serial chain is 60a through 60g; this parent remains open until every
-  child and its final-head gates are complete. Ordinary SpinalVerilog stays
-  unchanged by default.
+  The serial chain 60a through 60g is complete. The
+  [60g final qualification record](increment-60g-default-rollout.md#final-implementation-qualification)
+  identifies the exact source, actual Scala/Verilog example and terminal
+  dual-Scala CI evidence: 1,872 tests across 182 suites per lane, independent
+  signedness proofs, all integration hardware matrices, deterministic output,
+  native-source audits, baseline and Mill. The final completion transition is
+  documentation-only; its applicable checks and protected merge are tracked in
+  PR #167. Ordinary SpinalVerilog and VHDL remain unchanged by default.
 
 ## Completion target
 
