@@ -222,7 +222,7 @@ def manifest_failures(path: Path, manifest: dict) -> list[str]:
     if witness.get("common_reference_capture") != "common-pre-pass/reference.v":
         failures.append(f"{path}: WA03-COMMON-REFERENCE: capture path changed")
     slots = witness.get("future_pass_outputs")
-    expected_items = {"WA-04", "WA-05", "WA-06", "WA-07", "WA-07a"}
+    expected_items = {"WA-04", "WA-05", "WA-06", "WA-07", "WA-07a", "WA-07b"}
     observed_items = {
         value.get("activation_item")
         for value in slots
@@ -439,12 +439,28 @@ object Gate { def inspect(id: SymbolId) = id.value }
                 {"activation_item": "WA-06"},
                 {"activation_item": "WA-07"},
                 {"activation_item": "WA-07a"},
+                {"activation_item": "WA-07b"},
                 {"activation_item": "WA-07"},
             ],
         },
     }
     if manifest_failures(Path("manifest.json"), valid_manifest):
         raise AssertionError("valid manifest contract was rejected")
+    # The inserted ternary stage is mandatory, not permission for arbitrary slots.
+    for missing in ("WA-04", "WA-05", "WA-06", "WA-07", "WA-07a", "WA-07b"):
+        mutant = json.loads(json.dumps(valid_manifest))
+        mutant["shared_witness"]["future_pass_outputs"] = [
+            slot for slot in mutant["shared_witness"]["future_pass_outputs"]
+            if slot["activation_item"] != missing
+        ]
+        if not any("WA03-FUTURE-PASS-SLOTS" in value
+                   for value in manifest_failures(Path("manifest.json"), mutant)):
+            raise AssertionError(f"missing {missing} proof stage was not rejected")
+    mutant = json.loads(json.dumps(valid_manifest))
+    mutant["shared_witness"]["future_pass_outputs"].append({"activation_item": "WA-09"})
+    if not any("WA03-FUTURE-PASS-SLOTS" in value
+               for value in manifest_failures(Path("manifest.json"), mutant)):
+        raise AssertionError("unauthorized proof stage was not rejected")
     mutant = json.loads(json.dumps(valid_manifest))
     mutant["shared_witness"]["parameter_domains"]["WIDTH"].remove(64)
     if not any("WA03-WIDTH-DOMAIN" in value for value in manifest_failures(Path("manifest.json"), mutant)):
