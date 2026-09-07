@@ -13,7 +13,7 @@ import org.scalatest.matchers.should.Matchers
 
 /** Independent structured rule oracle; the native backend witness is a separate gate. */
 final class BooleanTernaryFourStateSpec extends AnyFunSuite with Matchers {
-  import BooleanTernaryTestSupport._
+  import BooleanTernaryTestSupport.{not => logicalNot, _}
   private val root = Paths.get("build", "wa07b-rule-oracle")
   private final class Case(val label: String, val expression: RtlExpr, val width: Int = 1,
       val signed: Boolean = false) {
@@ -267,7 +267,7 @@ endmodule
     mutation.foreach { kind =>
       val (label, replacement) = kind match {
         case "raw-z" => "raw-false-1" -> raw("mutant-z")
-        case "polarity" => "predicate-false-1" -> not(predicate("mutant-polarity"))
+        case "polarity" => "predicate-false-1" -> logicalNot(predicate("mutant-polarity"))
         case "vector" => "word-false-8" -> ref(aId, "mutant-vector")
         case "vector-complement" => "word-true-8" -> RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, ref(aId, "mutant-vector-not"))
         case "widened-complement" => "predicate-true-8" -> RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, predicate("mutant-wide-not"))
