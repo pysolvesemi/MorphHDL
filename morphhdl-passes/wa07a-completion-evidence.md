@@ -1,0 +1,140 @@
+# WA-07a qualification record
+
+The implemented constant-operand pass and complete four-stage standalone
+pipeline passed the implementation qualification below. This record names the
+proved revision explicitly; a later integration/completion commit does not inherit its
+exact-commit qualification.
+
+| Evidence | Verified identity or result |
+| --- | --- |
+| Implementation source | `df3ab1c5259c08437844665f6f567ac7086b040d` |
+| Qualification workflow | [Exact-source CI](https://github.com/pysolvesemi/MorphHDL/actions/runs/34033787413) |
+| Workflow run ID | `34033787413` |
+| Aggregate artifact | `morphhdl-wa07a-equivalence-evidence`, ID `9994105067` |
+| Aggregate result | `gate-status.json`: `PASS`, `complete_domain: true` |
+| Reference SHA-256 | `8cc216c904ea78bf8eac0971d02c1f19cf0970fb88d578aaeac2b3304ee08ef6` |
+| Manifest SHA-256 | `fde8503c76327d1e59e75482c6841178a91001c94ef7c378a34d2c6d64027568` |
+| Signature registry SHA-256 | `97ad58762a3c4c5a9834dcdba83a61aa8cebf05fd8542b24d274b0e805e698e9` |
+
+`ConstantOperandSimplificationPass` operates on canonical expression trees and
+is generic over components. Its bounded rules cover bitwise and logical
+operations, safe double negation, zero-distance shifts and constant-condition
+muxes. For a one-bit comparison result `p`, the rules include `p & 1 -> p` and
+`p & 0 -> 0`. Width, signedness, symbolic parameters, context sizing, cast/resize
+boundaries and X/Z semantics remain protected. A numeric one is not treated as
+a multi-bit all-ones mask. Rewrites are reported separately from removed aliases,
+and failed validation rolls the pipeline back to its original input.
+
+The all-or-none pipeline runs unnamed aliases, named aliases, unnamed continuous
+expressions and constant operands in that order until a checked fixed point.
+The native test bridge captures and writes back actual expression trees; it
+contains no component recognizer or generated-Verilog rewriting mechanism.
+
+The retained qualification covers:
+
+- All 123 Scala tests on both Scala 2.12.18 and 2.13.12, including positive and
+  negative expression rules, preservation, determinism and idempotence.
+- The four-state oracle over 1,024 input patterns and the native four-state
+  fixture; the unsafe raw-Z identity mutation is detected. These simulation
+  results provide the X/Z evidence separately from two-state formal proof.
+- Strict Verilog-2001 compilation, lint, synthesis, representative simulation,
+  repeated native emission and all WA pass static/source/signature contracts.
+- All seven historical and new candidates against the same unchanged reference
+  captured immediately before the entire passes phase, for every
+  `WIDTH=1..64` and `DEPTH=1..8` binding, in two independent runs.
+- The exact union of all 16 shards: **7 × 512 × 2 = 7,168 complete binding
+  qualifications**, each covering every output property, plus **7,168 actual
+  comparison-reachability proofs** with retained cover traces.
+- Output-comparison corruption controls for every candidate at `WIDTH=1, DEPTH=1`,
+  plus independent generic combinational and sequential controls, with retained
+  counterexample traces. These controls mutate the miter, not candidate RTL.
+- Matching deterministic `.json`, `.sby`, `.v`, `.ys` and `.args` artifacts across
+  both runs, excluding `proof`, `reachability` and `obj_dir` working directories.
+  Raw solver logs and traces are not required to be byte-identical.
+  Aggregation separately validates source/input hashes, prepared models, miters,
+  clocks, property coverage, attempted searches, logs and verified invariants.
+  A successful shard alone is not full-domain qualification.
+
+Payload equality is guarded by both `io_pop_valid` outputs; those valid outputs
+are themselves compared. The reachability cover establishes the comparison
+phase, not separate coverage of every payload-valid guard. Aggregation checks
+the integrity and consistency of retained solver evidence; it does not rerun
+the solvers independently.
+
+## Completion and merge gate
+
+Integration with the qualified 59e base exposed a test-fixture metadata issue:
+native `cloneOf` now preserves symbolic metadata, so the fixture's intentionally
+retained `.resized` count aliases carried a child-local `DEPTH` root into the
+parent. Its two already-fixed four-bit count outputs now use explicit
+`resize(4)`. This preserves their ABI and full-domain count behavior without
+changing production validators or the pass algorithms. Source regressions
+reject deferred clones and changed count widths. The fresh pre-pass capture may
+have different bytes from the historical hash above; every candidate must still
+use the exact same capture preceding the entire passes phase in its own run.
+
+At integration head `612f07927b4a302d1ae16b29882d99bde1c4c03f`, both Scala
+lanes and native generation passed, but formal shards 7 and 13 exhausted their
+600-second binding budgets on the unnamed-alias candidate at `WIDTH=40,
+DEPTH=8` and `WIDTH=30, DEPTH=8`. Those runs are failures, not qualification.
+The proof runner now adds one fixed, effort-limited `-m -i -p` search before
+the final search. The prepared models, canonical formulas, complete assertion
+coverage, clock and reset assumptions, independent initial state, reachability
+requirements, and shared 600-second budget are unchanged. The attempt must
+produce an actual proved property and verified invariant; no timeout or
+counterexample permits another attempt or a passing result.
+
+Local replays from those two retained CI input models proved all 40 and 50
+output properties twice, each run within 171 seconds, with byte-identical
+complete evidence across repetitions. Regenerated full AIGs matched the
+retained CI AIG bytes. Comparison-phase reachability evidence was retained from
+CI and was not rerun in these local replays. Direct tests of the new search
+profile retained verified invariants for clock and temporal positive controls
+and rejected actual counterexamples for incorrect clock lowering, changed temporal behavior,
+independent initial state, and payload bit 39 at `WIDTH=40, DEPTH=8`.
+These focused checks do not replace fresh full-domain CI qualification.
+
+At integration head `2581b7adbe34baab9c7962623a57c8ec87f70afc`, two
+bindings aborted before PDR in legacy ABC `write_aiger -u`: the historical
+three-pass candidate at `WIDTH=46, DEPTH=8` in run A, and named aliases at
+`WIDTH=36, DEPTH=5` in run B. The latter binding passed in run A with an
+identical full AIG. Both retained logs identify the same assertion in
+`Saig_ManDupIsoCanonical_rec`, which interleaves integer ranks and copied-node
+pointers in shared union storage. The original archives were hash-verified and
+their exact logs/models recovered by the separate read-only
+[diagnostic run](https://github.com/pysolvesemi/MorphHDL/actions/runs/34072942279).
+These aborts are neither RTL counterexamples nor qualification passes.
+
+Every canonical snapshot now uses `&get; &w -u`, the GIA writer already used
+before DCH. It computes ordering before copying, avoiding the legacy SAIG
+canonicalizer. The separate GIA workspace leaves the current ABC network used
+by normalization and PDR unchanged. Snapshots remain deterministic, and the
+checker still requires complete property coverage, exact extraction/proven
+snapshot equality, zero initial state at the canonicalization boundary, actual
+proved properties and verified invariants. Constant-false certificates remain
+strict. The parameter domain, clock/reset/initial-state assumptions, proof
+portfolio, comparison covers, mutation controls and shared binding budget are
+unchanged. This serializer repair requires fresh exact-head qualification.
+
+Local replays of the exact retained models now prove all 56 and 46 output
+properties twice, respectively, with fresh comparison covers and identical
+accepted evidence and deterministic artifacts. Every checked preparation,
+Verilog/RTLIL, miter, configuration and full-AIG file matches the original CI
+bytes. All 146 Python regressions and 14 real-tool controls pass, including
+isomorphic sequential-cone proof reuse and repetition, strict constant
+certificates, incorrect-clock and temporal counterexamples, independent initial
+state, and a later-output mutation. These focused results do not replace the
+complete fresh CI matrix.
+
+The implementation revision above qualified before the completion checkbox was
+changed. The completion head, including integration of the qualified base, must
+receive its own full required CI, including fresh native generation, both Scala
+lanes, static checks,
+all 16 proof shards and successful aggregation. Merge is permitted only after
+those jobs pass on the exact expected PR head; the earlier run does not establish
+that a newer source SHA has passed.
+
+WA-08 remains unchecked. Its `READY` status identifies the successor after this
+WA-07a completion is merged into `parameterized-verilog`. Its dependencies are
+not satisfied by an open PR. Production publication, execution and writeback
+remain WA-08 work.

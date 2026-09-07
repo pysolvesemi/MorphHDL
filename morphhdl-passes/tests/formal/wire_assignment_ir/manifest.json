@@ -143,6 +143,16 @@
         "activation_item": "WA-07",
         "candidate": "morphhdl-passes/build/pass-outputs/wire-assignment-all.v",
         "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed"
+      },
+      {
+        "activation_item": "WA-07a",
+        "candidate": "morphhdl-passes/build/pass-outputs/constant-operand-simplification.v",
+        "pass_id": "constant-operand-simplification"
+      },
+      {
+        "activation_item": "WA-07a",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+constant-operand-simplification"
       }
     ],
     "generated_file_name": "parameterized_stream_fifo.v",

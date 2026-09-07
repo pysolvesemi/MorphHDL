@@ -44,7 +44,11 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
 
   val fifo = StreamFifo(HardType(Bits(width bits)), depth.asElabInt)
   fifo.io.push << io.push
-  io.pop.valid := fifo.io.pop.valid
+  // Ordinary source-level redundant operands exercise WA-07a in every mode,
+  // including the common snapshot taken before ANY pass. No RTL is injected.
+  val popValidSource = Bool()
+  popValidSource := fifo.io.pop.valid
+  io.pop.valid := ((popValidSource === True) & True) | False
   fifo.io.pop.ready := io.pop.ready
 
   // Keep the source on the parent side of the hierarchy boundary so the
@@ -55,8 +59,11 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
     directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))
 
   fifo.io.flush := io.flush
-  io.occupancy := fifo.io.occupancy.resized
-  io.availability := fifo.io.availability.resized
+  // These ABI outputs are explicitly four bits. Avoid a deferred .resized
+  // clone carrying the child's definition-local DEPTH root into the parent:
+  // the witness intentionally preserves aliases that production cleans up.
+  io.occupancy := fifo.io.occupancy.resize(4)
+  io.availability := fifo.io.availability.resize(4)
 }
 
 object ParameterizedStreamFifoExample {
