@@ -356,7 +356,7 @@
     {
       "path": "morphhdl/scripts/check-increment-59c-source-review.py",
       "before_sha256": "bb0e3c55244a57b13543b7fc6dcd3045183a8abe1ced465cddd840723c7b89aa",
-      "after_sha256": "c3ffb80ae6cd0b6200a77fdea4f755b178bfe288a039c912f9128db90c64ec9c",
+      "after_sha256": "898cf2865d531dc10cad6cd4cb25468d3a4a2b5e2d4982a5d1738d869785959e",
       "edits": [
         {
           "before": "\n\ndef nested_source_review(root: Path):\n    \"\"\"Compose a separately pinned successor before this immutable 59c review.\"\"\"\n",
@@ -368,7 +368,7 @@
         },
         {
           "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
-          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        # Only the separately sealed successor's delta is excluded. Existing\n        # 59c paths remain mandatory; neither current bytes nor metadata grant\n        # permission outside that exact outer publication contract.\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n    return paths\n\n\n"
+          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        # Only the separately sealed successor's delta is excluded. Existing\n        # 59c paths remain mandatory; neither current bytes nor metadata grant\n        # permission outside that exact outer publication contract.\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n        paths = rollout.without_sibling_delta(root, paths, revision)\n    return paths\n\n\n"
         },
         {
           "before": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59c reviewed source is not uniquely tracked: \" + path)\n        current = source.read_bytes()\n        if nested is not None:\n            current = nested.restore_source(root, path, current.decode()).encode()\n",
@@ -402,7 +402,7 @@
     {
       "path": "morphhdl/scripts/check-increment-59h-source-review.py",
       "before_sha256": "7665b6ec4abc332e976ce835b427006447e0c31eff5af5bc3ca430677bcc5eb0",
-      "after_sha256": "12561d165c793574ed68ad096c144c102c97514a9902d527478c901f6e914202",
+      "after_sha256": "665f8acdf19de8234f363579f34ff0246b7130bdf3f5b9132a3bd3d1836a7798",
       "edits": [
         {
           "before": "import copy\nimport hashlib\nimport json\nimport re\n",
@@ -418,7 +418,7 @@
         },
         {
           "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
-          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n    return paths\n\n\n"
+          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n        paths = rollout.without_sibling_delta(root, paths, revision)\n    return paths\n\n\n"
         },
         {
           "before": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59h reviewed source is not uniquely tracked: \" + path)\n        restore_reviewed(entry, baseline, source.read_bytes())\n\n\n",

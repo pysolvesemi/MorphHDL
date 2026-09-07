@@ -52,3 +52,41 @@ production checkout. The complete 3,051-case catalog rerun was stopped by the
 local command time budget and is not claimed as a new pass. Actual combined
 source, all inherited regressions and hardware jobs are left to the normal
 exact-head CI; no failed or in-progress job is treated as successful.
+
+
+## Inherited inventory projection repair
+
+The combined `a6d6ad2e1d697a911577060e3ad317ffb0affd4b` CI identified
+a missing composition layer. The outer 60g audit admitted the exact merged
+WA-07a profile, but the 59h and 59c audits still counted those three files as
+local production changes. The full 60f source chain therefore rejected the
+combined tree before the dedicated HDL proofs. Both Scala compatibility and
+full regression execution steps succeeded; their final inventory gate failed.
+This is not recorded as successful hardware qualification.
+
+The repaired 59c and 59h inventory adapters now project only the validated
+sibling delta out of their local view. Before projection, the shared 60g helper
+requires the complete sibling inventory, actual merge ancestry, exact file
+hashes, non-executable regular files, and identical HEAD/index/worktree blobs.
+It preserves any sibling path already changed between the caller's baseline
+and the pre-sibling baseline, and leaves unrelated paths visible for rejection.
+The outer 60f union still includes WA-07a and requires its exact pass tests;
+this is not a global exclusion of pass-workspace changes.
+
+The two audit adapters' 60g reversal entries and qualification hashes are
+refreshed to their exact new bytes. All other reversal entries, 59c/59h original
+contracts, Scala production and tests, native manifests, proof assumptions,
+independent RTL references, public goldens and workflows remain unchanged.
+The current target's WA-07b roadmap-only update is retained unchanged.
+
+In addition to the existing 24 reversals, 72 restoration mutations and 27
+sibling-scope attacks, the new self-test invokes both actual inherited inventory
+adapters. It accepts standalone/combined views, checks historical overlap and
+unrelated-path preservation, and rejects 44 corrupt, missing, executable,
+linked, untracked, secretly staged, unmerged or reverted sibling cases. These
+are source controls, not RTL proofs. The complete combined source-only chain
+now passes locally; broader current-head CI remains required before merge.
+
+This repair does not affect generated Verilog. Previous actual generated
+examples and the qualified implementation record remain unchanged. Final-head
+CI and post-merge results must retain their own source identities.

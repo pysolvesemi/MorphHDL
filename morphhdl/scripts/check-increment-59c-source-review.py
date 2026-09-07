@@ -203,6 +203,7 @@ def production_changes(root: Path, revision: str) -> set[str]:
         prior = subprocess.check_output(["git", "diff", "--name-only", revision, rollout.BASE],
                                         cwd=root, text=True).splitlines()
         paths -= set(rollout.PRODUCTION) - set(prior)
+        paths = rollout.without_sibling_delta(root, paths, revision)
     return paths
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 BASE = "cba4717abc9192917d819e1f84cb246162488286"
 NATIVE_MANIFEST_SHA256 = "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "80bdb0cf42fb656f4dc8a4124f52fdcd238ebde84fc11035842797ea501ddb32"
+CONTRACT_SHA256 = "ad2319d917427e7e81bf0e16785b8a0bd84ed1c444a15e1d78c73b590d56458f"
 PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'morphhdl/scripts/check-increment-60f-equivalence-closure.py', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala', 'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala', 'morphhdl/contracts/increment-55-native-change-review.json', 'morphhdl/contracts/native-source-preservation.json', 'morphhdl/scripts/check-increment-59c-source-review.py', 'morphhdl/scripts/test-increment-59c-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py'])
 PRODUCTION = {
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7",
@@ -31,9 +31,9 @@ QUALIFICATION = {
     "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a",
     "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29",
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala": "15d7398426924bb8f74b50208625fce5c0e9c3d036a8b03cc1e8e0ad8fd33864",
-    "morphhdl/scripts/check-increment-59c-source-review.py": "c3ffb80ae6cd0b6200a77fdea4f755b178bfe288a039c912f9128db90c64ec9c",
+    "morphhdl/scripts/check-increment-59c-source-review.py": "898cf2865d531dc10cad6cd4cb25468d3a4a2b5e2d4982a5d1738d869785959e",
     "morphhdl/scripts/test-increment-59c-inherited-source-scope.py": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
-    "morphhdl/scripts/check-increment-59h-source-review.py": "12561d165c793574ed68ad096c144c102c97514a9902d527478c901f6e914202",
+    "morphhdl/scripts/check-increment-59h-source-review.py": "665f8acdf19de8234f363579f34ff0246b7130bdf3f5b9132a3bd3d1836a7798",
     "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "2191cb92fd901fc6ad7e24e66adc63c4ae8991cd97a14d87525d284c3af8f25b"
 }
 # Separately qualified sibling merged after 60g's implementation closeout.
@@ -135,6 +135,28 @@ def sibling_scope(root: Path, extra: set[str]) -> None:
             ["git", "rev-parse", "HEAD:" + path], cwd=root, text=True).strip()
         require(stage[1] == current == committed,
                 "WA-07a index, worktree and committed source differ: " + path)
+
+
+
+def without_sibling_delta(root: Path, paths: set[str], revision: str) -> set[str]:
+    """Project only the verified sibling out of an inherited increment's view.
+
+    The outer source union still retains and checks WA-07a. The 59c/59h local
+    inventories describe their own deltas and must not absorb this sibling.
+    Restore the pre-sibling view relative to the caller's exact baseline;
+    never drop unrelated changes or any historically overlapping path.
+    """
+    def changed(older: str, *newer: str) -> set[str]:
+        output = subprocess.check_output(
+            ["git", "diff", "--no-renames", "--name-only", "-z", older, *newer], cwd=root)
+        return {path.decode("utf-8") for path in output.split(b"\0") if path}
+
+    sibling = changed(BASE) & set(WA07A_PRODUCTION_SHA256)
+    # An ancestor/name match alone grants nothing: validate complete inventory,
+    # hashes, file modes, tracking and HEAD/index/worktree before projection.
+    sibling_scope(root, sibling)
+    historical = changed(revision, BASE) & sibling if sibling else set()
+    return (paths - sibling) | historical
 
 
 def source_scope(root: Path) -> None:
@@ -279,6 +301,126 @@ def sibling_scope_self_test(repository: Path) -> None:
     print(f"60g sibling source controls: clean standalone/combined profiles and {rejected} rejections PASS (not RTL proof)", flush=True)
 
 
+
+def inherited_projection_self_test(repository: Path) -> None:
+    """Exercise both real inherited inventory adapters, not just the outer gate."""
+    import importlib.util
+    import tempfile
+    from types import SimpleNamespace
+    from unittest import mock
+
+    adapters = []
+    for name in ("59c", "59h"):
+        path = repository / ("morphhdl/scripts/check-increment-" + name + "-source-review.py")
+        spec = importlib.util.spec_from_file_location("projection_" + name, path)
+        require(spec is not None and spec.loader is not None, "missing inherited adapter: " + name)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        adapters.append((name, module))
+    rejections = 0
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60g-inherited-projection-") as directory:
+        root = Path(directory)
+
+        def git(*args: str) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, text=True,
+                                           stderr=subprocess.PIPE).strip()
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        paths = set(WA07A_PRODUCTION_SHA256)
+        first = sorted(paths)[0]
+        git("init", "-q")
+        git("config", "user.name", "Inherited inventory fixture")
+        git("config", "user.email", "scope@example.invalid")
+        (root / first).parent.mkdir(parents=True)
+        (root / first).write_text("synthetic original source\n")
+        oldest = commit("original sibling path")
+        (root / first).write_text("synthetic inherited source\n")
+        baseline = commit("pre-sibling baseline")
+        own = "example/src/main/Owner.scala"
+        (root / own).parent.mkdir(parents=True)
+        (root / own).write_text("synthetic owning-increment source\n")
+        commit("owning increment")
+        contents = {path: ("synthetic qualified sibling " + path + "\n").encode() for path in paths}
+        hashes = {path: hashlib.sha256(raw).hexdigest() for path, raw in contents.items()}
+        outer = SimpleNamespace(BASE=baseline, PRODUCTION={}, without_sibling_delta=without_sibling_delta)
+
+        def inventories(expected=None) -> None:
+            nonlocal rejections
+            for name, adapter in adapters:
+                with mock.patch.object(adapter, "rollout_scope", return_value=outer):
+                    try:
+                        actual = adapter.production_changes(root, baseline)
+                    except RuntimeError:
+                        require(expected is None, name + " rejected a clean projection")
+                        rejections += 1
+                    else:
+                        require(expected is not None and actual == expected,
+                                name + " accepted a bad projection: " + str(sorted(actual)))
+
+        with mock.patch.dict(globals(), BASE=baseline, WA07A_MERGED="0" * 40,
+                             WA07A_PRODUCTION_SHA256=hashes):
+            inventories({own})
+            for path, raw in contents.items():
+                file = root / path
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(raw)
+            qualified = commit("complete sibling")
+            inventories()  # Correct bytes without the sibling's ancestry are insufficient.
+            with mock.patch.dict(globals(), WA07A_MERGED=qualified):
+                inventories({own})
+                require(without_sibling_delta(root, paths | {own}, oldest) == {own, first},
+                        "projection discarded an inherited overlapping path")
+                extra = "other/src/main/Unexpected.scala"
+                (root / extra).parent.mkdir(parents=True)
+                (root / extra).write_text("unreviewed source\n")
+                inventories({own, extra})  # The caller's exact inventory must still reject this.
+                (root / extra).unlink()
+                for path, raw in contents.items():
+                    file = root / path
+                    file.write_bytes(raw + b"changed\n")
+                    inventories()
+                    git("add", "--", path)
+                    file.write_bytes(raw)
+                    inventories()  # A restored worktree cannot hide staged drift.
+                    git("reset", "-q", "HEAD", "--", path)
+                    file.unlink()
+                    inventories()
+                    file.write_bytes(raw)
+                    file.chmod(0o755)
+                    inventories()
+                    file.chmod(0o644)
+                    file.unlink()
+                    file.symlink_to(root / own)
+                    inventories()
+                    file.unlink()
+                    file.write_bytes(raw)
+                    git("rm", "--cached", "--", path)
+                    inventories()
+                    git("add", "--", path)
+                    inventories({own})
+                (root / first).write_bytes(contents[first] + b"committed change\n")
+                commit("corrupt committed sibling")
+                inventories()
+                (root / first).write_bytes(contents[first])
+                git("add", "--", first)
+                inventories()
+                commit("restore sibling")
+                inventories({own})
+                # Keep completion ancestry while reverting the entire sibling tree.
+                git("checkout", baseline, "--", first)
+                for path in paths - {first}:
+                    git("rm", "--", path)
+                commit("revert completed sibling")
+                inventories()
+    require(rejections == 44, "missing inherited projection rejection controls")
+    print("60g inherited inventory controls: both 59c/59h adapters, historical overlap, "
+          "unrelated-path preservation and 44 rejections PASS (not RTL proof)", flush=True)
+
+
 def self_test(root: Path) -> None:
     rejected = 0
     for entry in contract(root)["files"]:
@@ -296,6 +438,7 @@ def self_test(root: Path) -> None:
     require(rejected == 3 * len(PATHS), "incomplete source mutation controls")
     print(f"60g {len(PATHS)} exact restorations and {rejected} source mutation rejections PASS", flush=True)
     sibling_scope_self_test(root)
+    inherited_projection_self_test(root)
 
 
 if __name__ == "__main__":
