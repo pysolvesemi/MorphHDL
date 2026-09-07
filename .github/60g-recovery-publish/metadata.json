@@ -1,0 +1,33 @@
+{
+  "source": "a0ca19d9def2d9333374cb9df5cae3228eca039e",
+  "prior_pr": "226ac68e416c7456617991bb709127dc892ea6a3",
+  "integration": "0018da2740645e0ac0c419ded7b67c01622d2bb7",
+  "patch_sha256": "3a7d80f24de459050c46d44c5ca633855dd207d2d7a9adce08c689e50ac024e3",
+  "staging_source_tree": "868c308f40360fb416b0eed33ffd36a8869eaf19",
+  "final_tree": "6efaa389fa3906850e2182a278baa1efdafae87d",
+  "files_from_pr": [
+    "core/src/main/scala/spinal/core/internals/Phase.scala",
+    "docs/morphhdl/architecture/verilog-2001-profile.md",
+    "docs/morphhdl/increment-60g-default-rollout.md",
+    "morphhdl/examples/contracts/README.md",
+    "morphhdl/examples/contracts/symbolic_data_shapes.v",
+    "morphhdl/scripts/check-contracts.sh",
+    "morphhdl/scripts/check-increment-60c-signed-declarations.py",
+    "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+    "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+    "morphhdl/scripts/check-increment-60g-default-rollout.py",
+    "morphhdl/scripts/check-increment-60g-source-scope.py",
+    "morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py",
+    "morphhdl/scripts/test-increment-59f-source-scope.py",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala",
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala",
+    "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala",
+    "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala",
+    "morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala",
+    "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
+  ]
+}
