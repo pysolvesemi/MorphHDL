@@ -59,7 +59,7 @@ private[transform] object BooleanTernaryTestSupport {
 }
 
 final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matchers {
-  import BooleanTernaryTestSupport._
+  import BooleanTernaryTestSupport.{not => logicalNot, _}
 
   private def checked(input: Design): BooleanTernarySimplificationResult = {
     withClue("input validation: ") { CanonicalIrPassAdapter.bindFixture(input).isRight shouldBe true }
@@ -76,7 +76,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     Vector(false, true).foreach { inverted =>
       val result = checked(fixture(mux(p, inverted)))
       result.status shouldBe PassExecutionStatus.Changed
-      value(result.output) shouldBe (if (inverted) not(p) else p)
+      value(result.output) shouldBe (if (inverted) logicalNot(p) else p)
       result.rewrites.map(_.rule) shouldBe Vector(if (inverted) "boolean-ternary-inverse" else "boolean-ternary-positive")
       result.rewrites.head.expressionPath shouldBe "rhs"
       result.rewrites.head.module shouldBe moduleId
@@ -87,7 +87,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
   test("raw Bool Z and multi-bit conditions retain truth conversion") {
     Vector(raw(), ref(aId, "word"), RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, raw("bitwise"))).foreach { condition =>
       value(checked(fixture(mux(condition))).output) shouldBe truth(condition)
-      value(checked(fixture(mux(condition, inverse = true))).output) shouldBe not(condition)
+      value(checked(fixture(mux(condition, inverse = true))).output) shouldBe logicalNot(condition)
     }
   }
 
@@ -96,7 +96,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     for (width <- Vector(w(1), w(8), w(32), IntExpr.ParameterRef(widthId)); signed <- Vector(false, true)) {
       val input = fixture(mux(p, inverse = true), width, signed)
       val result = checked(input)
-      value(result.output) shouldBe not(p)
+      value(result.output) shouldBe logicalNot(p)
       result.output.modules.head.parameters shouldBe input.modules.head.parameters
     }
   }
@@ -267,7 +267,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     checked(input).status shouldBe PassExecutionStatus.Unchanged
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
-    value(first.output) shouldBe not(p)
+    value(first.output) shouldBe logicalNot(p)
     first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 2, 1)
     WireAliasPassPipeline.run(first.output, WireAliasPassConfiguration(enabled = true)).status shouldBe PassExecutionStatus.Unchanged
   }
