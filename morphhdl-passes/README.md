@@ -39,6 +39,9 @@ workspace a root build dependency.
 
 ## WA-03 safety contract
 
+WA-03 is read-only and does not eliminate an alias. It checks the
+complete admitted parameter domain before any transforming pass runs.
+
 A direct wire alias is eligible only when the canonical design proves:
 
 - exactly one full-object continuous driver is a direct signal reference;
@@ -59,8 +62,8 @@ candidate. Diagnostic and report ordering is deterministic.
 
 `UnnamedWireAliasEliminationPass` discovers candidates only from
 `NameOrigin.Unnamed`. It never recognizes `_zz_*` text. For each proven eligible
-candidate it replaces exact references, removes the exact declaration and sole
-assignment, and leaves all surviving identifiers unchanged. It reaches a fixed
+candidate it replaces reads by exact symbol identity, removes the exact declaration
+and sole assignment, and leaves all surviving identifiers unchanged. It reaches a fixed
 point for chains and fanout and publishes the original input on a validation
 failure.
 
@@ -74,7 +77,8 @@ or a component-specific implementation.
 ## WA-05 named direct-alias pass
 
 `NamedWireAliasEliminationPass` discovers candidates only from
-`NameOrigin.Explicit`. It applies the same bounded direct-reference contract
+`NameOrigin.Explicit`, which retains the explicit source name. It applies the
+same bounded direct-reference contract
 with the stricter named observability checks. An eligible named internal alias
 and its assignment are removed without transferring the removed name to its
 source or inventing a replacement name. Every removed name and available
