@@ -847,14 +847,17 @@ dependency chain is unchanged and may proceed independently.
   wrong offsets and incorrect parent/child or cross-Vec binding. This track
   qualifies interfaces and access without waiting for composite reduction.
 
-- [ ] **Increment 59d — Generic symbolic result-width provenance and widening reductions**
+- [x] **Increment 59d — Generic symbolic result-width provenance and widening reductions**
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c or 59e through 59h.
 
-  Implementation and qualification record:
-  [Increment 59d](increment-59d-symbolic-widths.md). The checkbox remains open
-  until the complete final-head acceptance gates pass.
+  **Complete and merged:** [PR #164](https://github.com/pysolvesemi/MorphHDL/pull/164),
+  merge `99b6017d7`. Both source and merge Scala lanes passed 145 tests / 13
+  suites, all 64 widening specializations and four actual RTL mutation
+  counterexamples. All 96 source and 109 post-merge qualification jobs passed;
+  both full regression lanes ran 1,738 tests with zero skips. See the
+  [59d qualification record](increment-59d-symbolic-widths.md).
 
   Replace the equal-width-only reduction certificate with generic scalar
   input/intermediate/result width functions derived from native typed IR.

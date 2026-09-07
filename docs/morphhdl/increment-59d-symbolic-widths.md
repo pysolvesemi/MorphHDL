@@ -2,8 +2,10 @@
 
 ## Status
 
-Implementation and qualification are in progress. The roadmap checkbox remains
-open. Work started from merged `parameterized-verilog` commit
+Complete and merged into `parameterized-verilog` through
+[PR #164](https://github.com/pysolvesemi/MorphHDL/pull/164) at
+`99b6017d7ac69112a088680457029623620224d3`. Both Scala lanes passed the complete
+source and post-merge qualification. Work started from merged commit
 `d3a0f112ce3cab9f074e5a7cbbc165c9878ff40a`, including completed Increment 59b.
 No dependency on an unmerged 59c or other parallel successor is introduced.
 The integration branch also includes merged 59f callback graphs from
@@ -161,4 +163,65 @@ the 96-shape proof and mutation phase.
 The budget includes both independent writers and every existing proof; individual
 tool limits and failure requirements remain enforced.
 
-Final evidence and completion status will be recorded after these gates pass.
+## Recorded source and post-merge qualification
+
+The reviewed source `c10bab1e72d051ee03f4ff05c0f56abdc0815553` and PR #164 merge
+`99b6017d7ac69112a088680457029623620224d3` have the same complete Git tree,
+`31cfab5ae38ad44cd22196f8dfd5a805ff780ead`. Source qualification passed 96 actual
+jobs: 20 critical and 76 inherited. Post-merge qualification passed 109 actual
+jobs: 16 critical and 93 inherited across 28 inherited workflow families.
+Routing-only and intentionally filtered jobs are excluded from these counts.
+
+Mill and some inherited source checks used synthetic PR merge
+`d91c60b834e8aa21b72ae545ae942a8fd7ab541a`, independently verified to have that
+same tree. The actual target-branch merge above was then qualified separately.
+All 91 inherited merge jobs that check out code verified that exact merge SHA;
+the other two successful jobs aggregate their prerequisite results.
+
+The table records passing results at both checkpoints. Scala lanes are 2.12.18
+and 2.13.12; the source and merge run links retain their separate evidence.
+
+| Gate | Verified result | Source run | Merge run |
+| --- | --- | --- | --- |
+| 59d widening | Each lane: 145 tests / 13 suites, zero failures/errors/skips; all 64 unique HDL cases and four actual RTL mutation counterexamples | [34043602591](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602591) | [34051576248](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576248) |
+| 59e composite reductions | Each lane: 65 composite cases / four mutations and 32 inherited publication cases / two mutations; merge tests 224 / 16 suites, zero failures/errors/skips | [34043602599](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602599) | [34051576289](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576289) |
+| 59f callback graphs | Each lane: 64 callback cases / three mutations and 32 inherited publication cases / two mutations; merge tests 220 / 17 suites, zero failures/errors/skips | [34043602540](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602540) | [34051576130](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576130) |
+| 60f regression and signedness closure | Each lane: 1,738 tests, including MorphHDL 947 / 91 suites and passes 99 / 11 suites, zero failures/errors/skips; both qualification jobs and 213-file cross-Scala byte identity | [34043602616](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602616) | [34051576310](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576310) |
+| Baseline and strict downstream contracts | Both Scala lanes and all 21 downstream Verilog-2001 contracts | [34043602517](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602517) | [34051576270](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576270) |
+| Mill compatibility | Both Scala lanes | [34043602478](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602478) | [34051576167](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576167) |
+| Inherited native, library, formal and source gates | All 76 source jobs and 93 merge jobs; whole-stage replay includes 96 shapes, reset-entry/induction and latency mutation in each lane | [PR #164 checks](https://github.com/pysolvesemi/MorphHDL/pull/164/checks), [stage](https://github.com/pysolvesemi/MorphHDL/actions/runs/34043602648) | [stage](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576090), [53g retirement](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576256), [54 layering](https://github.com/pysolvesemi/MorphHDL/actions/runs/34051576255) |
+
+The 64 widening cases comprise 32 singleton-default and 32 alternate-default
+specializations. Every case passed strict tools, independent simulation, exact
+native width/kind checks, full synthesis, reset-entry and induction, including
+COUNT=16/17. The four mutations changed actual carry, sign, default-width and
+tail-extension logic and produced definitive counterexamples.
+
+Widening evidence, ordered Scala 2.12.18 / 2.13.12:
+
+- Source jobs `101514632303` / `101514632324`, artifacts `9994624010` / `9994593104`.
+- Merge jobs `101536034722` / `101536034957`, artifacts `9996039606` / `9996272311`.
+
+These artifacts retain both generation roots, complete evidence, XML, source
+archive, `head.txt`, tool provenance and phase logs. The Actions logs establish
+exact checkout SHAs and the enforced XML attributes; SBT runtime output is
+redirected to the retained `sbt.log`. RTL-hash evidence remains associated with
+its enclosing source and Scala provenance.
+
+Each Baseline and Mill lane reports 939 successful MorphHDL tests and eight
+conditional test cancellations. All eight general 53g/54 SBT and Mill variants
+also canceled those same eight conditional opt-in tests. Those cancellations
+are not counted as passes: both required 60f lanes executed the cases at
+`99b6017d` within the 1,738-test zero-skip inventory. The canceled 59d source
+push duplicate ran no jobs and contributes no qualification evidence.
+
+The native manifest regenerated byte-identically with SHA-256
+`712fba385c39de57e5379467892b3bfc6f855b308b5a38f290cc730784745d06`.
+Source controls passed 59d 7/26, 59b 6/19, 59f 8/122 and 60f 2/10
+positive/negative cases; inventory controls passed 12 profiles and 3,042
+rejections. The 59d repeat comparison is within each Scala lane; the separate
+cross-Scala comparison covers the inherited 213-file 60f corpus.
+
+All required source and merge gates passed before the documentation-only
+closeout. This completion record describes the two qualified checkpoints above;
+later feature and documentation commits have their own distinct Git trees.
