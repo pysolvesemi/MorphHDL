@@ -1,0 +1,80 @@
+name: 60g resume compiler runtime
+on:
+  push:
+    branches: [agent/60g-resume-toolchain-226ac]
+    paths: [.github/workflows/60g-resume-toolchain.yml]
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx4G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 226ac68e416c7456617991bb709127dc892ea6a3
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compile exact source and export only compiler dependencies and class files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/resume-kit
+          sbt -batch -no-colors '++2.13.12' 'export morph/Test/fullClasspath' 'export morph/Test/scalacOptions' > target/resume-kit/build.log 2>&1 || { tail -n 150 target/resume-kit/build.log; exit 1; }
+          python3 - <<'PY'
+          import hashlib, json, pathlib, re, shutil, subprocess, tarfile
+          root = pathlib.Path.cwd()
+          out = root / 'target/resume-kit'
+          kit = out / 'runtime'
+          kit.mkdir()
+          text = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', (out/'build.log').read_text())
+          paths = []
+          for line in text.splitlines():
+              if line.startswith('/') and ':' in line:
+                  parts = line.split(':')
+                  if all(pathlib.Path(p).exists() for p in parts):
+                      paths = parts
+          assert paths, 'missing exact classpath export'
+          mapping = {}
+          for index, original in enumerate(paths):
+              p = pathlib.Path(original)
+              dest = kit / ('cp-%03d.jar' % index)
+              if p.is_dir():
+                  subprocess.run(['jar','cf',str(dest),'-C',str(p),'.'],check=True)
+              else:
+                  assert p.suffix == '.jar', p
+                  shutil.copyfile(p,dest)
+              mapping[original] = dest.name
+          extra = []
+          cache = pathlib.Path('/sbt/.cache/coursier/v1')
+          for name in ('scala-compiler','scala-library','scala-reflect'):
+              matches = list(cache.rglob(name+'-2.13.12.jar'))
+              assert matches, name
+              dest = kit / (name+'-2.13.12.jar')
+              shutil.copyfile(matches[0],dest)
+              extra.append(dest.name)
+          plugins = []
+          for project in ('idslplugin','morphplugin'):
+              for p in sorted((root/project/'target/scala-2.13').glob('*.jar')):
+                  dest = kit / p.name
+                  shutil.copyfile(p,dest)
+                  plugins.append(dest.name)
+          (kit/'manifest.json').write_text(json.dumps({'head':subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip(),'classpath':mapping,'compiler':extra,'plugins':plugins,'sha256':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in kit.glob('*.jar')}},indent=2)+'\n')
+          # No home directories, credentials, Git config or environment dump.
+          with tarfile.open(out/'runtime.tar.gz','w:gz') as archive:
+              archive.add(kit,arcname='runtime')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 60g-226ac-compiler-runtime
+          path: |
+            target/resume-kit/runtime.tar.gz
+            target/resume-kit/build.log
+          if-no-files-found: error
+          retention-days: 7
