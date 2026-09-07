@@ -16,45 +16,65 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Reconstruct and verify the exact source tree on staging only
+      - name: Reconstruct and verify the complete 60g and merged 59g source tree
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-          import base64, gzip, hashlib, os, shutil, subprocess, tempfile
+          import base64, gzip, hashlib, json, os, shutil, subprocess, tempfile
           branch = 'agent/60g-inherited-audit-publish-20260907'
-          base = 'a6d6ad2e1d697a911577060e3ad317ffb0affd4b'
-          target = '0e614d5f0642770c3114b42488bdaf7a9e8b785d'
-          helpers = ['.github/60g-inherited-audit-publish/repair.b64', '.github/workflows/60g-inherited-audit-publish.yml']
+          parent = 'a43ac50235c7450af1284935999eb02481c0fe06'
+          directory = Path('.github/60g-inherited-audit-publish')
+          workflow = '.github/workflows/60g-inherited-audit-publish.yml'
           def git(*args, **kwargs):
               return subprocess.check_output(['git', *args], text=True, **kwargs).strip()
           assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
           assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
-          assert git('rev-parse', 'HEAD^') == base
+          assert git('rev-parse', 'HEAD^') == parent
           assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
-          raw = gzip.decompress(base64.b64decode(Path(helpers[0]).read_text(), validate=True))
-          assert hashlib.sha256(raw).hexdigest() == 'cda61886bea60f042ada8450929ea6948665033c35ad477f44232ddddf72d7ef'
+          segments = sorted(directory.glob('segment-*.b64'))
+          assert [p.name for p in segments] == [f'segment-{i}.b64' for i in range(3)]
+          raw = gzip.decompress(base64.b64decode(''.join(p.read_text() for p in segments), validate=True))
+          assert hashlib.sha256(raw).hexdigest() == '5b9c40fdace988c60006e904c7439d2dd0a86cd9ac7d4a4c43dcf37b36aae87e'
+          envelope = json.loads(raw)
+          assert set(envelope) == {'metadata', 'patch', 'generator'}
+          meta = envelope['metadata']
+          assert meta['staging_parent'] == parent
+          assert meta['target'] == '424a548f60a6c1fe003e3d4d908e3b0f75e56632'
+          assert meta['canonical_stage_tree'] == '41797bfbe1ad0c8fd3a82568fcc1e5b9d37c52f6'
+          assert meta['final_tree'] == '576e7b5f98df1c93e76c279682bb36808e3c4afa'
+          patch_bytes = envelope['patch'].encode()
+          assert hashlib.sha256(patch_bytes).hexdigest() == meta['patch_sha256']
           with tempfile.TemporaryDirectory() as td:
               patch = Path(td) / 'repair.patch'
-              patch.write_bytes(raw)
-              subprocess.run(['git', 'checkout', target, '--', 'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md'], check=True)
+              patch.write_bytes(patch_bytes)
+              subprocess.run(['git', 'checkout', meta['target'], '--', *meta['copied_from_target']], check=True)
               subprocess.run(['git', 'apply', '--check', '--index', str(patch)], check=True)
               subprocess.run(['git', 'apply', '--index', str(patch)], check=True)
+              generator = Path(td) / 'generate-ledger.py'
+              generator.write_text(envelope['generator'])
+              subprocess.run(['python3', str(generator)], check=True)
+              ledger = Path('morphhdl/contracts/increment-60g-publication-edits.json')
+              assert hashlib.sha256(ledger.read_bytes()).hexdigest() == meta['ledger_sha256']
+              subprocess.run(['git', 'add', '-f', str(ledger)], check=True)
               subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+              assert not git('diff', '--cached', '--name-only', '--', '.github/workflows'), 'workflow publication belongs to the final API commit'
               index = Path(td) / 'index'
               shutil.copyfile(git('rev-parse', '--git-path', 'index'), index)
               env = dict(os.environ, GIT_INDEX_FILE=str(index))
+              helpers = git('ls-files', '--', str(directory), workflow).splitlines()
+              assert len(helpers) == 5 and workflow in helpers
               subprocess.run(['git', 'update-index', '--force-remove', '--', *helpers], env=env, check=True)
               tree = git('write-tree', env=env)
-              assert tree == '8bea20e56099790d65299970fe145052afa440a7', ('complete tree mismatch', tree)
+              assert tree == meta['canonical_stage_tree'], ('complete tree mismatch', tree)
           assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
           git('config', 'user.name', 'github-actions[bot]')
           git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
-          git('commit', '-m', 'Stage exact verified inherited source-audit repair [skip ci]')
+          git('commit', '-m', 'Stage exact verified 60g and 59g source-audit integration [skip ci]')
           git('push', 'origin', 'HEAD:refs/heads/' + branch)
           print('STAGED_COMMIT=' + git('rev-parse', 'HEAD'))
           print('STAGED_TREE=' + git('rev-parse', 'HEAD^{tree}'))
           print('CANONICAL_TREE=' + tree)
-          print('No qualification or PR merge is claimed by this source transfer.')
+          print('No compiler, HDL qualification or PR merge is claimed by this source transfer.')
           PY
