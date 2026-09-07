@@ -2,6 +2,7 @@ package morphhdl.passes.api
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
+import scala.sys.process.{Process, ProcessLogger}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
@@ -44,5 +45,13 @@ final class NativeRunnerSourceClosureSpec extends AnyFunSuite with Matchers {
         hasCompleteSources(original.replace("unmanagedSourceDirectories", "unmanagedSources")) shouldBe false
       }
     }
+  }
+  test("historical native report validation rejects false flag claims and incomplete execution evidence") {
+    val output = new StringBuilder
+    val log = ProcessLogger(line => { output.append(line).append('\n'); () },
+      line => { output.append(line).append('\n'); () })
+    val status = Process(Seq("python3", scripts.resolve("test_historical_native_reports.py").toString)).!(log)
+    withClue(output.toString) { status shouldBe 0 }
+    output.toString should include("WA07B_HISTORICAL_REPORT_PASS reports=3 rejected_mutations=33")
   }
 }
