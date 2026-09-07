@@ -1,0 +1,60 @@
+diff --git a/docs/morphhdl/increment-60g-default-rollout.md b/docs/morphhdl/increment-60g-default-rollout.md
+index b4c9528e4..9c89cb1b9 100644
+--- a/docs/morphhdl/increment-60g-default-rollout.md
++++ b/docs/morphhdl/increment-60g-default-rollout.md
+@@ -262 +262,12 @@ source is overwritten by the integration, and its whole source inventory and
+ mutation checks remain required in the inherited closure.
++
++
++The inherited scalar text contract now follows both actual multiplication
++operands and requires distinct signed TARGET-bit carriers, rather than one old
++anonymous-wire name. The sign-extension mutation follows the actual public
++result edge and changes exactly one canonical sign-bit replication to zero.
++All original parameter tuples, native-reference semantics, proof commands and
++five genuine boundary counterexamples remain required. This adapter does not
++rewrite candidate/reference RTL before qualification. The original 59c source
++mutation suite also runs unchanged at the exact merged base; current mutations
++must fail at their precise outer rollout ledger when that layer owns the file.
+diff --git a/morphhdl/scripts/check-increment-60e-signedness-boundaries.py b/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
+index 7108d07a5..97b16dc29 100644
+--- a/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
++++ b/morphhdl/scripts/check-increment-60e-signedness-boundaries.py
+@@ -347,3 +347,12 @@ def text_contract(out: Path, kind: str) -> None:
+         require("function signed [(WIDTH + 1)-1:0]" in text, "constant function range remains a witness")
+-        require("[TARGET-1:0] _zz_resizedProduct" in text, "nested resize width boundary disappeared")
++        # Native resize capture preserves the two real intermediate carriers;
++        # their generated names are not the width contract. Require both actual
++        # product operands to remain distinct signed TARGET-bit boundaries.
++        product = re.findall(r"(?m)^\s*assign resizedProduct = \((\w+) \* (\w+)\);$", text)
++        require(len(product) == 1 and product[0][0] != product[0][1],
++                "nested resize product operand inventory changed")
++        for operand in product[0]:
++            declaration = r"(?m)^\s*wire\s+signed\s+\[TARGET-1:0\]\s+" + re.escape(operand) + r";$"
++            require(len(re.findall(declaration, text)) == 1,
++                    "nested resize width boundary disappeared: " + operand)
+         require("8'shff" in text and "5'sh1d" in text, "literal interpretation not explicit")
+@@ -386,2 +395,11 @@ def mutations(out: Path) -> None:
+         text = (directory / "candidate.v").read_text()
++        if label == "sign-extension" and before not in text:
++            # The exact native resize publisher owns the alternate witness
++            # spelling. Follow the real public result edge, then mutate only
++            # its canonical sign-bit replication, never the reference RTL.
++            carrier = re.findall(r"(?m)^\s*assign resized = (\w+);$", text)
++            require(len(carrier) == 1, "sign-extension output must have one carrier")
++            before = ("assign " + carrier[0] + " = " +
++                      "{{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){a[(WIDTH)-1]}},")
++            after = before.replace("a[(WIDTH)-1]", "1'b0")
+         require(text.count(before) == 1, label + " mutation must affect exactly one boundary")
+diff --git a/morphhdl/scripts/test-increment-59c-inherited-source-scope.py b/morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+index 8ed791197..2aa8b1576 100644
+--- a/morphhdl/scripts/test-increment-59c-inherited-source-scope.py
++++ b/morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+@@ -194,4 +194,6 @@ def main() -> None:
+                 branch_mutations["changed-60f-restore-branch"] = (
+-                    "current = named.restore_source(root, path, current.decode()).encode()",
+-                    "current = current")
++                    "if named is not None and path in named.PRODUCTION_PATHS:\n"
++                    "            current = named.restore_source(root, path, current.decode()).encode()",
++                    "if named is not None and path in named.PRODUCTION_PATHS:\n"
++                    "            current = current")
+             cases = (

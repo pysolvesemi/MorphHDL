@@ -5,6 +5,9 @@ on:
     paths: ['.github/60g-reviewed-closure/**', '.github/workflows/60g-reviewed-closure.yml']
 permissions:
   contents: write
+concurrency:
+  group: materialize-60g-reviewed-closure
+  cancel-in-progress: true
 jobs:
   materialize:
     if: github.ref == 'refs/heads/agent/60g-reviewed-closure-20260907'
@@ -24,9 +27,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HELPER"
           test "$(git ls-remote origin refs/heads/agent/60g-reviewed-closure-20260907 | cut -f1)" = "$EXPECTED_HELPER"
           mkdir -p target/60g-source-transfer
-          cat .github/60g-reviewed-closure/code-{0,1,2,3}.diff > /tmp/60g-reviewed.diff
+          cat .github/60g-reviewed-closure/code-{0,1,2,3,4}.diff > /tmp/60g-reviewed.diff
           cp .github/60g-reviewed-closure/rebuild-ledger.py /tmp/60g-rebuild-ledger.py
-          echo 'ba00c16c5f75baf5ddb1e735fbbf4a25ffe86faefbedc6eb97a83865f5036247  /tmp/60g-reviewed.diff' | sha256sum -c -
+          echo 'a361aafad59b7dc6c694c51d83e5ea6a02cb81638159e3849358ded3ddf5d14e  /tmp/60g-reviewed.diff' | sha256sum -c -
           echo '341e2bf04363af19a5b0247bf9382b4b691d242f3db7e691256a830a51696a33  /tmp/60g-rebuild-ledger.py' | sha256sum -c -
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -54,8 +57,8 @@ jobs:
             MORPH_60G_ROOT="$PWD" python3 /tmp/60g-rebuild-ledger.py 39977b32cc47c54a0481716c181069184a32fbe5
             git add morphhdl/contracts/increment-60g-publication-edits.json morphhdl/scripts/check-increment-60g-source-scope.py
             git diff --cached --check
-            test "$(git write-tree)" = 753a9db446d6428e642dd5f1930403f33602b579
-            echo 753a9db446d6428e642dd5f1930403f33602b579 > "$GITHUB_WORKSPACE/target/60g-source-transfer/desired-tree.txt"
+            test "$(git write-tree)" = 62658fcb14e50abf24bdf57f0ef4687d7c2ce223
+            echo 62658fcb14e50abf24bdf57f0ef4687d7c2ce223 > "$GITHUB_WORKSPACE/target/60g-source-transfer/desired-tree.txt"
             # This job publishes only ordinary source objects on its helper
             # branch. Keep its workflow directory byte-identical. The connected
             # GitHub action separately owns the implementation's workflow tree.
