@@ -1,7 +1,10 @@
 # Increment 59g — Native register bridges
 
-Status: implementation and qualification in progress. The roadmap checkbox
-remains open until the required workflows pass and the increment is merged.
+Status: implemented, reviewed and qualified on both supported Scala versions.
+The completion checkbox is backed by the exact implementation-head evidence
+below. Final documentation-head checks, merge and post-merge results are
+recorded in [PR #169](https://github.com/pysolvesemi/MorphHDL/pull/169); they
+must not be inferred from the earlier implementation runs.
 
 The ordinary `Vec(...).reduceBalancedTree(op, levelBridge)` source remains the
 entry point. Bridge certification records the native register graph and replays
@@ -112,5 +115,87 @@ always @(posedge clk) begin
 end
 ```
 
-The tested source/merge revisions and complete evidence are recorded after
-qualification.
+## Completion evidence — September 7, 2026
+
+The qualified implementation is
+`a327dd01b7e3003370827580083e56ce7992d2a7`, complete tree
+`fd68d4f6210d70e51abf17bdcd85f9865428bf74`. It incorporates merged
+`parameterized-verilog` through `0e614d5f0642770c3114b42488bdaf7a9e8b785d`,
+including 59h, WA-07a and the WA-07b roadmap-only change. All applicable PR
+workflows on this implementation head completed successfully before this
+completion record was prepared. Historical branch-filtered workflow skips
+are not counted as passing tests; the full inherited regression has no skipped
+cases, and the dedicated 59h gate explicitly runs on the 59g branch.
+
+| Qualification | Scala 2.12.18 | Scala 2.13.12 | Actions run |
+| --- | --- | --- | --- |
+| Dedicated balanced-reduction tests | 252 tests / 21 suites; no failures, errors or skips | Same | [34123977985](https://github.com/pysolvesemi/MorphHDL/actions/runs/34123977985) |
+| Register-bridge hardware matrix | 222 specializations; 24 clock/reset/enable profiles; 11 outputs | Same | [34123977985](https://github.com/pysolvesemi/MorphHDL/actions/runs/34123977985) |
+| Full inherited regression, including isolated passes | 1,895 tests / 187 suites; no failures, errors or skips | Same | [34123978108](https://github.com/pysolvesemi/MorphHDL/actions/runs/34123978108) |
+| Inherited nested-owner qualification | 405 tests / 32 suites; 105 nested-owner and 32 inherited publication specializations | Same | [34123977968](https://github.com/pysolvesemi/MorphHDL/actions/runs/34123977968) |
+
+The dedicated, nested-owner and full-regression test sets overlap; their test
+counts must not be added together. The full-regression totals above are from
+all archived XML reports across eight project groups, not partial console
+progress or a count of only the `morph` project.
+
+For each bridge lane, the retained artifacts contain 222 successful reset-entry
+solver logs and 2,442 successful per-output temporal-induction logs, together
+with native simulation, strict Verilog-2001 compilation/lint and full synthesis
+logs. All four required mutations (`added-stage`, `removed-stage`,
+`wrong-initializer`, `reset-enable-precedence`) produce solver failures and
+retained counterexample waveforms that actually assert `bad=1`.
+
+All 25 reusable candidates and 190 independently elaborated native references
+are byte-identical across repeated generation and both Scala lanes: 215 unique
+RTL files, without per-override candidate regeneration. The two source archives
+are also identical. This audit reads already executed CI evidence; it is not a
+claim of additional local hardware-tool execution.
+
+The independent references retain separate native state. Validity-gated
+intermediate-state relations are proved as part of the failure condition,
+never assumed. There is no forced-zero DUT initialization or assumption that
+the two designs start with equal state. Async assertion between edges is
+covered by native simulation; formal retains the documented `async2sync`
+sampling-edge semantics. These remain finite parameter-specialization proofs,
+not universal quantification over all WIDTH/COUNT values.
+
+### Retained artifact identity
+
+| Artifact | ID | SHA-256 |
+| --- | --- | --- |
+| 59g bridges, Scala 2.12.18 | `10023915031` | `af52e075204174be5e50eaa6dd8f26ea027188fd6946455ac02eef3956c1806d` |
+| 59g bridges, Scala 2.13.12 | `10025184109` | `6f1005392296b9fe139d347a5c5fd1246d0b78d76e05706a74d8f9a52ced7de0` |
+| Full regression, Scala 2.12.18 | `10021701190` | `56fb48cf0f9f661eb0f36b56d0a1199be4b2d83f434f9ebab43acf8a7c5747df` |
+| Full regression, Scala 2.13.12 | `10021977384` | `5dda07cce3d90fe7efbbc0711bae1a7b5b643da829235320049c39220eb4d422` |
+
+The common bridge source archive SHA-256 is
+`079a4e5ff4e733f7d5e4706a3f168ceaa305d8f1a39e6b4205dcaa127afe8f9f`.
+The native source guard also passed at the same implementation head in
+[run 34123978080](https://github.com/pysolvesemi/MorphHDL/actions/runs/34123978080).
+The 60f signedness-closure jobs and the remaining applicable inherited
+workflows are green on that head as well.
+
+### Compatibility and review closure
+
+The previously failing zero-initialized legacy register remains a positive
+compatibility test. The exception admits only the exact, unprojected legacy
+parameter declaration and an exact-width, same-kind invariant zero. Nonzero
+initializers, copied metadata, foreign roots, derived widths and erased typed
+owner evidence do not acquire that exception. `NativePublicationWidth` retains
+its strict typed declaration-owner checks.
+
+The retained-constant initializer guard requires exact native target identity,
+poison-free typed literals and equality between authorized graph edges and
+emitted assignments. The composed 59c/59h/59g audits recognize already-merged
+WA-07a source without exempting subsequent changes to it. Current-source
+mutation controls continue to reject altered, removed, extra and staged-hidden
+production source. Temporary repair/integration workflows are absent from the
+published implementation tree. This documentation closeout changes no source,
+test, oracle, manifest, workflow, generated RTL or tool pin.
+
+Implementation and tests are generic scalar-graph certification and replay,
+not recognizers for this fixture or a library component. The qualified surface
+and exclusions above are unchanged. Mixed widening, composite, symbolic-clone
+and nested-owner bridge combinations still require Increment 59i; completion
+of this scalar bridge increment does not claim that integration work.
