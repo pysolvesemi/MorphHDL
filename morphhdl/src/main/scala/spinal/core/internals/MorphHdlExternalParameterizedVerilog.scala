@@ -345,8 +345,7 @@ object MorphHdlExternalParameterizedVerilog {
 
     ParameterizedVec.vectorsOf(component).foreach { vector =>
       ParameterizedVec.shapeOf(vector).foreach { shape =>
-        retainInteger(shape.depth)
-        shape.elementLeaves.foreach(leaf => retainInteger(leaf.width))
+        shape.geometryExpressions.foreach(retainInteger)
       }
     }
 

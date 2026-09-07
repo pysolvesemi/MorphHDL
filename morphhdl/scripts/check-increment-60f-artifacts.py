@@ -252,6 +252,26 @@ INCREMENT_59D59E_JOINT_TESTS = {
 # A complete, tracked feature source inventory activates the reviewed additions;
 # heads without that feature retain the exact inventory of their other reviewed features.
 SUITE_EXTENSIONS = {
+    "59c": {
+        "sources": (
+            "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala",
+            "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogFieldLayout.scala",
+            "morphhdl/src/test/scala/morphhdl/NamedFieldVecTests.scala",
+            "morphhdl/src/test/scala/morphhdl/NamedFieldVecHierarchyTests.scala",
+            "morphhdl/src/test/scala/morphhdl/NamedFieldVecCollisionTests.scala",
+            "morphhdl/src/test/scala/morphhdl/NamedFieldVecNestedWriteTests.scala",
+            "morphhdl/src/test/scala/spinal/core/NamedFieldPackedAliasTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogFieldLayoutTests.scala",
+        ),
+        "projects": {"morphhdl": frozenset((
+            "morphhdl.NamedFieldVecTests",
+            "morphhdl.NamedFieldVecHierarchyTests",
+            "morphhdl.NamedFieldVecCollisionTests",
+            "morphhdl.NamedFieldVecNestedWriteTests",
+            "spinal.core.NamedFieldPackedAliasTests",
+            "spinal.core.internals.ParameterizedVerilogFieldLayoutTests",
+        ))},
+    },
     "59e": {
         "sources": (
             "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
@@ -423,9 +443,11 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
         # The production profile is validated before reports are inspected.
         # Require the entire extended existing suite, not just a global count.
         tests, total_suites = counts["morphhdl"]
-        counts["morphhdl"] = (tests + 15, total_suites)
+        counts["morphhdl"] = (tests + 18, total_suites)
         extension.setdefault("morphhdl", {})[
-            "spinal.core.internals.SignednessCompatibilityTests"] = 20
+            "spinal.core.internals.SignednessCompatibilityTests"] = 22
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests"] = 2
     return counts, suites, extension
 
 
@@ -1163,7 +1185,23 @@ def self_test() -> None:
                     git("add", "--", path)
             require(closure.production_profile(root) == "60f-with-wa07a-and-59d-and-59e-and-59f",
                     "fixture restoration failed")
-    print(f"60f inventory self-test: twelve exact source profiles and {rejections} rejection controls PASS")
+    # The named-field extension preserves the entire existing feature union.
+    # Missing any one admitted suite must still fail exact inventory matching.
+    inherited = catalog_for_profile("60f-with-59d-and-59e-and-59f", True)
+    named = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c", True)
+    additions = SUITE_EXTENSIONS["59c"]["projects"]["morphhdl"]
+    require(named[1]["morphhdl"] == inherited[1]["morphhdl"] | additions and
+            named[2] == inherited[2], "59c changed an inherited exact suite/test obligation")
+    exact_names(set(named[1]["morphhdl"]), set(named[1]["morphhdl"]), "complete named suite inventory")
+    for missing in additions:
+        try:
+            exact_names(set(named[1]["morphhdl"]) - {missing}, set(named[1]["morphhdl"]),
+                        "missing reviewed named-field suite")
+        except RuntimeError:
+            rejections += 1
+        else:
+            raise RuntimeError("missing named-field suite was accepted: " + missing)
+    print(f"60f inventory self-test: twelve inherited exact source profiles, named-field suite extension and {rejections} rejection controls PASS")
 
 
 def main() -> None:

@@ -21,6 +21,18 @@ private object TypedVecShapeTestFixture {
     val tag = Bits(3 bits)
     val samples = Vec(UInt(width bits), depth)
   }
+  final case class NestedSample(width: ElabInt) extends Bundle {
+    val value = UInt(width bits)
+    val delta = SInt(3 bits)
+  }
+
+  final case class NestedFields(width: ElabInt, count: ElabInt) extends Bundle {
+    val tag = Bool()
+    val samples = Vec(NestedSample(width), count)
+    val color = new Bundle { val red = Bits(2 bits) }
+    val color_red = Bits(4 bits)
+  }
+
 }
 
 /** Native metadata contracts for a Vec whose logical depth is an ElabInt.
@@ -851,6 +863,190 @@ class TypedVecShapeTests extends AnyFunSuite {
     assert(ordinaryGraph.forall { case (_, _, directParent, rootParent) =>
       directParent && rootParent
     })
+  }
+
+  test("recursive fields retain exact paths dimensions leaf kinds and carrier coordinates") {
+    withSpinalElaboration { () =>
+      val width = parameter("FIELD_WIDTH", default = 5, minimum = 1, maximum = 8)
+      val inner = parameter("INNER_COUNT", default = 1, minimum = 1, maximum = 3)
+      val outer = parameter("OUTER_COUNT", default = 1, minimum = 1, maximum = 2)
+      val vector = Vec(NestedFields(width, inner), outer)
+      val shape = requiredShape(vector)
+      assert(shape.elementFields.map(_.path) == Vector(
+        Vector("tag"), Vector("samples", "value"), Vector("samples", "delta"),
+        Vector("color", "red"), Vector("color_red")))
+      val value = shape.elementFields(1)
+      val delta = shape.elementFields(2)
+      assert(value.dimensions.map(_.depth.verilog) == Vector("INNER_COUNT"))
+      assert(value.dimensions.map(_.witnessDepth) == Vector(1))
+      assert(value.dimensions.map(_.carrierCapacity) == Vector(3))
+      assert(value.carrierLeafIndices == Vector(1, 3, 5))
+      assert(delta.carrierLeafIndices == Vector(2, 4, 6))
+      assert(value.typeObject eq spinal.core.internals.TypeUInt)
+      assert(delta.typeObject eq spinal.core.internals.TypeSInt)
+      assert(shape.elementWidthDefault == 31)
+      assert(shape.logicalElementWidthDefault == 15)
+      assert(shape.logicalElementWidthMinimum == 11)
+      assert(shape.logicalElementWidthMaximum == 40)
+      assert(shape.parameters.map(_.name) == Vector("FIELD_WIDTH", "INNER_COUNT", "OUTER_COUNT"))
+      val tree = shape.fieldLayout.asInstanceOf[ParameterizedVecLayoutRecord]
+      val array = tree.children(1).asInstanceOf[ParameterizedVecLayoutArray]
+      assert(array.dimension.depth eq value.dimensions.head.depth)
+      assert(array.element.asInstanceOf[ParameterizedVecLayoutRecord].children.map {
+        case scalar: ParameterizedVecLayoutScalar => scalar.path
+        case _ => fail("nested Sample field lost its native scalar node")
+      } == Vector(Vector("samples", "value"), Vector("samples", "delta")))
+      assert(ParameterizedVec.nestedVectorsOf(vector).size == 2)
+      assert(ParameterizedVec.nestedVectorsOf(vector).zip(vector.vec).forall {
+        case (nested, element) => nested eq element.samples
+      })
+      val clone = cloneOf(vector)
+      assert(requiredShape(clone).elementFields == shape.elementFields)
+      assert(ParameterizedVec.nestedVectorsOf(clone).zip(ParameterizedVec.nestedVectorsOf(vector)).forall {
+        case (left, right) => left ne right
+      })
+      vector.asInput()
+      assert(value.carrierLeafIndices.forall(vector.vec.head.flatten(_).isInput))
+    }
+  }
+
+  test("a concrete outer count retains independently symbolic inner dimensions with fixed leaves") {
+    withSpinalElaboration { () =>
+      val inner = parameter("ONLY_INNER", default = 1, minimum = 1, maximum = 3)
+      val vector = Vec(Vec(Bits(4 bits), inner), 2)
+      val shape = requiredShape(vector)
+      assert(shape.depth.verilog == "2")
+      assert(shape.elementFields.size == 1)
+      assert(shape.elementFields.head.path.isEmpty)
+      assert(shape.elementFields.head.dimensions.map(_.depth.verilog) == Vector("ONLY_INNER"))
+      assert(shape.parameters.map(_.name) == Vector("ONLY_INNER"))
+      assert(shape.logicalElementWidthDefault == 4)
+      assert(shape.elementWidthDefault == 12)
+      assert(widthOfExpr(vector).witness == 8)
+      assert(widthOfExpr(vector).minimum == 8)
+      assert(widthOfExpr(vector).maximum == 24)
+      expectUnsupported(vector.getBitsWidth)
+      val exact = shape.elementFields.head.dimensions.head.depth.exactDomain.get
+      ElaborationDomainContext.withAdmitted(exact.root, Set(BigInt(2)), None) {
+        assert(vector.getBitsWidth == 16)
+      }
+    }
+  }
+
+  test("all nested Vec axes retain outer-first row-major field order") {
+    withSpinalElaboration { () =>
+      val rows = parameter("ROW_COUNT", default = 1, minimum = 1, maximum = 2)
+      val columns = parameter("COL_COUNT", default = 1, minimum = 1, maximum = 3)
+      val vector = Vec(Vec(Vec(NestedSample(ElabInt.literal(4)), columns), rows), 2)
+      val fields = requiredShape(vector).elementFields
+      assert(fields.map(_.dimensions.map(_.depth.verilog)) ==
+        Vector.fill(2)(Vector("ROW_COUNT", "COL_COUNT")))
+      assert(fields.head.carrierLeafIndices == Vector(0, 2, 4, 6, 8, 10))
+      assert(fields(1).carrierLeafIndices == Vector(1, 3, 5, 7, 9, 11))
+      assert(fields.head.packedWidthDefault == 4)
+      assert(fields.head.packedWidthMaximum == 24)
+      val nested = vector.vec(1).vec(1)
+      val projection = ParameterizedVec.nestedVectorProjection(vector, nested).get
+      assert(projection.fieldPath.isEmpty)
+      assert(projection.ancestorCoordinates == Vector(1, 1))
+      assert(projection.leaves.map(_.elementIndex) == Vector(0, 0, 1, 1, 2, 2))
+      assert(projection.leaves.map(_.elementLeafIndex) == Vector(0, 1, 0, 1, 0, 1))
+      assert(projection.leaves.map(_.rootElementIndex) == Vector.fill(6)(1))
+      assert(projection.leaves.map(_.rootElementLeafIndex) == Vector(6, 7, 8, 9, 10, 11))
+      assert(ParameterizedVec.nestedVectorProjection(vector, cloneOf(nested)).isEmpty)
+    }
+  }
+
+  test("equal nested carrier geometry cannot conceal independent dimension roots") {
+    withSpinalElaboration { () =>
+      val first = parameter("FIRST_COUNT", default = 1, minimum = 1, maximum = 3)
+      val second = parameter("SECOND_COUNT", default = 1, minimum = 1, maximum = 3)
+      val left = Vec(Vec(UInt(4 bits), first), 2)
+      val right = Vec(Vec(UInt(4 bits), second), 2)
+      assert(requiredShape(left).elementLeaves.map(_.width.default) ==
+        requiredShape(right).elementLeaves.map(_.width.default))
+      val failure = intercept[ParameterizedVerilogException] {
+        ParameterizedVec.requireCompatible(left, right)
+      }
+      assert(failure.code == "SPINAL-ELAB-VEC-ASSIGNMENT-SHAPE-MISMATCH")
+    }
+  }
+
+  test("nested explicit packing retains one audited full-capacity native carrier") {
+    withSpinalElaboration { () =>
+      val inner = parameter("PACK_INNER", default = 1, minimum = 1, maximum = 3)
+      val source = in(Vec(Vec(UInt(4 bits), inner), 2))
+      val packed = source.asBits
+      val shape = requiredShape(source)
+      assert(packed.getBitsWidth == 8)
+      val operation = ParameterizedVec.operationsOf(source).collect {
+        case value: ParameterizedVecPackedRead => value
+      }.head
+      assert(operation.carrier.getBitsWidth == 24)
+      assert(operation.carrierLeavesLowToHigh == source.asInstanceOf[Data].flatten.toVector)
+      assert(ParameterizedVec.nestedVectorsOf(source).forall { nested =>
+        !ParameterizedVec.operationsOf(nested).exists(_.isInstanceOf[ParameterizedVecPackedRead])
+      })
+      val target = out(cloneOf(source))
+      target.assignFromBits(packed)
+      val assignment = ParameterizedVec.operationsOf(target).collect {
+        case value: ParameterizedVecPackedAssignment => value
+      }.head
+      assert(assignment.carrier.getBitsWidth == 24)
+      assert(assignment.slices.map(_.lo) == Vector(0, 4, 8, 12, 16, 20))
+      assert(ParameterizedVec.packedShapeOf(packed).contains(shape))
+    }
+  }
+
+  test("repeated static Vec accesses preserve one native assignment wrapper and exact write snapshot") {
+    withSpinalElaboration { () =>
+      val depth = parameter("STATIC_DEPTH", default = 1, minimum = 1, maximum = 3)
+      val original = in(Vec(Bits(4 bits), depth))
+      val input = in(Bits(4 bits))
+      val enable = in(Bool())
+      val vector = out(Vec(Bits(4 bits), depth))
+      vector := original
+      val first = vector(0)
+      val wrapper = first.compositeAssign
+      assert(vector(0).compositeAssign eq wrapper)
+      when(enable) { vector(0) := input }
+      assert(vector(0).compositeAssign eq wrapper)
+      val operations = ParameterizedVec.operationsOf(vector).collect {
+        case value: ParameterizedVecStaticWrite => value
+      }
+      assert(operations.size == 1)
+      val write = operations.head
+      assert(write.selected eq first)
+      assert(write.assignment.finalTarget eq first)
+      assert(write.source eq input)
+      assert(write.target eq first)
+      assert(write.enclosingConditions.size == 1)
+      assert(write.enclosingConditions.head.condition eq enable)
+      assert(write.enclosingConditions.head.whenTrue)
+    }
+  }
+
+  test("independent Vec reads sharing an address retain distinct exact native carrier selects") {
+    withSpinalElaboration { () =>
+      val depth = parameter("READ_DEPTH", default = 1, minimum = 1, maximum = 3)
+      val left = in(Vec(Pixel(), depth))
+      val right = in(Vec(Pixel(), depth))
+      val address = in(UInt(2 bits))
+      val result = out(UInt(8 bits))
+      result := left(address).r ^ right(address).r
+      val accesses = Vector(left, right).map { vector =>
+        ParameterizedVec.operationsOf(vector).collect { case value: ParameterizedVecDynamicAccess => value }.head
+      }
+      assert(accesses.forall(_.result.flatten.forall(leaf => leaf.isNamed && leaf.isVital)))
+      val selects = accesses.map(_.readSelect.get)
+      assert(selects.head.select ne selects.last.select)
+      assert(selects.forall(_.carrierWidth == 2))
+      assert(selects.forall(_.assignments.size == 1))
+      assert(selects.forall(_.sources.head match {
+        case resize: spinal.core.internals.ResizeUInt => (resize.input eq address) && resize.size == 2
+        case _ => false
+      }))
+    }
   }
 
   private def parameter(

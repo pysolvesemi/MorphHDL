@@ -461,6 +461,125 @@ private object StructuralIdentityAdversarialFixture {
     observed := storage
   }
 
+  final class ConditionalConsolidatedDynamicWrite(
+      depth: ElabInt,
+      falseBranch: Boolean,
+      nested: Boolean,
+      mutate: Boolean
+  ) extends Component {
+    setDefinitionName("ConditionalConsolidatedDynamicWriteVec")
+    val original = in(Vec(Bits(8 bits), depth)).setName("original")
+    val index = in(UInt(3 bits)).setName("index")
+    val writeData = in(Bits(8 bits)).setName("write_data")
+    val enable = in(Bool()).setName("enable")
+    val secondEnable = in(Bool()).setName("second_enable")
+    val observed = out(Vec(Bits(8 bits), depth)).setName("observed")
+    val storage = Vec(Bits(8 bits), depth).setName("storage").dontSimplifyIt()
+    storage := original
+    def write(): Unit = {
+      if (nested) {
+        when(secondEnable) { storage(index) := writeData }
+      } else storage(index) := writeData
+    }
+    if (falseBranch) {
+      when(enable) { } otherwise { write() }
+    } else {
+      when(enable) { write() }
+    }
+    if (mutate) {
+      val operation = ParameterizedVec.operationsOf(storage).collect {
+        case value: ParameterizedVecDynamicWrite => value
+      }.head
+      val condition = operation.guards.head.enclosingConditions.head
+      require(condition.condition eq enable)
+      condition.whenStatement.cond = secondEnable
+    }
+    observed := storage
+  }
+
+  final class CapturedStaticVecWrite(depth: ElabInt, mutation: String) extends Component {
+    setDefinitionName("CapturedStaticVecWrite")
+    val original = in(Vec(Bits(8 bits), depth)).setName("original")
+    val writeData = in(Bits(8 bits)).setName("write_data")
+    val unrelatedData = in(Bits(8 bits)).setName("unrelated_data")
+    val enable = in(Bool()).setName("enable")
+    val observed = out(Vec(Bits(8 bits), depth)).setName("observed")
+    val storage = Vec(Bits(8 bits), depth).setName("storage").dontSimplifyIt()
+    storage := original
+    when(enable) {
+      if (mutation == "partial") storage(0)(0) := writeData(0)
+      else storage(0) := writeData
+    }
+    val operation = ParameterizedVec.operationsOf(storage).collect {
+      case value: ParameterizedVecStaticWrite => value
+    }.head
+    mutation match {
+      case "source" => operation.assignment.source = unrelatedData
+      case "removed" =>
+        operation.assignment.removeStatement()
+        when(enable) { storage(0) := writeData }
+      case _ =>
+    }
+    observed := storage
+  }
+
+  final class StaticDynamicWritePriority(depth: ElabInt, staticAfter: Boolean) extends Component {
+    setDefinitionName("StaticDynamicWritePriorityVec")
+    val original = in(Vec(Bits(8 bits), depth)).setName("original")
+    val index = in(UInt(3 bits)).setName("index")
+    val staticData = in(Bits(8 bits)).setName("static_data")
+    val dynamicData = in(Bits(8 bits)).setName("dynamic_data")
+    val staticEnable = in(Bool()).setName("static_enable")
+    val dynamicEnable = in(Bool()).setName("dynamic_enable")
+    val observed = out(Vec(Bits(8 bits), depth)).setName("observed")
+    val storage = Vec(Bits(8 bits), depth).setName("storage").dontSimplifyIt()
+    storage := original
+    def staticWrite(): Unit = when(staticEnable) { storage(0) := staticData }
+    if (!staticAfter) staticWrite()
+    when(dynamicEnable) { storage(index) := dynamicData }
+    if (staticAfter) staticWrite()
+    observed := storage
+  }
+
+  final class DependentStaticVecWrites(depth: ElabInt) extends Component {
+    setDefinitionName("DependentStaticVecWrites")
+    val original = in(Vec(Bits(8 bits), depth)).setName("original")
+    val input = in(Bits(8 bits)).setName("input_value")
+    val enable = in(Bool()).setName("enable")
+    val observed = out(Vec(Bits(8 bits), depth)).setName("observed")
+    val storage = Vec(Bits(8 bits), depth).setName("storage").dontSimplifyIt()
+    storage := original
+    when(enable) {
+      storage(0) := storage(1)
+      storage(1) := input
+    }
+    observed := storage
+  }
+
+  final class RetainedStaticVecCopy(width: ElabInt) extends Component {
+    setDefinitionName("RetainedStaticVecCopy")
+    val input = in(Bits(width bits)).setName("input_value")
+    val observed = out(Vec(Bits(width bits), 2)).setName("observed")
+    val storage = Vec(Bits(width bits), 2).setName("storage").dontSimplifyIt()
+    storage(0) := input
+    storage(1) := storage(0)
+    observed := storage
+  }
+
+  final class RemovedDynamicReadSelect(depth: ElabInt) extends Component {
+    setDefinitionName("RemovedDynamicReadSelectVec")
+    val original = in(Vec(Bits(8 bits), depth)).setName("original")
+    val index = in(UInt(3 bits)).setName("index")
+    val observed = out(Bits(8 bits)).setName("observed")
+    observed := original(index)
+    val access = ParameterizedVec.operationsOf(original).collect {
+      case value: ParameterizedVecDynamicAccess => value
+    }.head
+    val proof = access.readSelect.get
+    proof.assignments.foreach(_.removeStatement())
+    proof.select := index
+  }
+
   final class NarrowDomainDynamicWrite(
       depth: ElabInt,
       withWholeAssignment: Boolean
@@ -505,6 +624,85 @@ private object StructuralIdentityAdversarialFixture {
     storage(index) := writeData
     redirectDynamicWriteDecoder(storage, unrelatedIndex)
     observed := storage
+  }
+
+  final case class NestedWriteRow(width: ElabInt, inner: ElabInt) extends Bundle {
+    val values = Vec(Bits(width bits), inner)
+  }
+
+  final class MutatedForwardedNestedWrite(mutation: String) extends Component {
+    setDefinitionName("MutatedForwardedNestedWrite")
+    val width = morphhdl.frontend.HdlInt.param("WIDTH", 5, 1, 8).asElabInt
+    val count = morphhdl.frontend.HdlInt.param("COUNT", 3, 1, 3).asElabInt
+    val inner = morphhdl.frontend.HdlInt.param("INNER", 3, 1, 3).asElabInt
+    val original = in(Vec(NestedWriteRow(width, inner), count))
+    val outerIndex = in(UInt(64 bits))
+    val innerIndex = in(UInt(64 bits))
+    val unrelatedIndex = in(UInt(2 bits))
+    val writeData = in(Bits(width bits))
+    val unrelatedData = in(Bits(width bits))
+    val enable = in(Bool())
+    val unrelatedEnable = in(Bool())
+    val result = out(Vec(NestedWriteRow(width, inner), count))
+    val storage = cloneOf(original).setName("storage").dontSimplifyIt()
+    storage := original
+    val selectedRow = storage(outerIndex)
+    when(enable) { selectedRow.values(innerIndex) := writeData }
+    val innerWrite = ParameterizedVec.operationsOf(selectedRow.values).collect {
+      case value: ParameterizedVecForwardedDynamicWrite => value
+    }.headOption.getOrElse(throw new IllegalStateException("fixture captured no forwarded inner write"))
+    val outerWrite = ParameterizedVec.operationsOf(storage).collect {
+      case value: ParameterizedVecDynamicWrite if value.address eq outerIndex => value
+    }.headOption.getOrElse(throw new IllegalStateException("fixture captured no downstream outer write"))
+    require(innerWrite.address eq innerIndex, "fixture selected the wrong nested decoder")
+    def mutateDecoder(write: ParameterizedVecWriteDecoderEvidence): Unit = {
+      write.decoderAssignments.head.source match {
+        case shift: spinal.core.internals.Operator.UInt.ShiftLeftByUInt => shift.right = unrelatedIndex
+        case other => throw new IllegalStateException("unexpected native decoder: " + other.getClass.getName)
+      }
+    }
+    mutation match {
+      case "inner-decoder" => mutateDecoder(innerWrite)
+      case "outer-decoder" => mutateDecoder(outerWrite)
+      case "inner-guard" => innerWrite.guards.head.whenStatement.cond = unrelatedEnable
+      case "outer-guard" => outerWrite.guards.head.whenStatement.cond = unrelatedEnable
+      case "source" => innerWrite.assignments.head.source = unrelatedData
+      case "target" =>
+        val assignment = innerWrite.assignments.head
+        val another = storage.asInstanceOf[Data].flatten.find(value => !(value eq assignment.finalTarget)).get
+        assignment.target = another
+      case "removed" => innerWrite.assignments.head.removeStatement()
+      case "removed-forwarded-record" =>
+        // Remove only the parent operation. Native decoder gates and every
+        // downstream physical write survive; neither may become an ordinary
+        // user condition with a frozen witness-sized inner decoder.
+        val registryField = ParameterizedVec.getClass.getDeclaredFields.find(_.getName == "retained").get
+        registryField.setAccessible(true)
+        val registry = registryField.get(ParameterizedVec)
+          .asInstanceOf[scala.collection.mutable.Map[AnyRef, AnyRef]]
+        val entries = registry.values.toVector.flatMap { entry =>
+          entry.getClass.getDeclaredFields.find(_.getName == "operations").map { field =>
+            field.setAccessible(true)
+            field.get(entry).asInstanceOf[scala.collection.mutable.ArrayBuffer[ParameterizedVecOperation]]
+          }
+        }
+        val operations = entries.find(_.exists(_ eq innerWrite)).get
+        operations.remove(operations.indexWhere(_ eq innerWrite))
+        require(!ParameterizedVec.operationsOf(selectedRow.values).exists(_ eq innerWrite))
+      case "empty-forwarded" =>
+        // Corrupt the retained immutable snapshot through reflection without
+        // changing any native graph edge. The registry must audit this record
+        // even when its missing inventory would otherwise match no root.
+        val field = classOf[ParameterizedVecForwardedDynamicWrite].getDeclaredField("assignments")
+        field.setAccessible(true)
+        field.set(innerWrite, Vector.empty[spinal.core.internals.DataAssignmentStatement])
+      case "empty-primitive" =>
+        val field = classOf[ParameterizedVecDynamicWrite].getDeclaredField("assignments")
+        field.setAccessible(true)
+        field.set(outerWrite, Vector.empty[spinal.core.internals.DataAssignmentStatement])
+      case other => throw new IllegalArgumentException(other)
+    }
+    result := storage
   }
 
   private def redirectDynamicWriteGuards(
@@ -1305,6 +1503,150 @@ class StructuralIdentityAdversarialTests extends AnyFunSuite {
         failure.detail
       )
       assert(!Files.exists(rtl), "mutated consolidated guard published partial RTL")
+    }
+  }
+
+  for (mutation <- Vector("inner-decoder", "outer-decoder", "inner-guard", "outer-guard",
+                           "source", "target", "removed", "empty-forwarded", "empty-primitive", "removed-forwarded-record")) {
+    test(s"forwarded nested write $mutation mutation cannot reuse stale native evidence") {
+      withTemporaryDirectory { directory =>
+        val rtl = directory.resolve("forwarded_nested_write.v")
+        val config = morphhdl.MorphNamedFieldVectors.enable(morphConfig(directory, rtl.getFileName.toString))
+        val failure = MorphVerilog.tryGenerate(config) {
+          new MutatedForwardedNestedWrite(mutation)
+        } match {
+          case Left(value) => value
+          case Right(value) => fail(s"mutated forwarded nested write published: $value")
+        }
+        val diagnostics = if (mutation.startsWith("empty-")) Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-MISSING"
+        ) else if (mutation == "removed-forwarded-record") Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-WRITE-EVIDENCE-MISMATCH"
+        ) else Vector(
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-GUARD-MISMATCH",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-CONTROL-UNSUPPORTED",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-WRITE-EVIDENCE-MISMATCH",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-STALE"
+        )
+        assert(diagnostics.exists(failure.detail.contains), failure.detail)
+        assert(!Files.exists(rtl), "mutated nested write published partial RTL")
+      }
+    }
+  }
+
+  test("conditional dynamic Vec overrides preserve exact true false and nested Bool paths") {
+    withTemporaryDirectory { directory =>
+      Vector(false, true).foreach { falseBranch =>
+        Vector(false, true).foreach { nested =>
+          val config = morphConfig(directory, s"conditional_dynamic_${falseBranch}_${nested}.v")
+          MorphVerilog(config) {
+            new ConditionalConsolidatedDynamicWrite(parameter("DEPTH", 3, 1, 8), falseBranch, nested, mutate = false)
+          }
+          val text = readVerilog(directory, config).filterNot(_.isWhitespace)
+          val predicate = if (falseBranch) "(!enable)" else "(enable)"
+          assert(text.contains(s"if($predicate&&"), text)
+          if (nested) assert(text.contains("&&(second_enable)&&"), text)
+        }
+      }
+    }
+  }
+
+  test("mutated enclosing dynamic-write condition cannot replace captured Bool identity") {
+    withTemporaryDirectory { directory =>
+      val rtl = directory.resolve("mutated_dynamic_condition.v")
+      val failure = MorphVerilog.tryGenerate(morphConfig(directory, rtl.getFileName.toString)) {
+        new ConditionalConsolidatedDynamicWrite(parameter("DEPTH", 3, 1, 8), falseBranch = false, nested = false, mutate = true)
+      } match {
+        case Left(value) => value
+        case Right(value) => fail(s"expected changed native condition rejection, received $value")
+      }
+      assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-DYNAMIC-WRITE-CONTROL-UNSUPPORTED"), failure.detail)
+      assert(!Files.exists(rtl), "changed dynamic-write condition published partial RTL")
+    }
+  }
+
+  test("static and dynamic indexed Vec overrides preserve native assignment priority") {
+    withTemporaryDirectory { directory =>
+      Vector(false, true).foreach { staticAfter =>
+        val config = morphConfig(directory, s"static_dynamic_priority_$staticAfter.v")
+        MorphVerilog(config) {
+          new StaticDynamicWritePriority(parameter("DEPTH", 3, 1, 8), staticAfter)
+        }
+        val lines = readVerilog(directory, config).split("\\r?\\n").toVector
+          .filter(line => line.contains("if (") && line.contains("storage["))
+        assert(lines.size == 2, lines.mkString("\n"))
+        assert(lines.head.contains(if (staticAfter) "dynamic_enable" else "static_enable"), lines.mkString("\n"))
+        assert(lines.last.contains(if (staticAfter) "static_enable" else "dynamic_enable"), lines.mkString("\n"))
+      }
+    }
+  }
+
+  test("a static-only Vec override consolidates exact continuous and procedural defaults") {
+    withTemporaryDirectory { directory =>
+      val config = morphConfig(directory, "static_only_vec_write.v")
+      MorphVerilog(config) { new CapturedStaticVecWrite(parameter("DEPTH", 3, 1, 8), "none") }
+      val text = readVerilog(directory, config).filterNot(_.isWhitespace)
+      assert(text.contains("if((enable))storage["), text)
+      assert(text.contains("reg["), text)
+    }
+  }
+
+  test("static Vec source mutation removed evidence and partial targets fail closed") {
+    withTemporaryDirectory { directory =>
+      Vector("source", "removed", "partial").foreach { mutation =>
+        val rtl = directory.resolve(s"static_write_$mutation.v")
+        val failure = MorphVerilog.tryGenerate(morphConfig(directory, rtl.getFileName.toString)) {
+          new CapturedStaticVecWrite(parameter("DEPTH", 3, 1, 8), mutation)
+        } match {
+          case Left(value) => value
+          case Right(value) => fail(s"expected static write $mutation rejection, received $value")
+        }
+        assert(Vector("SPINAL-PARAMETERIZED-VERILOG-VEC-STATIC-WRITE-EVIDENCE-MISMATCH",
+          "SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-STALE").exists(failure.detail.contains), failure.detail)
+        assert(!Files.exists(rtl), s"static write $mutation published partial RTL")
+      }
+    }
+  }
+
+  test("static Vec consolidation rejects target dependencies that change native process ordering") {
+    withTemporaryDirectory { directory =>
+      val rtl = directory.resolve("dependent_static_writes.v")
+      val failure = MorphVerilog.tryGenerate(morphConfig(directory, rtl.getFileName.toString)) {
+        new DependentStaticVecWrites(parameter("DEPTH", 3, 2, 8))
+      } match {
+        case Left(value) => value
+        case Right(value) => fail(s"expected native process dependency rejection, received $value")
+      }
+      assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-INDEXED-WRITE-FEEDBACK-UNSUPPORTED"), failure.detail)
+      assert(!Files.exists(rtl), "dependent native carrier processes published partial RTL")
+    }
+  }
+
+  test("a fully retained Vec preserves an exact same-carrier static scalar copy") {
+    withTemporaryDirectory { directory =>
+      val config = morphConfig(directory, "retained_static_vec_copy.v")
+      MorphVerilog(config) {
+        new RetainedStaticVecCopy(parameter("WIDTH", 8, 1, 16))
+      }
+      val text = readVerilog(directory, config)
+        .filterNot(character => character.isWhitespace || character == '(' || character == ')')
+      assert(text.contains("assignstorage[0+:WIDTH]=input_value;"), text)
+      assert(text.contains("assignstorage[1*WIDTH+:WIDTH]=storage[0+:WIDTH];"), text)
+      assert(text.contains("assignobserved=storage;"), text)
+    }
+  }
+
+  test("removed native dynamic-read select cannot be replaced by same-address text") {
+    withTemporaryDirectory { directory =>
+      val rtl = directory.resolve("removed_dynamic_read_select.v")
+      val failure = MorphVerilog.tryGenerate(morphConfig(directory, rtl.getFileName.toString)) {
+        new RemovedDynamicReadSelect(parameter("DEPTH", 3, 1, 8))
+      } match {
+        case Left(value) => value
+        case Right(value) => fail(s"expected exact read-select driver rejection, received $value")
+      }
+      assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-ASSIGNMENT-EVIDENCE-STALE"), failure.detail)
+      assert(!Files.exists(rtl), "removed native read-select driver published partial RTL")
     }
   }
 

@@ -356,7 +356,7 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
         morphhdl.MorphVerilog(MorphSignedCasts.enable(fresh(explicit)))(dut)
         val rtl = read(output)
         assert(rtl == read(explicit))
-        assert(rtl.contains("source[WIDTH-1]"), "sign extension must not freeze the witness bit")
+        assert(rtl.contains("source[(WIDTH)-1]"), "sign extension must not freeze the witness bit")
         assert(port(rtl, "observed").contains("wire signed [(WIDTH + 1)-1:0]"))
         val legacy = root.resolve(s"grow-legacy-$defaultWidth.v")
         val result = morphhdl.MorphVerilog.tryGenerate(MorphSignedDeclarations.disable(fresh(legacy)))(dut)
@@ -364,7 +364,7 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
         // preserve an obsolete rejection by regressing its width authority.
         assert(result.isRight)
         val legacyRtl = read(legacy)
-        assert(legacyRtl.contains("source[WIDTH-1]"))
+        assert(legacyRtl.contains("source[(WIDTH)-1]"))
         assert(!port(legacyRtl, "observed").contains("signed"))
         for (generated <- Vector(output, legacy)) {
           morphhdl.NativeResizeCompatibilitySimulation.check(root,
@@ -563,6 +563,49 @@ final class SignednessCompatibilityTests extends AnyFunSuite {
       }
       assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-STALE-EVIDENCE")))
       assert(read(output) == previous)
+    }
+  }
+
+  for (selected <- Vector(false, true)) {
+    test(s"60g publication selector cannot refresh or hide stale evidence when returning $selected") {
+      directory { root =>
+        for (mutate <- Vector(false, true)) {
+          val output = root.resolve(s"selector-$selected-$mutate.v")
+          val previous = "// previous public artifact\n"
+          Files.write(output, previous.getBytes(StandardCharsets.UTF_8))
+          val config = MorphSignedDeclarations.disable(fresh(output))
+          var dut: SIntSignedDeclarationsFixture.Direct = null
+          var selectedCalls = 0
+          var publishedCalls = 0
+          config.phasesInserters += { phases =>
+            val emitter = phases.collect { case value: PhaseVerilog => value }.head
+            MorphHdlSignednessAnalysis.installPublication(snapshot => {
+              publishedCalls += 1
+              MorphHdlSignedDeclarationPolicy.bind(emitter, snapshot, eliminatePureCasts = true)
+            }, () => {
+              selectedCalls += 1
+              if (mutate) dut.a.setWidth(dut.a.getWidth + 1)
+              selected
+            })(phases)
+          }
+          val result = morphhdl.MorphVerilog.tryGenerate(config) {
+            dut = new SIntSignedDeclarationsFixture.Direct(
+              HdlInt.param("WIDTH", default = 8, min = 1, max = 32))
+            dut
+          }
+          assert(selectedCalls > 0)
+          if (mutate) {
+            assert(result.left.toOption.exists(_.detail.contains("MORPH-SIGNEDNESS-STALE-EVIDENCE")))
+            assert(publishedCalls == 0)
+            assert(read(output) == previous)
+          } else {
+            assert(result.isRight)
+            assert(selectedCalls == 1)
+            assert(publishedCalls == (if (selected) 1 else 0))
+            assert(port(read(output), "a").contains("signed") == selected)
+          }
+        }
+      }
     }
   }
 

@@ -131,6 +131,11 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
     snapshot.validateCastOperand(resize, 0, snapshot.castOperand(resize, 0))
     val target = MorphHdlSignedWidth.resolve(snapshot, resize, snapshot.expression(resize), ExpressionUse)
     val source = MorphHdlSignedWidth.resolve(snapshot, resize.input, snapshot.expression(resize.input), ExpressionUse)
+    // 59d protects exact native resize assignments and rewrites their witness
+    // spelling after native emission. Do not give the same edge two different
+    // publishers: its capture revalidates assignment, source/target and widths.
+    // The signedness snapshot and both logical widths were still checked above.
+    if (ExternalParameterizedNativeResize.proves(occurrence.printer.component, resize)) return None
     if (!target.symbolic && !source.symbolic) return None
     if (occurrence.inputReferenceRole.isEmpty)
       throw new MorphHdlSignednessException("MORPH-SIGNEDNESS-RESIZE-REFERENCE-UNSUPPORTED",

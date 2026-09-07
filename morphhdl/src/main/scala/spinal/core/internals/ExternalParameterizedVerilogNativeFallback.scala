@@ -140,7 +140,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     val rewrittenInitializers = rewriteRetainedZeroInitializers(
       component,
-      rewrittenConstants
+      rewrittenConstants,
+      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenValues = rewriteRetainedValueAssignments(
       component,
@@ -690,7 +691,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
 
   private def rewriteRetainedZeroInitializers(
       component: Component,
-      verilog: String
+      verilog: String,
+      nativeSignedLiterals: Boolean
   ): String = {
     final case class RetainedZeroInitializer(
         target: BitVector,
@@ -723,7 +725,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                       target,
                       name,
                       width,
-                      emittedRetainedWitness(literal)
+                      // Match exactly the native policy's literal spelling;
+                      // the graph still authorizes every direct zero edge.
+                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])
+                        emittedRetainedWitness(literal).replace("'", "'s")
+                      else emittedRetainedWitness(literal)
                     )
                   case _ =>
                 }
@@ -1895,7 +1901,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead =>
-            (value.resultAssignments ++ value.carrierAssignments)
+            (value.resultAssignments ++ value.carrierAssignments ++ value.supportAssignments)
               .foreach(assignment => retained.put(assignment, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment =>
             (value.assignments ++ value.carrierAssignments)
@@ -1917,6 +1923,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedVec.operationsOf(vector).foreach {
           case value: ParameterizedVecPackedRead if value.carrier ne value.result =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
+          case value: ParameterizedVecPackedRead =>
+            value.supportAssignments.foreach(assignment => retained.put(assignment.finalTarget, java.lang.Boolean.TRUE))
           case value: ParameterizedVecPackedAssignment if value.carrier ne value.source =>
             retained.put(value.carrier, java.lang.Boolean.TRUE)
           case _ =>

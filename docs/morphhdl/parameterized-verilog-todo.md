@@ -793,10 +793,19 @@ dependency chain is unchanged and may proceed independently.
   errors, timeouts, UNKNOWN and skipped tests are not passing proof or mutation
   evidence. Planning these tasks does not mark any implementation complete.
 
-- [ ] **Increment 59c — Field-preserving parameterized Vec-of-Bundle interfaces**
+- [x] **Increment 59c — Field-preserving parameterized Vec-of-Bundle interfaces**
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59d through 59h or unfinished Increment 60 children.
+
+  **Implementation record:** [Named field vectors](increment-59c-named-field-vectors.md)
+  records the opt-in interface, recursive packing and naming contract, and
+  completed implementation and local qualification at production checkpoint
+  `3166ddbde97047b45f5ca48abf9ac6e1ec75aabe`: 216 main and 16 separate register
+  layout specializations passed, with 11 main and two register SAT/VCD mutation
+  counterexamples. This completion checkbox is on the PR branch. All required
+  final-head CI must pass before [PR 163](https://github.com/pysolvesemi/MorphHDL/pull/163)
+  merges and brings the record onto the integration branch.
 
   Add a generic field-preserving publication profile for the same source
   `val pixels = in Vec(Rgb(width), count)`. Derive one packed vector per scalar
@@ -838,14 +847,17 @@ dependency chain is unchanged and may proceed independently.
   wrong offsets and incorrect parent/child or cross-Vec binding. This track
   qualifies interfaces and access without waiting for composite reduction.
 
-- [ ] **Increment 59d — Generic symbolic result-width provenance and widening reductions**
+- [x] **Increment 59d — Generic symbolic result-width provenance and widening reductions**
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c or 59e through 59h.
 
-  Implementation and qualification record:
-  [Increment 59d](increment-59d-symbolic-widths.md). The checkbox remains open
-  until the complete final-head acceptance gates pass.
+  **Complete and merged:** [PR #164](https://github.com/pysolvesemi/MorphHDL/pull/164),
+  merge `99b6017d7`. Both source and merge Scala lanes passed 145 tests / 13
+  suites, all 64 widening specializations and four actual RTL mutation
+  counterexamples. All 96 source and 109 post-merge qualification jobs passed;
+  both full regression lanes ran 1,738 tests with zero skips. See the
+  [59d qualification record](increment-59d-symbolic-widths.md).
 
   Replace the equal-width-only reduction certificate with generic scalar
   input/intermediate/result width functions derived from native typed IR.

@@ -3,16 +3,18 @@
 **Status:** Implementation in progress; final-head qualification and merge are
 not yet recorded. Both 60g and parent 60 remain unchecked.
 
-**Integration base:** `99b6017d7ac69112a088680457029623620224d3`, including
-qualified and merged 59d, 59e, 59f and 60f. The original branch began at
+**Integration source base:** `39977b32cc47c54a0481716c181069184a32fbe5`,
+including merged 59c, 59d, 59e, 59f and 60f. The later documentation-only
+59d closeout at `0018da2740645e0ac0c419ded7b67c01622d2bb7` is preserved on publication. The original branch began at
 `ddbc9ff637ec0c42093111e7f8e48fc87957580f`; the 60g production delta and
 reversible checker spans are measured against the merged integration state,
 not against the earlier base. Integration target: `parameterized-verilog`.
 
 ## Production transition
 
-Five MorphHDL-owned production files change: the three publication config
-files plus `MorphHdlSignednessAnalysis.scala` and `MorphHdlSignedDeclarationPolicy.scala`. The single-source
+Eight MorphHDL-owned production files change: the three publication config
+files, signedness analysis and declaration policy, native symbolic resize
+coordination, retained zero-initializer spelling and structural keyword scanning. The single-source
 publication copy resolves a neutral config to the already-qualified minimal
 cast policy. Exact no-op config markers retain an explicit opt-out; no global
 or thread-local switch, source recognizer, signal-name recognizer, new signed
@@ -30,7 +32,7 @@ they cannot fail merely because an unrelated branch has a narrower width domain.
 The full original analysis and policy restore exactly through the scoped ledger. The final native-source manifest is
 `morphhdl/contracts/native-source-preservation.json`, SHA-256:
 
-`ad320814cd46d599d0937c246f078decf231694210fa4bd3fc0558065ad08d2a`
+`070d4b336c6035eb7f7c30a8d6c76cdb760a8cf16d5d4cd04f51b9a3f4cdc449`
 
 The existing native helpers `emitSignedOperand`,
 `operatorImplAsBinaryOperatorSigned`, `operatorImplAsBinaryOperatorLeftSigned`,
@@ -77,8 +79,8 @@ mode before testing observational byte identity. Exact before/after manifests
 restore only these reviewed configuration/historical-checker spans, then every
 inherited guard still checks its complete original source contract.
 
-The current five-file production profile and the two new/extended rollout
-qualification sources are SHA-256-pinned. The old 60f production-zero history,
+The current production profile and rollout qualification sources are
+SHA-256-pinned, including both scanner and compatibility regressions. The old 60f production-zero history,
 59e/59f completed-increment source history, current native audit, unsigned
 structural transport and every
 sealed oracle remain mandatory. Source-restoration mutation controls reject
@@ -86,7 +88,7 @@ unrelated edits, duplicate spans and altered reviewed spans.
 
 ## Required qualification
 
-The existing `SignednessCompatibilityTests` suite gains fifteen tests (twenty total) covering
+The existing `SignednessCompatibilityTests` suite gains seventeen tests (twenty-two total) covering
 WIDTH defaults 1/5/8/32, zero redundant pure-arithmetic casts, complete unchanged
 unsigned ports, explicit legacy/declaration-only selection, config copies,
 repeated mode transitions, same-session native Verilog/VHDL bytes, real casts,
@@ -165,11 +167,11 @@ sealed cast-heavy oracle comparison paths explicitly select legacy output.
 
 The current integration includes 59d's exact owner-aware width authority and
 its independent widening matrix, without altering its reviewed native code or
-arithmetic proofs. The 60g source ledger restores all six changed production
-files to the complete merged 59d/59e/59f source before the inherited profile
-checks run. Twelve complete source restorations and thirty-six source
+arithmetic proofs. The 60g source ledger restores all nine changed production
+files to the complete merged 59c/59d/59e/59f source before the inherited profile
+checks run. Eighteen complete source restorations and fifty-four source
 mutation rejections are required. The twelve exact inherited source profiles
-retain all 3,042 inventory rejection controls. On current 60g source, mutations
+retain all 3,048 inventory rejection controls. On current 60g source, mutations
 of a checker wrapped by the rollout ledger are rejected at that outer exact
 blob boundary before reaching the historical 59d seam check; the fixture
 expectations distinguish those exact errors and preserve historical profiles.
@@ -207,6 +209,47 @@ Its exact field/getter and execution-start assignment are recorded in the
 existing native-change review and schema-v2 manifest; only Phase.scala changes
 under native source roots. The older typed-overlay file remains historical and
 its compatibility command delegates to the current canonical audit. The
-final five-file publication policy plus six-line lifecycle hook still requires
+final eight-file publication/serialization policy plus six-line lifecycle hook still requires
 fresh compiler, independent-reference hardware, source-audit and compatibility
 qualification before rollout completion.
+
+
+## Recovered widening, selector and lexical integration fixes
+
+Publication captures signed dependencies **before** evaluating a caller's
+selector. Captured values, declarations, memory roles and expression edges are
+revalidated after the selector and again after callbacks, even when the selector
+returns false. Two added compatibility tests cover both selector outcomes,
+clean publication and mutations that must leave a previous output untouched.
+
+Signed cleanup no longer excludes native signed-resize capture. A resize owned
+by the exact native symbolic publisher retains that publisher's protected scalar
+boundary; the declaration policy validates its identity and source/target widths
+before deferring that one occurrence. Symbolic sign extension, narrowing and
+intermediate widths are therefore not frozen to an elaboration default.
+Retained register-zero witnesses use the signed literal spelling only when that
+printer mode is active; exact assignment ownership and match counts remain gates.
+
+The Verilog keyword `signed` is excluded from structural reference sets. It
+cannot join otherwise unrelated signal-dependency groups. The new lexical test
+checks independent signed declarations and a real `$signed` operand reference.
+The existing widening test generates both reusable default profiles twice,
+checking independent widths, signed kinds, odd-tail geometry and byte identity.
+
+Resize qualification follows the two actual multiplication operands and
+requires distinct signed TARGET-wide declarations, rather than relying on the
+old anonymous helper names. The sign-extension mutation still corrupts the
+same actual resize edge and must produce a genuine solver counterexample; only
+its exact emitted syntax changes. The full unchanged 59c source-attack fixture
+also runs on its completed pre-rollout tree, separately from the same current
+attacks rejected by the new outer ledger. Neither historical checks nor
+synthetic rejection controls count as new HDL qualification.
+
+Local recovery reached 30 passing Scala 2.13 compatibility/lexical/widening tests
+with zero failures, errors or skips. Independently generated default/explicit
+candidates agree across fresh JVMs, and all 21 actual public contract outputs
+match the already-updated goldens. The 2.12 build and remaining independent HDL
+proofs require their recorded terminal results. Local incremental compilation
+uses verified archived classpaths with changed source rebuilt; it is not a
+substitute for the complete exact-head SBT/Mill and hardware CI lanes. Final
+qualification and merge remain pending.

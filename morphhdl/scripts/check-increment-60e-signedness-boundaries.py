@@ -85,6 +85,13 @@ def restore_60d_source(root: Path, path: str, source: str) -> str:
     # separately reviewed seams. Undo those first, including seams inside a 60e resize
     # call. The complete restored source is still compared with its historical
     # baseline by every inherited scope guard; no unrelated edit is admitted.
+    named_checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
+    if named_checker.exists():
+        spec = importlib.util.spec_from_file_location("named_59c_scope", named_checker)
+        require(spec is not None and spec.loader is not None, "cannot import reviewed 59c source scope")
+        named = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(named)
+        source = named.restore_source(root, path, source)
     width_contract = root / "morphhdl/contracts/increment-59d-width-publication-edits.json"
     fallback = "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     if width_contract.is_file() and path == fallback:
@@ -338,7 +345,12 @@ def text_contract(out: Path, kind: str) -> None:
     if kind == "scalars":
         require("$signed(" not in text, "materialized scalar boundaries still carry redundant casts")
         require("function signed [(WIDTH + 1)-1:0]" in text, "constant function range remains a witness")
-        require("[TARGET-1:0] _zz_resizedProduct" in text, "nested resize width boundary disappeared")
+        product = re.findall(r"assign resizedProduct = \(([A-Za-z_][A-Za-z0-9_$]*) \* ([A-Za-z_][A-Za-z0-9_$]*)\);", text)
+        require(len(product) == 1 and product[0][0] != product[0][1],
+                "nested resize must multiply two distinct scalar boundaries")
+        for operand in product[0]:
+            declaration = r"(?m)^\s*wire\s+signed\s+\[TARGET-1:0\]\s+" + re.escape(operand) + r";\s*$"
+            require(len(re.findall(declaration, text)) == 1, "nested resize width boundary disappeared: " + operand)
         require("8'shff" in text and "5'sh1d" in text, "literal interpretation not explicit")
         require("wire       [WIDTH-1:0] _zz_logicalUInt;" in text, "unsigned shift transport changed")
     if kind in ("vectors", "vec-hierarchy"):
@@ -362,8 +374,8 @@ def mutations(out: Path) -> None:
     """Each live boundary corruption must produce a real SAT counterexample."""
     cases = (
         ("sign-extension", "scalars", dict(WIDTH=5, TARGET=8),
-         "assign _zz_resized = {{((TARGET > WIDTH) ? (TARGET - WIDTH) : 0){a[WIDTH-1]}},",
-         "assign _zz_resized = {{((TARGET > WIDTH) ? (TARGET - WIDTH) : 0){1'b0}},"),
+         "assign morphhdl_resize = {{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){a[(WIDTH)-1]}},",
+         "assign morphhdl_resize = {{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){1'b0}},"),
         ("negative-literal", "scalars", dict(WIDTH=32, TARGET=8),
          "assign negativeLiteral = 8'shff;", "assign negativeLiteral = 8'hff;"),
         ("unsigned-consumer", "scalars", dict(WIDTH=5, TARGET=8),

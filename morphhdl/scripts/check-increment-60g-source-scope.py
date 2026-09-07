@@ -11,22 +11,28 @@ import json
 import subprocess
 from pathlib import Path
 
-BASE = "99b6017d7ac69112a088680457029623620224d3"
-NATIVE_MANIFEST_SHA256 = "ad320814cd46d599d0937c246f078decf231694210fa4bd3fc0558065ad08d2a"
+BASE = "39977b32cc47c54a0481716c181069184a32fbe5"
+NATIVE_MANIFEST_SHA256 = "070d4b336c6035eb7f7c30a8d6c76cdb760a8cf16d5d4cd04f51b9a3f4cdc449"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "8a8e280aa08a1a787e543f7c0230c84dc54340a0a5d99020bf513f73850b976d"
-PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala'])
+CONTRACT_SHA256 = "bdca78d2e860cdbbdb1e12731811ba55d8d8283b39cbe21a3b2dc11c65eb90a8"
+PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'morphhdl/scripts/check-increment-60f-equivalence-closure.py', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala', 'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala'])
 PRODUCTION = {
-    "core/src/main/scala/spinal/core/internals/Phase.scala": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200",
-    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "3085816ba26dbceb899ed08270ff9cc00fede099e7bcb6cfbb29f14ac671b139",
-    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "160923bb2910191ba097fcc85ba0a6dd813e9d6c1acd9176ab11d516bdec915d",
     "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "2c7649b3ff6c04e241e1330e18eef829345c5b002767220ff6835a3258211963",
-    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "74b5e84c88526798d48fea03d8e1909a9b7ed13eb0d2261451c5fd8d7052b693"
+    "morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala": "98321693cca463acf87989b44ad6ea5bc187b53a8ef88491fc1b3853aa5de9b9",
+    "morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala": "3085816ba26dbceb899ed08270ff9cc00fede099e7bcb6cfbb29f14ac671b139",
+    "core/src/main/scala/spinal/core/internals/Phase.scala": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala": "c01a92f6d9e8d80a889e44590b6db8496450d1a7b8aff4773b6b6e9e5874638a",
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala": "a1945a8205b4d3539456f95d98d838e2a847778f21cf16f96528f11f2de5f689",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "c980a82665904b0cb5bb3fd4f50d274afbd56ae3589c600ef7d408875bed5df5"
 }
 QUALIFICATION = {
-    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "541f9c83d7691db7b5469a95d61e22d6962be04af216ddd2a8f296850db4f97f",
-    "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29"
+    "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a",
+    "morphhdl/src/test/scala/nativeapplication/DefaultSignedVerilogArtifactWriter.scala": "24ce6b6491ede2da141c2fbf7f4f6ebfda827c141242adc9f3c33b024f3a6a29",
+    "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala": "15d7398426924bb8f74b50208625fce5c0e9c3d036a8b03cc1e8e0ad8fd33864",
+    "morphhdl/scripts/check-increment-59c-source-review.py": "c92b84381e0228e2b66c52e3a8b2d35c466b554589f1f0edc12b6bd5c3dfd940",
+    "morphhdl/scripts/test-increment-59c-inherited-source-scope.py": "43bb5825d4391273f9ac679ca95db4c9180f4332368dd4854f90d10bb7a6c20c"
 }
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
 
@@ -93,7 +99,7 @@ def source_scope(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
-    require(changed == set(PRODUCTION), "60g production exceeds five publication files and one scheduler lifecycle hook: " + str(sorted(changed)))
+    require(changed == set(PRODUCTION), "60g production exceeds eight publication/serialization files and one scheduler lifecycle hook: " + str(sorted(changed)))
     untracked = {p for p in git("ls-files", "--others").splitlines() if "/src/main/" in "/" + p}
     require(not untracked, "untracked 60g production source: " + str(sorted(untracked)))
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
@@ -120,7 +126,7 @@ def source_scope(root: Path) -> None:
     require(digest((root / manifest_path).read_text()) == NATIVE_MANIFEST_SHA256,
             "60g reviewed native manifest changed")
     oracle_only(root)
-    print("60g five-file publication policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
+    print("60g eight-file publication/serialization policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
 
 
 def self_test(root: Path) -> None:

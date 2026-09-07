@@ -102,6 +102,19 @@ object MorphHdlSignednessAnalysis {
       saved.children.foreach(child => fresh(child, seen))
     }
 
+    /** A selector is caller code too. Recheck the complete captured graph even
+      * when it declines publication, so it cannot hide a late mutation.
+      */
+    private[internals] def validateFresh(): Unit = {
+      val seen = new IdentityHashMap[AnyRef, java.lang.Boolean]()
+      entries.foreach(value => fresh(value.subject, seen))
+      entries.foreach { value =>
+        val uses = Option(capturedUses.get(value.subject)).getOrElse(Set.empty[Use])
+        if (uses(DeclarationUse)) requireRole(value.subject, DeclarationUse)
+        if (uses(MemoryElementUse)) requireRole(value.subject, MemoryElementUse)
+      }
+    }
+
     private def check(subject: AnyRef): Entry = {
       fresh(subject, new IdentityHashMap[AnyRef, java.lang.Boolean]())
       entry(subject)
@@ -371,10 +384,17 @@ object MorphHdlSignednessAnalysis {
       // scope. A callback cannot mutate the graph and obtain fresh publication
       // permission by causing the second capture to run after its mutation.
       val observed = observer.map(callback => (callback, capture(pc.topLevel)))
-      val published = publisher.filter { case (_, enabled) => enabled() }
-        .map { case (callback, _) => (callback, capturePublication(pc.topLevel)) }
+      val captured = publisher.map { case (callback, enabled) =>
+        (callback, enabled, capturePublication(pc.topLevel))
+      }
+      val published = captured.filter { case (_, enabled, snapshot) =>
+        val selected = enabled()
+        snapshot.validateFresh()
+        selected
+      }
       observed.foreach { case (callback, snapshot) => callback(snapshot) }
-      published.foreach { case (callback, snapshot) => callback(snapshot) }
+      published.foreach { case (callback, _, snapshot) => callback(snapshot) }
+      captured.foreach { case (_, _, snapshot) => snapshot.validateFresh() }
     }
   }
 

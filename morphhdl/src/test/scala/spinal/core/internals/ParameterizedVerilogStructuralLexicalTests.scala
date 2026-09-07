@@ -42,4 +42,16 @@ class ParameterizedVerilogStructuralLexicalTests extends AnyFunSuite {
     assert(!names("hDEAD"))
     assert(!names("hidden_line"))
   }
+
+  test("signed declaration qualifiers never connect independent dependency sets") {
+    val left = ParameterizedVerilogStructural.verilogReferenceNames(
+      "wire signed [LEFT_WIDTH-1:0] signed_left;")
+    val right = ParameterizedVerilogStructural.verilogReferenceNames(
+      "reg signed [RIGHT_WIDTH-1:0] signed_right;")
+    assert(left == Set("LEFT_WIDTH", "signed_left"))
+    assert(right == Set("RIGHT_WIDTH", "signed_right"))
+    assert((left intersect right).isEmpty)
+    assert(ParameterizedVerilogStructural.verilogReferenceNames(
+      "assign signed_right = $signed(signed_left);") == Set("signed_right", "signed_left"))
+  }
 }
