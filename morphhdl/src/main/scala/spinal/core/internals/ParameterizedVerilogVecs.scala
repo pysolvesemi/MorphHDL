@@ -1499,8 +1499,13 @@ private[internals] object ParameterizedVerilogVecs {
     // inventory has no scalar owner or vacuously appears already claimed.
     plans.foreach { owner =>
       ParameterizedVec.operationsOf(owner.vector).filter(isIndexedWrite).foreach { operation =>
-        requireLiveAssignmentEvidence(operationAssignmentEvidence(operation), liveAssignments,
-          "captured indexed Vec write", operation.sourceLocation.orElse(owner.sourceLocation))
+        operation match {
+          case write: ParameterizedVecStaticWrite
+              if isExactParentInputStaticMirror(component, owner, write) =>
+          case _ =>
+            requireLiveAssignmentEvidence(operationAssignmentEvidence(operation), liveAssignments,
+              "captured indexed Vec write", operation.sourceLocation.orElse(owner.sourceLocation))
+        }
       }
     }
 
@@ -6559,6 +6564,38 @@ private[internals] object ParameterizedVerilogVecs {
         s"packed Vecs '$leftName' and '$rightName' do not have identical logical shapes",
         sourceLocation
       )
+    }
+  }
+
+  /** Reading a child port by a static index installs a native assignment
+    * wrapper before its parent connects the complete Vec. That wrapper also
+    * observes the parent's aggregate connection. Its scalar record belongs
+    * to the exact live parent boundary, not to this child's module body.
+    * Neither an authored scalar connection nor stale mirror metadata can
+    * acquire that ownership merely by matching the emitted port name.
+    */
+  private def isExactParentInputStaticMirror(
+      component: Component,
+      plan: VecPlan,
+      write: ParameterizedVecStaticWrite
+  ): Boolean = {
+    val assignment = write.assignment
+    if (assignment == null || write.selected == null ||
+        !write.selected.isInput || write.selected.isOutput ||
+        (write.selected.component ne component) ||
+        !plan.leaves.exists(leaf => leaf.elementIndex == write.elementIndex &&
+          leaf.leafIndex == write.elementLeafIndex && (leaf.value eq write.selected)) ||
+        (write.target ne write.selected) || (assignment.target ne write.target) ||
+        (assignment.finalTarget ne write.selected) || (assignment.source ne write.source) ||
+        write.enclosingConditions.nonEmpty) return false
+    ParameterizedVec.operationsOf(plan.vector).exists {
+      case boundary: ParameterizedVecWholeAssignment =>
+        boundary.assignments.exists(_ eq assignment) &&
+          isExactParentInputBoundary(component, plan.vector, boundary.source, boundary.assignments)
+      case boundary: ParameterizedVecAutoConnect =>
+        boundary.assignments.exists(_ eq assignment) &&
+          isExactParentInputBoundary(component, plan.vector, boundary.peer, boundary.assignments)
+      case _ => false
     }
   }
 

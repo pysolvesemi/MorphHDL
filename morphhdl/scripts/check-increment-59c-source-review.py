@@ -146,16 +146,17 @@ def baseline_source(root: Path, path: str, revision: str = BASE) -> bytes:
     return subprocess.check_output(["git", "show", revision + ":" + path], cwd=root)
 
 
-def register_source_review(root: Path):
-    """Compose the exact 59g successor without changing the frozen 59c review."""
-    checker = root / "morphhdl/scripts/check-increment-59g-source-review.py"
-    contract = root / "morphhdl/contracts/increment-59g-source-review.json"
+def nested_source_review(root: Path):
+    """Compose a separately pinned successor before this immutable 59c review."""
+    checker = root / "morphhdl/scripts/check-increment-59h-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59h-source-review.json"
     if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
         return None
-    require(checker.is_file() and not checker.is_symlink() and contract.is_file() and
-            not contract.is_symlink(), "59g source-review checker or contract is missing")
-    spec = importlib.util.spec_from_file_location("register_59g_review", checker)
-    require(spec is not None and spec.loader is not None, "cannot load exact 59g source review")
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink(),
+            "59h source-review checker or contract is missing")
+    spec = importlib.util.spec_from_file_location("nested_59h_scope", checker)
+    require(spec is not None and spec.loader is not None, "cannot import reviewed 59h source scope")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -163,9 +164,9 @@ def register_source_review(root: Path):
 
 def restore_source(root: Path, path: str, source: str) -> str:
     """Leave unrelated historical hooks to their own exact source contracts."""
-    successor = register_source_review(root)
-    if successor is not None:
-        source = successor.restore_source(root, path, source)
+    nested = nested_source_review(root)
+    if nested is not None:
+        source = nested.restore_source(root, path, source)
     entries = load_contract(root)
     if path not in entries:
         return source
@@ -188,10 +189,10 @@ def require_production_inventory(paths: set[str]) -> None:
 def verify_spans(root: Path, qualification_base: str = BASE) -> None:
     """Validate the exact successor layer before inherited source-union checks."""
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
-    successor = register_source_review(root)
-    if successor is not None:
-        successor.verify_spans(root)
     entries = load_contract(root)
+    nested = nested_source_review(root)
+    if nested is not None:
+        nested.verify_spans(root)
     for path, entry in entries.items():
         baseline = baseline_source(root, path)
         require(baseline == baseline_source(root, path, qualification_base),
@@ -204,21 +205,29 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59c reviewed source is not uniquely tracked: " + path)
         current = source.read_bytes()
-        if successor is not None:
-            current = successor.restore_source(root, path, current.decode()).encode()
+        if nested is not None:
+            current = nested.restore_source(root, path, current.decode()).encode()
         restore_reviewed(entry, baseline, current)
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
-    changes = production_changes(root, qualification_base)
-    successor = register_source_review(root)
-    if successor is not None:
-        successor.verify(root)
-        inherited = subprocess.check_output(
-            ["git", "diff", "--no-renames", "--name-only", qualification_base, successor.BASE],
-            cwd=root, text=True).splitlines()
-        changes = (changes - successor.PRODUCTION_PATHS) | (set(inherited) & successor.PRODUCTION_PATHS)
-    require_production_inventory(changes)
+    paths = production_changes(root, qualification_base)
+    nested = nested_source_review(root)
+    if nested is not None:
+        paths = nested.inherited_inventory(root, paths, qualification_base)
+        register = getattr(nested, "register_source_review", lambda _: None)(root)
+        if register is not None:
+            # The nested/register audits have already verified the complete
+            # current production tree against the register's pinned merged base.
+            # Strip only that base's disjoint siblings from this local 59c
+            # inventory, preserving them for the enclosing 60f profile check.
+            baseline_paths = subprocess.check_output(
+                ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+                cwd=root, text=True).splitlines()
+            baseline_paths = {path for path in baseline_paths if re.search(r"(?:^|/)src/main/", path)}
+            inherited = nested.inherited_inventory(root, baseline_paths, qualification_base)
+            paths -= inherited - PRODUCTION_PATHS
+    require_production_inventory(paths)
     verify_spans(root, qualification_base)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
 

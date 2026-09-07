@@ -89,6 +89,8 @@ def main() -> None:
         ("missing reviewed checker", "morphhdl/scripts/check-increment-59g-source-review.py",
          "remove", "59g source-review checker or contract is missing"),
         ("extra production file", "foreign/src/main/Unreviewed.scala", "suffix", "unreviewed production delta"),
+        ("changed merged sibling source", "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala", "suffix", "unreviewed production delta"),
+        ("removed merged sibling source", "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala", "remove", "unreviewed production delta"),
         ("untracked production file", "morphhdl/src/main/Unreviewed.scala", "untracked", "untracked production sources"),
         ("executable reviewed source", next(iter(sorted(helper.PRODUCTION_PATHS))), "executable", "59g reviewed source must be a regular non-executable file"),
         ("symlink reviewed source", next(iter(sorted(helper.PRODUCTION_PATHS))), "symlink", "59g reviewed source must be a regular non-executable file"),

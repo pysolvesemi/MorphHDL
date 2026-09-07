@@ -107,7 +107,7 @@ jobs:
           from pathlib import Path
           import xml.etree.ElementTree as ET
           required = {'TypedBalancedReductionBridgePublicationTests': 3,
-                      'TypedBalancedReductionBridgeReplayTests': 10,
+                      'TypedBalancedReductionBridgeReplayTests': 12,
                       'TypedBalancedReductionCallbackPolicyTests': 16,
                       'TypedBalancedReductionStageReplayTests': 23,
                       'TypedBalancedReductionClosedGraphTests': 20}

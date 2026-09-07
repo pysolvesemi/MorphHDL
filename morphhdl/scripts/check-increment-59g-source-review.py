@@ -2,7 +2,7 @@
 """Validate the exact register-bridge successor before frozen inherited audits.
 
 Every modified production and inherited-checker file has explicit before/after
-UTF-8 byte spans. Each unchanged interval must equal the merged 59c baseline.
+UTF-8 byte spans. Each unchanged interval must equal the pinned merged integration baseline.
 This review cannot authorize native edits, extra production paths, or changes
 to any inherited manifest. Independent inherited audits run after restoration.
 """
@@ -16,20 +16,26 @@ import re
 import subprocess
 from pathlib import Path
 
-BASE = "0018da2740645e0ac0c419ded7b67c01622d2bb7"
+BASE = "5db83983b42c71df4f43d6a7c37c5bd552cd96c5"
 CONTRACT = "morphhdl/contracts/increment-59g-source-review.json"
-CONTRACT_SHA256 = "2af2f16dc0bf5682da63346cb7b204bbd3ada90642bb0c965b60659f22aa9b4c"
+CONTRACT_SHA256 = "3b9706cc8d4b06ddf41c885b5f28740f77f779365438c72bcde4e1d0e46dd41c"
 PATHS = (
     "morphhdl/scripts/check-increment-59c-source-review.py",
+    "morphhdl/scripts/check-increment-59h-source-review.py",
     "morphhdl/scripts/check-increment-60f-artifacts.py",
     "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
-    "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCallbackPolicy.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala",
 )
+# Keep the reviewed bridge/owner manifest immutable. This additional exact
+# checker-only span binds the already-merged sibling inventory composition;
+# it does not authorize any production change or bypass a source-union check.
+COMPOSITION_REVIEW = {'path': 'morphhdl/scripts/check-increment-59c-source-review.py', 'change': 'modified', 'reason': 'After complete 59g and nested-owner source verification, remove only already-merged disjoint siblings from the local 59c inventory; preserve those paths for the independent 60f immutable-source union.', 'baseline_sha256': 'bb0e3c55244a57b13543b7fc6dcd3045183a8abe1ced465cddd840723c7b89aa', 'edits': [{'id': '59c-register-sibling-inventory-1', 'reason': 'After complete 59g and nested-owner source verification, remove only already-merged disjoint siblings from the local 59c inventory; preserve those paths for the independent 60f immutable-source union.', 'before_start': 11811, 'before_end': 11811, 'after_start': 11811, 'after_end': 12686, 'before': '', 'after': '        register = getattr(nested, "register_source_review", lambda _: None)(root)\n        if register is not None:\n            # The nested/register audits have already verified the complete\n            # current production tree against the register\'s pinned merged base.\n            # Strip only that base\'s disjoint siblings from this local 59c\n            # inventory, preserving them for the enclosing 60f profile check.\n            baseline_paths = subprocess.check_output(\n                ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],\n                cwd=root, text=True).splitlines()\n            baseline_paths = {path for path in baseline_paths if re.search(r"(?:^|/)src/main/", path)}\n            inherited = nested.inherited_inventory(root, baseline_paths, qualification_base)\n            paths -= inherited - PRODUCTION_PATHS\n'}]}
+
 ADDED_PATHS = frozenset()
 PRODUCTION_PATHS = frozenset(path for path in PATHS if "/src/main/" in path)
 
@@ -124,9 +130,12 @@ def restore_reviewed(entry: dict, baseline: bytes, source: bytes) -> bytes:
 
 def load_contract(root: Path) -> dict[str, dict]:
     raw = (root / CONTRACT).read_bytes()
-    entries = validate_contract(json.loads(raw))
     require(digest(raw) == CONTRACT_SHA256, "59g reviewed source manifest changed")
-    return entries
+    value = json.loads(raw)
+    # Insert only the separately pinned checker span; validate the complete
+    # ordered inventory with the same strict schema and byte-reversal rules.
+    value["files"].insert(0, copy.deepcopy(COMPOSITION_REVIEW))
+    return validate_contract(value)
 
 def production_changes(root: Path, revision: str) -> set[str]:
     tracked = subprocess.check_output(["git", "diff", "--name-only", revision], cwd=root, text=True).splitlines()
@@ -137,7 +146,7 @@ def production_changes(root: Path, revision: str) -> set[str]:
 
 def require_production_inventory(paths: set[str]) -> None:
     require(paths == PRODUCTION_PATHS,
-            "59g production delta differs from the complete reviewed inventory; missing=" +
+            "59g production delta differs from the complete reviewed inventory; unreviewed production delta; missing=" +
             repr(sorted(PRODUCTION_PATHS - paths)) + "; unreviewed=" + repr(sorted(paths - PRODUCTION_PATHS)))
 
 
