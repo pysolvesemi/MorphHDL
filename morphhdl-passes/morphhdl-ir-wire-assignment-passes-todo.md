@@ -15,14 +15,15 @@ and before Verilog-2001 emission:
    constant Boolean branches, preserving truth conversion and packed semantics.
 
 WA-07b is the user-authorized fifth pass, inserted before WA-08, whose
-production handoff must include the new pass and its proof gates. The existing
-four-stage standalone pipeline is implemented and its native witness and
-formal qualification are recorded in [WA-07a evidence](wa07a-completion-evidence.md).
-WA-07b remains planned, not implemented by this documentation update.
+production handoff must include the new pass and its proof gates. The historical
+four-stage standalone pipeline and its native witness qualification are
+recorded in [WA-07a evidence](wa07a-completion-evidence.md).
+WA-07b implementation is in progress; its code, proof layers and outstanding
+completion requirements are described in [WA-07b notes](wa07b-implementation-notes.md).
 Production execution and writeback remain the separate WA-08 increment.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
-WA-07b must extend `true` from the existing four stages to all five in the fixed
+WA-07b extends `true` from the historical four stages to all five in the fixed
 order above. Internal proof fixtures may select historical stages directly,
 but those selections are not product flags. The complete pipeline must reach
 an idempotent fixed point: a simplification that exposes an alias or another
@@ -54,7 +55,7 @@ canonical MorphHDL-owned IR
         |
         +--> constant-operand expression simplification
         |
-        +--> recursive Boolean ternary simplification (WA-07b; planned)
+        +--> recursive Boolean ternary simplification (WA-07b; qualification pending)
         |
         v
 structured Verilog-2001 lowering and emission
@@ -68,8 +69,9 @@ PV-58 realizes the read-only publication into this boundary for the bounded
 validator-normalized graph, producer profile and complete facets directly from
 the typed native graph. WA-07 proves the third standalone pass and the
 historical one-flag pipeline. WA-07a adds constant-operand simplification;
-WA-07b will add recursive Boolean ternary simplification. WA-08 implements
-validated production writeback after both additions are complete and merged.
+WA-07b adds recursive Boolean ternary simplification and is under qualification.
+WA-08 implements validated production writeback after both additions are
+complete and merged.
 
 The passes must:
 
@@ -267,8 +269,10 @@ p ? 1'b0 : 1'b1 -> ~p
 ((a == 1) && (b > 5)) ? 1'b0 : 1'b1 -> ~((a == 1) && (b > 5))
 ```
 
-These are planned transformation examples, not newly generated RTL from this
-documentation-only update. The implementation must obey all of the following:
+These are semantic transformation examples, not substitutes for retained
+before/after emitted RTL. The implementation uses self-determined logical
+negation `!p` for the inverse rule so widening cannot turn it into a wider
+bitwise complement. The implementation must obey all of the following:
 
 - Rewrite bottom-up through every represented expression child: mux conditions
   and both branches, unary and binary operands, concatenations, selects and
@@ -329,9 +333,9 @@ MorphHDL IR before backend Verilog identifiers are allocated.
 The named pass removes an eligible named alias and its assignment. It must not
 transfer the removed name to another signal or invent a replacement name.
 Because this removes an internal waveform/debug point, the named pass reports
-every removed name and available source location deterministically. Product
-execution is controlled only by the common all-or-none flag; there is no public
-per-pass Boolean.
+every removed name and available source location deterministically.
+Product execution is controlled only by the common all-or-none flag; there is
+no public per-pass Boolean.
 
 ## Fixed non-goals
 
@@ -611,7 +615,13 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-07a implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `IN PROGRESS`.
+
+  The increment branch contains the canonical pass, five-stage integration,
+  recursive and safety fixtures, independent four-state and symbolic-width
+  proof fixtures, native witnesses and full-domain proof wiring. Qualification
+  is not yet established. See [implementation notes](wa07b-implementation-notes.md).
+  Keep this checkbox open until every required final-head gate below passes.
 
   Add a component-generic `BooleanTernarySimplificationPass` implementing the
   bounded contract above over canonical `RtlExpr`, before Verilog emission.
@@ -649,8 +659,8 @@ WA-04 or WA-05 can remove an alias.
   mutation and deterministic-emission gates. Record actual before/after emitted
   Verilog and proof evidence before marking this increment complete.
 
-  This entry authorizes future implementation; adding it does not implement
-  the pass, change generated Verilog or satisfy its completion gates.
+  Test source and proof wiring alone do not satisfy these completion gates.
+  Production integration remains WA-08 scope.
 
 - [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
 
@@ -659,8 +669,8 @@ WA-04 or WA-05 can remove an alias.
   **Status:** `BLOCKED` (WA-07b).
 
   Eligible to start only once WA-07b is implemented, checked complete and
-  merged into `parameterized-verilog`; this planning update or an open
-  implementation PR does not satisfy that dependency. Expand PV-58's validated
+  merged into `parameterized-verilog`; an open implementation PR does not
+  satisfy that dependency. Expand PV-58's validated
   publication profile to carry the approved pure expression algebra and
   connect the one-flag five-pass pipeline to the MorphHDL single-source
   production path after parameterization/capture and before Verilog lowering.
