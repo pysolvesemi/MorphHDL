@@ -1,13 +1,38 @@
 # Increment 59h — Balanced reduction in nested typed owners
 
-Status: implementation complete and merged through [PR #170](https://github.com/pysolvesemi/MorphHDL/pull/170).
-The implementation head is `9c8cbb0951aca28a89d522717e7a6bacfd67afe0`; the
-qualified integration commit is `cba4717abc9192917d819e1f84cb246162488286`.
-Post-merge qualification was verified on September 7, 2026. This completion
-record and the controlling roadmap closeout change documentation only; they do
-not modify production code, tests, workflows, native manifests or proof oracles.
-The implementation branch started from merged `parameterized-verilog` commit
-`0018da2740645e0ac0c419ded7b67c01622d2bb7`.
+Status: the production implementation is merged through [PR #170](https://github.com/pysolvesemi/MorphHDL/pull/170),
+but qualification closure remains in progress and the roadmap stays unchecked.
+The implementation head is `9c8cbb0951aca28a89d522717e7a6bacfd67afe0`; its merge
+commit is `cba4717abc9192917d819e1f84cb246162488286`. The implementation branch
+started from merged base `0018da2740645e0ac0c419ded7b67c01622d2bb7`.
+
+## September 7 qualification review
+
+The merged-head dedicated workflow and full inherited regressions passed.
+However, the dedicated matrix covered WIDTH `{1, 5, 8}` and COUNT
+`{1, 2, 3, 5, 9}`, not the full scalar minimum required by the controlling
+roadmap. Passing that subset is not sufficient to close Increment 59h.
+
+The follow-up extends the candidate's declared finite domains to WIDTH 1–32 and
+COUNT 1–17 while keeping the defaults WIDTH=5, COUNT=1, ROWS=1 and MODE=0.
+It retains every original specialization and adds all 32 WIDTH/COUNT pairs:
+WIDTH `{1, 5, 8, 32}` times COUNT `{1, 2, 3, 5, 8, 9, 16, 17}`, in each of
+five owner profiles and all three branch modes. Existing extra row witnesses
+remain present, for **516 specializations**: 96 conditional, 96 ordinary
+hierarchy, and 108 each for finite loop, registered loop and generated hierarchy.
+These counts specify required work; they are not a claim of passing new RTL.
+
+The Python self-test now verifies the independent roadmap Cartesian product,
+retention of the original 105 shapes, and rejection of every single missing
+case, the old matrix, a duplicate and an out-of-domain count: **519 negative
+matrix controls**. All self-tests passed locally. These parser/model controls
+are not a substitute for Scala generation, hardware simulation or solver proof.
+
+The follow-up does not change production algorithms, native source manifests,
+independent native reference bodies, reset/enable assumptions, solver commands
+or any existing hardware mutation. Both Scala lanes must newly generate and
+qualify the complete matrix before the roadmap checkbox can be closed. The
+historical results below cannot qualify the expanded candidate domain.
 
 ## Scope
 
@@ -21,8 +46,6 @@ The standalone qualification uses the existing scalar operations and zero-init
 register bridges from 59b. Named-field, widening, composite-reduction and nested
 aggregate-alias combinations remain the 59i integration scope. Unsupported
 packed operations on a nested structural Vec aggregate alias remain rejected.
-The wider register initialization, enable and clock/reset profiles belong to
-59g; completion of 59h does not claim their combined qualification.
 
 ## Ownership and publication
 
@@ -64,74 +87,50 @@ finite reads, without a handwritten candidate datapath.
 simulation, synthesis, native-reference equivalence, reset entry and induction
 for registered cases, and wrong-branch, stale-index and cross-instance RTL
 mutations. The inherited 59b qualifications and both supported Scala lanes
-remain required.
+remain required. Final expanded-matrix results remain pending.
 
-### Source-bound post-merge results
+### Verified historical post-merge evidence
 
-All results below belong to integration commit
-`cba4717abc9192917d819e1f84cb246162488286`, not an earlier local checkpoint.
-The retained archives were downloaded, their SHA-256 digests matched against
-GitHub artifact metadata, and their recorded head identities and JUnit reports
-were checked during closeout.
+These results belong only to `cba4717abc9192917d819e1f84cb246162488286`, the
+original narrower matrix. The retained ZIP digests, head files, manifests and
+JUnit inventories were checked during the September 7 resume.
 
-| Gate | Scala 2.12.18 | Scala 2.13.12 |
-| --- | --- | --- |
-| Dedicated nested-owner and inherited safety suites | 388 tests / 30 suites; no failures, errors or skips | 388 tests / 30 suites; no failures, errors or skips |
-| Independent nested-owner hardware matrix | 105 / 105 specializations | 105 / 105 specializations |
-| Independent simulation | 12,129 input vectors | 12,129 input vectors |
-| Combinational SAT equivalence | 84 / 84 cases | 84 / 84 cases |
-| Registered reset entry and induction | 21 / 21 cases, both checks | 21 / 21 cases, both checks |
-| Genuine nested-owner RTL mutation counterexamples | All 3 detected | All 3 detected |
-| Inherited 59b publication matrix | 32 / 32 cases; 5,586 simulation cycles; reset entry and induction; both mutations detected | Same |
-| Complete formal-enabled inherited regressions | 1,854 tests / 182 suites; no failures, errors or skips | 1,854 tests / 182 suites; no failures, errors or skips |
+| Gate | Result on each Scala version (2.12.18 and 2.13.12) |
+| --- | --- |
+| Dedicated safety tests | 388 tests / 30 suites, zero failures/errors/skips |
+| Nested-owner matrix | 105 specializations; 12,129 simulation vectors |
+| Combinational equivalence | 84 SAT proofs |
+| Registered equivalence | 21 reset-entry checks and 21 induction proofs |
+| Genuine RTL mutations | All three produced bad=1 counterexamples |
+| Inherited 59b matrix | 32 cases; 5,586 simulation cycles; both mutations detected |
+| Complete inherited regressions | 1,854 tests / 182 suites, zero failures/errors/skips |
 
-The dedicated workflow is [post-merge 59h run 34094499276](https://github.com/pysolvesemi/MorphHDL/actions/runs/34094499276).
-Both jobs completed successfully, including the source-preservation and
-historical mutation controls, strict Verilog-2001 parsing/lint, synthesis,
-formal qualification and inherited 59b proof step. The full regression lanes
-and signedness cross-Scala comparison passed in
-[post-merge closure run 34094499393](https://github.com/pysolvesemi/MorphHDL/actions/runs/34094499393).
-The repository-wide merge-commit snapshot contained 45 workflow runs: 39
-successful and six skipped, with no failed or unfinished runs. Skipped runs
-are not counted as proof; both dedicated 59h lanes and both complete inherited
-regression lanes actually ran and passed.
+The dedicated source-bound run is [34094499276](https://github.com/pysolvesemi/MorphHDL/actions/runs/34094499276).
+The full inherited regression and signedness closure run is
+[34094499393](https://github.com/pysolvesemi/MorphHDL/actions/runs/34094499393).
+All original 110 candidate/reference RTL files matched between independent A/B
+writer invocations and across Scala versions; manifests and nested-owner
+evidence JSON also matched. Proof-generated miters and mutated candidates are
+not additional original writer outputs.
 
-The 105-case matrix comprises 21 specializations for each of five profiles.
-The three negative controls corrupt branch binding, a finite-loop index and
-cross-instance result wiring. Every packed Vec element, row bias, child-instance
-input and sequential control remains independently driven or unconstrained as
-appropriate; the native reference is elaborated separately.
-
-All 110 originally generated candidate/reference Verilog files match between
-independent A/B writer invocations. The same 110 files, both manifests and the
-nested-owner evidence JSON also match byte-for-byte between Scala versions.
-Tool-generated miters and mutated candidates under the A directory are not
-mistaken for additional original writer outputs.
-
-These are finite parameter specializations, not universal quantification over
-every legal parameter value. The registered profile retains the existing native
-synchronous active-high reset and clock-enable contract. Broader 59g profiles
-and the mixed 59c–59h feature combinations remain separate qualification work.
-
-### Retained artifact identities
-
-| Artifact | GitHub artifact ID | SHA-256 |
+| Retained artifact | GitHub ID | SHA-256 |
 | --- | --- | --- |
 | Dedicated 2.12.18 | 10008880578 | `4045187e3c8765dfbfa19e1ded14db52f4f4eadcf8c32078f51e7e89c83bdf76` |
 | Dedicated 2.13.12 | 10008665174 | `53ee22643b9c861c47dbba003f25c99d4133ddfccddf6a14f91f98906722eb26` |
 | Full regressions 2.12.18 | 10009723909 | `125bfbb02dc5c0db0711ac75727ad70757d6e2f37ce33cdb5c7b7bebb7fc6aac` |
 | Full regressions 2.13.12 | 10009627453 | `617192b7a8162858e8292b9db206d0874968633dc986b7c6764068d719f374dc` |
 
-The dedicated artifacts contain `target/increment-59h-nested-owners/head.txt`,
-`source.tar.gz`, `a/manifest.json`, `a/evidence.json`, generated A/B RTL,
-independent proof logs, mutation witnesses and the JUnit reports. The source
-archive and writer make the evidence reproducible after CI artifact expiry.
+The dedicated artifacts retain `head.txt`, `source.tar.gz`, independent A/B
+RTL, manifests, proof logs, counterexample VCDs and JUnit reports. Formal
+coverage is a finite specialization matrix, not universal quantification over
+all legal parameter values. The registered profile uses the existing native
+synchronous active-high reset and clock-enable contract; 59g and 59i remain
+responsible for their separately specified broader profiles and combinations.
 
-## Scala source and actual generated Verilog
+## Actual Scala and generated-Verilog example
 
-This example is the actual `BalancedNestedLoop` fixture in
-`morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerArtifactWriter.scala`.
-With the imports from that file, the source is:
+This is the unchanged `BalancedNestedLoop` fixture from
+`morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerArtifactWriter.scala`:
 
 ```scala
 final class BalancedNestedLoop(width: HdlInt, count: HdlInt, rows: HdlInt, mode: HdlInt)
@@ -154,12 +153,10 @@ final class BalancedNestedLoop(width: HdlInt, count: HdlInt, rows: HdlInt, mode:
 }
 ```
 
-The writer uses defaults `WIDTH=5`, `COUNT=1`, `ROWS=1`, `MODE=0` while retaining
-those parameters in one generated definition. The following are two separate,
-exact excerpts from
-`a/candidate/loop/BalancedNestedLoop.v`; omitted declarations and later tree
-levels remain in the complete artifact. These excerpts are not a standalone
-replacement module.
+The following two separate excerpts are actual generated Verilog from the
+historical merged-head artifact `a/candidate/loop/BalancedNestedLoop.v`.
+Declarations and later tree levels between the excerpts are omitted; this is
+not a standalone replacement module or evidence for the expanded domain.
 
 ```verilog
 module BalancedNestedLoop #(
@@ -172,13 +169,9 @@ module BalancedNestedLoop #(
   input wire [(WIDTH * ROWS)-1:0] biases,
   output wire [(WIDTH * ROWS)-1:0] result
 );
+```
 
-
-
-
-  genvar row_index_1_1;
-  genvar word_index_2_1;
-  generate
+```verilog
     for (row_index_1_1 = 0; row_index_1_1 < ROWS; row_index_1_1 = row_index_1_1 + 1) begin : g_row_1_1
         wire [(WIDTH * COUNT)-1:0] row_words;
       for (word_index_2_1 = 0; word_index_2_1 < COUNT; word_index_2_1 = word_index_2_1 + 1) begin : g_word_2_1
@@ -187,34 +180,7 @@ module BalancedNestedLoop #(
       if (((MODE) > (0))) begin : g_row_xor
 ```
 
-Within that exact row and branch owner, the first active tree level is emitted
-as follows:
-
-```verilog
-            if (((COUNT) > (1))) begin : morphhdl_balanced_1_active_0
-              for (morphhdl_balanced_1_i_0 = 0; morphhdl_balanced_1_i_0 < ((COUNT / 2)); morphhdl_balanced_1_i_0 = morphhdl_balanced_1_i_0 + 1) begin : pairs
-                wire       [WIDTH-1:0]    morphhdl_balanced_1_l0_pair_left;
-                  wire       [WIDTH-1:0]    morphhdl_balanced_1_l0_pair_right;
-                  wire       [WIDTH-1:0]    _zz_morphhdl_balanced_1_l0_pair_result;
-                  wire       [WIDTH-1:0]    morphhdl_balanced_1_l0_pair_result;
-                  assign morphhdl_balanced_1_l0_pair_left = morphhdl_balanced_1_stage_0[((2 * morphhdl_balanced_1_i_0) * (WIDTH)) +: (WIDTH)];
-                  assign morphhdl_balanced_1_l0_pair_right = morphhdl_balanced_1_stage_0[((2 * morphhdl_balanced_1_i_0 + 1) * (WIDTH)) +: (WIDTH)];
-                  assign _zz_morphhdl_balanced_1_l0_pair_result = (morphhdl_balanced_1_l0_pair_left ^ morphhdl_balanced_1_l0_pair_right);
-                  assign morphhdl_balanced_1_l0_pair_result = _zz_morphhdl_balanced_1_l0_pair_result;
-                assign morphhdl_balanced_1_stage_1[((morphhdl_balanced_1_i_0) * (WIDTH)) +: (WIDTH)] = morphhdl_balanced_1_l0_pair_result;
-              end
-```
-
-The complete generated file has SHA-256
+The historical complete file SHA-256 is
 `d9bea85f9282df51fbc5e51f12c49487c0a9142e683f55c39f8d8084ac422103`.
-The shared nested-owner `a/evidence.json` has SHA-256
-`7aba4d8bc6dd3e9d1c23beface1fc1bb74e050f93e721bfc8be5545b18bb8f41`.
-The essential 59h change is that the native reduction remains inside its
-parameterized row and selected branch; it is not moved to component scope or
-specialized to the default count. COUNT=1 retains the native bypass behavior.
-
-## Next integration boundary
-
-The first remaining sequential roadmap item is 59g. Increment 59i remains
-blocked until all of 59c–59h, including 59g, are implemented and merged. This
-closeout does not start 59i or change the approved standalone/combined scope.
+The native balanced tree is published within the exact generated row and
+branch, not hoisted to component scope or frozen to the COUNT=1 default.
