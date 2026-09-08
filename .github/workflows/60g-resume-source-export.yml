@@ -1,0 +1,32 @@
+name: Export exact staged 60g recovery source
+on:
+  push:
+    branches: [agent/60g-inherited-audit-publish-20260907]
+    paths: ['.github/workflows/60g-resume-source-export.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Archive existing source and Git ancestry only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/60g-recovery
+          git rev-parse HEAD > target/60g-recovery/head.txt
+          git rev-parse refs/remotes/origin/parameterized-verilog > target/60g-recovery/target.txt
+          git archive --format=tar.gz 7aeb80d756a6365d1d3177c2b9a29b5e194595a2 > target/60g-recovery/staged-source.tar.gz
+          git bundle create target/60g-recovery/repository.bundle HEAD refs/remotes/origin/parameterized-verilog refs/remotes/origin/agent/increment-60g-default-signed-verilog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exact-60g-recovery-source
+          path: target/60g-recovery
+          if-no-files-found: error
+          retention-days: 7
