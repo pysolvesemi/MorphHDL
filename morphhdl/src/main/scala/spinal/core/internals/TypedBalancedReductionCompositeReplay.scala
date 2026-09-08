@@ -238,7 +238,17 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       val prior = memo.get(this)
       if (prior != null) prior
       else {
-        val value = attach(build(inputs, memo), width)
+        val built = build(inputs, memo)
+        // A source operand is already validated by its input/capture evidence.
+        // Reading it must not attach or rewrite even its width metadata.
+        val value = if (key.operand.nonEmpty) built else attach(built, width)
+        // Native inlining must not erase a proved symbolic intermediate and
+        // recreate it later with only its concrete construction width. Match
+        // scalar graph replay's carrier rule; operand/capture roots are reads.
+        if (key.operand.isEmpty && width.parameters.nonEmpty) {
+          value.dontSimplifyIt()
+          value.noBackendCombMerge()
+        }
         memo.put(this, value)
         value
       }
@@ -251,7 +261,8 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       private val inputShapes: Vector[Shape],
       private val recipes: Vector[Recipe],
       private val observation: TypedBalancedReductionClosedGraph.Observation,
-      private val guards: Vector[() => Unit]
+      private val guards: Vector[() => Unit],
+      private val captures: Vector[BaseType]
   ) {
     private[TypedBalancedReductionCompositeReplay] def operationKey: Vector[Key] = recipes.map(_.key)
     def validateFreshness(): Unit = freshOnce(this) {
@@ -265,7 +276,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
         fail("OWNER", "composite replay requires the certified component")
       inputShapes(0).requireValue(left, replacement = true)
       inputShapes(1).requireValue(right, replacement = true)
-      val inputs = Vector(left.flatten.toVector, right.flatten.toVector)
+      val inputs = Vector(left.flatten.toVector, right.flatten.toVector, captures)
       val memo = new IdentityHashMap[Recipe, BaseType]()
       val output = cloneShape(nativeResult, resultWidths)
       output.flatten.toVector.zip(recipes).foreach { case (target, recipe) => target.assignFrom(recipe.replay(inputs, memo)) }
@@ -273,13 +284,16 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     }
   }
 
-  private def certifyOperator(callback: UnvalidatedBalancedCallback, inputs: Vector[Shape]): OperatorProof = {
+  private def certifyOperator(callback: UnvalidatedBalancedCallback, inputs: Vector[Shape],
+      schema: Option[TypedBalancedReductionCaptureSchema]): OperatorProof = {
     if (inputs.size != 2) fail("ARITY", "operator needs two composite values")
     callback.operands.zip(inputs).foreach { case (data, shape) => shape.requireValue(data, replacement = false) }
     if (!equivalentLayout(inputs.head.expected, layout(callback.result)) ||
         callback.result.flattenLocalName.toVector != inputs.head.paths)
       fail("RESULT-SHAPE", "operator result must preserve the input recursive layout")
-    val observation = TypedBalancedReductionClosedGraph.observe(callback)
+    schema.foreach(_.validateBindings())
+    val captures = schema.toVector.flatMap(_.hardwareInputs)
+    val observation = TypedBalancedReductionClosedGraph.observe(callback.copy(operands = callback.operands ++ captures))
     val owner = inputs.head.evidence.head.owner
     val inputLeaves = new IdentityHashMap[BaseType, (Int, Int)]()
     inputs.zipWithIndex.foreach { case (shape, side) => shape.evidence.zipWithIndex.foreach {
@@ -287,8 +301,18 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
         if (inputLeaves.put(evidence.value, (side, index)) != null)
           fail("OPERAND-ALIAS", "composite pair must retain distinct input leaf identities")
     }}
+    val capturedLeaves = new IdentityHashMap[BaseType, Int]()
+    val capturedEvidence = captures.map(TypedBalancedReductionValueEvidence.input)
+    captures.zipWithIndex.foreach { case (leaf, index) =>
+      // Once native graph identity is shared, capture-vs-pair access cannot be
+      // distinguished. Reject rather than remapping a runtime capture as a lane.
+      if (inputLeaves.containsKey(leaf)) fail("CAPTURE-ALIAS", "captured hardware aliases an operator operand")
+      if (!capturedLeaves.containsKey(leaf)) capturedLeaves.put(leaf, index)
+    }
     val memo = new IdentityHashMap[Expression, Recipe]()
     val guards = ArrayBuffer.empty[() => Unit]
+    schema.foreach(value => guards += (() => value.validateBindings()))
+    capturedEvidence.foreach(value => guards += (() => value.requireFreshness()))
 
     def recipe(expression: Expression): Recipe = {
       val previous = memo.get(expression)
@@ -303,6 +327,11 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
           val evidence = inputs(side).evidence(index)
           new Recipe(kind, evidence.width, Key(leaf.getClass, Some(side -> index), evidence.width.verilog, Vector.empty),
             (values, _) => values(side)(index))
+        case leaf: BaseType if capturedLeaves.containsKey(leaf) =>
+          val index = capturedLeaves.get(leaf)
+          val evidence = capturedEvidence(index)
+          new Recipe(kind, evidence.width, Key(leaf.getClass, Some(2 -> index), evidence.width.verilog, Vector.empty),
+            (values, _) => values(2)(index))
         case leaf: BaseType =>
           if (!callback.declarations.exists(_ eq leaf) || leaf.isReg || leaf.hasTag(tagAutoResize) ||
               (leaf.component ne owner) || !leaf.isDirectionLess || (leaf.parentScope ne owner.dslBody))
@@ -394,7 +423,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       key.operand.toSet ++ key.children.flatMap(child => dependencies(child)).toSet
     outputs.zipWithIndex.foreach { case (output, index) =>
       val active = inputs.head.leafDimensions(index)
-      dependencies(output.key).foreach { case (side, leafIndex) =>
+      dependencies(output.key).filter(_._1 < inputs.size).foreach { case (side, leafIndex) =>
         inputs(side).leafDimensions(leafIndex).foreach { case (sourceIndex, sourceDepth) =>
           if (BigInt(sourceIndex) >= sourceDepth.minimum && !active.exists {
               case (targetIndex, targetDepth) => targetIndex >= sourceIndex && sameWidth(targetDepth, sourceDepth)
@@ -407,7 +436,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       if ((output.kind ne expected.kind) || !sameWidth(output.width, expected.width))
         fail("RESULT-WIDTH", "operator must preserve every independent field width over the full domain")
     }
-    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector)
+    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector, captures)
     proof.validateFreshness()
     proof
   }
@@ -544,9 +573,18 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
   }
 
   def capture[T <: Data](vector: Vec[T], op: (T, T) => T,
-      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] = {
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] =
+    capture(vector, op, bridge, native, None)
+
+  def capture[T <: Data](vector: Vec[T], op: (T, T) => T,
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+      schema: Option[TypedBalancedReductionCaptureSchema]): Certificate[T] = {
     if (vector == null || op == null || bridge == null || native == null)
       fail("NULL", "receiver and native callbacks are required")
+    schema.foreach { value =>
+      if (value.callback ne op) fail("CAPTURE-CALLBACK", "capture schema belongs to a different callback")
+      value.validateBindings()
+    }
     val retained = ParameterizedVec.shapeOf(vector).getOrElse(fail("SHAPE", "receiver has no exact typed Vec shape"))
     val plan = TypedBalancedReductionPlan.forVec(vector).get
     val inputShapes = vector.vec.toVector.map { value =>
@@ -593,7 +631,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       observations.foreach(_.requireUnchanged())
       val evidence = callback.operands.size match {
         case 2 =>
-          val proof = certifyOperator(callback, callback.operands.map(evidenceOf))
+          val proof = certifyOperator(callback, callback.operands.map(evidenceOf), schema)
           operators(callback.ordinal) = proof
           callback.result.flatten.indices.toVector.map(index => TypedBalancedReductionValueEvidence.fromComposite(proof, index))
         case 1 =>
@@ -604,7 +642,9 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       }
       val shape = new Shape(callback.result, layout(callback.result), callback.result.flattenLocalName.toVector, evidence)
       values.put(callback.result, shape)
-      observations += TypedBalancedReductionClosedGraph.observe(callback)
+      observations += TypedBalancedReductionClosedGraph.observe(
+        if (callback.operands.size == 2) callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs))
+        else callback)
     })
     freshnessRead {
     val stages = captured.plan.stages.map { geometry =>

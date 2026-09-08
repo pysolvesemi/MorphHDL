@@ -169,6 +169,14 @@ def register_source_review(root: Path):
 
 
 def register_inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    # The join can add production paths disjoint from the register layer. Its
+    # complete exact-source audit must restore those paths before subtraction
+    # of the older register/owner inventories; never just widen their allowlist.
+    register = register_source_review(root)
+    if register is not None:
+        join = register.join_source_review(root)
+        if join is not None:
+            paths = join.inherited_inventory(root, paths, qualification_base)
     reviewer = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
     if reviewer.exists() or reviewer.is_symlink():
         require(reviewer.is_file() and not reviewer.is_symlink(), "missing regular WA-07b inherited reviewer")

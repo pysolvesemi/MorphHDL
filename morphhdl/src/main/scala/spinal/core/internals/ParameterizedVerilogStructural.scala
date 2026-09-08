@@ -97,7 +97,8 @@ private[internals] object ParameterizedVerilogStructural {
     */
   private[internals] def extractNativeTemplates(
       component: Component, blocks: Vector[ParameterizedStructuralBlock],
-      verilog: String, pc: PhaseContext, canonicalOf: Component => Component
+      verilog: String, pc: PhaseContext, canonicalOf: Component => Component,
+      captureSchema: Option[TypedBalancedReductionCaptureSchema] = None
   ): (String, Vector[String]) = {
     if (blocks.isEmpty) return verilog -> Vector.empty
     require(blocks.distinct.size == blocks.size, "duplicate native template identity")
@@ -105,7 +106,21 @@ private[internals] object ParameterizedVerilogStructural {
       b.memories.isEmpty && b.vecIndices.isEmpty && b.slices.isEmpty),
       "native scalar templates cannot carry unvalidated structural effects")
     val lines = verilog.split("\n", -1).toVector
-    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet
+    // A certified runtime input belongs to the surrounding native scope, not
+    // to each replay template that reads it. Validate identities before names
+    // become the emitter lookup keys; never infer this boundary from syntax.
+    val externalInputs = captureSchema.toVector.flatMap { schema =>
+      schema.validateBindings()
+      require(schema.owner eq component, "native template captures changed component owner")
+      schema.hardwareInputs.foreach { input =>
+        require(!blocks.exists(block => block.declarations.exists(_ eq input) ||
+          block.assignments.exists(_.finalTarget eq input)),
+          "native template cannot claim a captured runtime input as a local target")
+      }
+      schema.hardwareInputs
+    }
+    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet ++
+      externalInputs.map(input => requiredName(input, "certified runtime capture", None))
     val parameters = mergeParameters(ParameterizedWidth.parametersOf(component) ++
       ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component))
     val scalar = resolveScalarOperatorReplay(component, blocks, lines)

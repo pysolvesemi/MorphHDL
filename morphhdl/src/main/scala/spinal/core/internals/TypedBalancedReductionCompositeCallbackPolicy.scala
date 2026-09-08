@@ -138,6 +138,16 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     }
   }
 
+  /** Only exact immutable Data-field getters inherit the receiver's access
+    * permission in the effect interpreter. A method name is never authority.
+    */
+  def dataAccessor(call: MethodInsnNode): Boolean =
+    call.getOpcode == Opcodes.INVOKEVIRTUAL && customBundle(call.owner) && {
+      auditBundle(call.owner)
+      dataDescriptor(Type.getReturnType(call.desc).getDescriptor) &&
+        accessor(call.owner, call.name, call.desc)
+    }
+
   private val modules = Set("spinal/core/cloneOf$", "spinal/core/Mux$", "spinal/core/U$",
     "spinal/core/S$", "spinal/core/B$", "spinal/core/package$", "spinal/core/RegNext$")
 
@@ -163,6 +173,11 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     if (customBundle(call.owner)) {
       auditBundle(call.owner)
       if (accessor(call.owner, call.name, call.desc)) return true
+      // A new overload with a native-looking name is still application code.
+      // Exact inherited hooks were checked by auditBundle; never authorize a
+      // method declared on the record solely through the allowlist below.
+      if (read(call.owner).methods.asScala.exists(m => m.name == call.name && m.desc == call.desc))
+        return false
     }
     if (call.owner == "spinal/core/cloneOf$")
       return call.name == "apply" && call.desc == "(Lspinal/core/Data;)Lspinal/core/Data;"

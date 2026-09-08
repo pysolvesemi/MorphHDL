@@ -40,8 +40,16 @@ PATHS = (
     'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala',
     'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala',
 )
+CAPTURE_BASE = '80a3b0977ccabcd83ce06ef97a446edbee8f723a'
+CAPTURE_CONTRACT = 'morphhdl/contracts/increment-59i-capture-review.json'
+CAPTURE_SHA256 = 'dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537'
+CAPTURE_PATHS = ('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py')
+# This successor adds two production paths; the original PATHS/manifest API is
+# kept unchanged for independently sealed historical review composition.
+ALL_PATHS = tuple(dict.fromkeys(PATHS + CAPTURE_PATHS))
+
 ADDED_PATHS = frozenset()
-PRODUCTION_PATHS = frozenset(path for path in PATHS if "/src/main/" in path)
+PRODUCTION_PATHS = frozenset(path for path in ALL_PATHS if "/src/main/" in path)
 
 
 def require(condition: bool, detail: str) -> None:
@@ -162,12 +170,28 @@ def load_contract(root: Path) -> dict[str, dict]:
     return validate_contract(value)
 
 
+def load_capture_contract(root: Path) -> dict[str, dict]:
+    source = root / CAPTURE_CONTRACT
+    require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+            "missing regular 59i capture source review")
+    raw = source.read_bytes()
+    require(digest(raw) == CAPTURE_SHA256, "59i capture review changed")
+    return validate_contract(json.loads(raw), CAPTURE_BASE, CAPTURE_PATHS)
+
+
+def capture_baseline_source(root: Path, path: str) -> bytes:
+    return subprocess.check_output(["git", "show", CAPTURE_BASE + ":" + path], cwd=root)
+
+
 def baseline_source(root: Path, path: str) -> bytes:
     return subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
     entries = load_contract(root)
+    captures = load_capture_contract(root)
+    if path in captures:
+        source = restore_reviewed(captures[path], capture_baseline_source(root, path), source.encode()).decode()
     if path not in entries:
         return source
     return restore_reviewed(entries[path], baseline_source(root, path), source.encode()).decode()
@@ -189,8 +213,10 @@ def require_production_inventory(paths: set[str]) -> None:
 
 def verify_spans(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    subprocess.run(["git", "merge-base", "--is-ancestor", CAPTURE_BASE, "HEAD"], cwd=root, check=True)
     entries = load_contract(root)
-    for relative in (CONTRACT, INTEGRATION_CONTRACT, *PATHS):
+    captures = load_capture_contract(root)
+    for relative in (CONTRACT, INTEGRATION_CONTRACT, CAPTURE_CONTRACT, *ALL_PATHS):
         source = root / relative
         require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "59i reviewed source must be a regular non-executable file: " + relative)
@@ -198,8 +224,10 @@ def verify_spans(root: Path) -> None:
                                         cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == relative,
                 "59i reviewed source is not uniquely tracked: " + relative)
-        if relative in entries:
-            restore_reviewed(entries[relative], baseline_source(root, relative), source.read_bytes())
+        if relative in entries or relative in captures:
+            restored = restore_source(root, relative, source.read_text()).encode()
+            require(restored == baseline_source(root, relative),
+                    "59i composed capture/source reversal differs from integration: " + relative)
 
 
 def verify(root: Path) -> None:

@@ -36,7 +36,8 @@ object TypedBalancedReductionBackend {
       input: Bits, output: Data, plan: TypedBalancedReductionPlan,
       stages: Vector[Stage], ordinal: Int,
       outputObservation: TypedBalancedReductionClosedGraph.Observation,
-      lexicalOwner: ParameterizedStructuralLexicalOwner) {
+      lexicalOwner: ParameterizedStructuralLexicalOwner,
+      captureSchema: TypedBalancedReductionCaptureSchema) {
     var handedOff = false
     var handoffOwner: Option[ParameterizedStructuralBlock] = None
     var published = false
@@ -207,22 +208,21 @@ object TypedBalancedReductionBackend {
           fail("SHAPE", "callback operands must have exact native scalar classes without overriding methods")
         val captures = TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedOperator(op)
         TypedBalancedReductionCallbackPolicy.requireSupportedBridge(bridge)
-        Some(captures)
+        Left(captures)
       } else {
-        // Composite construction and assignment retain their separate narrow
-        // admission; broader captured composite graphs belong to the join.
-        TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge)
-        None
+        val captures = TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedCompositeOperator(op)
+        TypedBalancedReductionCallbackPolicy.requireSupportedBridge(bridge)
+        Right(captures)
       }
       schema match {
-        case Some(captures) => buildScalar(vector.asInstanceOf[Vec[BaseType]],
+        case Left(captures) => buildScalar(vector.asInstanceOf[Vec[BaseType]],
           op.asInstanceOf[(BaseType, BaseType) => BaseType],
           bridge.asInstanceOf[(BaseType, Int) => BaseType],
           native.asInstanceOf[ElabBalancedReduction.Native[BaseType]], captures).asInstanceOf[T]
-        case None => buildComposite(vector.asInstanceOf[Vec[Data]],
+        case Right(captures) => buildComposite(vector.asInstanceOf[Vec[Data]],
           op.asInstanceOf[(Data, Data) => Data],
           bridge.asInstanceOf[(Data, Int) => Data],
-          native.asInstanceOf[ElabBalancedReduction.Native[Data]]).asInstanceOf[T]
+          native.asInstanceOf[ElabBalancedReduction.Native[Data]], captures).asInstanceOf[T]
       }
     }
   }
@@ -377,13 +377,14 @@ object TypedBalancedReductionBackend {
     val outputObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
       0, Vector(vector.vec.head), output, outputBlock.declarations,
       outputBlock.statements.collect { case a: AssignmentStatement => a }))
-    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)
+    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner, schema)
     output
   }
 
   private def buildComposite(vector: Vec[Data], op: (Data, Data) => Data,
       bridge: (Data, Int) => Data,
-      native: ElabBalancedReduction.Native[Data]): Data = {
+      native: ElabBalancedReduction.Native[Data],
+      schema: TypedBalancedReductionCaptureSchema): Data = {
     val owner = Component.current
     val lexicalOwner = ParameterizedStructure.currentLexicalOwner("balanced composite publication")
     // Composite templates use the same exact lexical owner, pre-normalization
@@ -392,7 +393,7 @@ object TypedBalancedReductionBackend {
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
-    val certificate = TypedBalancedReductionCompositeReplay.capture(vector, op, bridge, native)
+    val certificate = TypedBalancedReductionCompositeReplay.capture(vector, op, bridge, native, Some(schema))
     val shape = certificate.captured.shape
     val plan = certificate.captured.plan
     def fresh(name: String): Data = {
@@ -412,6 +413,7 @@ object TypedBalancedReductionBackend {
       var right: Option[Data] = None
       var result: Data = null
       val observations = ArrayBuffer.empty[() => Unit]
+      observations += (() => schema.validateBindings())
       val label = prefix + "_l" + stage.geometry.level + (if (pair) "_pair" else "_tail")
       val anchors = ParameterizedStructure.captureBlock(owner, None) {
         left = fresh(label + "_left")
@@ -430,9 +432,15 @@ object TypedBalancedReductionBackend {
         result = fresh(label + "_result")
         result.assignFrom(bridged)
       }
+      val protectedCarriers = block.declarations.filter(leaf =>
+        leaf.dontSimplify && leaf.hasTag(noBackendCombMerge))
+      observations += (() => {
+        if (protectedCarriers.exists(leaf => !leaf.dontSimplify || !leaf.hasTag(noBackendCombMerge)))
+          fail("CARRIER-POLICY", "proved composite intermediates lost their native carrier policy")
+      })
       val assignments = block.statements.collect { case a: AssignmentStatement => a }
       val observation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
-        0, Vector(left) ++ right.toVector, result, block.declarations, assignments))
+        0, Vector(left) ++ right.toVector ++ schema.hardwareInputs, result, block.declarations, assignments))
       observations += (() => observation.requireUnchanged())
       val anchorObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
         0, Vector(vector.vec.head), Vec(Vector(left) ++ right.toVector), anchors.declarations,
@@ -462,7 +470,7 @@ object TypedBalancedReductionBackend {
     val outputObservation = TypedBalancedReductionClosedGraph.observe(UnvalidatedBalancedCallback(
       0, Vector(vector.vec.head), output, outputBlock.declarations,
       outputBlock.statements.collect { case a: AssignmentStatement => a }))
-    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)
+    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner, schema)
     output
   }
 
@@ -556,7 +564,7 @@ object TypedBalancedReductionBackend {
     }
     val blocks = stages.flatMap(_.bodies.map(_.block))
     val (remaining, bodies) = ParameterizedVerilogStructural.extractNativeTemplates(
-      component, blocks, current, pc, canonicalOf)
+      component, blocks, current, pc, canonicalOf, Some(record.captureSchema))
     def slice(source: String, index: String, stride: ElaborationIntegerExpression,
         width: ElaborationIntegerExpression): String =
       s"$source[(($index) * (${stride.verilog})) +: (${width.verilog})]"
@@ -669,7 +677,7 @@ object TypedBalancedReductionBackend {
     }
     val blocks = stages.flatMap(s => Vector(s.pair.block, s.tail.block))
     val (remaining, bodies) = ParameterizedVerilogStructural.extractNativeTemplates(
-      component, blocks, current, pc, canonicalOf)
+      component, blocks, current, pc, canonicalOf, Some(record.captureSchema))
     def slice(source: String, index: String): String = s"$source[(($index) * ($width)) +: ($width)]"
     def leafSlice(source: String, index: String, leafIndex: Int): String = {
       if (record.shape.elementLeaves.size == 1 && !record.shape.elementLayout.hasNestedVectors) slice(source, index)

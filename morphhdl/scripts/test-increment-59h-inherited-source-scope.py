@@ -97,8 +97,12 @@ def main() -> None:
     # independent older diagnostics for files outside that exact inventory;
     # this changes no production bytes, mutation actions or acceptance rules.
     join = getattr(register, "join_source_review", lambda root: None)(ROOT) if register is not None else None
+    # New disjoint production spans are checked by the successor before the
+    # older inventory check. Preserve every mutation and require its exact
+    # successor diagnostic rather than accepting an arbitrary rejection.
+    joined_paths = set(getattr(join, "ALL_PATHS", join.PATHS)) if join is not None else set()
     cases = [("unreviewed suffix " + path, path, "suffix",
-              "unreviewed source change outside 59i spans" if join is not None and path in join.PATHS else
+              "unreviewed source change outside 59i spans" if path in joined_paths else
               "unreviewed source change outside reviewed 59g spans"
               if register is not None and path in register.PATHS else outside)
              for path in review.PATHS]
@@ -117,7 +121,9 @@ def main() -> None:
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
-         ("59i" if join is not None else "59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
+         "unreviewed source change outside 59i spans"
+         if "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala" in joined_paths
+         else ("59i" if join is not None else "59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
     if join is not None:
         cases += [
