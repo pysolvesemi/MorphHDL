@@ -1,10 +1,85 @@
 # Increment 59h — Balanced reduction in nested typed owners
 
-Status: the production implementation is merged through [PR #170](https://github.com/pysolvesemi/MorphHDL/pull/170),
-but qualification closure remains in progress and the roadmap stays unchecked.
-The implementation head is `9c8cbb0951aca28a89d522717e7a6bacfd67afe0`; its merge
-commit is `cba4717abc9192917d819e1f84cb246162488286`. The implementation branch
-started from merged base `0018da2740645e0ac0c419ded7b67c01622d2bb7`.
+Status: implementation and final-source qualification complete. Production
+support was merged through [PR #170](https://github.com/pysolvesemi/MorphHDL/pull/170);
+the full-matrix qualification and induction repair were merged through
+[PR #172](https://github.com/pysolvesemi/MorphHDL/pull/172) on September 8, 2026,
+as `125eec24465bb8576e517865089c71bf3cb0448a`. This documentation-only closeout
+records the tested source and updates the controlling roadmap. It does not
+change production code, test inputs, proof assumptions or workflows.
+
+## Final combined-source qualification — September 8, 2026
+
+The exact qualified PR head is
+`04fa8344ceb50607baf2150831dfcbece853eb65`, tree
+`40d723fd5d9f991ca187150f55a01ba5361764c5`. It includes the merged 59g register
+bridges and WA-07a integration. Before merge, the target advanced from
+`424a548f60a6c1fe003e3d4d908e3b0f75e56632` to
+`92f2cd439b6a2254a8a2025cde20b00fb729c3f3`; that intervening diff contains only
+the 59g completion document and roadmap. Those changes are preserved. No
+production, test or workflow source changed between the qualified head and
+this merge. Post-merge CI is tracked separately: its results were not yet
+terminal when this closeout was prepared, and are not counted below.
+
+| Gate | Result on each Scala lane (2.12.18 and 2.13.12) |
+| --- | --- |
+| Dedicated safety tests | 405 tests / 32 suites; zero failures, errors or skips |
+| Full formal-enabled inherited regressions | 1,895 tests / 187 suites; zero failures, errors or skips |
+| Expanded native-reference matrix | 516 / 516 specializations |
+| Independent simulation | 86,514 input vectors; 20,988 registered clock cycles |
+| Combinational equivalence | 408 / 408 SAT proofs |
+| Registered equivalence | 108 / 108 arbitrary-initial-state reset-entry checks and 108 / 108 zero-state unbounded induction proofs |
+| Actual RTL mutation controls | All three original and all three registered controls produced bad=1 counterexample VCDs |
+| Inherited 59b publication | 32 / 32 cases; 5,586 simulation cycles; original proofs and both mutations retained |
+| Original generated RTL determinism | 521 files identical across independent A/B generation and across Scala versions |
+
+The dedicated run is [34148178725](https://github.com/pysolvesemi/MorphHDL/actions/runs/34148178725).
+The full inherited regression and signedness-closure run is
+[34148178927](https://github.com/pysolvesemi/MorphHDL/actions/runs/34148178927).
+Joined 59g qualification also passed in
+[34148179017](https://github.com/pysolvesemi/MorphHDL/actions/runs/34148179017).
+All 53 workflows on the qualified head reached a terminal result: 39 succeeded
+and 14 were intentionally skipped. Skipped workflows are not counted as proof.
+Baseline, Mill, dedicated 59h, joined 59g, 59c/59e, and full inherited closure
+actually ran and passed. Final follow-up review found no blocker or unresolved
+inline thread before the expected-head-protected merge.
+
+The downloaded dedicated and full-regression ZIP digests were checked against
+GitHub metadata. Both dedicated source archives and head files identify the
+qualified commit. Every nested-owner synthesis/simulation/proof log was
+checked, including separation of the arbitrary-initial-state reset-entry and
+zero-state induction paths. All six mutation VCDs passed the bad=1 validator.
+All JUnit inventories have zero failures, errors and skips. The two complete
+source archives, manifests, and nested-owner evidence JSON match byte-for-byte.
+This is verification of retained CI execution evidence, not a fresh local
+Scala build or an additional local hardware run.
+
+| Final-head artifact | GitHub ID | ZIP SHA-256 |
+| --- | --- | --- |
+| Dedicated 2.12.18 | 10030076335 | `b9d7b5674b282e79ca59cb7d6c1909d8e290353a04fcfc18b4bf7087dc43aa77` |
+| Dedicated 2.13.12 | 10029727282 | `6829aaefe2063a0a7b63c7e509073f3ec2fdabfefa666e5fe335007ee41bbabd` |
+| Full regressions 2.12.18 | 10029943761 | `f409d26df263498ff63496371c5469d9b088effd45b97df224576b05ed89392d` |
+| Full regressions 2.13.12 | 10030482900 | `368b7319d93583f8c7a472f6465926cce96e38c869559cbd8221e21fe8f9c0d8` |
+
+Final nested-owner evidence JSON SHA-256:
+`db6289e5a86d54d0b7eec6613abf0bf89c77fc04010656d3722fc1d912fa5a51`.
+The checker SHA-256 remains
+`d7f94b55930e645de3057ac78fe01e926f2e9c76b55d3e5fcd3b1d6fb1cdd41e`.
+The current generated `a/candidate/loop/BalancedNestedLoop.v` SHA-256 is
+`e907a0c4e1072470c38ee75c73d75998d7f88b433ac6fdea823f07a6dd0f3b78`.
+The actual Scala fixture and generated header/row excerpts below also occur
+unchanged in this final artifact; the old full-file hash there belongs only to
+the historical narrower-domain output. The wider COUNT domain emits additional
+tree levels in the final file.
+
+The repair used generic zero-state preparation, not the earlier proposed
+local output-partition patch. No native reduction algorithm or independent
+native reference body was replaced. These proofs cover the stated finite
+matrix, not every possible parameter value. Broader combinations of named
+fields, widening, composite results, captures, register profiles and nested
+owners remain the separate Increment 59i integration scope. The historical
+checkpoints below record what was known then; their pending statements are
+superseded by this final-source record.
 
 ## Induction scalability repair — September 7, 2026
 

@@ -998,7 +998,19 @@ dependency chain is unchanged and may proceed independently.
   reset/enable precedence. Sibling widening, composite, symbolic clone and
   nested-owner combinations are additional 59i gates, not start dependencies.
 
-- [ ] **Increment 59h — Balanced reduction inside nested typed structural owners**
+- [x] **Increment 59h — Balanced reduction inside nested typed structural owners**
+
+  Implemented through PR #170 and qualification follow-up PR #172, merged as
+  `125eec24465bb8576e517865089c71bf3cb0448a`. Final source
+  `04fa8344ceb50607baf2150831dfcbece853eb65` passed all 39 applicable workflows:
+  405 dedicated tests and 1,895 full inherited tests per Scala lane, with no
+  failures, errors or skips. Both lanes passed all 516 native-reference
+  specializations, 408 combinational proofs, 108 reset-entry/induction cases,
+  and six genuine RTL mutation counterexamples. The 521 original generated
+  RTL files match across independent A/B generation and Scala versions. See the
+  [scope, actual Scala/Verilog example and source-bound qualification record](increment-59h-nested-structural-owners.md).
+  These finite-matrix results do not claim universal parameter proof or the
+  combined feature support reserved for 59i.
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c through 59g.
