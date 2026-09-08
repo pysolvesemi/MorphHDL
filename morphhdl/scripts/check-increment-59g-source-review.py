@@ -162,6 +162,19 @@ def baseline_source(root: Path, path: str) -> bytes:
     return subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
 
 
+def boolean_ternary_review(root: Path):
+    """An independently sealed pass successor; absence retains historical audits."""
+    path = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-07b inherited reviewer")
+    spec = importlib.util.spec_from_file_location("wa07b_inherited_review", path)
+    require(spec is not None and spec.loader is not None, "cannot load WA-07b inherited reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def rollout_scope(root: Path):
     """Load the separately pinned outer publication contract, when present."""
     helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
@@ -181,6 +194,9 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
 
 def restore_source(root: Path, path: str, source: str) -> str:
     source = restore_rollout(root, path, source)
+    ternary = boolean_ternary_review(root)
+    if ternary is not None:
+        source = ternary.restore_adapter(root, path, source)
     entries = load_contract(root)
     if path not in entries:
         return source
@@ -199,15 +215,22 @@ def verify_spans(root: Path) -> None:
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == relative,
                 "59g reviewed source is not uniquely tracked: " + relative)
         if relative in entries:
-            restore_reviewed(entries[relative], baseline_source(root, relative),
-                             restore_rollout(root, relative, source.read_text()).encode())
+            current = restore_rollout(root, relative, source.read_text())
+            ternary = boolean_ternary_review(root)
+            if ternary is not None:
+                current = ternary.restore_adapter(root, relative, current)
+            restore_reviewed(entries[relative], baseline_source(root, relative), current.encode())
 
 
 def verify(root: Path) -> None:
     rollout = rollout_scope(root)
     if rollout is not None:
         rollout.source_scope(root)
-    require_production_inventory(production_changes(root, BASE))
+    paths = production_changes(root, BASE)
+    ternary = boolean_ternary_review(root)
+    if ternary is not None:
+        paths = ternary.inherited_inventory(root, paths, BASE)
+    require_production_inventory(paths)
     verify_spans(root)
     print("59g complete production inventory and exact source spans restore the merged baseline PASS")
 

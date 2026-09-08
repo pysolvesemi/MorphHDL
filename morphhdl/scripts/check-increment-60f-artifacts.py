@@ -498,6 +498,14 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
             "spinal.core.internals.SignednessCompatibilityTests"] = 22
         extension.setdefault("morphhdl", {})[
             "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests"] = 2
+    if "wa07b" in features:
+        require("wa07a" in features, "WA-07b suite obligations require WA-07a")
+        reviewed = {'morphhdl.passes.adapter.CanonicalIrPassAdapterSpec': 9, 'morphhdl.passes.api.AllPassConfigurationSpec': 5, 'morphhdl.passes.api.NativeRunnerSourceClosureSpec': 3, 'morphhdl.passes.api.PassContractsSpec': 8, 'morphhdl.passes.pipeline.WireAliasPassPipelineSpec': 9, 'morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec': 6, 'morphhdl.passes.safety.WireAliasSafetyGateSpec': 20, 'morphhdl.passes.transform.BooleanTernaryFourStateSpec': 4, 'morphhdl.passes.transform.BooleanTernarySimplificationPassSpec': 14, 'morphhdl.passes.transform.ConstantOperandFixedPointSpec': 2, 'morphhdl.passes.transform.ConstantOperandFourStateSpec': 3, 'morphhdl.passes.transform.ConstantOperandSimplificationPassSpec': 14, 'morphhdl.passes.transform.NamedWireAliasEliminationPassSpec': 13, 'morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionAlgebraSpec': 1, 'morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionSelectionSafetySpec': 9}
+        require(suites["morphhdl-passes"] < set(reviewed),
+                "WA-07b must preserve every historical pass suite")
+        suites["morphhdl-passes"] = frozenset(reviewed)
+        counts["morphhdl-passes"] = (sum(reviewed.values()), len(reviewed))
+        extension["morphhdl-passes"] = reviewed
     return counts, suites, extension
 
 

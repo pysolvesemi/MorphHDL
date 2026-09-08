@@ -169,6 +169,14 @@ def register_source_review(root: Path):
 
 
 def register_inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    reviewer = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
+    if reviewer.exists() or reviewer.is_symlink():
+        require(reviewer.is_file() and not reviewer.is_symlink(), "missing regular WA-07b inherited reviewer")
+        spec = importlib.util.spec_from_file_location("wa07b_owner_review", reviewer)
+        require(spec is not None and spec.loader is not None, "cannot load WA-07b inherited reviewer")
+        ternary = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ternary)
+        paths = ternary.inherited_inventory(root, paths, qualification_base)
     register = register_source_review(root)
     if register is None:
         return paths

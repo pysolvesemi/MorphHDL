@@ -300,6 +300,11 @@ def qualification_ancestry(root: Path) -> None:
 def profile_features(profile: str) -> frozenset[str]:
     if profile.endswith("-and-60g"):
         return profile_features(profile[:-len("-and-60g")]) | frozenset(("60g",))
+    if profile.endswith("-and-wa07b"):
+        inherited = profile_features(profile[:-len("-and-wa07b")])
+        require("wa07a" in inherited and "wa07b" not in inherited,
+                "WA-07b requires one complete historical WA-07a profile")
+        return inherited | frozenset(("wa07b",))
     names = ("wa07a", "59d", "59e", "59f", "59c", "59g", "59h")
     profiles = {"60f-baseline": frozenset()}
     for mask in range(1, 1 << len(names)):
@@ -368,6 +373,19 @@ def named_source_review(root: Path):
     return None
 
 
+def boolean_ternary_review(root: Path):
+    """An independently sealed pass successor; absence retains historical audits."""
+    path = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-07b inherited reviewer")
+    spec = importlib.util.spec_from_file_location("wa07b_inherited_review", path)
+    require(spec is not None and spec.loader is not None, "cannot load WA-07b inherited reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def production_profile(root: Path) -> str:
     """Compose a sealed publication delta with the unchanged inherited union."""
     helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
@@ -377,7 +395,9 @@ def production_profile(root: Path) -> str:
         # The real tree must differ from its merged base in exactly the reviewed
         # publication files. Restoration never authorizes an extra source path.
         rollout.source_scope(root)
-        profile += "-and-60g"
+        suffix = "-and-wa07b"
+        profile = (profile[:-len(suffix)] + "-and-60g" + suffix
+                   if profile.endswith(suffix) else profile + "-and-60g")
     return profile
 
 
@@ -391,6 +411,8 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
                 if re.search(rb"(?:^|/)src/main/", path)}
 
     qualification_ancestry(root)
+    ternary = boolean_ternary_review(root)
+    ternary_enabled = ternary.verify(root) if ternary is not None else False
     named = named_source_review(root)
     nested = None
     if named is not None:
@@ -405,6 +427,8 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
     if rollout is not None:
         prior = production_paths(git("diff", "--no-renames", "--name-only", "-z", BASE, rollout.BASE))
         changed -= set(rollout.PRODUCTION) - prior
+    if ternary_enabled:
+        changed = ternary.inherited_inventory(root, changed, BASE)
     if nested is not None:
         changed = nested.inherited_inventory(root, changed, BASE)
     if named is not None:
@@ -490,6 +514,8 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         source_bytes = source.read_bytes()
         if rollout is not None and path in rollout.PRODUCTION:
             source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()
+        if ternary_enabled:
+            source_bytes = ternary.restore_pass_source(root, path, source_bytes)
         if named is not None:
             source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
         require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
@@ -512,6 +538,9 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         if getattr(nested, "register_source_review", lambda root: None)(root) is not None:
             profile += "-and-59g"
         profile += "-and-59h"
+    if ternary_enabled:
+        require("wa07a" in profile_features(profile), "WA-07b cannot replace the inherited WA-07a profile")
+        profile += "-and-wa07b"
     return profile
 
 

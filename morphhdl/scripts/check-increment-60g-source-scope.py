@@ -7,16 +7,17 @@ oracle, or treats an earlier CI run as current qualification.
 from __future__ import annotations
 import argparse
 import hashlib
+import importlib.util
 import json
 import subprocess
 from pathlib import Path
 
-BASE = "424a548f60a6c1fe003e3d4d908e3b0f75e56632"
+BASE = "64e8fddc432e859b6b532540bee96c5608d46efa"
 SIBLING_BASE = "cba4717abc9192917d819e1f84cb246162488286"
 NATIVE_MANIFEST_SHA256 = "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "c3b7b0e79ef5e74e58a316d15ed92cf9ee3d58733944c02183a9006877887c38"
-PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'morphhdl/scripts/check-increment-60f-equivalence-closure.py', 'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala', 'morphhdl/contracts/increment-55-native-change-review.json', 'morphhdl/contracts/native-source-preservation.json', 'morphhdl/scripts/check-increment-59c-source-review.py', 'morphhdl/scripts/test-increment-59c-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59g-source-review.py', 'morphhdl/scripts/test-increment-59g-source-review.py'])
+CONTRACT_SHA256 = "2d7678a1c11d55bfa9f51a2559dce54f9ab9a8e71bd209139b9b30a21be22386"
+PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'morphhdl/scripts/check-increment-60f-equivalence-closure.py', 'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala', 'morphhdl/contracts/increment-55-native-change-review.json', 'morphhdl/contracts/native-source-preservation.json', 'morphhdl/scripts/check-increment-59c-source-review.py', 'morphhdl/scripts/test-increment-59c-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59g-source-review.py', 'morphhdl/scripts/test-increment-59g-source-review.py', 'morphhdl/scripts/check-wa07b-inherited-review.py', 'morphhdl/scripts/test-wa07b-inherited-review.py'])
 PRODUCTION = {
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7",
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala": "160923bb2910191ba097fcc85ba0a6dd813e9d6c1acd9176ab11d516bdec915d",
@@ -33,11 +34,13 @@ QUALIFICATION = {
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala": "15d7398426924bb8f74b50208625fce5c0e9c3d036a8b03cc1e8e0ad8fd33864",
     "morphhdl/scripts/check-increment-59c-source-review.py": "d4d396ff6b20d68659048abe891a1440e502e543b0c9058266937cdb525a2aa2",
     "morphhdl/scripts/test-increment-59c-inherited-source-scope.py": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
-    "morphhdl/scripts/check-increment-59h-source-review.py": "1def107c97db830f846c21f65df09ceaf9f6d96b93a71d77e4be2744fe4c37a3",
-    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "debefbbf86e2d44944e10e0f74c11e6b65582e6a6795a9da98086bcd7485985c",
-    "morphhdl/scripts/check-increment-59g-source-review.py": "55ce4af34fcf091bbc51cf81e4f94f078f282489e3923f69d96ad8c80aedd6de",
+    "morphhdl/scripts/check-increment-59h-source-review.py": "828d8cbe5fa4aa29cbf82fcb006325d1078c9c1181413e4ca06ba5a4206b39cc",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
+    "morphhdl/scripts/check-increment-59g-source-review.py": "a27f4a25c506914f30b4f4eb51f57064dfcb5784942f91985c6dd6a114803d93",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "2f5617afcf9f97c5ace1afd71e7c37fde0efd12f1573990bdff78882679476f9",
-    "morphhdl/scripts/test-increment-59g-source-review.py": "224af3a01faeb92a5487b8d4f1e8254c9a4b36f6d6008296857430c9c02e9d46"
+    "morphhdl/scripts/test-increment-59g-source-review.py": "9ca0cbba29b323a9853ff73f704c086fbe1950198996192e02f65091fd7853be",
+    "morphhdl/scripts/check-wa07b-inherited-review.py": "166272d092b418e4252abf70841c05774afe0213967e4ac35ee8988f2515b806",
+    "morphhdl/scripts/test-wa07b-inherited-review.py": "a5de0d39119acd2f24a77114806a25f2fdce8c09534d3d851e5e20cf8bcfd023"
 }
 # Separately qualified sibling merged after 60g's implementation closeout.
 # This is the same complete three-file profile already sealed by 60f, not an
@@ -112,6 +115,19 @@ def oracle_only(root: Path) -> None:
     print("60g explicit legacy selection restores the exact immutable 60a fixture PASS", flush=True)
 
 
+def boolean_ternary_review(root: Path):
+    """Load the independently sealed pass adapter without recursing into this gate."""
+    path = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-07b inherited reviewer")
+    spec = importlib.util.spec_from_file_location("rollout_ternary_review", path)
+    require(spec is not None and spec.loader is not None, "cannot import WA-07b inherited reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def sibling_scope(root: Path, extra: set[str]) -> None:
     """Admit only the complete committed WA-07a sibling with exact source bytes."""
     inherited = subprocess.run(
@@ -122,12 +138,15 @@ def sibling_scope(root: Path, extra: set[str]) -> None:
         return
     require(extra == set(WA07A_PRODUCTION_SHA256),
             "merged WA-07a must retain its exact three-file production delta: " + str(sorted(extra)))
+    ternary = boolean_ternary_review(root)
+    ternary_enabled = ternary.verify(root) if ternary is not None else False
     for path, expected in WA07A_PRODUCTION_SHA256.items():
         file = root / path
         require(file.is_file() and not file.is_symlink() and not file.stat().st_mode & 0o111,
                 "WA-07a source must be a regular non-executable file: " + path)
         raw = file.read_bytes()
-        require(hashlib.sha256(raw).hexdigest() == expected,
+        inherited_raw = ternary.restore_pass_source(root, path, raw) if ternary_enabled else raw
+        require(hashlib.sha256(inherited_raw).hexdigest() == expected,
                 "reviewed WA-07a source bytes differ: " + path)
         stage = subprocess.check_output(
             ["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
@@ -171,6 +190,9 @@ def source_scope(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
+    ternary = boolean_ternary_review(root)
+    if ternary is not None:
+        changed = ternary.inherited_inventory(root, changed, BASE)
     require(changed == set(PRODUCTION),
             "60g publication/serialization delta differs from the merged baseline: " + str(sorted(changed)))
     subprocess.run(["git", "merge-base", "--is-ancestor", WA07A_MERGED, BASE], cwd=root, check=True)

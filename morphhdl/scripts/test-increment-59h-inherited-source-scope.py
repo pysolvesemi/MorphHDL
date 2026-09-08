@@ -114,6 +114,8 @@ def main() -> None:
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
+         "60g publication/serialization delta differs from the merged baseline"
+         if rollout is not None else
          ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:

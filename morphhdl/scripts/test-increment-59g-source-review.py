@@ -109,7 +109,10 @@ def main() -> None:
                 expected = "or 60g publication spans: " + path
             elif mutation in ("suffix", "remove") and (
                     path.startswith("foreign/src/main/") or path in rollout.WA07A_PRODUCTION_SHA256):
-                expected = "60g publication/serialization delta differs from the merged baseline"
+                expected = ("unreviewed production delta"
+                            if path in rollout.WA07A_PRODUCTION_SHA256 and
+                            (ROOT / "morphhdl/scripts/check-wa07b-inherited-review.py").is_file()
+                            else "60g publication/serialization delta differs from the merged baseline")
             adapted.append((label, path, mutation, expected))
         cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59g-source-control-") as temporary:

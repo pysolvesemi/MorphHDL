@@ -1,5 +1,5 @@
 {
-  "base": "424a548f60a6c1fe003e3d4d908e3b0f75e56632",
+  "base": "64e8fddc432e859b6b532540bee96c5608d46efa",
   "files": [
     {
       "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
@@ -241,12 +241,12 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
-      "before_sha256": "decc59c1c7c3570f5973f25f53965ca17c66620230b51d17dc58c7235d40cb20",
-      "after_sha256": "38ad4b0dacfc2a81084d37dbb5018d03201638819c4e5b3e21e0af41da7e919f",
+      "before_sha256": "4e558659339128eee54643664a0efa2f745c32c5bddf4e5ac52c550a4d1adc9c",
+      "after_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1",
       "edits": [
         {
-          "before": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    return counts, suites, extension\n\n",
-          "after": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    if \"60g\" in features:\n        # The production profile is validated before reports are inspected.\n        # Require the entire extended existing suite, not just a global count.\n        tests, total_suites = counts[\"morphhdl\"]\n        counts[\"morphhdl\"] = (tests + 18, total_suites)\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.SignednessCompatibilityTests\"] = 22\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\"] = 2\n    return counts, suites, extension\n\n"
+          "before": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    if \"wa07b\" in features:\n        require(\"wa07a\" in features, \"WA-07b suite obligations require WA-07a\")\n",
+          "after": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    if \"60g\" in features:\n        # The production profile is validated before reports are inspected.\n        # Require the entire extended existing suite, not just a global count.\n        tests, total_suites = counts[\"morphhdl\"]\n        counts[\"morphhdl\"] = (tests + 18, total_suites)\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.SignednessCompatibilityTests\"] = 22\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\"] = 2\n    if \"wa07b\" in features:\n        require(\"wa07a\" in features, \"WA-07b suite obligations require WA-07a\")\n"
         },
         {
           "before": "        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    joint = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h\", True)\n    require(joint[1][\"morphhdl\"] == bridges[1][\"morphhdl\"] | set(nested_additions),\n",
@@ -260,24 +260,24 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
-      "before_sha256": "9d6cda8778401908798b94c3334f315b0a95fe42e419dbc425f892ea31eb1b18",
-      "after_sha256": "466f406a13c8ccc4242bdf19737795805b4d4467d21c135f2f069d4f35f1483c",
+      "before_sha256": "341c12f429852042b5e16e96219127ae36325252ede5918b135a7a49e407fa0a",
+      "after_sha256": "1f3ca7fd40faf4b865a7bc4b39bac4d7dbe5f4628ec95839ff418621d349ba64",
       "edits": [
         {
-          "before": "\ndef profile_features(profile: str) -> frozenset[str]:\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59g\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n",
-          "after": "\ndef profile_features(profile: str) -> frozenset[str]:\n    if profile.endswith(\"-and-60g\"):\n        return profile_features(profile[:-len(\"-and-60g\")]) | frozenset((\"60g\",))\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59g\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n"
+          "before": "\ndef profile_features(profile: str) -> frozenset[str]:\n    if profile.endswith(\"-and-wa07b\"):\n        inherited = profile_features(profile[:-len(\"-and-wa07b\")])\n",
+          "after": "\ndef profile_features(profile: str) -> frozenset[str]:\n    if profile.endswith(\"-and-60g\"):\n        return profile_features(profile[:-len(\"-and-60g\")]) | frozenset((\"60g\",))\n    if profile.endswith(\"-and-wa07b\"):\n        inherited = profile_features(profile[:-len(\"-and-wa07b\")])\n"
         },
         {
           "before": "\ndef production_profile(root: Path) -> str:\n    \"\"\"Select a complete reviewed source union before consulting any reports.\"\"\"\n    def git(*args: str) -> bytes:\n",
-          "after": "\ndef production_profile(root: Path) -> str:\n    \"\"\"Compose a sealed publication delta with the unchanged inherited union.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    rollout = load(root, \"60g-source-scope\") if helper.is_file() else None\n    profile = inherited_production_profile(root, rollout)\n    if rollout is not None:\n        # The real tree must differ from its merged base in exactly the reviewed\n        # publication files. Restoration never authorizes an extra source path.\n        rollout.source_scope(root)\n        profile += \"-and-60g\"\n    return profile\n\n\ndef inherited_production_profile(root: Path, rollout=None) -> str:\n    \"\"\"Select a complete reviewed source union before consulting any reports.\"\"\"\n    def git(*args: str) -> bytes:\n"
+          "after": "\ndef production_profile(root: Path) -> str:\n    \"\"\"Compose a sealed publication delta with the unchanged inherited union.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    rollout = load(root, \"60g-source-scope\") if helper.is_file() else None\n    profile = inherited_production_profile(root, rollout)\n    if rollout is not None:\n        # The real tree must differ from its merged base in exactly the reviewed\n        # publication files. Restoration never authorizes an extra source path.\n        rollout.source_scope(root)\n        suffix = \"-and-wa07b\"\n        profile = (profile[:-len(suffix)] + \"-and-60g\" + suffix\n                   if profile.endswith(suffix) else profile + \"-and-60g\")\n    return profile\n\n\ndef inherited_production_profile(root: Path, rollout=None) -> str:\n    \"\"\"Select a complete reviewed source union before consulting any reports.\"\"\"\n    def git(*args: str) -> bytes:\n"
         },
         {
-          "before": "    require(not untracked, \"untracked production sources: \" + str(sorted(untracked)))\n    changed = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE))\n    if nested is not None:\n        changed = nested.inherited_inventory(root, changed, BASE)\n",
-          "after": "    require(not untracked, \"untracked production sources: \" + str(sorted(untracked)))\n    changed = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE))\n    if rollout is not None:\n        prior = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE, rollout.BASE))\n        changed -= set(rollout.PRODUCTION) - prior\n    if nested is not None:\n        changed = nested.inherited_inventory(root, changed, BASE)\n"
+          "before": "    require(not untracked, \"untracked production sources: \" + str(sorted(untracked)))\n    changed = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE))\n    if ternary_enabled:\n        changed = ternary.inherited_inventory(root, changed, BASE)\n",
+          "after": "    require(not untracked, \"untracked production sources: \" + str(sorted(untracked)))\n    changed = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE))\n    if rollout is not None:\n        prior = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE, rollout.BASE))\n        changed -= set(rollout.PRODUCTION) - prior\n    if ternary_enabled:\n        changed = ternary.inherited_inventory(root, changed, BASE)\n"
         },
         {
-          "before": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if named is not None:\n            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()\n",
-          "after": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if rollout is not None and path in rollout.PRODUCTION:\n            source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()\n        if named is not None:\n            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()\n"
+          "before": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if ternary_enabled:\n            source_bytes = ternary.restore_pass_source(root, path, source_bytes)\n",
+          "after": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if rollout is not None and path in rollout.PRODUCTION:\n            source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()\n        if ternary_enabled:\n            source_bytes = ternary.restore_pass_source(root, path, source_bytes)\n"
         },
         {
           "before": "\n\ndef source_scope(root: Path) -> None:\n    # Preserve the inherited oracle/authority rejection diagnostics. The exact\n",
@@ -382,8 +382,8 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-59h-source-review.py",
-      "before_sha256": "e896811d5426d54d02002721029a0f21952d0f34b3e94fadd3f6f9de941de5a6",
-      "after_sha256": "1def107c97db830f846c21f65df09ceaf9f6d96b93a71d77e4be2744fe4c37a3",
+      "before_sha256": "dce1cdfb667fb51e0ba7d7312d2ff25b4ebe97281f6012a93aae9e8396e0c7ec",
+      "after_sha256": "828d8cbe5fa4aa29cbf82fcb006325d1078c9c1181413e4ca06ba5a4206b39cc",
       "edits": [
         {
           "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    register = register_source_review(root)\n",
@@ -406,11 +406,15 @@
     {
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
       "before_sha256": "345544362f335e2c1268cd398a5ec520f04ea567f41507c3b6cac91e68f522de",
-      "after_sha256": "debefbbf86e2d44944e10e0f74c11e6b65582e6a6795a9da98086bcd7485985c",
+      "after_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
       "edits": [
         {
           "before": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n",
           "after": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    # Keep every original source mutation. Diagnose the first exact layer that\n    # owns the changed file; independently replay frozen historical controls.\n    rollout = review.rollout_scope(ROOT) if hasattr(review, \"rollout_scope\") else None\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"or 60g publication spans: \" + path\n              if rollout is not None and path in rollout.PATHS else\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n"
+        },
+        {
+          "before": "         \"sealed writer/checker changed\"),\n        (\"changed inherited 59e source\", \"morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala\", \"suffix\",\n         (\"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n    ]\n",
+          "after": "         \"sealed writer/checker changed\"),\n        (\"changed inherited 59e source\", \"morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala\", \"suffix\",\n         \"60g publication/serialization delta differs from the merged baseline\"\n         if rollout is not None else\n         (\"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n    ]\n"
         },
         {
           "before": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n",
@@ -420,35 +424,69 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-59g-source-review.py",
-      "before_sha256": "ed7a5e325c9614639582e3cf45586cca1ae2ed3515e0ea97aafc78282f332daf",
-      "after_sha256": "55ce4af34fcf091bbc51cf81e4f94f078f282489e3923f69d96ad8c80aedd6de",
+      "before_sha256": "7060f6c1d445ba90d1bd70a56a84eb2e3bf2be16ea4f69b128a97976f3c263ec",
+      "after_sha256": "a27f4a25c506914f30b4f4eb51f57064dfcb5784942f91985c6dd6a114803d93",
       "edits": [
         {
-          "before": "\nimport argparse\nimport copy\nimport hashlib\n",
-          "after": "\nimport argparse\nimport importlib.util\nimport copy\nimport hashlib\n"
+          "before": "\nimport argparse\nimport copy\nimport hashlib\nimport importlib.util\nimport json\nimport re\n",
+          "after": "\nimport argparse\nimport importlib.util\nimport copy\nimport hashlib\nimport json\nimport re\n"
         },
         {
           "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
           "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n    return paths\n\n\n"
         },
         {
-          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    entries = load_contract(root)\n    if path not in entries:\n",
-          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n    entries = load_contract(root)\n    if path not in entries:\n"
+          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    ternary = boolean_ternary_review(root)\n    if ternary is not None:\n",
+          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n    ternary = boolean_ternary_review(root)\n    if ternary is not None:\n"
         },
         {
-          "before": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            restore_reviewed(entries[relative], baseline_source(root, relative), source.read_bytes())\n\n\ndef verify(root: Path) -> None:\n    require_production_inventory(production_changes(root, BASE))\n    verify_spans(root)\n",
-          "after": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            restore_reviewed(entries[relative], baseline_source(root, relative),\n                             restore_rollout(root, relative, source.read_text()).encode())\n\n\ndef verify(root: Path) -> None:\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    require_production_inventory(production_changes(root, BASE))\n    verify_spans(root)\n"
+          "before": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            current = source.read_text()\n            ternary = boolean_ternary_review(root)\n            if ternary is not None:\n",
+          "after": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            current = restore_rollout(root, relative, source.read_text())\n            ternary = boolean_ternary_review(root)\n            if ternary is not None:\n"
+        },
+        {
+          "before": "\ndef verify(root: Path) -> None:\n    paths = production_changes(root, BASE)\n    ternary = boolean_ternary_review(root)\n",
+          "after": "\ndef verify(root: Path) -> None:\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    paths = production_changes(root, BASE)\n    ternary = boolean_ternary_review(root)\n"
         }
       ]
     },
     {
       "path": "morphhdl/scripts/test-increment-59g-source-review.py",
       "before_sha256": "80a8a3fa2374ba56cd43a57897a2fff972cf98f2196dc890223bb586d00dd823",
-      "after_sha256": "224af3a01faeb92a5487b8d4f1e8254c9a4b36f6d6008296857430c9c02e9d46",
+      "after_sha256": "9ca0cbba29b323a9853ff73f704c086fbe1950198996192e02f65091fd7853be",
       "edits": [
         {
           "before": "        (\"changed independent native oracle\", \"morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala\", \"suffix\", \"sealed writer/checker changed\"),\n    ]\n    with tempfile.TemporaryDirectory(prefix=\"morphhdl-59g-source-control-\") as temporary:\n        for index, (label, path, mutation, expected) in enumerate(cases):\n",
-          "after": "        (\"changed independent native oracle\", \"morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala\", \"suffix\", \"sealed writer/checker changed\"),\n    ]\n    # On a combined rollout, overlapping bytes are sealed first by its exact\n    # outer layer. Keep every original mutation; require that layer's precise\n    # diagnostic rather than misclassifying a correct earlier rejection.\n    rollout = helper.rollout_scope(ROOT) if hasattr(helper, \"rollout_scope\") else None\n    if rollout is not None:\n        adapted = []\n        for label, path, mutation, expected in cases:\n            if mutation == \"suffix\" and path in rollout.PATHS:\n                expected = \"or 60g publication spans: \" + path\n            elif mutation in (\"suffix\", \"remove\") and (\n                    path.startswith(\"foreign/src/main/\") or path in rollout.WA07A_PRODUCTION_SHA256):\n                expected = \"60g publication/serialization delta differs from the merged baseline\"\n            adapted.append((label, path, mutation, expected))\n        cases = adapted\n    with tempfile.TemporaryDirectory(prefix=\"morphhdl-59g-source-control-\") as temporary:\n        for index, (label, path, mutation, expected) in enumerate(cases):\n"
+          "after": "        (\"changed independent native oracle\", \"morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala\", \"suffix\", \"sealed writer/checker changed\"),\n    ]\n    # On a combined rollout, overlapping bytes are sealed first by its exact\n    # outer layer. Keep every original mutation; require that layer's precise\n    # diagnostic rather than misclassifying a correct earlier rejection.\n    rollout = helper.rollout_scope(ROOT) if hasattr(helper, \"rollout_scope\") else None\n    if rollout is not None:\n        adapted = []\n        for label, path, mutation, expected in cases:\n            if mutation == \"suffix\" and path in rollout.PATHS:\n                expected = \"or 60g publication spans: \" + path\n            elif mutation in (\"suffix\", \"remove\") and (\n                    path.startswith(\"foreign/src/main/\") or path in rollout.WA07A_PRODUCTION_SHA256):\n                expected = (\"unreviewed production delta\"\n                            if path in rollout.WA07A_PRODUCTION_SHA256 and\n                            (ROOT / \"morphhdl/scripts/check-wa07b-inherited-review.py\").is_file()\n                            else \"60g publication/serialization delta differs from the merged baseline\")\n            adapted.append((label, path, mutation, expected))\n        cases = adapted\n    with tempfile.TemporaryDirectory(prefix=\"morphhdl-59g-source-control-\") as temporary:\n        for index, (label, path, mutation, expected) in enumerate(cases):\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-wa07b-inherited-review.py",
+      "before_sha256": "21edd79fab2de6f37135bda4a6ef4cb3d3efcb04ead2d59163d07235d2f013c6",
+      "after_sha256": "166272d092b418e4252abf70841c05774afe0213967e4ac35ee8988f2515b806",
+      "edits": [
+        {
+          "before": "import functools\nimport hashlib\nimport json\nimport stat\n",
+          "after": "import functools\nimport hashlib\nimport importlib.util\nimport json\nimport stat\n"
+        },
+        {
+          "before": "\n\ndef restore_adapter(root: Path, path: str, source: str) -> str:\n    if path not in ADAPTER_PATHS:\n        return source\n    value = load_contract(root)\n    entry = next(x for x in value[\"checker_adapters\"] if x[\"path\"] == path)\n",
+          "after": "\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    \"\"\"Reverse only the separately pinned outer publication layer, if present.\n\n    This is byte restoration, not a validation shortcut: verify() still checks\n    the complete current pass tree and index, and restore_bytes() still binds\n    all original WA-07b adapter spans to their immutable baseline.\n    \"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not (helper.exists() or helper.is_symlink()):\n        return source\n    require(helper.is_file() and not helper.is_symlink(), \"missing regular 60g reviewer\")\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import 60g reviewer\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module.restore_60g_source(root, path, source)\n\n\ndef restore_adapter(root: Path, path: str, source: str) -> str:\n    if path not in ADAPTER_PATHS:\n        return source\n    source = restore_rollout(root, path, source)\n    value = load_contract(root)\n    entry = next(x for x in value[\"checker_adapters\"] if x[\"path\"] == path)\n"
+        },
+        {
+          "before": "        path = entry[\"path\"]\n        current = regular(root, path)\n        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), current)\n    # Reject a hidden index change even when the visible bytes were restored.\n    dirty = git(root, \"diff\", \"--cached\", \"--name-only\", \"HEAD\", \"--\", *ADAPTER_PATHS, CONTRACT)\n",
+          "after": "        path = entry[\"path\"]\n        current = regular(root, path)\n        restored = restore_rollout(root, path, current.decode()).encode()\n        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), restored)\n    # Reject a hidden index change even when the visible bytes were restored.\n    dirty = git(root, \"diff\", \"--cached\", \"--name-only\", \"HEAD\", \"--\", *ADAPTER_PATHS, CONTRACT)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-wa07b-inherited-review.py",
+      "before_sha256": "74f7e254871b3c8e5ec8dc82c385d47d607831737663e23b7b5000428cb9dea6",
+      "after_sha256": "a5de0d39119acd2f24a77114806a25f2fdce8c09534d3d851e5e20cf8bcfd023",
+      "edits": [
+        {
+          "before": "    candidate = {path: git(root, \"show\", review.QUALIFIED + \":\" + path)\n                 for path in manifest[\"ternary_sources\"]}\n    adapters = {path: (root / path).read_bytes() for path in review.ADAPTER_PATHS}\n    negatives = synthetic_controls(root / HELPER, manifest, baseline, candidate, adapters)\n    closure = load(root / CLOSURE, \"wa07b_current_closure\")\n",
+          "after": "    candidate = {path: git(root, \"show\", review.QUALIFIED + \":\" + path)\n                 for path in manifest[\"ternary_sources\"]}\n    # Synthetic WA-only controls exercise the unchanged qualified adapter layer.\n    # Real combined sources are separately checked below by the complete gates.\n    adapters = {path: review.restore_rollout(root, path, (root / path).read_text()).encode()\n                for path in review.ADAPTER_PATHS}\n    negatives = synthetic_controls(root / HELPER, manifest, baseline, candidate, adapters)\n    closure = load(root / CLOSURE, \"wa07b_current_closure\")\n"
         }
       ]
     }
