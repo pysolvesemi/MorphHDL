@@ -8,13 +8,16 @@ permissions:
 jobs:
   stage:
     if: github.ref == 'refs/heads/agent/60g-continue-source-export-20260908'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Verify and stage exact reviewed source on the transfer branch only
         shell: bash
         run: |
@@ -23,7 +26,7 @@ jobs:
           import gzip, hashlib, json, os, shutil, subprocess, tempfile
           from pathlib import Path
           branch = 'agent/60g-continue-source-export-20260908'
-          parent = 'b73166caa95517a05568316518969540e13d03c6'
+          parent = '085c22b22b104779ee30636463937c3cd8c05a02'
           pr = '8db3f8858200ade550f629855a8125fe03351897'
           target = '64e8fddc432e859b6b532540bee96c5608d46efa'
           directory = Path('.github/60g-continue-transfer')
