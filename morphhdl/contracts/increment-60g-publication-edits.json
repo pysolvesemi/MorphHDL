@@ -406,11 +406,15 @@
     {
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
       "before_sha256": "345544362f335e2c1268cd398a5ec520f04ea567f41507c3b6cac91e68f522de",
-      "after_sha256": "debefbbf86e2d44944e10e0f74c11e6b65582e6a6795a9da98086bcd7485985c",
+      "after_sha256": "e2c6473ae89791a0c83c4b426e985f886cd018e2352c18a2e93fbaa040b60721",
       "edits": [
         {
           "before": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n",
           "after": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    # Keep every original source mutation. Diagnose the first exact layer that\n    # owns the changed file; independently replay frozen historical controls.\n    rollout = review.rollout_scope(ROOT) if hasattr(review, \"rollout_scope\") else None\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"or 60g publication spans: \" + path\n              if rollout is not None and path in rollout.PATHS else\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n"
+        },
+        {
+          "before": "         \"sealed writer/checker changed\"),\n        (\"changed inherited 59e source\", \"morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala\", \"suffix\",\n         (\"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n    ]\n",
+          "after": "         \"sealed writer/checker changed\"),\n        (\"changed inherited 59e source\", \"morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala\", \"suffix\",\n         \"60g publication/serialization delta differs from the merged baseline\" if rollout is not None else\n         (\"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n    ]\n"
         },
         {
           "before": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n",

@@ -15,7 +15,7 @@ BASE = "424a548f60a6c1fe003e3d4d908e3b0f75e56632"
 SIBLING_BASE = "cba4717abc9192917d819e1f84cb246162488286"
 NATIVE_MANIFEST_SHA256 = "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0"
 CONTRACT = "morphhdl/contracts/increment-60g-publication-edits.json"
-CONTRACT_SHA256 = "c3b7b0e79ef5e74e58a316d15ed92cf9ee3d58733944c02183a9006877887c38"
+CONTRACT_SHA256 = "616f6d8b847da94b35f8b32ac390b2ecfc96c4be6585dff29ddd2f1094ddc6ba"
 PATHS = frozenset(['morphhdl/scripts/check-increment-59f-source-scope.py', 'morphhdl/scripts/check-increment-60c-signed-declarations.py', 'morphhdl/scripts/check-increment-60d-pure-sint-casts.py', 'morphhdl/scripts/check-increment-60e-signedness-boundaries.py', 'morphhdl/src/test/scala/nativeapplication/SIntSignedDeclarationsFixture.scala', 'morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala', 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignedDeclarationPolicy.scala', 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedCasts.scala', 'morphhdl/src/main/scala/morphhdl/MorphSignedDeclarations.scala', 'core/src/main/scala/spinal/core/internals/Phase.scala', 'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala', 'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'morphhdl/scripts/check-increment-60f-equivalence-closure.py', 'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala', 'morphhdl/contracts/increment-55-native-change-review.json', 'morphhdl/contracts/native-source-preservation.json', 'morphhdl/scripts/check-increment-59c-source-review.py', 'morphhdl/scripts/test-increment-59c-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py', 'morphhdl/scripts/check-increment-59g-source-review.py', 'morphhdl/scripts/test-increment-59g-source-review.py'])
 PRODUCTION = {
     "morphhdl/src/main/scala/spinal/core/internals/MorphHdlSignednessAnalysis.scala": "7411eceb769d5b8fc2b7effd1a02a0d8a0f9dfddcee9602a06907778d4cf59e7",
@@ -34,7 +34,7 @@ QUALIFICATION = {
     "morphhdl/scripts/check-increment-59c-source-review.py": "d4d396ff6b20d68659048abe891a1440e502e543b0c9058266937cdb525a2aa2",
     "morphhdl/scripts/test-increment-59c-inherited-source-scope.py": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
     "morphhdl/scripts/check-increment-59h-source-review.py": "1def107c97db830f846c21f65df09ceaf9f6d96b93a71d77e4be2744fe4c37a3",
-    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "debefbbf86e2d44944e10e0f74c11e6b65582e6a6795a9da98086bcd7485985c",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": "e2c6473ae89791a0c83c4b426e985f886cd018e2352c18a2e93fbaa040b60721",
     "morphhdl/scripts/check-increment-59g-source-review.py": "55ce4af34fcf091bbc51cf81e4f94f078f282489e3923f69d96ad8c80aedd6de",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala": "2f5617afcf9f97c5ace1afd71e7c37fde0efd12f1573990bdff78882679476f9",
     "morphhdl/scripts/test-increment-59g-source-review.py": "224af3a01faeb92a5487b8d4f1e8254c9a4b36f6d6008296857430c9c02e9d46"
