@@ -19,7 +19,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/60g-final-history
-          git bundle create target/60g-final-history/repository.bundle 8db3f8858200ade550f629855a8125fe03351897 64e8fddc432e859b6b532540bee96c5608d46efa 8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git update-ref refs/heads/export-60g-head 8db3f8858200ade550f629855a8125fe03351897
+          git update-ref refs/heads/export-60g-target 64e8fddc432e859b6b532540bee96c5608d46efa
+          git update-ref refs/heads/export-wa07b-qualified 8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git bundle create target/60g-final-history/repository.bundle export-60g-head export-60g-target export-wa07b-qualified
           git rev-parse HEAD > target/60g-final-history/export-head.txt
       - uses: actions/upload-artifact@v4
         with:
