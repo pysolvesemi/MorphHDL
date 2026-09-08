@@ -56,6 +56,24 @@ object TypedBalancedReductionBackend {
       vector.component.userCache.get(StorageKey)
         .exists(_.asInstanceOf[Storage].recursiveTransport.containsKey(vector))
 
+  /** A procedural public-Vec boundary is admitted only for an exact result
+    * whose scoped topology has already passed the lexical handoff. Template
+    * operands and ordinary application Vecs cannot acquire this permission.
+    */
+  private[internals] def ownsPublishedRecursiveAssignment(vector: Vec[_],
+      assignments: Vector[DataAssignmentStatement]): Boolean = {
+    if (!ownsRecursiveTransport(vector) || assignments.isEmpty) return false
+    records(vector.component).exists { record =>
+      record.published && !record.lexicalOwner.isModuleScope &&
+        ParameterizedVecElementLayout.nestedVectors(record.output).exists(_ eq vector) &&
+        record.handoffOwner.exists { owner =>
+          val allowed = (Vector(owner) ++ owner.regions.flatMap(ParameterizedStructure.allBlocks))
+            .flatMap(_.assignments)
+          assignments.forall(assignment => allowed.exists(_ eq assignment))
+        }
+    }
+  }
+
   /** Scoped topology has already replaced these exact zero witness drivers.
     * The ordinary expression publisher must not reinterpret the private
     * anchors as user-authored zero assignments after that checked handoff.

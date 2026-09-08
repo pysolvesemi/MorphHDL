@@ -18,7 +18,7 @@ from pathlib import Path
 
 BASE = 'd32fcf71fc81662618d72b0ec0a5d8a59c50b4d6'
 CONTRACT = "morphhdl/contracts/increment-59i-source-review.json"
-CONTRACT_SHA256 = 'f9d41a62fb3a9775669d52dd68f3e4158208541e039634db15234b65691e835a'
+CONTRACT_SHA256 = 'af633343f73d1e9d54cf68c05ff5e21a8d79c9738fc45af4ddd07f2086aab600'
 PATHS = (
     'core/src/main/scala/spinal/core/Vec.scala',
     'morphhdl/contracts/increment-55-native-change-review.json',

@@ -66,6 +66,7 @@ jobs:
           python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 100 "$output/inherited-source-controls.log"; exit 1; }
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
+          python3 morphhdl/scripts/test-increment-59i-nested-results.py -v 2>&1 | tee "$output/nested-result-checker-tests.log"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
           test "$version" = '1.10.0'
           base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
@@ -160,7 +161,9 @@ jobs:
           suite = ET.parse(combined[0]).getroot()
           assert int(suite.get('tests', '0')) == 17, suite.attrib
           counts = {'TypedBalancedReductionCompositeStaticRedirectTests': 7,
-                    'ParameterizedVerilogStructuralLexicalTests': 6}
+                    'ParameterizedVerilogStructuralLexicalTests': 6,
+                    'TypedBalancedReductionDeclarationFilterTests': 6,
+                    'TypedBalancedReductionNestedResultTests': 8}
           for name, count in counts.items():
               matches = [p for p in files if p.name.endswith('.' + name + '.xml')]
               assert len(matches) == 1, ('missing/duplicated join safety suite', name, matches)
@@ -194,6 +197,8 @@ jobs:
             "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCombinedArtifactWriter $output/b" \
             "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-a" \
             "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-b" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionNestedResultArtifactWriter $output/nested-a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionNestedResultArtifactWriter $output/nested-b" \
             > "$output/generation.log" 2>&1 || { tail -n 180 "$output/generation.log"; exit 1; }
       - name: Qualify only the scoped-composite slice and retain inherited 59b proof
         shell: bash
@@ -202,6 +207,7 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-59i-combined"
           python3 morphhdl/scripts/check-increment-59i-combined.py "$output/a" "$output/b" | tee "$output/qualification.log"
           python3 morphhdl/scripts/check-increment-59b-publication.py "$output/inherited-a" "$output/inherited-b" | tee "$output/inherited-qualification.log"
+          python3 morphhdl/scripts/check-increment-59i-nested-results.py "$output/nested-a" "$output/nested-b" --jobs 2 | tee "$output/nested-result-qualification.log"
           printf '%s\n' '59i scoped fixed-shape composite slice passed; this is NOT complete 59i integration closure. The full pairwise/end-to-end matrix and inherited exact-source successor review remain separate merge obligations.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload exact-source build, tests, original RTL and hardware evidence
         if: always()
@@ -249,5 +255,16 @@ jobs:
           assert set(report['mutations']) == {'field-misbinding', 'signed-key-misbinding',
               'wrong-branch', 'ignored-enable', 'wrong-reset-value',
               'reset-overrides-enable', 'bypass-latency'}
+          for relative in ('nested-a/manifest.json', 'nested-a/evidence.json'):
+              assert (a / relative).read_bytes() == (b / relative).read_bytes(), relative
+          nested = json.loads((a / 'nested-a/manifest.json').read_text())
+          assert len(nested['cases']) == 96 and len(nested['candidates']) == 4
+          for item in nested['candidates'] + nested['cases']:
+              relative = Path('nested-a', item['file'])
+              assert (a / relative).read_bytes() == (b / relative).read_bytes(), relative
+          nested_proof = json.loads((a / 'nested-a/evidence.json').read_text())
+          assert nested_proof['complete_59i_join'] is False
+          assert len(nested_proof['cases']) == 96
+          assert set(nested_proof['mutations']) == {'wrong-branch', 'field-swap', 'inner-index-swap', 'signed-bit-loss'}
           print('Cross-Scala source-bound scoped-composite RTL and proof inventories match; full 59i remains open.')
           PY

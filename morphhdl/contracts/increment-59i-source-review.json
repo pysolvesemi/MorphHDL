@@ -652,7 +652,7 @@
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
       "change": "modified",
-      "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+      "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged. After exact native full-driver and compatible-shape checks, disambiguate each scoped result by its exact source leaf. Repack only an isolated native blocking combinational process whose result and complete assignments belong to an already-published lexical owner. Retain that native process and local parameter guards; reject clocked, conditional, multi-statement, partial, unknown-owner and nonblocking forms.",
       "baseline_sha256": "78b96c71871c986b6e92a9960505cfc4d741c989d2bf83383be848f459df3998",
       "edits": [
         {
@@ -716,12 +716,22 @@
           "after": "              s\"  wire$qualifier [($width)-1:0] ${leaf.name};\",\n"
         },
         {
+          "id": "59i-nested-result-owned-process",
+          "reason": "After exact native full-driver and compatible-shape checks, disambiguate each scoped result by its exact source leaf. Repack only an isolated native blocking combinational process whose result and complete assignments belong to an already-published lexical owner. Retain that native process and local parameter guards; reject clocked, conditional, multi-statement, partial, unknown-owner and nonblocking forms.",
+          "before_start": 142656,
+          "before_end": 146174,
+          "after_start": 143257,
+          "after_end": 149308,
+          "before": "  /** A reduction result deliberately retains scalar native anchors until the\n    * reduction emitter has reconstructed their logical offsets. Consume only\n    * exact full leaf-to-leaf assignments when it crosses into a public Vec.\n    */\n  private def rewriteRecursiveTransportAssignment(\n      original: Vector[String], target: VecPlan,\n      operation: ParameterizedVecWholeAssignment,\n      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],\n      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]\n  ): Vector[String] = {\n    val sourceShape = ParameterizedVec.shapeOf(operation.source).getOrElse {\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISSING\",\n        \"certified recursive result lost its Vec shape\", operation.sourceLocation)\n    }\n    requireCompatibleShapes(target.shape, target.name, sourceShape,\n      \"certified recursive result\", operation.sourceLocation)\n    if (!ParameterizedVecElementLayout.equivalent(target.shape.elementLayout.root, sourceShape.elementLayout.root))\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISMATCH\",\n        \"certified recursive result has a different dimension tree\", operation.sourceLocation)\n    val sources = vectorLeaves(operation.source)\n    requireLiveAssignmentEvidence(operation.assignments, live,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    if (sources.size != target.leaves.size || operation.assignments.size != sources.size)\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n        \"certified recursive result needs one exact assignment per carrier leaf\", operation.sourceLocation)\n    val replacements = target.leaves.zip(sources).map { case (leaf, source) =>\n      val assignment = operation.assignments.filter { a =>\n        (a.target eq leaf.value) && (a.source eq source)\n      }\n      if (assignment.size != 1)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n          \"certified recursive result assignment changed a leaf or introduced a partial target\", operation.sourceLocation)\n      val name = requiredBaseName(source, \"certified recursive result leaf\", operation.sourceLocation)\n      val parsed = findAssignment(original, leaf.name, None,\n        \"certified recursive result assignment\", operation.sourceLocation)\n      if (!parsed.continuous || parsed.operator != \"=\" || parsed.rhs.trim != name)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH\",\n          \"certified recursive result requires an exact direct continuous leaf driver\", operation.sourceLocation)\n      val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)\n      val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) \"1\"\n        else s\"(${leaf.elementIndex} < (${render(target.shape.depth)}))\"\n      val condition = Vector(outer, nested).filterNot(_ == \"1\").mkString(\" && \")\n      val assign = s\"assign ${target.constantSlice(leaf.elementIndex, leaf.leafIndex)} = $name;\"\n      val body = if (condition.isEmpty) assign else\n        s\"generate if ($condition) begin\\n    $assign\\n  end endgenerate\"\n      parsed.lineIndex -> (parsed.indentation + body)\n    }\n    claimAssignmentEvidence(operation.assignments, live, claimed,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    replacements.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }\n  }\n\n",
+          "after": "  /** Syntactic restriction only. It cannot grant publication permission: the\n    * caller must separately prove the exact result/assignment/lexical-owner\n    * identities, a full blocking driver and its unchanged source expression.\n    */\n  private[internals] def isolatedRecursiveResultProcess(lines: Vector[String],\n      start: Int, end: Int, assignmentLine: Int): Boolean =\n    start >= 0 && start < assignmentLine && assignmentLine < end && end < lines.size &&\n      lines(start).trim == \"always @(*) begin\" && lines(end).trim == \"end\" &&\n      (start + 1 until end).filter { index =>\n        val text = lines(index).trim\n        text.nonEmpty && !text.startsWith(\"//\")\n      }.toVector == Vector(assignmentLine)\n\n  /** A reduction result deliberately retains scalar native anchors until the\n    * reduction emitter has reconstructed their logical offsets. Consume only\n    * exact full leaf-to-leaf assignments when it crosses into a public Vec.\n    */\n  private def rewriteRecursiveTransportAssignment(\n      original: Vector[String], target: VecPlan,\n      operation: ParameterizedVecWholeAssignment,\n      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],\n      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]\n  ): Vector[String] = {\n    val sourceShape = ParameterizedVec.shapeOf(operation.source).getOrElse {\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISSING\",\n        \"certified recursive result lost its Vec shape\", operation.sourceLocation)\n    }\n    requireCompatibleShapes(target.shape, target.name, sourceShape,\n      \"certified recursive result\", operation.sourceLocation)\n    if (!ParameterizedVecElementLayout.equivalent(target.shape.elementLayout.root, sourceShape.elementLayout.root))\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISMATCH\",\n        \"certified recursive result has a different dimension tree\", operation.sourceLocation)\n    val sources = vectorLeaves(operation.source)\n    requireLiveAssignmentEvidence(operation.assignments, live,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    if (sources.size != target.leaves.size || operation.assignments.size != sources.size)\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n        \"certified recursive result needs one exact assignment per carrier leaf\", operation.sourceLocation)\n    lazy val scopedResult = TypedBalancedReductionBackend.ownsPublishedRecursiveAssignment(\n      operation.source, operation.assignments)\n    lazy val nativeProcesses = alwaysBlocks(original)\n    val replacements = target.leaves.zip(sources).map { case (leaf, source) =>\n      val assignment = operation.assignments.filter { a =>\n        (a.target eq leaf.value) && (a.source eq source)\n      }\n      if (assignment.size != 1)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n          \"certified recursive result assignment changed a leaf or introduced a partial target\", operation.sourceLocation)\n      val name = requiredBaseName(source, \"certified recursive result leaf\", operation.sourceLocation)\n      val parsed = findAssignment(original, leaf.name, Some(name),\n        \"certified recursive result assignment\", operation.sourceLocation)\n      if (parsed.operator != \"=\" || parsed.rhs.trim != name)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH\",\n          \"certified recursive result requires an exact direct leaf driver\", operation.sourceLocation)\n      val process = if (parsed.continuous) None else {\n        if (!scopedResult)\n          fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-OWNER-MISMATCH\",\n            \"procedural recursive result requires its exact published structural owner\", operation.sourceLocation)\n        val owners = nativeProcesses.filter(block =>\n          block.start < parsed.lineIndex && parsed.lineIndex < block.end)\n        val valid = owners.size == 1 && isolatedRecursiveResultProcess(original,\n          owners.head.start, owners.head.end, parsed.lineIndex)\n        if (!valid)\n          fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-PROCESS-MISMATCH\",\n            \"scoped recursive result requires one isolated native combinational assignment\", operation.sourceLocation)\n        Some(owners.head)\n      }\n      val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)\n      val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) \"1\"\n        else s\"(${leaf.elementIndex} < (${render(target.shape.depth)}))\"\n      val condition = Vector(outer, nested).filterNot(_ == \"1\").mkString(\" && \")\n      val targetSlice = target.constantSlice(leaf.elementIndex, leaf.leafIndex)\n      process match {\n        case None =>\n          val assign = s\"assign $targetSlice = $name;\"\n          val body = if (condition.isEmpty) assign else\n            s\"generate if ($condition) begin\\n    $assign\\n  end endgenerate\"\n          Vector(parsed.lineIndex -> (parsed.indentation + body))\n        case Some(block) =>\n          val assignmentLine = parsed.lineIndex -> s\"${parsed.indentation}$targetSlice = $name;\"\n          if (condition.isEmpty) Vector(assignmentLine)\n          else {\n            // The exact result owner has already been emitted beneath a\n            // generate region. Add only a local generate-if, never another\n            // generate/endgenerate wrapper or a runtime guard on the datapath.\n            val indentation = original(block.start).takeWhile(_.isWhitespace)\n            Vector(block.start -> (s\"${indentation}if ($condition) begin\\n\" + original(block.start)),\n              assignmentLine, block.end -> (original(block.end) + \"\\n\" + indentation + \"end\"))\n          }\n      }\n    }\n    claimAssignmentEvidence(operation.assignments, live, claimed,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    replacements.flatten.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }\n  }\n\n"
+        },
+        {
           "id": "59i-07-07",
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 291839,
           "before_end": 291859,
-          "after_start": 292440,
-          "after_end": 292534,
+          "after_start": 294973,
+          "after_end": 295067,
           "before": "      plan: VecPlan\n",
           "after": "      plan: VecPlan,\n      nativeReadSignedness: IdentityHashMap[BaseType, java.lang.Boolean]\n"
         },
@@ -730,8 +740,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 291932,
           "before_end": 291997,
-          "after_start": 292607,
-          "after_end": 292798,
+          "after_start": 295140,
+          "after_end": 295331,
           "before": "      parseDeclaration(original, leaf.name, plan.sourceLocation)\n",
           "after": "      val declaration = parseDeclaration(original, leaf.name, plan.sourceLocation)\n      nativeReadSignedness.put(leaf.value, java.lang.Boolean.valueOf(declaration.signed))\n      declaration\n"
         },
@@ -740,8 +750,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 295785,
           "before_end": 295868,
-          "after_start": 296586,
-          "after_end": 296671,
+          "after_start": 299119,
+          "after_end": 299204,
           "before": "        \"\\\\s*(?:signed\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n",
           "after": "        \"\\\\s*(?:(signed)\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n"
         },
@@ -750,8 +760,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 295968,
           "before_end": 296047,
-          "after_start": 296771,
-          "after_end": 296852,
+          "after_start": 299304,
+          "after_end": 299385,
           "before": "        \"(?:signed\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n",
           "after": "        \"(?:(signed)\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n"
         },
@@ -760,8 +770,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 296149,
           "before_end": 296160,
-          "after_start": 296954,
-          "after_end": 297231,
+          "after_start": 299487,
+          "after_end": 299764,
           "before": "      port\n",
           "after": "      // Every match contains this exact quoted identifier. Reject unrelated\n      // lines before running the full parser; keep its syntax and uniqueness\n      // checks unchanged for all potentially matching declarations.\n      if (!line.contains(name)) None\n      else port\n"
         },
@@ -770,8 +780,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 296382,
           "before_end": 296470,
-          "after_start": 297453,
-          "after_end": 297577,
+          "after_start": 299986,
+          "after_end": 300110,
           "before": "            value.group(6) == \",\",\n            value.start(5),\n            value.end(5)\n",
           "after": "            value.group(7) == \",\",\n            value.start(6),\n            value.end(6),\n            value.group(5) != null\n"
         },
@@ -780,8 +790,8 @@
           "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
           "before_start": 296756,
           "before_end": 296813,
-          "after_start": 297863,
-          "after_end": 297958,
+          "after_start": 300396,
+          "after_end": 300491,
           "before": "              value.start(4),\n              value.end(4)\n",
           "after": "              value.start(5),\n              value.end(5),\n              value.group(4) != null\n"
         }
@@ -790,16 +800,26 @@
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
       "change": "modified",
-      "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+      "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels. Expose read-only evidence for exact nested output Vecs only after validated scoped publication. The complete native assignment collection must belong to the retained owner or descendants. Replay operands, unpublished/module-scope records, application Vecs and unknown owners cannot acquire this permission.",
       "baseline_sha256": "1ea85c0a9c3a159be4e7c18451b7876de51223ae29d90b4333e6cb69dd6e5aec",
       "edits": [
+        {
+          "id": "59i-nested-result-owner-evidence",
+          "reason": "Expose read-only evidence for exact nested output Vecs only after validated scoped publication. The complete native assignment collection must belong to the retained owner or descendants. Replay operands, unpublished/module-scope records, application Vecs and unknown owners cannot acquire this permission.",
+          "before_start": 2831,
+          "before_end": 2831,
+          "after_start": 2831,
+          "after_end": 3765,
+          "before": "",
+          "after": "  /** A procedural public-Vec boundary is admitted only for an exact result\n    * whose scoped topology has already passed the lexical handoff. Template\n    * operands and ordinary application Vecs cannot acquire this permission.\n    */\n  private[internals] def ownsPublishedRecursiveAssignment(vector: Vec[_],\n      assignments: Vector[DataAssignmentStatement]): Boolean = {\n    if (!ownsRecursiveTransport(vector) || assignments.isEmpty) return false\n    records(vector.component).exists { record =>\n      record.published && !record.lexicalOwner.isModuleScope &&\n        ParameterizedVecElementLayout.nestedVectors(record.output).exists(_ eq vector) &&\n        record.handoffOwner.exists { owner =>\n          val allowed = (Vector(owner) ++ owner.regions.flatMap(ParameterizedStructure.allBlocks))\n            .flatMap(_.assignments)\n          assignments.forall(assignment => allowed.exists(_ eq assignment))\n        }\n    }\n  }\n\n"
+        },
         {
           "id": "59i-08-01",
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 19949,
           "before_end": 20095,
-          "after_start": 19949,
-          "after_end": 20178,
+          "after_start": 20883,
+          "after_end": 21112,
           "before": "    if (!lexicalOwner.isModuleScope)\n      fail(\"NESTED-COMPOSITE\", \"nested composite reduction qualification belongs to the cross-feature join\")\n",
           "after": "    // Composite templates use the same exact lexical owner, pre-normalization\n    // handoff and result-escape validation as scalar templates. No ownership is\n    // inferred from the element layout or the generated block name.\n"
         },
@@ -808,8 +828,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 27982,
           "before_end": 28055,
-          "after_start": 28065,
-          "after_end": 28146,
+          "after_start": 28999,
+          "after_end": 29080,
           "before": "      else rewriteComposite(component, current, record, pc, canonicalOf)\n",
           "after": "      else rewriteComposite(component, current, record, pc, canonicalOf, nested)\n"
         },
@@ -818,8 +838,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 33595,
           "before_end": 33668,
-          "after_start": 33686,
-          "after_end": 33776,
+          "after_start": 34620,
+          "after_end": 34710,
           "before": "      pc: PhaseContext, canonicalOf: Component => Component): String = {\n",
           "after": "      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {\n"
         },
@@ -828,8 +848,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 34109,
           "before_end": 34184,
-          "after_start": 34217,
-          "after_end": 34322,
+          "after_start": 35151,
+          "after_end": 35256,
           "before": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet\n",
           "after": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet ++ structuralNames(component)\n"
         },
@@ -838,8 +858,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 38067,
           "before_end": 38067,
-          "after_start": 38205,
-          "after_end": 38362,
+          "after_start": 39139,
+          "after_end": 39296,
           "before": "",
           "after": "    val scopedDeclarations = ArrayBuffer.empty[String]\n    def declare(line: String): Unit =\n      if (nested) scopedDeclarations += line else lines += line\n"
         },
@@ -848,8 +868,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 38103,
           "before_end": 38195,
-          "after_start": 38398,
-          "after_end": 38490,
+          "after_start": 39332,
+          "after_end": 39424,
           "before": "    lines += s\"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;\"\n",
           "after": "    declare(s\"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;\")\n"
         },
@@ -858,8 +878,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 38938,
           "before_end": 39065,
-          "after_start": 39233,
-          "after_end": 39373,
+          "after_start": 40167,
+          "after_end": 40307,
           "before": "      lines += s\"  wire [(($width) * ($outputs))-1:0] $after;\"\n      lines += s\"  genvar $genvar;\"\n      lines += \"  generate\"\n",
           "after": "      declare(s\"  wire [(($width) * ($outputs))-1:0] $after;\")\n      declare(s\"  genvar $genvar;\")\n      if (!nested) lines += \"  generate\"\n"
         },
@@ -868,8 +888,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 39733,
           "before_end": 39764,
-          "after_start": 40041,
-          "after_end": 40085,
+          "after_start": 40975,
+          "after_end": 41019,
           "before": "      lines += \"  endgenerate\"\n",
           "after": "      if (!nested) lines += \"  endgenerate\"\n"
         },
@@ -878,8 +898,8 @@
           "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
           "before_start": 39818,
           "before_end": 39901,
-          "after_start": 40139,
-          "after_end": 40329,
+          "after_start": 41073,
+          "after_end": 41263,
           "before": "    val updated = connect(remaining, record.output, last, \"0\", moduleScope = true)\n",
           "after": "    val updated = connect(remaining, record.output, last, \"0\", moduleScope = !nested)\n    if (nested) return scopedDeclarations.mkString(\"\\n\") + \"\\n\" + updated + \"\\n\" + lines.mkString(\"\\n\")\n"
         }
