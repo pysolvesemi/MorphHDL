@@ -110,6 +110,43 @@ class MutationContractTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'anchor'):
             C.mutate('assign delayed_key = saved_key;', 'bypass-latency')
 
+    def test_latency_bypass_preserves_native_procedural_branch_structure(self):
+        branches = []
+        for branch in ('minimum', 'maximum'):
+            leaves = '\n'.join('  always @(*) begin\n    delayed_' + name +
+                ' = saved_' + branch + '_' + name + ';\n  end'
+                for name in ('key', 'tag', 'x', 'y'))
+            branches.append('if (MODE == ' + ('0' if branch == 'minimum' else '1') +
+                ') begin : g_' + branch + '\n' + leaves + '\nend')
+        rtl = '\n'.join(branches)
+        expected = rtl
+        for branch in ('minimum', 'maximum'):
+            for name in ('key', 'tag', 'x', 'y'):
+                expected = expected.replace('saved_' + branch + '_' + name, 'selected_' + name)
+        self.assertEqual(C.mutate(rtl, 'bypass-latency'), expected)
+
+    def test_latency_bypass_rejects_unbalanced_branch_leaf_inventory(self):
+        rtl = '\n'.join('delayed_' + name + ' = saved_' + name + ';'
+                        for name in ('key', 'tag', 'x', 'y'))
+        with self.assertRaisesRegex(RuntimeError, 'anchor'):
+            C.mutate(rtl + '\ndelayed_key = alternate_key;', 'bypass-latency')
+
+    def test_latency_bypass_rejects_partial_and_nonblocking_drivers(self):
+        other = '\n'.join('delayed_' + name + ' = saved_' + name + ';'
+                          for name in ('tag', 'x', 'y'))
+        for driver in ('delayed_key <= saved_key;', 'delayed_key[0] = saved_key;',
+                       'assign delayed_key[WIDTH-1:0] = saved_key;',
+                       'other.delayed_key = saved_key;', 'delayed_key == saved_key;'):
+            with self.subTest(driver=driver), self.assertRaisesRegex(RuntimeError, 'anchor'):
+                C.mutate(driver + '\n' + other, 'bypass-latency')
+
+    def test_latency_bypass_keeps_unrelated_registers_and_output_names(self):
+        rtl = '\n'.join('assign delayed_' + name + ' = saved_' + name + ';'
+                        for name in ('key', 'tag', 'x', 'y'))
+        unrelated = '\nalways @(posedge clk) begin\n  saved_key <= data;\nend\n' + \
+                    'assign other_delayed_key = saved_key;\n'
+        self.assertTrue(C.mutate(rtl + unrelated, 'bypass-latency').endswith(unrelated))
+
     def test_every_mutation_rejects_a_missing_anchor(self):
         for control in C.MUTATIONS:
             with self.subTest(control=control):

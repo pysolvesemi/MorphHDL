@@ -315,9 +315,15 @@ def mutate(rtl: str, control: str) -> str:
         # priority; it does not remove ordinary enable stalls.
         changed, count = re.subn(r'\bif\s*\(\s*enable\s*\)', 'if(enable || reset)', rtl)
     elif control == 'bypass-latency':
-        pattern = re.compile(r'(?m)^(\s*assign\s+delayed_(key|tag|x|y)\s*=)[^;]+;')
-        require({m.group(2) for m in pattern.finditer(rtl)} == {'key', 'tag', 'x', 'y'},
-                'missing actual-RTL mutation anchor: ' + control)
+        # Native structural alternatives drive these output regs from separate
+        # combinational processes. Preserve their blocks and assignment kind;
+        # change only each complete leaf RHS. Legacy continuous wires remain
+        # supported. Partial, nonblocking or unequal branch inventories reject.
+        pattern = re.compile(r'(?m)^([ \t]*(?:assign[ \t]+)?delayed_(key|tag|x|y)[ \t]*=(?!=))[^;\n]+;')
+        anchors = [match.group(2) for match in pattern.finditer(rtl)]
+        require(set(anchors) == {'key', 'tag', 'x', 'y'} and
+                len({anchors.count(name) for name in set(anchors)}) == 1,
+                'missing or unbalanced actual-RTL mutation anchor: ' + control)
         changed, count = pattern.subn(lambda m: m.group(1) + ' selected_' + m.group(2) + ';', rtl)
     elif control == 'wrong-reset-value':
         changed, count = re.subn(r"<=\s*\{WIDTH\{1'b0\}\}\s*;", "<= {WIDTH{1'b1}};", rtl)
