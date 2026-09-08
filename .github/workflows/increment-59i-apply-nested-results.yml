@@ -1,0 +1,107 @@
+name: Increment 59i apply reviewed nested-result slice
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-apply-nested-results.yml'
+      - 'morphhdl/repair-59i-nested-results/**'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-59i-combined-reduction-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Check and apply only the exact source-bound patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, subprocess
+          from pathlib import Path
+          payload = Path('morphhdl/repair-59i-nested-results')
+          meta = json.loads((payload / 'metadata.json').read_text())
+          assert meta['schema'] == 1 and meta['base'] == 'b8e26eba079a9e65e7cc1b80f815504e135c914f'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == meta['base']
+          allowed = {str(payload / ('chunk-' + str(i) + '.txt')) for i in range(6)} | {
+              str(payload / 'metadata.json'), '.github/workflows/increment-59i-apply-nested-results.yml'}
+          staging = set(subprocess.check_output(['git', 'diff', '--name-only', meta['base'], 'HEAD'], text=True).splitlines())
+          assert staging == allowed, ('unexpected staging source', staging ^ allowed)
+          patch = lzma.decompress(base64.b64decode(''.join((payload / ('chunk-' + str(i) + '.txt')).read_text().strip()
+              for i in range(6)), validate=True))
+          assert len(patch) == 81870
+          assert hashlib.sha256(patch).hexdigest() == meta['patch_sha256'] == '6ff93c71cb8f733a2b5dbf2f111489b237c1d99590c28df050e8fddc58ef5e97'
+          assert len(meta['files']) == 12
+          for relative, identities in meta['files'].items():
+              p = Path(relative)
+              assert not p.is_absolute() and '..' not in p.parts and not p.is_symlink()
+              assert all(not ancestor.is_symlink() for ancestor in p.parents)
+              before = identities['before']
+              assert (not p.exists()) if before is None else (p.is_file() and hashlib.sha256(p.read_bytes()).hexdigest() == before), relative
+          output = Path('target/increment-59i-nested-application')
+          output.mkdir(parents=True)
+          patch_path = output / 'reviewed.patch'
+          patch_path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', str(patch_path)], check=True)
+          subprocess.run(['git', 'apply', str(patch_path)], check=True)
+          for relative, identities in meta['files'].items():
+              p = Path(relative)
+              assert p.is_file() and not p.is_symlink() and not p.stat().st_mode & 0o111
+              assert hashlib.sha256(p.read_bytes()).hexdigest() == identities['after'], relative
+          subprocess.run(['git', 'add', '--', *meta['files']], check=True)
+          changed = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          assert changed == set(meta['files']), ('unexpected applied source', changed ^ set(meta['files']))
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          PY
+      - name: Prepare an unpushed commit for clean-index source audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > target/increment-59i-nested-application/staging-head.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: publish scoped nested Vec results with exact owner evidence' \
+            -m 'Preserve native processes and parameter guards, independent references, exact source audits and all existing 59i gates. Add a separate 96-case/four-profile nested-result proof matrix. This is an in-progress slice; do not mark the complete join done or merge it.'
+      - name: Require exact native and inherited reviews before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-nested-application
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native-review.log"
+          for layer in 59i 59g 59h; do
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-controls.log" 2>&1 || { cat "$output/$layer-controls.log"; exit 1; }
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-review.log" 2>&1 || { cat "$output/$layer-review.log"; exit 1; }
+          done
+          python3 morphhdl/scripts/test-increment-59i-nested-results.py -v > "$output/checker-tests.log" 2>&1 || { cat "$output/checker-tests.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-controls.log" 2>&1 || { cat "$output/inherited-controls.log"; exit 1; }
+      - name: Publish without force only if the original branch head remains current
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=agent/increment-59i-combined-reduction-closure
+          original=$(cat target/increment-59i-nested-application/staging-head.txt)
+          remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$remote" = "$original"
+          git push origin "HEAD:refs/heads/$branch"
+          output=target/increment-59i-nested-application
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          git bundle create "$output/source-history.bundle" HEAD refs/remotes/origin/parameterized-verilog
+          sha256sum "$output/source.tar.gz" "$output/source-history.bundle" > "$output/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-nested-application
+          path: target/increment-59i-nested-application
+          if-no-files-found: error
+          retention-days: 7
