@@ -11,19 +11,28 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
 from pathlib import Path
 
-BASE = 'd32fcf71fc81662618d72b0ec0a5d8a59c50b4d6'
+HISTORICAL_BASE = 'd32fcf71fc81662618d72b0ec0a5d8a59c50b4d6'
+BASE = '64e8fddc432e859b6b532540bee96c5608d46efa'
 CONTRACT = "morphhdl/contracts/increment-59i-source-review.json"
 CONTRACT_SHA256 = 'af633343f73d1e9d54cf68c05ff5e21a8d79c9738fc45af4ddd07f2086aab600'
+INTEGRATION_CONTRACT = 'morphhdl/contracts/increment-59i-integration-review.json'
+INTEGRATION_SHA256 = 'c8cb1e66d3abec2b160f9272dada5893191cb5555d773624fc6636caaa5fa3e7'
+INTEGRATION_PATHS = (
+    'morphhdl/scripts/check-increment-59g-source-review.py',
+    'morphhdl/scripts/check-wa07b-inherited-review.py',
+)
 PATHS = (
     'core/src/main/scala/spinal/core/Vec.scala',
     'morphhdl/contracts/increment-55-native-change-review.json',
     'morphhdl/contracts/native-source-preservation.json',
     'morphhdl/scripts/check-increment-59g-source-review.py',
+    'morphhdl/scripts/check-wa07b-inherited-review.py',
     'morphhdl/scripts/test-increment-59h-inherited-source-scope.py',
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala',
@@ -44,13 +53,14 @@ def digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def validate_contract(value: dict) -> dict[str, dict]:
+def validate_contract(value: dict, expected_base: str = BASE,
+                      expected_paths: tuple[str, ...] = PATHS) -> dict[str, dict]:
     require(isinstance(value, dict) and set(value) ==
             {"schema_version", "base", "offset_format", "files"}, "invalid 59i source-review schema")
-    require(value["schema_version"] == 2 and value["base"] == BASE and
+    require(value["schema_version"] == 2 and value["base"] == expected_base and
             value["offset_format"] == "utf8-bytes", "59i source-review baseline or offset format changed")
     files = value["files"]
-    require(isinstance(files, list) and tuple(entry.get("path") for entry in files) == PATHS,
+    require(isinstance(files, list) and tuple(entry.get("path") for entry in files) == expected_paths,
             "59i source-review must retain its exact production and checker path inventory")
     result = {}
     identifiers = set()
@@ -128,9 +138,28 @@ def load_contract(root: Path) -> dict[str, dict]:
     require(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111,
             "59i source review must be a regular non-executable file")
     raw = path.read_bytes()
-    entries = validate_contract(json.loads(raw))
     require(digest(raw) == CONTRACT_SHA256, "59i reviewed source manifest changed")
-    return entries
+    value = json.loads(raw)
+    historical_paths = tuple(path for path in PATHS if path != INTEGRATION_PATHS[1])
+    entries = validate_contract(value, HISTORICAL_BASE, historical_paths)
+    # Preserve the complete previous certificate. Only these two independently
+    # sealed checker spans are re-anchored to the newly merged dependency state.
+    sidecar = root / INTEGRATION_CONTRACT
+    require(sidecar.is_file() and not sidecar.is_symlink() and not sidecar.stat().st_mode & 0o111,
+            "missing regular 59i integration source review")
+    raw_sidecar = sidecar.read_bytes()
+    require(digest(raw_sidecar) == INTEGRATION_SHA256, "59i integration review changed")
+    integration = json.loads(raw_sidecar)
+    require(set(integration) == {"schema_version", "integration_base", "inherited_contract_sha256", "files"}
+            and integration["schema_version"] == 1 and integration["integration_base"] == BASE
+            and integration["inherited_contract_sha256"] == CONTRACT_SHA256,
+            "invalid 59i integration source review")
+    require(tuple(entry["path"] for entry in integration["files"]) == INTEGRATION_PATHS,
+            "59i integration review escaped its two checker paths")
+    entries.update({entry["path"]: entry for entry in integration["files"]})
+    value["base"] = BASE
+    value["files"] = [entries[path] for path in PATHS]
+    return validate_contract(value)
 
 
 def baseline_source(root: Path, path: str) -> bytes:
@@ -161,7 +190,7 @@ def require_production_inventory(paths: set[str]) -> None:
 def verify_spans(root: Path) -> None:
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
     entries = load_contract(root)
-    for relative in (CONTRACT, *PATHS):
+    for relative in (CONTRACT, INTEGRATION_CONTRACT, *PATHS):
         source = root / relative
         require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "59i reviewed source must be a regular non-executable file: " + relative)
@@ -174,7 +203,18 @@ def verify_spans(root: Path) -> None:
 
 
 def verify(root: Path) -> None:
-    require_production_inventory(production_changes(root, BASE))
+    paths = production_changes(root, BASE)
+    # A later independently qualified WA-07b pass implementation remains a
+    # disjoint successor, not an unreviewed addition to this join's inventory.
+    checker = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
+    require(checker.is_file() and not checker.is_symlink(),
+            "missing regular merged WA-07b inherited reviewer")
+    spec = importlib.util.spec_from_file_location("join_wa07b_source_review", checker)
+    require(spec is not None and spec.loader is not None, "cannot load WA-07b inherited reviewer")
+    ternary = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ternary)
+    paths = ternary.inherited_inventory(root, paths, BASE)
+    require_production_inventory(paths)
     verify_spans(root)
     print("59i complete production inventory and exact reviewed spans restore the integration baseline PASS", flush=True)
 
@@ -236,7 +276,8 @@ def self_test(root: Path) -> None:
         expect_failure(path + " forged baseline span", lambda: restore_reviewed(changed, baseline, source),
                        "59i reviewed before span does not belong to the frozen baseline")
         negatives += 1
-    contract = json.loads((root / CONTRACT).read_text())
+    contract = {"schema_version": 2, "base": BASE, "offset_format": "utf8-bytes",
+                "files": [entries[path] for path in PATHS]}
     changed = copy.deepcopy(contract)
     changed["files"].pop()
     expect_failure("removed reviewed file", lambda: validate_contract(changed),

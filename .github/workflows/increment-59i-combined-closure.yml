@@ -63,6 +63,8 @@ jobs:
             python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-source-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-source-self-test.log"; exit 1; }
             python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-source-review.log" 2>&1 || { tail -n 100 "$output/$layer-source-review.log"; exit 1; }
           done
+          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v > "$output/review-composition-tests.log" 2>&1 || { tail -n 100 "$output/review-composition-tests.log"; exit 1; }
+          python3 morphhdl/scripts/test-wa07b-inherited-review.py > "$output/wa07b-composition-controls.log" 2>&1 || { tail -n 100 "$output/wa07b-composition-controls.log"; exit 1; }
           python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 100 "$output/inherited-source-controls.log"; exit 1; }
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
