@@ -60,6 +60,7 @@ jobs:
           git archive HEAD | gzip > "$output/source.tar.gz"
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
+          python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
           test "$version" = '1.10.0'
           base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
@@ -232,6 +233,9 @@ jobs:
               assert (a / relative).read_bytes() == (b / relative).read_bytes(), relative
           report = json.loads((a / 'a/evidence.json').read_text())
           assert report['complete_59i_join'] is False
-          assert len(report['cases']) == 96 and len(report['mutations']) == 5
+          assert len(report['cases']) == 96 and len(report['mutations']) == 7
+          assert set(report['mutations']) == {'field-misbinding', 'signed-key-misbinding',
+              'wrong-branch', 'ignored-enable', 'wrong-reset-value',
+              'reset-overrides-enable', 'bypass-latency'}
           print('Cross-Scala source-bound scoped-composite RTL and proof inventories match; full 59i remains open.')
           PY

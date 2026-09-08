@@ -40,6 +40,10 @@ SHAPES = {(w, w, w, n, m) for w, n, m in itertools.product(WIDTHS, COUNTS, (0, 1
 INDUCTION_PASS = 'Induction step proven: SUCCESS!'
 SIM_PASS = '59I-SCOPED-RECORD-SIM-PASS'
 SIM_FAIL = '59I-SCOPED-RECORD-MISMATCH'
+MUTATIONS = ('field-misbinding', 'signed-key-misbinding', 'wrong-branch',
+             'ignored-enable', 'wrong-reset-value', 'reset-overrides-enable', 'bypass-latency')
+SEQUENTIAL_MUTATIONS = frozenset(('ignored-enable', 'wrong-reset-value',
+                                 'reset-overrides-enable', 'bypass-latency'))
 
 
 def require(condition: bool, message: str) -> None:
@@ -59,6 +63,16 @@ def validate_manifest(manifest: dict) -> None:
     require(set(manifest) == {'schema', 'scope', 'candidates', 'cases'} and
             manifest['schema'] == 1 and manifest['scope'] == SCOPE, 'invalid 59i slice scope/schema')
     candidates, cases = manifest['candidates'], manifest['cases']
+    require(isinstance(candidates, list) and isinstance(cases, list), 'matrix entries must be lists')
+    require(all(isinstance(c, dict) and set(c) ==
+                {'layout', 'signed_mode', 'default_count', 'module', 'file'} for c in candidates),
+            'invalid candidate schema')
+    require(all(isinstance(c, dict) and set(c) ==
+                {'id', 'width', 'tag_width', 'coord_width', 'count', 'mode', 'module', 'file'} for c in cases),
+            'invalid reference schema')
+    require(all(type(c['default_count']) is int for c in candidates), 'non-integer candidate default')
+    require(all(isinstance(c['id'], str) and H.IDENTIFIER.fullmatch(c['id']) for c in cases),
+            'invalid case identity')
     require(len(candidates) == len(PROFILES) and {profile(c) for c in candidates} == PROFILES,
             'missing/duplicated 59i layout/signedness/default profile')
     require(len(cases) == len(SHAPES) and {shape(c) for c in cases} == SHAPES,
@@ -71,6 +85,10 @@ def validate_manifest(manifest: dict) -> None:
         require(len({c['module'] for c in collection}) == len(collection), 'reused module identity')
         require(all(H.IDENTIFIER.fullmatch(c['module']) for c in collection), 'invalid module identity')
     require(len({c['id'] for c in cases}) == len(cases), 'reused case identity')
+    require(not {c['module'] for c in candidates} & {c['module'] for c in cases},
+            'candidate and native module identities overlap')
+    require(not {c['file'] for c in candidates} & {c['file'] for c in cases},
+            'candidate and native artifact identities overlap')
 
 
 def fields(case: dict) -> dict[str, tuple[tuple[str, int], ...]]:
@@ -167,7 +185,9 @@ def select(rows: list[tuple], maximum: bool, signed_width: int | None = None) ->
 class Pipeline:
     """Independent enabled-register state model, including native odd tails."""
     def __init__(self, count: int):
+        require(type(count) is int and count >= 1, 'pipeline requires a positive COUNT')
         self.count = count
+        self.initialized = count == 1
         self.state = []
         while count > 1:
             count = (count + 1) // 2
@@ -176,13 +196,20 @@ class Pipeline:
     def step(self, rows: list[tuple], reset: bool, enable: bool, maximum: bool) -> tuple:
         if self.count == 1:
             return rows[0]
-        if reset:
-            self.state = [[(0, 0, 0, 0)] * len(level) for level in self.state]
-        elif enable:
-            # Every level samples the OLD preceding level at this edge.
-            before = [rows] + self.state[:-1]
-            self.state = [[select(values[i:i + 2], maximum) for i in range(0, len(values), 2)]
-                          for values in before]
+        # This fixture uses native SYNC reset and a clock-domain enable:
+        # if (enable) { if (reset) ... else ... }. A stalled reset is NOT an
+        # initialization event. Other clock profiles need separate contracts.
+        require(self.initialized or (reset and enable),
+                'registered state cannot be observed before an enabled reset')
+        if enable:
+            if reset:
+                self.state = [[(0, 0, 0, 0)] * len(level) for level in self.state]
+                self.initialized = True
+            else:
+                # Every level samples the OLD preceding level at this edge.
+                before = [rows] + self.state[:-1]
+                self.state = [[select(values[i:i + 2], maximum) for i in range(0, len(values), 2)]
+                              for values in before]
         return self.state[-1][0]
 
 
@@ -204,33 +231,56 @@ def samples(case: dict) -> list[dict]:
     return values
 
 
+def stimulus(case: dict) -> list[tuple[dict, bool, bool]]:
+    widths = {p: w for p, w in input_widths(case).items() if p in fields(case)}
+    zero = {p: 0 for p in widths}
+    nonzero = {p: (1 << w) - 1 for p, w in widths.items()}
+    depth = (case['count'] - 1).bit_length()
+    # Establish real native state with an ENABLED reset. Fill every stage with
+    # nonzero data before asserting a stalled reset, so wrong precedence
+    # cannot hide behind a zero-valued pipeline. Then exercise enabled reset.
+    trace = [(zero, True, True)]
+    trace += [(nonzero, False, True)] * depth
+    trace += [(nonzero, True, False), (nonzero, False, False), (zero, True, True)]
+    trace += [(sample, cycle % 53 == 17, cycle % 7 not in (0, 1, 5))
+              for cycle, sample in enumerate(samples(case))]
+    return trace
+
+
 def testbench(case: dict, candidates: list[dict]) -> tuple[str, int]:
     lines = ['`timescale 1ns/1ps', 'module tb;']
     lines += [f'reg [{w - 1}:0] {p};' for p, w in input_widths(case).items()]
     lines += instances(case, candidates)
-    lines += ['initial begin', 'clk = 0; reset = 1; enable = 0;']
+    lines += ['initial begin', 'clk = 0; reset = 1; enable = 1;']
     state = Pipeline(case['count'])
-    vectors = samples(case)
+    vectors = stimulus(case)
     f = fields(case)
-    for cycle, sample in enumerate(vectors):
-        reset = cycle == 0 or cycle % 53 == 17  # includes reset during enable stall
-        enable = cycle % 7 not in (0, 1, 5)
+
+    def compare(expected: dict, phase: str, cycle: int) -> None:
+        for prefix in ['g_'] + [f'c{i}_' for i in range(len(candidates))]:
+            for name, value in expected.items():
+                width = outputs(case)[name]
+                lines.extend([f"if ({prefix}{name} !== {width}'h{value:x}) begin",
+                    f'$display("{SIM_FAIL} {prefix}{name} {phase} cycle={cycle}"); $finish(1);', 'end'])
+
+    for cycle, (sample, reset, enable) in enumerate(vectors):
         rows = decode(sample['records'], f['records'], case['count'])
         signed_rows = decode(sample['signedRecords'], f['signedRecords'], case['count'])
         selected = select(rows, bool(case['mode']))
         signed = select(signed_rows, bool(case['mode']), case['width'])
-        delayed = state.step(rows, reset, enable, bool(case['mode']))
         expected = {**{'selected_' + p: v for (p, _), v in zip(f['records'], selected)},
-                    **{'delayed_' + p: v for (p, _), v in zip(f['records'], delayed)},
                     **{'signedSelected_' + p: v for (p, _), v in zip(f['signedRecords'], signed)}}
         lines += [f'clk = 0; reset = {int(reset)}; enable = {int(enable)};']
         lines += [f"{p} = {input_widths(case)[p]}'h{v:x};" for p, v in sample.items()]
-        lines += ['#1; clk = 1; #1;']
-        for prefix in ['g_'] + [f'c{i}_' for i in range(len(candidates))]:
-            for name, value in expected.items():
-                width = outputs(case)[name]
-                lines += [f"if ({prefix}{name} !== {width}'h{value:x}) begin",
-                          f'$display("{SIM_FAIL} {prefix}{name} cycle={cycle}"); $finish(1);', 'end']
+        lines += ['#1;']
+        if cycle:
+            prior = rows[0] if case['count'] == 1 else state.state[-1][0]
+            compare(dict(expected, **{'delayed_' + p: v for (p, _), v in zip(f['records'], prior)}),
+                    'before-edge', cycle)
+        delayed = state.step(rows, reset, enable, bool(case['mode']))
+        lines += ['clk = 1; #1;']
+        compare(dict(expected, **{'delayed_' + p: v for (p, _), v in zip(f['records'], delayed)}),
+                'after-edge', cycle)
     lines += [f'$display("{SIM_PASS}"); $finish;', 'end', 'endmodule', '']
     return '\n'.join(lines), len(vectors)
 
@@ -260,6 +310,15 @@ def mutate(rtl: str, control: str) -> str:
         changed, count = re.subn(r'\bcase\s*\(\s*MODE\s*\)', 'case (1 - MODE)', rtl, count=1)
     elif control == 'ignored-enable':
         changed, count = re.subn(r'\bif\s*\(\s*enable\s*\)', "if (1'b1)", rtl)
+    elif control == 'reset-overrides-enable':
+        # On this active-high SYNC profile this changes only the reset/enable
+        # priority; it does not remove ordinary enable stalls.
+        changed, count = re.subn(r'\bif\s*\(\s*enable\s*\)', 'if(enable || reset)', rtl)
+    elif control == 'bypass-latency':
+        pattern = re.compile(r'(?m)^(\s*assign\s+delayed_(key|tag|x|y)\s*=)[^;]+;')
+        require({m.group(2) for m in pattern.finditer(rtl)} == {'key', 'tag', 'x', 'y'},
+                'missing actual-RTL mutation anchor: ' + control)
+        changed, count = pattern.subn(lambda m: m.group(1) + ' selected_' + m.group(2) + ';', rtl)
     elif control == 'wrong-reset-value':
         changed, count = re.subn(r"<=\s*\{WIDTH\{1'b0\}\}\s*;", "<= {WIDTH{1'b1}};", rtl)
     else:
@@ -270,6 +329,10 @@ def mutate(rtl: str, control: str) -> str:
 
 def qualify(root: Path, duplicate: Path, only: str | None = None) -> None:
     root, duplicate = root.resolve(), duplicate.resolve()
+    # A failed rerun or focused diagnosis must not retain an earlier full-slice
+    # certificate. Remove it before every fallible validation/tool operation.
+    (root / 'evidence.json').unlink(missing_ok=True)
+    require(root != duplicate, 'A/B generation requires two distinct artifact directories')
     for tool in ('iverilog', 'vvp', 'verilator', 'yosys'):
         require(shutil.which(tool) is not None, 'required tool is missing: ' + tool)
     manifest = json.loads((root / 'manifest.json').read_text())
@@ -277,8 +340,14 @@ def qualify(root: Path, duplicate: Path, only: str | None = None) -> None:
     require((root / 'manifest.json').read_bytes() == (duplicate / 'manifest.json').read_bytes(),
             'nondeterministic combined manifest')
     candidates, cases = manifest['candidates'], manifest['cases']
+    original_paths = set()
     for item in candidates + cases:
-        require(H.checked_rtl(root, item['file']).read_bytes() == H.checked_rtl(duplicate, item['file']).read_bytes(),
+        first = H.checked_rtl(root, item['file'])
+        second = H.checked_rtl(duplicate, item['file'])
+        require(first not in original_paths, 'reused canonical RTL artifact: ' + item['file'])
+        original_paths.add(first)
+        require(not first.samefile(second), 'A/B generation reused the same RTL file: ' + item['file'])
+        require(first.read_bytes() == second.read_bytes(),
                 'nondeterministic actual generated RTL: ' + item['file'])
     candidate_files = [H.checked_rtl(root, c['file']) for c in candidates]
     evidence = []
@@ -329,7 +398,7 @@ def qualify(root: Path, duplicate: Path, only: str | None = None) -> None:
     # Falsify real generated candidate RTL, not a behavioral stand-in or timeout.
     case = next(c for c in cases if shape(c) == (5, 5, 5, 5, 0))
     selected = next(i for i, c in enumerate(candidates) if profile(c) == ('fields', 'legacy', 1))
-    controls = ('field-misbinding', 'signed-key-misbinding', 'wrong-branch', 'ignored-enable', 'wrong-reset-value')
+    controls = MUTATIONS
     for control in controls:
         work = root / 'checks' / control
         work.mkdir(parents=True, exist_ok=True)
@@ -338,7 +407,7 @@ def qualify(root: Path, duplicate: Path, only: str | None = None) -> None:
         mutated.write_text(mutate(actual.read_text(), control))
         files = [H.checked_rtl(root, case['file'])] + [mutated if i == selected else f for i, f in enumerate(candidate_files)]
         top = work / 'miter.v'
-        sequential = control in ('ignored-enable', 'wrong-reset-value')
+        sequential = control in SEQUENTIAL_MUTATIONS
         top.write_text(miter(case, candidates, sequential))
         trace = work / 'counterexample.vcd'
         script = work / 'mutation.ys'
@@ -403,15 +472,16 @@ def self_test() -> None:
     require(singleton.step([(2, 3, 4, 5)], True, False, False) == (2, 3, 4, 5), 'singleton latency changed')
     odd = Pipeline(5)
     rows = [(7, 1, 0, 0), (6, 2, 0, 0), (5, 3, 0, 0), (4, 4, 0, 0), (1, 5, 0, 0)]
-    odd.step(rows, True, False, False)
+    odd.step(rows, True, True, False)
     for _ in range(3):
         value = odd.step(rows, False, True, False)
     require(value == (1, 5, 0, 0), 'odd tail or latency model failed')
     require(odd.step([(0, 0, 0, 0)] * 5, False, False, False) == value, 'stall model failed')
-    require(odd.step(rows, True, False, False) == (0, 0, 0, 0), 'reset precedence model failed')
+    require(odd.step(rows, True, False, False) == value, 'stalled reset must preserve native state')
+    require(odd.step(rows, True, True, False) == (0, 0, 0, 0), 'enabled reset model failed')
     require(select([(3, 1), (3, 2)], False) == (3, 1), 'left tie selection failed')
     require(select([(7, 1), (0, 2)], False, 3) == (7, 1), 'signed comparison failed')
-    for control in ('field-misbinding', 'signed-key-misbinding', 'wrong-branch', 'ignored-enable', 'wrong-reset-value'):
+    for control in MUTATIONS:
         try:
             mutate('module absent; endmodule', control)
         except RuntimeError:
