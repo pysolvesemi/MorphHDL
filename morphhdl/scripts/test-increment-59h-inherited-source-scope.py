@@ -91,7 +91,11 @@ def main() -> None:
     review = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(review)
     outside = "unreviewed source change outside 59h spans"
-    cases = [("unreviewed suffix " + path, path, "suffix", outside) for path in review.PATHS]
+    register = getattr(review, "register_source_review", lambda root: None)(ROOT)
+    cases = [("unreviewed suffix " + path, path, "suffix",
+              "unreviewed source change outside reviewed 59g spans"
+              if register is not None and path in register.PATHS else outside)
+             for path in review.PATHS]
     cases += [
         ("changed reviewed owner span", runtime, "inside", "missing/changed 59h reviewed source span"),
         ("missing owner implementation", prod, "remove", "59h reviewed source is missing"),
@@ -105,7 +109,7 @@ def main() -> None:
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
-         "59h production delta differs from the complete reviewed inventory"),
+         ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):

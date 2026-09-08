@@ -2,7 +2,7 @@ name: Increment 59d generic scalar width and widening qualification
 
 on:
   push:
-    branches: [parameterized-verilog, 'agent/increment-59d-*']
+    branches: [parameterized-verilog, 'agent/increment-59d-*', 'agent/increment-59g-*']
     paths:
       - '.github/workflows/increment-59d-widening.yml'
       - 'morphhdl/src/**'
@@ -46,6 +46,8 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
+      (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
       github.ref_name == 'parameterized-verilog'
     name: Symbolic widening Scala ${{ matrix.scala }}
@@ -187,7 +189,13 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',14), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
+          bridge_policy_count = 14
+          bridge_review = Path('morphhdl/scripts/check-increment-59g-source-review.py')
+          if bridge_review.is_file():
+              import runpy
+              runpy.run_path(str(bridge_review))['verify'](Path.cwd())
+              bridge_policy_count = 16
+          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()

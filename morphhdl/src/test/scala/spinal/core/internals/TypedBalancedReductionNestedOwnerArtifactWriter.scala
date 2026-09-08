@@ -247,6 +247,21 @@ final class BalancedNestedHierarchyLoopReference(width: Int, count: Int, rows: I
 object TypedBalancedReductionNestedOwnerArtifactWriter {
   val profiles: Vector[String] = Vector("conditional", "loop", "hierarchy", "registered-loop", "hierarchy-loop")
 
+  // The roadmap's complete scalar matrix supplements, rather than replaces,
+  // the original row/count witnesses used by the ownership mutation controls.
+  private val scalarWidths = Vector(1, 5, 8, 32)
+  private val scalarCounts = Vector(1, 2, 3, 5, 8, 9, 16, 17)
+  private val originalPoints = Vector((1, 1, 1), (5, 1, 3), (5, 2, 2),
+    (8, 3, 3), (5, 5, 2), (8, 9, 3), (1, 5, 2))
+
+  def points(profile: String): Vector[(Int, Int, Int)] = {
+    require(profiles.contains(profile), "unknown nested-owner qualification profile")
+    val common = for (width <- scalarWidths; count <- scalarCounts) yield (width, count, 3)
+    (originalPoints ++ common).map { case (width, count, rows) =>
+      (width, count, if (profile.endsWith("loop")) rows else 1)
+    }.distinct
+  }
+
   def config(directory: Path, fileName: String): SpinalConfig = {
     Files.createDirectories(directory)
     val result = SpinalConfig(targetDirectory = directory.toString)
@@ -269,8 +284,8 @@ object TypedBalancedReductionNestedOwnerArtifactWriter {
   def candidate(directory: Path, profile: String): Path = {
     val module = candidateModule(profile)
     MorphVerilog(config(directory, module + ".v")) {
-      val width = HdlInt.param("WIDTH", 5, 1, 8)
-      val count = HdlInt.param("COUNT", 1, 1, 9)
+      val width = HdlInt.param("WIDTH", 5, 1, 32)
+      val count = HdlInt.param("COUNT", 1, 1, 17)
       val mode = HdlInt.param("MODE", 0, 0, 2)
       profile match {
         case "conditional" => new BalancedNestedConditional(width, count, mode)
@@ -310,7 +325,7 @@ object TypedBalancedReductionNestedOwnerArtifactWriter {
     val cases = profiles.flatMap { profile =>
       val rtl = relative(candidate(root.resolve("candidate").resolve(profile), profile))
       for {
-        point <- Vector((1, 1, 1), (5, 1, 3), (5, 2, 2), (8, 3, 3), (5, 5, 2), (8, 9, 3), (1, 5, 2))
+        point <- points(profile)
         mode <- Vector(0, 1, 2)
       } yield {
         val (width, count, rowCount) = point

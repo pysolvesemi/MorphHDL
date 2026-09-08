@@ -215,6 +215,18 @@ def verify(root: Path, qualification_base: str = BASE) -> None:
     nested = nested_source_review(root)
     if nested is not None:
         paths = nested.inherited_inventory(root, paths, qualification_base)
+        register = getattr(nested, "register_source_review", lambda _: None)(root)
+        if register is not None:
+            # The nested/register audits have already verified the complete
+            # current production tree against the register's pinned merged base.
+            # Strip only that base's disjoint siblings from this local 59c
+            # inventory, preserving them for the enclosing 60f profile check.
+            baseline_paths = subprocess.check_output(
+                ["git", "diff", "--no-renames", "--name-only", qualification_base, register.BASE],
+                cwd=root, text=True).splitlines()
+            baseline_paths = {path for path in baseline_paths if re.search(r"(?:^|/)src/main/", path)}
+            inherited = nested.inherited_inventory(root, baseline_paths, qualification_base)
+            paths -= inherited - PRODUCTION_PATHS
     require_production_inventory(paths)
     verify_spans(root, qualification_base)
     print("59c complete production inventory and exact source spans restore the merged baseline PASS")
