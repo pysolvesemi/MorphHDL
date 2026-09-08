@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = "0018da2740645e0ac0c419ded7b67c01622d2bb7"
 CHECKER = "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 CONTRACT = "morphhdl/contracts/increment-59h-source-review.json"
+JOIN_CONTRACT = "morphhdl/contracts/increment-59i-source-review.json"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
@@ -92,15 +93,22 @@ def main() -> None:
     spec.loader.exec_module(review)
     outside = "unreviewed source change outside 59h spans"
     register = getattr(review, "register_source_review", lambda root: None)(ROOT)
+    # A reviewed successor must reject its own mutations first. Keep the
+    # independent older diagnostics for files outside that exact inventory;
+    # this changes no production bytes, mutation actions or acceptance rules.
+    join = getattr(register, "join_source_review", lambda root: None)(ROOT) if register is not None else None
     cases = [("unreviewed suffix " + path, path, "suffix",
+              "unreviewed source change outside 59i spans" if join is not None and path in join.PATHS else
               "unreviewed source change outside reviewed 59g spans"
               if register is not None and path in register.PATHS else outside)
              for path in review.PATHS]
     cases += [
         ("changed reviewed owner span", runtime, "inside", "missing/changed 59h reviewed source span"),
-        ("missing owner implementation", prod, "remove", "59h reviewed source is missing"),
+        ("missing owner implementation", prod, "remove",
+         "59i reviewed source must be a regular non-executable file" if join is not None else "59h reviewed source is missing"),
         ("removed review", CONTRACT, "remove", "59h source-review checker or contract is missing"),
-        ("paired production and review mutation", prod, "paired", "59h reviewed source manifest changed"),
+        ("paired production and review mutation", prod, "paired",
+         "unreviewed source change outside 59i spans" if join is not None else "59h reviewed source manifest changed"),
         ("unreviewed production root", "foreign/src/main/Unreviewed.scala", "suffix",
          "untracked production sources"),
         ("staged hidden owner change", prod, "hidden-index", "staged production sources"),
@@ -109,8 +117,15 @@ def main() -> None:
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
-         ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
+         ("59i" if join is not None else "59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
+    if join is not None:
+        cases += [
+            ("changed inherited owner review alone", CONTRACT, "suffix", "59h reviewed source manifest changed"),
+            ("removed combined successor review", JOIN_CONTRACT, "remove", "59i source-review checker or contract is missing"),
+            ("changed combined successor review", JOIN_CONTRACT, "suffix", "59i reviewed source manifest changed"),
+            ("paired production and combined review mutation", prod, "paired-join", "59i reviewed source manifest changed"),
+        ]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
             fixture = Path(directory) / ("negative-" + str(index))
@@ -129,9 +144,10 @@ def main() -> None:
                     path.write_bytes(original[:start] + bytes([original[start] ^ 1]) + original[start + 1:])
                 else:
                     marker = b"#" if path.suffix == ".py" else b"//"
-                    path.write_bytes(original + b"\n" + marker + b" isolated unreviewed 59h mutation\n")
-                    if mutation == "paired":
-                        contract = fixture / CONTRACT
+                    path.write_bytes(original + (b"\n" if relative in (CONTRACT, JOIN_CONTRACT) else
+                        b"\n" + marker + b" isolated unreviewed 59h mutation\n"))
+                    if mutation in ("paired", "paired-join"):
+                        contract = fixture / (JOIN_CONTRACT if mutation == "paired-join" else CONTRACT)
                         contract.write_bytes(contract.read_bytes() + b"\n")
                     elif mutation == "hidden-index":
                         git(fixture, "add", "--", relative)

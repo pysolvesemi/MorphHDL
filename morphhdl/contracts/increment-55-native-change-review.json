@@ -850,9 +850,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
       "edits": [
         {
           "id": "vec-nested-write-evidence-imports-59c",
@@ -1000,7 +1001,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1030,6 +1031,26 @@
             {
               "side": "approved",
               "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
               "count": 1
             }
           ]

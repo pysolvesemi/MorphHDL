@@ -37,6 +37,11 @@ class TypedBalancedReductionCombinedTests extends AnyFunSuite {
       }
       assert(rtl.contains("always @(posedge clk)"), rtl)
       assert(rtl.contains("morphhdl_balanced_"), rtl)
+      // A packed static SInt read must keep the native qualifier and native
+      // casts for the requested profile; transport itself remains unsigned.
+      val qualifier = if (layout == "fields" || signed != "legacy") " signed" else ""
+      assert(rtl.contains(s"wire$qualifier [(WIDTH)-1:0] signedRecords_0_real;"), rtl)
+      assert(rtl.contains(s"wire$qualifier [(WIDTH)-1:0] signedRecords_0_imag;"), rtl)
       if (layout == "fields") {
         Vector("records_key", "records_tag", "records_x", "records_y", "signedRecords_real", "signedRecords_imag")
           .foreach(name => assert(rtl.contains(name), rtl))

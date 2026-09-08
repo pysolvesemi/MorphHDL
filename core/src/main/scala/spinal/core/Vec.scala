@@ -187,8 +187,8 @@ private[core] final class ParameterizedVecStaticAccessAssign(
     val vector: Vec[_],
     val elementIndex: Int,
     val elementLeafIndex: Int,
-    leaf: BaseType,
-    previous: Assignable
+    private val leaf: BaseType,
+    private val previous: Assignable
 ) extends Assignable {
   private[core] def captures(owner: Vec[_], index: Int, leafIndex: Int): Boolean =
     ((vector eq owner) && elementIndex == index && elementLeafIndex == leafIndex) || (previous match {
@@ -211,6 +211,32 @@ private[core] final class ParameterizedVecStaticAccessAssign(
         case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)
         case _ => false
       })
+
+  /** Composite-read counterpart. The caller supplies exact containment leaves
+    * only AFTER auditing the runtime Data classes. This wrapper never invokes
+    * flatten, a clone/assignment hook, or an application callback to establish
+    * identity. Every previous link must independently resolve in that snapshot.
+    */
+  private[core] def isCertifiedReadOf(expected: BaseType,
+      auditedLeaves: java.util.IdentityHashMap[Data, Vector[BaseType]]): Boolean = {
+    def inspect(wrapped: ParameterizedVecStaticAccessAssign, remaining: Int): Boolean = {
+      if (remaining == 0 || (wrapped.leaf ne expected) || wrapped.vector == null ||
+          wrapped.vector.getClass != classOf[Vec[_]] || wrapped.elementIndex < 0 ||
+          wrapped.elementIndex >= wrapped.vector.vec.size) return false
+      val element = wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[Data]
+      val leaves = auditedLeaves.get(element)
+      leaves != null && wrapped.elementLeafIndex >= 0 && wrapped.elementLeafIndex < leaves.size &&
+        (leaves(wrapped.elementLeafIndex) eq expected) &&
+        ParameterizedVec.shapeOf(wrapped.vector).exists(shape =>
+          shape.carrierCapacity == wrapped.vector.vec.size && shape.elementLeaves.size == leaves.size) &&
+        (wrapped.previous match {
+          case null => true
+          case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)
+          case _ => false
+        })
+    }
+    auditedLeaves != null && inspect(this, 64)
+  }
 
   override def assignFromImpl(that: AnyRef, target: AnyRef, kind: AnyRef)(implicit loc: Location): Unit = {
     val active = leaf.compositeAssign

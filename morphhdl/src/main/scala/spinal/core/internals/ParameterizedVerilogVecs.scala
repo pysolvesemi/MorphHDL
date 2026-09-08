@@ -222,7 +222,8 @@ private[internals] object ParameterizedVerilogVecs {
       net: String,
       comma: Boolean,
       declaratorStart: Int,
-      declaratorEnd: Int
+      declaratorEnd: Int,
+      signed: Boolean
   )
 
   private final case class CaseBlock(
@@ -1515,6 +1516,10 @@ private[internals] object ParameterizedVerilogVecs {
       .split("\n", -1)
       .toVector
 
+    // Native declarations are the signedness authority for exact reconstructed
+    // scalar reads. Packed carriers stay unsigned; a compatibility profile
+    // must not silently make a legacy unsigned SInt alias signed.
+    val nativeReadSignedness = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val layoutWiring = ArrayBuffer.empty[String]
     val packedReadBridges = new IdentityHashMap[Vec[_], java.lang.Boolean]()
     val publishedLayoutNames = plans.flatMap(plan =>
@@ -1844,7 +1849,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
 
     plans.filter(_.projection.isEmpty).foreach { plan =>
-      lines = collapseDeclaration(lines, plan)
+      lines = collapseDeclaration(lines, plan, nativeReadSignedness)
     }
 
     // Each reconstructed signed read retains the original exact native scalar
@@ -1939,13 +1944,9 @@ private[internals] object ParameterizedVerilogVecs {
             fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-STATIC-INDEX-INVALID",
               s"static nested Vec leaf '${leaf.name}' is not active over every admitted inner dimension", plan.sourceLocation)
           if (isSignedLeaf(leaf.shape)) {
-            if (!morphhdl.MorphSignedCasts.isEnabled(pc.config) && plan.layout.isEmpty) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
-                s"constant indexed SInt leaf '${leaf.name}' of Vec '${plan.name}' requires signed boundary publication",
-                plan.sourceLocation
-              )
-            }
+            if (!nativeReadSignedness.containsKey(leaf.value))
+              fail("SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-DECLARATION-MISSING",
+                "constant signed read lost its exact native declaration evidence", plan.sourceLocation)
             // A residual write cannot drive a read reconstruction alias. All
             // aggregate writers must already have exact claimed lineage.
             val drivers = liveAssignments.keySet().iterator()
@@ -1970,8 +1971,13 @@ private[internals] object ParameterizedVerilogVecs {
             if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
               "signed leaf reconstruction requires one native module boundary", plan.sourceLocation)
             val width = render(leaf.shape.width)
+            // Retain the already-qualified field-layout alias contract. For
+            // legacy packed transport, replay the native declaration's actual
+            // qualifier instead of assuming that an SInt must emit signed.
+            val qualifier = if (plan.layout.nonEmpty || nativeReadSignedness.get(leaf.value).booleanValue())
+              " signed" else ""
             lines = lines.patch(end, Vector(
-              s"  wire signed [($width)-1:0] ${leaf.name};",
+              s"  wire$qualifier [($width)-1:0] ${leaf.name};",
               s"  assign ${leaf.name} = ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)};"
             ), 0)
             reconstructedSignedReads.put(leaf.value, java.lang.Boolean.TRUE)
@@ -6307,10 +6313,13 @@ private[internals] object ParameterizedVerilogVecs {
 
   private def collapseDeclaration(
       original: Vector[String],
-      plan: VecPlan
+      plan: VecPlan,
+      nativeReadSignedness: IdentityHashMap[BaseType, java.lang.Boolean]
   ): Vector[String] = {
     val declarations = plan.leaves.map { leaf =>
-      parseDeclaration(original, leaf.name, plan.sourceLocation)
+      val declaration = parseDeclaration(original, leaf.name, plan.sourceLocation)
+      nativeReadSignedness.put(leaf.value, java.lang.Boolean.valueOf(declaration.signed))
+      declaration
     }
     val indexes = declarations.map(_.lineIndex)
     if (indexes.distinct.size != indexes.size) {
@@ -6401,14 +6410,18 @@ private[internals] object ParameterizedVerilogVecs {
   ): ParsedDeclaration = {
     val port =
       ("^([ \\t]*)(.*?)(input|output|inout)\\s+(wire|reg|logic)" +
-        "\\s*(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "\\s*(?:(signed)\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*(,?)\\s*(?://.*)?$").r
     val signal =
       ("^([ \\t]*)(.*?)(wire|reg|logic)\\s*" +
-        "(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "(?:(signed)\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*;\\s*(?://.*)?$").r
     val matches = lines.zipWithIndex.flatMap { case (line, index) =>
-      port
+      // Every match contains this exact quoted identifier. Reject unrelated
+      // lines before running the full parser; keep its syntax and uniqueness
+      // checks unchanged for all potentially matching declarations.
+      if (!line.contains(name)) None
+      else port
         .findFirstMatchIn(line)
         .map { value =>
           ParsedDeclaration(
@@ -6417,9 +6430,10 @@ private[internals] object ParameterizedVerilogVecs {
             value.group(2),
             Some(value.group(3)),
             value.group(4),
-            value.group(6) == ",",
-            value.start(5),
-            value.end(5)
+            value.group(7) == ",",
+            value.start(6),
+            value.end(6),
+            value.group(5) != null
           )
         }
         .orElse {
@@ -6431,8 +6445,9 @@ private[internals] object ParameterizedVerilogVecs {
               None,
               value.group(3),
               comma = false,
-              value.start(4),
-              value.end(4)
+              value.start(5),
+              value.end(5),
+              value.group(4) != null
             )
           }
         }

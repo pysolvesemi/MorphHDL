@@ -23,46 +23,59 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
   private val checked = mutable.Set.empty[String]
   private val active = mutable.Set.empty[String]
   private val checkedCompanions = mutable.Set.empty[String]
-  private val inspectedValues = new java.util.IdentityHashMap[spinal.core.Data, java.lang.Boolean]()
+  private val inspectedValues =
+    new java.util.IdentityHashMap[spinal.core.Data, Vector[spinal.core.BaseType]]()
 
-  /** Native clone may dispatch through an object's actual class or hardtype,
-    * even when the callback signature says only Data/Bundle. Inspect those
-    * exact values before any callback or reflective constructor can execute.
+  /** Audit containment before following static-read evidence. A valid Vec
+    * wrapper can lead back to its containing record, but that metadata edge
+    * is not a containment cycle. No unaudited Data method or Assignable hook
+    * executes while deciding whether a callback input is safe.
     */
   def requireValue(value: spinal.core.Data): Unit = {
     val path = new java.util.IdentityHashMap[spinal.core.Data, java.lang.Boolean]()
-    def visit(data: spinal.core.Data, depth: Int): Unit = {
+    val redirects = mutable.ArrayBuffer.empty[spinal.core.Data]
+    def visit(data: spinal.core.Data, depth: Int): Vector[spinal.core.BaseType] = {
       if (data == null) fail("composite callback input contains null data")
       if (path.containsKey(data)) fail("composite callback input has a cyclic Data container")
-      if (inspectedValues.containsKey(data)) return
-      if (depth > 64 || inspectedValues.size() >= 32768)
+      if (inspectedValues.containsKey(data)) return inspectedValues.get(data)
+      if (depth > 64 || inspectedValues.size() + path.size() >= 32768)
         fail("composite callback input tree exceeds the inspection budget")
-      inspectedValues.put(data, java.lang.Boolean.TRUE)
       path.put(data, java.lang.Boolean.TRUE)
       val owner = data.getClass.getName.replace('.', '/')
-      if (scalarNames(owner)) ()
+      val leaves = if (scalarNames(owner)) Vector(data.asInstanceOf[spinal.core.BaseType])
       else if (owner == "spinal/core/Vec") {
-        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.foreach(child => visit(child, depth + 1))
+        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.flatMap(child => visit(child, depth + 1))
       } else if (customBundle(owner)) {
         auditBundle(owner)
         val bundle = data.asInstanceOf[spinal.core.Bundle]
         if (bundle.hardtype != null)
           fail("composite callback Bundle has an opaque native clone factory: " + owner)
-        bundle.elements.foreach { case (_, child) => visit(child, depth + 1) }
+        bundle.elements.toVector.flatMap { case (_, child) => visit(child, depth + 1) }
       } else fail("composite callback input has an unsupported runtime Data class: " + owner)
-      // Even an exact native Data class can redirect assignment to an opaque
-      // per-instance Assignable. Such a hook can run host code without adding
-      // an IR assignment, so post-callback external-write checks cannot detect
-      // it. Read this inherited property only after the class audit above.
-      data.compositeAssign match {
-        case null =>
-        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign
-            if scalarNames(owner) && wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType]) =>
-        case _ => fail("composite callback input has an opaque native assignment redirect: " + owner)
-      }
       path.remove(data)
+      inspectedValues.put(data, leaves)
+      redirects += data
+      leaves
     }
     visit(value, 0)
+    var index = 0
+    while (index < redirects.size) {
+      val data = redirects(index)
+      val owner = data.getClass.getName.replace('.', '/')
+      // Read this inherited property only after the exact class audit. The
+      // inspected final wrapper exposes metadata, never application methods.
+      data.compositeAssign match {
+        case null =>
+        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign if scalarNames(owner) =>
+          if (wrapped.vector != null && wrapped.vector.getClass == classOf[spinal.core.Vec[_]] &&
+              wrapped.elementIndex >= 0 && wrapped.elementIndex < wrapped.vector.vec.size)
+            visit(wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[spinal.core.Data], 0)
+          if (!wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType], inspectedValues))
+            fail("composite callback input has an opaque native assignment redirect: " + owner)
+        case _ => fail("composite callback input has an opaque native assignment redirect: " + owner)
+      }
+      index += 1
+    }
   }
 
   private def read(owner: String): ClassNode = classes.getOrElseUpdate(owner, {
