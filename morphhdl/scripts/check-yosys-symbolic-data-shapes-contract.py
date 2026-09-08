@@ -58,6 +58,23 @@ def main():
     netnames = module.get("netnames", {})
     cells = module.get("cells", {})
 
+    # Exact fixture type contract: packed transports and control/address-like
+    # leaves are unsigned; only the independently declared SInt scalars own
+    # signed arithmetic interpretation. This checks metadata, not just widths.
+    signed_ports = {
+        "bundle_in_sint", "bundle_out_sint", "flow_in_payload_sint",
+        "flow_out_payload_sint", "sint_in", "sint_out", "stream_in_payload_sint",
+        "stream_out_payload_sint", "register_out_sint",
+    }
+    if {name for name, port in ports.items() if port.get("signed", 0)} != signed_ports:
+        return fail("scalar signedness or unsigned packed/control port metadata changed")
+    for leaf in ("bits", "uint", "sint"):
+        for prefix in ("internal_payload_", "payload_register_"):
+            name = prefix + leaf
+            signal = netnames.get(name)
+            if signal is None or bool(signal.get("signed", 0)) != (leaf == "sint"):
+                return fail("wrong scalar signedness for " + name)
+
     if len(cells) != 3 or any(cell.get("type") != "$dff" for cell in cells.values()):
         return fail("expected exactly three cells and all must be $dff")
 

@@ -209,7 +209,10 @@ def current_controls(root: Path) -> None:
                      for entry in manifest["checker_adapters"]})
     candidate = {path: git(root, "show", review.QUALIFIED + ":" + path)
                  for path in manifest["ternary_sources"]}
-    adapters = {path: (root / path).read_bytes() for path in review.ADAPTER_PATHS}
+    # Synthetic WA-only controls exercise the unchanged qualified adapter layer.
+    # Real combined sources are separately checked below by the complete gates.
+    adapters = {path: review.restore_rollout(root, path, (root / path).read_text()).encode()
+                for path in review.ADAPTER_PATHS}
     negatives = synthetic_controls(root / HELPER, manifest, baseline, candidate, adapters)
     closure = load(root / CLOSURE, "wa07b_current_closure")
     artifacts = load(root / ARTIFACTS, "wa07b_current_artifacts")

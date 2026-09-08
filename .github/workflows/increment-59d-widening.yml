@@ -49,6 +49,7 @@ jobs:
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
       github.ref_name == 'parameterized-verilog'
     name: Symbolic widening Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
+import importlib.util
 import json
 import stat
 import subprocess
@@ -112,9 +113,28 @@ def restore_bytes(entry: dict, baseline: bytes, source: bytes) -> bytes:
     return restored
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    """Reverse only the separately pinned outer publication layer, if present.
+
+    This is byte restoration, not a validation shortcut: verify() still checks
+    the complete current pass tree and index, and restore_bytes() still binds
+    all original WA-07b adapter spans to their immutable baseline.
+    """
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not (helper.exists() or helper.is_symlink()):
+        return source
+    require(helper.is_file() and not helper.is_symlink(), "missing regular 60g reviewer")
+    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
+    require(spec is not None and spec.loader is not None, "cannot import 60g reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def restore_adapter(root: Path, path: str, source: str) -> str:
     if path not in ADAPTER_PATHS:
         return source
+    source = restore_rollout(root, path, source)
     value = load_contract(root)
     entry = next(x for x in value["checker_adapters"] if x["path"] == path)
     return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), source.encode()).decode()
@@ -194,7 +214,8 @@ def verify(root: Path) -> bool:
     for entry in value["checker_adapters"]:
         path = entry["path"]
         current = regular(root, path)
-        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), current)
+        restored = restore_rollout(root, path, current.decode()).encode()
+        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), restored)
     # Reject a hidden index change even when the visible bytes were restored.
     dirty = git(root, "diff", "--cached", "--name-only", "HEAD", "--", *ADAPTER_PATHS, CONTRACT)
     require(not dirty.strip(), "staged compatibility adapter or manifest")

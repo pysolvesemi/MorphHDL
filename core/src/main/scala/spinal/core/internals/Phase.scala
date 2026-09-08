@@ -179,7 +179,13 @@ class PhaseContext(val config: SpinalConfig) {
 
   val verboseLog = if(config.verbose) new java.io.FileWriter("verbose.log") else null
 
+  // Monotonic per-context lifecycle evidence; observing it does not change
+  // native phase order, logging, validation or emission.
+  @volatile private var phaseExecutionStarted = false
+  private[spinal] def hasStartedPhaseExecution: Boolean = phaseExecutionStarted
+
   def doPhase(phase: Phase): Unit ={
+    phaseExecutionStarted = true
     if(config.verbose) verboseLog.write(s"phase: $phase\n")
     phase.impl(this)
     if(config.verbose){
