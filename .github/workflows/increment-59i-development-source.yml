@@ -16,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Preserve only Git source objects and declared refs
@@ -25,11 +26,13 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-59i-development-source"
           mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
           git rev-parse refs/remotes/origin/parameterized-verilog > "$output/integration-head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
           git bundle create "$output/source-history.bundle" HEAD refs/remotes/origin/parameterized-verilog
           git bundle verify "$output/source-history.bundle" > "$output/verify.log" 2>&1
           git bundle list-heads "$output/source-history.bundle" > "$output/refs.txt"
-          sha256sum "$output/source-history.bundle" > "$output/sha256.txt"
+          sha256sum "$output/source-history.bundle" "$output/source.tar.gz" > "$output/sha256.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: increment-59i-development-source
