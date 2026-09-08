@@ -1,0 +1,29 @@
+name: Export 60g final audit ancestry
+on:
+  push:
+    branches: [agent/60g-final-audit-transfer-20260908]
+    paths: ['.github/workflows/60g-final-history-export.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Retain immutable audit anchors without running or changing source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/60g-final-history
+          git bundle create target/60g-final-history/repository.bundle 8db3f8858200ade550f629855a8125fe03351897 64e8fddc432e859b6b532540bee96c5608d46efa 8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git rev-parse HEAD > target/60g-final-history/export-head.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 60g-final-audit-history
+          path: target/60g-final-history
+          retention-days: 7
+          if-no-files-found: error
