@@ -1,0 +1,86 @@
+name: Transfer exact 60g rejection expectation repair
+on:
+  push:
+    branches: [agent/60g-diagnostic-transfer-20260908]
+    paths: ['.github/workflows/60g-diagnostic-transfer.yml']
+permissions:
+  contents: write
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify and stage only the reviewed three-file test-metadata delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import difflib, hashlib, json, os, shutil, subprocess, tempfile
+          branch = 'agent/60g-diagnostic-transfer-20260908'
+          base = '8db3f8858200ade550f629855a8125fe03351897'
+          helper = '.github/workflows/60g-diagnostic-transfer.yml'
+          def git(*args, **kwargs):
+              return subprocess.check_output(['git', *args], text=True, **kwargs).strip()
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
+          assert git('rev-parse', 'HEAD^') == base
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          path = 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py'
+          file = Path(path)
+          source = file.read_text()
+          old = '("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"'
+          new = '"60g publication/serialization delta differs from the merged baseline" if rollout is not None else\n         ' + old
+          assert source.count(old) == 1
+          source = source.replace(old, new)
+          file.write_text(source)
+          digest = lambda text: hashlib.sha256(text.encode()).hexdigest()
+          ledger = Path('morphhdl/contracts/increment-60g-publication-edits.json')
+          data = json.loads(ledger.read_text())
+          entry = next(e for e in data['files'] if e['path'] == path)
+          before = subprocess.check_output(['git', 'show', data['base'] + ':' + path], text=True)
+          assert digest(before) == entry['before_sha256']
+          oldhash = entry['after_sha256']
+          a, b = before.splitlines(True), source.splitlines(True)
+          edits = []
+          for group in difflib.SequenceMatcher(None, a, b, autojunk=False).get_grouped_opcodes(2):
+              aa = ''.join(a[group[0][1]:group[-1][2]])
+              bb = ''.join(b[group[0][3]:group[-1][4]])
+              assert aa and bb and before.count(aa) == source.count(bb) == 1
+              edits.append({'before': aa, 'after': bb})
+          restored = source
+          for edit in reversed(edits):
+              restored = restored.replace(edit['after'], edit['before'], 1)
+          assert restored == before
+          entry['after_sha256'] = digest(source)
+          entry['edits'] = edits
+          oldledgerhash = hashlib.sha256(ledger.read_bytes()).hexdigest()
+          ledger.write_text(json.dumps(data, indent=2) + '\n')
+          guard = Path('morphhdl/scripts/check-increment-60g-source-scope.py')
+          text = guard.read_text()
+          assert text.count(oldhash) == text.count(oldledgerhash) == 1
+          text = text.replace(oldhash, digest(source)).replace(oldledgerhash, hashlib.sha256(ledger.read_bytes()).hexdigest())
+          guard.write_text(text)
+          subprocess.run(['git', 'add', '--', path, str(ledger), str(guard)], check=True)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          assert set(git('diff', '--cached', '--name-only').splitlines()) == {path, str(ledger), str(guard)}
+          with tempfile.TemporaryDirectory() as temporary:
+              index = Path(temporary) / 'index'
+              shutil.copyfile(git('rev-parse', '--git-path', 'index'), index)
+              env = dict(os.environ, GIT_INDEX_FILE=str(index))
+              subprocess.run(['git', 'update-index', '--force-remove', '--', helper], env=env, check=True)
+              canonical = git('write-tree', env=env)
+              assert canonical == '62c3a0e04091f6166857f59e2fccf606da4dd5c6', canonical
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          git('config', 'user.name', 'github-actions[bot]')
+          git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+          git('commit', '-m', 'Stage exact one-line diagnostic expectation and matching source ledgers [skip ci]')
+          git('push', 'origin', 'HEAD:refs/heads/' + branch)
+          print('STAGED_COMMIT=' + git('rev-parse', 'HEAD'))
+          print('CANONICAL_SOURCE_TREE=' + canonical)
+          print('This transfer does not merge the PR or qualify compiler/HDL behavior.')
+          PY
