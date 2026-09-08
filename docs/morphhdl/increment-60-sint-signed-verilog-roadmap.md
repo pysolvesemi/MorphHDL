@@ -1,6 +1,10 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60f qualified; 60g remains unchecked.
+**Status:** 60a through 60g complete and merged into `parameterized-verilog`
+via [PR #167](https://github.com/pysolvesemi/MorphHDL/pull/167) at
+`a071c801c0e87daa13265986a000b000817fbc04`. The final qualified PR head is
+`fcae354f397f4e993a603c52e83311a762d06a9b`; post-merge CI is tracked separately
+in the PR. Earlier qualification records below retain their historical scope.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
