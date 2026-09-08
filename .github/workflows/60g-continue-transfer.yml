@@ -1,0 +1,89 @@
+name: Stage exact combined 60g checker integration
+on:
+  push:
+    branches: [agent/60g-continue-source-export-20260908]
+    paths: ['.github/60g-continue-transfer/**', '.github/workflows/60g-continue-transfer.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    if: github.ref == 'refs/heads/agent/60g-continue-source-export-20260908'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify and stage exact reviewed source on the transfer branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip, hashlib, json, os, shutil, subprocess, tempfile
+          from pathlib import Path
+          branch = 'agent/60g-continue-source-export-20260908'
+          parent = 'b73166caa95517a05568316518969540e13d03c6'
+          pr = '8db3f8858200ade550f629855a8125fe03351897'
+          target = '64e8fddc432e859b6b532540bee96c5608d46efa'
+          directory = Path('.github/60g-continue-transfer')
+          helpers = ['.github/workflows/60g-continue-source-export.yml',
+                     '.github/workflows/60g-qualified-pass-history.yml',
+                     '.github/workflows/60g-continue-transfer.yml', str(directory)]
+          def git(*args, **kwargs):
+              return subprocess.check_output(['git', *args], text=True, **kwargs).strip()
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
+          assert git('rev-parse', 'HEAD^') == parent
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          parts = sorted(directory.glob('packet-*.gz.part'))
+          assert [p.name for p in parts] == [f'packet-{i}.gz.part' for i in range(4)]
+          raw = gzip.decompress(b''.join(p.read_bytes() for p in parts))
+          assert hashlib.sha256(raw).hexdigest() == 'd587ddb2375e3b7756cda0668ce3eb7d1ebfc5a2f5787e234197cc0d73be239d'
+          envelope = json.loads(raw)
+          assert set(envelope) == {'metadata', 'patch', 'generator'}
+          meta = envelope['metadata']
+          assert meta['pr'] == pr and meta['target'] == target
+          assert len(meta['copy_from_pr']) == 48
+          assert meta['starting_tree'] == 'd5bcae527c6ab0eaaac1c082075d653513411a90'
+          assert meta['final_tree'] == 'f38d46cd15c7c78ca16ca0e3e3c6fcecf195bb57'
+          assert meta['ledger_sha256'] == '2d7678a1c11d55bfa9f51a2559dce54f9ab9a8e71bd209139b9b30a21be22386'
+          patch_bytes = envelope['patch'].encode()
+          assert hashlib.sha256(patch_bytes).hexdigest() == meta['patch_sha256']
+          for old in (pr, target):
+              subprocess.run(['git', 'cat-file', '-e', old + '^{commit}'], check=True)
+          subprocess.run(['git', 'merge-base', '--is-ancestor', target, 'HEAD'], check=True)
+          subprocess.run(['git', 'checkout', pr, '--', *meta['copy_from_pr']], check=True)
+          with tempfile.TemporaryDirectory() as temporary:
+              temp = Path(temporary)
+              entries = git('ls-files', '--', *helpers).splitlines()
+              assert len(entries) == 7
+              def canonical():
+                  index = temp / 'verify.index'
+                  shutil.copyfile(git('rev-parse', '--git-path', 'index'), index)
+                  env = dict(os.environ, GIT_INDEX_FILE=str(index))
+                  subprocess.run(['git', 'update-index', '--force-remove', '--', *entries], env=env, check=True)
+                  return git('write-tree', env=env)
+              assert canonical() == meta['starting_tree'], 'unexpected starting source tree'
+              patch = temp / 'integration.patch'
+              patch.write_bytes(patch_bytes)
+              subprocess.run(['git', 'apply', '--check', '--index', str(patch)], check=True)
+              subprocess.run(['git', 'apply', '--index', str(patch)], check=True)
+              generator = temp / 'refresh-ledger.py'
+              generator.write_text(envelope['generator'])
+              subprocess.run(['python3', str(generator)], check=True)
+              ledger = Path('morphhdl/contracts/increment-60g-publication-edits.json')
+              assert hashlib.sha256(ledger.read_bytes()).hexdigest() == meta['ledger_sha256']
+              subprocess.run(['git', 'add', '-f', str(ledger)], check=True)
+              subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+              assert canonical() == meta['final_tree'], 'complete final source tree differs'
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          git('config', 'user.name', 'github-actions[bot]')
+          git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+          git('commit', '-m', 'Stage exact reviewed combined 60g checker integration [skip ci]')
+          git('push', 'origin', 'HEAD:refs/heads/' + branch)
+          print('STAGED_COMMIT=' + git('rev-parse', 'HEAD'))
+          print('STAGED_TREE=' + git('rev-parse', 'HEAD^{tree}'))
+          print('CANONICAL_SOURCE_TREE=' + meta['final_tree'])
+          print('No PR merge or compiler/HDL qualification is claimed by this source transfer.')
+          PY
