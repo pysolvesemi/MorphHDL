@@ -1,0 +1,71 @@
+name: Preserve current target in recovered 60g source
+on:
+  push:
+    branches: [agent/60g-inherited-audit-publish-20260907]
+    paths: ['.github/workflows/60g-preserve-latest-target.yml']
+permissions:
+  contents: write
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Stage the exact reviewed source join only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, shutil, subprocess, tempfile
+          from pathlib import Path
+          branch = 'agent/60g-inherited-audit-publish-20260907'
+          target = 'd32fcf71fc81662618d72b0ec0a5d8a59c50b4d6'
+          parent = 'f60ff5cec00a080d7fe2f584f92e0ea4866bbbcf'
+          def git(*args, **kwargs):
+              return subprocess.check_output(['git', *args], text=True, **kwargs).strip()
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
+          assert git('rev-parse', 'HEAD^') == parent
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          paths = ['docs/morphhdl/increment-59g-register-bridges.md',
+                   'docs/morphhdl/increment-59h-nested-structural-owners.md',
+                   'docs/morphhdl/parameterized-verilog-todo.md',
+                   'morphhdl/scripts/check-increment-59h-nested-owners.py',
+                   'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedOwnerArtifactWriter.scala']
+          subprocess.run(['git', 'checkout', target, '--', *paths], check=True)
+          roadmap = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          current = roadmap.read_text()
+          completed = subprocess.check_output(['git', 'show', 'a6d6ad2e1d697a911577060e3ad317ffb0affd4b:' + str(roadmap)], text=True)
+          start, end = '### Native signed-Verilog track (Increment 60)', '## Completion target'
+          for text in (current, completed):
+              assert text.count(start) == text.count(end) == 1
+          lo, hi = current.index(start), current.index(end)
+          section = completed[completed.index(start):completed.index(end)]
+          roadmap.write_text(current[:lo] + section + current[hi:])
+          subprocess.run(['git', 'add', str(roadmap)], check=True)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          assert not git('diff', '--cached', '--name-only', '--', '.github/workflows')
+          helpers = ['.github/60g-inherited-audit-publish', '.github/workflows/60g-inherited-audit-publish.yml',
+                     '.github/workflows/60g-resume-source-export.yml', '.github/workflows/60g-preserve-latest-target.yml']
+          with tempfile.TemporaryDirectory() as temporary:
+              index = Path(temporary) / 'index'
+              shutil.copyfile(git('rev-parse', '--git-path', 'index'), index)
+              env = dict(os.environ, GIT_INDEX_FILE=str(index))
+              entries = git('ls-files', '--', *helpers).splitlines()
+              assert len(entries) == 7
+              subprocess.run(['git', 'update-index', '--force-remove', '--', *entries], env=env, check=True)
+              canonical = git('write-tree', env=env)
+              assert canonical == '500b71b07a311841a2bbf9189c636c7bce74e6fb', canonical
+          assert git('ls-remote', 'origin', 'refs/heads/' + branch).split()[0] == os.environ['GITHUB_SHA']
+          git('config', 'user.name', 'github-actions[bot]')
+          git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+          git('commit', '-m', 'Stage latest target closeouts with exact recovered 60g source [skip ci]')
+          git('push', 'origin', 'HEAD:refs/heads/' + branch)
+          print('STAGED_COMMIT=' + git('rev-parse', 'HEAD'))
+          print('STAGED_TREE=' + git('rev-parse', 'HEAD^{tree}'))
+          print('CANONICAL_SOURCE_TREE=' + canonical)
+          print('No PR merge or compiler/hardware qualification is claimed by this source transfer.')
+          PY
