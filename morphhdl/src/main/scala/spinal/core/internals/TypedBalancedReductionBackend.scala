@@ -368,8 +368,9 @@ object TypedBalancedReductionBackend {
       native: ElabBalancedReduction.Native[Data]): Data = {
     val owner = Component.current
     val lexicalOwner = ParameterizedStructure.currentLexicalOwner("balanced composite publication")
-    if (!lexicalOwner.isModuleScope)
-      fail("NESTED-COMPOSITE", "nested composite reduction qualification belongs to the cross-feature join")
+    // Composite templates use the same exact lexical owner, pre-normalization
+    // handoff and result-escape validation as scalar templates. No ownership is
+    // inferred from the element layout or the generated block name.
     val storage = owner.userCache.getOrElseUpdate(StorageKey, new Storage).asInstanceOf[Storage]
     val ordinal = storage.records.size + 1
     val prefix = s"morphhdl_balanced_$ordinal"
@@ -511,7 +512,7 @@ object TypedBalancedReductionBackend {
         record.stages.flatMap(_.bodies).foreach(validateNativeAnchors)
       }
       val updated = if (record.output.isInstanceOf[BaseType]) rewriteScalar(component, current, record, pc, canonicalOf, nested)
-      else rewriteComposite(component, current, record, pc, canonicalOf)
+      else rewriteComposite(component, current, record, pc, canonicalOf, nested)
       record.published = true
       updated
     }
@@ -618,7 +619,7 @@ object TypedBalancedReductionBackend {
   }
 
   private def rewriteComposite(component: Component, current: String, record: Record,
-      pc: PhaseContext, canonicalOf: Component => Component): String = {
+      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {
     val stages = record.stages.map {
       case stage: CompositeStage => stage
       case _ => fail("TRANSPORT-LAYOUT", "a certified transport changed its scalar/composite stage kind")
@@ -626,7 +627,7 @@ object TypedBalancedReductionBackend {
     val width = if (record.shape.elementLeaves.size == 1 && !record.shape.elementLayout.hasNestedVectors)
       record.shape.elementLeaves.head.width.verilog else record.shape.elementWidthVerilog
     val base = s"morphhdl_balanced_${record.ordinal}"
-    val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet
+    val identifiers = "[A-Za-z_][A-Za-z0-9_$]*".r.findAllIn(current).toSet ++ structuralNames(component)
     def reserved(prefix: String): Vector[String] =
       (0 to stages.size).map(i => prefix + "_stage_" + i).toVector ++
         stages.indices.flatMap(i => Vector(prefix + "_i_" + i,
@@ -698,8 +699,11 @@ object TypedBalancedReductionBackend {
       }
     }
     val lines = ArrayBuffer.empty[String]
+    val scopedDeclarations = ArrayBuffer.empty[String]
+    def declare(line: String): Unit =
+      if (nested) scopedDeclarations += line else lines += line
     val first = prefix + "_stage_0"
-    lines += s"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;"
+    declare(s"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;")
     lines += s"  assign $first = ${record.input.getName()};"
     stages.zipWithIndex.foreach { case (stage, index) =>
       val before = prefix + "_stage_" + index
@@ -712,9 +716,9 @@ object TypedBalancedReductionBackend {
       var pairBody = connect(bodies(2 * index), stage.pair.left, before, "2 * " + genvar)
       pairBody = connect(pairBody, stage.pair.right.get, before, "2 * " + genvar + " + 1")
       val tailBody = connect(bodies(2 * index + 1), stage.tail.left, before, s"($inputs) - 1")
-      lines += s"  wire [(($width) * ($outputs))-1:0] $after;"
-      lines += s"  genvar $genvar;"
-      lines += "  generate"
+      declare(s"  wire [(($width) * ($outputs))-1:0] $after;")
+      declare(s"  genvar $genvar;")
+      if (!nested) lines += "  generate"
       lines += s"    if (${geometry.active.expression.verilog}) begin : ${prefix}_active_$index"
       lines += s"      for ($genvar = 0; $genvar < ($pairs); $genvar = $genvar + 1) begin : pairs"
       lines += indent(pairBody, 8)
@@ -727,10 +731,11 @@ object TypedBalancedReductionBackend {
       lines += s"    end else begin : ${prefix}_bypass_$index"
       lines += s"      assign $after = $before;"
       lines += "    end"
-      lines += "  endgenerate"
+      if (!nested) lines += "  endgenerate"
     }
     val last = prefix + "_stage_" + stages.size
-    val updated = connect(remaining, record.output, last, "0", moduleScope = true)
+    val updated = connect(remaining, record.output, last, "0", moduleScope = !nested)
+    if (nested) return scopedDeclarations.mkString("\n") + "\n" + updated + "\n" + lines.mkString("\n")
     val end = updated.lastIndexOf("endmodule")
     if (end < 0) fail("MODULE", "native module terminator missing")
     updated.substring(0, end) + lines.mkString("\n") + "\n" + updated.substring(end)

@@ -1,4 +1,4 @@
-name: Increment 59i combined reduction closure
+name: Increment 59i scoped composite join (in progress)
 
 on:
   push:
@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   integration:
-    name: Combined reduction Scala ${{ matrix.scala }}
+    name: Scoped composite join Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -42,6 +42,7 @@ jobs:
       COURSIER_CACHE: /sbt/.cache/coursier/v1
       SBT_TEST_PARALLEL: '0'
       JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SCALA_VERSION: ${{ matrix.scala }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,7 +50,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Preserve exact source and bootstrap pinned SBT
+      - name: Preserve exact source, check native preservation and bootstrap pinned SBT
         shell: bash
         run: |
           set -euo pipefail
@@ -57,6 +58,8 @@ jobs:
           mkdir -p "$output/bootstrap"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
           test "$version" = '1.10.0'
           base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
@@ -71,27 +74,29 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/bootstrap/repositories"
-      - name: Compile the actual combined source and export its classpath
-        shell: bash
-        run: |
+          cat > "$output/bootstrap/sbt.sh" <<'SH'
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59i-combined"
           java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
             -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$output/bootstrap/repositories" -Dsbt.override.build.repos=true \
-            -jar "$output/bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
-            'morph/Test/compile' 'export morph/Test/fullClasspath' \
-            'show morph/Test/scalacOptions' \
-            > "$output/compile.log" 2>&1 || { tail -n 160 "$output/compile.log"; exit 1; }
-      - name: Preserve only declared compilation inputs for reproducible local diagnosis
+            -jar "$output/bootstrap/sbt-launch.jar" "++$SCALA_VERSION" "$@"
+          SH
+      - name: Compile the actual combined source and export its classpath
         shell: bash
-        env:
-          SCALA_VERSION: ${{ matrix.scala }}
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          bash "$output/bootstrap/sbt.sh" 'morph/Test/compile' \
+            'export morph/Test/fullClasspath' 'show morph/Test/scalacOptions' \
+            > "$output/compile.log" 2>&1 || { tail -n 160 "$output/compile.log"; exit 1; }
+      - name: Preserve declared compilation inputs for reproducible local diagnosis
+        shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib, json, os, shutil, tarfile
+          import json, os, shutil, tarfile
           from pathlib import Path
           output = Path('target/increment-59i-combined')
           lines = (output / 'compile.log').read_text().splitlines()
@@ -132,11 +137,101 @@ jobs:
               archive.add(kit, arcname='build-kit')
           shutil.rmtree(kit)
           PY
-      - name: Upload exact-source build evidence
+      - name: Run inherited reduction and new scoped-composite safety tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          bash "$output/bootstrap/sbt.sh" \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReduction*Tests spinal.core.FiniteAffineVecReadTests spinal.core.ParameterizedStructuralLexicalOwnerTests spinal.core.internals.ParameterizedVerilogStructuralLexicalTests' \
+            > "$output/tests.log" 2>&1 || { tail -n 180 "$output/tests.log"; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = list(Path('morphhdl/target').rglob('*.xml'))
+          combined = [p for p in files if p.name.endswith('.TypedBalancedReductionCombinedTests.xml')]
+          assert len(combined) == 1, ('missing/duplicated combined suite', combined)
+          suite = ET.parse(combined[0]).getroot()
+          assert int(suite.get('tests', '0')) == 17, suite.attrib
+          required = ('TypedBalancedReductionCompositeTests', 'TypedBalancedReductionNestedOwnerTests',
+                      'TypedBalancedReductionWideningPublicationTests', 'TypedBalancedReductionPublicationTests',
+                      'TypedBalancedReductionCombinedTests', 'ParameterizedStructuralLexicalOwnerTests')
+          for name in required:
+              matches = [p for p in files if p.name.endswith('.' + name + '.xml')]
+              assert len(matches) == 1, ('required inherited suite missing/duplicated', name, matches)
+          tested = 0
+          for path in files:
+              if not ('TypedBalancedReduction' in path.name or 'FiniteAffineVecReadTests' in path.name or
+                      'StructuralLexical' in path.name):
+                  continue
+              suite = ET.parse(path).getroot()
+              assert int(suite.get('tests', '0')) > 0, (path, suite.attrib)
+              assert all(int(suite.get(k, '0')) == 0 for k in ('failures', 'errors', 'skipped')), (path, suite.attrib)
+              tested += int(suite.get('tests'))
+          assert tested >= 150, tested
+          print('Scoped composite plus inherited reduction safety tests:', tested)
+          PY
+      - name: Generate independent A/B candidate and native reference artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          bash "$output/bootstrap/sbt.sh" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCombinedArtifactWriter $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCombinedArtifactWriter $output/b" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionPublicationArtifactWriter $output/inherited-b" \
+            > "$output/generation.log" 2>&1 || { tail -n 180 "$output/generation.log"; exit 1; }
+      - name: Qualify only the scoped-composite slice and retain inherited 59b proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          python3 morphhdl/scripts/check-increment-59i-combined.py "$output/a" "$output/b" | tee "$output/qualification.log"
+          python3 morphhdl/scripts/check-increment-59b-publication.py "$output/inherited-a" "$output/inherited-b" | tee "$output/inherited-qualification.log"
+          printf '%s\n' '59i scoped fixed-shape composite slice passed; this is NOT complete 59i integration closure. The full pairwise/end-to-end matrix and inherited exact-source successor review remain separate merge obligations.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload exact-source build, tests, original RTL and hardware evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: increment-59i-combined-${{ matrix.scala }}
-          path: target/increment-59i-combined
+          path: |
+            target/increment-59i-combined
+            morphhdl/target/test-reports
           if-no-files-found: error
           retention-days: 14
+
+  determinism:
+    name: Cross-Scala scoped-composite RTL determinism
+    needs: integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-59i-combined-*
+          path: evidence
+      - name: Compare exact source identity, matrices, original RTL and proof inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          roots = []
+          for version in ('2.12.18', '2.13.12'):
+              matches = list(Path('evidence', 'increment-59i-combined-' + version).rglob('head.txt'))
+              assert len(matches) == 1, (version, matches)
+              roots.append(matches[0].parent)
+          a, b = roots
+          assert (a / 'head.txt').read_bytes() == (b / 'head.txt').read_bytes()
+          for relative in ('a/manifest.json', 'a/evidence.json'):
+              assert (a / relative).read_bytes() == (b / relative).read_bytes(), relative
+          manifest = json.loads((a / 'a/manifest.json').read_text())
+          for item in manifest['candidates'] + manifest['cases']:
+              relative = Path('a', item['file'])
+              assert (a / relative).read_bytes() == (b / relative).read_bytes(), relative
+          report = json.loads((a / 'a/evidence.json').read_text())
+          assert report['complete_59i_join'] is False
+          assert len(report['cases']) == 96 and len(report['mutations']) == 5
+          print('Cross-Scala source-bound scoped-composite RTL and proof inventories match; full 59i remains open.')
+          PY
