@@ -47,7 +47,7 @@ jobs:
           set -euo pipefail
           mkdir -p target/increment-60a
           git archive HEAD | gzip > target/increment-60a/source.tar.gz
-          test "$(git hash-object morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala)" = 84ed2baf743d2c47f07b6e76ddc9843fbb5fe910
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py --oracle-only
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py

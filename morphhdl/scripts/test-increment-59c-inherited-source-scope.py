@@ -125,6 +125,33 @@ def main() -> None:
         return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "current 59c production and reviewed metadata")]
+    rollout = None
+    rollout_path = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if rollout_path.is_file():
+        spec = importlib.util.spec_from_file_location("rollout_source_controls", rollout_path)
+        rollout = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rollout)
+        rollout.source_scope(ROOT)
+        # Keep every original 59c mutation and exact diagnostic on the completed
+        # integration tree. The new outer ledger rejects its owned edits before
+        # the older checker can see them; that does not replace this control.
+        with tempfile.TemporaryDirectory(prefix="morphhdl-60g-frozen-59c-") as temp:
+            frozen = Path(temp) / "completed-59c"
+            git(ROOT, "worktree", "add", "--detach", str(frozen), rollout.BASE)
+            try:
+                result = subprocess.run([sys.executable, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"],
+                                        cwd=frozen, text=True, stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, timeout=900, check=False)
+                output = ROOT / "target/increment-59c-source-scope"
+                output.mkdir(parents=True, exist_ok=True)
+                (output / "pre-rollout-controls.log").write_text(result.stdout)
+                if result.returncode or "20 exact rejections" not in result.stdout:
+                    raise RuntimeError("unchanged completed 59c controls failed:\n" + result.stdout)
+                shutil.copyfile(frozen / "target/increment-59c-source-scope/evidence.json",
+                                output / "pre-rollout-controls.json")
+                print("PASS: unchanged completed 59c controls retained separately", flush=True)
+            finally:
+                git(ROOT, "worktree", "remove", "--force", str(frozen))
     with tempfile.TemporaryDirectory(prefix="morphhdl-59c-source-scope-") as temporary:
         directory = Path(temporary)
         historical = directory / "historical-60f"
@@ -171,6 +198,10 @@ def main() -> None:
                 "changed-60f-restore-branch": ("source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()", "source_bytes = source_bytes"),
                 "changed-60f-inventory-branch": ('"59c": {', '"59z": {'),
             }
+            if rollout is not None:
+                branch_mutations["changed-60f-restore-branch"] = (
+                    "if named is not None and path in named.PATHS:\n            current = named.restore_source(root, path, current.decode()).encode()",
+                    "if named is not None and path in named.PATHS:\n            current = current")
             cases = (
                 ("paired-named-source-and-review", "morphhdl/src/main/scala/morphhdl/MorphNamedFieldVectors.scala", "59c reviewed source manifest changed"),
                 ("changed-60e-restore-branch", "morphhdl/scripts/check-increment-60e-signedness-boundaries.py", "missing/changed 59c reviewed source span"),
@@ -238,6 +269,10 @@ def main() -> None:
                             stream.write("\n// Deliberate unreviewed source-scope mutation.\n")
                     if label != "untracked-production":
                         commit(fixture, path, CONTRACT) if label == "paired-named-source-and-review" else commit(fixture, path)
+                    if rollout is not None and path in rollout.PATHS:
+                        # Require this precise current outer-ledger rejection,
+                        # including the attacked path, rather than any failure.
+                        expected = "or 60g publication spans: " + path
                     records.append(checked(fixture, label, expected))
                 finally:
                     git(ROOT, "worktree", "remove", "--force", str(fixture))

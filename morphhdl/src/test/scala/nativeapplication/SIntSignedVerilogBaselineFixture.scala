@@ -191,7 +191,8 @@ object SIntSignedVerilogBaselineArtifactWriter {
   }
 
   private def emitParameterized(output: Path): Unit = {
-    MorphVerilog(generationConfig(output))(SIntSignedVerilogBaselineFixture.parameterized())
+    MorphVerilog(morphhdl.MorphSignedDeclarations.disable(generationConfig(output)))(
+      SIntSignedVerilogBaselineFixture.parameterized())
     require(Files.isRegularFile(output), s"missing parameterized baseline artifact $output")
   }
 }

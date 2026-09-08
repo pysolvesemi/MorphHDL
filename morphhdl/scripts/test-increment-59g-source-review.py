@@ -98,6 +98,23 @@ def main() -> None:
         ("staged source hidden by restored worktree", next(iter(sorted(helper.PRODUCTION_PATHS))), "staged", "staged production sources"),
         ("changed independent native oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix", "sealed writer/checker changed"),
     ]
+    # On a combined rollout, overlapping bytes are sealed first by its exact
+    # outer layer. Keep every original mutation; require that layer's precise
+    # diagnostic rather than misclassifying a correct earlier rejection.
+    rollout = helper.rollout_scope(ROOT) if hasattr(helper, "rollout_scope") else None
+    if rollout is not None:
+        adapted = []
+        for label, path, mutation, expected in cases:
+            if mutation == "suffix" and path in rollout.PATHS:
+                expected = "or 60g publication spans: " + path
+            elif mutation in ("suffix", "remove") and (
+                    path.startswith("foreign/src/main/") or path in rollout.WA07A_PRODUCTION_SHA256):
+                expected = ("unreviewed production delta"
+                            if path in rollout.WA07A_PRODUCTION_SHA256 and
+                            (ROOT / "morphhdl/scripts/check-wa07b-inherited-review.py").is_file()
+                            else "60g publication/serialization delta differs from the merged baseline")
+            adapted.append((label, path, mutation, expected))
+        cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59g-source-control-") as temporary:
         for index, (label, path, mutation, expected) in enumerate(cases):
             fixture = Path(temporary) / str(index)
