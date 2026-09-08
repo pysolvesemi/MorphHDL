@@ -1,0 +1,30 @@
+name: Export qualified pass ancestry for 60g audit replay
+on:
+  push:
+    branches: [agent/60g-continue-source-export-20260908]
+    paths: ['.github/workflows/60g-qualified-pass-history.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Preserve only existing qualified commit history
+        run: |
+          set -eu
+          mkdir -p target/pass-history
+          git update-ref refs/heads/local-qualified-pass 8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git bundle create target/pass-history/qualified.bundle refs/heads/local-qualified-pass
+          sha256sum target/pass-history/qualified.bundle > target/pass-history/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qualified-pass-history
+          path: target/pass-history
+          retention-days: 7
+          if-no-files-found: error
