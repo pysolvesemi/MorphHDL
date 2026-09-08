@@ -246,8 +246,12 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
         require(hashlib.sha256(raw).hexdigest() == fingerprint,
                 "60g reviewed raw source bytes differ: " + path)
         oid = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        # Preserve the inherited diagnostic when this stronger check rejects
+        # actual staged production drift before the older diff-based gate.
+        staged = ("; staged production sources" if indexed[path] != committed[path]
+                  and "/src/main/" in "/" + path else "")
         require(indexed[path] == oid == committed[path],
-                "60g reviewed index, worktree and committed source differ: " + path)
+                "60g reviewed index, worktree and committed source differ: " + path + staged)
     require(git("rev-parse", "HEAD").decode().strip() == head,
             "60g HEAD changed while binding reviewed sources")
 
@@ -533,12 +537,14 @@ def reviewed_blob_self_test(repository: Path) -> None:
             return subprocess.check_output(["git", *args], cwd=root, input=data,
                                            stderr=subprocess.PIPE).decode().strip()
 
-        def reject(label: str) -> None:
+        def reject(label: str, diagnostic: str | None = None) -> None:
             nonlocal rejected
             try:
                 reviewed_blob_scope(root, expected)
             except RuntimeError as error:
                 require(str(error).startswith("60g reviewed"), "wrong blob rejection: " + str(error))
+                require(diagnostic is None or diagnostic in str(error),
+                        "missing inherited blob diagnostic: " + str(error))
                 rejected += 1
                 return
             raise RuntimeError("60g reviewed blob gate accepted " + label)
@@ -560,7 +566,8 @@ def reviewed_blob_self_test(repository: Path) -> None:
             bad_raw = raw + b"\n// hidden blob corruption control\n"
             bad = git("hash-object", "-w", "--stdin", data=bad_raw)
             git("update-index", "--add", "--cacheinfo", "100644," + bad + "," + path)
-            reject("staged mutation behind exact worktree: " + path)
+            reject("staged mutation behind exact worktree: " + path,
+                   "staged production sources" if "/src/main/" in "/" + path else None)
             tree = git("write-tree")
             changed_head = git("commit-tree", tree, "-p", original, "-m", "altered committed fixture")
             git("update-ref", "HEAD", changed_head, original)
