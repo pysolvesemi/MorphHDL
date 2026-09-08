@@ -1,0 +1,142 @@
+name: Increment 59i combined reduction closure
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths:
+      - '.github/workflows/increment-59i-combined-closure.yml'
+      - '**/src/**'
+      - 'morphhdl/scripts/*59i*'
+      - 'morphhdl/contracts/*59i*'
+      - 'build.sbt'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59i-combined-closure.yml'
+      - '**/src/**'
+      - 'morphhdl/scripts/*59i*'
+      - 'morphhdl/contracts/*59i*'
+      - 'build.sbt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-combined-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: Combined reduction Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve exact source and bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          mkdir -p "$output/bootstrap"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$output/bootstrap/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$output/bootstrap/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59i-combined/bootstrap')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip()
+          assert re.fullmatch('[0-9a-fA-F]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/bootstrap/repositories"
+      - name: Compile the actual combined source and export its classpath
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          java -Xmx3G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/bootstrap/sbt-launch.jar" "++${{ matrix.scala }}" \
+            'morph/Test/compile' 'export morph/Test/fullClasspath' \
+            'show morph/Test/scalacOptions' \
+            > "$output/compile.log" 2>&1 || { tail -n 160 "$output/compile.log"; exit 1; }
+      - name: Preserve only declared compilation inputs for reproducible local diagnosis
+        shell: bash
+        env:
+          SCALA_VERSION: ${{ matrix.scala }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, shutil, tarfile
+          from pathlib import Path
+          output = Path('target/increment-59i-combined')
+          lines = (output / 'compile.log').read_text().splitlines()
+          candidates = [line.strip().split(':') for line in lines
+                        if line.startswith('/') and ':' in line and
+                        all(Path(part).exists() for part in line.strip().split(':'))]
+          assert len(candidates) == 1, ('missing or ambiguous exported classpath', candidates)
+          paths = [Path(p) for p in candidates[0]]
+          extra = []
+          version = os.environ['SCALA_VERSION']
+          for name in ('scala-compiler', 'scala-library', 'scala-reflect'):
+              matches = list(Path('/sbt/.cache/coursier').rglob(name + '-' + version + '.jar'))
+              assert matches, ('missing compiler dependency', name)
+              extra.append(matches[0])
+          for project in ('idslplugin', 'morphplugin'):
+              matches = [p for p in Path(project, 'target').rglob('*.jar')
+                         if 'sources' not in p.name and 'javadoc' not in p.name]
+              assert matches, ('missing compiler plugin', project)
+              extra.extend(matches)
+          paths += [p for p in extra if p not in paths]
+          manifest = []
+          kit = output / 'build-kit'
+          kit.mkdir()
+          for index, source in enumerate(paths):
+              relative = 'entry-%03d' % index + ('/' + source.name if source.is_file() else '')
+              target = kit / relative
+              target.parent.mkdir(parents=True, exist_ok=True)
+              if source.is_dir():
+                  shutil.copytree(source, target)
+              else:
+                  shutil.copyfile(source, target)
+              manifest.append({'original': str(source), 'path': relative,
+                               'classpath': index < len(candidates[0])})
+          (kit / 'classpath.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          (kit / 'scala-version.txt').write_text(version + '\n')
+          shutil.copyfile(output / 'head.txt', kit / 'head.txt')
+          with tarfile.open(output / 'build-kit.tar.gz', 'w:gz') as archive:
+              archive.add(kit, arcname='build-kit')
+          shutil.rmtree(kit)
+          PY
+      - name: Upload exact-source build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-combined-${{ matrix.scala }}
+          path: target/increment-59i-combined
+          if-no-files-found: error
+          retention-days: 14
