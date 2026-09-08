@@ -18,8 +18,10 @@ WA-07b is the user-authorized fifth pass, inserted before WA-08, whose
 production handoff must include the new pass and its proof gates. The historical
 four-stage standalone pipeline and its native witness qualification are
 recorded in [WA-07a evidence](wa07a-completion-evidence.md).
-WA-07b implementation is in progress; its code, proof layers and outstanding
-completion requirements are described in [WA-07b notes](wa07b-implementation-notes.md).
+WA-07b's integrated implementation is qualified. Its exact-source results,
+actual emitted examples and separate completion-head merge gate are recorded
+in [WA-07b evidence](wa07b-completion-evidence.md); the transformation and proof
+layers are described in [WA-07b notes](wa07b-implementation-notes.md).
 Production execution and writeback remain the separate WA-08 increment.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
@@ -55,7 +57,7 @@ canonical MorphHDL-owned IR
         |
         +--> constant-operand expression simplification
         |
-        +--> recursive Boolean ternary simplification (WA-07b; qualification pending)
+        +--> recursive Boolean ternary simplification (WA-07b; standalone qualified)
         |
         v
 structured Verilog-2001 lowering and emission
@@ -69,7 +71,7 @@ PV-58 realizes the read-only publication into this boundary for the bounded
 validator-normalized graph, producer profile and complete facets directly from
 the typed native graph. WA-07 proves the third standalone pass and the
 historical one-flag pipeline. WA-07a adds constant-operand simplification;
-WA-07b adds recursive Boolean ternary simplification and is under qualification.
+WA-07b adds the qualified recursive Boolean ternary simplification pass.
 WA-08 implements validated production writeback after both additions are
 complete and merged.
 
@@ -611,17 +613,22 @@ WA-04 or WA-05 can remove an alias.
   evidence. Do not check this item complete from unit tests or a preceding-pass
   comparison alone.
 
-- [ ] **WA-07b — Recursive Boolean ternary expression simplification**
+- [x] **WA-07b — Recursive Boolean ternary expression simplification**
 
   **Dependencies:** WA-07a implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
 
-  The increment branch contains the canonical pass, five-stage integration,
-  recursive and safety fixtures, independent four-state and symbolic-width
-  proof fixtures, native witnesses and full-domain proof wiring. Qualification
-  is not yet established. See [implementation notes](wa07b-implementation-notes.md).
-  Keep this checkbox open until every required final-head gate below passes.
+  Integrated implementation `62e62146c0366b2db37f2243017d32232d5a981d`
+  passed workflow `34200640436`, including both Scala lanes, actual native
+  checks, all 16 formal shards and exact full-domain aggregation. All nine
+  candidates were compared with the same pre-ALL-passes reference for all
+  512 bindings, twice: 9,216 equivalence and 9,216 reachability results.
+  Inherited/signedness workflow `34200640264` also passed. Exact artifact
+  identities, actual Scala/generated-Verilog examples, proof limits and the
+  separate completion-head CI/merge gate are recorded in
+  [WA-07b evidence](wa07b-completion-evidence.md). No production writeback is
+  claimed; see [implementation notes](wa07b-implementation-notes.md).
 
   Add a component-generic `BooleanTernarySimplificationPass` implementing the
   bounded contract above over canonical `RtlExpr`, before Verilog emission.
@@ -666,7 +673,10 @@ WA-04 or WA-05 can remove an alias.
 
   **Dependencies:** WA-07, WA-07a, WA-07b and PV-58 implemented and merged.
 
-  **Status:** `BLOCKED` (WA-07b).
+  **Status:** `READY`.
+
+  This identifies the successor after this reviewed WA-07b completion is
+  merged. It does not authorize starting WA-08 from an open completion PR.
 
   Eligible to start only once WA-07b is implemented, checked complete and
   merged into `parameterized-verilog`; an open implementation PR does not

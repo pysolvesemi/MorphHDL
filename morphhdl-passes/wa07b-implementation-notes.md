@@ -1,10 +1,14 @@
 # WA-07b implementation and qualification notes
 
-**Status: implementation in progress; not qualified, complete or merged.**
+**Status: integrated implementation qualified; separate completion-head CI
+and merge gate retained.**
 
-The controlling entry remains unchecked in
+The controlling entry and successor status are in
 [morphhdl-ir-wire-assignment-passes-todo.md](morphhdl-ir-wire-assignment-passes-todo.md).
-This document describes code and proof obligations, not successful test results.
+This document describes the implementation and proof layers. The
+[qualification record](wa07b-completion-evidence.md) records successful results
+for exact source `62e62146`, actual emitted RTL and the completion-head gate.
+It does not claim that a later commit or an open PR is merged.
 Production publication and writeback remain WA-08 scope.
 
 ## Canonical transformation
@@ -118,8 +122,10 @@ strict Verilog-2001, lint, synthesis and representative FIFO simulation logs
 are retained by the regression runner. Actual native examples are also printed
 between `WA07B_ACTUAL_NATIVE_*` markers in the job log.
 
-Completion requires successful final-head boundary/static gates, both Scala
-lanes, actual native emission and tool checks, full-domain formal aggregation,
-mutation controls, deterministic emission and review. The mere presence of
-these tests or files does not establish success. Until those gates pass, leave
-WA-07b unchecked and WA-08 blocked.
+Integrated source `62e62146c0366b2db37f2243017d32232d5a981d` passed
+boundary/static gates, both Scala lanes, actual native emission/tool checks,
+full-domain formal aggregation, mutations and determinism. The exact artifact
+identities and proof limits are recorded in the qualification record. A later
+completion head must still pass its own required CI before merge. WA-08 may
+start only after this completion is merged into `parameterized-verilog`.
+The mere presence of tests or files does not establish successful results.

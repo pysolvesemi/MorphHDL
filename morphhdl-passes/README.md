@@ -7,9 +7,11 @@ aggregate member and does not duplicate the canonical IR implementation.
 
 The controlling checklist is
 [`morphhdl-ir-wire-assignment-passes-todo.md`](morphhdl-ir-wire-assignment-passes-todo.md).
-The current increment is **WA-07b, in progress**. Its implementation and proof
-layers are described in [WA-07b notes](wa07b-implementation-notes.md); their
-presence does not yet establish final-head qualification or completion.
+WA-07b's integrated implementation is qualified. Its exact-source results,
+actual emitted demonstration and separate completion-head CI/merge gate are
+recorded in [WA-07b evidence](wa07b-completion-evidence.md). Implementation and
+proof layers are described in [WA-07b notes](wa07b-implementation-notes.md).
+WA-08 is the successor only after the completion is merged.
 
 ## Implemented boundary
 
@@ -279,7 +281,7 @@ reachability evidence and equivalence artifacts remain compared. This corrects
 the proof model without weakening the reference snapshot, parameter domains,
 output comparisons, or four-state simulation requirements.
 
-## WA-07b — recursive Boolean ternary simplification (in progress)
+## WA-07b — recursive Boolean ternary simplification
 
 `BooleanTernarySimplificationPass` visits every supported pure continuous RHS
 child bottom-up, including mux conditions and branches, operands, concatenations,
@@ -304,8 +306,13 @@ admitted bindings. A genuine no-op on the shared witness is reported explicitly;
 independent native fixtures must still exercise both positive and inverse rules.
 
 The [implementation notes](wa07b-implementation-notes.md) describe these layers
-and artifact paths. Until all required final-head gates pass, WA-07b remains
-unchecked and WA-08 remains blocked. Test code is not successful proof evidence.
+and artifact paths. Integrated source `62e62146` passed the native gate, both
+Scala lanes, all 16 formal shards and full-domain aggregation in workflow
+`34200640436`, plus inherited/signedness closure in `34200640264`. The
+[qualification record](wa07b-completion-evidence.md) identifies the exact
+artifacts, actual RTL and proof limits. The documentation completion head
+requires its own CI before merge; WA-08 cannot start from an open PR.
+Test code alone is not successful proof evidence.
 
 ## Common witness and formal-equivalence baseline
 
