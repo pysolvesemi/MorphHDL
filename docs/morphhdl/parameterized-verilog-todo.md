@@ -963,11 +963,15 @@ dependency chain is unchanged and may proceed independently.
   rejection/mutation controls for external writes, changed capture bindings,
   stateful host callbacks, dropped operations and reordered operands.
 
-- [ ] **Increment 59g — Register-bridge semantics and clock/reset qualification closure**
+- [x] **Increment 59g — Register-bridge semantics and clock/reset qualification closure**
 
-  Implementation and qualification are in progress on
-  `agent/increment-59g-register-bridges`. See the
-  [bridge semantics and qualification record](increment-59g-register-bridges.md).
+  Implemented and qualified on both Scala 2.12.18 and 2.13.12 at
+  `a327dd01b7e3003370827580083e56ce7992d2a7`: 252 dedicated reduction tests,
+  222 bridge specializations across 24 clock/reset/enable profiles, four real
+  mutation counterexamples, and 1,895 full inherited regression tests per lane
+  with no failures, errors or skips. See the
+  [bridge semantics, actual Scala/Verilog example and qualification record](increment-59g-register-bridges.md).
+  Mixed sibling combinations remain the separate 59i integration gates.
 
   **Dependencies:** Increment 59b implemented and merged. Parallel successor;
   no dependency on 59c through 59f or 59h.
