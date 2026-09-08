@@ -1,5 +1,5 @@
 {
-  "base": "cba4717abc9192917d819e1f84cb246162488286",
+  "base": "424a548f60a6c1fe003e3d4d908e3b0f75e56632",
   "files": [
     {
       "path": "morphhdl/scripts/check-increment-59f-source-scope.py",
@@ -241,27 +241,31 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
-      "before_sha256": "c92b9700d03ab414b73497f421d217053ccf0f95703c6f32b0a3122f4487a7d4",
-      "after_sha256": "bb55c79b1357c13dd7812bfc61e1b2a3f80253b7dd124069f7f92428e71b8ebe",
+      "before_sha256": "decc59c1c7c3570f5973f25f53965ca17c66620230b51d17dc58c7235d40cb20",
+      "after_sha256": "38ad4b0dacfc2a81084d37dbb5018d03201638819c4e5b3e21e0af41da7e919f",
       "edits": [
         {
           "before": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    return counts, suites, extension\n\n",
           "after": "                            minimum += 4\n                counts[project] = (minimum, old_suites + len(additions))\n    if \"60g\" in features:\n        # The production profile is validated before reports are inspected.\n        # Require the entire extended existing suite, not just a global count.\n        tests, total_suites = counts[\"morphhdl\"]\n        counts[\"morphhdl\"] = (tests + 18, total_suites)\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.SignednessCompatibilityTests\"] = 22\n        extension.setdefault(\"morphhdl\", {})[\n            \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\"] = 2\n    return counts, suites, extension\n\n"
         },
         {
-          "before": "        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field and nested-owner suite extensions and {rejections} rejection controls PASS\")\n\n",
-          "after": "        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    # The rollout extends existing suites, not the nested-owner suite set.\n    # Its union must retain every pre-rollout exact obligation and require the\n    # two reviewed new counts, independent of arbitrary report contents.\n    joined = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59h-and-60g\", True)\n    expected_joined = {**nested[2][\"morphhdl\"],\n        \"spinal.core.internals.SignednessCompatibilityTests\": 22,\n        \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\": 2}\n    require(joined[1] == nested[1] and joined[2][\"morphhdl\"] == expected_joined and\n            joined[0][\"morphhdl\"] == (nested[0][\"morphhdl\"][0] + 18, nested[0][\"morphhdl\"][1]),\n            \"60g/59h integration lost an exact suite or test obligation\")\n    print(\"60g/59h combined inventory retains nested owners and exact rollout test counts PASS\")\n    print(f\"60f inventory self-test: twelve inherited exact source profiles, named-field and nested-owner suite extensions and {rejections} rejection controls PASS\")\n\n"
+          "before": "        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    joint = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h\", True)\n    require(joint[1][\"morphhdl\"] == bridges[1][\"morphhdl\"] | set(nested_additions),\n",
+          "after": "        else:\n            raise RuntimeError(\"missing nested-owner suite was accepted: \" + missing)\n    # The rollout extends existing suites, not the nested-owner suite set.\n    # Its union must retain every pre-rollout exact obligation and require the\n    # two reviewed new counts, independent of arbitrary report contents.\n    joined = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59h-and-60g\", True)\n    expected_joined = {**nested[2][\"morphhdl\"],\n        \"spinal.core.internals.SignednessCompatibilityTests\": 22,\n        \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\": 2}\n    require(joined[1] == nested[1] and joined[2][\"morphhdl\"] == expected_joined and\n            joined[0][\"morphhdl\"] == (nested[0][\"morphhdl\"][0] + 18, nested[0][\"morphhdl\"][1]),\n            \"60g/59h integration lost an exact suite or test obligation\")\n    print(\"60g/59h combined inventory retains nested owners and exact rollout test counts PASS\")\n    joint = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h\", True)\n    require(joint[1][\"morphhdl\"] == bridges[1][\"morphhdl\"] | set(nested_additions),\n"
+        },
+        {
+          "before": "                 set(joint[1][\"morphhdl\"]), \"missing joint register/nested suite\"),\n                 \"missing exact joint 59g/59h suite\")\n    print(f\"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS\")\n\n",
+          "after": "                 set(joint[1][\"morphhdl\"]), \"missing joint register/nested suite\"),\n                 \"missing exact joint 59g/59h suite\")\n    rollout_joint = catalog_for_profile(\"60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h-and-60g\", True)\n    require(rollout_joint[1] == joint[1] and\n            rollout_joint[2][\"morphhdl\"] == {**joint[2][\"morphhdl\"],\n                \"spinal.core.internals.SignednessCompatibilityTests\": 22,\n                \"spinal.core.internals.ParameterizedVerilogStructuralLexicalTests\": 2} and\n            rollout_joint[0][\"morphhdl\"] == (joint[0][\"morphhdl\"][0] + 18, joint[0][\"morphhdl\"][1]),\n            \"60g/register/nested composition lost exact inherited tests or suites\")\n    print(\"60g/59g/59h combined inventory preserves every register, nested and rollout obligation PASS\")\n    print(f\"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS\")\n\n"
         }
       ]
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py",
-      "before_sha256": "9b06d9dbbab3cb56b207747b689ffc00dd5874c422dc91a554ca22de9be5684e",
-      "after_sha256": "70e244024d7550b5396b6283886cd7d819aba4e577aed178c7a48cc37a0906fe",
+      "before_sha256": "9d6cda8778401908798b94c3334f315b0a95fe42e419dbc425f892ea31eb1b18",
+      "after_sha256": "466f406a13c8ccc4242bdf19737795805b4d4467d21c135f2f069d4f35f1483c",
       "edits": [
         {
-          "before": "\ndef profile_features(profile: str) -> frozenset[str]:\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n",
-          "after": "\ndef profile_features(profile: str) -> frozenset[str]:\n    if profile.endswith(\"-and-60g\"):\n        return profile_features(profile[:-len(\"-and-60g\")]) | frozenset((\"60g\",))\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n"
+          "before": "\ndef profile_features(profile: str) -> frozenset[str]:\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59g\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n",
+          "after": "\ndef profile_features(profile: str) -> frozenset[str]:\n    if profile.endswith(\"-and-60g\"):\n        return profile_features(profile[:-len(\"-and-60g\")]) | frozenset((\"60g\",))\n    names = (\"wa07a\", \"59d\", \"59e\", \"59f\", \"59c\", \"59g\", \"59h\")\n    profiles = {\"60f-baseline\": frozenset()}\n"
         },
         {
           "before": "\ndef production_profile(root: Path) -> str:\n    \"\"\"Select a complete reviewed source union before consulting any reports.\"\"\"\n    def git(*args: str) -> bytes:\n",
@@ -272,8 +276,8 @@
           "after": "    require(not untracked, \"untracked production sources: \" + str(sorted(untracked)))\n    changed = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE))\n    if rollout is not None:\n        prior = production_paths(git(\"diff\", \"--no-renames\", \"--name-only\", \"-z\", BASE, rollout.BASE))\n        changed -= set(rollout.PRODUCTION) - prior\n    if nested is not None:\n        changed = nested.inherited_inventory(root, changed, BASE)\n"
         },
         {
-          "before": "        require(not source.is_symlink() and not source.stat().st_mode & 0o111,\n                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if nested is not None and path in nested.PRODUCTION_PATHS and path not in named.PRODUCTION_PATHS:\n            source_bytes = nested.restore_source(root, path, source_bytes.decode()).encode()\n        if named is not None and path in named.PRODUCTION_PATHS:\n            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()\n        require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)\n        stage = git(\"ls-files\", \"--stage\", \"--\", path).decode(\"utf-8\").split()\n        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n",
-          "after": "        require(not source.is_symlink() and not source.stat().st_mode & 0o111,\n                \"reviewed production source must be a regular non-executable file: \" + path)\n        current = source.read_bytes()\n        if rollout is not None and path in rollout.PRODUCTION:\n            current = rollout.restore_60g_source(root, path, current.decode()).encode()\n        if nested is not None and path in nested.PRODUCTION_PATHS and path not in named.PRODUCTION_PATHS:\n            current = nested.restore_source(root, path, current.decode()).encode()\n        if named is not None and path in named.PRODUCTION_PATHS:\n            current = named.restore_source(root, path, current.decode()).encode()\n        require(hashlib.sha256(current).hexdigest() == digest, diagnostic + path)\n        stage = git(\"ls-files\", \"--stage\", \"--\", path).decode(\"utf-8\").split()\n        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n"
+          "before": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if named is not None:\n            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()\n",
+          "after": "                \"reviewed production source must be a regular non-executable file: \" + path)\n        source_bytes = source.read_bytes()\n        if rollout is not None and path in rollout.PRODUCTION:\n            source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()\n        if named is not None:\n            source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()\n"
         },
         {
           "before": "\n\ndef source_scope(root: Path) -> None:\n    # Preserve the inherited oracle/authority rejection diagnostics. The exact\n",
@@ -282,25 +286,6 @@
         {
           "before": "    for path in frozen:\n        old = subprocess.check_output([\"git\", \"show\", BASE + \":\" + path], cwd=root)\n        current = (root / path).read_bytes()\n        if named is not None and path in named.PATHS:\n            current = named.restore_source(root, path, current.decode()).encode()\n",
           "after": "    for path in frozen:\n        old = subprocess.check_output([\"git\", \"show\", BASE + \":\" + path], cwd=root)\n        current = restore_rollout(root, path, (root / path).read_text()).encode()\n        if named is not None and path in named.PATHS:\n            current = named.restore_source(root, path, current.decode()).encode()\n"
-        }
-      ]
-    },
-    {
-      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
-      "before_sha256": "e9e0b60c0559a97990960afb57d19f68237abb62a9ee46e8e5c2a5f5679b2236",
-      "after_sha256": "3caae393cd8ca763f48ef10a2859b02f7384d9fb8fd434ca489804e8b51b6eaa",
-      "edits": [
-        {
-          "before": "    val rewrittenInitializers = rewriteRetainedZeroInitializers(\n      component,\n      rewrittenConstants\n    )\n    val rewrittenValues = rewriteRetainedValueAssignments(\n",
-          "after": "    val rewrittenInitializers = rewriteRetainedZeroInitializers(\n      component,\n      rewrittenConstants,\n      nativeSignedLiterals = morphhdl.MorphSignedCasts.isEnabled(pc.config)\n    )\n    val rewrittenValues = rewriteRetainedValueAssignments(\n"
-        },
-        {
-          "before": "  private def rewriteRetainedZeroInitializers(\n      component: Component,\n      verilog: String\n  ): String = {\n    final case class RetainedZeroInitializer(\n",
-          "after": "  private def rewriteRetainedZeroInitializers(\n      component: Component,\n      verilog: String,\n      nativeSignedLiterals: Boolean\n  ): String = {\n    final case class RetainedZeroInitializer(\n"
-        },
-        {
-          "before": "                      name,\n                      width,\n                      emittedRetainedWitness(literal)\n                    )\n                  case _ =>\n",
-          "after": "                      name,\n                      width,\n                      // Match exactly the native policy's literal spelling;\n                      // the graph still authorizes every direct zero edge.\n                      if (nativeSignedLiterals && literal.getClass == classOf[SIntLiteral])\n                        emittedRetainedWitness(literal).replace(\"'\", \"'s\")\n                      else emittedRetainedWitness(literal)\n                    )\n                  case _ =>\n"
         }
       ]
     },
@@ -355,28 +340,24 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-59c-source-review.py",
-      "before_sha256": "bb0e3c55244a57b13543b7fc6dcd3045183a8abe1ced465cddd840723c7b89aa",
-      "after_sha256": "c3ffb80ae6cd0b6200a77fdea4f755b178bfe288a039c912f9128db90c64ec9c",
+      "before_sha256": "b1723908a3f9274bdb42a4f6acd1746bf3b9cf816cc8db0530e3b839ed2bec9d",
+      "after_sha256": "d4d396ff6b20d68659048abe891a1440e502e543b0c9058266937cdb525a2aa2",
       "edits": [
         {
-          "before": "\n\ndef nested_source_review(root: Path):\n    \"\"\"Compose a separately pinned successor before this immutable 59c review.\"\"\"\n",
-          "after": "\n\ndef rollout_scope(root: Path):\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef nested_source_review(root: Path):\n    \"\"\"Compose a separately pinned successor before this immutable 59c review.\"\"\"\n"
-        },
-        {
-          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    nested = nested_source_review(root)\n    if nested is not None:\n",
-          "after": "\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Reverse the exact publication layer before nested-owner and 59c layers.\"\"\"\n    source = restore_rollout(root, path, source)\n    nested = nested_source_review(root)\n    if nested is not None:\n"
+          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    nested = nested_source_review(root)\n",
+          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    nested = nested_source_review(root)\n"
         },
         {
           "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
-          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        # Only the separately sealed successor's delta is excluded. Existing\n        # 59c paths remain mandatory; neither current bytes nor metadata grant\n        # permission outside that exact outer publication contract.\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n    return paths\n\n\n"
+          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n        paths = rollout.without_sibling_delta(root, paths, revision)\n    return paths\n\n\n"
         },
         {
           "before": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59c reviewed source is not uniquely tracked: \" + path)\n        current = source.read_bytes()\n        if nested is not None:\n            current = nested.restore_source(root, path, current.decode()).encode()\n",
           "after": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59c reviewed source is not uniquely tracked: \" + path)\n        current = restore_rollout(root, path, source.read_text()).encode()\n        if nested is not None:\n            current = nested.restore_source(root, path, current.decode()).encode()\n"
         },
         {
-          "before": "    require_production_inventory(paths)\n    verify_spans(root, qualification_base)\n    print(\"59c complete production inventory and exact source spans restore the merged baseline PASS\")\n\n",
-          "after": "    require_production_inventory(paths)\n    verify_spans(root, qualification_base)\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    print(\"59c complete production inventory and exact source spans restore the merged baseline PASS\")\n\n"
+          "before": "\ndef verify(root: Path, qualification_base: str = BASE) -> None:\n    paths = production_changes(root, qualification_base)\n    nested = nested_source_review(root)\n",
+          "after": "\ndef verify(root: Path, qualification_base: str = BASE) -> None:\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    paths = production_changes(root, qualification_base)\n    nested = nested_source_review(root)\n"
         }
       ]
     },
@@ -401,47 +382,73 @@
     },
     {
       "path": "morphhdl/scripts/check-increment-59h-source-review.py",
-      "before_sha256": "7665b6ec4abc332e976ce835b427006447e0c31eff5af5bc3ca430677bcc5eb0",
-      "after_sha256": "12561d165c793574ed68ad096c144c102c97514a9902d527478c901f6e914202",
+      "before_sha256": "e896811d5426d54d02002721029a0f21952d0f34b3e94fadd3f6f9de941de5a6",
+      "after_sha256": "1def107c97db830f846c21f65df09ceaf9f6d96b93a71d77e4be2744fe4c37a3",
       "edits": [
         {
-          "before": "import copy\nimport hashlib\nimport json\nimport re\n",
-          "after": "import copy\nimport hashlib\nimport importlib.util\nimport json\nimport re\n"
+          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    register = register_source_review(root)\n",
+          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n    register = register_source_review(root)\n"
         },
         {
-          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n",
-          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    \"\"\"Leave unrelated historical hooks to their own exact source contracts.\"\"\"\n"
+          "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
+          "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n        paths = rollout.without_sibling_delta(root, paths, revision)\n    return paths\n\n\n"
         },
         {
-          "before": "    if path not in entries:\n        return source\n    return restore_reviewed(entries[path], baseline_source(root, path), source.encode()).decode()\n\n\n",
-          "after": "    if path not in entries:\n        return source\n    return restore_reviewed(entries[path], baseline_source(root, path),\n                            restore_rollout(root, path, source).encode()).decode()\n\n\n"
+          "before": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59h reviewed source is not uniquely tracked: \" + path)\n        current = source.read_bytes()\n        if register is not None:\n            current = register.restore_source(root, path, current.decode()).encode()\n",
+          "after": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59h reviewed source is not uniquely tracked: \" + path)\n        current = restore_rollout(root, path, source.read_text()).encode()\n        if register is not None:\n            current = register.restore_source(root, path, current.decode()).encode()\n"
+        },
+        {
+          "before": "\ndef verify(root: Path, qualification_base: str = BASE) -> None:\n    paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)\n    register = register_source_review(root)\n",
+          "after": "\ndef verify(root: Path, qualification_base: str = BASE) -> None:\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)\n    register = register_source_review(root)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+      "before_sha256": "345544362f335e2c1268cd398a5ec520f04ea567f41507c3b6cac91e68f522de",
+      "after_sha256": "debefbbf86e2d44944e10e0f74c11e6b65582e6a6795a9da98086bcd7485985c",
+      "edits": [
+        {
+          "before": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n",
+          "after": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    # Keep every original source mutation. Diagnose the first exact layer that\n    # owns the changed file; independently replay frozen historical controls.\n    rollout = review.rollout_scope(ROOT) if hasattr(review, \"rollout_scope\") else None\n    register = getattr(review, \"register_source_review\", lambda root: None)(ROOT)\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"or 60g publication spans: \" + path\n              if rollout is not None and path in rollout.PATHS else\n              \"unreviewed source change outside reviewed 59g spans\"\n              if register is not None and path in register.PATHS else outside)\n"
+        },
+        {
+          "before": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n",
+          "after": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    if rollout is not None:\n        with tempfile.TemporaryDirectory(prefix=\"morphhdl-60g-frozen-59h-\") as directory:\n            historical = Path(directory) / \"completed-59h\"\n            git(ROOT, \"worktree\", \"add\", \"--detach\", str(historical), rollout.BASE)\n            try:\n                result = subprocess.run([sys.executable,\n                    \"morphhdl/scripts/test-increment-59h-inherited-source-scope.py\"],\n                    cwd=historical, text=True, stdout=subprocess.PIPE,\n                    stderr=subprocess.STDOUT, timeout=900, check=False)\n                (output / \"pre-rollout-59h-controls.log\").write_text(result.stdout)\n                if result.returncode or \"59h current-source controls PASS\" not in result.stdout:\n                    raise RuntimeError(\"unchanged pre-rollout 59h controls failed:\\n\" + result.stdout)\n                evidence = json.loads((historical / \"target/increment-59h-source-scope/evidence.json\").read_text())\n                if evidence[\"head\"] != rollout.BASE:\n                    raise RuntimeError(\"pre-rollout 59h evidence has the wrong source head\")\n                (output / \"pre-rollout-59h-controls.json\").write_text(json.dumps(evidence, indent=2) + \"\\n\")\n            finally:\n                git(ROOT, \"worktree\", \"remove\", \"--force\", str(historical))\n        print(\"PASS: unchanged completed 59h controls independently replayed at \" + rollout.BASE, flush=True)\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59g-source-review.py",
+      "before_sha256": "ed7a5e325c9614639582e3cf45586cca1ae2ed3515e0ea97aafc78282f332daf",
+      "after_sha256": "55ce4af34fcf091bbc51cf81e4f94f078f282489e3923f69d96ad8c80aedd6de",
+      "edits": [
+        {
+          "before": "\nimport argparse\nimport copy\nimport hashlib\n",
+          "after": "\nimport argparse\nimport importlib.util\nimport copy\nimport hashlib\n"
         },
         {
           "before": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    return {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n\n\n",
           "after": "    untracked = subprocess.check_output([\"git\", \"ls-files\", \"--others\", \"--exclude-standard\"],\n                                        cwd=root, text=True).splitlines()\n    paths = {path for path in tracked + untracked if re.search(r\"(?:^|/)src/main/\", path)}\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        prior = subprocess.check_output([\"git\", \"diff\", \"--name-only\", revision, rollout.BASE],\n                                        cwd=root, text=True).splitlines()\n        paths -= set(rollout.PRODUCTION) - set(prior)\n    return paths\n\n\n"
         },
         {
-          "before": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59h reviewed source is not uniquely tracked: \" + path)\n        restore_reviewed(entry, baseline, source.read_bytes())\n\n\n",
-          "after": "        require(len(stage) == 4 and stage[0] == \"100644\" and stage[2] == \"0\" and stage[3] == path,\n                \"59h reviewed source is not uniquely tracked: \" + path)\n        restore_reviewed(entry, baseline, restore_rollout(root, path, source.read_text()).encode())\n\n\n"
+          "before": "\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    entries = load_contract(root)\n    if path not in entries:\n",
+          "after": "\n\ndef rollout_scope(root: Path):\n    \"\"\"Load the separately pinned outer publication contract, when present.\"\"\"\n    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n    if not helper.is_file():\n        return None\n    spec = importlib.util.spec_from_file_location(\"rollout_60g_scope\", helper)\n    require(spec is not None and spec.loader is not None, \"cannot import reviewed 60g source scope\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n    rollout = rollout_scope(root)\n    return source if rollout is None else rollout.restore_60g_source(root, path, source)\n\n\ndef restore_source(root: Path, path: str, source: str) -> str:\n    source = restore_rollout(root, path, source)\n    entries = load_contract(root)\n    if path not in entries:\n"
         },
         {
-          "before": "    require_production_inventory(production_changes(root, qualification_base))\n    verify_spans(root, qualification_base)\n    print(\"59h complete production inventory and exact source spans restore the merged baseline PASS\", flush=True)\n\n",
-          "after": "    require_production_inventory(production_changes(root, qualification_base))\n    verify_spans(root, qualification_base)\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    print(\"59h complete production inventory and exact source spans restore the merged baseline PASS\", flush=True)\n\n"
+          "before": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            restore_reviewed(entries[relative], baseline_source(root, relative), source.read_bytes())\n\n\ndef verify(root: Path) -> None:\n    require_production_inventory(production_changes(root, BASE))\n    verify_spans(root)\n",
+          "after": "                \"59g reviewed source is not uniquely tracked: \" + relative)\n        if relative in entries:\n            restore_reviewed(entries[relative], baseline_source(root, relative),\n                             restore_rollout(root, relative, source.read_text()).encode())\n\n\ndef verify(root: Path) -> None:\n    rollout = rollout_scope(root)\n    if rollout is not None:\n        rollout.source_scope(root)\n    require_production_inventory(production_changes(root, BASE))\n    verify_spans(root)\n"
         }
       ]
     },
     {
-      "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
-      "before_sha256": "ec03a121e6b8527e2a0d165b6521ca5e5507c0be9ec613a436d01191995c42a0",
-      "after_sha256": "2191cb92fd901fc6ad7e24e66adc63c4ae8991cd97a14d87525d284c3af8f25b",
+      "path": "morphhdl/scripts/test-increment-59g-source-review.py",
+      "before_sha256": "80a8a3fa2374ba56cd43a57897a2fff972cf98f2196dc890223bb586d00dd823",
+      "after_sha256": "224af3a01faeb92a5487b8d4f1e8254c9a4b36f6d6008296857430c9c02e9d46",
       "edits": [
         {
-          "before": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\", outside) for path in review.PATHS]\n    cases += [\n        (\"changed reviewed owner span\", runtime, \"inside\", \"missing/changed 59h reviewed source span\"),\n",
-          "after": "    spec.loader.exec_module(review)\n    outside = \"unreviewed source change outside 59h spans\"\n    # The outer 60g ledger rejects a changed shared file before the immutable\n    # 59h byte-offset restoration sees it. Keep every mutation and require the\n    # precise outer diagnostic for that exact path; other files retain 59h's\n    # original diagnostics. The frozen 59h controls are also replayed below.\n    rollout = review.rollout_scope(ROOT) if hasattr(review, \"rollout_scope\") else None\n    cases = [(\"unreviewed suffix \" + path, path, \"suffix\",\n              \"or 60g publication spans: \" + path\n              if rollout is not None and path in rollout.PATHS else outside)\n             for path in review.PATHS]\n    cases += [\n        (\"changed reviewed owner span\", runtime, \"inside\", \"missing/changed 59h reviewed source span\"),\n"
-        },
-        {
-          "before": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n",
-          "after": "        ROOT, \"morphhdl/scripts/test-increment-59c-inherited-source-scope.py\",\n        \"target/increment-59c-source-scope\", lambda: records[:1], \"59c current-source controls PASS\")\n    if rollout is not None:\n        with tempfile.TemporaryDirectory(prefix=\"morphhdl-60g-frozen-59h-\") as directory:\n            historical = Path(directory) / \"completed-59h\"\n            git(ROOT, \"worktree\", \"add\", \"--detach\", str(historical), rollout.BASE)\n            try:\n                result = subprocess.run([sys.executable,\n                    \"morphhdl/scripts/test-increment-59h-inherited-source-scope.py\"],\n                    cwd=historical, text=True, stdout=subprocess.PIPE,\n                    stderr=subprocess.STDOUT, timeout=900, check=False)\n                (output / \"pre-rollout-59h-controls.log\").write_text(result.stdout)\n                if result.returncode or \"59h current-source controls PASS\" not in result.stdout:\n                    raise RuntimeError(\"unchanged pre-rollout 59h controls failed:\\n\" + result.stdout)\n                evidence = json.loads((historical / \"target/increment-59h-source-scope/evidence.json\").read_text())\n                if evidence[\"head\"] != rollout.BASE:\n                    raise RuntimeError(\"pre-rollout 59h evidence has the wrong source head\")\n                (output / \"pre-rollout-59h-controls.json\").write_text(json.dumps(evidence, indent=2) + \"\\n\")\n            finally:\n                git(ROOT, \"worktree\", \"remove\", \"--force\", str(historical))\n        print(\"PASS: unchanged completed 59h controls independently replayed at \" + rollout.BASE, flush=True)\n    print(f\"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped\", flush=True)\n\n"
+          "before": "        (\"changed independent native oracle\", \"morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala\", \"suffix\", \"sealed writer/checker changed\"),\n    ]\n    with tempfile.TemporaryDirectory(prefix=\"morphhdl-59g-source-control-\") as temporary:\n        for index, (label, path, mutation, expected) in enumerate(cases):\n",
+          "after": "        (\"changed independent native oracle\", \"morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala\", \"suffix\", \"sealed writer/checker changed\"),\n    ]\n    # On a combined rollout, overlapping bytes are sealed first by its exact\n    # outer layer. Keep every original mutation; require that layer's precise\n    # diagnostic rather than misclassifying a correct earlier rejection.\n    rollout = helper.rollout_scope(ROOT) if hasattr(helper, \"rollout_scope\") else None\n    if rollout is not None:\n        adapted = []\n        for label, path, mutation, expected in cases:\n            if mutation == \"suffix\" and path in rollout.PATHS:\n                expected = \"or 60g publication spans: \" + path\n            elif mutation in (\"suffix\", \"remove\") and (\n                    path.startswith(\"foreign/src/main/\") or path in rollout.WA07A_PRODUCTION_SHA256):\n                expected = \"60g publication/serialization delta differs from the merged baseline\"\n            adapted.append((label, path, mutation, expected))\n        cases = adapted\n    with tempfile.TemporaryDirectory(prefix=\"morphhdl-59g-source-control-\") as temporary:\n        for index, (label, path, mutation, expected) in enumerate(cases):\n"
         }
       ]
     }

@@ -260,6 +260,21 @@ INCREMENT_59H_SUITES = {
 # A complete, tracked feature source inventory activates the reviewed additions;
 # heads without that feature retain the exact inventory of their other reviewed features.
 SUITE_EXTENSIONS = {
+    "59g": {
+        "sources": (
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgePublicationTests.scala",
+            "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionBridgeReplayTests.scala",
+        ),
+        "projects": {"morphhdl": frozenset((
+            "spinal.core.internals.TypedBalancedReductionBridgePublicationTests",
+            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests",
+        ))},
+        "counts": {
+            "spinal.core.internals.TypedBalancedReductionBridgePublicationTests": 3,
+            "spinal.core.internals.TypedBalancedReductionBridgeReplayTests": 12,
+            "spinal.core.internals.TypedBalancedReductionCallbackPolicyTests": 16,
+        },
+    },
     "59h": {
         "sources": (
             "morphhdl/contracts/increment-59h-source-review.json",
@@ -433,6 +448,16 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
                         "reviewed suite addition duplicates inherited identity: " + name)
                 suites[project] |= additions
                 minimum, old_suites = counts[project]
+                if name == "59g":
+                    exact = SUITE_EXTENSIONS[name]["counts"]
+                    require(set(exact) == set(additions) |
+                            {"spinal.core.internals.TypedBalancedReductionCallbackPolicyTests"},
+                            "59g exact test counts escaped register-bridge scope")
+                    reviewed_counts = extension.setdefault(project, {})
+                    require(not set(reviewed_counts).intersection(exact),
+                            "59g exact test counts replaced another reviewed feature")
+                    reviewed_counts.update(exact)
+                    minimum += sum(exact[name] for name in additions) + 2
                 if name == "59h":
                     exact_new = INCREMENT_59H_SUITES[project]
                     reviewed_counts = extension.setdefault(project, {})
@@ -1218,6 +1243,16 @@ def self_test() -> None:
     require(named[1]["morphhdl"] == inherited[1]["morphhdl"] | additions and
             named[2] == inherited[2], "59c changed an inherited exact suite/test obligation")
     exact_names(set(named[1]["morphhdl"]), set(named[1]["morphhdl"]), "complete named suite inventory")
+    bridges = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59g", True)
+    bridge_additions = SUITE_EXTENSIONS["59g"]["projects"]["morphhdl"]
+    require(bridges[1]["morphhdl"] == named[1]["morphhdl"] | bridge_additions,
+            "59g changed an inherited exact suite identity")
+    require(bridges[2]["morphhdl"] == dict(named[2]["morphhdl"],
+            **SUITE_EXTENSIONS["59g"]["counts"]), "59g changed an inherited exact test obligation")
+    for missing in bridge_additions:
+        rejected(lambda missing=missing: exact_names(set(bridges[1]["morphhdl"]) - {missing},
+                 set(bridges[1]["morphhdl"]), "missing reviewed register-bridge suite"),
+                 "missing exact 59g suite")
     for missing in additions:
         try:
             exact_names(set(named[1]["morphhdl"]) - {missing}, set(named[1]["morphhdl"]),
@@ -1252,7 +1287,24 @@ def self_test() -> None:
             joined[0]["morphhdl"] == (nested[0]["morphhdl"][0] + 18, nested[0]["morphhdl"][1]),
             "60g/59h integration lost an exact suite or test obligation")
     print("60g/59h combined inventory retains nested owners and exact rollout test counts PASS")
-    print(f"60f inventory self-test: twelve inherited exact source profiles, named-field and nested-owner suite extensions and {rejections} rejection controls PASS")
+    joint = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h", True)
+    require(joint[1]["morphhdl"] == bridges[1]["morphhdl"] | set(nested_additions),
+            "joint 59g/59h inventory lost an exact suite identity")
+    require(joint[2]["morphhdl"] == {**bridges[2]["morphhdl"], **nested_additions},
+            "joint 59g/59h inventory replaced an inherited exact count")
+    for missing in bridge_additions | set(nested_additions):
+        rejected(lambda missing=missing: exact_names(set(joint[1]["morphhdl"]) - {missing},
+                 set(joint[1]["morphhdl"]), "missing joint register/nested suite"),
+                 "missing exact joint 59g/59h suite")
+    rollout_joint = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h-and-60g", True)
+    require(rollout_joint[1] == joint[1] and
+            rollout_joint[2]["morphhdl"] == {**joint[2]["morphhdl"],
+                "spinal.core.internals.SignednessCompatibilityTests": 22,
+                "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests": 2} and
+            rollout_joint[0]["morphhdl"] == (joint[0]["morphhdl"][0] + 18, joint[0]["morphhdl"][1]),
+            "60g/register/nested composition lost exact inherited tests or suites")
+    print("60g/59g/59h combined inventory preserves every register, nested and rollout obligation PASS")
+    print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 
 def main() -> None:

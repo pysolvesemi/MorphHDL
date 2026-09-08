@@ -203,11 +203,15 @@ class TypedBalancedReductionStageReplayTests extends AnyFunSuite {
     }
   }
 
-  test("nonzero bridge initializers are not silently generalized") {
-    withUInt(symbolic = false) { words =>
-      code("BRIDGE-INITIALIZER") {
-        capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(1, 5 bits))
+  test("nonzero bridge initializers retain their minimum legal width") {
+    withUInt() { words =>
+      code("BRIDGE-INITIALIZER-WIDTH") {
+        capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(3))
       }
+    }
+    withUInt(symbolic = false) { words =>
+      val certificate = capture(words, bridge = (value: UInt, _: Int) => RegNext(value) init U(3))
+      assert(certificate.replay(words.vec.toVector).isReg)
     }
   }
 

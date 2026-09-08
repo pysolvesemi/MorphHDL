@@ -2,7 +2,7 @@ name: Increment 59h nested typed reduction owners
 
 on:
   push:
-    branches: ['agent/increment-59h-*', parameterized-verilog]
+    branches: ['agent/increment-59h-*', 'agent/increment-59g-*', parameterized-verilog]
     paths:
       - '.github/workflows/increment-59h-nested-owners.yml'
       - 'morphhdl/src/**'
@@ -43,6 +43,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59h-') ||
+      startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
       github.ref == 'refs/heads/parameterized-verilog'
     name: Nested reduction owners Scala ${{ matrix.scala }}

@@ -91,14 +91,15 @@ def main() -> None:
     review = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(review)
     outside = "unreviewed source change outside 59h spans"
-    # The outer 60g ledger rejects a changed shared file before the immutable
-    # 59h byte-offset restoration sees it. Keep every mutation and require the
-    # precise outer diagnostic for that exact path; other files retain 59h's
-    # original diagnostics. The frozen 59h controls are also replayed below.
+    # Keep every original source mutation. Diagnose the first exact layer that
+    # owns the changed file; independently replay frozen historical controls.
     rollout = review.rollout_scope(ROOT) if hasattr(review, "rollout_scope") else None
+    register = getattr(review, "register_source_review", lambda root: None)(ROOT)
     cases = [("unreviewed suffix " + path, path, "suffix",
               "or 60g publication spans: " + path
-              if rollout is not None and path in rollout.PATHS else outside)
+              if rollout is not None and path in rollout.PATHS else
+              "unreviewed source change outside reviewed 59g spans"
+              if register is not None and path in register.PATHS else outside)
              for path in review.PATHS]
     cases += [
         ("changed reviewed owner span", runtime, "inside", "missing/changed 59h reviewed source span"),
@@ -113,7 +114,7 @@ def main() -> None:
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
-         "59h production delta differs from the complete reviewed inventory"),
+         ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
