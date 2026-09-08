@@ -59,6 +59,11 @@ jobs:
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
           python3 morphhdl/scripts/check-native-source-preservation.py
+          for layer in 59i 59g 59h; do
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-source-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-source-self-test.log"; exit 1; }
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-source-review.log" 2>&1 || { tail -n 100 "$output/$layer-source-review.log"; exit 1; }
+          done
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 100 "$output/inherited-source-controls.log"; exit 1; }
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
@@ -154,6 +159,13 @@ jobs:
           assert len(combined) == 1, ('missing/duplicated combined suite', combined)
           suite = ET.parse(combined[0]).getroot()
           assert int(suite.get('tests', '0')) == 17, suite.attrib
+          counts = {'TypedBalancedReductionCompositeStaticRedirectTests': 7,
+                    'ParameterizedVerilogStructuralLexicalTests': 6}
+          for name, count in counts.items():
+              matches = [p for p in files if p.name.endswith('.' + name + '.xml')]
+              assert len(matches) == 1, ('missing/duplicated join safety suite', name, matches)
+              suite = ET.parse(matches[0]).getroot()
+              assert int(suite.get('tests', '0')) == count, (name, suite.attrib)
           required = ('TypedBalancedReductionCompositeTests', 'TypedBalancedReductionNestedOwnerTests',
                       'TypedBalancedReductionWideningPublicationTests', 'TypedBalancedReductionPublicationTests',
                       'TypedBalancedReductionCombinedTests', 'ParameterizedStructuralLexicalOwnerTests')
