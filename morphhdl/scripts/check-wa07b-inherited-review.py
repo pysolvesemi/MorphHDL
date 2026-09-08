@@ -155,6 +155,19 @@ def verify(root: Path) -> bool:
             require(not path.is_symlink(), "symlink in pass source inventory: " + path.relative_to(root).as_posix())
             if path.is_file():
                 physical.add(path.relative_to(root).as_posix())
+    # Older source-audit controls require this diagnostic category. The new
+    # exact inventory check can reject a changed sibling before those audits
+    # run; preserve the category without permitting any different source bytes.
+    main = lambda paths: {path for path in paths if path.startswith(ROOTS[0] + "/")}
+    require(main(entries) == main(expected) and main(physical) == main(expected),
+            "unreviewed production delta: incomplete or extra pass main source inventory; " +
+            "missing=" + repr(sorted(main(expected) - main(physical))) +
+            "; extra=" + repr(sorted(main(physical) - main(expected))))
+    # Removing only the ternary marker selects the old inventory. Verify the
+    # remaining main bytes before reporting extra tests from a partial upgrade.
+    for path in sorted(main(expected)):
+        require(digest(regular(root, path)) == expected[path],
+                "unreviewed production delta: unreviewed pass main/test bytes: " + path)
     require(set(entries) == set(expected) and physical == set(expected),
             "incomplete or extra pass main/test source inventory; " +
             "missing=" + repr(sorted(set(expected) - physical)) +
@@ -171,7 +184,9 @@ def verify(root: Path) -> bool:
     require(indexed == entries, "staged or missing pass source differs from HEAD")
     for path, fingerprint in expected.items():
         data = regular(root, path)
-        require(digest(data) == fingerprint, "unreviewed pass main/test bytes: " + path)
+        category = ("unreviewed production delta" if path.startswith(ROOTS[0] + "/")
+                    else "unreviewed pass test source")
+        require(digest(data) == fingerprint, category + ": unreviewed pass main/test bytes: " + path)
         oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
         require(oid == entries[path][1], "uncommitted pass source differs from HEAD: " + path)
     adapters = tree_entries(root, "HEAD", (*ADAPTER_PATHS, CONTRACT))

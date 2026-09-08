@@ -85,6 +85,30 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
         git(root, "add", ".")
         git(root, "commit", "-qm", "synthetic compatibility adapters without B")
         assert module.verify(root) is False
+
+        def production_diagnostics(paths: dict[str, bytes], profile: str) -> int:
+            # Exercise real committed mutations of every main source in both
+            # profiles. The unmodified inherited 59g controls expect this exact
+            # category for changed and removed merged sibling sources.
+            snapshot = git(root, "rev-parse", "HEAD").decode().strip()
+            rejected_count = 0
+            for path in sorted(p for p in paths if p.startswith(module.ROOTS[0] + "/")):
+                for mutation in ("changed", "removed"):
+                    target = root / path
+                    if mutation == "changed":
+                        target.write_bytes(target.read_bytes() + b"\n// diagnostic mutation\n")
+                    else:
+                        target.unlink()
+                    git(root, "add", "--", path)
+                    git(root, "commit", "-qm", "synthetic production diagnostic control")
+                    rejected(profile + " " + mutation + " " + path,
+                             lambda: module.verify(root), "unreviewed production delta")
+                    rejected_count += 1
+                    git(root, "reset", "--hard", snapshot)
+            assert module.verify(root) is (profile == "wa07b")
+            return rejected_count
+
+        negatives += production_diagnostics(baseline, "pre-wa07b")
         # Mirror the real integration: original pass bytes remain exactly those
         # qualified independently, not a hand-authored replacement fixture.
         for path, data in candidate.items():
@@ -95,6 +119,7 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
         git(root, "commit", "-qm", "synthetic B integration")
         head = git(root, "rev-parse", "HEAD").decode().strip()
         assert module.verify(root) is True
+        negatives += production_diagnostics(candidate, "wa07b")
         delta = set(value["production_delta"])
         unknown = "foreign/src/main/MustRemain.scala"
         assert module.inherited_inventory(root, delta | {unknown}, base) == {unknown}
