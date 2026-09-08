@@ -1,0 +1,32 @@
+name: Export exact ancestry for 60g integration
+on:
+  push:
+    branches: [agent/60g-continue-source-export-20260908]
+    paths: ['.github/workflows/60g-continue-source-export.yml']
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export existing target and PR history without modifying either branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/60g-current-ancestry
+          git rev-parse refs/remotes/origin/parameterized-verilog > target/60g-current-ancestry/target.txt
+          git rev-parse refs/remotes/origin/agent/increment-60g-default-signed-verilog > target/60g-current-ancestry/pr.txt
+          git bundle create target/60g-current-ancestry/repository.bundle refs/remotes/origin/parameterized-verilog refs/remotes/origin/agent/increment-60g-default-signed-verilog
+          sha256sum target/60g-current-ancestry/repository.bundle > target/60g-current-ancestry/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 60g-current-ancestry
+          path: target/60g-current-ancestry
+          if-no-files-found: error
+          retention-days: 7
