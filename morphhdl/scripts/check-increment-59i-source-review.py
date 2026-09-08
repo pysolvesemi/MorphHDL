@@ -18,13 +18,14 @@ from pathlib import Path
 
 BASE = 'd32fcf71fc81662618d72b0ec0a5d8a59c50b4d6'
 CONTRACT = "morphhdl/contracts/increment-59i-source-review.json"
-CONTRACT_SHA256 = '8522dc8015defcace0e640f4cab7b6d5782512ef6c2c0d95af493b3dfffa9a5a'
+CONTRACT_SHA256 = 'f9d41a62fb3a9775669d52dd68f3e4158208541e039634db15234b65691e835a'
 PATHS = (
     'core/src/main/scala/spinal/core/Vec.scala',
     'morphhdl/contracts/increment-55-native-change-review.json',
     'morphhdl/contracts/native-source-preservation.json',
     'morphhdl/scripts/check-increment-59g-source-review.py',
     'morphhdl/scripts/test-increment-59h-inherited-source-scope.py',
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala',
     'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala',
