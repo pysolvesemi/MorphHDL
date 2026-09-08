@@ -188,7 +188,25 @@ def register_inherited_inventory(root: Path, paths: set[str], qualification_base
     return (paths - register.PRODUCTION_PATHS) | (inherited & register.PRODUCTION_PATHS)
 
 
+def rollout_scope(root: Path):
+    """Load the separately pinned outer publication contract, when present."""
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not helper.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
+    require(spec is not None and spec.loader is not None, "cannot import reviewed 60g source scope")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    rollout = rollout_scope(root)
+    return source if rollout is None else rollout.restore_60g_source(root, path, source)
+
+
 def restore_source(root: Path, path: str, source: str) -> str:
+    source = restore_rollout(root, path, source)
     """Leave unrelated historical hooks to their own exact source contracts."""
     register = register_source_review(root)
     if register is not None:
@@ -203,7 +221,14 @@ def production_changes(root: Path, revision: str) -> set[str]:
     tracked = subprocess.check_output(["git", "diff", "--name-only", revision], cwd=root, text=True).splitlines()
     untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
                                         cwd=root, text=True).splitlines()
-    return {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
+    paths = {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
+    rollout = rollout_scope(root)
+    if rollout is not None:
+        prior = subprocess.check_output(["git", "diff", "--name-only", revision, rollout.BASE],
+                                        cwd=root, text=True).splitlines()
+        paths -= set(rollout.PRODUCTION) - set(prior)
+        paths = rollout.without_sibling_delta(root, paths, revision)
+    return paths
 
 
 def require_production_inventory(paths: set[str]) -> None:
@@ -230,7 +255,7 @@ def verify_spans(root: Path, qualification_base: str = BASE) -> None:
         stage = subprocess.check_output(["git", "ls-files", "--stage", "--", path], cwd=root, text=True).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "59h reviewed source is not uniquely tracked: " + path)
-        current = source.read_bytes()
+        current = restore_rollout(root, path, source.read_text()).encode()
         if register is not None:
             current = register.restore_source(root, path, current.decode()).encode()
         restore_reviewed(entry, baseline, current)
@@ -248,6 +273,9 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
 
 
 def verify(root: Path, qualification_base: str = BASE) -> None:
+    rollout = rollout_scope(root)
+    if rollout is not None:
+        rollout.source_scope(root)
     paths = register_inherited_inventory(root, production_changes(root, qualification_base), qualification_base)
     register = register_source_review(root)
     if register is not None:
