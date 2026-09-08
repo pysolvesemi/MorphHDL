@@ -184,6 +184,74 @@ def without_sibling_delta(root: Path, paths: set[str], revision: str) -> set[str
     return (paths - sibling) | historical
 
 
+def reviewed_sources(root: Path) -> dict[str, str]:
+    """One closed inventory for production, qualification, ledger files and ledger."""
+    expected = {CONTRACT: CONTRACT_SHA256}
+    entries = [*PRODUCTION.items(), *QUALIFICATION.items(),
+               *((entry["path"], entry["after_sha256"]) for entry in contract(root)["files"])]
+    for path, fingerprint in entries:
+        require(path not in expected or expected[path] == fingerprint,
+                "conflicting reviewed 60g source fingerprints: " + path)
+        expected[path] = fingerprint
+    require(set(expected) == set(PRODUCTION) | set(QUALIFICATION) | set(PATHS) | {CONTRACT},
+            "incomplete reviewed 60g blob inventory")
+    return expected
+
+
+def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
+    """Bind exact raw worktree bytes to regular blobs in both HEAD and the index.
+
+    Inspect the index directly, not git diff: skip-worktree/assume-unchanged or
+    restoring only visible bytes must not hide staged or committed corruption.
+    Batch the Git reads so this adds no per-file subprocesses to inherited gates.
+    """
+    def git(*args: str) -> bytes:
+        return subprocess.check_output(["git", "--literal-pathspecs", *args], cwd=root)
+
+    require(bool(expected), "empty reviewed 60g blob inventory")
+    paths = sorted(expected)
+    head = git("rev-parse", "HEAD").decode().strip()
+    committed, indexed = {}, {}
+    for record in git("ls-tree", "-r", "-z", head, "--", *paths).split(b"\0"):
+        if not record:
+            continue
+        metadata, name = record.split(b"\t", 1)
+        mode, kind, oid = metadata.decode().split()
+        path = name.decode()
+        require(path not in committed and mode == "100644" and kind == "blob",
+                "60g reviewed HEAD source must be one regular non-executable blob: " + path)
+        committed[path] = oid
+    for record in git("ls-files", "--stage", "-z", "--", *paths).split(b"\0"):
+        if not record:
+            continue
+        metadata, name = record.split(b"\t", 1)
+        mode, oid, stage = metadata.decode().split()
+        path = name.decode()
+        require(path not in indexed and mode == "100644" and stage == "0",
+                "60g reviewed index source must be uniquely tracked without conflicts: " + path)
+        indexed[path] = oid
+    require(set(committed) == set(expected) and set(indexed) == set(expected),
+            "60g reviewed source inventory differs in HEAD or index")
+    for path, fingerprint in expected.items():
+        file = root / path
+        require(file.is_file() and not file.is_symlink() and not file.stat().st_mode & 0o111,
+                "60g reviewed worktree source must be a regular non-executable file: " + path)
+        relative = Path(path)
+        require(not relative.is_absolute() and ".." not in relative.parts,
+                "invalid reviewed 60g source path: " + path)
+        require(all(not (root / Path(*relative.parts[:length])).is_symlink()
+                    for length in range(1, len(relative.parts))),
+                "60g reviewed source has a symlinked ancestor: " + path)
+        raw = file.read_bytes()
+        require(hashlib.sha256(raw).hexdigest() == fingerprint,
+                "60g reviewed raw source bytes differ: " + path)
+        oid = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        require(indexed[path] == oid == committed[path],
+                "60g reviewed index, worktree and committed source differ: " + path)
+    require(git("rev-parse", "HEAD").decode().strip() == head,
+            "60g HEAD changed while binding reviewed sources")
+
+
 def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
@@ -222,6 +290,7 @@ def source_scope(root: Path) -> None:
     manifest_path = "morphhdl/contracts/native-source-preservation.json"
     require(digest((root / manifest_path).read_text()) == NATIVE_MANIFEST_SHA256,
             "60g reviewed native manifest changed")
+    reviewed_blob_scope(root, reviewed_sources(root))
     oracle_only(root)
     print("60g seven-file publication/serialization policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
 
@@ -450,6 +519,118 @@ def inherited_projection_self_test(repository: Path) -> None:
           "unrelated-path preservation and 44 rejections PASS (not RTL proof)", flush=True)
 
 
+def reviewed_blob_self_test(repository: Path) -> None:
+    """Real Git controls for every reviewed path; not compiler or RTL evidence."""
+    import tempfile
+
+    expected = reviewed_sources(repository)
+    contents = {path: (repository / path).read_bytes() for path in expected}
+    rejected = 0
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60g-reviewed-blobs-") as directory:
+        root = Path(directory)
+
+        def git(*args: str, data: bytes | None = None) -> str:
+            return subprocess.check_output(["git", *args], cwd=root, input=data,
+                                           stderr=subprocess.PIPE).decode().strip()
+
+        def reject(label: str) -> None:
+            nonlocal rejected
+            try:
+                reviewed_blob_scope(root, expected)
+            except RuntimeError as error:
+                require(str(error).startswith("60g reviewed"), "wrong blob rejection: " + str(error))
+                rejected += 1
+                return
+            raise RuntimeError("60g reviewed blob gate accepted " + label)
+
+        git("init", "-q")
+        git("config", "user.name", "Reviewed blob fixture")
+        git("config", "user.email", "scope@example.invalid")
+        for path, raw in contents.items():
+            file = root / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(raw)
+        git("add", ".")
+        git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "exact reviewed fixture")
+        original = git("rev-parse", "HEAD")
+        reviewed_blob_scope(root, expected)
+        for path, raw in contents.items():
+            file = root / path
+            good = git("rev-parse", "HEAD:" + path)
+            bad_raw = raw + b"\n// hidden blob corruption control\n"
+            bad = git("hash-object", "-w", "--stdin", data=bad_raw)
+            git("update-index", "--add", "--cacheinfo", "100644," + bad + "," + path)
+            reject("staged mutation behind exact worktree: " + path)
+            tree = git("write-tree")
+            changed_head = git("commit-tree", tree, "-p", original, "-m", "altered committed fixture")
+            git("update-ref", "HEAD", changed_head, original)
+            reject("altered HEAD/index behind exact worktree: " + path)
+            git("update-index", "--add", "--cacheinfo", "100644," + good + "," + path)
+            reject("altered HEAD behind exact index/worktree: " + path)
+            git("update-ref", "HEAD", original, changed_head)
+            git("update-index", "--add", "--cacheinfo", "100755," + good + "," + path)
+            reject("staged executable mode behind exact worktree: " + path)
+            git("update-index", "--add", "--cacheinfo", "100644," + good + "," + path)
+            git("update-index", "--force-remove", "--", path)
+            reject("missing index entry behind exact worktree: " + path)
+            removed_head = git("commit-tree", git("write-tree"), "-p", original,
+                               "-m", "missing committed fixture")
+            git("update-ref", "HEAD", removed_head, original)
+            git("update-index", "--add", "--cacheinfo", "100644," + good + "," + path)
+            reject("missing HEAD entry behind exact index/worktree: " + path)
+            git("update-ref", "HEAD", original, removed_head)
+            # Matching all three blobs still cannot replace reviewed bytes.
+            git("update-index", "--add", "--cacheinfo", "100644," + bad + "," + path)
+            git("update-ref", "HEAD", changed_head, original)
+            file.write_bytes(bad_raw)
+            reject("matching but unreviewed committed bytes: " + path)
+            file.write_bytes(raw)
+            git("update-ref", "HEAD", original, changed_head)
+            git("update-index", "--add", "--cacheinfo", "100644," + good + "," + path)
+            reviewed_blob_scope(root, expected)
+
+        first = sorted(expected)[0]
+        file, raw = root / first, contents[first]
+        for flag in ("assume-unchanged", "skip-worktree"):
+            git("update-index", "--" + flag, "--", first)
+            file.write_bytes(raw + b"\n// hidden worktree corruption\n")
+            reject(flag + " cannot hide raw worktree mutation")
+            file.write_bytes(raw)
+            git("update-index", "--no-" + flag, "--", first)
+        file.chmod(0o755)
+        reject("executable physical source")
+        file.chmod(0o644)
+        copy = root / "identical-referent"
+        copy.write_bytes(raw)
+        file.unlink()
+        file.symlink_to(copy)
+        reject("symlink to identical content")
+        file.unlink()
+        file.write_bytes(raw)
+        # A regular file below a symlinked directory is not a regular source path.
+        parent = file.parent
+        moved = parent.with_name(parent.name + "-referent")
+        parent.rename(moved)
+        parent.symlink_to(moved, target_is_directory=True)
+        reject("symlinked ancestor with identical content")
+        parent.unlink()
+        moved.rename(parent)
+        # Byte checks do not normalize CRLF through read_text().
+        file.write_bytes(raw.replace(b"\n", b"\r\n"))
+        git("add", "--", first)
+        crlf = git("commit-tree", git("write-tree"), "-p", original, "-m", "CRLF fixture")
+        git("update-ref", "HEAD", crlf, original)
+        reject("matching blobs with unreviewed line endings")
+        file.write_bytes(raw)
+        git("update-ref", "HEAD", original, crlf)
+        git("add", "--", first)
+        reviewed_blob_scope(root, expected)
+        require(not git("diff", "HEAD", "--", *sorted(expected)), "blob fixture did not restore")
+    require(rejected == 7 * len(expected) + 6, "missing reviewed blob rejection controls")
+    print(f"60g reviewed blob controls: all {len(expected)} paths, {rejected} Git/index/worktree "
+          "rejections and restored positive cases PASS (not RTL proof)", flush=True)
+
+
 def self_test(root: Path) -> None:
     rejected = 0
     for entry in contract(root)["files"]:
@@ -466,6 +647,7 @@ def self_test(root: Path) -> None:
                 raise RuntimeError("60g restoration accepted mutation: " + entry["path"])
     require(rejected == 3 * len(PATHS), "incomplete source mutation controls")
     print(f"60g {len(PATHS)} exact restorations and {rejected} source mutation rejections PASS", flush=True)
+    reviewed_blob_self_test(root)
     sibling_scope_self_test(root)
     inherited_projection_self_test(root)
 
