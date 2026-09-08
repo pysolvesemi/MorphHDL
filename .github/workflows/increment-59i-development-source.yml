@@ -29,7 +29,13 @@ jobs:
           git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
           git rev-parse refs/remotes/origin/parameterized-verilog > "$output/integration-head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          git bundle create "$output/source-history.bundle" HEAD refs/remotes/origin/parameterized-verilog
+          # The compatibility reviewer checks this independent branch's real
+          # ancestry even when the integration branch still uses the old pass.
+          # Preserve that immutable source history, not a fabricated local ref.
+          qualified=8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git cat-file -e "$qualified^{commit}"
+          git update-ref refs/review/wa07b-qualified "$qualified"
+          git bundle create "$output/source-history.bundle" HEAD refs/remotes/origin/parameterized-verilog refs/review/wa07b-qualified
           git bundle verify "$output/source-history.bundle" > "$output/verify.log" 2>&1
           git bundle list-heads "$output/source-history.bundle" > "$output/refs.txt"
           sha256sum "$output/source-history.bundle" "$output/source.tar.gz" > "$output/sha256.txt"
