@@ -2,19 +2,17 @@ name: Increment 61 apply publication hardening
 
 on:
   push:
-    branches: ['agent/increment-61-one-file-per-component']
-    paths: ['.github/workflows/increment-61-apply-publication-hardening.yml']
+    branches:
+      - agent/increment-61-one-file-per-component
+    paths:
+      - '.github/workflows/increment-61-apply-publication-hardening.yml'
+      - 'morphhdl/repair-61-publication-hardening/apply.py'
 
 permissions:
   contents: write
 
-concurrency:
-  group: increment-61-publication-hardening
-  cancel-in-progress: false
-
 jobs:
   apply:
-    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-61-one-file-per-component'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -24,151 +22,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Apply exact reviewed hardening changes
+      - name: Apply exact reviewed hardening patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib
-          import json
-          import re
-          import subprocess
-
-          expected_parent = "359a2cb595ea06cb4c04912b33d0b8d2d85c64d1"
-          head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-          parent = subprocess.check_output(["git", "rev-parse", "HEAD^"], text=True).strip()
-          if parent != expected_parent:
-              raise SystemExit(f"unexpected applicator parent: {parent}")
-          staged = set(subprocess.check_output(
-              ["git", "diff", "--name-only", expected_parent, head], text=True
-          ).splitlines())
-          expected_staged = {".github/workflows/increment-61-apply-publication-hardening.yml"}
-          if staged != expected_staged:
-              raise SystemExit(f"unexpected applicator staging delta: {sorted(staged ^ expected_staged)}")
-
-          production = Path("morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala")
-          text = production.read_text()
-          old = '''        previous.get(file.relativePath) match {
-          case Some(expected) if actual != expected =>
-            throw new IllegalArgumentException(
-              s"MORPHDL-ONE-FILE-PUBLISH-MANAGED-MODIFIED: ${file.relativePath}"
-            )
-          case None if actual != current(file.relativePath) =>
-            throw new IllegalArgumentException(
-              s"MORPHDL-ONE-FILE-PUBLISH-UNOWNED-COLLISION: ${file.relativePath}"
-            )
-          case _ =>
-        }
-'''
-          new = '''        previous.get(file.relativePath) match {
-          case Some(expected) if actual != expected =>
-            throw new IllegalArgumentException(
-              s"MORPHDL-ONE-FILE-PUBLISH-MANAGED-MODIFIED: ${file.relativePath}"
-            )
-          case Some(_) =>
-          case None =>
-            throw new IllegalArgumentException(
-              s"MORPHDL-ONE-FILE-PUBLISH-UNOWNED-COLLISION: ${file.relativePath}"
-            )
-        }
-'''
-          if text.count(old) != 1:
-              raise SystemExit("publication preflight patch precondition failed")
-          production.write_text(text.replace(old, new))
-
-          tests = Path("morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala")
-          text = tests.read_text()
-          marker = '  test("oneFilePerComponent rejects a shared netlist filename before elaboration") {\n'
-          addition = '''  test("byte-identical unowned output collision fails closed") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(
-        targetDirectory = directory.toString,
-        oneFilePerComponent = true
-      )
-      val content =
-        "module Increment61Top;\\nendmodule\\n".getBytes(StandardCharsets.UTF_8)
-      val target = directory.resolve("Increment61Top.v")
-      Files.write(target, content)
-
-      MorphPerComponentPublication.publish(
-        config,
-        "Increment61Top",
-        Vector(
-          MorphPreparedPublicationFile(
-            "Increment61Top.v",
-            content,
-            reportAsSource = true
-          )
-        )
-      ) match {
-        case Left(failure) =>
-          assert(failure.stage == MorphVerilogStage.OutputWrite)
-          assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-UNOWNED-COLLISION"))
-        case Right(paths) => fail(s"expected unowned collision rejection, received $paths")
-      }
-
-      assert(java.util.Arrays.equals(Files.readAllBytes(target), content))
-      assert(!Files.exists(directory.resolve("Increment61Top.lst")))
-      assert(
-        !Files.exists(
-          directory.resolve(".Increment61Top.morphhdl-one-file-per-component.manifest")
-        )
-      )
-    }
-  }
-
-'''
-          if text.count(marker) != 1 or "byte-identical unowned output collision" in text:
-              raise SystemExit("publication regression-test patch precondition failed")
-          tests.write_text(text.replace(marker, addition + marker))
-
-          recursive_path = "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala"
-          trigger = "      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'\n"
-          for relative in (
-              ".github/workflows/increment-61-one-file-per-component.yml",
-              ".github/workflows/increment-61-compatibility-matrix.yml",
-          ):
-              path = Path(relative)
-              body = path.read_text()
-              if body.count(trigger) != 2 or recursive_path in body:
-                  raise SystemExit(f"workflow trigger patch precondition failed: {relative}")
-              path.write_text(body.replace(trigger, trigger + f"      - '{recursive_path}'\n"))
-
-          def sha256(path: Path) -> str:
-              return hashlib.sha256(path.read_bytes()).hexdigest()
-
-          contract_path = Path("morphhdl/contracts/increment-61-source-review.json")
-          contract = json.loads(contract_path.read_text())
-          updated = {
-              str(production): sha256(production),
-              str(tests): sha256(tests),
-          }
-          found = set()
-          for entry in contract["reviewed_files"]:
-              path = entry["path"]
-              if path in updated:
-                  entry["after_sha256"] = updated[path]
-                  found.add(path)
-          if found != set(updated):
-              raise SystemExit(f"source-review entries missing: {sorted(set(updated) - found)}")
-          contract_path.write_text(json.dumps(contract, indent=2) + "\n")
-
-          checker = Path("morphhdl/scripts/check-increment-61-source-review.py")
-          checker_text = checker.read_text()
-          digest = sha256(contract_path)
-          checker_text, count = re.subn(
-              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
-              f'CONTRACT_SHA256 = "{digest}"',
-              checker_text,
-          )
-          if count != 1:
-              raise SystemExit("source-review checker digest patch precondition failed")
-          checker.write_text(checker_text)
-          subprocess.run(["python3", "-m", "py_compile", str(checker)], check=True)
-          PY
-
-          git rm .github/workflows/increment-61-apply-publication-hardening.yml
+          python3 morphhdl/repair-61-publication-hardening/apply.py
+          git rm \
+            .github/workflows/increment-61-apply-publication-hardening.yml \
+            morphhdl/repair-61-publication-hardening/apply.py
           git add \
             .github/workflows/increment-61-one-file-per-component.yml \
             .github/workflows/increment-61-compatibility-matrix.yml \
@@ -178,7 +39,7 @@ jobs:
             morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala
           git diff --cached --check
 
-      - name: Commit, verify exact source contract and publish
+      - name: Commit, verify and publish
         shell: bash
         run: |
           set -euo pipefail
