@@ -147,6 +147,7 @@ superseded for every unchecked increment by the typed elaboration architecture.
 
 
 - [x] **Increment 38 — Native-source inventory and zero-diff guard**
+
   Convert the reviewed audit into a machine-readable manifest that classifies
   every current change to upstream-owned `core`, `lib` and `idslplugin` source
   as a direct edit, MorphHDL sidecar or generated/backend coupling. Add a CI
@@ -297,6 +298,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 - [x] **Increment 48 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
 
   **Dependencies:** Increment 44 implemented and merged.
+
   Add a compiler-plugin or equivalently typed frontend transformation for
   conditionals whose condition is explicitly proven to be MorphHDL symbolic.
   Capture both alternatives and lower them to parameter-controlled Verilog
@@ -445,6 +447,7 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 - [x] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
 
   **Dependencies:** Increment 53b implemented and merged.
+
   Preserve bounded symbolic register-map offsets while application source uses
   the real, untouched `spinal.lib.bus.amba4.axi.Axi4SlaveFactory`. MorphHDL may
   add only compiler/runtime provenance, exact-object metadata and
