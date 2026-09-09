@@ -2,12 +2,14 @@
 """Harden the staged local-enable prototype before compilation.
 
 This small follow-on remains separate from apply.py so the original source-bound
-prototype is reviewable. It removes false-negative test paths and ensures only
-conditional data assignments contribute When control ownership.
+prototype is reviewable. It removes false-negative test paths, narrows the
+bit-access source before exact identity lookup, and ensures only conditional
+data assignments contribute When control ownership.
 """
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+BRIDGE = ROOT / "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala"
 COMPOSITE = ROOT / "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala"
 TEST = ROOT / "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala"
 
@@ -29,6 +31,21 @@ def replace_region(text: str, start: str, end: str, replacement: str, label: str
     right = text.index(end, left)
     require(right > left, f"{label} anchors reversed")
     return text[:left] + replacement + text[right + len(end):]
+
+
+def patch_bridge_source_type() -> None:
+    text = BRIDGE.read_text()
+    before = '''          val index = if (access.source eq driver) inputIndex else admitted(access.source)
+'''
+    after = '''          val index =
+            if (access.source eq driver) inputIndex
+            else access.source match {
+              case source: BaseType => admitted(source)
+              case _ => -1
+            }
+'''
+    text = replace_once(text, before, after, "bit-access source narrowing")
+    BRIDGE.write_text(text)
 
 
 def patch_walker() -> None:
@@ -136,7 +153,9 @@ def patch_test() -> None:
 
 
 def main() -> None:
-    require(COMPOSITE.is_file() and TEST.is_file(), "apply.py must run first")
+    require(BRIDGE.is_file() and COMPOSITE.is_file() and TEST.is_file(),
+            "apply.py must run first")
+    patch_bridge_source_type()
     patch_walker()
     patch_test()
     print("59i local-enable generated source hardening applied")
