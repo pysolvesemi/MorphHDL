@@ -102,6 +102,11 @@ object MorphHdlExternalParameterizedVerilog {
     val components = componentGraph(top)
     components.foreach(ParameterizedMemory.discover)
     val recursiveReferences = BoundedRecursiveModuleValidation.validate(components)
+    val recursiveReferenceIdentities =
+      new IdentityHashMap[BlackBox, java.lang.Boolean]()
+    recursiveReferences.foreach(reference =>
+      recursiveReferenceIdentities.put(reference, java.lang.Boolean.TRUE)
+    )
     components.foreach(component =>
       validateComponentParameterRootInventory(
         component,
@@ -201,7 +206,8 @@ object MorphHdlExternalParameterizedVerilog {
     if (pc.config.oneFilePerComponent) {
       components.collect {
         case component
-            if component.isInBlackBoxTree || component.isInstanceOf[BlackBox] =>
+            if (component.isInBlackBoxTree || component.isInstanceOf[BlackBox]) &&
+              !recursiveReferenceIdentities.containsKey(component) =>
           componentName(component)
       }.distinct.foreach { name =>
         Files.deleteIfExists(perComponentTargetPath(pc, name))

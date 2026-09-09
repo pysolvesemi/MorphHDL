@@ -5,7 +5,7 @@ import java.nio.file.{Files, Path, Paths}
 
 import scala.collection.JavaConverters._
 
-import nativeapplication.TypedBlackBoxGenericBindingFixture
+import nativeapplication.{BoundedRecursivePowerFixture, TypedBlackBoxGenericBindingFixture}
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
 
@@ -166,6 +166,31 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       assert(text.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE"))
       assert(!text.contains("`define Inc53b"))
       assert(!Files.exists(directory.resolve("enumdefine.v")))
+    }
+  }
+
+  test("split publication preserves a validated bounded recursive owner file") {
+    withTemporaryDirectory { directory =>
+      val report = MorphVerilog(
+        SpinalConfig(
+          targetDirectory = directory.toString,
+          oneFilePerComponent = true
+        )
+      )(BoundedRecursivePowerFixture.parameterized())
+
+      val names = report.generatedSourcesPaths.map(path => Paths.get(path).getFileName.toString)
+      assert(names == Vector("BoundedRecursivePower.v"))
+      val recursive = read(directory.resolve("BoundedRecursivePower.v"))
+      assert(moduleDefinitions(recursive) == Vector("BoundedRecursivePower"))
+      assert(recursive.contains("parameter integer N = 5"))
+      assert(recursive.contains("BoundedRecursivePower #("))
+      assert(!recursive.contains("__morphhdl_recursive_reference_"))
+      assert(
+        read(directory.resolve("BoundedRecursivePower.lst"))
+          .split("\n", -1)
+          .toVector
+          .filter(_.nonEmpty) == names
+      )
     }
   }
 
