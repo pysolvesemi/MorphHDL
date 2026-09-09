@@ -134,3 +134,4 @@ if __name__ == "__main__":
     main()
 
 # Second staging push: the workflow is already present and can now execute.
+# Direct Git-data trigger: force a real push event on the existing workflow.
