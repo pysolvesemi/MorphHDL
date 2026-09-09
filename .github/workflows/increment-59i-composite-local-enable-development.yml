@@ -54,7 +54,11 @@ jobs:
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
           grep -q 'BRIDGE-CONTROL-REGISTER' \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
-          grep -q 'private object BalancedLocalEnableOps' \
+          grep -q 'external and registered peer controls remain rejected' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          grep -q 'RegNextWhen(value.unsigned, value.valid)' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          ! grep -q 'BalancedLocalEnableOps' \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
 
       - name: Bootstrap pinned SBT
