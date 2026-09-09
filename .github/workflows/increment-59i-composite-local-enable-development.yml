@@ -1,0 +1,105 @@
+name: Increment 59i composite local-enable development
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths:
+      - '.github/workflows/increment-59i-composite-local-enable-development.yml'
+      - 'morphhdl/repair-59i-composite-local-enable/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-composite-local-enable-development
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Composite local-enable Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Apply exact same-composite control patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-composite-local-enable"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$output/application.log"
+          git diff --check
+          git diff --binary > "$output/applied.diff"
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'BRIDGE-CONTROL-REGISTER' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-composite-local-enable"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          cat > "$output/sbt.sh" <<'SH'
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-composite-local-enable"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" "$@"
+          SH
+
+      - name: Compile and run focused plus inherited bridge suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-composite-local-enable"
+          status=0
+          bash "$output/sbt.sh" 'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$output/tests.log" 2>&1 || status=$?
+          tail -n 300 "$output/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$output/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$output/tests.log"
+          mkdir -p "$output/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$output/test-reports/" \; 2>/dev/null || true
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala "$output/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala "$output/"
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala "$output/"
+          sha256sum "$output"/*.scala > "$output/source-sha256.txt"
+
+      - name: Upload exact development evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-local-enable-${{ matrix.scala }}
+          path: target/increment-59i-composite-local-enable
+          if-no-files-found: error
+          retention-days: 7
