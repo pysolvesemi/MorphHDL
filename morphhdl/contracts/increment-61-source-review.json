@@ -1,6 +1,11 @@
 {
   "audit_paths": [
+    ".github/workflows/increment-59c-named-field-vectors.yml",
+    ".github/workflows/increment-59g-register-bridges.yml",
+    ".github/workflows/increment-60c-signed-declarations.yml",
     ".github/workflows/increment-60d-pure-sint-casts.yml",
+    ".github/workflows/increment-60e-signedness-boundaries.yml",
+    ".github/workflows/increment-60f-equivalence-closure.yml",
     ".github/workflows/increment-60g-default-signed-verilog.yml",
     ".github/workflows/increment-61-one-file-per-component.yml",
     "morphhdl/contracts/increment-61-source-review.json",

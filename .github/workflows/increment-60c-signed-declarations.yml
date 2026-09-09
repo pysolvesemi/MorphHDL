@@ -31,13 +31,24 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
-      - name: Sealed historical source scope and current native audits
+      - name: Compose sealed signed-declaration source with Increment 61
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p target/increment-60c
-          git archive HEAD | gzip > target/increment-60c/source.tar.gz
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          output="$GITHUB_WORKSPACE/target/increment-60c"
+          predecessor="$output/predecessor-source"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          )
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py
@@ -71,7 +82,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --inherited-track 60c target/increment-60c/a
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --skip-source --inherited-track 60c target/increment-60c/a
       - name: Retain exact-head sources and qualification evidence
         if: always()
         uses: actions/upload-artifact@v4

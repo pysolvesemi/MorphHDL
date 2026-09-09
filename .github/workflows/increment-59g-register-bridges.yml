@@ -55,19 +55,29 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Preserve source and check exact inherited contracts
+      - name: Compose frozen register-bridge reviews with Increment 61
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p target/increment-59g/bootstrap
-          git rev-parse HEAD > target/increment-59g/head.txt
-          git archive HEAD | gzip > target/increment-59g/source.tar.gz
+          output="$GITHUB_WORKSPACE/target/increment-59g"
+          predecessor="$output/predecessor-source"
+          mkdir -p "$output/bootstrap"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/test-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          )
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
-          python3 morphhdl/scripts/check-increment-59g-source-review.py --self-test
-          python3 morphhdl/scripts/check-increment-59g-source-review.py
-          python3 morphhdl/scripts/test-increment-59g-source-review.py
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test
       - name: Bootstrap the repository-pinned SBT launcher
         shell: bash
