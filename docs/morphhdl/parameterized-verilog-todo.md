@@ -147,7 +147,6 @@ superseded for every unchecked increment by the typed elaboration architecture.
 
 
 - [x] **Increment 38 — Native-source inventory and zero-diff guard**
-
   Convert the reviewed audit into a machine-readable manifest that classifies
   every current change to upstream-owned `core`, `lib` and `idslplugin` source
   as a direct edit, MorphHDL sidecar or generated/backend coupling. Add a CI
@@ -298,7 +297,6 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 - [x] **Increment 48 — Natural symbolic conditionals for explicit `HdlInt`/`HdlBool`**
 
   **Dependencies:** Increment 44 implemented and merged.
-
   Add a compiler-plugin or equivalently typed frontend transformation for
   conditionals whose condition is explicitly proven to be MorphHDL symbolic.
   Capture both alternatives and lower them to parameter-controlled Verilog
@@ -447,7 +445,6 @@ start until Increments 45 through 52 are implemented, reviewed and merged.
 - [x] **Increment 53c — Native AXI4 Slave Factory parameterized offsets**
 
   **Dependencies:** Increment 53b implemented and merged.
-
   Preserve bounded symbolic register-map offsets while application source uses
   the real, untouched `spinal.lib.bus.amba4.axi.Axi4SlaveFactory`. MorphHDL may
   add only compiler/runtime provenance, exact-object metadata and
@@ -1085,13 +1082,62 @@ dependency chain is unchanged and may proceed independently.
   documentation-only; its applicable checks and protected merge are tracked in
   PR #167. Ordinary SpinalVerilog and VHDL remain unchanged by default.
 
+### Per-component parameterized publication track (Increment 61)
+
+- [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**
+
+  **Dependencies:** Increment 59i implemented and merged. Increment 60 is
+  already complete and must remain integrated.
+
+  Remove the current MorphHDL parameterized-Verilog restriction that rejects
+  `oneFilePerComponent = true`. Treat this as publication-path compatibility,
+  not as a second parameter model or RTL implementation. Reuse the canonical
+  typed module graph and exact logical-component identity; do not generate a
+  consolidated file and then recover component boundaries by reparsing or
+  emitted-text heuristics.
+
+  When enabled, emit one deterministic Verilog source file per generated logical
+  component definition while retaining that component's complete parameterized
+  module header and owned declarations. Parameter declarations, module-local
+  localparams/enums, helper functions, memories, signed declarations, generate
+  regions and other module-owned artifacts must stay with the owning definition.
+  Parent/child instances in separate files must preserve exact named parameter
+  bindings and one canonical definition per logical component even when several
+  instances use different parameter actuals. Recursive generated self-instances
+  must continue to target the same canonical module. `BlackBox`/external-module
+  definitions must not be regenerated or copied merely because publication is
+  split across files.
+
+  Define deterministic file naming, collision diagnostics, source ordering and
+  the returned/generated-source manifest. A split output must not accidentally
+  depend on declarations stranded in another component file; any intentionally
+  shared compilation-unit artifact must be explicit, deterministic and included
+  in the reported source set. Repeated generation into an existing target
+  directory must define safe stale-file handling without deleting unrelated
+  user files. Do not silently fall back to consolidated output when the option
+  is requested.
+
+  Preserve the existing consolidated parameterized output when
+  `oneFilePerComponent = false` and preserve ordinary concrete `SpinalVerilog`
+  behavior. Qualify nested hierarchy, repeated canonical children with distinct
+  parameter actuals, Mem/Vec and Stream/StreamFifo/StreamFifoCC users, signed
+  `SInt`, parameter-controlled generate regions, recursive modules,
+  field-preserving/reduction cases from 59i and typed BlackBox generic binding.
+  Compile/lint/synthesize the complete emitted file set with the supported tool
+  matrix and prove representative split-file specializations equivalent to the
+  existing consolidated parameterized publication. Require deterministic
+  dual-Scala output, live negative controls for missing/duplicate/wrong-file
+  module publication and every inherited compatibility/audit gate before this
+  checkbox can be marked complete.
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
 `ElabInt`/`ElabBool` values from API entry through elaboration and lower one
-readable parameterized Verilog-2001 definition per logical component. Literal
-`Int`/`Boolean` calls must still produce ordinary parameter-free SpinalHDL.
-Native algorithms must remain authoritative, approved native changes must be
-small and mechanical, and the production implementation must not reconstruct
-symbolic meaning from erased Scala values, component names, source-file special
-cases, emitted identifiers or equal concrete witnesses.
+readable parameterized Verilog-2001 definition per logical component, with
+correct publication in both consolidated and `oneFilePerComponent = true`
+modes. Literal `Int`/`Boolean` calls must still produce ordinary parameter-free
+SpinalHDL. Native algorithms must remain authoritative, approved native changes
+must be small and mechanical, and the production implementation must not
+reconstruct symbolic meaning from erased Scala values, component names,
+source-file special cases, emitted identifiers or equal concrete witnesses.
