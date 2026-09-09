@@ -1,0 +1,149 @@
+name: WA-08 exact-head qualification monitor
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: wa08-exact-head-qualification-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch history
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+
+      - name: Require the complete trigger-head workflow set
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+          import json
+          import os
+          import subprocess
+          import time
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          root = Path.cwd()
+          repository = os.environ["GH_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          trigger = subprocess.check_output(
+              ["git", "log", "--all", "--grep=^Trigger WA-08 qualification after Increment 62 compatibility repair$",
+               "-1", "--format=%H"], cwd=root, text=True
+          ).strip()
+          if not trigger:
+              raise RuntimeError("WA-08 exact-head trigger commit is missing")
+
+          required = {
+              "Increment 59c named field vectors",
+              "Increment 59g native register bridge qualification",
+              "Increment 60c signed declarations",
+              "Increment 60d pure SInt casts",
+              "Increment 60e signedness boundaries",
+              "Increment 60f equivalence closure",
+              "Increment 60g default signed Verilog",
+              "Increment 62 WA-08 inherited workflow closure",
+              "MorphHDL IR pass workspace",
+              "MorphHDL baseline",
+              "MorphHDL Mill",
+              "MorphHDL native source guard",
+          }
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + token,
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "MorphHDL-WA08-monitor",
+          }
+          endpoint = (
+              "https://api.github.com/repos/" + repository + "/actions/runs?" +
+              urllib.parse.urlencode({
+                  "head_sha": trigger,
+                  "event": "pull_request",
+                  "per_page": 100,
+              })
+          )
+          deadline = time.time() + 1500
+          snapshot = {}
+          while True:
+              request = urllib.request.Request(endpoint, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  data = json.load(response)
+              runs = data.get("workflow_runs", [])
+              snapshot = {}
+              for run in runs:
+                  name = run.get("name")
+                  if name not in required:
+                      continue
+                  current = snapshot.get(name)
+                  if current is None or run.get("run_attempt", 1) >= current.get("run_attempt", 1):
+                      snapshot[name] = {
+                          key: run.get(key)
+                          for key in ("id", "name", "status", "conclusion", "html_url",
+                                      "head_sha", "run_attempt", "updated_at")
+                      }
+              missing = required - set(snapshot)
+              active = {
+                  name for name, run in snapshot.items()
+                  if run["status"] != "completed"
+              }
+              if not missing and not active:
+                  break
+              if time.time() >= deadline:
+                  break
+              time.sleep(15)
+
+          missing = sorted(required - set(snapshot))
+          active = sorted(
+              name for name, run in snapshot.items()
+              if run["status"] != "completed"
+          )
+          failed = sorted(
+              name for name, run in snapshot.items()
+              if run["status"] == "completed" and
+                 run["conclusion"] not in ("success", "skipped", "neutral")
+          )
+          report = {
+              "trigger": trigger,
+              "required": sorted(required),
+              "missing": missing,
+              "active": active,
+              "failed": failed,
+              "runs": snapshot,
+          }
+          report_path = root / "docs/morphhdl/wa08-parent-ci-result.json"
+          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          green = root / "docs/morphhdl/wa08-parent-ci-green.marker"
+          if green.exists():
+              green.unlink()
+          if not missing and not active and not failed:
+              green.touch()
+          PY
+
+      - name: Publish result and remove observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/wa08-parent-ci-monitor.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Record WA-08 exact-head qualification result"
+          git push origin HEAD:agent/wa-08-production-handoff
