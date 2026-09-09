@@ -27,6 +27,10 @@ object CanonicalIrFacet {
   case object Observability extends CanonicalIrFacet {
     override val id: String = "observability"
   }
+  /** Complete recursively structured, side-effect-free RHS expression trees. */
+  case object PureExpressions extends CanonicalIrFacet {
+    override val id: String = "pure-expressions"
+  }
 }
 
 /** A bounded producer contract, distinct from the canonical schema version. */
@@ -36,20 +40,34 @@ sealed trait CanonicalIrProfile extends Product with Serializable {
 }
 
 object CanonicalIrProfile {
+  private val BaseWireFacets: Set[CanonicalIrFacet] = Set(
+    CanonicalIrFacet.Declarations,
+    CanonicalIrFacet.ContinuousDrivers,
+    CanonicalIrFacet.ReferenceOccurrences,
+    CanonicalIrFacet.TypedParametersAndPackedTypes,
+    CanonicalIrFacet.NameOrigins,
+    CanonicalIrFacet.Observability
+  )
+
   /**
-    * One flat module containing packed declarations and root-scope, full-object
-    * continuous assignments whose values are direct references or literals.
+    * Legacy PV-58 bounded profile: one flat module containing packed
+    * declarations and root-scope, full-object continuous assignments whose
+    * values are direct references or literals.
     */
   case object SimpleWireAssignmentsV1 extends CanonicalIrProfile {
     override val id: String = "simple-wire-assignments-v1"
-    override val requiredFacets: Set[CanonicalIrFacet] = Set(
-      CanonicalIrFacet.Declarations,
-      CanonicalIrFacet.ContinuousDrivers,
-      CanonicalIrFacet.ReferenceOccurrences,
-      CanonicalIrFacet.TypedParametersAndPackedTypes,
-      CanonicalIrFacet.NameOrigins,
-      CanonicalIrFacet.Observability
-    )
+    override val requiredFacets: Set[CanonicalIrFacet] = BaseWireFacets
+  }
+
+  /**
+    * WA-08 production profile. It retains the same deliberately bounded module,
+    * scope, declaration and driver envelope as PV-58, but carries the complete
+    * canonical pure-expression algebra recursively on every captured RHS.
+    */
+  case object PureWireExpressionsV1 extends CanonicalIrProfile {
+    override val id: String = "pure-wire-expressions-v1"
+    override val requiredFacets: Set[CanonicalIrFacet] =
+      BaseWireFacets + CanonicalIrFacet.PureExpressions
   }
 }
 
@@ -101,8 +119,11 @@ final class CanonicalIrHandoff private[v1] (
 }
 
 object CanonicalIrHandoff {
-  val productionProfile: CanonicalIrProfile =
+  val legacySimpleWireProfile: CanonicalIrProfile =
     CanonicalIrProfile.SimpleWireAssignmentsV1
+
+  val productionProfile: CanonicalIrProfile =
+    CanonicalIrProfile.PureWireExpressionsV1
 
   val productionFacets: Set[CanonicalIrFacet] =
     productionProfile.requiredFacets
@@ -182,10 +203,15 @@ object CanonicalIrHandoff {
       profile: CanonicalIrProfile
   ): Option[String] = profile match {
     case CanonicalIrProfile.SimpleWireAssignmentsV1 =>
-      simpleWireAssignmentsViolation(design)
+      wireAssignmentsViolation(design, allowPureExpressions = false)
+    case CanonicalIrProfile.PureWireExpressionsV1 =>
+      wireAssignmentsViolation(design, allowPureExpressions = true)
   }
 
-  private def simpleWireAssignmentsViolation(design: Design): Option[String] = {
+  private def wireAssignmentsViolation(
+      design: Design,
+      allowPureExpressions: Boolean
+  ): Option[String] = {
     if (design.modules.size != 1)
       Some("exactly one module is required")
     else {
@@ -235,8 +261,12 @@ object CanonicalIrHandoff {
                         "only continuous drivers are supported"
                       case driver if driver.coverage != DriverCoverage.FullObject =>
                         "only full-object drivers are supported"
-                      case driver if !isSimpleWireExpression(driver.value) =>
-                        "driver values must be direct references or exact literals"
+                      case driver
+                          if !isWireExpression(driver.value, allowPureExpressions) =>
+                        if (allowPureExpressions)
+                          "driver values must be recursively structured pure canonical expressions"
+                        else
+                          "driver values must be direct references or exact literals"
                     }
                     structuralDriverViolation.orElse(
                       module.drivers.iterator
@@ -302,11 +332,33 @@ object CanonicalIrHandoff {
     }
   }
 
-  private def isSimpleWireExpression(expression: RtlExpr): Boolean =
+  private def isWireExpression(
+      expression: RtlExpr,
+      allowPureExpressions: Boolean
+  ): Boolean =
     expression match {
       case _: RtlExpr.Ref     => true
       case _: RtlExpr.Literal => true
-      case _                  => false
+      case RtlExpr.Unary(_, value) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true)
+      case RtlExpr.Binary(_, left, right) if allowPureExpressions =>
+        isWireExpression(left, allowPureExpressions = true) &&
+          isWireExpression(right, allowPureExpressions = true)
+      case RtlExpr.Mux(condition, whenTrue, whenFalse) if allowPureExpressions =>
+        isWireExpression(condition, allowPureExpressions = true) &&
+          isWireExpression(whenTrue, allowPureExpressions = true) &&
+          isWireExpression(whenFalse, allowPureExpressions = true)
+      case RtlExpr.Concat(parts) if allowPureExpressions =>
+        parts.nonEmpty && parts.forall(isWireExpression(_, allowPureExpressions = true))
+      case RtlExpr.BitSelect(value, _) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true)
+      case RtlExpr.PartSelect(value, _, _) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true)
+      case RtlExpr.Resize(value, _) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true)
+      case RtlExpr.Cast(value, _, _) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true)
+      case _ => false
     }
 
   private def isWritableTarget(module: Module, target: SymbolId): Boolean =
