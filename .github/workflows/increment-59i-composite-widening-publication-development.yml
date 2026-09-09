@@ -48,6 +48,7 @@ jobs:
           test "$(git merge-base HEAD df76262934b38516785fc7bf51595d918a20e7d2)" = df76262934b38516785fc7bf51595d918a20e7d2
           python3 morphhdl/repair-59i-composite-widening-publication/apply.py | tee "$output/application.log"
           python3 morphhdl/repair-59i-composite-widening-publication/allow-empty-schema.py | tee -a "$output/application.log"
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py | tee -a "$output/application.log"
           git diff --check
           git diff --binary > "$output/applied.diff"
       - name: Bootstrap pinned SBT
@@ -76,7 +77,7 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-59i-widening-publication"
           status=0
           bash "$output/sbt.sh" 'morph/Test/compile' \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningConstructionPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
             > "$output/tests.log" 2>&1 || status=$?
           mkdir -p "$output/test-reports"
           find morphhdl/target -type f -name '*.xml' -exec cp {} "$output/test-reports/" \; 2>/dev/null || true
@@ -103,7 +104,10 @@ jobs:
           grep -q 'All tests passed' "$output/tests.log"
           cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala "$output/"
           cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala "$output/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala "$output/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala "$output/"
           cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala "$output/"
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala "$output/"
           sha256sum "$output"/*.scala > "$output/source-sha256.txt"
       - name: Upload exact prototype and results
         if: always()

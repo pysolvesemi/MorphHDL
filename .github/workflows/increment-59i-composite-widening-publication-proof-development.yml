@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/increment-59i-composite-widening-publication-proof-development.yml'
       - 'morphhdl/repair-59i-composite-widening-publication-proof/**'
+      - 'morphhdl/repair-59i-composite-widening-publication/**'
   workflow_dispatch:
 
 permissions:
@@ -45,9 +46,10 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-59i-widening-focused-proof"
           mkdir -p "$output"
           git rev-parse HEAD > "$output/staging-head.txt"
-          test "$(git merge-base HEAD a99d5d9c5aa7c5cbbdc24c10838427e8be654c7c)" = a99d5d9c5aa7c5cbbdc24c10838427e8be654c7c
+          test "$(git merge-base HEAD df76262934b38516785fc7bf51595d918a20e7d2)" = df76262934b38516785fc7bf51595d918a20e7d2
           python3 morphhdl/repair-59i-composite-widening-publication/apply.py
           python3 morphhdl/repair-59i-composite-widening-publication/allow-empty-schema.py
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py
           cp morphhdl/repair-59i-composite-widening-publication-proof/NativeCompositeWideningReference.scala \
             morphhdl/src/test/scala/nativeapplication/NativeCompositeWideningReference.scala
           cp morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala \
