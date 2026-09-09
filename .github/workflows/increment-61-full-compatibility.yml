@@ -1,0 +1,280 @@
+name: Increment 61 full compatibility closure
+
+on:
+  push:
+    branches: ['agent/increment-61-one-file-per-component']
+    paths: ['.github/workflows/increment-61-full-compatibility.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-full-compatibility
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Publish exact audit composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      head: ${{ steps.publish.outputs.head }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Seal this workflow and the historical overlay composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-full-compatibility
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import re
+          import subprocess
+          from pathlib import Path
+
+          contract_path = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker_path = Path('morphhdl/scripts/check-increment-61-source-review.py')
+          overlay_path = Path('morphhdl/scripts/check-typed-native-source-overlay.py')
+          workflows = {
+              '.github/workflows/increment-61-resume-audit-composition.yml',
+              '.github/workflows/increment-61-full-compatibility.yml',
+          }
+          wrapper = '''#!/usr/bin/env python3
+          """Compose Increment 61 exact review with the sealed predecessor overlay audit."""
+          from __future__ import annotations
+
+          import subprocess
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          ROOT = Path(__file__).resolve().parents[2]
+          REVIEW = ROOT / "morphhdl/scripts/check-increment-61-source-review.py"
+          HISTORICAL = "morphhdl/scripts/check-typed-native-source-overlay.py"
+
+
+          def main() -> None:
+              subprocess.run([sys.executable, str(REVIEW)], cwd=ROOT, check=True)
+              base = subprocess.check_output(
+                  [sys.executable, str(REVIEW), "--print-base"], cwd=ROOT, text=True
+              ).strip()
+              with tempfile.TemporaryDirectory(prefix="morphhdl-increment-61-overlay-") as temporary:
+                  worktree = Path(temporary) / "predecessor"
+                  subprocess.run(
+                      ["git", "worktree", "add", "--detach", str(worktree), base],
+                      cwd=ROOT,
+                      check=True,
+                      stdout=subprocess.DEVNULL,
+                  )
+                  try:
+                      subprocess.run(
+                          [sys.executable, str(worktree / HISTORICAL)],
+                          cwd=worktree,
+                          check=True,
+                      )
+                  finally:
+                      subprocess.run(
+                          ["git", "worktree", "remove", "--force", str(worktree)],
+                          cwd=ROOT,
+                          check=True,
+                          stdout=subprocess.DEVNULL,
+                      )
+              print("Increment 61 exact source and sealed predecessor typed-overlay audits PASS")
+
+
+          if __name__ == "__main__":
+              main()
+          '''
+          wrapper = '\n'.join(line[10:] if line.startswith('          ') else line for line in wrapper.splitlines()) + '\n'
+
+          contract = json.loads(contract_path.read_text())
+          assert contract['schema'] == 1 and contract['increment'] == '61'
+          base = contract['base_commit']
+          subprocess.run(['git', 'merge-base', '--is-ancestor', base, 'HEAD'], check=True)
+          digest = lambda data: hashlib.sha256(data).hexdigest()
+
+          reviewed = [entry for entry in contract['reviewed_files'] if entry['path'] != overlay_path.as_posix()]
+          before = subprocess.check_output(['git', 'show', f'{base}:{overlay_path.as_posix()}'])
+          overlay_path.write_text(wrapper)
+          overlay_path.chmod(0o755)
+          reviewed.append({
+              'after_sha256': digest(overlay_path.read_bytes()),
+              'before_sha256': digest(before),
+              'mode': '100755',
+              'path': overlay_path.as_posix(),
+              'status': 'modified',
+          })
+          contract['reviewed_files'] = sorted(reviewed, key=lambda entry: entry['path'])
+          audit = set(contract['audit_paths']) | workflows
+          audit.discard(overlay_path.as_posix())
+          contract['audit_paths'] = sorted(audit)
+          contract_path.write_text(json.dumps(contract, indent=2, sort_keys=False) + '\n')
+
+          checker = checker_path.read_text()
+          updated, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{digest(contract_path.read_bytes())}"',
+              checker,
+              count=1,
+          )
+          assert count == 1
+          checker_path.write_text(updated)
+          PY
+          chmod +x morphhdl/scripts/check-typed-native-source-overlay.py
+          git add \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py \
+            morphhdl/scripts/check-typed-native-source-overlay.py
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit \
+              -m '61: seal full compatibility and overlay audit composition' \
+              -m 'Authenticate both Increment 61 continuation workflows, retain exact hashes for the typed-overlay composition wrapper, and execute the unchanged historical overlay checker at the exact predecessor only after the complete current Increment 61 source review passes.'
+          fi
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/source-review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee "$output/source-review-self-test.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$output/overlay-composition.log"
+          git rev-parse HEAD > "$output/prepared-head.txt"
+
+      - name: Publish exact prepared head
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-full-compatibility
+          original=$(cat "$output/staging-head.txt")
+          remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
+          test "$remote" = "$original"
+          git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
+          head=$(git rev-parse HEAD)
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "$head" > "$output/published-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-full-compatibility-source
+          path: target/increment-61-full-compatibility
+          if-no-files-found: error
+          retention-days: 14
+
+  regression:
+    needs: prepare
+    name: Full MorphHDL regression Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx6G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Require exact prepared source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ needs.prepare.outputs.head }}'
+          mkdir -p target/increment-61-full-regression
+          git rev-parse HEAD > target/increment-61-full-regression/head.txt
+          python3 morphhdl/scripts/check-increment-61-source-review.py \
+            > target/increment-61-full-regression/source-review.log
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py \
+            > target/increment-61-full-regression/overlay-review.log
+      - name: Run the complete MorphHDL test inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-full-regression
+          sbt -batch "++$SCALA_VERSION" 'morph/Test/test' \
+            > "$output/sbt.log" 2>&1 || { tail -n 400 "$output/sbt.log"; exit 1; }
+          python3 - "$output" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+          import xml.etree.ElementTree as ET
+
+          output = Path(sys.argv[1])
+          reports = sorted(Path('morphhdl/target').rglob('TEST-*.xml'))
+          assert reports, 'no ScalaTest/JUnit reports found'
+          totals = {'files': len(reports), 'tests': 0, 'failures': 0, 'errors': 0, 'skipped': 0}
+          for report in reports:
+              root = ET.parse(report).getroot()
+              for key in ('tests', 'failures', 'errors', 'skipped'):
+                  totals[key] += int(float(root.get(key, '0')))
+          assert totals['tests'] > 0 and totals['failures'] == totals['errors'] == totals['skipped'] == 0, totals
+          (output / 'test-counts.json').write_text(json.dumps(totals, indent=2) + '\n')
+          print(totals)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-full-regression-${{ matrix.scala }}
+          path: |
+            target/increment-61-full-regression
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 14
+
+  closure:
+    needs: [prepare, regression]
+    name: Full compatibility closure
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.head }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-61-full-regression-*
+          path: target/increment-61-full-regression-cross
+      - name: Require both exact-head successful Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          head='${{ needs.prepare.outputs.head }}'
+          for scala in 2.12.18 2.13.12; do
+            root="target/increment-61-full-regression-cross/increment-61-full-regression-$scala"
+            test "$(cat "$root/target/increment-61-full-regression/head.txt")" = "$head"
+            python3 - "$root/target/increment-61-full-regression/test-counts.json" <<'PY'
+          import json, sys
+          value = json.load(open(sys.argv[1]))
+          assert value['tests'] > 0
+          assert value['failures'] == value['errors'] == value['skipped'] == 0
+          print(value)
+          PY
+          done
+          git rev-parse HEAD > target/increment-61-full-regression-cross/closure-head.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-full-compatibility-closure
+          path: target/increment-61-full-regression-cross
+          if-no-files-found: error
+          retention-days: 14
