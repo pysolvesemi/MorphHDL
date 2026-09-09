@@ -1,0 +1,48 @@
+name: WA-08 final base synchronization
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa08-final-base-sync
+  cancel-in-progress: false
+
+jobs:
+  synchronize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+
+      - name: Merge latest integration base and revalidate overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --verify
+          git fetch origin parameterized-verilog
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git merge-base --is-ancestor origin/parameterized-verilog HEAD; then
+            git rm .github/workflows/wa08-sync-latest-base-v2.yml
+            git commit -m "Remove completed WA-08 base synchronizer"
+          else
+            git merge --no-ff --no-commit origin/parameterized-verilog
+            git rm .github/workflows/wa08-sync-latest-base-v2.yml
+            git commit -m "Merge latest parameterized-verilog for WA-08 qualification"
+          fi
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --verify
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+          git diff --exit-code
+          git diff --cached --exit-code
+          git push origin HEAD:agent/wa-08-production-handoff
