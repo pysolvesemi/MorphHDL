@@ -1,0 +1,80 @@
+name: Stabilize WA-08 Increment 62 source head
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa08-stabilize-source-head
+  cancel-in-progress: false
+
+jobs:
+  stabilize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out latest branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Create the exact stabilized candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          test -f morphhdl/contracts/increment-62-wa08-source-overlay.json
+          test -f morphhdl/scripts/test-increment-62-wa08-source-overlay.py
+          test -f .github/workflows/increment-62-wa08-source-overlay.yml
+          git show a12460aef8a3aa828c583584008fb03bdf3a1335:.github/workflows/docker.yml > .github/workflows/docker.yml
+          rm -f \
+            .github/workflows/wa08-stabilize-source.yml \
+            .github/workflows/wa08-increment62-supervisor-v2.yml \
+            .github/workflows/wa08-increment62-repair.yml \
+            .github/workflows/wa08-increment62-ready-marker.yml \
+            .github/workflows/wa08-parent-ci-monitor.yml \
+            .github/workflows/wa08-final-ci-monitor.yml \
+            .github/workflows/wa08-focused-repair.yml \
+            .github/workflows/wa08-materialize.yml
+          rm -rf .wa08-materialization
+          rm -f \
+            docs/morphhdl/wa08-parent-ci-result.json \
+            docs/morphhdl/wa08-parent-ci-green.marker \
+            docs/morphhdl/wa08-final-ci-result.json \
+            docs/morphhdl/wa08-final-ci-green.marker
+          : > docs/morphhdl/wa08-stabilized-source-green.marker
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Stabilize WA-08 Increment 62 source head"
+
+      - name: Run the complete source-audit compatibility sequence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            morphhdl/scripts/check-increment-62-wa08-source-overlay.py \
+            morphhdl/scripts/test-increment-62-wa08-source-overlay.py \
+            morphhdl/scripts/check-wa07b-inherited-review.py \
+            morphhdl/scripts/check-increment-60g-source-scope.py
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test
+          python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py
+          python3 morphhdl/scripts/test-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-59c-source-review.py
+          python3 morphhdl/scripts/check-increment-59g-source-review.py
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+          test -z "$(git status --porcelain)"
+
+      - name: Push only the stable passing candidate
+        shell: bash
+        run: git push origin HEAD:agent/wa-08-production-handoff
