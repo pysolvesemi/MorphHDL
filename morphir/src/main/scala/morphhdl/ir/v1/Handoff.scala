@@ -348,15 +348,18 @@ object CanonicalIrHandoff {
         isWireExpression(condition, allowPureExpressions = true) &&
           isWireExpression(whenTrue, allowPureExpressions = true) &&
           isWireExpression(whenFalse, allowPureExpressions = true)
-      case RtlExpr.Concat(parts) if allowPureExpressions =>
-        parts.nonEmpty && parts.forall(isWireExpression(_, allowPureExpressions = true))
-      case RtlExpr.BitSelect(value, _) if allowPureExpressions =>
-        isWireExpression(value, allowPureExpressions = true)
+      case RtlExpr.Concat(values) if allowPureExpressions =>
+        values.nonEmpty && values.forall(value =>
+          isWireExpression(value, allowPureExpressions = true)
+        )
+      case RtlExpr.BitSelect(value, index) if allowPureExpressions =>
+        isWireExpression(value, allowPureExpressions = true) &&
+          isWireExpression(index, allowPureExpressions = true)
       case RtlExpr.PartSelect(value, _, _) if allowPureExpressions =>
         isWireExpression(value, allowPureExpressions = true)
-      case RtlExpr.Resize(value, _) if allowPureExpressions =>
+      case RtlExpr.Resize(value, _, _) if allowPureExpressions =>
         isWireExpression(value, allowPureExpressions = true)
-      case RtlExpr.Cast(value, _, _) if allowPureExpressions =>
+      case RtlExpr.Cast(value, _) if allowPureExpressions =>
         isWireExpression(value, allowPureExpressions = true)
       case _ => false
     }
