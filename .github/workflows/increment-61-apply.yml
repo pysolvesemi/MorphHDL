@@ -1,4 +1,4 @@
-name: Increment 61 apply initial per-component publication
+name: Increment 61 prepare exact implementation tree
 
 on:
   push:
@@ -8,14 +8,14 @@ on:
       - 'morphhdl/repair-61/payload.txt'
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: increment-61-apply
+  group: increment-61-prepare
   cancel-in-progress: true
 
 jobs:
-  apply:
+  prepare:
     if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-61-one-file-per-component'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -24,53 +24,48 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Decode and apply the exact-base Increment 61 source
+      - name: Decode, apply and archive the exact-base Increment 61 source
         shell: bash
         run: |
           set -euo pipefail
           base=5a9294363c7b74ae584f1702160fe1f7e468f58a
           payload=morphhdl/repair-61/payload.txt
-          output=target/increment-61-application
-          mkdir -p "$output"
+          output=target/increment-61-prepared
+          tree="$output/tree"
+          mkdir -p "$tree"
           git rev-parse HEAD > "$output/staging-head.txt"
           test "$(git merge-base HEAD "$base")" = "$base"
-          mapfile -t staged < <(git diff --name-only "$base" HEAD | sort)
-          expected=(.github/workflows/increment-61-apply.yml morphhdl/repair-61/payload.txt)
-          test "${staged[*]}" = "${expected[*]}"
           test "$(sha256sum "$payload" | cut -d' ' -f1)" = f376af6a967226d77e2ea8cc173d77f188f0edb9dbdaea6803ce299272408e7a
           base64 -d "$payload" | xz -d > "$output/apply.py"
           test "$(sha256sum "$output/apply.py" | cut -d' ' -f1)" = 08b244e9a236c1ae35273452c897cc61502484efcacc7c4d17d2434930e3a8fa
           python3 -m py_compile "$output/apply.py"
           python3 "$output/apply.py" | tee "$output/apply.log"
           git diff --check
-          git rm .github/workflows/increment-61-apply.yml morphhdl/repair-61/payload.txt
-          git add -A
-          git diff --cached --check
-          git diff --cached --name-status > "$output/changed-files.txt"
-
-      - name: Commit and publish the initial implementation checkpoint
-        shell: bash
-        run: |
-          set -euo pipefail
-          output=target/increment-61-application
-          original=$(cat "$output/staging-head.txt")
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit \
-            -m '61: add parameterized per-component publication' \
-            -m 'Use native canonical component boundaries to rewrite and atomically publish one strict Verilog-2001 file per logical definition. Preserve consolidated mode, exact named parameter bindings, enum ownership, external BlackBox ownership, deterministic manifests and safe stale-file handling. Remove the unnecessary 59i dependency; 59i must later qualify its combined cases in both publication modes. Increment 61 remains unchecked pending complete CI, equivalence, mutation and inherited closure.'
-          remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
-          test "$remote" = "$original"
-          git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
-          git rev-parse HEAD > "$output/head.txt"
-          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          files=(
+            .github/workflows/increment-61-one-file-per-component.yml
+            docs/morphhdl/increment-61-one-file-per-component.md
+            docs/morphhdl/parameterized-verilog-todo.md
+            morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+            morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+            morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$tree/$(dirname "$file")"
+            cp "$file" "$tree/$file"
+          done
+          printf '%s\n' "${files[@]}" > "$output/files.txt"
+          (cd "$tree" && find . -type f -print0 | sort -z | xargs -0 sha256sum) > "$output/hashes.txt"
+          git diff --binary -- "${files[@]}" > "$output/implementation.diff"
 
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: increment-61-application
-          path: target/increment-61-application
+          name: increment-61-prepared-tree
+          path: target/increment-61-prepared
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
