@@ -130,7 +130,8 @@ object TypedBalancedReductionCompositeWideningProofArtifacts {
       require(Files.isRegularFile(path), "missing independent composite widening reference")
       s"""{"id":${quote(id)},"us":$us,"up":$up,"ss":$ss,"sp":$sp,"count":$count,"module":${quote(module)},"file":${quote(relative(root, path))},"outputs":{$outputs}}"""
     }
-    val manifest = s"""{"schema":1,"scope":"59i-composite-widening-publication-proof","candidates":[${candidates.mkString(",")}],"cases":[${cases.mkString(",")}]}\n"""
+    val manifest = s"""{"schema":1,"scope":"59i-composite-widening-publication-proof","candidates":[${candidates.mkString(",")}],"cases":[${cases.mkString(",")}]}
+"""
     Files.write(root.resolve("manifest.json"), manifest.getBytes(StandardCharsets.UTF_8))
   }
 }
