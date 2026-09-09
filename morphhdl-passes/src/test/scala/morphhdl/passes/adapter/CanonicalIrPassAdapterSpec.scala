@@ -191,7 +191,7 @@ final class CanonicalIrPassAdapterSpec extends AnyFunSuite with Matchers {
     }
     val view = CanonicalIrPassAdapter.bind(handoff)
 
-    handoff.profile shouldBe CanonicalIrProfile.SimpleWireAssignmentsV1
+    handoff.profile shouldBe CanonicalIrProfile.PureWireExpressionsV1
     view.validated shouldBe handoff.validated
     view.design shouldBe handoff.design
   }
