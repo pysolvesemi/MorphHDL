@@ -47,6 +47,7 @@ jobs:
           git rev-parse HEAD > "$output/staging-head.txt"
           test "$(git merge-base HEAD df76262934b38516785fc7bf51595d918a20e7d2)" = df76262934b38516785fc7bf51595d918a20e7d2
           python3 morphhdl/repair-59i-composite-widening-publication/apply.py | tee "$output/application.log"
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-empty-schema.py | tee -a "$output/application.log"
           git diff --check
           git diff --binary > "$output/applied.diff"
       - name: Bootstrap pinned SBT
