@@ -178,3 +178,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# Final-head qualification trigger after recursive-owner publication repair.
