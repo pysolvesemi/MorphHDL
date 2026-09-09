@@ -33,6 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Re-triggered only after this branch-scoped workflow exists.
           shopt -s nullglob
           parts=(.wa08-materialization/payload-*.part)
           if (( ${#parts[@]} == 0 )); then
