@@ -1,469 +1,91 @@
 name: MorphHDL IR pass workspace
 
 on:
-  pull_request:
-    branches:
-      - parameterized-verilog
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
   push:
     branches:
-      - parameterized-verilog
-    paths:
-      - "morphhdl-passes/**"
-      - ".github/workflows/morphhdl-passes.yml"
+      - agent/wa-08-production-handoff
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write
 
 concurrency:
-  # Preserve already-running proof evidence when a repaired source revision
-  # starts its own qualification; only duplicate runs of the same head cancel.
-  group: morphhdl-ir-passes-${{ github.workflow }}-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
-  cancel-in-progress: true
+  group: wa08-materialize-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  boundary:
-    name: Pass workspace boundary and static contracts
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+  materialize-wa08:
+    name: Materialize reviewable WA-08 source
+    if: github.repository == 'pysolvesemi/MorphHDL'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Check out sources
+      - name: Check out implementation branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: agent/wa-08-production-handoff
           fetch-depth: 0
 
-      - name: Resolve boundary source branch
-        id: source
+      - name: Apply exact source bundle and restore workflow
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          head_ref="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}"
-
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            associated_prs="$(mktemp)"
-            trap 'rm -f "${associated_prs}"' EXIT
-            gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
-              > "${associated_prs}"
-
-            mapfile -t merged_heads < <(
-              python3 - "${associated_prs}" "${GITHUB_REF_NAME}" "${GITHUB_SHA}" <<'PY'
-          import json
-          import sys
-
-          path, base_ref, merge_sha = sys.argv[1:]
-          with open(path, encoding="utf-8") as handle:
-              pull_requests = json.load(handle)
-
-          for pull_request in pull_requests:
-              if (
-                  pull_request.get("merged_at")
-                  and pull_request.get("merge_commit_sha") == merge_sha
-                  and pull_request.get("base", {}).get("ref") == base_ref
-              ):
-                  print(pull_request.get("head", {}).get("ref", ""))
-          PY
-            )
-
-            if (( ${#merged_heads[@]} > 1 )); then
-              printf 'MorphHDL pass boundary: pushed commit maps to multiple merged source branches.\n' >&2
-              printf '  - %s\n' "${merged_heads[@]}" >&2
-              exit 1
-            fi
-            if (( ${#merged_heads[@]} == 1 )) && [[ -n "${merged_heads[0]}" ]]; then
-              head_ref="${merged_heads[0]}"
-            fi
+          shopt -s nullglob
+          parts=(.wa08-materialization/payload-*.part)
+          if (( ${#parts[@]} == 0 )); then
+            echo "No staged WA-08 payload remains."
+            exit 0
           fi
-
-          [[ -n "${head_ref}" ]] || {
-            echo 'MorphHDL pass boundary: unable to resolve the source branch.' >&2
-            exit 1
-          }
-          printf 'head_ref=%s\n' "${head_ref}" >> "${GITHUB_OUTPUT}"
-          printf 'MorphHDL pass boundary source branch: %s\n' "${head_ref}"
-
-      - name: Enforce isolated pass paths
-        shell: bash
-        env:
-          MORPHDL_PASSES_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MORPHDL_PASSES_HEAD_REF: ${{ steps.source.outputs.head_ref }}
-          GITHUB_EVENT_BEFORE: ${{ github.event.before }}
-        run: bash morphhdl-passes/scripts/check-boundary.sh
-
-      - name: Test the boundary guard
-        shell: bash
-        run: bash morphhdl-passes/scripts/test-boundary-guard.sh
-
-      - name: Enforce canonical adapter and component-generic pass source
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
-          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
-
-      - name: Enforce WA-03 safety, proof and no-transform contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
-          python3 morphhdl-passes/scripts/check-wa03-gates.py
-
-      - name: Enforce WA-04 unnamed direct-alias contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
-          python3 morphhdl-passes/scripts/check-wa04-pass.py
-
-      - name: Enforce WA-05 named direct-alias contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
-          python3 morphhdl-passes/scripts/check-wa05-pass.py
-
-      - name: Enforce WA-06 historical ordered-pipeline contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
-          python3 morphhdl-passes/scripts/check-wa06-pipeline.py
-
-      - name: Enforce WA-07 expression pass and one-flag pipeline contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
-          python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
-
-      - name: Enforce WA-07a constant-operand and actual native writeback contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
-          python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
-
-      - name: Enforce WA-07b recursive ternary and common-reference proof contracts
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py --self-test
-          python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py
-
-      - name: Verify formal-model signatures before expensive jobs
-        shell: bash
-        run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
-
-      - name: Test pending-proof activation and bounded deterministic scheduling
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
-          python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v
-          python3 morphhdl-passes/scripts/test_wire_assignment_cones.py -v
-
-  contracts:
-    name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
-    # Independent compilation gives useful feedback while static contracts are
-    # being updated. Equivalence still requires BOTH jobs to pass.
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version:
-          - "2.12.18"
-          - "2.13.12"
-    steps:
-      - name: Check out sources
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Record pass-source fingerprints
-        shell: bash
-        run: |
-          find morphhdl-passes/src morphhdl-passes/scripts -type f \
-            \( -name '*.scala' -o -name '*.py' -o -name '*.sh' \) -print0 \
-            | sort -z | xargs -0 sha256sum
-          # Read-only evidence for reviewing explicit registry updates. This
-          # never rewrites the checked-in registry or bypasses its comparison.
+          test "${#parts[@]}" = 2
+          cat "${parts[@]}" | base64 --decode > /tmp/wa08-payload.tar.gz
+          test "$(stat -c '%s' /tmp/wa08-payload.tar.gz)" = 33977
+          test "$(sha256sum /tmp/wa08-payload.tar.gz | awk '{print $1}')" = \
+            2a14db6e03918329133be37665c82c9e7103c4d1c6878d79f60b358a6a968336
+          gzip -t /tmp/wa08-payload.tar.gz
           python3 - <<'PY'
-          import hashlib
-          import json
-          from pathlib import Path
-          registry = json.loads(Path('morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json').read_text())
-          paths = set(registry['files']) | {
-              'morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala',
-              'morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala',
-              'morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernaryFourStateSpec.scala',
-              'morphhdl-passes/examples/BooleanTernaryNativeBridge.scala',
-              'morphhdl-passes/scripts/run-wa07b-regression.sh',
-              'morphhdl-passes/scripts/check-wa07b-ternary-pass.py',
-              'morphhdl-passes/tests/formal/wire_assignment_ir/boolean_ternary_native_tb.v',
-          }
-          actual = dict(registry)
-          actual['files'] = {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in sorted(paths)}
-          text = json.dumps(actual, indent=2, sort_keys=True) + '\n'
-          output = Path('morphhdl-passes/build/wa07b-source-signatures.json')
-          output.parent.mkdir(parents=True, exist_ok=True)
-          output.write_text(text)
-          print('WA07B_SOURCE_SIGNATURES_BEGIN')
-          print(text, end='')
-          print('WA07B_SOURCE_SIGNATURES_END')
-          PY
-
-      - name: Test standalone pass contracts and all-pass pipeline
-        working-directory: morphhdl-passes
-        shell: bash
-        run: sbt -batch ++${{ matrix.scala_version }} test
-
-      - name: Retain four-state rule oracle and cross-Scala test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-wa07a-rules-scala-${{ matrix.scala_version }}
-          path: |
-            morphhdl-passes/build/wa07a-rule-oracle
-            morphhdl-passes/build/wa07b-rule-oracle
-            morphhdl-passes/build/wa07b-source-signatures.json
-            morphhdl-passes/target/test-reports
-          if-no-files-found: error
-          retention-days: 14
-
-  native_generation:
-    name: WA-04 through WA-07b native generation, legality and four-state checks
-    needs: [boundary, contracts]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 300
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    env:
-      XDG_CACHE_HOME: /tmp/morphhdl-cache
-      SBT_OPTS: -Xms512M -Xmx4G -Xss4M
-    steps:
-      - name: Check out sources
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
-
-      - name: Verify pinned formal toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          command -v iverilog
-          command -v vvp
-          command -v verilator
-          command -v yosys
-          command -v sby
-          command -v yices-smt2
-          yosys_version="$(yosys -V)"
-          sby_help="$(sby -h 2>&1)"
-          yices_version="$(yices-smt2 --version)"
-          iverilog_version="$(iverilog -V 2>&1)"
-          verilator_version="$(verilator --version)"
-          printf '%s\n' \
-            "$yosys_version" \
-            "$yices_version" \
-            "$iverilog_version" \
-            "$verilator_version"
-          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
-          grep -q 'usage: sby' <<<"$sby_help"
-          test -n "$yices_version"
-          yosys -Q -p 'help abc' >/tmp/morphhdl-wa03-yosys-abc-help.txt 2>&1
-          grep -q 'ABC' /tmp/morphhdl-wa03-yosys-abc-help.txt
-
-      - name: Exercise proof-harness mutation guards
-        shell: bash
-        run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
-
-      - name: Generate every direct, expression and all-pass candidate
-        shell: bash
-        run: |
-          # Compatibility evidence retained for the inherited guards:
-          # ParameterizedStreamFifoExample; UnnamedWireAliasEliminationPassSpec;
-          # NamedWireAliasEliminationPassSpec; WireAliasPassPipelineSpec;
-          # shared parameterized witness proof contract;
-          # ParameterizedStreamFifoUnnamedPassWitness;
-          # ParameterizedStreamFifoNamedPassWitness;
-          # ParameterizedStreamFifoCombinedPassWitness; cmp -s;
-          # ParameterizedStreamFifoExpressionPassWitness;
-          # ParameterizedStreamFifoAllPassWitness;
-          # UnnamedWireExpressionEliminationPassSpec;
-          # WireAssignmentAllPassPipelineSpec;
-          # executed_before_name_allocation; wire-alias-named-report.json;
-          # eliminated_names.
-          #
-          # run-wa07-regression.sh emits one unchanged pre-pass StreamFifo
-          # reference plus wire-alias-unnamed.v, wire-alias-named.v,
-          # wire-alias-combined.v, wire-expression-unnamed.v and
-          # wire-assignment-all.v. The expression-only and all-pass witnesses
-          # require a real non-reference RHS, exact identity replacement,
-          # execution before native name allocation, zero procedural/always
-          # receiver rewrites, byte-identical repeated Verilog and reports,
-          # strict Verilog-2001 compilation, Verilator lint, Yosys synthesis,
-          # and representative parameterized simulations.
-          # The WA-07a runner invokes run-wa07-regression.sh unchanged as its
-          # historical leg, then emits both new candidates against that reference.
-          bash morphhdl-passes/scripts/run-wa07a-regression.sh
-
-      - name: Generate recursive ternary and five-stage candidates against the same reference
-        shell: bash
-        run: bash morphhdl-passes/scripts/run-wa07b-regression.sh --after-wa07a
-
-      - name: Bind native inputs to this exact source revision
-        shell: bash
-        run: |
-          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --capture-native-inputs --prove-pending WA-07a --prove-pending WA-07b
-          git diff --exit-code -- .
-
-      - name: Retain common reference, proof statuses and mutation counterexample
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-wa07a-native-evidence
-          overwrite: true
-          path: morphhdl-passes/build
-          if-no-files-found: error
-          retention-days: 14
-
-
-  formal_shards:
-    name: WA-07a and WA-07b full-domain proof shard ${{ matrix.shard }} / 16
-    needs: [native_generation]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 300
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    strategy:
-      fail-fast: false
-      max-parallel: 16
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    steps:
-      - name: Check out exact proof revision
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Restore the one native pre-pass reference and every candidate
-        uses: actions/download-artifact@v4
-        with:
-          name: morphhdl-wa07a-native-evidence
-          path: morphhdl-passes/build
-
-      - name: Verify exact-source input hashes and pinned formal tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          yosys -V | grep -Eq '^Yosys 0\.41([ +]|$)'
-          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --verify-native-inputs --prove-pending WA-07a --prove-pending WA-07b
-
-      - name: Prove every owned binding twice without reducing the admitted domain
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
-            --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
-            --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
-            --prove-pending WA-07a --prove-pending WA-07b \
-            --formal-jobs 4 \
-            --formal-shard-index ${{ matrix.shard }} --formal-shard-count 16 \
-            --check-determinism
-          git diff --exit-code -- .
-
-      - name: Package complete shard evidence for bounded-disk aggregation
-        if: always()
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          from pathlib import PurePosixPath
           import tarfile
-          source = Path('morphhdl-passes/build/formal/wire_assignment_ir/evidence')
-          archive = source.parent / 'evidence.tar.gz'
-          with tarfile.open(archive, 'w:gz', compresslevel=1) as output:
-              for child in sorted(source.iterdir()):
-                  output.add(child, arcname=child.name)
-          print(f'Retained complete shard evidence: {archive.stat().st_size} compressed bytes')
+
+          with tarfile.open('/tmp/wa08-payload.tar.gz', 'r:gz') as archive:
+              members = archive.getmembers()
+              if not members:
+                  raise SystemExit('WA-08 payload is empty')
+              for member in members:
+                  path = PurePosixPath(member.name)
+                  if path.is_absolute() or '..' in path.parts:
+                      raise SystemExit(f'unsafe WA-08 payload member: {member.name}')
+                  if not (member.isfile() or member.isdir()):
+                      raise SystemExit(f'unsupported WA-08 payload member type: {member.name}')
           PY
+          tar -xzf /tmp/wa08-payload.tar.gz -C .
+          test -f .delete-paths
+          python3 - <<'PY'
+          from pathlib import Path, PurePosixPath
 
-      - name: Retain actual statuses, cover traces, mutations and both repeated runs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-wa07a-formal-shard-${{ matrix.shard }}
-          overwrite: true
-          path: morphhdl-passes/build/formal/wire_assignment_ir/evidence.tar.gz
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 14
-
-  equivalence:
-    name: WA-04 through WA-07b legality, equivalence, mutation and determinism proof
-    needs: [native_generation, formal_shards]
-    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
-    runs-on: ubuntu-latest
-    # Revalidate all retained proofs; this is not an individual solver budget.
-    timeout-minutes: 60
-    steps:
-      - name: Require every upstream proof job to have succeeded
-        shell: bash
-        env:
-          NATIVE_RESULT: ${{ needs.native_generation.result }}
-          SHARD_RESULT: ${{ needs.formal_shards.result }}
-        run: |
-          set -euo pipefail
-          test "$NATIVE_RESULT" = success
-          test "$SHARD_RESULT" = success
-
-      - name: Check out exact proof revision
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Restore exact native inputs
-        uses: actions/download-artifact@v4
-        with:
-          name: morphhdl-wa07a-native-evidence
-          path: morphhdl-passes/build
-
-      - name: Restore compressed disjoint proof shards from this workflow run
-        uses: actions/download-artifact@v4
-        with:
-          pattern: morphhdl-wa07a-formal-shard-*
-          path: morphhdl-passes/build/formal-shards
-          merge-multiple: false
-
-      - name: Validate one expanded shard at a time and require exact full-domain union
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --shards morphhdl-passes/build/formal-shards --shard-count 16 \
-            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a --prove-pending WA-07b
-          git diff --exit-code -- .
-
-      - name: Retain full-domain qualification summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: morphhdl-wa07a-equivalence-evidence
-          overwrite: true
-          # Expansion cleanup may still run during cancellation. Upload only
-          # completed summaries, never the live expanded-shard directories.
-          path: |
-            morphhdl-passes/build/formal-aggregate/gate-status.json
-            morphhdl-passes/build/formal-aggregate/shard-*-determinism.json
-          if-no-files-found: error
-          retention-days: 14
+          for raw in Path('.delete-paths').read_text(encoding='utf-8').splitlines():
+              value = raw.strip()
+              if not value:
+                  continue
+              path = PurePosixPath(value)
+              if path.is_absolute() or '..' in path.parts:
+                  raise SystemExit(f'unsafe WA-08 deletion path: {value}')
+              candidate = Path(value)
+              if candidate.is_dir() and not candidate.is_symlink():
+                  raise SystemExit(f'WA-08 deletion manifest cannot remove directories: {value}')
+              candidate.unlink(missing_ok=True)
+          PY
+          rm -f .delete-paths
+          rm -rf .wa08-materialization
+          rm -f .github/workflows/wa08-materialize.yml
+          git checkout origin/parameterized-verilog -- .github/workflows/morphhdl-passes.yml
+          git diff --check
+          git add -A
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "WA-08 source already matches the exact bundle."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "Implement WA-08 canonical production handoff"
+          git push origin HEAD:agent/wa-08-production-handoff
