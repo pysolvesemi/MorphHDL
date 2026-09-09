@@ -3,8 +3,10 @@ new file mode 100644
 index 000000000..222222222
 --- /dev/null
 +++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,110 @@
 +package spinal.core.internals
++
++import spinal.core._
 +
 +/** Vector form of the already-qualified scalar full/tail recurrence. The
 +  * native operator proof supplies every per-leaf transfer; this object only
