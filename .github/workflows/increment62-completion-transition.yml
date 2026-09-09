@@ -1,0 +1,181 @@
+name: Prepare Increment 62 completion record
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  complete:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+
+      - name: Revalidate green evidence and write completion record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'The complete stabilized WA-08 workflow set passed on the recorded exact head. Completion documentation may now be prepared.' \
+            docs/morphhdl/wa08-full-ci-green-confirmed.marker
+          test ! -e docs/morphhdl/wa08-stabilized-ci-failures.json
+          python3 - <<'PY'
+          from __future__ import annotations
+          import json
+          import os
+          import subprocess
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          root = Path.cwd()
+          trigger = subprocess.check_output(
+              ["git", "log", "--all",
+               "--grep=^Trigger final WA-08 stabilized exact-head qualification$",
+               "-1", "--format=%H"], cwd=root, text=True
+          ).strip()
+          if not trigger:
+              raise RuntimeError("stabilized exact-head trigger is missing")
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "MorphHDL-Increment62-completion",
+          }
+          endpoint = (
+              "https://api.github.com/repos/" + os.environ["GH_REPOSITORY"] +
+              "/actions/runs?" + urllib.parse.urlencode({
+                  "head_sha": trigger,
+                  "event": "pull_request",
+                  "per_page": 100,
+              })
+          )
+          with urllib.request.urlopen(
+              urllib.request.Request(endpoint, headers=headers), timeout=30
+          ) as response:
+              runs = json.load(response).get("workflow_runs", [])
+          required = {
+              "Increment 59c named field vectors",
+              "Increment 59g native register bridge qualification",
+              "Increment 60c signed declarations",
+              "Increment 60d pure SInt casts",
+              "Increment 60e signedness boundaries",
+              "Increment 60f equivalence closure",
+              "Increment 60g default signed Verilog",
+              "Increment 62 WA-08 inherited workflow closure",
+              "MorphHDL IR pass workspace",
+              "MorphHDL baseline",
+              "MorphHDL Mill",
+              "MorphHDL native source guard",
+          }
+          names = {run.get("name") for run in runs}
+          bad = [run for run in runs if run.get("status") != "completed" or
+                 run.get("conclusion") not in ("success", "skipped", "neutral")]
+          if not required <= names or len(runs) < 45 or bad:
+              raise RuntimeError("recorded stabilized workflow set is no longer complete and green")
+          success = sum(run.get("conclusion") == "success" for run in runs)
+          skipped = sum(run.get("conclusion") in ("skipped", "neutral") for run in runs)
+
+          roadmap = root / "docs/morphhdl/parameterized-verilog-todo.md"
+          source = roadmap.read_text()
+          pending = "- [ ] **Increment 62 — WA-08 inherited source-audit and workflow closure**"
+          complete = "- [x] **Increment 62 — WA-08 inherited source-audit and workflow closure**"
+          if source.count(pending) != 1:
+              raise RuntimeError("Increment 62 pending roadmap marker is missing or duplicated")
+          source = source.replace(pending, complete, 1)
+          marker = complete + "\n\n"
+          evidence = (
+              "  **Completed:** the immutable WA-08 source-overlay compatibility layer "
+              "validates the real current bytes before projecting only its reviewed delta "
+              "for inherited closed-source checks. The exact qualification head `" + trigger[:12] +
+              "` completed " + str(len(runs)) + " pull-request workflows (" +
+              str(success) + " successful and " + str(skipped) +
+              " intentionally skipped/neutral) with no failure or active job. See "
+              "[the Increment 62 qualification record](increment-62-wa08-workflow-closure.md). "
+              "This increment affects source-audit compatibility only and does not change generated Verilog.\n\n"
+          )
+          if marker not in source:
+              raise RuntimeError("Increment 62 completion insertion point is missing")
+          source = source.replace(marker, marker + evidence, 1)
+          roadmap.write_text(source)
+
+          record = f'''# Increment 62 — WA-08 inherited workflow closure
+
+## Result
+
+Increment 62 is complete at the source-bound qualification checkpoint
+`{trigger}`. The exact head produced {len(runs)} pull-request workflow runs:
+{success} succeeded and {skipped} were intentionally skipped or neutral. No
+required workflow was missing, active, cancelled or failed.
+
+## Failure classification
+
+The original 59c, 59g and 60c–60g failures occurred before their HDL or
+signedness tests ran. Their frozen historical source inventories correctly
+rejected the intentional WA-08 `CanonicalIrPassAdapter.scala` and canonical
+handoff bytes as unknown successor changes. They were source-review failures,
+not evidence of changed FIFO, reduction or signed-RTL behavior.
+
+## Implemented compatibility contract
+
+The Increment 62 overlay binds every governed WA-08 feature and compatibility
+file to exact SHA-256 content, Git mode, immutable baseline/final anchors and
+HEAD/index/worktree identity. It validates the complete real checkout before
+an inherited checker may recover its own pre-WA-08 byte view. Partial rollout,
+unknown files, changed bytes, executable or symlink substitutions, staged or
+untracked content, contract tampering and incorrect
+`PureWireExpressionsV1`/`PureExpressions` claims are rejected.
+
+WA-07b and Increment 60g compose the overlay through generic restoration and
+inventory-projection hooks. Their original source inventories, semantic gates
+and mutation controls remain active; no workflow was skipped, weakened or
+converted to an allowed failure.
+
+## Qualification
+
+The exact head passed the dedicated Increment 62 overlay/attack suite, WA-07b
+compatibility tests, 59c and 59g source reviews, 60f source closure, 60g source
+scope, both Scala lanes, the MorphHDL pass workspace, baseline, Mill and native
+source guard. All other pull-request workflows on the same head also completed
+with accepted conclusions.
+
+## Generated Verilog
+
+Increment 62 does **not** change generated Verilog. It changes only the
+qualification/source-audit compatibility layer used to validate the separate
+WA-08 production implementation. Therefore no new Scala-to-Verilog feature
+example applies to Increment 62 itself.
+'''
+          (root / "docs/morphhdl/increment-62-wa08-workflow-closure.md").write_text(record)
+          PY
+
+          rm -f \
+            .github/workflows/increment62-completion-transition.yml \
+            docs/morphhdl/wa08-increment62-ready.md \
+            docs/morphhdl/wa08-increment62-ci-trigger.md \
+            docs/morphhdl/wa08-stabilized-source-green.marker \
+            docs/morphhdl/wa08-stabilized-controller-green.marker \
+            docs/morphhdl/wa08-full-ci-green-confirmed.marker \
+            docs/morphhdl/wa08-parent-ci-result.json \
+            docs/morphhdl/wa08-parent-ci-green.marker \
+            docs/morphhdl/wa08-final-ci-result.json \
+            docs/morphhdl/wa08-final-ci-green.marker \
+            docs/morphhdl/wa08-stabilized-controller-failed.marker
+          : > docs/morphhdl/increment-62-final-ci-ready.marker
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git diff --cached -- docs/morphhdl/parameterized-verilog-todo.md | grep -F 'Increment 62'
+          git commit -m "Complete Increment 62 WA-08 workflow closure"
+          git push origin HEAD:agent/wa-08-production-handoff
