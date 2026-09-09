@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Harden the staged local-enable prototype before compilation.
 
-This small follow-on remains separate from apply.py so the original source-bound
-prototype is reviewable. It removes false-negative test paths, narrows the
-bit-access source before exact identity lookup, preserves width-polymorphic
-bridge behavior, and ensures only conditional data assignments contribute When
-control ownership.
+This follow-on remains separate from apply.py so the original source-bound
+prototype is reviewable. It narrows bit-access sources before identity lookup,
+preserves width-polymorphic bridge behavior, excludes initializer statements
+from conditional-control discovery, and replaces the initial smoke fixture with
+capture-free native callbacks and exact negative controls.
 """
 from pathlib import Path
 
@@ -25,120 +25,137 @@ def replace_once(text: str, before: str, after: str, label: str) -> str:
     return text.replace(before, after, 1)
 
 
-def replace_region(text: str, start: str, end: str, replacement: str, label: str) -> str:
-    require(text.count(start) == 1, f"{label} start count changed: {text.count(start)}")
-    require(text.count(end) == 1, f"{label} end count changed: {text.count(end)}")
-    left = text.index(start)
-    right = text.index(end, left)
-    require(right > left, f"{label} anchors reversed")
-    return text[:left] + replacement + text[right + len(end):]
-
-
-def patch_bridge_source_type() -> None:
+def patch_bridge() -> None:
     text = BRIDGE.read_text()
-    before = '''          val index = if (access.source eq driver) inputIndex else admitted(access.source)
-'''
-    after = '''          val index =
+    text = replace_once(text,
+        '''          val index = if (access.source eq driver) inputIndex else admitted(access.source)
+''',
+        '''          val index =
             if (access.source eq driver) inputIndex
             else access.source match {
               case source: BaseType => admitted(source)
               case _ => -1
             }
-'''
-    text = replace_once(text, before, after, "bit-access source narrowing")
+''', "bit-access source narrowing")
 
-    # Width-polymorphic rows have the same bridge behavior even when a control
-    # leaf widens between rows. Fixed-bit bounds and high-bit semantics are
-    # revalidated against each replacement width during replay; behavior
-    # equality therefore compares only control slot/type structure here.
-    strict_widths = '''        controls.zip(other.controls).forall { case (a, b) =>
+    # A bridge can retain identical slot/type behavior while a widening row has
+    # a different symbolic width. Every replacement width and fixed-bit bound is
+    # still revalidated at replay; behavior equality must not freeze the row.
+    text = replace_once(text,
+        '''        controls.zip(other.controls).forall { case (a, b) =>
           (a.owner eq b.owner) && (a.kind eq b.kind) &&
             ElaborationWidthAuthority.equivalent(a.width, b.width)
         } && minimumInitializerWidth == other.minimumInitializerWidth &&
-'''
-    polymorphic_widths = '''        controls.zip(other.controls).forall { case (a, b) =>
+''',
+        '''        controls.zip(other.controls).forall { case (a, b) =>
           (a.owner eq b.owner) && (a.kind eq b.kind)
         } && minimumInitializerWidth == other.minimumInitializerWidth &&
-'''
-    text = replace_once(text, strict_widths, polymorphic_widths,
-                        "width-polymorphic control behavior")
+''', "width-polymorphic control behavior")
     BRIDGE.write_text(text)
 
 
-def patch_walker() -> None:
+def patch_composite() -> None:
     text = COMPOSITE.read_text()
-    control = '''            mark(leaf).foreach { assignment =>
+    text = replace_once(text,
+        '''            mark(leaf).foreach { assignment =>
               condition(assignment)
               walkControl(assignment.source)
             }
-'''
-    control_fixed = '''            mark(leaf).foreach { assignment =>
+''',
+        '''            mark(leaf).foreach { assignment =>
               assignment match {
                 case _: DataAssignmentStatement => condition(assignment)
                 case _ =>
               }
               walkControl(assignment.source)
             }
-'''
-    data = '''            mark(leaf).foreach { assignment =>
+''', "control assignment scope")
+    text = replace_once(text,
+        '''            mark(leaf).foreach { assignment =>
               condition(assignment)
               walkData(assignment.source)
             }
-'''
-    data_fixed = '''            mark(leaf).foreach { assignment =>
+''',
+        '''            mark(leaf).foreach { assignment =>
               assignment match {
                 case _: DataAssignmentStatement => condition(assignment)
                 case _ =>
               }
               walkData(assignment.source)
             }
-'''
-    text = replace_once(text, control, control_fixed, "control assignment scope")
-    text = replace_once(text, data, data_fixed, "data assignment scope")
+''', "data assignment scope")
     COMPOSITE.write_text(text)
 
 
-def patch_test() -> None:
-    text = TEST.read_text()
-    text = replace_once(text,
-        "final case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n",
-        "final case class BalancedLocalEnableRecord(uw: ElabInt, sw: ElabInt, bw: ElabInt) extends Bundle {\n",
-        "typed record-width fixture")
+def write_test() -> None:
+    require(TEST.is_file(), "apply.py must create the local-enable fixture first")
+    TEST.write_text(r'''package spinal.core.internals
 
-    public_shape = '''  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName("values")
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import morphhdl.MorphVerilog
+import morphhdl.frontend.HdlInt
+import org.scalatest.funsuite.AnyFunSuite
+import spinal.core._
+import spinal.lib._
+
+final case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {
+  val unsigned = UInt(uw bits)
+  val signed = SInt(sw bits)
+  val bitsValue = Bits(bw bits)
+  val valid = Bool()
+}
+
+private final class BalancedLocalEnablePublic(width: HdlInt, count: HdlInt,
+    moduleName: String, asynchronousLow: Boolean) extends Component {
+  setDefinitionName(moduleName)
+  val clk = in(Bool()).setName("clk")
+  val reset = in(Bool()).setName("reset")
+  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName("values")
   val result = out(BalancedLocalEnableRecord(width, width, width)).setName("result")
-'''
-    typed_public_shape = '''  private val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
-  val values = in(Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth), count)).setName("values")
-  val result = out(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth)).setName("result")
-'''
-    text = replace_once(text, public_shape, typed_public_shape,
-                        "public typed record shape")
+  val domain = ClockDomain(clock = clk, reset = reset, config = ClockDomainConfig(
+    clockEdge = if (asynchronousLow) FALLING else RISING,
+    resetKind = if (asynchronousLow) ASYNC else SYNC,
+    resetActiveLevel = if (asynchronousLow) LOW else HIGH))
+  val area = new ClockingArea(domain) {
+    val reduced = values.reduceBalancedTree(
+      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+        val r = cloneOf(a)
+        r.unsigned := a.unsigned + b.unsigned
+        r.signed := a.signed + b.signed
+        r.bitsValue := a.bitsValue ^ b.bitsValue
+        r.valid := a.valid | b.valid
+        r
+      },
+      (value: BalancedLocalEnableRecord, _: Int) => {
+        val r = cloneOf(value)
+        r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)
+        r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
+        r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
+        r.valid := RegNextWhen(value.valid, value.unsigned(0) ^ value.bitsValue.msb) init True
+        r
+      })
+    result := reduced
+  }
+}
 
-    text = replace_once(text, "private object BalancedLocalEnableRecord {\n",
-        "private object BalancedLocalEnableOps {\n", "helper object name")
-    require(text.count("BalancedLocalEnableRecord.combine") == 3,
-            "unexpected combine call inventory")
-    require(text.count("BalancedLocalEnableRecord.register") == 3,
-            "unexpected register call inventory")
-    text = text.replace("BalancedLocalEnableRecord.combine", "BalancedLocalEnableOps.combine")
-    text = text.replace("BalancedLocalEnableRecord.register", "BalancedLocalEnableOps.register")
+class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
+  private def native[T <: Data]: ElabBalancedReduction.Native[T] =
+    (values, operation, bridge) => new TraversableOnceAnyPimped[T](values).reduceBalancedTree(operation, bridge)
 
-    first_start = '''  test("same-composite cross-field controls replay with field-local data and exact latency") {
-'''
-    first_end = '''  test("public parameterized publication retains cross-field controls in two reset profiles") {
-'''
-    first = '''  test("same-composite cross-field controls replay with field-local data and exact latency") {
+  private def details(error: Throwable): String =
+    if (error == null) "" else Option(error.getMessage).getOrElse("") + "\n" + details(error.getCause)
+
+  test("same-composite cross-field controls replay with field-local data and exact latency") {
+    val width = HdlInt.param("WIDTH", 5, 3, 16)
+    val count = HdlInt.param("COUNT", 1, 1, 5)
     var stageCounts = Vector.empty[Int]
     var allLocal = false
     var latencies = Vector.empty[Int]
     var registerCounts = Vector.empty[Int]
     SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-local-enable-certificate-").toString,
       headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
-      val width = HdlInt.param("WIDTH", 5, 3, 16)
-      val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
-      val values = Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth),
-        HdlInt.param("COUNT", 1, 1, 5))
+      val values = Vec(BalancedLocalEnableRecord(width, width, width), count)
       values.vec.foreach(_.flatten.foreach {
         case value: UInt => value := 0
         case value: SInt => value := 0
@@ -146,11 +163,23 @@ def patch_test() -> None:
         case value: Bool => value := False
       })
       val certificate = TypedBalancedReductionCompositeReplay.capture(values,
-        (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) =>
-          BalancedLocalEnableOps.combine(a, b),
-        (value: BalancedLocalEnableRecord, _: Int) => BalancedLocalEnableOps.register(value),
-        native[BalancedLocalEnableRecord])
-      for (count <- 1 to 5) certificate.replay(values.vec.take(count).toVector)
+        (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+          val r = cloneOf(a)
+          r.unsigned := a.unsigned + b.unsigned
+          r.signed := a.signed + b.signed
+          r.bitsValue := a.bitsValue ^ b.bitsValue
+          r.valid := a.valid | b.valid
+          r
+        },
+        (value: BalancedLocalEnableRecord, _: Int) => {
+          val r = cloneOf(value)
+          r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)
+          r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
+          r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
+          r.valid := RegNextWhen(value.valid, value.unsigned(0) ^ value.bitsValue.msb) init True
+          r
+        }, native[BalancedLocalEnableRecord])
+      for (activeCount <- 1 to 5) certificate.replay(values.vec.take(activeCount).toVector)
       stageCounts = certificate.stages.map(_.registerCountPerRow)
       allLocal = certificate.stages.forall(_.bridges.head.hasLocalEnables)
       latencies = (1 to 5).map(certificate.latencyFor).toVector
@@ -159,59 +188,106 @@ def patch_test() -> None:
     })
     assert(stageCounts == Vector(1, 1, 1))
     assert(allLocal)
-    assert(latencies == (1 to 5).map(count => (BigInt(count) - 1).bitLength).toVector)
+    assert(latencies == (1 to 5).map(value => (BigInt(value) - 1).bitLength).toVector)
     assert(registerCounts.forall(_ == 4))
   }
 
   test("public parameterized publication retains cross-field controls in two reset profiles") {
-'''
-    text = replace_region(text, first_start, first_end, first, "pre-phase freshness test")
+    for ((name, asynchronousLow) <- Vector("sync_high" -> false, "async_low" -> true)) {
+      val directory = Files.createTempDirectory("balanced-local-enable-public-" + name + "-")
+      val file = "BalancedLocalEnable_" + name + ".v"
+      val config = SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 4096)
+      config.netlistFileName = file
+      MorphVerilog(config) {
+        new BalancedLocalEnablePublic(HdlInt.param("WIDTH", 5, 3, 16),
+          HdlInt.param("COUNT", 1, 1, 5), "BalancedLocalEnable_" + name, asynchronousLow)
+      }
+      val path = directory.resolve(file)
+      assert(Files.isRegularFile(path))
+      val rtl = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+      assert(rtl.contains("parameter") && rtl.contains("COUNT") && rtl.contains("WIDTH"), rtl)
+      assert(rtl.contains("generate") && rtl.contains("always"), rtl)
+    }
+  }
 
-    public_config = '''      val config = SpinalConfig(targetDirectory = directory.toString, headerWithDate = false,
-        headerWithRepoHash = false, bitVectorWidthMax = 4096)
-'''
-    supported_public_config = '''      val config = SpinalConfig(targetDirectory = directory.toString,
-        bitVectorWidthMax = 4096)
-'''
-    text = replace_once(text, public_config, supported_public_config,
-                        "direct-emitter supported config")
-
-    negative_shape = '''        val width = HdlInt.param("WIDTH", 5, 3, 16)
-        val values = Vec(BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 3))
-'''
-    typed_negative_shape = '''        val width = HdlInt.param("WIDTH", 5, 3, 16)
-        val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
-        val values = Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth),
-          HdlInt.param("COUNT", 1, 1, 3))
-'''
-    text = replace_once(text, negative_shape, typed_negative_shape,
-                        "negative typed record shape")
-
-    old_negative = '''          (value: BalancedLocalEnableRecord, _: Int) => {
-            val result = BalancedLocalEnableOps.register(value)
-            result.valid := RegNextWhen(value.valid, foreign) init False
-            result
+  test("external and registered peer controls remain rejected") {
+    val width = HdlInt.param("WIDTH", 5, 3, 16)
+    val count = HdlInt.param("COUNT", 1, 1, 3)
+    val external = intercept[Exception] {
+      SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-local-enable-external-").toString,
+        headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+        val values = Vec(BalancedLocalEnableRecord(width, width, width), count)
+        values.vec.foreach(_.flatten.foreach {
+          case value: UInt => value := 0
+          case value: SInt => value := 0
+          case value: Bits => value := 0
+          case value: Bool => value := False
+        })
+        val foreign = Bool(); foreign := False
+        TypedBalancedReductionCompositeReplay.capture(values,
+          (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+            val r = cloneOf(a)
+            r.unsigned := a.unsigned + b.unsigned
+            r.signed := a.signed + b.signed
+            r.bitsValue := a.bitsValue ^ b.bitsValue
+            r.valid := a.valid | b.valid
+            r
+          },
+          (value: BalancedLocalEnableRecord, _: Int) => {
+            val r = cloneOf(value)
+            r.unsigned := RegNextWhen(value.unsigned, foreign) init U(3)
+            r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
+            r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
+            r.valid := RegNextWhen(value.valid, value.unsigned(0)) init False
+            r
           }, native[BalancedLocalEnableRecord])
-'''
-    new_negative = '''          (value: BalancedLocalEnableRecord, _: Int) => {
-            val result = cloneOf(value)
-            result.unsigned := RegNextWhen(value.unsigned, foreign) init U(3)
-            result.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
-            result.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
-            result.valid := RegNextWhen(value.valid, value.unsigned(0)) init False
-            result
+      })
+    }
+    assert(details(external).contains("BRIDGE") ||
+      details(external).contains("GRAPH-EXTERNAL-READ"), details(external))
+
+    val registered = intercept[Exception] {
+      SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-local-enable-peer-").toString,
+        headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+        val values = Vec(BalancedLocalEnableRecord(width, width, width), count)
+        values.vec.foreach(_.flatten.foreach {
+          case value: UInt => value := 0
+          case value: SInt => value := 0
+          case value: Bits => value := 0
+          case value: Bool => value := False
+        })
+        TypedBalancedReductionCompositeReplay.capture(values,
+          (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+            val r = cloneOf(a)
+            r.unsigned := a.unsigned + b.unsigned
+            r.signed := a.signed + b.signed
+            r.bitsValue := a.bitsValue ^ b.bitsValue
+            r.valid := a.valid | b.valid
+            r
+          },
+          (value: BalancedLocalEnableRecord, _: Int) => {
+            val r = cloneOf(value)
+            val peer = RegNext(value.valid) init False
+            r.unsigned := RegNextWhen(value.unsigned, peer) init U(3)
+            r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
+            r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
+            r.valid := RegNextWhen(value.valid, value.unsigned(0)) init False
+            r
           }, native[BalancedLocalEnableRecord])
-'''
-    text = replace_once(text, old_negative, new_negative, "single-driver external control")
-    TEST.write_text(text)
+      })
+    }
+    assert(details(registered).contains("BRIDGE-CONTROL-REGISTER"), details(registered))
+  }
+}
+''')
 
 
 def main() -> None:
     require(BRIDGE.is_file() and COMPOSITE.is_file() and TEST.is_file(),
             "apply.py must run first")
-    patch_bridge_source_type()
-    patch_walker()
-    patch_test()
+    patch_bridge()
+    patch_composite()
+    write_test()
     print("59i local-enable generated source hardening applied")
 
 
