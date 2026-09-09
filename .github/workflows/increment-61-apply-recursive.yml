@@ -1,0 +1,122 @@
+name: Increment 61 apply recursive split publication fix
+
+on:
+  push:
+    branches: ['agent/increment-61-one-file-per-component']
+    paths:
+      - '.github/workflows/increment-61-apply-recursive.yml'
+      - '.github/repair-61-recursive/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-apply-recursive
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-61-one-file-per-component'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify and apply the exact reviewed recursive publication patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-recursive-application
+          payload=.github/repair-61-recursive
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          test "$(git rev-parse HEAD^)" = 81285cc10848ac1fa606f8adeaf2fa2425ade49e
+          mapfile -t changed < <(git diff --name-only HEAD^ HEAD | sort)
+          expected=(
+            .github/repair-61-recursive/metadata.json
+            .github/repair-61-recursive/payload.b64
+            .github/workflows/increment-61-apply-recursive.yml
+          )
+          test "${changed[*]}" = "${expected[*]}"
+          test "$(sha256sum "$payload/metadata.json" | cut -d' ' -f1)" = 78ac200d342c060ad6baa52a3b65ca086df7ae26ff4210b90133a35922b24eef
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, subprocess
+          from pathlib import Path
+
+          payload = Path('.github/repair-61-recursive')
+          meta = json.loads((payload / 'metadata.json').read_text())
+          assert meta['schema'] == 1
+          assert meta['base'] == '81285cc10848ac1fa606f8adeaf2fa2425ade49e'
+          encoded = (payload / 'payload.b64').read_bytes()
+          assert len(encoded) == meta['encoded_bytes'] == 6712
+          assert hashlib.sha256(encoded).hexdigest() == meta['encoded_sha256']
+          compressed = base64.b64decode(encoded, validate=True)
+          assert len(compressed) == meta['compressed_bytes'] == 5032
+          assert hashlib.sha256(compressed).hexdigest() == meta['compressed_sha256']
+          patch = lzma.decompress(compressed)
+          assert len(patch) == meta['patch_bytes'] == 16962
+          assert hashlib.sha256(patch).hexdigest() == meta['patch_sha256']
+
+          output = Path('target/increment-61-recursive-application/reviewed.patch')
+          output.write_bytes(patch)
+          listed = subprocess.check_output(['git', 'apply', '--numstat', '-z', str(output)]).decode().split('\0')
+          actual = [line.split('\t', 2)[2] for line in listed if line]
+          assert len(actual) == len(set(actual)) and set(actual) == set(meta['files']), actual
+
+          for relative, identities in meta['files'].items():
+              path = Path(relative)
+              assert relative.startswith('morphhdl/') and not path.is_absolute() and '..' not in path.parts
+              assert not path.is_symlink() and all(not parent.is_symlink() for parent in path.parents)
+              before = identities['before_blob']
+              if before is None:
+                  assert not path.exists(), relative
+              else:
+                  actual_before = subprocess.check_output(
+                      ['git', 'rev-parse', f"HEAD^:{relative}"], text=True
+                  ).strip()
+                  assert actual_before == before, (relative, actual_before, before)
+
+          subprocess.run(['git', 'apply', '--index', '--check', '--whitespace=error', str(output)], check=True)
+          subprocess.run(['git', 'apply', '--index', '--whitespace=error', str(output)], check=True)
+
+          for relative, identities in meta['files'].items():
+              path = Path(relative)
+              assert path.is_file() and not path.is_symlink()
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == identities['after_sha256'], relative
+              actual_after = subprocess.check_output(['git', 'hash-object', relative], text=True).strip()
+              assert actual_after == identities['after_blob'], (relative, actual_after, identities['after_blob'])
+
+          staged = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert staged == sorted(meta['files']), staged
+          PY
+          python3 -m py_compile morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+
+      - name: Commit and publish only the reviewed source changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-recursive-application
+          original=$(cat "$output/staging-head.txt")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit \
+            -m '61: preserve recursive self references in split publication' \
+            -m 'Quarantine exact direct same-name recursive BlackBox references only around MorphHDL private native per-component emission, restore the graph immediately afterward, and rewrite the one validated owner instance token before the normal bounded-recursion proof and public publication. Add decreasing-metric rejection controls and exact source review. Ordinary concrete SpinalVerilog remains unchanged. Increment 61 remains incomplete pending full qualification.'
+          remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
+          test "$remote" = "$original"
+          git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-recursive-application
+          path: target/increment-61-recursive-application
+          if-no-files-found: error
+          retention-days: 14
