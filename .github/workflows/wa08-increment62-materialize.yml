@@ -24,9 +24,98 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Materialize, validate and publish reviewed overlay
+      - name: Verify and reconstruct reviewed payload
         shell: bash
         run: |
           set -euo pipefail
-          cat > /tmp/wa08-increment62.b64 <<'PAYLOAD'
-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
+          test "$(find .wa08-materialization -maxdepth 1 -type f -name 'payload-*.part' | wc -l)" -eq 9
+          cat > /tmp/wa08-parts.sha256 <<'EOF'
+          d8f7f9d233887c8fc37995ce6586b5267ab12700d62750dbed22ea2c587da990  .wa08-materialization/payload-00.part
+          364e0d7d2240b0a38d7b6b185b14a1387820dfd8693428a7b466f65f25861a66  .wa08-materialization/payload-01.part
+          fd91e08357c0cea32fe3af2fc0ffb9090203f6b755e501fb383b270641d1b7e5  .wa08-materialization/payload-02.part
+          d48c1b5deb3dc44f2ef4ce011c63cd6f1097f951d1de1c1fb040206ba9d6d8df  .wa08-materialization/payload-03.part
+          a5b8535af30bde86e27ae5c99f69094bc1b433fe3e803a80b5c07cde6debfd57  .wa08-materialization/payload-04.part
+          4304618bca272265dd644eb6b23ecfdb24cd1818205c094ef19c5862cc549652  .wa08-materialization/payload-05.part
+          0c21d92f449986f2293d0173ffb4ee9ecaadb8f34c6404c165169fe81f964766  .wa08-materialization/payload-06.part
+          0ed58f72c329bf2657ab508d8411a5c8b2ccd0cd26ec7290bcb56526646326b1  .wa08-materialization/payload-07.part
+          a8e346644cb05ea8d46fe73b13c11b9b10ad5243ea821e0a07a8a409d3a6c840  .wa08-materialization/payload-08.part
+          EOF
+          sha256sum -c /tmp/wa08-parts.sha256
+          cat .wa08-materialization/payload-*.part | tr -d '\r\n' | base64 -d > /tmp/wa08-increment62-payload.tar.gz
+          echo '34ad33fecf00a59804343b36c2ca919a4687b6c9110a396ea20d5dddd2c5ac54  /tmp/wa08-increment62-payload.tar.gz' | sha256sum -c -
+          python3 - <<'PY'
+          import tarfile
+          expected = {
+              'morphhdl/scripts/check-wa08-inherited-source-overlay.py',
+              'morphhdl/contracts/wa08-inherited-source-overlay.json',
+              'morphhdl/scripts/check-wa07b-inherited-review.py',
+              'morphhdl/scripts/check-increment-60g-source-scope.py',
+              '.github/workflows/increment-62-wa08-workflow-closure.yml',
+          }
+          with tarfile.open('/tmp/wa08-increment62-payload.tar.gz', 'r:gz') as archive:
+              names = archive.getnames()
+              if len(names) != len(set(names)) or set(names) != expected:
+                  raise SystemExit('unexpected Increment 62 archive inventory: ' + repr(names))
+              for member in archive.getmembers():
+                  if not member.isfile() or member.name.startswith('/') or '..' in member.name.split('/'):
+                      raise SystemExit('unsafe Increment 62 archive member: ' + member.name)
+          PY
+          tar -xzf /tmp/wa08-increment62-payload.tar.gz
+
+      - name: Commit the exact reviewed overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .wa08-materialization
+          rm -f .github/workflows/wa08-increment62-materialize.yml
+          chmod +x \
+            morphhdl/scripts/check-wa08-inherited-source-overlay.py \
+            morphhdl/scripts/check-wa07b-inherited-review.py \
+            morphhdl/scripts/check-increment-60g-source-scope.py
+          python3 -m py_compile \
+            morphhdl/scripts/check-wa08-inherited-source-overlay.py \
+            morphhdl/scripts/check-wa07b-inherited-review.py \
+            morphhdl/scripts/check-increment-60g-source-scope.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          python3 - <<'PY'
+          import subprocess
+          expected = {
+              '.github/workflows/increment-62-wa08-workflow-closure.yml',
+              '.github/workflows/wa08-increment62-materialize.yml',
+              *{f'.wa08-materialization/payload-{index:02d}.part' for index in range(9)},
+              'morphhdl/contracts/wa08-inherited-source-overlay.json',
+              'morphhdl/scripts/check-increment-60g-source-scope.py',
+              'morphhdl/scripts/check-wa07b-inherited-review.py',
+              'morphhdl/scripts/check-wa08-inherited-source-overlay.py',
+          }
+          actual = set(subprocess.check_output(
+              ['git', 'diff', '--cached', '--name-only'], text=True
+          ).splitlines())
+          if actual != expected:
+              raise SystemExit(
+                  'unexpected staged Increment 62 inventory; missing=' +
+                  repr(sorted(expected - actual)) + '; extra=' + repr(sorted(actual - expected))
+              )
+          PY
+          git commit -m 'Implement Increment 62 WA-08 source overlay'
+
+      - name: Qualify the committed source overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --self-test
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-59c-source-review.py
+          python3 morphhdl/scripts/check-increment-59g-source-review.py
+
+      - name: Publish qualified Increment 62 commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:agent/wa-08-production-handoff
