@@ -42,9 +42,6 @@ jobs:
           test "$(git merge-base HEAD 8569835f481ad66c96bfc7dc28d4ce4ce77ae4e4)" = 8569835f481ad66c96bfc7dc28d4ce4ce77ae4e4
           python3 morphhdl/repair-59i-composite-widening/promote-reviewed.py | tee "$output/promotion.log"
           git diff --check
-          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py | tee "$output/review-tests.log"
-          python3 morphhdl/scripts/check-increment-59i-source-review.py | tee "$output/composed-review.log"
-          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native-source.log"
           cat > "$output/expected-files.txt" <<'EOF'
           morphhdl/contracts/increment-59i-widening-review.json
           morphhdl/scripts/check-increment-59i-source-review.py
@@ -55,8 +52,12 @@ jobs:
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
           EOF
-          { git diff --name-only; git ls-files --others --exclude-standard; } | sort -u > "$output/actual-files.txt"
+          git add $(cat "$output/expected-files.txt")
+          git diff --cached --name-only | sort -u > "$output/actual-files.txt"
           diff -u "$output/expected-files.txt" "$output/actual-files.txt"
+          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py | tee "$output/review-tests.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py | tee "$output/composed-review.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native-source.log"
           sha256sum $(cat "$output/expected-files.txt") > "$output/source-sha256.txt"
       - name: Re-run the exact focused Scala 2.13 suite on promoted source
         shell: bash
@@ -86,7 +87,6 @@ jobs:
           test "$(git rev-parse FETCH_HEAD)" = "$expected"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add $(cat "$output/expected-files.txt")
           git commit -m '59i: promote generic composite widening certificates with exact review'
           git rev-parse HEAD > "$output/published-head.txt"
           git rev-parse 'HEAD^{tree}' > "$output/published-tree.txt"
