@@ -14,6 +14,7 @@ import spinal.core.internals.{
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog,
+  MorphHdlRecursivePerComponentPublication,
   TypedBalancedReductionBackend
 }
 
@@ -756,6 +757,7 @@ object MorphVerilog {
     phaseInserters += ExternalParameterizedAutoResize.install _
     phaseInserters += ExternalParameterizedHighBit.install _
     phaseInserters += TypedBalancedReductionBackend.install _
+    phaseInserters += MorphHdlRecursivePerComponentPublication.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
     MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(

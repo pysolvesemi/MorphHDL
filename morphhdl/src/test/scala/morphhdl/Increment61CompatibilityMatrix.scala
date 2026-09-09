@@ -5,8 +5,9 @@ import java.nio.file.{Files, Path, Paths}
 
 import scala.collection.JavaConverters._
 
+import nativeapplication.BoundedRecursivePowerFixture
 import org.scalatest.funsuite.AnyFunSuite
-import spinal.core.SpinalConfig
+import spinal.core.{ParameterizedVerilogException, SpinalConfig}
 
 object Increment61CompatibilityMatrix {
   import Increment61CompatibilityCatalog.CompatibilityCase
@@ -123,6 +124,49 @@ class Increment61CompatibilityMatrixTests extends AnyFunSuite {
       }
     }
   }
+
+  test("recursive split publication still rejects a non-decreasing metric") {
+    withTemporaryDirectory { directory =>
+      val error = intercept[MorphVerilogException] {
+        MorphVerilog(
+          SpinalConfig(
+            targetDirectory = directory.toString,
+            oneFilePerComponent = true
+          )
+        )(BoundedRecursivePowerFixture.nonDecreasing())
+      }
+      assert(
+        parameterizedDiagnostic(error).code ==
+          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-METRIC-NONDECREASING"
+      )
+    }
+  }
+
+  test("recursive split publication still rejects an unproven negative-domain metric") {
+    withTemporaryDirectory { directory =>
+      val error = intercept[MorphVerilogException] {
+        MorphVerilog(
+          SpinalConfig(
+            targetDirectory = directory.toString,
+            oneFilePerComponent = true
+          )
+        )(BoundedRecursivePowerFixture.negativeDomain())
+      }
+      assert(
+        parameterizedDiagnostic(error).code ==
+          "SPINAL-PARAMETERIZED-VERILOG-RECURSION-BINDING-UNPROVEN"
+      )
+    }
+  }
+
+  @annotation.tailrec
+  private def parameterizedDiagnostic(error: Throwable): ParameterizedVerilogException =
+    error match {
+      case diagnostic: ParameterizedVerilogException => diagnostic
+      case value if value != null && value.getCause != null =>
+        parameterizedDiagnostic(value.getCause)
+      case _ => fail("no parameterized Verilog diagnostic in exception chain")
+    }
 
   private def withTemporaryDirectory[A](body: Path => A): A = {
     val directory = Files.createTempDirectory("morphhdl-increment-61-compatibility-")
