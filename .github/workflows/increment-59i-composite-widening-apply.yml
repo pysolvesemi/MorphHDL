@@ -52,7 +52,8 @@ jobs:
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
           EOF
-          git add $(cat "$output/expected-files.txt")
+          git add -f morphhdl/contracts/increment-59i-widening-review.json
+          git add $(tail -n +2 "$output/expected-files.txt")
           git diff --cached --name-only | sort -u > "$output/actual-files.txt"
           diff -u "$output/expected-files.txt" "$output/actual-files.txt"
           python3 morphhdl/scripts/test-increment-59i-widening-source-review.py | tee "$output/review-tests.log"
