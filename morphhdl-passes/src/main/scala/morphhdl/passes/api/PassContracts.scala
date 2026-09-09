@@ -31,6 +31,8 @@ object PassId {
     unsafe("wire-expression-unnamed")
   val ConstantOperandSimplification: PassId =
     unsafe("constant-operand-simplification")
+  val BooleanTernarySimplification: PassId =
+    unsafe("boolean-ternary-simplification")
 
   /** Historical WA-07 order retained only for independent regression evidence. */
   val historicalWireAssignmentPasses: Vector[PassId] = Vector(
@@ -39,9 +41,13 @@ object PassId {
     UnnamedWireExpressionElimination
   )
 
+  /** Historical WA-07a order retained independently of the current pipeline. */
+  val historicalConstantOperandPasses: Vector[PassId] =
+    historicalWireAssignmentPasses :+ ConstantOperandSimplification
+
   /** The only production order when the common pass flag is enabled. */
   val allWireAssignmentPasses: Vector[PassId] =
-    historicalWireAssignmentPasses :+ ConstantOperandSimplification
+    historicalConstantOperandPasses :+ BooleanTernarySimplification
 }
 
 /** Opaque identity supplied by the canonical MorphHDL IR adapter in WA-02. */
@@ -147,7 +153,6 @@ object WireAliasPassConfiguration {
     new WireAliasPassConfiguration(ordered.nonEmpty, Some(ordered))
   }
 }
-
 sealed trait AliasNameOrigin extends Product with Serializable {
   def explicitName: Option[String]
 }

@@ -311,7 +311,14 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         expected = "COMPLETED" if checked else "IN PROGRESS"
         if f"**Status:** `{expected}`" not in body or not wa07_checked:
             failures.append(f"{path}: WA07-SUCCESSOR: WA-07a status or dependency is inconsistent")
-    next_status = "READY" if wa07_checked and wa07a_complete else "BLOCKED"
+    wa07b_complete = True
+    if "WA-07b" in entries:
+        checked, body = entries["WA-07b"]
+        wa07b_complete = checked and "**Status:** `COMPLETED`" in body
+        allowed = ("COMPLETED",) if checked else ("READY", "IN PROGRESS")
+        if not any(f"**Status:** `{status}`" in body for status in allowed) or not wa07a_complete:
+            failures.append(f"{path}: WA07-SUCCESSOR: WA-07b status or dependency is inconsistent")
+    next_status = "READY" if wa07_checked and wa07a_complete and wa07b_complete else "BLOCKED"
     if f"**Status:** `{next_status}`" not in wa08_body:
         failures.append(f"{path}: WA07-NEXT-STATUS: handoff requires {next_status} WA-08")
 
@@ -606,6 +613,20 @@ object ExpressionPass { def run(value: RtlExpr) = value }
         raise AssertionError("READY handoff after completed WA-07a was rejected")
     if not roadmap_failures(Path("roadmap.md"), completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv):
         raise AssertionError("stale WA-07a dependency block was accepted")
+
+    ternary = completed.replace("- [ ] **WA-08", "- [ ] **WA-07b — Ternaries**\n\n  **Status:** `IN PROGRESS`.\n\n- [ ] **WA-08")
+    if not roadmap_failures(Path("roadmap.md"), ternary, pv):
+        raise AssertionError("premature READY handoff with open WA-07b was accepted")
+    ternary_blocked = ternary.replace("**Status:** `READY`", "**Status:** `BLOCKED`")
+    if roadmap_failures(Path("roadmap.md"), ternary_blocked, pv):
+        raise AssertionError("authorized WA-07b prerequisite was not parsed separately")
+    if not roadmap_failures(Path("roadmap.md"), ternary_blocked.replace("- [ ] **WA-07b", "- [x] **WA-07b"), pv):
+        raise AssertionError("checked WA-07b without COMPLETED status was accepted")
+    ternary_completed = ternary.replace("- [ ] **WA-07b", "- [x] **WA-07b").replace("**Status:** `IN PROGRESS`", "**Status:** `COMPLETED`")
+    if roadmap_failures(Path("roadmap.md"), ternary_completed, pv):
+        raise AssertionError("READY handoff after completed WA-07b was rejected")
+    if not roadmap_failures(Path("roadmap.md"), ternary_completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv):
+        raise AssertionError("stale WA-07b dependency block was accepted")
 
     manifest = {
         "shared_witness": {
