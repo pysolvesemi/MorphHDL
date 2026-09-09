@@ -1140,6 +1140,50 @@ dependency chain is unchanged and may proceed independently.
   module publication and every inherited compatibility/audit gate before this
   checkbox can be marked complete.
 
+### WA-08 inherited workflow compatibility track (Increment 62)
+
+- [ ] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+
+  **Dependencies:** Increment 60 and WA-07b implemented and merged. This is the
+  qualification-repair companion for the open WA-08 production handoff. It is
+  independent of Increment 59i and Increment 61 and must be completed before
+  WA-08 merges.
+
+  Fix the inherited workflow failures caused when the intentional WA-08
+  canonical-IR and pass-adapter changes are presented to older closed
+  source-scope checkers. The observed Increment 60d failure is a source-review
+  rejection of the new `CanonicalIrPassAdapter.scala` bytes, not evidence that
+  pure-`SInt` cast behavior or signed-Verilog semantics failed.
+
+  Add one exact, immutable WA-08 source-overlay compatibility contract covering
+  every intended production, test, boundary, signature and canonical-IR handoff
+  file. Bind each path to reviewed SHA-256 bytes, file mode, HEAD/index/worktree
+  identity and immutable baseline/final anchors. Historical checkers may project
+  only that fully verified WA-08 delta out of their own historical inventory;
+  the outer WA-08 gate must still validate the real current bytes. Do not add
+  branch-name, PR-number, component-name or emitted-text exceptions.
+
+  Update the inherited WA-07b, 59x, 60d, 60f and 60g reviewers only through
+  exact reversible spans or one common generic overlay helper. Keep their
+  original source inventories and semantic checks intact. Reject partial
+  rollout, missing or extra files, changed hashes, symlinks, executable-bit
+  changes, staged or untracked content, mismatched profile/facet claims and any
+  unknown production delta. Add self-tests for each attack and prove the overlay
+  cannot hide a genuine historical-source mutation.
+
+  Preserve `SimpleWireAssignmentsV1` only for explicit legacy fixtures. The
+  WA-08 production handoff and pass adapter must require
+  `PureWireExpressionsV1` and the `PureExpressions` completeness facet. Do not
+  weaken or skip workflows, convert failures to allowed failures, or modify
+  SInt or parameterized RTL merely to satisfy a source audit.
+
+  Completion requires the previously failing inherited workflows, the WA-08
+  pass workspace, baseline and Mill, both Scala lanes and all applicable formal,
+  determinism, strict-Verilog and source-audit gates to pass on one exact final
+  head. Record the original failure classification and complete reviewed overlay
+  inventory. This increment changes qualification/source-audit compatibility
+  only and does not change generated Verilog.
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
