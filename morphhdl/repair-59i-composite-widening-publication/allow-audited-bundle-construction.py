@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-"""Admit only freshly allocated, fully audited native Bundle construction.
+"""Admit only audited fresh Bundle construction and an exact read-only width query.
 
 The composite callback policy already proves each Bundle class, immutable shape
 constructor and constructor call graph. The outer abstract interpreter did not
 model the JVM NEW/DUP/<init> state transition, so even that audited path was
 rejected as generic host allocation. This source-bound development patch adds
 an uninitialized composite value and allows it to become writable hardware only
-after the exact audited constructor runs. Arbitrary Java/Scala allocation,
-partially initialized values, Data constructor arguments, captured writes and
-unknown factories remain rejected.
+after the exact audited constructor runs.
+
+Widening construction also needs the symbolic width of freshly computed native
+leaves. The stateful ParameterizedWidth registry is deliberately not admitted
+as a helper module. Instead this patch adds one private ElabInt.widthOf(BaseType)
+read-only query and certifies only that exact method descriptor. Arbitrary
+Java/Scala allocation, partial initialization, direct registry access, Data
+constructor arguments, captured writes and unknown factories remain rejected.
 """
 from __future__ import annotations
 
@@ -16,8 +21,11 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+ELAB = ROOT / "core/src/main/scala/spinal/core/ElabInt.scala"
 CERTIFIED = ROOT / "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala"
 COMPOSITE = ROOT / "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala"
+PUBLICATION_TEST = ROOT / "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala"
+PROOF_SOURCE = ROOT / "morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala"
 TEST = ROOT / "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala"
 
 
@@ -37,11 +45,42 @@ def replace_once(text: str, before: str, after: str, label: str) -> str:
 
 
 def main() -> None:
+    require(git_blob(ELAB) == "defb22e2847b8792ce4cf51a2b98fb1066593bc1",
+            "ElabInt baseline changed")
     require(git_blob(CERTIFIED) == "a9b37e7cf52df372a989fef5af76810dc012988a",
             "certified callback policy baseline changed")
     require(git_blob(COMPOSITE) == "29560d97f12bf3537151e55d65dae5816841db87",
             "composite callback policy baseline changed")
+    require(git_blob(PROOF_SOURCE) == "596d6189008c4fd6b5631a4d1f309234ab1bde5c",
+            "focused widening proof source baseline changed")
+    require(PUBLICATION_TEST.is_file(), "widening publication test was not staged first")
     require(not TEST.exists(), "widening construction policy test already exists")
+
+    elab = ELAB.read_text()
+    elab = replace_once(elab, '''  def fromExpression(expression: ElaborationIntegerExpression): ElabInt = {
+    validateExpression(expression, "ElabInt expression")
+    new ElabInt(withCompleteParameterRoots(expression))
+  }
+
+''', '''  def fromExpression(expression: ElaborationIntegerExpression): ElabInt = {
+    validateExpression(expression, "ElabInt expression")
+    new ElabInt(withCompleteParameterRoots(expression))
+  }
+
+  /** Read the retained width of one exact native leaf without exposing the
+    * mutable registry or its Option carrier to callback bytecode. This is a
+    * geometry query only; it cannot observe runtime hardware values. */
+  private[spinal] def widthOf(value: BaseType): ElabInt = {
+    if (value == null)
+      throw new IllegalArgumentException("typed width query target must not be null")
+    ParameterizedWidth.expressionOf(value) match {
+      case Some(expression) => fromExpression(expression)
+      case None             => literal(value.getBitsWidth)
+    }
+  }
+
+''', "exact read-only typed width query")
+    ELAB.write_text(elab)
 
     composite = COMPOSITE.read_text()
     composite = replace_once(composite, '''  def dataName(owner: String): Boolean = {
@@ -143,6 +182,11 @@ def main() -> None:
       if (composite) {
 ''', '''      def hardware(value: Value): Boolean = hardwareValue(value)
       def integral(value: Value): Boolean = value == Integer || value == Configuration || value == Count
+      if (composite && call.owner == "spinal/core/ElabInt$" &&
+          receiver.contains(Module(call.owner)) && name == "widthOf" &&
+          exact("(Lspinal/core/BaseType;)Lspinal/core/ElabInt;") &&
+          args.size == 1 && args.forall(hardware))
+        return Configuration
       if (composite && call.getOpcode == Opcodes.INVOKESPECIAL && name == "<init>" &&
           args.forall(integral) && composites.exists(_.constructionCall(call))) {
         receiver match {
@@ -153,7 +197,7 @@ def main() -> None:
         }
       }
       if (composite) {
-''', "audited constructor transition")
+''', "audited width query and constructor transition")
     certified = replace_once(certified,
         '''          return AssignmentTarget(args.head.asInstanceOf[Hardware])
 ''', '''          return AssignmentTarget(args.head)
@@ -190,6 +234,22 @@ def main() -> None:
 ''', "audited companion call")
     CERTIFIED.write_text(certified)
 
+    old_width_helper = '''  def typedWidth(value: BaseType): ElabInt =
+    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)
+      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))
+'''
+    new_width_helper = '''  def typedWidth(value: BaseType): ElabInt =
+    ElabInt.widthOf(value)
+'''
+    publication = PUBLICATION_TEST.read_text()
+    PUBLICATION_TEST.write_text(replace_once(
+        publication, old_width_helper, new_width_helper,
+        "publication exact typed-width query"))
+    proof = PROOF_SOURCE.read_text()
+    PROOF_SOURCE.write_text(replace_once(
+        proof, old_width_helper, new_width_helper,
+        "focused proof exact typed-width query"))
+
     TEST.write_text(r'''package spinal.core.internals
 
 import java.nio.file.Files
@@ -217,16 +277,42 @@ private final class ForbiddenWideningHostAllocation(width: HdlInt,
       ForbiddenWideningHostAllocation.combine(a, b))
 }
 
+private object ForbiddenWideningRegistryRead {
+  private def typedWidth(value: BaseType): ElabInt =
+    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)
+      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))
+
+  def combine(a: BalancedCompositeWideningValue,
+      b: BalancedCompositeWideningValue): BalancedCompositeWideningValue = {
+    val unsignedSum = a.unsignedSum +^ b.unsignedSum
+    val result = BalancedCompositeWideningValue(typedWidth(unsignedSum),
+      typedWidth(a.unsignedProduct), typedWidth(a.signedSum), typedWidth(a.signedProduct))
+    result.unsignedSum := unsignedSum
+    result.unsignedProduct := a.unsignedProduct
+    result.signedSum := a.signedSum
+    result.signedProduct := a.signedProduct
+    result
+  }
+}
+
+private final class ForbiddenWideningRegistryRead(width: HdlInt,
+    count: HdlInt) extends Component {
+  private val initial = ElabInt.fromExpression(width.bits.expression.get)
+  val values = in(Vec(BalancedCompositeWideningValue(initial, initial, initial, initial), count))
+  val reduced = values.reduceBalancedTree(
+    (a: BalancedCompositeWideningValue, b: BalancedCompositeWideningValue) =>
+      ForbiddenWideningRegistryRead.combine(a, b))
+}
+
 class TypedBalancedReductionCompositeWideningConstructionPolicyTests extends AnyFunSuite {
-  test("audited Bundle construction does not admit arbitrary host allocation") {
-    val directory = Files.createTempDirectory("widening-forbidden-allocation-")
+  private def rejection(component: => Component, fileName: String): Unit = {
+    val directory = Files.createTempDirectory("widening-forbidden-")
     val config = SpinalConfig(targetDirectory = directory.toString, headerWithDate = false,
       bitVectorWidthMax = 65536)
-    config.netlistFileName = "forbidden.v"
+    config.netlistFileName = fileName
     val failure = intercept[Exception] {
       MorphVerilog(config) {
-        new ForbiddenWideningHostAllocation(HdlInt.param("WIDTH", 5, 1, 16),
-          HdlInt.param("COUNT", 3, 1, 5))
+        component
       }
     }
     val messages = scala.collection.mutable.ArrayBuffer.empty[String]
@@ -236,12 +322,23 @@ class TypedBalancedReductionCompositeWideningConstructionPolicyTests extends Any
       error = error.getCause
     }
     assert(messages.mkString("\n").contains("MORPH-REDUCE-BALANCED-CALLBACK-UNSUPPORTED"))
-    assert(!Files.exists(directory.resolve("forbidden.v")))
+    assert(!Files.exists(directory.resolve(fileName)))
+  }
+
+  test("audited Bundle construction does not admit arbitrary host allocation") {
+    rejection(new ForbiddenWideningHostAllocation(HdlInt.param("WIDTH", 5, 1, 16),
+      HdlInt.param("COUNT", 3, 1, 5)), "forbidden-allocation.v")
+  }
+
+  test("exact typed width query does not admit direct registry access") {
+    rejection(new ForbiddenWideningRegistryRead(HdlInt.param("WIDTH", 5, 1, 16),
+      HdlInt.param("COUNT", 3, 1, 5)), "forbidden-registry.v")
   }
 }
 ''')
     print("admitted only fully audited fresh Bundle construction")
-    print("retained rejection of arbitrary host allocation")
+    print("admitted only exact read-only ElabInt.widthOf geometry query")
+    print("retained rejection of arbitrary host allocation and direct registry access")
 
 
 if __name__ == "__main__":
