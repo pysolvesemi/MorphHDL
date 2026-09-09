@@ -1,0 +1,114 @@
+name: Increment 59i composite widening publication development
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths:
+      - '.github/workflows/increment-59i-composite-widening-publication-development.yml'
+      - 'morphhdl/repair-59i-composite-widening-publication/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-composite-widening-publication-development
+  cancel-in-progress: true
+
+jobs:
+  compile-and-test:
+    name: Widening publication Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Apply exact backend publication prototype
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-publication"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          test "$(git merge-base HEAD df76262934b38516785fc7bf51595d918a20e7d2)" = df76262934b38516785fc7bf51595d918a20e7d2
+          python3 morphhdl/repair-59i-composite-widening-publication/apply.py | tee "$output/application.log"
+          git diff --check
+          git diff --binary > "$output/applied.diff"
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-publication"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          cat > "$output/sbt.sh" <<'SH'
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-publication"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" "$@"
+          SH
+      - name: Compile and run widening publication plus inherited suites
+        shell: bash
+        run: |
+          set -uo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-publication"
+          status=0
+          bash "$output/sbt.sh" 'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
+            > "$output/tests.log" 2>&1 || status=$?
+          mkdir -p "$output/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$output/test-reports/" \; 2>/dev/null || true
+          if [ "$status" -ne 0 ]; then
+            python3 - <<'PY' | tee "$output/failures.txt"
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          found = 0
+          for path in sorted(Path('target/increment-59i-widening-publication/test-reports').glob('*.xml')):
+              try: root = ET.parse(path).getroot()
+              except ET.ParseError: continue
+              for case in root.iter('testcase'):
+                  for failure in list(case.findall('failure')) + list(case.findall('error')):
+                      found += 1
+                      print('FAILED TEST:', case.get('classname', ''), '::', case.get('name', ''))
+                      print('MESSAGE:', failure.get('message', ''))
+                      print((failure.text or '').strip())
+          if found == 0: print('No failed testcase element was found; see tests.log.')
+          PY
+            tail -n 260 "$output/tests.log"
+            exit "$status"
+          fi
+          set -e
+          grep -q 'All tests passed' "$output/tests.log"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala "$output/"
+          cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala "$output/"
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala "$output/"
+          sha256sum "$output"/*.scala > "$output/source-sha256.txt"
+      - name: Upload exact prototype and results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-widening-publication-${{ matrix.scala }}
+          path: target/increment-59i-widening-publication
+          if-no-files-found: error
+          retention-days: 7
