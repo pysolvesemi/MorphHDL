@@ -1,0 +1,111 @@
+name: Increment 59i guarded current-target reconciliation
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-reconcile-current-target.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-current-target-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile target without weakening either source review
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      STAGING_PARENT: e8812b5dae19126ca10ff5e39cb479ffcb466580
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Merge the exact target with guarded conflict policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-reconciliation"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          test "$(git rev-parse HEAD^1)" = "$STAGING_PARENT"
+          git fetch origin parameterized-verilog
+          test "$(git rev-parse FETCH_HEAD)" = "$TARGET_HEAD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-commit -X ours "$TARGET_HEAD"
+          test -z "$(git diff --name-only --diff-filter=U)"
+          printf 'target=%s\nstaging=%s\n' "$TARGET_HEAD" "${{ github.sha }}" > \
+            morphhdl/repair-59i-composite-widening-publication/reconciled-target.txt
+          git add morphhdl/repair-59i-composite-widening-publication/reconciled-target.txt
+          git diff --check
+          git commit -m 'Merge current parameterized-verilog into Increment 59i development'
+          test "$(git rev-parse HEAD^1)" = "${{ github.sha }}"
+          test "$(git rev-parse HEAD^2)" = "$TARGET_HEAD"
+          git merge-base --is-ancestor "$TARGET_HEAD" HEAD
+          git rev-parse HEAD > "$output/merged-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/merged-tree.txt"
+          git diff --name-status "${{ github.sha }}" HEAD > "$output/target-delta.txt"
+
+      - name: Require both 59i and inherited target source-review composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-reconciliation"
+          {
+            grep -q 'def join_source_review' morphhdl/scripts/check-increment-59g-source-review.py
+            grep -q 'def rollout_scope' morphhdl/scripts/check-increment-59g-source-review.py
+            grep -q '"signed"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+            grep -q '"unsigned"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+            grep -q '"integer"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+            grep -q 'native declaration type qualifiers cannot become signal dependencies' \
+              morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/test-increment-59i-review-composition.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$output/source-audits.log"
+
+      - name: Push only from the unchanged expected branch head
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-reconciliation"
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "${{ github.sha }}"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git rev-parse HEAD > "$output/pushed-head.txt"
+
+      - name: Upload exact reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-current-target-reconciliation
+          path: target/increment-59i-reconciliation
+          if-no-files-found: error
+          retention-days: 14
