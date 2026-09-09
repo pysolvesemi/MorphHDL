@@ -23,7 +23,7 @@ jobs:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
       BRANCH: agent/increment-59i-combined-reduction-closure
-      STAGING_PARENT: 6ca428ecfe9014bd3bb1a65e9a1729e198f6a451
+      STAGING_PARENT: 73d04751b6506abd65e054fbe5803ebc1d1655c7
       TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
     steps:
       - uses: actions/checkout@v4
