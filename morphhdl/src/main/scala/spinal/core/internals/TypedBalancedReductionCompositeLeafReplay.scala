@@ -1,0 +1,101 @@
+package spinal.core.internals
+
+import java.util.IdentityHashMap
+import spinal.core._
+import TypedBalancedReductionValueEvidence.Evidence
+
+/** A shape-changing composite callback is admitted only when every output
+  * leaf is an independent closed scalar graph of the corresponding two input
+  * leaves. Scalar replay remains the sole arithmetic and width authority.
+  * Shared locals, cross-field reads and hardware captures are rejected rather
+  * than being reconstructed as an aggregate-specific algorithm.
+  */
+private[spinal] object TypedBalancedReductionCompositeLeafReplay {
+  type Width = ElaborationIntegerExpression
+
+  private def fail(code: String, detail: String): Nothing =
+    throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-COMPOSITE-WIDENING-$code: $detail")
+
+  final class Proof private[TypedBalancedReductionCompositeLeafReplay] (
+      val nativeResult: Data,
+      val leaves: Vector[TypedBalancedReductionOperatorReplay.Proof]
+  ) {
+    val resultWidths: Vector[Width] = leaves.map(_.resultWidth)
+    val operationKey: Vector[(Any, Any)] = leaves.map(proof => proof.operationKey -> proof.transferKey)
+
+    def validateFreshness(): Unit = leaves.foreach(_.validateFreshness())
+
+    def resultWidthsFor(left: Vector[Width], right: Vector[Width]): Vector[Width] = {
+      validateFreshness()
+      if (left == null || right == null || left.size != leaves.size || right.size != leaves.size)
+        fail("WIDTH-COUNT", "substituted composite widths must match every certified leaf")
+      leaves.indices.toVector.map(index => leaves(index).resultWidthFor(left(index), right(index)))
+    }
+
+    def replayLeaves(left: Vector[BaseType], right: Vector[BaseType],
+        leftWidths: Vector[Width], rightWidths: Vector[Width]): Vector[BaseType] = {
+      validateFreshness()
+      if (left == null || right == null || left.size != leaves.size || right.size != leaves.size)
+        fail("LEAF-COUNT", "replayed composite values must preserve the certified leaf inventory")
+      leaves.indices.toVector.map(index => leaves(index).replayWithWidths(
+        left(index), right(index), leftWidths(index), rightWidths(index)))
+    }
+  }
+
+  def certify(callback: UnvalidatedBalancedCallback,
+      left: Vector[Evidence], right: Vector[Evidence]): Proof = {
+    if (callback == null || left == null || right == null ||
+        callback.operands == null || callback.operands.size != 2 || callback.result == null)
+      fail("ARITY", "widening certification needs one exact native pair callback")
+    val outputs = callback.result.flatten.toVector
+    if (left.isEmpty || left.size != right.size || outputs.size != left.size)
+      fail("SHAPE", "widening callback must retain one output for each corresponding input leaf")
+
+    val usedDeclarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
+    val usedAssignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+
+    val proofs = outputs.indices.toVector.map { index =>
+      val declarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
+      val assignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+      val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+
+      def walk(expression: Expression): Unit = {
+        if (expression == null || visited.put(expression, java.lang.Boolean.TRUE) != null) return
+        expression match {
+          case leaf: BaseType if (leaf eq left(index).value) || (leaf eq right(index).value) =>
+          case leaf: BaseType if callback.declarations.exists(_ eq leaf) =>
+            declarations.put(leaf, java.lang.Boolean.TRUE)
+            callback.assignments.filter(_.finalTarget eq leaf).foreach { assignment =>
+              assignments.put(assignment, java.lang.Boolean.TRUE)
+              walk(assignment.source)
+            }
+          case _: BaseType => // Scalar replay rejects any unaudited external read.
+          case other => other.foreachExpression(walk)
+        }
+      }
+      walk(outputs(index))
+
+      val declarationList = callback.declarations.filter(declarations.containsKey)
+      val assignmentList = callback.assignments.filter(assignments.containsKey)
+      declarationList.foreach { declaration =>
+        if (usedDeclarations.put(declaration, java.lang.Boolean.TRUE) != null)
+          fail("SHARED-LOCAL", "independent widening leaves cannot share a mutable native local")
+      }
+      assignmentList.foreach { assignment =>
+        if (usedAssignments.put(assignment, java.lang.Boolean.TRUE) != null)
+          fail("SHARED-DRIVER", "independent widening leaves cannot share a native assignment")
+      }
+
+      val partition = UnvalidatedBalancedCallback(callback.ordinal,
+        Vector(left(index).value, right(index).value), outputs(index), declarationList, assignmentList)
+      TypedBalancedReductionOperatorReplay.certify(partition, Vector(left(index), right(index)))
+    }
+
+    if (usedDeclarations.size != callback.declarations.size ||
+        usedAssignments.size != callback.assignments.size)
+      fail("UNCONSUMED-EFFECT", "shape-changing callback contains effects outside independent leaf graphs")
+    val proof = new Proof(callback.result, proofs)
+    proof.validateFreshness()
+    proof
+  }
+}

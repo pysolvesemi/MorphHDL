@@ -1,0 +1,155 @@
+package spinal.core.internals
+
+import java.nio.file.Files
+import morphhdl.frontend.HdlInt
+import org.scalatest.funsuite.AnyFunSuite
+import spinal.core._
+import spinal.lib._
+
+final case class BalancedCompositeWideningValue(
+    unsignedSumWidth: ElabInt,
+    unsignedProductWidth: ElabInt,
+    signedSumWidth: ElabInt,
+    signedProductWidth: ElabInt) extends Bundle {
+  val unsignedSum = UInt(unsignedSumWidth bits)
+  val unsignedProduct = UInt(unsignedProductWidth bits)
+  val signedSum = SInt(signedSumWidth bits)
+  val signedProduct = SInt(signedProductWidth bits)
+}
+
+class TypedBalancedReductionCompositeWideningTests extends AnyFunSuite {
+  private def native[T <: Data]: ElabBalancedReduction.Native[T] =
+    (values, op, bridge) => new TraversableOnceAnyPimped[T](values).reduceBalancedTree(op, bridge)
+
+  private def typedWidth(value: BaseType): ElabInt =
+    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)
+      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))
+
+  private def combine(a: BalancedCompositeWideningValue,
+      b: BalancedCompositeWideningValue): BalancedCompositeWideningValue = {
+    val unsignedSum = a.unsignedSum +^ b.unsignedSum
+    val unsignedProduct = a.unsignedProduct * b.unsignedProduct
+    val signedSum = a.signedSum +^ b.signedSum
+    val signedProduct = a.signedProduct * b.signedProduct
+    val result = BalancedCompositeWideningValue(typedWidth(unsignedSum), typedWidth(unsignedProduct),
+      typedWidth(signedSum), typedWidth(signedProduct))
+    result.unsignedSum := unsignedSum
+    result.unsignedProduct := unsignedProduct
+    result.signedSum := signedSum
+    result.signedProduct := signedProduct
+    result
+  }
+
+  private def generate(body: => Component): Unit =
+    SpinalConfig(targetDirectory = Files.createTempDirectory("composite-widening-").toString,
+      headerWithDate = false, headerWithRepoHash = false).generateVerilog(body)
+
+  private def initialize(value: BalancedCompositeWideningValue): Unit = {
+    value.unsignedSum := 0
+    value.unsignedProduct := 0
+    value.signedSum := 0
+    value.signedProduct := 0
+  }
+
+  test("independent UInt and SInt sum/product leaves replay every singleton and odd tail") {
+    val width = HdlInt.param("WIDTH", 5, 1, 32)
+    val count = HdlInt.param("COUNT", 1, 1, 5)
+    generate(new Component {
+      val initial = ElabInt.fromExpression(width.bits.expression.get)
+      val values = Vec(BalancedCompositeWideningValue(initial, initial, initial, initial), count)
+      values.vec.foreach(initialize)
+      val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+        combine, (value: BalancedCompositeWideningValue, _: Int) => value,
+        native[BalancedCompositeWideningValue])
+      assert(certificate.hasWidening)
+      for (size <- 1 to 5) {
+        val result = certificate.replay(values.vec.take(size).toVector)
+        val sumWidth = 5 + (BigInt(size) - 1).bitLength
+        assert(result.unsignedSum.getBitsWidth == sumWidth)
+        assert(result.signedSum.getBitsWidth == sumWidth)
+        assert(result.unsignedProduct.getBitsWidth == 5 * size)
+        assert(result.signedProduct.getBitsWidth == 5 * size)
+        assert(result.signedSum.getTypeObject == TypeSInt)
+        assert(result.signedProduct.getTypeObject == TypeSInt)
+      }
+    })
+  }
+
+  test("vector width schedule retains independent WIDTH and COUNT roots") {
+    val width = HdlInt.param("WIDTH", 5, 1, 32)
+    val count = HdlInt.param("COUNT", 1, 1, 5)
+    generate(new Component {
+      val initial = ElabInt.fromExpression(width.bits.expression.get)
+      val values = Vec(BalancedCompositeWideningValue(initial, initial, initial, initial), count)
+      values.vec.foreach(initialize)
+      val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+        combine, (value: BalancedCompositeWideningValue, _: Int) => value,
+        native[BalancedCompositeWideningValue])
+      val schedule = certificate.widthSchedule
+      val names = certificate.captured.result.flattenLocalName.toVector
+      val terminal = names.zip(schedule.terminal).toMap
+      val widthRoot = ParameterizedWidth.expressionOf(values.vec.head.unsignedSum).get.parameterRoots.head
+      val countRoot = certificate.captured.plan.count.expression.parameterRoots.head
+      for (size <- 1 to 5) {
+        val bindings = Vector(widthRoot -> BigInt(5), countRoot -> BigInt(size))
+        val sumWidth = BigInt(5 + (BigInt(size) - 1).bitLength)
+        assert(ElaborationWidthAuthority.evaluate(terminal("unsignedSum"), bindings).contains(sumWidth))
+        assert(ElaborationWidthAuthority.evaluate(terminal("signedSum"), bindings).contains(sumWidth))
+        assert(ElaborationWidthAuthority.evaluate(terminal("unsignedProduct"), bindings).contains(BigInt(5 * size)))
+        assert(ElaborationWidthAuthority.evaluate(terminal("signedProduct"), bindings).contains(BigInt(5 * size)))
+      }
+      assert(schedule.stages.size == 3)
+      assert(schedule.stages.map(_.fullPairPossible) == Vector(true, true, false))
+      assert(schedule.stages.exists(_.partialPairPossible))
+      assert(schedule.stages.exists(_.tailPossible))
+    })
+  }
+
+  test("generic composite transfer accepts unequal substituted leaf roots") {
+    val width = HdlInt.param("WIDTH", 5, 1, 32)
+    generate(new Component {
+      val initial = ElabInt.fromExpression(width.bits.expression.get)
+      val values = Vec(BalancedCompositeWideningValue(initial, initial, initial, initial),
+        HdlInt.param("COUNT", 2, 1, 2))
+      values.vec.foreach(initialize)
+      val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+        combine, (value: BalancedCompositeWideningValue, _: Int) => value,
+        native[BalancedCompositeWideningValue])
+      val operator = certificate.stages.head.operators.head
+      val left = Vector(3, 4, 5, 6).map(value => ElabInt.literal(value).expression)
+      val right = Vector(7, 8, 9, 10).map(value => ElabInt.literal(value).expression)
+      val result = operator.resultWidthsFor(left, right)
+      assert(result.map(_.default) == Vector(BigInt(8), BigInt(12), BigInt(10), BigInt(16)))
+    })
+  }
+
+  test("shape-changing cross-field arithmetic remains rejected") {
+    val width = HdlInt.param("WIDTH", 5, 1, 32)
+    val error = intercept[Exception] {
+      generate(new Component {
+        val initial = ElabInt.fromExpression(width.bits.expression.get)
+        val values = Vec(BalancedCompositeWideningValue(initial, initial, initial, initial),
+          HdlInt.param("COUNT", 2, 1, 2))
+        values.vec.foreach(initialize)
+        TypedBalancedReductionCompositeReplay.capture(values,
+          (a: BalancedCompositeWideningValue, b: BalancedCompositeWideningValue) => {
+            val cross = a.unsignedSum +^ b.unsignedProduct
+            val unsignedProduct = a.unsignedProduct * b.unsignedProduct
+            val signedSum = a.signedSum +^ b.signedSum
+            val signedProduct = a.signedProduct * b.signedProduct
+            val result = BalancedCompositeWideningValue(typedWidth(cross), typedWidth(unsignedProduct),
+              typedWidth(signedSum), typedWidth(signedProduct))
+            result.unsignedSum := cross
+            result.unsignedProduct := unsignedProduct
+            result.signedSum := signedSum
+            result.signedProduct := signedProduct
+            result
+          }, (value: BalancedCompositeWideningValue, _: Int) => value,
+          native[BalancedCompositeWideningValue])
+      })
+    }
+    val messages = Iterator.iterate(error: Throwable)(_.getCause).takeWhile(_ != null)
+      .map(value => Option(value.getMessage).getOrElse("")).mkString("\n")
+    assert(messages.contains("COMPOSITE-WIDENING") || messages.contains("EXTERNAL-READ"), messages)
+  }
+}

@@ -44,6 +44,18 @@ CAPTURE_BASE = '80a3b0977ccabcd83ce06ef97a446edbee8f723a'
 CAPTURE_CONTRACT = 'morphhdl/contracts/increment-59i-capture-review.json'
 CAPTURE_SHA256 = 'dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537'
 CAPTURE_PATHS = ('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py')
+WIDENING_CHECKER = "morphhdl/scripts/check-increment-59i-widening-source-review.py"
+
+def load_widening_review(root: Path):
+    source = root / WIDENING_CHECKER
+    require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+            "missing regular 59i widening successor reviewer")
+    spec = importlib.util.spec_from_file_location("increment_59i_widening_successor_review", source)
+    require(spec is not None and spec.loader is not None, "cannot load 59i widening successor reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 # This successor adds two production paths; the original PATHS/manifest API is
 # kept unchanged for independently sealed historical review composition.
 ALL_PATHS = tuple(dict.fromkeys(PATHS + CAPTURE_PATHS))
@@ -188,6 +200,7 @@ def baseline_source(root: Path, path: str) -> bytes:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
+    source = load_widening_review(root).restore_source(root, path, source)
     entries = load_contract(root)
     captures = load_capture_contract(root)
     if path in captures:
@@ -232,6 +245,7 @@ def verify_spans(root: Path) -> None:
 
 def verify(root: Path) -> None:
     paths = production_changes(root, BASE)
+    paths = load_widening_review(root).inherited_inventory(root, paths, BASE)
     # A later independently qualified WA-07b pass implementation remains a
     # disjoint successor, not an unreviewed addition to this join's inventory.
     checker = root / "morphhdl/scripts/check-wa07b-inherited-review.py"
