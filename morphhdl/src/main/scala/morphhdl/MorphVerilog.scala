@@ -753,11 +753,16 @@ object MorphVerilog {
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
+    // The recursive adapter brackets PhaseVerilog. Install it before every
+    // caller-owned inserter so a pre-existing strict signedness observation can
+    // still claim the exact phase immediately before the emitter. Consolidated
+    // publication must not acquire these otherwise inactive lifecycle phases.
+    if (config.oneFilePerComponent)
+      phaseInserters.insert(0, MorphHdlRecursivePerComponentPublication.install _)
     phaseInserters += ExternalParameterizedNativeResize.install _
     phaseInserters += ExternalParameterizedAutoResize.install _
     phaseInserters += ExternalParameterizedHighBit.install _
     phaseInserters += TypedBalancedReductionBackend.install _
-    phaseInserters += MorphHdlRecursivePerComponentPublication.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
     MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(

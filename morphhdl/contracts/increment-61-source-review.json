@@ -50,7 +50,7 @@
       "status": "added"
     },
     {
-      "after_sha256": "7ac9b530b6062899f252ff2683fc831bf771f6db3856f462753c9eac0a7de61e",
+      "after_sha256": "ede54e7d2217f995cd10a220210f9f5558f5cd6cefaf21aecca1523cbaa7cb87",
       "before_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
@@ -99,7 +99,7 @@
       "status": "added"
     },
     {
-      "after_sha256": "b6a6b831e715f42b518023b1a80b9755d935a449cb8fe40fa29e8845958d81d2",
+      "after_sha256": "138a4a4f4f84641f411629ff0091d4a74f8e69e3a209bb4abc7b98dad9b2e1e0",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala",

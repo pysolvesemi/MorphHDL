@@ -8,6 +8,7 @@ import scala.collection.JavaConverters._
 import nativeapplication.{BoundedRecursivePowerFixture, TypedBlackBoxGenericBindingFixture}
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+import spinal.core.internals.MorphHdlSignednessAnalysis
 
 import morphhdl.frontend.{formalParam, HdlInt}
 
@@ -166,6 +167,27 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       assert(text.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE"))
       assert(!text.contains("`define Inc53b"))
       assert(!Files.exists(directory.resolve("enumdefine.v")))
+    }
+  }
+
+  test("split lifecycle preserves an existing strict signedness emission boundary") {
+    for (split <- Vector(false, true)) {
+      withTemporaryDirectory { directory =>
+        var observations = 0
+        val base = SpinalConfig(
+          targetDirectory = directory.toString,
+          oneFilePerComponent = split
+        )
+        val config = MorphSignedDeclarations.disable(base)
+        config.phasesInserters += MorphHdlSignednessAnalysis.install { snapshot =>
+          observations += 1
+          assert(snapshot.facts.nonEmpty)
+        }
+
+        val report = MorphVerilog(config)(hierarchical())
+        assert(observations == 1)
+        assert(report.generatedSourcesPaths.nonEmpty)
+      }
     }
   }
 
