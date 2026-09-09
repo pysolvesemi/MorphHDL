@@ -1,0 +1,832 @@
+name: WA-08 Increment 62 atomic repair
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wa08-increment62-atomic-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out WA-08 branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+
+      - name: Build exact Increment 62 overlay
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          ROOT = Path.cwd()
+          BASE = "ba99eaa30b48fd56717b5b860299decd5c6c0dbc"
+          SOURCE = "dd1850bc021627a5e3ff8370cbbf214bfced4e88"
+          CONTRACT_PATH = Path("morphhdl/contracts/wa08-inherited-source-overlay.json")
+          HELPER_PATH = Path("morphhdl/scripts/check-wa08-inherited-source-overlay.py")
+          WA07B_PATH = Path("morphhdl/scripts/check-wa07b-inherited-review.py")
+          ROLLOUT_PATH = Path("morphhdl/scripts/check-increment-60g-source-scope.py")
+          FINAL_WORKFLOW_PATH = Path(".github/workflows/increment-62-wa08-workflow-closure.yml")
+          TEMP_WORKFLOW_PATH = Path(".github/workflows/wa08-increment62-atomic-repair.yml")
+
+          PAYLOAD_PATHS = (
+              "morphhdl-passes/scripts/check-boundary.sh",
+              "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+              "morphhdl-passes/src/test/scala/morphhdl/passes/adapter/CanonicalIrPassAdapterSpec.scala",
+              "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
+              "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/BooleanTernaryNativeBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/ConstantOperandNativeBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/NamedWireAliasNativeBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/ParameterizedStreamFifo.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/UnnamedWireAliasNativeBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/UnnamedWireExpressionNativeBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/api/PassContracts.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala",
+              "morphhdl/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala",
+              "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala",
+              "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala",
+          )
+
+          def run(*args: str, input_data: bytes | None = None, check: bool = True):
+              result = subprocess.run(
+                  list(args),
+                  cwd=ROOT,
+                  input=input_data,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  check=False,
+              )
+              if check and result.returncode != 0:
+                  raise RuntimeError(
+                      "command failed: " + " ".join(args) + "\n" +
+                      result.stderr.decode("utf-8", "replace")
+                  )
+              return result
+
+          def git_bytes(revision: str, path: str) -> bytes | None:
+              probe = run("git", "cat-file", "-e", revision + ":" + path, check=False)
+              if probe.returncode != 0:
+                  return None
+              return run("git", "show", revision + ":" + path).stdout
+
+          def digest(data: bytes) -> str:
+              return hashlib.sha256(data).hexdigest()
+
+          def blob_oid(data: bytes) -> str:
+              header = b"blob " + str(len(data)).encode("ascii") + b"\0"
+              return hashlib.sha1(header + data).hexdigest()
+
+          def replace_once(path: Path, old: str, new: str) -> None:
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(
+                      f"{path}: expected one reviewed replacement, found {count}"
+                  )
+              path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          run("git", "merge-base", "--is-ancestor", BASE, "HEAD")
+          run("git", "merge-base", "--is-ancestor", SOURCE, "HEAD")
+
+          for path in PAYLOAD_PATHS:
+              expected = git_bytes(SOURCE, path)
+              if expected is None:
+                  raise RuntimeError("missing WA-08 source-anchor file: " + path)
+              actual = (ROOT / path).read_bytes()
+              if actual != expected:
+                  raise RuntimeError("current WA-08 payload differs from source anchor: " + path)
+
+          final_workflow = r'''name: Increment 62 WA-08 inherited workflow closure
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - 'morphhdl-passes/**'
+      - 'morphhdl/src/**'
+      - 'morphir/src/**'
+      - 'morphhdl/scripts/check-wa07b-inherited-review.py'
+      - 'morphhdl/scripts/check-increment-60g-source-scope.py'
+      - 'morphhdl/scripts/check-wa08-inherited-source-overlay.py'
+      - 'morphhdl/contracts/wa08-inherited-source-overlay.json'
+      - '.github/workflows/increment-62-wa08-workflow-closure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inherited-source-overlay:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact WA-08 overlay and rejection controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --verify
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --self-test
+
+      - name: Re-run inherited source compatibility gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+'''
+          FINAL_WORKFLOW_PATH.write_text(final_workflow, encoding="utf-8")
+
+          helper_template = r'''#!/usr/bin/env python3
+"""Exact WA-08 source overlay for inherited closed-scope qualification.
+
+The outer gate validates the real WA-08 checkout byte-for-byte. Historical
+reviewers may then project only this fully verified delta back to the immutable
+revision that preceded it. Unknown, partial, staged, untracked, linked or
+mode-changed source remains an error.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import stat
+import subprocess
+import tempfile
+from pathlib import Path
+
+BASE = "ba99eaa30b48fd56717b5b860299decd5c6c0dbc"
+SOURCE = "dd1850bc021627a5e3ff8370cbbf214bfced4e88"
+CONTRACT = "morphhdl/contracts/wa08-inherited-source-overlay.json"
+CONTRACT_SHA256 = "__CONTRACT_SHA256__"
+HELPER = "morphhdl/scripts/check-wa08-inherited-source-overlay.py"
+EXPECTED_PROFILE = "pure-wire-expressions-v1"
+EXPECTED_FACETS = (
+    "continuous-drivers",
+    "declarations",
+    "name-origins",
+    "observability",
+    "pure-expressions",
+    "reference-occurrences",
+    "typed-parameters-and-packed-types",
+)
+GOVERNED_PREFIXES = (
+    "morphhdl-passes/",
+    "morphhdl/src/main/scala/morphhdl/",
+    "morphhdl/src/test/scala/morphhdl/",
+    "morphir/src/main/scala/morphhdl/ir/v1/",
+    "morphhdl/scripts/",
+    "morphhdl/contracts/",
+)
+GOVERNED_EXACT = frozenset({
+    ".github/workflows/increment-62-wa08-workflow-closure.yml",
+})
+
+
+def require(condition: bool, detail: str) -> None:
+    if not condition:
+        raise RuntimeError("WA08 inherited overlay: " + detail)
+
+
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def blob_oid(data: bytes) -> str:
+    header = b"blob " + str(len(data)).encode("ascii") + b"\0"
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def git(root: Path, *args: str, check: bool = True) -> bytes:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=root,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+        timeout=120,
+    )
+    if check:
+        require(
+            result.returncode == 0,
+            "git command failed: " + " ".join(args) + "\n" +
+            result.stderr.decode("utf-8", "replace"),
+        )
+    return result.stdout
+
+
+def regular(root: Path, relative: str) -> bytes:
+    path = root / relative
+    require(path.is_file() and not path.is_symlink(),
+            "missing regular reviewed source: " + relative)
+    mode = path.stat().st_mode
+    require(stat.S_ISREG(mode) and not mode & 0o111,
+            "reviewed source must be regular and non-executable: " + relative)
+    cursor = root
+    for part in Path(relative).parts[:-1]:
+        cursor = cursor / part
+        require(not cursor.is_symlink(), "symlinked reviewed source ancestor: " + relative)
+    return path.read_bytes()
+
+
+def optional_revision_bytes(root: Path, revision: str, path: str) -> bytes | None:
+    probe = subprocess.run(
+        ["git", "cat-file", "-e", revision + ":" + path],
+        cwd=root,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+        timeout=120,
+    )
+    if probe.returncode != 0:
+        return None
+    return git(root, "show", revision + ":" + path)
+
+
+def parse_tree(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+    result: dict[str, tuple[str, str]] = {}
+    if not paths:
+        return result
+    for record in git(root, "ls-tree", "-r", "-z", revision, "--", *paths).split(b"\0"):
+        if not record:
+            continue
+        metadata, raw_path = record.split(b"\t", 1)
+        mode, kind, oid = metadata.decode().split()
+        path = raw_path.decode()
+        require(path not in result and kind == "blob", "invalid reviewed HEAD entry: " + path)
+        result[path] = (mode, oid)
+    return result
+
+
+def parse_index(root: Path, paths: tuple[str, ...]) -> dict[str, tuple[str, str]]:
+    result: dict[str, tuple[str, str]] = {}
+    if not paths:
+        return result
+    for record in git(root, "ls-files", "--stage", "-z", "--", *paths).split(b"\0"):
+        if not record:
+            continue
+        metadata, raw_path = record.split(b"\t", 1)
+        mode, oid, stage = metadata.decode().split()
+        path = raw_path.decode()
+        require(stage == "0" and path not in result,
+                "unmerged or duplicate reviewed index entry: " + path)
+        result[path] = (mode, oid)
+    return result
+
+
+def governed(path: str) -> bool:
+    return path in GOVERNED_EXACT or any(path.startswith(prefix) for prefix in GOVERNED_PREFIXES)
+
+
+def load_contract(root: Path) -> dict:
+    raw = regular(root, CONTRACT)
+    require(digest(raw) == CONTRACT_SHA256, "sealed overlay contract changed")
+    value = json.loads(raw)
+    require(
+        set(value) == {
+            "schema_version", "baseline", "source_commit", "profile",
+            "required_facets", "files"
+        },
+        "invalid overlay contract schema",
+    )
+    require(value["schema_version"] == 1, "unsupported overlay contract version")
+    require(value["baseline"] == BASE and value["source_commit"] == SOURCE,
+            "overlay revision anchors changed")
+    require(value["profile"] == EXPECTED_PROFILE,
+            "overlay production profile changed")
+    require(tuple(value["required_facets"]) == EXPECTED_FACETS,
+            "overlay completeness facets changed")
+    files = value["files"]
+    require(isinstance(files, list) and files, "empty overlay file inventory")
+    paths = [entry.get("path") for entry in files]
+    require(all(isinstance(path, str) and path for path in paths),
+            "invalid overlay path")
+    require(len(paths) == len(set(paths)) and paths == sorted(paths),
+            "overlay paths must be unique and sorted")
+    for entry in files:
+        require(
+            set(entry) == {
+                "path", "mode", "before_revision", "before_sha256",
+                "before_blob", "after_sha256", "after_blob", "source_locked"
+            },
+            "invalid overlay entry schema: " + entry.get("path", "<unknown>"),
+        )
+        require(entry["mode"] == "100644", "reviewed mode changed: " + entry["path"])
+        require(entry["before_revision"] in (BASE, SOURCE),
+                "invalid projection revision: " + entry["path"])
+        require(isinstance(entry["source_locked"], bool),
+                "invalid source lock: " + entry["path"])
+        for field in ("after_sha256", "after_blob"):
+            require(isinstance(entry[field], str) and entry[field],
+                    "missing " + field + ": " + entry["path"])
+        before_fields = (entry["before_sha256"], entry["before_blob"])
+        require((before_fields[0] is None) == (before_fields[1] is None),
+                "partial before identity: " + entry["path"])
+    return value
+
+
+def verify(root: Path) -> dict:
+    root = root.resolve()
+    head_before = git(root, "rev-parse", "HEAD").decode().strip()
+    git(root, "merge-base", "--is-ancestor", BASE, "HEAD")
+    git(root, "merge-base", "--is-ancestor", SOURCE, "HEAD")
+    contract = load_contract(root)
+    entries = {entry["path"]: entry for entry in contract["files"]}
+    expected_paths = tuple(sorted(set(entries) | {HELPER, CONTRACT}))
+
+    head = parse_tree(root, "HEAD", expected_paths)
+    index = parse_index(root, expected_paths)
+    require(set(head) == set(expected_paths), "reviewed paths missing from HEAD")
+    require(set(index) == set(expected_paths), "reviewed paths missing from index")
+
+    for path in expected_paths:
+        raw = regular(root, path)
+        require(head[path][0] == index[path][0] == "100644",
+                "reviewed path mode differs in HEAD or index: " + path)
+        oid = blob_oid(raw)
+        require(head[path][1] == index[path][1] == oid,
+                "HEAD, index and worktree differ: " + path)
+        if path not in entries:
+            continue
+        entry = entries[path]
+        require(digest(raw) == entry["after_sha256"] and oid == entry["after_blob"],
+                "reviewed current bytes changed: " + path)
+        before = optional_revision_bytes(root, entry["before_revision"], path)
+        if before is None:
+            require(entry["before_sha256"] is None and entry["before_blob"] is None,
+                    "missing before identity does not match revision: " + path)
+        else:
+            require(
+                digest(before) == entry["before_sha256"] and
+                blob_oid(before) == entry["before_blob"],
+                "immutable projection bytes changed: " + path,
+            )
+        if entry["source_locked"]:
+            source = optional_revision_bytes(root, SOURCE, path)
+            require(source is not None and source == raw,
+                    "WA-08 payload differs from immutable source commit: " + path)
+
+    changed = {
+        item.decode("utf-8")
+        for item in git(root, "diff", "--no-renames", "--name-only", "-z", BASE, "HEAD").split(b"\0")
+        if item
+    }
+    scoped_changed = {path for path in changed if governed(path)}
+    require(scoped_changed == set(expected_paths),
+            "unknown or incomplete governed delta: " + repr(sorted(scoped_changed ^ set(expected_paths))))
+
+    untracked = {
+        item.decode("utf-8")
+        for item in git(root, "ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
+        if item and governed(item.decode("utf-8"))
+    }
+    require(not untracked, "untracked governed paths: " + repr(sorted(untracked)))
+    dirty = {
+        item.decode("utf-8")
+        for item in git(root, "diff", "--name-only", "-z").split(b"\0")
+        if item and governed(item.decode("utf-8"))
+    }
+    staged = {
+        item.decode("utf-8")
+        for item in git(root, "diff", "--cached", "--name-only", "-z", "HEAD").split(b"\0")
+        if item and governed(item.decode("utf-8"))
+    }
+    require(not dirty and not staged,
+            "dirty or staged governed paths: " + repr(sorted(dirty | staged)))
+
+    handoff = regular(root, "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala").decode()
+    require("case object PureExpressions extends CanonicalIrFacet" in handoff,
+            "PureExpressions facet declaration missing")
+    require("case object PureWireExpressionsV1 extends CanonicalIrProfile" in handoff,
+            "pure-expression production profile missing")
+    require("productionProfile: CanonicalIrProfile =\n    CanonicalIrProfile.PureWireExpressionsV1" in handoff,
+            "production handoff does not select PureWireExpressionsV1")
+    require("BaseWireFacets + CanonicalIrFacet.PureExpressions" in handoff,
+            "production profile does not require PureExpressions")
+    adapter = regular(
+        root,
+        "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala",
+    ).decode()
+    require("handoff.profile == CanonicalIrHandoff.productionProfile" in adapter,
+            "production pass adapter does not require the production profile")
+    require(git(root, "rev-parse", "HEAD").decode().strip() == head_before,
+            "HEAD changed during overlay validation")
+    return contract
+
+
+def restore_source(
+    root: Path,
+    path: str,
+    source: bytes,
+    contract: dict | None = None,
+) -> bytes:
+    contract = verify(root) if contract is None else contract
+    entry = next((item for item in contract["files"] if item["path"] == path), None)
+    if entry is None:
+        return source
+    before = optional_revision_bytes(root, entry["before_revision"], path)
+    if before is not None and digest(source) == entry["before_sha256"]:
+        return source
+    if before is None and source == b"":
+        return source
+    require(digest(source) == entry["after_sha256"],
+            "cannot project unreviewed bytes: " + path)
+    return b"" if before is None else before
+
+
+def inherited_inventory(
+    root: Path,
+    paths: set[str],
+    qualification_base: str,
+    contract: dict | None = None,
+) -> set[str]:
+    contract = verify(root) if contract is None else contract
+    result = set(paths)
+    for entry in contract["files"]:
+        path = entry["path"]
+        result.discard(path)
+        before = optional_revision_bytes(root, entry["before_revision"], path)
+        if before is None:
+            continue
+        changed = {
+            item.decode("utf-8")
+            for item in git(
+                root,
+                "diff", "--no-renames", "--name-only", "-z",
+                qualification_base, entry["before_revision"], "--", path,
+            ).split(b"\0")
+            if item
+        }
+        if path in changed:
+            result.add(path)
+    return result
+
+
+def expect_rejected(repository: Path, label: str, mutate) -> None:
+    with tempfile.TemporaryDirectory(prefix="morphhdl-wa08-overlay-") as directory:
+        worktree = Path(directory) / "checkout"
+        git(repository, "worktree", "add", "--detach", str(worktree), "HEAD")
+        try:
+            mutate(worktree)
+            try:
+                verify(worktree)
+            except (RuntimeError, OSError, json.JSONDecodeError):
+                return
+            raise RuntimeError("WA08 inherited overlay accepted mutation: " + label)
+        finally:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=repository,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+
+
+def self_test(root: Path) -> None:
+    root = root.resolve()
+    contract = verify(root)
+    entries = contract["files"]
+    changed_entry = next(entry for entry in entries if entry["before_sha256"] is not None)
+    added_entry = next(entry for entry in entries if entry["before_sha256"] is None)
+
+    def append_bytes(worktree: Path) -> None:
+        path = worktree / changed_entry["path"]
+        path.write_bytes(path.read_bytes() + b"\n// mutation\n")
+
+    expect_rejected(root, "changed bytes", append_bytes)
+
+    def staged_bytes(worktree: Path) -> None:
+        append_bytes(worktree)
+        git(worktree, "add", changed_entry["path"])
+
+    expect_rejected(root, "staged bytes", staged_bytes)
+
+    def partial_rollback(worktree: Path) -> None:
+        before = optional_revision_bytes(
+            worktree, changed_entry["before_revision"], changed_entry["path"]
+        )
+        require(before is not None, "self-test expected a modified path")
+        (worktree / changed_entry["path"]).write_bytes(before)
+
+    expect_rejected(root, "partial rollout", partial_rollback)
+
+    def missing_path(worktree: Path) -> None:
+        (worktree / changed_entry["path"]).unlink()
+
+    expect_rejected(root, "missing path", missing_path)
+
+    def linked_path(worktree: Path) -> None:
+        path = worktree / changed_entry["path"]
+        path.unlink()
+        path.symlink_to(worktree / "README.md")
+
+    expect_rejected(root, "symlink", linked_path)
+
+    def executable_path(worktree: Path) -> None:
+        path = worktree / changed_entry["path"]
+        os.chmod(path, path.stat().st_mode | 0o111)
+
+    expect_rejected(root, "executable mode", executable_path)
+
+    def extra_path(worktree: Path) -> None:
+        path = worktree / "morphhdl/src/main/scala/morphhdl/UnexpectedWa08Overlay.scala"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("package morphhdl\n", encoding="utf-8")
+
+    expect_rejected(root, "unknown production path", extra_path)
+
+    def profile_mutation(worktree: Path) -> None:
+        path = worktree / "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace(
+                "CanonicalIrProfile.PureWireExpressionsV1",
+                "CanonicalIrProfile.SimpleWireAssignmentsV1",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+    expect_rejected(root, "wrong production profile", profile_mutation)
+
+    def facet_mutation(worktree: Path) -> None:
+        path = worktree / "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala"
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            text.replace(
+                "BaseWireFacets + CanonicalIrFacet.PureExpressions",
+                "BaseWireFacets",
+                1,
+            ),
+            encoding="utf-8",
+        )
+
+    expect_rejected(root, "missing PureExpressions facet", facet_mutation)
+
+    def contract_mutation(worktree: Path) -> None:
+        path = worktree / CONTRACT
+        path.write_bytes(path.read_bytes() + b"\n")
+
+    expect_rejected(root, "changed contract", contract_mutation)
+
+    def added_path_rollback(worktree: Path) -> None:
+        (worktree / added_entry["path"]).unlink()
+
+    expect_rejected(root, "missing added overlay file", added_path_rollback)
+    print("WA08_INHERITED_OVERLAY_SELF_TEST_PASS rejected=10", flush=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--self-test", action="store_true")
+    args = parser.parse_args()
+    root = args.repo_root.resolve()
+    if args.self_test:
+        self_test(root)
+    else:
+        verify(root)
+        print("WA08_INHERITED_OVERLAY_PASS", flush=True)
+
+
+if __name__ == "__main__":
+    main()
+'''
+          HELPER_PATH.write_text(helper_template, encoding="utf-8")
+
+          wa07b_loader = r'''
+
+@functools.lru_cache(maxsize=8)
+def _wa08_review_cached(root_text: str, head: str):
+    root = Path(root_text)
+    path = root / "morphhdl/scripts/check-wa08-inherited-source-overlay.py"
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-08 overlay reviewer")
+    spec = importlib.util.spec_from_file_location("wa08_inherited_overlay", path)
+    require(spec is not None and spec.loader is not None, "cannot import WA-08 overlay reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    state = module.verify(root)
+    return module, state
+
+
+def wa08_review(root: Path):
+    head = git(root, "rev-parse", "HEAD").decode().strip()
+    return _wa08_review_cached(str(root.resolve()), head)
+
+
+def project_wa08_source(root: Path, path: str, source: bytes) -> bytes:
+    review = wa08_review(root)
+    if review is None:
+        return source
+    module, state = review
+    return module.restore_source(root, path, source, state)
+'''
+          replace_once(
+              WA07B_PATH,
+              "\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n",
+              wa07b_loader + "\n\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n",
+          )
+          replace_once(
+              WA07B_PATH,
+              "    value = load_contract(root)\n    git(root, \"merge-base\", \"--is-ancestor\", BASE, \"HEAD\")\n",
+              "    value = load_contract(root)\n    wa08_review(root)\n    git(root, \"merge-base\", \"--is-ancestor\", BASE, \"HEAD\")\n",
+          )
+          replace_once(
+              WA07B_PATH,
+              "    for path in sorted(main(expected)):\n        require(digest(regular(root, path)) == expected[path],\n                \"unreviewed production delta: unreviewed pass main/test bytes: \" + path)\n",
+              "    for path in sorted(main(expected)):\n        raw = regular(root, path)\n        projected = project_wa08_source(root, path, raw)\n        require(digest(projected) == expected[path],\n                \"unreviewed production delta: unreviewed pass main/test bytes: \" + path)\n",
+          )
+          replace_once(
+              WA07B_PATH,
+              "        data = regular(root, path)\n        category = (\"unreviewed production delta\" if path.startswith(ROOTS[0] + \"/\")\n                    else \"unreviewed pass test source\")\n        require(digest(data) == fingerprint, category + \": unreviewed pass main/test bytes: \" + path)\n        oid = hashlib.sha1(b\"blob \" + str(len(data)).encode() + b\"\\0\" + data).hexdigest()\n",
+              "        data = regular(root, path)\n        projected = project_wa08_source(root, path, data)\n        category = (\"unreviewed production delta\" if path.startswith(ROOTS[0] + \"/\")\n                    else \"unreviewed pass test source\")\n        require(digest(projected) == fingerprint, category + \": unreviewed pass main/test bytes: \" + path)\n        oid = hashlib.sha1(b\"blob \" + str(len(data)).encode() + b\"\\0\" + data).hexdigest()\n",
+          )
+          replace_once(
+              WA07B_PATH,
+              "    if not verify(root):\n        return paths\n    delta = set(load_contract(root)[\"production_delta\"])\n",
+              "    review = wa08_review(root)\n    if review is not None:\n        module, state = review\n        paths = module.inherited_inventory(root, paths, qualification_base, state)\n    if not verify(root):\n        return paths\n    delta = set(load_contract(root)[\"production_delta\"])\n",
+          )
+          replace_once(
+              WA07B_PATH,
+              "def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:\n    value = load_contract(root)\n",
+              "def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:\n    source = project_wa08_source(root, path, source)\n    value = load_contract(root)\n",
+          )
+
+          replace_once(
+              ROLLOUT_PATH,
+              "import argparse\nimport hashlib\n",
+              "import argparse\nimport functools\nimport hashlib\n",
+          )
+          rollout_loader = r'''
+
+@functools.lru_cache(maxsize=8)
+def _wa08_review_cached(root_text: str, head: str):
+    root = Path(root_text)
+    path = root / "morphhdl/scripts/check-wa08-inherited-source-overlay.py"
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-08 overlay reviewer")
+    spec = importlib.util.spec_from_file_location("wa08_inherited_overlay_60g", path)
+    require(spec is not None and spec.loader is not None, "cannot import WA-08 overlay reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    state = module.verify(root)
+    return module, state
+
+
+def wa08_review(root: Path):
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+    return _wa08_review_cached(str(root.resolve()), head)
+
+
+def project_wa08_bytes(root: Path, path: str, source: bytes) -> bytes:
+    review = wa08_review(root)
+    if review is None:
+        return source
+    module, state = review
+    return module.restore_source(root, path, source, state)
+
+
+def project_wa08_source(root: Path, path: str, source: str) -> str:
+    return project_wa08_bytes(root, path, source.encode()).decode()
+'''
+          replace_once(
+              ROLLOUT_PATH,
+              "\ndef restore_60g_source(root: Path, path: str, source: str) -> str:\n",
+              rollout_loader + "\n\ndef restore_60g_source(root: Path, path: str, source: str) -> str:\n",
+          )
+          replace_once(
+              ROLLOUT_PATH,
+              "def restore_60g_source(root: Path, path: str, source: str) -> str:\n    if path not in PATHS:\n",
+              "def restore_60g_source(root: Path, path: str, source: str) -> str:\n    source = project_wa08_source(root, path, source)\n    if path not in PATHS:\n",
+          )
+          replace_once(
+              ROLLOUT_PATH,
+              "        raw = file.read_bytes()\n        require(hashlib.sha256(raw).hexdigest() == fingerprint,\n                \"60g reviewed raw source bytes differ: \" + path)\n        oid = hashlib.sha1(b\"blob \" + str(len(raw)).encode() + b\"\\0\" + raw).hexdigest()\n",
+              "        raw = file.read_bytes()\n        projected = project_wa08_bytes(root, path, raw)\n        require(hashlib.sha256(projected).hexdigest() == fingerprint,\n                \"60g reviewed raw source bytes differ: \" + path)\n        oid = hashlib.sha1(b\"blob \" + str(len(raw)).encode() + b\"\\0\" + raw).hexdigest()\n",
+          )
+          replace_once(
+              ROLLOUT_PATH,
+              "        require(digest(file.read_text()) == expected, \"60g reviewed source bytes differ: \" + path)\n",
+              "        current = file.read_text()\n        projected = project_wa08_source(root, path, current)\n        require(digest(projected) == expected, \"60g reviewed source bytes differ: \" + path)\n",
+          )
+          replace_once(
+              ROLLOUT_PATH,
+              "        source = (root / path).read_text()\n        require(digest(source) == entry[\"after_sha256\"], \"60g reviewed current source differs: \" + path)\n",
+              "        source = project_wa08_source(root, path, (root / path).read_text())\n        require(digest(source) == entry[\"after_sha256\"], \"60g reviewed current source differs: \" + path)\n",
+          )
+
+          integration_paths = (
+              str(WA07B_PATH),
+              str(ROLLOUT_PATH),
+              str(FINAL_WORKFLOW_PATH),
+          )
+
+          def make_entry(path: str, before_revision: str, source_locked: bool) -> dict:
+              before = git_bytes(before_revision, path)
+              after = (ROOT / path).read_bytes()
+              return {
+                  "path": path,
+                  "mode": "100644",
+                  "before_revision": before_revision,
+                  "before_sha256": None if before is None else digest(before),
+                  "before_blob": None if before is None else blob_oid(before),
+                  "after_sha256": digest(after),
+                  "after_blob": blob_oid(after),
+                  "source_locked": source_locked,
+              }
+
+          entries = [make_entry(path, BASE, True) for path in PAYLOAD_PATHS]
+          entries.extend(make_entry(path, SOURCE, False) for path in integration_paths)
+          entries.sort(key=lambda entry: entry["path"])
+          contract = {
+              "schema_version": 1,
+              "baseline": BASE,
+              "source_commit": SOURCE,
+              "profile": "pure-wire-expressions-v1",
+              "required_facets": [
+                  "continuous-drivers",
+                  "declarations",
+                  "name-origins",
+                  "observability",
+                  "pure-expressions",
+                  "reference-occurrences",
+                  "typed-parameters-and-packed-types",
+              ],
+              "files": entries,
+          }
+          CONTRACT_PATH.parent.mkdir(parents=True, exist_ok=True)
+          contract_bytes = (json.dumps(contract, indent=2, sort_keys=True) + "\n").encode()
+          CONTRACT_PATH.write_bytes(contract_bytes)
+          contract_hash = digest(contract_bytes)
+          helper = HELPER_PATH.read_text(encoding="utf-8")
+          if helper.count("__CONTRACT_SHA256__") != 1:
+              raise RuntimeError("helper contract hash placeholder changed")
+          HELPER_PATH.write_text(
+              helper.replace("__CONTRACT_SHA256__", contract_hash),
+              encoding="utf-8",
+          )
+
+          TEMP_WORKFLOW_PATH.unlink()
+          for path in (HELPER_PATH, CONTRACT_PATH, WA07B_PATH, ROLLOUT_PATH, FINAL_WORKFLOW_PATH):
+              os.chmod(path, 0o644)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Implement Increment 62 WA-08 inherited workflow overlay"
+
+      - name: Validate overlay and inherited gates before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --verify
+          python3 morphhdl/scripts/check-wa08-inherited-source-overlay.py --self-test
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+          git diff --exit-code
+          git diff --cached --exit-code
+
+      - name: Push exact repaired head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:agent/wa-08-production-handoff
