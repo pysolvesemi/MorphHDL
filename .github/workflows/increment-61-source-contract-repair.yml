@@ -1,0 +1,75 @@
+name: Increment 61 verify and repair source-contract digest
+
+on:
+  push:
+    branches: ['agent/increment-61-closure-scratch']
+    paths: ['.github/workflows/increment-61-source-contract-repair.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-source-contract-repair
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-61-one-file-per-component
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Synchronize only the pinned contract digest and run exact review
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-61-source-contract-repair
+          mkdir -p "$output"
+          original=$(git rev-parse HEAD)
+          test "$original" = 00a6afa007f235c522fc94eb2e92f192e32e1c99
+          python3 - <<'PY' | tee "$output/digest.txt"
+          import hashlib, re
+          from pathlib import Path
+          contract = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker = Path('morphhdl/scripts/check-increment-61-source-review.py')
+          digest = hashlib.sha256(contract.read_bytes()).hexdigest()
+          text = checker.read_text()
+          updated, count = re.subn(
+              r'(?m)^CONTRACT_SHA256 = "[0-9a-f]{64}"$',
+              f'CONTRACT_SHA256 = "{digest}"',
+              text,
+          )
+          if count != 1:
+              raise SystemExit('Increment 61 checker digest declaration is missing or ambiguous')
+          checker.write_text(updated)
+          print(digest)
+          PY
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee "$output/self-test.log"
+          git diff --check
+          if git diff --quiet -- morphhdl/scripts/check-increment-61-source-review.py; then
+            printf '%s\n' unchanged > "$output/result.txt"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add morphhdl/scripts/check-increment-61-source-review.py
+            git commit -m '61: synchronize exact source-contract digest'
+            remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
+            test "$remote" = "$original"
+            git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
+            printf '%s\n' updated > "$output/result.txt"
+            git rev-parse HEAD > "$output/published-head.txt"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-source-contract-repair
+          path: target/increment-61-source-contract-repair
+          if-no-files-found: error
+          retention-days: 14
