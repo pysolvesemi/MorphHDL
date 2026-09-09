@@ -45,11 +45,11 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-59i-composite-widening"
           mkdir -p "$output"
           git rev-parse HEAD > "$output/staging-head.txt"
-          test "$(git rev-parse HEAD^)" = d9321d5007b71024764b1680b253f2455c4e52d6
+          test "$(git merge-base HEAD d9321d5007b71024764b1680b253f2455c4e52d6)" = d9321d5007b71024764b1680b253f2455c4e52d6
           test "$(git hash-object morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala)" = b982cb4a383288bfcbc07020528269260caf9473
-          cp morphhdl/repair-59i-composite-widening/patch.txt "$output/patch.txt"
-          git apply --check "$output/patch.txt"
-          git apply "$output/patch.txt"
+          cat morphhdl/repair-59i-composite-widening/0*.patch > "$output/patch.txt"
+          git apply --recount --check "$output/patch.txt"
+          git apply --recount "$output/patch.txt"
           git diff --check
           git diff --binary > "$output/applied.diff"
       - name: Bootstrap pinned SBT
