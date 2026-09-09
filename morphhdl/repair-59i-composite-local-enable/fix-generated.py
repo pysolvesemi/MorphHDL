@@ -3,8 +3,9 @@
 
 This small follow-on remains separate from apply.py so the original source-bound
 prototype is reviewable. It removes false-negative test paths, narrows the
-bit-access source before exact identity lookup, and ensures only conditional
-data assignments contribute When control ownership.
+bit-access source before exact identity lookup, preserves width-polymorphic
+bridge behavior, and ensures only conditional data assignments contribute When
+control ownership.
 """
 from pathlib import Path
 
@@ -45,6 +46,22 @@ def patch_bridge_source_type() -> None:
             }
 '''
     text = replace_once(text, before, after, "bit-access source narrowing")
+
+    # Width-polymorphic rows have the same bridge behavior even when a control
+    # leaf widens between rows. Fixed-bit bounds and high-bit semantics are
+    # revalidated against each replacement width during replay; behavior
+    # equality therefore compares only control slot/type structure here.
+    strict_widths = '''        controls.zip(other.controls).forall { case (a, b) =>
+          (a.owner eq b.owner) && (a.kind eq b.kind) &&
+            ElaborationWidthAuthority.equivalent(a.width, b.width)
+        } && minimumInitializerWidth == other.minimumInitializerWidth &&
+'''
+    polymorphic_widths = '''        controls.zip(other.controls).forall { case (a, b) =>
+          (a.owner eq b.owner) && (a.kind eq b.kind)
+        } && minimumInitializerWidth == other.minimumInitializerWidth &&
+'''
+    text = replace_once(text, strict_widths, polymorphic_widths,
+                        "width-polymorphic control behavior")
     BRIDGE.write_text(text)
 
 
@@ -83,6 +100,18 @@ def patch_walker() -> None:
 
 def patch_test() -> None:
     text = TEST.read_text()
+    text = replace_once(text,
+        "final case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n",
+        "final class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n",
+        "non-Product HdlInt fixture")
+    require(text.count("Vec(BalancedLocalEnableRecord(") == 3,
+            "unexpected Vec record-construction inventory")
+    text = text.replace("Vec(BalancedLocalEnableRecord(",
+                        "Vec(new BalancedLocalEnableRecord(")
+    text = replace_once(text, "out(BalancedLocalEnableRecord(",
+                        "out(new BalancedLocalEnableRecord(",
+                        "record output construction")
+
     text = replace_once(text, "private object BalancedLocalEnableRecord {\n",
         "private object BalancedLocalEnableOps {\n", "helper object name")
     require(text.count("BalancedLocalEnableRecord.combine") == 3,
@@ -104,7 +133,7 @@ def patch_test() -> None:
     SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-local-enable-certificate-").toString,
       headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
       val width = HdlInt.param("WIDTH", 5, 3, 16)
-      val values = Vec(BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 5))
+      val values = Vec(new BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 5))
       values.vec.foreach(_.flatten.foreach {
         case value: UInt => value := 0
         case value: SInt => value := 0
@@ -132,6 +161,15 @@ def patch_test() -> None:
   test("public parameterized publication retains cross-field controls in two reset profiles") {
 '''
     text = replace_region(text, first_start, first_end, first, "pre-phase freshness test")
+
+    public_config = '''      val config = SpinalConfig(targetDirectory = directory.toString, headerWithDate = false,
+        headerWithRepoHash = false, bitVectorWidthMax = 4096)
+'''
+    supported_public_config = '''      val config = SpinalConfig(targetDirectory = directory.toString,
+        bitVectorWidthMax = 4096)
+'''
+    text = replace_once(text, public_config, supported_public_config,
+                        "direct-emitter supported config")
 
     old_negative = '''          (value: BalancedLocalEnableRecord, _: Int) => {
             val result = BalancedLocalEnableOps.register(value)
