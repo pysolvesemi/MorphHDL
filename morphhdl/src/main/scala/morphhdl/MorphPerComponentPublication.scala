@@ -186,11 +186,11 @@ private[morphhdl] object MorphPerComponentPublication {
             throw new IllegalArgumentException(
               s"MORPHDL-ONE-FILE-PUBLISH-MANAGED-MODIFIED: ${file.relativePath}"
             )
-          case None if actual != current(file.relativePath) =>
+          case Some(_) =>
+          case None =>
             throw new IllegalArgumentException(
               s"MORPHDL-ONE-FILE-PUBLISH-UNOWNED-COLLISION: ${file.relativePath}"
             )
-          case _ =>
         }
       }
     }

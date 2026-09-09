@@ -82,7 +82,7 @@ object Increment61PerComponentPublicationArtifacts {
         targetDirectory = split.toString,
         oneFilePerComponent = true
       )
-    )(Increment61PerComponentFixture.hierarchical())
+    )(increment61PerComponentFixture.hierarchical())
 
     val consolidatedConfig = SpinalConfig(targetDirectory = consolidated.toString)
     consolidatedConfig.netlistFileName = "Increment61Top.v"
@@ -126,7 +126,7 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       assert(list == names)
       assert(
         Files.isRegularFile(
-          directory.resolve(".Increment61Top.morphhdl-one-file-per-component.manifest")
+          directory.resolve(".Increment61Top.morphdl-one-file-per-component.manifest")
         )
       )
     }
@@ -162,8 +162,8 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
         "Inc53bEnumTop.v"
       ))
       val text = sources.map(read).mkString("\n")
-      assert(text.contains("localparam INC53B_GLOBAL_BINARY_STATE_IDLE"))
-      assert(text.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE"))
+      assert(text.contains("localparam INC53B_GLOBAL_BINARY_STATE_IDLE = 2'd0;"))
+      assert(text.contains("localparam INC53B_GLOBAL_ONE_HOT_STATE_IDLE = 4'd1;"))
       assert(!text.contains("`define Inc53b"))
       assert(!Files.exists(directory.resolve("enumdefine.v")))
     }
@@ -224,6 +224,44 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
         case Right(report) => fail(s"expected modified-output rejection, received $report")
       }
       assert(read(leaf) == "user edit")
+    }
+  }
+
+  test("byte-identical unowned output collision fails closed") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true
+      )
+      val content =
+        "module Increment61Top;\nendmodule\n".getBytes(StandardCharsets.UTF_8)
+      val target = directory.resolve("Increment61Top.v")
+      Files.write(target, content)
+
+      MorphPerComponentPublication.publish(
+        config,
+        "Increment61Top",
+        Vector(
+          MorphPreparedPublicationFile(
+            "Increment61Top.v",
+            content,
+            reportAsSource = true
+          )
+        )
+      ) match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.OutputWrite)
+          assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-UNOWNED-COLLISION"))
+        case Right(paths) => fail(s"expected unowned collision rejection, received $paths")
+      }
+
+      assert(java.util.Arrays.equals(Files.readAllBytes(target), content))
+      assert(!Files.exists(directory.resolve("Increment61Top.lst")))
+      assert(
+        !Files.exists(
+          directory.resolve(".Increment61Top.morphhdl-one-file-per-component.manifest")
+        )
+      )
     }
   }
 
