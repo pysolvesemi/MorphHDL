@@ -75,11 +75,41 @@ jobs:
       - name: Compile and run focused widening and inherited composite tests
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           output="$GITHUB_WORKSPACE/target/increment-59i-composite-widening"
+          status=0
           bash "$output/sbt.sh" 'morph/Test/compile' \
             'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionWidthTransferTests' \
-            > "$output/tests.log" 2>&1 || { tail -n 240 "$output/tests.log"; exit 1; }
+            > "$output/tests.log" 2>&1 || status=$?
+          mkdir -p "$output/test-reports"
+          while IFS= read -r report; do
+            destination="$output/test-reports/${report//\//__}"
+            cp "$report" "$destination"
+          done < <(find morphhdl/target -type f -name '*.xml' -print 2>/dev/null)
+          if [ "$status" -ne 0 ]; then
+            python3 - <<'PY' | tee "$output/failures.txt"
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          found = 0
+          for path in sorted(Path('target/increment-59i-composite-widening/test-reports').glob('*.xml')):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in root.iter('testcase'):
+                  failures = list(case.findall('failure')) + list(case.findall('error'))
+                  for failure in failures:
+                      found += 1
+                      print('FAILED TEST:', case.get('classname', ''), '::', case.get('name', ''))
+                      print('MESSAGE:', failure.get('message', ''))
+                      print((failure.text or '').strip())
+          if found == 0:
+              print('No failed testcase element was found; see tests.log.')
+          PY
+            tail -n 240 "$output/tests.log"
+            exit "$status"
+          fi
+          set -e
           cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala "$output/"
           cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala "$output/"
           cp morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala "$output/"
