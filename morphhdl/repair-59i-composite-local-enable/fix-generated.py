@@ -102,15 +102,18 @@ def patch_test() -> None:
     text = TEST.read_text()
     text = replace_once(text,
         "final case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n",
-        "final class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) extends Bundle {\n",
-        "non-Product HdlInt fixture")
-    require(text.count("Vec(BalancedLocalEnableRecord(") == 3,
-            "unexpected Vec record-construction inventory")
-    text = text.replace("Vec(BalancedLocalEnableRecord(",
-                        "Vec(new BalancedLocalEnableRecord(")
-    text = replace_once(text, "out(BalancedLocalEnableRecord(",
-                        "out(new BalancedLocalEnableRecord(",
-                        "record output construction")
+        "final case class BalancedLocalEnableRecord(uw: ElabInt, sw: ElabInt, bw: ElabInt) extends Bundle {\n",
+        "typed record-width fixture")
+
+    public_shape = '''  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName("values")
+  val result = out(BalancedLocalEnableRecord(width, width, width)).setName("result")
+'''
+    typed_public_shape = '''  private val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
+  val values = in(Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth), count)).setName("values")
+  val result = out(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth)).setName("result")
+'''
+    text = replace_once(text, public_shape, typed_public_shape,
+                        "public typed record shape")
 
     text = replace_once(text, "private object BalancedLocalEnableRecord {\n",
         "private object BalancedLocalEnableOps {\n", "helper object name")
@@ -133,7 +136,9 @@ def patch_test() -> None:
     SpinalConfig(targetDirectory = Files.createTempDirectory("balanced-local-enable-certificate-").toString,
       headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
       val width = HdlInt.param("WIDTH", 5, 3, 16)
-      val values = Vec(new BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 5))
+      val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
+      val values = Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth),
+        HdlInt.param("COUNT", 1, 1, 5))
       values.vec.foreach(_.flatten.foreach {
         case value: UInt => value := 0
         case value: SInt => value := 0
@@ -170,6 +175,17 @@ def patch_test() -> None:
 '''
     text = replace_once(text, public_config, supported_public_config,
                         "direct-emitter supported config")
+
+    negative_shape = '''        val width = HdlInt.param("WIDTH", 5, 3, 16)
+        val values = Vec(BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 3))
+'''
+    typed_negative_shape = '''        val width = HdlInt.param("WIDTH", 5, 3, 16)
+        val recordWidth = ElabInt.fromExpression(width.bits.expression.get)
+        val values = Vec(BalancedLocalEnableRecord(recordWidth, recordWidth, recordWidth),
+          HdlInt.param("COUNT", 1, 1, 3))
+'''
+    text = replace_once(text, negative_shape, typed_negative_shape,
+                        "negative typed record shape")
 
     old_negative = '''          (value: BalancedLocalEnableRecord, _: Int) => {
             val result = BalancedLocalEnableOps.register(value)
