@@ -41,7 +41,58 @@ index b982cb4a3..333333333 100644
 +    }
      def requireFreshness(): Unit = freshOnce(this) {
        requireValue(template, replacement = false)
-@@ -263,9 +291,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -181,12 +209,52 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+   private def attach(value: BaseType, width: ElaborationIntegerExpression): BaseType = {
+     value match {
+       case bits: BitVector => ParameterizedWidth.attach(bits, ElabInt.fromExpression(width).bits)
+       case _ =>
+     }
+     value
+   }
+   private def cloneShape(template: Data, widths: Vector[ElaborationIntegerExpression]): Data = {
++    if (template == null || widths == null || template.flatten.size != widths.size)
++      fail("CLONE-SHAPE", "fresh replay clone requires one substituted width for every native leaf")
+     val result = ParameterizedWidth.cloneOf(template)
+     result.setAsDirectionLess()
+-    result.flatten.toVector.zip(widths).foreach { case (leaf, width) => attach(leaf, width) }
++    val sources = template.flatten.toVector
++    val targets = result.flatten.toVector
++    sources.zip(targets).zip(widths).foreach { case ((source, target), width) =>
++      ElaborationWidthAuthority.requireAuthoritative(width, "fresh composite replay width",
++        "MORPH-REDUCE-BALANCED-COMPOSITE-CLONE-WIDTH")
++      if ((source eq target) || source.getClass != target.getClass ||
++          (source.component ne target.component) || target.isReg || target.isAnalog ||
++          !target.isDirectionLess || width.minimum < 1 || !width.default.isValidInt)
++        fail("CLONE-FRESHNESS", "only a fresh directionless native shape clone can receive substituted widths")
++      target match {
++        case bits: BitVector =>
++          val inherited = ParameterizedWidth.expressionOf(bits)
++            .orElse(NativeWidthProvenance.widthOf(bits))
++            .getOrElse(ElabInt.literal(bits.getBitsWidth).expression)
++          val sourceWidth = ParameterizedWidth.expressionOf(source)
++            .orElse(NativeWidthProvenance.widthOf(source))
++            .getOrElse(ElabInt.literal(source.getBitsWidth).expression)
++          if (!sameWidth(inherited, sourceWidth))
++            fail("CLONE-INHERITANCE", "fresh native clone did not inherit exactly its source leaf width")
++          if (!sameWidth(inherited, width)) {
++            // cloneOf deliberately preserved the source registry entry. This
++            // value is still a fresh, unassigned replay result, so replace that
++            // inherited metadata only after the operator proof supplied the
++            // complete substituted width. Caller-owned inputs are never
++            // retargeted, and the registry's ordinary conflict check remains
++            // authoritative everywhere else.
++            bits.setWidth(width.default.toInt)
++            ParameterizedWidth.retainNativeMuxWidth(bits, Some(width))
++          }
++        case _: Bool =>
++          if (width.minimum != 1 || width.maximum != 1)
++            fail("CLONE-BOOL", "Bool replay leaves must remain exactly one bit")
++        case _ => fail("CLONE-TYPE", "composite replay supports only Bool/Bits/UInt/SInt leaves")
++      }
++    }
+     result
+   }
+@@ -263,9 +331,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
        private val recipes: Vector[Recipe],
        private val observation: TypedBalancedReductionClosedGraph.Observation,
        private val guards: Vector[() => Unit],
@@ -55,7 +106,7 @@ index b982cb4a3..333333333 100644
 +    val hasWidening: Boolean = leafTransfer.nonEmpty
      def validateFreshness(): Unit = freshOnce(this) {
        inputShapes.foreach(_.requireFreshness())
-@@ -273,16 +304,43 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -273,16 +344,43 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
        guards.foreach(_.apply())
      }
 +    def resultWidthsFor(left: Vector[ElaborationIntegerExpression],
@@ -106,7 +157,7 @@ index b982cb4a3..333333333 100644
 +      }
        output
      }
-@@ -318,6 +376,21 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -318,6 +416,21 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
      schema.foreach(value => guards += (() => value.validateBindings()))
      capturedEvidence.foreach(value => guards += (() => value.requireFreshness()))
  
@@ -129,14 +180,14 @@ index b982cb4a3..333333333 100644
 +    }
 +
      def recipe(expression: Expression): Recipe = {
-@@ -449,7 +522,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -449,7 +562,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
          fail("RESULT-WIDTH", "operator must preserve every independent field width over the full domain")
      }
 -    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector, captures)
 +    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector, captures, None)
      proof.validateFreshness()
      proof
-@@ -477,18 +550,43 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -477,18 +590,43 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
          leaves.zip(other.leaves).forall { case (a, b) => a.sameBehavior(b) }
      }
      def replay(value: Data): Data = {
@@ -174,7 +225,7 @@ index b982cb4a3..333333333 100644
          }
          result
        }
-@@ -536,6 +634,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -536,6 +674,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
        observations.foreach(_.requireUnchanged())
        result.requireFreshness()
      }
@@ -185,7 +236,7 @@ index b982cb4a3..333333333 100644
 +        stages.flatMap(_.operators).headOption)
 +    }
      def latencyFor(count: Int): Int = {
-@@ -555,12 +659,16 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+@@ -555,12 +699,16 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
        val output = native(values, (a: T, b: T) => {
          calls += 1
 -        operator.getOrElse(fail("SINGLETON", "singleton certificate has no operator")).replay(a, b).asInstanceOf[T]
