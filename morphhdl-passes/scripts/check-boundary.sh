@@ -76,7 +76,7 @@ allowed_path() {
     morphhdl-passes/*|"${workflow}")
       return 0
       ;;
-    morphhdl/*)
+    morphhdl/*|morphir/*)
       if [[ "${is_wa08}" == true ]] && wa08_dependencies_satisfied; then
         return 0
       fi
@@ -106,7 +106,7 @@ if [[ ${#violations[@]} -ne 0 ]]; then
   printf 'MorphHDL pass boundary rejected the following path(s):\n' >&2
   printf '  - %s\n' "${violations[@]}" >&2
   if [[ "${is_wa08}" == true ]]; then
-    printf 'WA-08 MorphHDL-owned handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
+    printf 'WA-08 MorphHDL and canonical-IR handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
   else
     printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-08-* branch.\n' "${workflow}" >&2
   fi
