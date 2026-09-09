@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "morphhdl/contracts/increment-61-source-review.json"
-CONTRACT_SHA256 = "72484a2b49ef943d8bdc4b2f885cfc5ecd064fe000f20e3ff03598ffd686313b"
+CONTRACT_SHA256 = "960b4b3642c7c306a5128891e42bea5a2c720b1c74381cc8b6e6c30ddbf6f6dd"
 
 
 def require(condition: bool, detail: str) -> None:
@@ -43,6 +43,12 @@ def load_contract() -> dict:
     base = value.get("base_commit")
     require(isinstance(base, str) and len(base) == 40 and all(c in "0123456789abcdef" for c in base),
             "invalid Increment 61 base commit")
+    integrated = value.get("integrated_target_commit")
+    require(
+        isinstance(integrated, str) and len(integrated) == 40 and
+        all(c in "0123456789abcdef" for c in integrated),
+        "invalid Increment 61 integrated target commit"
+    )
     files = value.get("reviewed_files")
     audit = value.get("audit_paths")
     require(isinstance(files, list) and files, "empty Increment 61 reviewed file set")
@@ -56,9 +62,30 @@ def load_contract() -> dict:
     return value
 
 
+def integrated_target_is_ancestor(contract: dict, root: Path = ROOT) -> bool:
+    return subprocess.run(
+        ["git", "merge-base", "--is-ancestor", contract["integrated_target_commit"], "HEAD"],
+        cwd=root,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    ).returncode == 0
+
+
+def expected_after_sha(entry: dict, integrated: bool) -> str:
+    alternate = entry.get("after_sha256_integrated")
+    if alternate is not None:
+        require(
+            isinstance(alternate, str) and len(alternate) == 64 and
+            all(c in "0123456789abcdef" for c in alternate),
+            f"invalid integrated Increment 61 digest for {entry.get('path')}"
+        )
+    return alternate if integrated and alternate is not None else entry["after_sha256"]
+
+
 def verify(root: Path = ROOT) -> None:
     contract = load_contract()
     base = contract["base_commit"]
+    integrated = integrated_target_is_ancestor(contract, root)
     subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"], cwd=root, check=True)
     changed_raw = git("diff", "--no-renames", "--name-only", "-z", base, "HEAD", root=root)
     changed = {item.decode() for item in changed_raw.split(b"\0") if item}
@@ -76,7 +103,7 @@ def verify(root: Path = ROOT) -> None:
     for path, entry in reviewed_by_path.items():
         file = root / path
         require(file.is_file() and not file.is_symlink(), f"missing or linked Increment 61 file: {path}")
-        require(sha256(file.read_bytes()) == entry["after_sha256"],
+        require(sha256(file.read_bytes()) == expected_after_sha(entry, integrated),
                 f"Increment 61 reviewed file changed: {path}")
         mode = git("ls-files", "--stage", "--", path, root=root, text=True).strip().split()
         require(mode and mode[0] == entry["mode"], f"Increment 61 file mode changed: {path}")
@@ -101,19 +128,25 @@ def verify(root: Path = ROOT) -> None:
     require("MORPHDL-ONE-FILE-PUBLISH-MANAGED-MODIFIED" in
             (root / "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala").read_text(),
             "Increment 61 managed-output fail-closed guard is missing")
-    print(f"Increment 61 exact source review PASS ({len(reviewed_by_path)} reviewed files, {len(production)} production files)")
+    target_mode = "integrated-target" if integrated else "feature-head"
+    print(
+        f"Increment 61 exact source review PASS ({len(reviewed_by_path)} reviewed files, "
+        f"{len(production)} production files, {target_mode})"
+    )
 
 
 def self_test() -> None:
     contract = load_contract()
+    integrated = integrated_target_is_ancestor(contract, ROOT)
     cases = 0
     with tempfile.TemporaryDirectory(prefix="morphhdl-increment-61-source-review-"):
         for entry in contract["reviewed_files"]:
             original = (ROOT / entry["path"]).read_bytes()
-            require(sha256(original) == entry["after_sha256"],
+            expected = expected_after_sha(entry, integrated)
+            require(sha256(original) == expected,
                     "self-test started from an unreviewed file")
             mutated = original + b"\n// increment-61-source-review-mutation\n"
-            require(sha256(mutated) != entry["after_sha256"],
+            require(sha256(mutated) != expected,
                     "Increment 61 source mutation was not detected")
             cases += 1
         bad = json.loads(CONTRACT.read_text())

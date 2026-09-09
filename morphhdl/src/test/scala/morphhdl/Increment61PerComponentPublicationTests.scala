@@ -5,14 +5,9 @@ import java.nio.file.{Files, Path, Paths}
 
 import scala.collection.JavaConverters._
 
-import nativeapplication.{
-  BoundedRecursivePowerFixture,
-  SIntSignedVerilogBaselineFixture,
-  TypedBlackBoxGenericBindingFixture
-}
+import nativeapplication.TypedBlackBoxGenericBindingFixture
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
-import spinal.core.internals.{BalancedNestedHierarchy, BalancedPublicationHardware}
 
 import morphhdl.frontend.{formalParam, HdlInt}
 
@@ -67,214 +62,6 @@ object Increment61PerComponentFixture {
     val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
     new FlatTop(width)
   }
-
-  final case class CompatibilityCase(
-      id: String,
-      generatedTop: String,
-      toolTop: String,
-      requiredGeneratedModules: Set[String],
-      forbiddenGeneratedModules: Set[String],
-      supportFile: Option[(String, String)],
-      build: () => Component
-  )
-
-  private val SignedExternalStub =
-    """module SIntCastHeavyExternal #(
-      |  parameter integer WIDTH = 8
-      |) (
-      |  input  wire signed [WIDTH-1:0] din,
-      |  output wire signed [WIDTH-1:0] dout
-      |);
-      |  assign dout = din;
-      |endmodule
-      |""".stripMargin
-
-  private val TypedBlackBoxStubs =
-    """module TypedExternalLeaf #(
-      |  parameter LABEL = "typed",
-      |  parameter integer WIDTH = 8,
-      |  parameter integer DEPTH = 4,
-      |  parameter integer DOUBLE_WIDTH = 16,
-      |  parameter integer CONCRETE_ENABLE = 1,
-      |  parameter integer ENABLED = 1
-      |) (
-      |  input  wire [WIDTH-1:0] din,
-      |  output wire [WIDTH-1:0] dout
-      |);
-      |  assign dout = ENABLED ? din : ~din;
-      |endmodule
-      |
-      |module TypedParameterOnlyExternal #(
-      |  parameter integer LATENCY = 2
-      |) (
-      |  input  wire [7:0] din,
-      |  output wire [7:0] dout
-      |);
-      |  assign dout = din ^ {8{LATENCY[0]}};
-      |endmodule
-      |""".stripMargin
-
-  private val RecursiveToolTop =
-    """module Increment61RecursiveToolTop(
-      |  input  wire [7:0] x,
-      |  output wire [7:0] y
-      |);
-      |  BoundedRecursivePower #(.N(5)) dut(.x(x), .y(y));
-      |endmodule
-      |""".stripMargin
-
-  def compatibilityCases: Vector[CompatibilityCase] = Vector(
-    CompatibilityCase(
-      id = "named-field-storage",
-      generatedTop = "NamedFieldVecStorage",
-      toolTop = "NamedFieldVecStorage",
-      requiredGeneratedModules = Set("NamedFieldVecChild", "NamedFieldVecStorage"),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = None,
-      build = () => new NamedFieldVecFixture.Storage(
-        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
-        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
-        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
-      )
-    ),
-    CompatibilityCase(
-      id = "stream-fifo",
-      generatedTop = "NativeParameterizedStreamFifoHarness",
-      toolTop = "NativeParameterizedStreamFifoHarness",
-      requiredGeneratedModules = Set("StreamFifo", "NativeParameterizedStreamFifoHarness"),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = None,
-      build = () => new NativeParameterizedStreamFifoHarness(
-        HdlInt.param("DEPTH", default = 5, min = 1, max = 16)
-      )
-    ),
-    CompatibilityCase(
-      id = "stream-fifo-cc",
-      generatedTop = "NativeStreamFifoCCWidthDepth",
-      toolTop = "NativeStreamFifoCCWidthDepth",
-      requiredGeneratedModules = Set(
-        "StreamFifoCCPopToPushBufferCC",
-        "StreamFifoCCPushToPopBufferCC",
-        "StreamFifoCC",
-        "NativeStreamFifoCCWidthDepth"
-      ),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = None,
-      build = () => new NativeStreamFifoCCWidthDepthHarness(
-        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
-        HdlInt.param("DEPTH", default = 8, min = 2, max = 16)
-      )
-    ),
-    CompatibilityCase(
-      id = "signed-memory-hierarchy",
-      generatedTop = "SIntCastHeavyBaseline",
-      toolTop = "SIntCastHeavyBaseline",
-      requiredGeneratedModules = Set("SIntCastHeavyChild", "SIntCastHeavyBaseline"),
-      forbiddenGeneratedModules = Set("SIntCastHeavyExternal"),
-      supportFile = Some("external.v" -> SignedExternalStub),
-      build = () => SIntSignedVerilogBaselineFixture.parameterized()
-    ),
-    CompatibilityCase(
-      id = "recursive-generate",
-      generatedTop = "BoundedRecursivePower",
-      toolTop = "Increment61RecursiveToolTop",
-      requiredGeneratedModules = Set("BoundedRecursivePower"),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = Some("tool-top.v" -> RecursiveToolTop),
-      build = () => BoundedRecursivePowerFixture.parameterized()
-    ),
-    CompatibilityCase(
-      id = "balanced-reduction",
-      generatedTop = "BalancedPublication",
-      toolTop = "BalancedPublication",
-      requiredGeneratedModules = Set("BalancedPublication"),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = None,
-      build = () => new BalancedPublicationHardware(
-        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
-        HdlInt.param("COUNT", default = 3, min = 1, max = 17)
-      )
-    ),
-    CompatibilityCase(
-      id = "nested-reduction-hierarchy",
-      generatedTop = "BalancedNestedHierarchy",
-      toolTop = "BalancedNestedHierarchy",
-      requiredGeneratedModules = Set("BalancedNestedFormalChild", "BalancedNestedHierarchy"),
-      forbiddenGeneratedModules = Set.empty,
-      supportFile = None,
-      build = () => new BalancedNestedHierarchy(
-        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
-        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
-        HdlInt.param("MODE", default = 0, min = 0, max = 2)
-      )
-    ),
-    CompatibilityCase(
-      id = "typed-blackbox",
-      generatedTop = "TypedBlackBoxGenericTop",
-      toolTop = "TypedBlackBoxGenericTop",
-      requiredGeneratedModules = Set("TypedBlackBoxGenericTop"),
-      forbiddenGeneratedModules = Set("TypedExternalLeaf", "TypedParameterOnlyExternal"),
-      supportFile = Some("external.v" -> TypedBlackBoxStubs),
-      build = () => TypedBlackBoxGenericBindingFixture.parameterized()
-    )
-  )
-
-  def publishCompatibilityCase(
-      root: Path,
-      entry: CompatibilityCase
-  ): MorphSingleSourceVerilogReport = {
-    val directory = root.resolve(entry.id)
-    Files.createDirectories(directory)
-    val report = MorphVerilog(
-      SpinalConfig(
-        targetDirectory = directory.toString,
-        oneFilePerComponent = true
-      )
-    )(entry.build())
-    require(report.toplevelName == entry.generatedTop,
-      s"${entry.id}: unexpected generated top ${report.toplevelName}")
-
-    val sourcePaths = report.generatedSourcesPaths.map(Paths.get(_))
-    val sourceNames = sourcePaths.map(_.getFileName.toString)
-    require(sourcePaths.nonEmpty && sourceNames.distinct.size == sourceNames.size,
-      s"${entry.id}: duplicate or empty generated source list")
-    val definitions = sourcePaths.flatMap { path =>
-      require(path.normalize().getParent == directory.normalize(),
-        s"${entry.id}: generated source escaped its case directory: $path")
-      val modules = moduleDefinitions(read(path))
-      require(modules.size == 1,
-        s"${entry.id}: ${path.getFileName} owns ${modules.size} module definitions")
-      require(path.getFileName.toString == modules.head + ".v",
-        s"${entry.id}: ${path.getFileName} does not own module ${modules.head}")
-      modules
-    }
-    require(definitions.distinct.size == definitions.size,
-      s"${entry.id}: duplicate generated module definition")
-    require(entry.requiredGeneratedModules.subsetOf(definitions.toSet),
-      s"${entry.id}: missing generated module(s) ${entry.requiredGeneratedModules.diff(definitions.toSet)}")
-    require(entry.forbiddenGeneratedModules.intersect(definitions.toSet).isEmpty,
-      s"${entry.id}: external definition was regenerated")
-    require(definitions.last == entry.generatedTop,
-      s"${entry.id}: generated top is not the final dependency-ordered source")
-
-    val list = read(directory.resolve(entry.generatedTop + ".lst"))
-      .split("\n", -1).toVector.filter(_.nonEmpty)
-    require(list == sourceNames, s"${entry.id}: source list differs from report order")
-    entry.supportFile.foreach { case (name, text) =>
-      val support = directory.resolve(name)
-      Files.write(support, text.getBytes(StandardCharsets.UTF_8))
-      require(!sourceNames.contains(name),
-        s"${entry.id}: external/tool support file leaked into generated source ownership")
-    }
-    report
-  }
-
-  private def moduleDefinitions(verilog: String): Vector[String] =
-    "(?m)^\\s*module\\s+([A-Za-z_][A-Za-z0-9_$]*)\\b".r
-      .findAllMatchIn(verilog).map(_.group(1)).toVector
-
-  private def read(path: Path): String =
-    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
 }
 
 object Increment61PerComponentPublicationArtifacts {
@@ -301,18 +88,6 @@ object Increment61PerComponentPublicationArtifacts {
     consolidatedConfig.netlistFileName = "Increment61Top.v"
     MorphVerilog(consolidatedConfig)(
       Increment61PerComponentFixture.hierarchical()
-    )
-
-    val compatibility = root.resolve("compatibility")
-    Files.createDirectories(compatibility)
-    val rows = Increment61PerComponentFixture.compatibilityCases.map { entry =>
-      Increment61PerComponentFixture.publishCompatibilityCase(compatibility, entry)
-      val support = entry.supportFile.map(_._1).getOrElse("-")
-      Vector(entry.id, entry.generatedTop, entry.toolTop, support).mkString("\t")
-    }
-    Files.write(
-      compatibility.resolve("cases.tsv"),
-      (rows.mkString("\n") + "\n").getBytes(StandardCharsets.UTF_8)
     )
   }
 }
@@ -411,16 +186,6 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       assert(!top.contains("module TypedExternalLeaf"))
       assert(!Files.exists(directory.resolve("TypedExternalLeaf.v")))
       assert(!Files.exists(directory.resolve("TypedParameterOnlyExternal.v")))
-    }
-  }
-
-  test("roadmap compatibility matrix preserves exact component ownership") {
-    withTemporaryDirectory { directory =>
-      val compatibility = directory.resolve("compatibility")
-      compatibilityCases.foreach { entry =>
-        val report = publishCompatibilityCase(compatibility, entry)
-        assert(report.generatedSourcesPaths.nonEmpty, entry.id)
-      }
     }
   }
 
