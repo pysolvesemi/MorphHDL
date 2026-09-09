@@ -1064,8 +1064,11 @@ dependency chain is unchanged and may proceed independently.
   and deterministic golden contracts. Include field/index/capture misbinding,
   carry/sign loss, wrong odd-tail handling and latency/reset mutations. Record
   source-bound results on both Scala lanes and require all applicable
-  final-head CI/formal/tool gates before marking this join complete. The user's
-  CI skip for this roadmap-only planning commit does not waive implementation
+  final-head CI/formal/tool gates before marking this join complete. If
+  Increment 61 has merged, those final gates must also exercise
+  `oneFilePerComponent = true`; publication mode must not change callback,
+  field, width, ownership, latency or reset semantics. The user's CI skip for
+  this roadmap-only planning commit does not waive implementation
   or merge gates for any of these increments.
 
 ### Native signed-Verilog track (Increment 60)
@@ -1089,8 +1092,10 @@ dependency chain is unchanged and may proceed independently.
 
 - [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**
 
-  **Dependencies:** Increment 59i implemented and merged. Increment 60 is
-  already complete and must remain integrated.
+  **Dependencies:** Increment 60 implemented and merged. This publication
+  track is independent of Increment 59i and may be implemented and merged in
+  parallel. If Increment 61 merges first, 59i's final integration qualification
+  must retain both consolidated and per-component publication modes.
 
   Remove the current MorphHDL parameterized-Verilog restriction that rejects
   `oneFilePerComponent = true`. Treat this as publication-path compatibility,
@@ -1125,8 +1130,10 @@ dependency chain is unchanged and may proceed independently.
   behavior. Qualify nested hierarchy, repeated canonical children with distinct
   parameter actuals, Mem/Vec and Stream/StreamFifo/StreamFifoCC users, signed
   `SInt`, parameter-controlled generate regions, recursive modules,
-  field-preserving/reduction cases from 59i and typed BlackBox generic binding.
-  Compile/lint/synthesize the complete emitted file set with the supported tool
+  every currently merged field-preserving/reduction surface and typed BlackBox
+  generic binding. Increment 59i must add its combined feature cases to both
+  publication modes before 59i itself is completed. Compile/lint/synthesize the
+  complete emitted file set with the supported tool
   matrix and prove representative split-file specializations equivalent to the
   existing consolidated parameterized publication. Require deterministic
   dual-Scala output, live negative controls for missing/duplicate/wrong-file

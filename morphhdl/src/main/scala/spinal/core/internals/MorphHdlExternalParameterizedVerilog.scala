@@ -22,6 +22,11 @@ import spinal.core._
   */
 object MorphHdlExternalParameterizedVerilog {
   private final case class ModuleBlock(name: String, start: Int, end: Int)
+  private final case class PublicationFile(
+      target: Path,
+      lines: Vector[String],
+      blocks: Vector[ModuleBlock]
+  )
 
   private final case class PortSchema(
       name: String,
@@ -68,10 +73,10 @@ object MorphHdlExternalParameterizedVerilog {
         "external lowering requires the native emitter's exact canonical-component identity map"
       )
     }
-    if (pc.config.oneFilePerComponent) {
+    if (pc.config.oneFilePerComponent && pc.config.netlistFileName != null) {
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MULTI-FILE-UNSUPPORTED",
-        "external expression and hierarchy lowering requires one native Verilog publication file"
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MULTI-FILE-NAME-AMBIGUOUS",
+        "oneFilePerComponent requires definition-derived filenames; netlistFileName cannot name several logical components"
       )
     }
     if (pc.config.isSystemVerilog) {
@@ -87,20 +92,12 @@ object MorphHdlExternalParameterizedVerilog {
         "external lowering ran without an elaborated top-level component"
       )
     }
-    val target = targetPath(pc, top)
-    if (!Files.isRegularFile(target)) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-SOURCE-MISSING",
-        s"native Verilog publication is missing: $target"
-      )
-    }
-
-    val native = new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
-      .replace("\r\n", "\n")
-      .replace('\r', '\n')
-    val lines = native.split("\n", -1).toVector
-    val blocks = moduleBlocks(lines)
-    val blockByName = blocks.map(block => block.name -> block).toMap
+    val consolidated =
+      if (pc.config.oneFilePerComponent) None
+      else Some(readPublication(targetPath(pc, top)))
+    val blockByName: Map[String, ModuleBlock] = consolidated
+      .map(_.blocks.map(block => block.name -> block).toMap)
+      .getOrElse(Map.empty)
 
     val components = componentGraph(top)
     components.foreach(ParameterizedMemory.discover)
@@ -201,7 +198,26 @@ object MorphHdlExternalParameterizedVerilog {
       }
       .map(componentName)
       .toSet
-    val missingModules = expectedModules.diff(blockByName.keySet)
+    if (pc.config.oneFilePerComponent) {
+      components.collect {
+        case component
+            if component.isInBlackBoxTree || component.isInstanceOf[BlackBox] =>
+          componentName(component)
+      }.distinct.foreach { name =>
+        Files.deleteIfExists(perComponentTargetPath(pc, name))
+      }
+    }
+
+    val splitPublications: Map[String, PublicationFile] =
+      if (pc.config.oneFilePerComponent)
+        expectedModules.toVector.sorted.map { name =>
+          name -> readPerComponentPublication(pc, name)
+        }.toMap
+      else Map.empty
+
+    val missingModules =
+      if (pc.config.oneFilePerComponent) Set.empty[String]
+      else expectedModules.diff(blockByName.keySet)
     if (missingModules.nonEmpty) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MODULE-MAPPING-MISSING",
@@ -212,8 +228,13 @@ object MorphHdlExternalParameterizedVerilog {
     val rewrittenByName = expectedModules.toVector.sorted.flatMap { name =>
       val component = canonicalPublicationByName(name)
       if (requiresPublicationRewrite(component)) {
-        val block = blockByName(name)
-        val text = lines.slice(block.start, block.end + 1).mkString("\n")
+        val publication =
+          if (pc.config.oneFilePerComponent) splitPublications(name)
+          else consolidated.get
+        val block =
+          if (pc.config.oneFilePerComponent) publication.blocks.head
+          else blockByName(name)
+        val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
         val rewritten = withPulledExternalClockInputs(component) {
           val withMemories = ParameterizedVerilogMemories.rewrite(
             component,
@@ -246,19 +267,80 @@ object MorphHdlExternalParameterizedVerilog {
     }.toMap
 
     if (rewrittenByName.nonEmpty) {
-      val rewritten = Vector.newBuilder[String]
-      var cursor = 0
-      blocks.foreach { block =>
-        lines.slice(cursor, block.start).foreach(rewritten += _)
-        rewrittenByName.get(block.name) match {
-          case Some(value) => value.foreach(rewritten += _)
-          case None        => lines.slice(block.start, block.end + 1).foreach(rewritten += _)
+      if (pc.config.oneFilePerComponent) {
+        rewrittenByName.toVector.sortBy(_._1).foreach { case (name, moduleLines) =>
+          val publication = splitPublications(name)
+          val block = publication.blocks.head
+          val rewritten =
+            publication.lines.take(block.start) ++
+              moduleLines ++
+              publication.lines.drop(block.end + 1)
+          publishAtomically(publication.target, rewritten.mkString("\n"))
         }
-        cursor = block.end + 1
+      } else {
+        val publication = consolidated.get
+        val rewritten = Vector.newBuilder[String]
+        var cursor = 0
+        publication.blocks.foreach { block =>
+          publication.lines.slice(cursor, block.start).foreach(rewritten += _)
+          rewrittenByName.get(block.name) match {
+            case Some(value) => value.foreach(rewritten += _)
+            case None =>
+              publication.lines.slice(block.start, block.end + 1).foreach(rewritten += _)
+          }
+          cursor = block.end + 1
+        }
+        publication.lines.drop(cursor).foreach(rewritten += _)
+        publishAtomically(publication.target, rewritten.result().mkString("\n"))
       }
-      lines.drop(cursor).foreach(rewritten += _)
-      publishAtomically(target, rewritten.result().mkString("\n"))
     }
+  }
+
+  private def readPublication(target: Path): PublicationFile = {
+    if (!Files.isRegularFile(target) || Files.isSymbolicLink(target)) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-SOURCE-MISSING",
+        s"native Verilog publication is missing or is not a regular file: $target"
+      )
+    }
+    val native = new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
+      .replace("\r\n", "\n")
+      .replace('\r', '\n')
+    val lines = native.split("\n", -1).toVector
+    PublicationFile(target, lines, moduleBlocks(lines))
+  }
+
+  private def perComponentTargetPath(pc: PhaseContext, name: String): Path = {
+    if (name.contains('/') || name.contains('\\') || name == "." || name == "..") {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MODULE-FILENAME-INVALID",
+        s"logical component '$name' cannot be mapped to one safe Verilog filename"
+      )
+    }
+    val directory = Paths.get(pc.config.targetDirectory).toAbsolutePath.normalize()
+    val target = directory.resolve(name + ".v").normalize()
+    if (target.getParent != directory) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MODULE-FILENAME-INVALID",
+        s"logical component '$name' escapes the publication directory"
+      )
+    }
+    target
+  }
+
+  private def readPerComponentPublication(
+      pc: PhaseContext,
+      name: String
+  ): PublicationFile = {
+    val publication = readPublication(perComponentTargetPath(pc, name))
+    if (publication.blocks.size != 1 || publication.blocks.head.name != name) {
+      val observed = publication.blocks.map(_.name).mkString(", ")
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-MODULE-WRONG-FILE",
+        s"logical component '$name' must own exactly '${name}.v'; observed module blocks [$observed]"
+      )
+    }
+    publication
   }
 
   private def targetPath(pc: PhaseContext, top: Component): Path = {

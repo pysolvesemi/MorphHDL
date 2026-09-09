@@ -293,17 +293,26 @@ object ExternalSpinalVerilog {
       )
     }
 
-    val generated = nativeReport.generatedSourcesPaths.toVector
-    if (generated.isEmpty) {
+    val reported = nativeReport.generatedSourcesPaths.toVector
+    if (reported.isEmpty) {
       throw new IllegalStateException(
         "normal SpinalHDL generation did not publish a Verilog source"
       )
     }
-    val missing = generated.filterNot(path => Files.isRegularFile(Paths.get(path)))
-    if (missing.nonEmpty) {
+    val missing = reported.filterNot(path => Files.isRegularFile(Paths.get(path)))
+    if (missing.nonEmpty && !isolatedConfig.oneFilePerComponent) {
       throw new IllegalStateException(
         "normal SpinalHDL report references missing generated source(s): " +
           missing.mkString(", ")
+      )
+    }
+    val generated =
+      if (isolatedConfig.oneFilePerComponent)
+        reported.filter(path => Files.isRegularFile(Paths.get(path))).distinct
+      else reported
+    if (generated.isEmpty) {
+      throw new IllegalStateException(
+        "normal SpinalHDL per-component generation published no internal Verilog source"
       )
     }
 
