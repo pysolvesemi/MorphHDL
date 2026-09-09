@@ -1,0 +1,35 @@
+name: Confirm WA-08 green transition
+
+on:
+  push:
+    branches:
+      - agent/wa-08-production-handoff
+
+permissions:
+  contents: write
+
+jobs:
+  confirm:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wa-08-production-handoff
+          fetch-depth: 0
+      - name: Require the guarded green transition
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fx 'The stabilized WA-08 exact-head workflow set passed. This documentation-only commit authorizes the completion-record transition.' \
+            docs/morphhdl/wa08-stabilized-controller-green.marker
+          test ! -e docs/morphhdl/wa08-stabilized-controller-failed.marker
+          test ! -e docs/morphhdl/wa08-stabilized-ci-failures.json
+          rm -f .github/workflows/wa08-green-confirm.yml
+          : > docs/morphhdl/wa08-full-ci-green-confirmed.marker
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Confirm green WA-08 qualification head"
+          git push origin HEAD:agent/wa-08-production-handoff
