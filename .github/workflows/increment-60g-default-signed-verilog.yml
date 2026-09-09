@@ -37,15 +37,23 @@ jobs:
         run: |
           set -euo pipefail
           {
-            python3 morphhdl/scripts/check-increment-60g-source-scope.py
-            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+            predecessor="$GITHUB_WORKSPACE/target/increment-61-predecessor-60g"
+            git worktree add --detach "$predecessor" 5a9294363c7b74ae584f1702160fe1f7e468f58a
+            trap 'git worktree remove --force "$predecessor"' EXIT
+            (
+              cd "$predecessor"
+              python3 morphhdl/scripts/check-increment-60g-source-scope.py
+              python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+              python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+              python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+              python3 morphhdl/scripts/test-increment-59f-source-scope.py
+              python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+              python3 morphhdl/scripts/check-increment-59h-source-review.py
+              python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            )
             python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
-            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
-            python3 morphhdl/scripts/test-increment-59f-source-scope.py
-            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
-            python3 morphhdl/scripts/check-increment-59h-source-review.py
-            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
             python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
             python3 morphhdl/scripts/check-native-source-preservation.py
             python3 morphhdl/scripts/check-typed-native-source-overlay.py
@@ -59,6 +67,7 @@ jobs:
           retention-days: 30
 
   qualify:
+    needs: source
     name: Default signed publication Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -117,7 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 morphhdl/scripts/check-increment-60g-default-rollout.py qualify \
-            target/increment-60g/a target/increment-60g/inherited target/increment-60g/proof
+            target/increment-60g/a target/increment-60g/inherited target/increment-60g/proof --skip-inherited-source
       - name: Verify regenerated public signed shape golden
         shell: bash
         run: |
