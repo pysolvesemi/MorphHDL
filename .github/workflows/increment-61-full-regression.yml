@@ -1,0 +1,96 @@
+name: Increment 61 exact-source full regression
+
+on:
+  push:
+    branches: ['agent/increment-61-regression-gate-final2']
+    paths: ['.github/workflows/increment-61-full-regression.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-full-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-regression:
+    name: Complete MorphHDL regression Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx6G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Prove this qualification branch differs only by this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head=00a6afa007f235c522fc94eb2e92f192e32e1c99
+          test "$(git rev-parse HEAD^)" = "$source_head"
+          mapfile -t changed < <(git diff --name-only "$source_head" HEAD)
+          test "${#changed[@]}" = 1
+          test "${changed[0]}" = '.github/workflows/increment-61-full-regression.yml'
+          git diff --check "$source_head" HEAD
+          mkdir -p target/increment-61-full-regression
+          printf '%s\n' "$source_head" > target/increment-61-full-regression/qualified-source-head.txt
+          git rev-parse HEAD > target/increment-61-full-regression/workflow-head.txt
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-full-regression"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+
+      - name: Run the complete MorphHDL test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-full-regression"
+          java -Xmx5G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" 'morph/Test/test' \
+            > "$output/sbt.log" 2>&1 || { tail -n 400 "$output/sbt.log"; exit 1; }
+
+      - name: Record complete test-report inventory
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-full-regression"
+          find morphhdl/target/test-reports -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum \
+            > "$output/test-reports.sha256"
+          git status --short > "$output/worktree-status.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-full-regression-${{ matrix.scala }}
+          path: |
+            target/increment-61-full-regression
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 14
