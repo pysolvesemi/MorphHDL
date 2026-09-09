@@ -47,13 +47,15 @@ jobs:
           mkdir -p "$output"
           git rev-parse HEAD > "$output/staging-head.txt"
           python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$output/application.log"
+          python3 morphhdl/repair-59i-composite-local-enable/fix-generated.py | tee -a "$output/application.log"
           git diff --check
           git diff --binary > "$output/applied.diff"
           grep -q 'controlValues: Vector\[BaseType\]' \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
           grep -q 'BRIDGE-CONTROL-REGISTER' \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
-          test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          grep -q 'private object BalancedLocalEnableOps' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
 
       - name: Bootstrap pinned SBT
         shell: bash
