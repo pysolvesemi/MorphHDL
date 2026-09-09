@@ -29,6 +29,7 @@ jobs:
           set -euo pipefail
           cat .wa08-publisher/source-00.py.part \
               .wa08-publisher/source-01.py.part \
+              .wa08-publisher/source-01a.py.part \
               .wa08-publisher/source-02.py.part \
               .wa08-publisher/source-03.py.part \
               .wa08-publisher/source-04.py.part \
