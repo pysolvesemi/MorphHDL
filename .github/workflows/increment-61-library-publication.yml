@@ -1,0 +1,150 @@
+name: Increment 61 library split-publication matrix
+
+on:
+  push:
+    branches: ['agent/increment-61-regression-gate-actual']
+    paths:
+      - '.github/workflows/increment-61-library-publication.yml'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61LibraryPublicationTests.scala'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-library-publication-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Library publication Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Prove qualification-only source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_head=00a6afa007f235c522fc94eb2e92f192e32e1c99
+          mapfile -t changed < <(git diff --name-only "$source_head" HEAD | sort)
+          expected=(
+            .github/workflows/increment-61-library-publication.yml
+            morphhdl/src/test/scala/morphhdl/Increment61LibraryPublicationTests.scala
+          )
+          test "${changed[*]}" = "${expected[*]}"
+          test -z "$(git diff --name-only "$source_head" HEAD -- morphhdl/src/main/scala core/src/main/scala lib/src/main/scala)"
+          git diff --check "$source_head" HEAD
+          mkdir -p target/increment-61-library
+          printf '%s\n' "$source_head" > target/increment-61-library/qualified-source-head.txt
+          git rev-parse HEAD > target/increment-61-library/qualification-head.txt
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-library"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+
+      - name: Run library publication tests and generate artifacts twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-library"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/testOnly morphhdl.Increment61LibraryPublicationTests' \
+            "morph/Test/runMain morphhdl.Increment61LibraryPublicationArtifacts $output/generated-a" \
+            "morph/Test/runMain morphhdl.Increment61LibraryPublicationArtifacts $output/generated-b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 350 "$output/sbt.log"; exit 1; }
+          diff -ru "$output/generated-a" "$output/generated-b" > "$output/fresh-generation.diff"
+
+      - name: Compile, lint and synthesize every complete emitted source set
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-library"
+          root="$output/generated-a"
+
+          check_set() {
+            local directory=$1
+            local top=$2
+            local list="$directory/$top.lst"
+            test -s "$list"
+            mapfile -t names < "$list"
+            test "${#names[@]}" -ge 1
+            local files=()
+            for name in "${names[@]}"; do
+              test -s "$directory/$name"
+              files+=("$directory/$name")
+            done
+            iverilog -g2001 -s "$top" -o "$output/$top.vvp" "${files[@]}"
+            verilator --lint-only --language 1364-2001 --top-module "$top" "${files[@]}"
+            yosys -q -p "read_verilog -noautowire ${files[*]}; hierarchy -check -top $top; proc; memory; flatten; opt; check -assert; stat" \
+              > "$output/$top-yosys.log"
+          }
+
+          check_set "$root/stream-fifo" Increment61ParameterizedStreamFifo
+          check_set "$root/vec-signed" Increment61ParameterizedVecSigned
+          check_set "$root/memory" Increment61ParameterizedMemory
+
+      - name: Retain exact generated bytes
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-library"
+          find "$output/generated-a" -type f -print0 2>/dev/null | sort -z | xargs -0 -r sha256sum \
+            > "$output/generated.sha256"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-library-${{ matrix.scala }}
+          path: target/increment-61-library
+          if-no-files-found: error
+          retention-days: 14
+
+  cross-scala:
+    needs: qualify
+    name: Cross-Scala library publication bytes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-61-library-2.*
+          path: target/increment-61-library-cross
+      - name: Compare complete generated trees
+        shell: bash
+        run: |
+          set -euo pipefail
+          left=target/increment-61-library-cross/increment-61-library-2.12.18/generated-a
+          right=target/increment-61-library-cross/increment-61-library-2.13.12/generated-a
+          test -d "$left" && test -d "$right"
+          diff -ru "$left" "$right" | tee target/increment-61-library-cross/cross-scala.diff
