@@ -70,6 +70,7 @@ class NestedResultCheckerTests(unittest.TestCase):
 
     def test_new_review_spans_reject_removed_ownership_and_process_guards(self):
         entries=R.load_contract(ROOT)
+        capture_entries=R.load_capture_contract(ROOT)
         controls={
             'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala':
                 ('record.published', '!record.lexicalOwner.isModuleScope', 'assignments.forall', 'nestedVectors(record.output)'),
@@ -78,6 +79,13 @@ class NestedResultCheckerTests(unittest.TestCase):
                  'start < assignmentLine', 'lines(start).trim == "always @(*) begin"')}
         for path,tokens in controls.items():
             baseline=R.baseline_source(ROOT,path);source=(ROOT/path).read_bytes();entry=entries[path]
+            # The current Backend also contains the later capture layer. Reverse
+            # that exact layer first, then exercise the still-sealed nested-result
+            # spans against the source version they review. Capture-layer mutation
+            # coverage remains independent in test-increment-59i-capture-review.py.
+            if path in capture_entries:
+                source=R.restore_reviewed(capture_entries[path],
+                    R.capture_baseline_source(ROOT,path),source)
             self.assertEqual(R.restore_reviewed(entry,baseline,source),baseline)
             edit=next(e for e in entry['edits'] if e['id'].startswith('59i-nested-result-'))
             for token in tokens:
