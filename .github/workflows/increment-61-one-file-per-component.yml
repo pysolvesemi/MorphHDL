@@ -1,0 +1,116 @@
+name: Increment 61 one-file-per-component publication
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - agent/increment-61-one-file-per-component
+    paths:
+      - '.github/workflows/increment-61-one-file-per-component.yml'
+      - 'docs/morphhdl/increment-61-one-file-per-component.md'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-61-one-file-per-component.yml'
+      - 'docs/morphhdl/increment-61-one-file-per-component.md'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publication:
+    name: Publication and tools Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          mkdir -p "$output"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+      - name: Run focused tests and generate deterministic artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/testOnly morphhdl.Increment61PerComponentPublicationTests' \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/generated" \
+            > "$output/sbt.log" 2>&1 || { tail -n 300 "$output/sbt.log"; exit 1; }
+      - name: Strict Verilog-2001 compile, lint and synthesis
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          split="$output/generated/split"
+          combined="$output/generated/consolidated/Increment61Top.v"
+          files=("$split/Increment61Leaf.v" "$split/Increment61Top.v")
+          test "$(cat "$split/Increment61Top.lst")" = $'Increment61Leaf.v\nIncrement61Top.v'
+          iverilog -g2001 -s Increment61Top -o "$output/split.vvp" "${files[@]}"
+          iverilog -g2001 -s Increment61Top -o "$output/combined.vvp" "$combined"
+          verilator --lint-only --language 1364-2001 --top-module Increment61Top "${files[@]}"
+          verilator --lint-only --language 1364-2001 --top-module Increment61Top "$combined"
+          yosys -q -p "read_verilog ${files[*]}; hierarchy -check -top Increment61Top; proc; memory; flatten; opt; check -assert; stat" \
+            > "$output/split-yosys.log"
+          yosys -q -p "read_verilog $combined; hierarchy -check -top Increment61Top; proc; memory; flatten; opt; check -assert; stat" \
+            > "$output/combined-yosys.log"
+      - name: Record exact source inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          git rev-parse HEAD > "$output/head.txt"
+          find "$output/generated" -type f -print0 | sort -z | xargs -0 sha256sum > "$output/generated.sha256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-${{ matrix.scala }}
+          path: target/increment-61
+          if-no-files-found: error
+          retention-days: 14
