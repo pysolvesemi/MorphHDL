@@ -1,0 +1,1 @@
+Wait for the qualified Increment 61 closeout head, require the full exact-head PR acceptance set, and merge only when green.
