@@ -19,7 +19,7 @@ concurrency:
 jobs:
   inspect:
     name: Read exact failed ScalaTest testcase
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
