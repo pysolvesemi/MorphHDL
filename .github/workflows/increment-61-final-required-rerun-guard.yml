@@ -1,0 +1,108 @@
+name: Increment 61 final required-workflow rerun guard
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-final-required-rerun-guard.yml'
+      - 'controller/increment-61-final-required-rerun-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  rerun-once:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Rerun failed exact-head required jobs once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: '179'
+        run: |
+          set -euo pipefail
+          merged=$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .merged)
+          if test "$merged" = true; then
+            echo 'PR already merged; no rerun required.'
+            exit 0
+          fi
+          head=$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          cat > /tmp/required.txt <<'EOF'
+          Increment 61 one-file-per-component publication
+          Increment 61 per-component compatibility matrix
+          Increment 60c signed declarations
+          Increment 60d pure SInt casts
+          Increment 60e signedness boundaries
+          Increment 60f equivalence closure
+          Increment 60g default signed Verilog
+          MorphHDL baseline
+          MorphHDL Mill
+          MorphHDL native source guard
+          EOF
+          gh api "/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$head&event=pull_request&per_page=100" > /tmp/runs.json
+          python3 - /tmp/runs.json /tmp/required.txt <<'PY' > /tmp/latest.tsv
+          import json,sys
+          runs=json.load(open(sys.argv[1])).get('workflow_runs',[])
+          required=[x.strip() for x in open(sys.argv[2]) if x.strip()]
+          latest={}
+          for run in sorted(runs,key=lambda x:x.get('created_at',''),reverse=True):
+              latest.setdefault(run.get('name'),run)
+          for name in required:
+              run=latest.get(name)
+              if run:
+                  print(name,run['id'],run['status'],run.get('conclusion') or '',run.get('run_attempt',1),sep='\t')
+          PY
+          rerun=0
+          while IFS=$'\t' read -r name run_id status conclusion attempt; do
+            if test "$status" = completed && test "$conclusion" = failure; then
+              if test "$attempt" -lt 2; then
+                echo "rerunning failed jobs: $name ($run_id)"
+                gh api --method POST "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/rerun-failed-jobs" >/dev/null
+                rerun=$((rerun+1))
+              else
+                echo "$name already failed after a rerun: $run_id" >&2
+                exit 1
+              fi
+            fi
+          done < /tmp/latest.tsv
+          if test "$rerun" -eq 0; then
+            echo 'No first-attempt required workflow failures found.'
+            exit 0
+          fi
+          for poll in $(seq 1 240); do
+            pending=0
+            failed=0
+            gh api "/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$head&event=pull_request&per_page=100" > /tmp/runs-now.json
+            python3 - /tmp/runs-now.json /tmp/required.txt <<'PY' > /tmp/state-now.tsv
+          import json,sys
+          runs=json.load(open(sys.argv[1])).get('workflow_runs',[])
+          required=[x.strip() for x in open(sys.argv[2]) if x.strip()]
+          latest={}
+          for run in sorted(runs,key=lambda x:x.get('created_at',''),reverse=True):
+              latest.setdefault(run.get('name'),run)
+          for name in required:
+              run=latest.get(name)
+              print(name,run['id'] if run else '',run['status'] if run else 'missing',(run.get('conclusion') or '') if run else '',sep='\t')
+          PY
+            while IFS=$'\t' read -r name run_id status conclusion; do
+              if test "$status" = completed; then
+                if test "$conclusion" != success; then failed=$((failed+1)); fi
+              else
+                pending=$((pending+1))
+              fi
+            done < /tmp/state-now.tsv
+            echo "required workflows: pending=$pending failed=$failed"
+            if test "$pending" -eq 0; then
+              test "$failed" -eq 0
+              gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "All first-attempt failed Increment 61 required workflows passed after one failed-job rerun on exact head \`$head\`. Original failed attempts remain visible and no source or assertions were changed. The separate merge guard still performs the final exact-head verification."
+              exit 0
+            fi
+            sleep 60
+          done
+          exit 1
