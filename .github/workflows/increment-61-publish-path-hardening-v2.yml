@@ -1,0 +1,112 @@
+name: Increment 61 publish nested-path safety hardening
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-publish-path-hardening-v2.yml'
+      - 'morphhdl/controller-61/path-hardening-v2/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-publish-path-hardening-v2
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out controller payload
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+
+      - name: Check out exact Increment 61 feature head
+        uses: actions/checkout@v4
+        with:
+          ref: 25585455d458ccaf9b97a114b992923901db6b41
+          fetch-depth: 0
+          path: feature
+          persist-credentials: true
+
+      - name: Verify, apply, audit and fast-forward publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=25585455d458ccaf9b97a114b992923901db6b41
+          branch=agent/increment-61-one-file-per-component
+          controller="$GITHUB_WORKSPACE/controller"
+          repo="$GITHUB_WORKSPACE/feature"
+          output="$GITHUB_WORKSPACE/target/increment-61-path-hardening"
+          archive="$output/path-hardening.tar.xz"
+          mkdir -p "$output"
+
+          cat "$controller"/morphhdl/controller-61/path-hardening-v2/part-*.txt \
+            | base64 -d > "$archive"
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = \
+            69ca3f91636e91a3ae01fbe4df5c38fcf449e4fbf18bf1c606f259a2f146871f
+
+          cat > "$output/expected-files.txt" <<'FILES'
+          docs/morphhdl/increment-61-one-file-per-component.md
+          morphhdl/contracts/increment-61-source-review.json
+          morphhdl/scripts/check-increment-61-source-review.py
+          morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala
+          morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala
+          FILES
+          tar -tJf "$archive" | sort > "$output/archive-files.txt"
+          sort "$output/expected-files.txt" > "$output/expected-files.sorted.txt"
+          cmp "$output/expected-files.sorted.txt" "$output/archive-files.txt"
+
+          cd "$repo"
+          test "$(git rev-parse HEAD)" = "$expected"
+          test -z "$(git status --porcelain)"
+          remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$remote" = "$expected"
+
+          tar -xJf "$archive" -C "$repo"
+          test "$(sha256sum docs/morphhdl/increment-61-one-file-per-component.md | cut -d' ' -f1)" = \
+            8f344063a328802fc8521c55ac14fab7deb5903c4ad1f968109315bddd1e1ac6
+          test "$(sha256sum morphhdl/contracts/increment-61-source-review.json | cut -d' ' -f1)" = \
+            8f840daa4cb92177728ad889e53adff872c2bfa32c88ce4f01528aa1aef4ea42
+          test "$(sha256sum morphhdl/scripts/check-increment-61-source-review.py | cut -d' ' -f1)" = \
+            c7528ebbedfe754d34beef373e56a9fff2aed39992e8694f02d191ad9ac54875
+          test "$(sha256sum morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala | cut -d' ' -f1)" = \
+            09d42b95cdb53c964939c1ecae7ddacd2ea566b972a28a6993a00003ad292e2d
+          test "$(sha256sum morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala | cut -d' ' -f1)" = \
+            eb09010fc270bda48bb1090a8087bda967638b81d05a3198c03e51b464780280
+
+          git diff --check
+          git add --pathspec-from-file="$output/expected-files.txt"
+          git diff --cached --check
+          git diff --cached --name-only | sort > "$output/changed-files.txt"
+          cmp "$output/expected-files.sorted.txt" "$output/changed-files.txt"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit \
+            -m '61: reject unsafe nested publication paths' \
+            -m 'Reject broken output symlinks and symlinked or non-directory target-parent chains before any public write. Require a terminated manifest, reject case-folded duplicate managed paths, add direct path/manifest regressions, update the checkpoint documentation, and reseal exact source review.'
+
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/source-review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/source-review.log"
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+
+          remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$remote" = "$expected"
+          git push origin "HEAD:refs/heads/$branch"
+
+      - name: Upload exact publication evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-path-hardening-v2
+          path: target/increment-61-path-hardening
+          if-no-files-found: error
+          retention-days: 14
