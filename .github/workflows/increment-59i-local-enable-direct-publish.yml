@@ -130,33 +130,55 @@ jobs:
           SH
           chmod +x "$out/sbt.sh"
 
-      - name: Compile and test Scala 2.12.18
+      - name: Focused local-enable diagnostics and Scala 2.12.18 regressions
         shell: bash
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-direct-local-enable"
+          focused="$out/local-enable-2.12.18.log"
           status=0
           "$out/sbt.sh" 2.12.18 'morph/Test/compile' \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
-            > "$out/scala-2.12.18.log" 2>&1 || status=$?
-          tail -n 500 "$out/scala-2.12.18.log"
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests' \
+            > "$focused" 2>&1 || status=$?
+          cat "$focused"
           test "$status" -eq 0
-          grep -q 'All tests passed' "$out/scala-2.12.18.log"
-          ! grep -q '\*\*\* FAILED \*\*\*' "$out/scala-2.12.18.log"
+          grep -q 'All tests passed' "$focused"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$focused"
 
-      - name: Compile and test Scala 2.13.12
+          regression="$out/regression-2.12.18.log"
+          status=0
+          "$out/sbt.sh" 2.12.18 \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
+            > "$regression" 2>&1 || status=$?
+          tail -n 500 "$regression"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$regression"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$regression"
+
+      - name: Focused local-enable diagnostics and Scala 2.13.12 regressions
         shell: bash
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-direct-local-enable"
+          focused="$out/local-enable-2.13.12.log"
           status=0
           "$out/sbt.sh" 2.13.12 'morph/Test/compile' \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
-            > "$out/scala-2.13.12.log" 2>&1 || status=$?
-          tail -n 500 "$out/scala-2.13.12.log"
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests' \
+            > "$focused" 2>&1 || status=$?
+          cat "$focused"
           test "$status" -eq 0
-          grep -q 'All tests passed' "$out/scala-2.13.12.log"
-          ! grep -q '\*\*\* FAILED \*\*\*' "$out/scala-2.13.12.log"
+          grep -q 'All tests passed' "$focused"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$focused"
+
+          regression="$out/regression-2.13.12.log"
+          status=0
+          "$out/sbt.sh" 2.13.12 \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
+            > "$regression" 2>&1 || status=$?
+          tail -n 500 "$regression"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$regression"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$regression"
 
       - name: Push only from the unchanged expected branch head
         shell: bash
