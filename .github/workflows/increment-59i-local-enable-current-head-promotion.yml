@@ -88,6 +88,8 @@ jobs:
             python3 morphhdl/scripts/check-typed-native-source-overlay.py
           } > "$out/target-parent-audits.log" 2>&1 || {
             tail -n 260 "$out/target-parent-audits.log"; exit 1; }
+          test -s "$out/feature-parent-audits.log"
+          test -s "$out/target-parent-audits.log"
           git worktree remove --force /tmp/59i-feature-parent
           git worktree remove --force /tmp/59i-target-parent
 
@@ -141,8 +143,6 @@ jobs:
             tee "$out/local-enable-source-review.log"
           python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py | \
             tee "$out/local-enable-source-review-tests.log"
-          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/native-overlay.log"
           grep -q 'callbackStatements = ArrayBuffer.empty\[Statement\]' \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           git diff --no-renames --name-only "$base" HEAD -- '*src/main*' | sort -u > "$out/production-delta.txt"
