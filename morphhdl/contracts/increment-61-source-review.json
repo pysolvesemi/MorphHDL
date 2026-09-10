@@ -28,7 +28,7 @@
   ],
   "reviewed_files": [
     {
-      "after_sha256": "9d7855a06411ed7a1b0a15d10d78e9c3db266640921a953b9fe19f3dd42936c5",
+      "after_sha256": "239aa83cdd24680c40586efe9da696c23ea701047b5080d9082df32179ced16c",
       "before_sha256": null,
       "mode": "100644",
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -43,7 +43,7 @@
       "after_sha256_integrated": "eb46cbcffe876b5b02a89f38bfa47427ae3c982de4feb28e79c4a4c4af143e79"
     },
     {
-      "after_sha256": "d0296a835ae5a7112a6a07a31f9a9536c3da9001437c4bcf1053027f6ce0cba0",
+      "after_sha256": "ae421b2536e1a82a658b031df872cc58388deb523d31801970ff3edff60c1b77",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala",
@@ -99,7 +99,7 @@
       "status": "added"
     },
     {
-      "after_sha256": "138a4a4f4f84641f411629ff0091d4a74f8e69e3a209bb4abc7b98dad9b2e1e0",
+      "after_sha256": "7cc1759db84d49ea9ddab3f01cf2d6c802fef6390ea3d52d4d63fff23661e053",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala",

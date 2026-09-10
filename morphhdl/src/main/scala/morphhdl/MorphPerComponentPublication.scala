@@ -26,8 +26,11 @@ private[morphhdl] final case class MorphPreparedPublicationFile(
   * ownership-tracked file set after the parameterized rewrite phases succeed.
   */
 private[morphhdl] object MorphPerComponentPublication {
-  private val ManifestVersion = "MORPHDL_ONE_FILE_PER_COMPONENT_V1"
+  private val ManifestVersion = "MORPHDL_ONE_FILE_PER_COMPONENT_V2"
   private val ManifestSuffix = ".morphhdl-one-file-per-component.manifest"
+  private val OwnerMarkerVersion = "MORPHDL_ONE_FILE_PER_COMPONENT_OWNER_V1"
+  private val OwnerDirectorySuffix = ".morphhdl-one-file-per-component.owners"
+  private val OwnerMarkerSuffix = ".owner"
 
   def capture(
       workspace: Path,
@@ -134,14 +137,17 @@ private[morphhdl] object MorphPerComponentPublication {
       validateUniquePaths(managed)
 
       val manifest = directory.resolve("." + top + ManifestSuffix)
-      val previous = readManifest(manifest)
+      val owners = directory.resolve("." + top + OwnerDirectorySuffix)
+      val previous = readManifest(manifest, owners)
       preflight(directory, managed, previous)
+      ensureOwnerDirectory(owners)
 
       managed.foreach { file =>
         publishAtomically(resolveManaged(directory, file.relativePath), file.content)
       }
 
-      val currentPaths = managed.map(_.relativePath).toSet
+      val currentHashes = managed.map(file => file.relativePath -> sha256(file.content)).toMap
+      val currentPaths = currentHashes.keySet
       previous.toVector.sortBy(_._1).foreach { case (relative, expectedHash) =>
         if (!currentPaths(relative)) {
           val target = resolveManaged(directory, relative)
@@ -149,8 +155,17 @@ private[morphhdl] object MorphPerComponentPublication {
             requireRegularUnmodified(target, expectedHash, "stale managed output")
             Files.delete(target)
           }
+          Files.deleteIfExists(ownerMarkerPath(owners, relative))
         }
       }
+
+      currentHashes.toVector.sortBy(_._1).foreach { case (relative, hash) =>
+        publishAtomically(
+          ownerMarkerPath(owners, relative),
+          renderOwnerMarker(relative, hash).getBytes(StandardCharsets.UTF_8)
+        )
+      }
+      validateOwnerInventory(owners, currentPaths)
 
       val manifestContent = renderManifest(managed)
       publishAtomically(manifest, manifestContent.getBytes(StandardCharsets.UTF_8))
@@ -222,9 +237,18 @@ private[morphhdl] object MorphPerComponentPublication {
     }
   }
 
-  private def readManifest(path: Path): Map[String, String] = {
-    if (!Files.exists(path)) Map.empty
-    else {
+  private def readManifest(
+      path: Path,
+      owners: Path
+  ): Map[String, String] = {
+    if (!Files.exists(path)) {
+      if (Files.exists(owners)) {
+        throw new IllegalArgumentException(
+          s"MORPHDL-ONE-FILE-PUBLISH-OWNER-DIRECTORY-ORPHANED: $owners"
+        )
+      }
+      Map.empty
+    } else {
       if (!Files.isRegularFile(path) || Files.isSymbolicLink(path)) {
         throw new IllegalArgumentException(
           s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-INVALID: $path"
@@ -255,14 +279,81 @@ private[morphhdl] object MorphPerComponentPublication {
         val relative = normalizedRelative(Paths.get(fields(1)))
         relative -> fields(0).toLowerCase(Locale.ROOT)
       }
+      if (entries.isEmpty) {
+        throw new IllegalArgumentException(
+          s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-EMPTY: $path"
+        )
+      }
       if (entries.map(_._1).distinct.size != entries.size) {
         throw new IllegalArgumentException(
           s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-DUPLICATE: $path"
         )
       }
-      entries.toMap
+      val previous = entries.toMap
+      validateOwnerInventory(owners, previous.keySet)
+      previous.toVector.foreach { case (relative, hash) =>
+        val marker = ownerMarkerPath(owners, relative)
+        val expected = renderOwnerMarker(relative, hash).getBytes(StandardCharsets.UTF_8)
+        val actual = Files.readAllBytes(marker)
+        if (!java.util.Arrays.equals(actual, expected)) {
+          throw new IllegalArgumentException(
+            s"MORPHDL-ONE-FILE-PUBLISH-OWNER-MARKER-TAMPERED: $relative"
+          )
+        }
+      }
+      previous
     }
   }
+
+  private def ensureOwnerDirectory(path: Path): Unit = {
+    if (Files.exists(path)) {
+      if (!Files.isDirectory(path) || Files.isSymbolicLink(path)) {
+        throw new IllegalArgumentException(
+          s"MORPHDL-ONE-FILE-PUBLISH-OWNER-DIRECTORY-INVALID: $path"
+        )
+      }
+    } else {
+      Files.createDirectory(path)
+    }
+  }
+
+  private def validateOwnerInventory(
+      owners: Path,
+      relativePaths: Set[String]
+  ): Unit = {
+    if (!Files.isDirectory(owners) || Files.isSymbolicLink(owners)) {
+      throw new IllegalArgumentException(
+        s"MORPHDL-ONE-FILE-PUBLISH-OWNER-DIRECTORY-INVALID: $owners"
+      )
+    }
+    val stream = Files.list(owners)
+    val markerNames = try {
+      stream.iterator().asScala.toVector.map { marker =>
+        if (!Files.isRegularFile(marker) || Files.isSymbolicLink(marker)) {
+          throw new IllegalArgumentException(
+            s"MORPHDL-ONE-FILE-PUBLISH-OWNER-MARKER-INVALID: $marker"
+          )
+        }
+        marker.getFileName.toString
+      }.toSet
+    } finally stream.close()
+    val expected = relativePaths.map(ownerMarkerName)
+    if (markerNames != expected) {
+      throw new IllegalArgumentException(
+        s"MORPHDL-ONE-FILE-PUBLISH-OWNER-INVENTORY: expected [${expected.toVector.sorted.mkString(", ")}], " +
+          s"observed [${markerNames.toVector.sorted.mkString(", ")}]"
+      )
+    }
+  }
+
+  private def ownerMarkerPath(owners: Path, relative: String): Path =
+    owners.resolve(ownerMarkerName(relative))
+
+  private def ownerMarkerName(relative: String): String =
+    sha256(normalizedRelative(Paths.get(relative)).getBytes(StandardCharsets.UTF_8)) + OwnerMarkerSuffix
+
+  private def renderOwnerMarker(relative: String, hash: String): String =
+    OwnerMarkerVersion + "\n" + hash + "\t" + normalizedRelative(Paths.get(relative)) + "\n"
 
   private def renderManifest(
       files: Vector[MorphPreparedPublicationFile]

@@ -29,11 +29,14 @@ owning native component file.
 
 Final publication is copied from a private workspace only after all rewrites
 succeed. Output names are deterministic (`<definitionName>.v`), the top file is
-reported last, and `<top>.lst` records the relative source order. A hidden
-SHA-256 ownership manifest permits stale generated files to be deleted only when
-they are unchanged since the previous MorphHDL run. Unrelated files are never
-deleted, unowned filename collisions fail closed, and user-modified managed
-files are not overwritten.
+reported last, and `<top>.lst` records the relative source order. A hidden V2
+SHA-256 ownership manifest is paired with one deterministic hidden marker per
+managed output. A previous manifest entry is trusted only when its marker names
+the same path and hash; missing, extra, modified or orphaned markers fail before
+any public file changes. This prevents a modified manifest from claiming and
+deleting an unrelated user file. Stale generated files are deleted only when
+both ownership evidence and file bytes remain unchanged. Unowned filename
+collisions and user-modified managed files fail closed.
 
 `netlistFileName` is rejected with `oneFilePerComponent = true` because one name
 cannot identify several logical component definitions. Consolidated publication
@@ -43,7 +46,8 @@ and ordinary concrete `SpinalVerilog` remain unchanged.
 
 This checkpoint adds dual-Scala unit coverage for canonical repeated children,
 parameter bindings, enum ownership, external modules, deterministic manifests,
-stale-file safety and configuration diagnostics. A dedicated workflow also
-compiles, lints and synthesizes both split and consolidated hierarchy outputs.
-Increment 61 remains unchecked until final-head CI, equivalence, mutation,
-inherited compatibility and source-audit gates are complete.
+paired ownership-marker validation, stale-file safety, manifest-tamper rejection
+and configuration diagnostics. A dedicated workflow also compiles, lints and
+synthesizes both split and consolidated hierarchy outputs. Increment 61 remains
+unchecked until final-head CI, equivalence, mutation, inherited compatibility
+and source-audit gates are complete.

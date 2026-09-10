@@ -2,6 +2,7 @@ package morphhdl
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
+import java.security.MessageDigest
 
 import scala.collection.JavaConverters._
 
@@ -130,6 +131,11 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
           directory.resolve(".Increment61Top.morphhdl-one-file-per-component.manifest")
         )
       )
+      val owners = directory.resolve(".Increment61Top.morphhdl-one-file-per-component.owners")
+      assert(Files.isDirectory(owners) && !Files.isSymbolicLink(owners))
+      val ownerStream = Files.list(owners)
+      try assert(ownerStream.iterator().asScala.toVector.size == 3)
+      finally ownerStream.close()
     }
   }
 
@@ -312,6 +318,62 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
     }
   }
 
+  test("a modified manifest cannot claim and delete an unrelated user file") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true
+      )
+      MorphVerilog(config)(hierarchical())
+
+      val unrelated = directory.resolve("user-owned.v")
+      val unrelatedContent = "module UserOwned; endmodule\n".getBytes(StandardCharsets.UTF_8)
+      Files.write(unrelated, unrelatedContent)
+      val manifest = directory.resolve(
+        ".Increment61Top.morphhdl-one-file-per-component.manifest"
+      )
+      Files.write(
+        manifest,
+        (read(manifest) + sha256(unrelatedContent) + "\tuser-owned.v\n")
+          .getBytes(StandardCharsets.UTF_8)
+      )
+
+      MorphVerilog.tryGenerate(config)(flat()) match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.OutputWrite)
+          assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-OWNER-INVENTORY"))
+        case Right(report) => fail(s"expected manifest-ownership rejection, received $report")
+      }
+      assert(java.util.Arrays.equals(Files.readAllBytes(unrelated), unrelatedContent))
+      assert(Files.exists(directory.resolve("Increment61Leaf.v")))
+    }
+  }
+
+  test("a modified ownership marker fails closed before public files change") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true
+      )
+      MorphVerilog(config)(hierarchical())
+      val top = directory.resolve("Increment61Top.v")
+      val originalTop = Files.readAllBytes(top)
+      val owners = directory.resolve(".Increment61Top.morphhdl-one-file-per-component.owners")
+      val markerStream = Files.list(owners)
+      val marker = try markerStream.iterator().asScala.toVector.sortBy(_.toString).head
+      finally markerStream.close()
+      Files.write(marker, "user edit".getBytes(StandardCharsets.UTF_8))
+
+      MorphVerilog.tryGenerate(config)(hierarchical()) match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.OutputWrite)
+          assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-OWNER-MARKER-TAMPERED"))
+        case Right(report) => fail(s"expected owner-marker rejection, received $report")
+      }
+      assert(java.util.Arrays.equals(Files.readAllBytes(top), originalTop))
+    }
+  }
+
   test("oneFilePerComponent rejects a shared netlist filename before elaboration") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(
@@ -352,6 +414,13 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       .findAllMatchIn(verilog)
       .map(_.group(1))
       .toVector
+
+  private def sha256(bytes: Array[Byte]): String =
+    MessageDigest
+      .getInstance("SHA-256")
+      .digest(bytes)
+      .map(value => f"${value & 0xff}%02x")
+      .mkString
 
   private def read(path: Path): String =
     new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
