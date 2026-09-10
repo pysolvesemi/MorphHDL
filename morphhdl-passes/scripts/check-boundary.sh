@@ -82,6 +82,12 @@ allowed_path() {
       fi
       return 1
       ;;
+    build.sbt|build.mill|.github/workflows/increment-62-wa08-source-overlay.yml|docs/morphhdl/parameterized-verilog-todo.md)
+      # Production build inputs and the compatibility gate are accepted only
+      # through the exact reviewed overlay, independent of branch spelling.
+      [[ "${wa08_overlay_verified:-false}" == true ]]
+      return
+      ;;
     *)
       return 1
       ;;
@@ -89,6 +95,14 @@ allowed_path() {
 }
 
 mapfile -t changed_files < <(collect_changed_files | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)
+
+wa08_overlay_verified=false
+overlay="morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+contract="morphhdl/contracts/increment-62-wa08-source-overlay.json"
+if [[ -e "${overlay}" || -e "${contract}" ]]; then
+  python3 "${overlay}"
+  wa08_overlay_verified=true
+fi
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   printf 'MorphHDL pass boundary: no changed files detected.\n'

@@ -76,9 +76,15 @@ expect_success \
 
 root_manifest="${tmp_dir}/root.txt"
 printf '%s\n' 'build.sbt' >"${root_manifest}"
-expect_failure \
-  'repository root build changes are rejected' \
-  run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/increment-62-wa08-source-overlay.json" ]]; then
+  expect_success \
+    'exact reviewed shared build inputs are accepted through the WA-08 overlay' \
+    run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+else
+  expect_failure \
+    'repository root build changes are rejected without a reviewed overlay' \
+    run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+fi
 
 upstream_manifest="${tmp_dir}/upstream.txt"
 printf '%s\n' 'core/src/main/scala/spinal/core/Phase.scala' >"${upstream_manifest}"

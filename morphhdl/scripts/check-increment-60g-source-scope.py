@@ -58,6 +58,26 @@ WA07A_PRODUCTION_SHA256 = {
 
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
 
+WA08_OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+
+
+def wa08_overlay(root: Path):
+    path = root / WA08_OVERLAY
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-08 overlay")
+    spec = importlib.util.spec_from_file_location("wa08_rollout_overlay", path)
+    require(spec is not None and spec.loader is not None, "cannot load WA-08 overlay")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def restore_wa08_text(root: Path, path: str, source: str) -> str:
+    overlay = wa08_overlay(root)
+    return source if overlay is None else overlay.restore_text(root, path, source)
+
+
 
 def require(ok: bool, detail: str) -> None:
     if not ok:
@@ -100,6 +120,7 @@ def restore_entry(entry: dict, source: str) -> str:
 
 
 def restore_60g_source(root: Path, path: str, source: str) -> str:
+    source = restore_wa08_text(root, path, source)
     if path not in PATHS:
         return source
     entry = next(e for e in contract(root)["files"] if e["path"] == path)
@@ -168,6 +189,10 @@ def without_sibling_delta(root: Path, paths: set[str], revision: str) -> set[str
     Restore the pre-sibling view relative to the caller's exact baseline;
     never drop unrelated changes or any historically overlapping path.
     """
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        paths = overlay.inherited_inventory(root, paths, revision)
+
     def changed(older: str, *newer: str) -> set[str]:
         output = subprocess.check_output(
             ["git", "diff", "--no-renames", "--name-only", "-z", older, *newer], cwd=root)
@@ -205,6 +230,10 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
     restoring only visible bytes must not hide staged or committed corruption.
     Batch the Git reads so this adds no per-file subprocesses to inherited gates.
     """
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        overlay.verify(root)
+
     def git(*args: str) -> bytes:
         return subprocess.check_output(["git", "--literal-pathspecs", *args], cwd=root)
 
@@ -242,10 +271,11 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
         require(all(not (root / Path(*relative.parts[:length])).is_symlink()
                     for length in range(1, len(relative.parts))),
                 "60g reviewed source has a symlinked ancestor: " + path)
-        raw = file.read_bytes()
+        actual = file.read_bytes()
+        raw = actual if overlay is None else overlay.restore_source(root, path, actual)
         require(hashlib.sha256(raw).hexdigest() == fingerprint,
                 "60g reviewed raw source bytes differ: " + path)
-        oid = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        oid = hashlib.sha1(b"blob " + str(len(actual)).encode() + b"\0" + actual).hexdigest()
         # Preserve the inherited diagnostic when this stronger check rejects
         # actual staged production drift before the older diff-based gate.
         staged = ("; staged production sources" if indexed[path] != committed[path]
@@ -257,6 +287,10 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
 
 
 def source_scope(root: Path) -> None:
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        overlay.verify(root)
+
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
@@ -265,6 +299,8 @@ def source_scope(root: Path) -> None:
     ternary = boolean_ternary_review(root)
     if ternary is not None:
         changed = ternary.inherited_inventory(root, changed, BASE)
+    if overlay is not None:
+        changed = overlay.inherited_inventory(root, changed, BASE)
     require(changed == set(PRODUCTION),
             "60g publication/serialization delta differs from the merged baseline: " + str(sorted(changed)))
     subprocess.run(["git", "merge-base", "--is-ancestor", WA07A_MERGED, BASE], cwd=root, check=True)
@@ -274,13 +310,18 @@ def source_scope(root: Path) -> None:
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
         file = root / path
         require(file.is_file() and not file.is_symlink(), "missing/linked reviewed 60g source: " + path)
-        require(digest(file.read_text()) == expected, "60g reviewed source bytes differ: " + path)
+        source = file.read_text()
+        if overlay is not None:
+            source = overlay.restore_text(root, path, source)
+        require(digest(source) == expected, "60g reviewed source bytes differ: " + path)
         stage = git("ls-files", "--stage", "--", path).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "60g reviewed source must be uniquely tracked: " + path)
     for entry in contract(root)["files"]:
         path = entry["path"]
         source = (root / path).read_text()
+        if overlay is not None:
+            source = overlay.restore_text(root, path, source)
         require(digest(source) == entry["after_sha256"], "60g reviewed current source differs: " + path)
         require(restore_entry(entry, source) == git("show", BASE + ":" + path),
                 "60g source restoration differs from its recorded base: " + path)
@@ -528,7 +569,13 @@ def reviewed_blob_self_test(repository: Path) -> None:
     import tempfile
 
     expected = reviewed_sources(repository)
-    contents = {path: (repository / path).read_bytes() for path in expected}
+    # Exercise the historical blob inventory on exactly restored bytes. The
+    # outer production gate separately verifies the complete current overlay.
+    overlay = wa08_overlay(repository)
+    if overlay is not None:
+        overlay.verify(repository)
+    contents = {path: restore_wa08_text(repository, path,
+                (repository / path).read_text()).encode() for path in expected}
     rejected = 0
     with tempfile.TemporaryDirectory(prefix="morphhdl-60g-reviewed-blobs-") as directory:
         root = Path(directory)
@@ -641,7 +688,7 @@ def reviewed_blob_self_test(repository: Path) -> None:
 def self_test(root: Path) -> None:
     rejected = 0
     for entry in contract(root)["files"]:
-        after = (root / entry["path"]).read_text()
+        after = restore_wa08_text(root, entry["path"], (root / entry["path"]).read_text())
         before = restore_entry(entry, after)
         require(restore_entry(entry, before) == before, "nested restoration is not idempotent")
         for bad in (after + "\n// unrelated edit\n", after + entry["edits"][0]["after"],

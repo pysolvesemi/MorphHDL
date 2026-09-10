@@ -1,1 +1,0 @@
-../../../../../../morphhdl-passes/examples/NamedWireAliasNativeBridge.scala
