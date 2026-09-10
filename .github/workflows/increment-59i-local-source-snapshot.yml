@@ -1,0 +1,49 @@
+name: Increment 59i exact continuation source snapshot
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-source-snapshot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-exact-source-snapshot
+  cancel-in-progress: true
+
+jobs:
+  export:
+    name: Export exact source and history
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Archive exact source and reachable history
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-source-snapshot"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          git status --porcelain > "$output/status.txt"
+          test ! -s "$output/status.txt"
+          git archive HEAD | gzip -9 > "$output/source.tar.gz"
+          git bundle create "$output/source-history.bundle" HEAD \
+            refs/remotes/origin/parameterized-verilog
+          git bundle verify "$output/source-history.bundle" > "$output/bundle-verify.txt" 2>&1
+          sha256sum "$output/source.tar.gz" "$output/source-history.bundle" > "$output/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-source-snapshot-${{ github.sha }}
+          path: target/increment-59i-source-snapshot
+          if-no-files-found: error
+          retention-days: 7

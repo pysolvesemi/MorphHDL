@@ -18,11 +18,23 @@ import spinal.core._
   * generate-for/if/case control.
   */
 private[internals] object ParameterizedVerilogStructural {
-  private final case class LineRange(start: Int, end: Int) {
+  private[internals] final case class LineRange(start: Int, end: Int) {
     require(start <= end)
     def indices: Range.Inclusive = start to end
     def overlaps(that: LineRange): Boolean = start <= that.end && that.start <= end
   }
+
+  /** A sorted adjacent pair witnesses every interval overlap. Exact shared
+    * process duplicates are the sole existing exception. Sorting avoids the
+    * quadratic multiset-combination iterator on large captured native graphs;
+    * it neither drops intervals nor broadens the shared-process exception.
+    */
+  private[internals] def firstCaptureOverlap(ranges: Vector[LineRange],
+      shared: Set[LineRange]): Option[(LineRange, LineRange)] =
+    ranges.sortBy(range => (range.start, range.end)).sliding(2).collectFirst {
+      case Vector(left, right) if left.overlaps(right) && !(left == right && shared(left)) =>
+        left -> right
+    }
 
   private final case class AssignmentEvidence(
       target: String,
@@ -85,7 +97,8 @@ private[internals] object ParameterizedVerilogStructural {
     */
   private[internals] def extractNativeTemplates(
       component: Component, blocks: Vector[ParameterizedStructuralBlock],
-      verilog: String, pc: PhaseContext, canonicalOf: Component => Component
+      verilog: String, pc: PhaseContext, canonicalOf: Component => Component,
+      captureSchema: Option[TypedBalancedReductionCaptureSchema] = None
   ): (String, Vector[String]) = {
     if (blocks.isEmpty) return verilog -> Vector.empty
     require(blocks.distinct.size == blocks.size, "duplicate native template identity")
@@ -93,7 +106,21 @@ private[internals] object ParameterizedVerilogStructural {
       b.memories.isEmpty && b.vecIndices.isEmpty && b.slices.isEmpty),
       "native scalar templates cannot carry unvalidated structural effects")
     val lines = verilog.split("\n", -1).toVector
-    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet
+    // A certified runtime input belongs to the surrounding native scope, not
+    // to each replay template that reads it. Validate identities before names
+    // become the emitter lookup keys; never infer this boundary from syntax.
+    val externalInputs = captureSchema.toVector.flatMap { schema =>
+      schema.validateBindings()
+      require(schema.owner eq component, "native template captures changed component owner")
+      schema.hardwareInputs.foreach { input =>
+        require(!blocks.exists(block => block.declarations.exists(_ eq input) ||
+          block.assignments.exists(_.finalTarget eq input)),
+          "native template cannot claim a captured runtime input as a local target")
+      }
+      schema.hardwareInputs
+    }
+    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet ++
+      externalInputs.map(input => requiredName(input, "certified runtime capture", None))
     val parameters = mergeParameters(ParameterizedWidth.parametersOf(component) ++
       ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component))
     val scalar = resolveScalarOperatorReplay(component, blocks, lines)
@@ -102,10 +129,8 @@ private[internals] object ParameterizedVerilogStructural {
       parameters.map(_.name).toSet, scalar, targets,
       ContinuousAssignmentResolution.empty, canonicalOf))
     val ranges = plans.flatMap(_.ranges)
-    ranges.combinations(2).foreach {
-      case Vector(a, b) if a.overlaps(b) =>
-        fail("MORPH-NATIVE-TEMPLATE-OVERLAP", "native templates share emitted module items")
-      case _ =>
+    firstCaptureOverlap(ranges, Set.empty).foreach { _ =>
+      fail("MORPH-NATIVE-TEMPLATE-OVERLAP", "native templates share emitted module items")
     }
     validateBranchLocalReferences(plans, lines)
     val removed = ranges.flatMap(_.indices).toSet
@@ -331,15 +356,11 @@ private[internals] object ParameterizedVerilogStructural {
       continuousResolution
     )
     val allRanges = plans.flatMap(_.ranges)
-    allRanges.combinations(2).foreach {
-      case Vector(left, right)
-          if left.overlaps(right) &&
-            !(left == right && sharedProcessRanges(left)) =>
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
-          s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
-        )
-      case _ =>
+    firstCaptureOverlap(allRanges, sharedProcessRanges).foreach { case (left, right) =>
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP",
+        s"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap"
+      )
     }
 
     val removed = allRanges.flatMap(_.indices).toSet
@@ -1738,6 +1759,20 @@ private[internals] object ParameterizedVerilogStructural {
     identifierTokens(withoutLabels)
   }
 
+  /** Index the same consumer relation as per-name whole-line definition
+    * removal. Lexical regions are blanked before splitting so comments and
+    * multiline strings keep exactly the existing reference-scan semantics.
+    * A definition excludes only its own name; other names on that line remain
+    * consumers. No driver, owner or reachability check is skipped.
+    */
+  private[internals] def verilogConsumedNames(value: String): Set[String] =
+    verilogReferenceText(value).split("\n", -1).iterator.flatMap { line =>
+      val normalized = line.trim
+      val definitions = standaloneDeclarationName(normalized).toSet ++
+        DirectContinuousAssignment.findFirstMatchIn(normalized).map(_.group(1)).toSet
+      verilogReferenceNames(line) -- definitions
+    }.toSet
+
   private def sanitizedIdentifierTokens(value: String): Set[String] = {
     val withoutStrings = VerilogStringLiteral.replaceAllIn(value, " ")
     val withoutBased = VerilogBasedLiteral.replaceAllIn(withoutStrings, " ")
@@ -2524,21 +2559,10 @@ private[internals] object ParameterizedVerilogStructural {
         .exists(_.group(1) == name)
     }
 
-    def bodyConsumesName(body: String, name: String): Boolean = {
-      val withoutDefinitions = verilogReferenceText(body)
-        .split("\n", -1)
-        .map { line =>
-          val normalized = line.trim
-          val isDefinition =
-            standaloneDeclarationName(normalized).contains(name) ||
-              DirectContinuousAssignment
-                .findFirstMatchIn(normalized)
-                .exists(_.group(1) == name)
-          if (isDefinition) "" else line
-        }
-        .mkString("\n")
-      verilogReferenceNames(withoutDefinitions)(name)
-    }
+    // Each immutable body/line is scanned once, not again for every candidate
+    // driver. The per-target definition exclusion is retained by the index.
+    val consumedByBody = plans.map(_.body).distinct.map(body => body -> verilogConsumedNames(body)).toMap
+    val lineReferences = lexicalLines.map(verilogReferenceNames)
 
     def validateDriverConsumers(
         target: String,
@@ -2548,7 +2572,7 @@ private[internals] object ParameterizedVerilogStructural {
     ): Unit = {
       val ownerPath = containmentPathOf(owner, containmentPaths)
       val undominatedConsumers = plans.filter { plan =>
-        bodyConsumesName(plan.body, target) &&
+        consumedByBody(plan.body)(target) &&
         ((owner.vecIndices.nonEmpty && !(plan.block eq owner)) ||
           !containmentPrefix(
             ownerPath,
@@ -2575,7 +2599,7 @@ private[internals] object ParameterizedVerilogStructural {
                 !deferredPackedReadLines(index) &&
                 !packedReadEvidence.coveredLeafUses((index, target)) &&
                 !lineDefinesName(lexicalLines(index), target) &&
-                verilogReferenceNames(lexicalLines(index))(target) =>
+                lineReferences(index)(target) =>
             index -> lines(index).trim
         }
         .foreach { case (index, line) =>
@@ -4804,7 +4828,9 @@ private[internals] object ParameterizedVerilogStructural {
     "assign",
     "wire",
     "reg",
-    "signed", // A declaration qualifier, never a structural dependency.
+    "signed",
+    "unsigned",
+    "integer",
     "input",
     "output",
     "inout",
@@ -4881,7 +4907,8 @@ private[internals] object ParameterizedVerilogStructural {
     "[A-Za-z_][A-Za-z0-9_]*".r.findAllIn(value).toVector
 
   private def containsName(value: String, name: String): Boolean =
-    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r.findFirstIn(value).nonEmpty
+    value.contains(name) &&
+      ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r.findFirstIn(value).nonEmpty
 
   private def replaceName(value: String, from: String, to: String): String =
     ("(?<![A-Za-z0-9_$])" + Pattern.quote(from) + "(?![A-Za-z0-9_$])").r

@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "20dbb0a9a93fb860e1405bc0844d3b20872f52e0"
+      "approved_tree": "dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5"
     },
     {
       "path": "idslpayload/src/main",
@@ -1482,9 +1482,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1494,8 +1495,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "07d1bca29389bda24a587ea3d145b302fec972df",
-        "sha256": "189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c"
+        "blob": "3cdeb62cc7471efcbd6a6ffe669f858efdb13459",
+        "sha256": "f66926276a79652795d91f54af3095c9938f4688a04079c4f19b1f851ff943f4"
       },
       "edits": [
         {
@@ -1734,7 +1735,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
           "baseline_span": {
             "start": 4780,
             "end": 4780,
@@ -1742,8 +1743,8 @@
           },
           "approved_span": {
             "start": 7560,
-            "end": 9975,
-            "sha256": "7a80c3125be70e0dcffb2b9b321c4898af2ec3a9ac1cc3eb252a7d703a2067f7"
+            "end": 11505,
+            "sha256": "56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20"
           },
           "required_exact_text": [
             {
@@ -1775,6 +1776,26 @@
               "side": "approved",
               "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
+              "count": 1
             }
           ]
         },
@@ -1789,8 +1810,8 @@
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 10990,
-            "end": 11352,
+            "start": 12520,
+            "end": 12882,
             "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
@@ -1812,8 +1833,8 @@
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 11356,
-            "end": 11829,
+            "start": 12886,
+            "end": 13359,
             "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
@@ -1835,8 +1856,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 12841,
-            "end": 12893,
+            "start": 14371,
+            "end": 14423,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -1858,8 +1879,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13077,
-            "end": 13145,
+            "start": 14607,
+            "end": 14675,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
@@ -1881,8 +1902,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13660,
-            "end": 14249,
+            "start": 15190,
+            "end": 15779,
             "sha256": "c4e88f58cbda7b88b2fd44a4a5e66b174153b48b37692d3f274aa08a63d33556"
           },
           "required_exact_text": [
@@ -1904,8 +1925,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14582,
-            "end": 14596,
+            "start": 16112,
+            "end": 16126,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -1927,8 +1948,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15462,
-            "end": 15601,
+            "start": 16992,
+            "end": 17131,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -1950,8 +1971,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15885,
-            "end": 15891,
+            "start": 17415,
+            "end": 17421,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -1973,8 +1994,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16100,
-            "end": 16183,
+            "start": 17630,
+            "end": 17713,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -1996,8 +2017,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 16448,
-            "end": 17097,
+            "start": 17978,
+            "end": 18627,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2019,8 +2040,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 17108,
-            "end": 17385,
+            "start": 18638,
+            "end": 18915,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2042,8 +2063,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17393,
-            "end": 17476,
+            "start": 18923,
+            "end": 19006,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2065,8 +2086,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17520,
-            "end": 17679,
+            "start": 19050,
+            "end": 19209,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2088,8 +2109,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17856,
-            "end": 17924,
+            "start": 19386,
+            "end": 19454,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -2111,8 +2132,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 18846,
-            "end": 18921,
+            "start": 20376,
+            "end": 20451,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2134,8 +2155,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19035,
-            "end": 19074,
+            "start": 20565,
+            "end": 20604,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2157,8 +2178,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19172,
-            "end": 19508,
+            "start": 20702,
+            "end": 21038,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -2180,8 +2201,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 19937,
-            "end": 20271,
+            "start": 21467,
+            "end": 21801,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2203,8 +2224,8 @@
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 20288,
-            "end": 22763,
+            "start": 21818,
+            "end": 24293,
             "sha256": "9235a8bcaa55a1538b906054eacf9ce6e6520177d49ce0d291474be5fa8dd855"
           },
           "required_exact_text": [
@@ -2246,8 +2267,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 23093,
-            "end": 23195,
+            "start": 24623,
+            "end": 24725,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2269,8 +2290,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 23263,
-            "end": 23406,
+            "start": 24793,
+            "end": 24936,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [

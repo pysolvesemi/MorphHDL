@@ -1,0 +1,109 @@
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
+new file mode 100644
+index 000000000..222222222
+--- /dev/null
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
+@@ -0,0 +1,110 @@
++package spinal.core.internals
++
++import spinal.core._
++
++/** Vector form of the already-qualified scalar full/tail recurrence. The
++  * native operator proof supplies every per-leaf transfer; this object only
++  * applies the authoritative balanced-tree geometry to those transfers.
++  */
++private[spinal] object TypedBalancedReductionCompositeWidthSchedule {
++  type Width = ElaborationIntegerExpression
++
++  private def fail(code: String, detail: String): Nothing =
++    throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-COMPOSITE-SCHEDULE-$code: $detail")
++
++  final case class WidthStage(
++      inputFull: Vector[Width], inputTail: Vector[Width],
++      outputFull: Vector[Width], outputTail: Vector[Width],
++      fullPairPossible: Boolean, fullInput: Vector[Width],
++      fullPairActive: ElaborationBooleanExpression,
++      partialLeft: Vector[Width], partialRight: Vector[Width],
++      partialPairActive: ElaborationBooleanExpression,
++      partialPairPossible: Boolean, tailPossible: Boolean,
++      inputPacked: Width, outputPacked: Width)
++
++  final case class WidthSchedule(stages: Vector[WidthStage],
++      terminal: Vector[Width], initialPacked: Width)
++
++  private def total(widths: Vector[Width]): Width = {
++    if (widths == null || widths.isEmpty) fail("EMPTY", "composite width vector cannot be empty")
++    widths.tail.foldLeft(widths.head) { case (left, right) =>
++      ElaborationWidthAuthority.add(left, right)
++    }
++  }
++
++  private def possible(widths: Vector[Width], active: ElaborationBooleanExpression,
++      label: String): Boolean = {
++    val values = widths.map(width => ElaborationWidthAuthority.minimumWhen(width, active).nonEmpty).distinct
++    if (values.size != 1) fail("DOMAIN", s"$label leaves disagree on their active parameter domain")
++    values.head
++  }
++
++  private def choose(active: ElaborationBooleanExpression,
++      yes: Vector[Width], no: Vector[Width]): Vector[Width] = {
++    if (yes.size != no.size) fail("SHAPE", "width transfer changed the recursive leaf inventory")
++    yes.zip(no).map { case (a, b) => ElaborationWidthAuthority.choose(active, a, b) }
++  }
++
++  def widths(plan: TypedBalancedReductionPlan, leaves: Vector[Width],
++      operator: Option[TypedBalancedReductionCompositeReplay.OperatorProof]): WidthSchedule = {
++    if (plan == null || leaves == null || leaves.isEmpty)
++      fail("NULL", "typed plan and nonempty composite leaf widths are required")
++    leaves.foreach(width => ElaborationWidthAuthority.requireAuthoritative(width,
++      "composite balanced input width", "MORPH-REDUCE-BALANCED-COMPOSITE-SCHEDULE-WIDTH"))
++    var full = leaves
++    var tail = leaves
++    val initialPacked = ElaborationWidthAuthority.multiply(total(leaves), plan.count.expression)
++    var packed = initialPacked
++    val stages = plan.stages.map { geometry =>
++      val proof = operator.getOrElse(fail("OPERATOR", "an active composite stage needs a certified native operator"))
++      val fullActive = plan.count >= ElabInt.fromBigInt(BigInt(1) << (geometry.level + 1))
++      val fullPairPossible = possible(full, fullActive.expression, "full-pair")
++      val fullInput = full.map { width =>
++        val minimum = ElaborationWidthAuthority.minimumWhen(width, fullActive.expression)
++        val maximum = ElaborationWidthAuthority.maximumWhen(width, fullActive.expression)
++        if (minimum.isEmpty != maximum.isEmpty)
++          fail("DOMAIN", "full-pair width extrema disagree on their exact active domain")
++        if (maximum.exists(_ < width.maximum))
++          ElaborationWidthAuthority.choose(fullActive.expression, width,
++            ElabInt.fromBigInt(minimum.get).expression)
++        else width
++      }
++      val paired = geometry.active && !geometry.hasOddTail
++      val partialPairPossible = possible(full, paired.expression, "partial-left")
++      if (partialPairPossible != possible(tail, paired.expression, "partial-right"))
++        fail("DOMAIN", "partial-pair sides disagree on their exact active domain")
++      val partialLeft = full.map { width =>
++        ElaborationWidthAuthority.minimumWhen(width, paired.expression)
++          .map(minimum => ElaborationWidthAuthority.choose(paired.expression, width,
++            ElabInt.fromBigInt(minimum).expression)).getOrElse(width)
++      }
++      val partialRight = tail.map { width =>
++        ElaborationWidthAuthority.minimumWhen(width, paired.expression)
++          .map(minimum => ElaborationWidthAuthority.choose(paired.expression, width,
++            ElabInt.fromBigInt(minimum).expression)).getOrElse(width)
++      }
++      val nextTail = if (partialPairPossible)
++        choose(paired.expression, proof.resultWidthsFor(partialLeft, partialRight), tail)
++      else tail
++      val nextFull = if (fullPairPossible) proof.resultWidthsFor(fullInput, fullInput) else nextTail
++      val outputPacked = ElaborationWidthAuthority.add(
++        ElaborationWidthAuthority.multiply(total(nextFull), (geometry.outputCount - 1).expression),
++        total(nextTail))
++      val stage = WidthStage(full, tail, nextFull, nextTail, fullPairPossible, fullInput,
++        fullActive.expression, partialLeft, partialRight, paired.expression, partialPairPossible,
++        !geometry.hasOddTail.isAlwaysFalse, packed, outputPacked)
++      full = nextFull
++      tail = nextTail
++      packed = outputPacked
++      stage
++    }
++    WidthSchedule(stages, tail, initialPacked)
++  }
++}

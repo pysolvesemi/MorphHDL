@@ -113,22 +113,29 @@ def restore_bytes(entry: dict, baseline: bytes, source: bytes) -> bytes:
     return restored
 
 
-def restore_rollout(root: Path, path: str, source: str) -> str:
-    """Reverse only the separately pinned outer publication layer, if present.
+def joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:
+    """Unwrap only an exact, separately reviewed 59i checker successor.
 
-    This is byte restoration, not a validation shortcut: verify() still checks
-    the complete current pass tree and index, and restore_bytes() still binds
-    all original WA-07b adapter spans to their immutable baseline.
+    The frozen WA-07b adapter digests stay authoritative. Already restored
+    adapter bytes need no second unwrap; every other byte sequence must reverse
+    through the full 59i span certificate before the original WA-07b checks.
+    This function cannot authorize pass production or test sources.
     """
-    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
-    if not (helper.exists() or helper.is_symlink()):
+    entry = next((entry for entry in load_contract(root)["checker_adapters"]
+                  if entry["path"] == path), None)
+    if entry is None or digest(source) == entry["after_sha256"]:
         return source
-    require(helper.is_file() and not helper.is_symlink(), "missing regular 60g reviewer")
-    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
-    require(spec is not None and spec.loader is not None, "cannot import 60g reviewer")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.restore_60g_source(root, path, source)
+    checker = root / "morphhdl/scripts/check-increment-59i-source-review.py"
+    contract = root / "morphhdl/contracts/increment-59i-source-review.json"
+    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):
+        return source  # The unchanged WA-07b digest check must reject it.
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink(), "missing regular 59i successor review")
+    spec = importlib.util.spec_from_file_location("wa07b_join_source_review", checker)
+    require(spec is not None and spec.loader is not None, "cannot load 59i successor review")
+    join = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(join)
+    return join.restore_source(root, path, source.decode()).encode()
 
 
 def restore_adapter(root: Path, path: str, source: str) -> str:
@@ -137,7 +144,8 @@ def restore_adapter(root: Path, path: str, source: str) -> str:
     source = restore_rollout(root, path, source)
     value = load_contract(root)
     entry = next(x for x in value["checker_adapters"] if x["path"] == path)
-    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), source.encode()).decode()
+    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path),
+                         joined_adapter_source(root, path, source.encode())).decode()
 
 
 def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str, tuple[str, str]]:
@@ -214,8 +222,8 @@ def verify(root: Path) -> bool:
     for entry in value["checker_adapters"]:
         path = entry["path"]
         current = regular(root, path)
-        restored = restore_rollout(root, path, current.decode()).encode()
-        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), restored)
+        restore_bytes(entry, frozen_source(root.resolve(), BASE, path),
+                      joined_adapter_source(root, path, current))
     # Reject a hidden index change even when the visible bytes were restored.
     dirty = git(root, "diff", "--cached", "--name-only", "HEAD", "--", *ADAPTER_PATHS, CONTRACT)
     require(not dirty.strip(), "staged compatibility adapter or manifest")

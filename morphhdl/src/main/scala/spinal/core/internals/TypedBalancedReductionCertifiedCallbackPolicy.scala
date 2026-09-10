@@ -22,6 +22,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
 
   private sealed trait Value
   private final case class Hardware(writable: Boolean) extends Value
+  private final case class AssignmentTarget(value: Hardware) extends Value
   private case object Configuration extends Value
   private case object Count extends Value
   private case object Integer extends Value
@@ -43,7 +44,15 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
   private val unary = Set("unary_$tilde", "unary_$bang", "unary_$minus", "asBits", "asUInt", "asSInt",
     "asBool", "msb", "lsb", "xorR", "orR", "andR")
 
-  def requireSupportedOperator(callback: AnyRef): CaptureSchema = {
+  def requireSupportedOperator(callback: AnyRef): CaptureSchema = check(callback, composite = false)
+
+  /** Use the same effect/capture authority for composite operators. Recursive
+    * runtime classes and clone constructors are audited before any callback.
+    * Register bridges retain their separate admission and native graph proof.
+    */
+  def requireSupportedCompositeOperator(callback: AnyRef): CaptureSchema = check(callback, composite = true)
+
+  private def check(callback: AnyRef, composite: Boolean): CaptureSchema = {
     if (callback == null) fail("callback must be present")
     val cls = callback.getClass
     if (!cls.isSynthetic || !Modifier.isFinal(cls.getModifiers) ||
@@ -70,7 +79,8 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
       Vector.tabulate(value.getCapturedArgCount)(index => value.getCapturedArg(index).asInstanceOf[AnyRef])
     val captured = captures(lambda)
     val schema = TypedBalancedReductionCaptureSchema(callback, captured, () => captures(serialized()))
-    val inspector = new Inspector(cls.getClassLoader, lambda.getImplClass)
+    if (composite) TypedBalancedReductionCallbackPolicy.requireSupportedValues(schema.hardwareInputs)
+    val inspector = new Inspector(cls.getClassLoader, lambda.getImplClass, composite)
     inspector.requireCallSite(lambda)
     val arguments = captured.map {
       case _: ElabInt => Configuration
@@ -80,12 +90,16 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
     inspector.audit(lambda.getImplClass, lambda.getImplMethodName, lambda.getImplMethodSignature,
       arguments, None, 0) match {
       case _: Hardware =>
-      case _ => fail("operator must return a native scalar value")
+      case _ => fail("operator must return native hardware")
     }
     schema
   }
 
-  private final class Inspector(loader: ClassLoader, root: String) {
+  private final class Inspector(loader: ClassLoader, root: String, composite: Boolean) {
+    private val composites = if (composite) Some(new TypedBalancedReductionCompositeCallbackPolicy(loader)) else None
+    private def dataName(name: String): Boolean = data(name) || composites.exists(_.dataName(name))
+    private def nativeModule(name: String): Boolean = nativeModules(name) ||
+      (composite && name == "spinal/core/cloneOf$")
     private val classes = mutable.Map.empty[String, ClassNode]
     private val active = mutable.Set.empty[(String, String, String)]
     private val certifiedModules = mutable.Set.empty[String]
@@ -247,7 +261,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
             case _ => fail("unsupported host literal")
           }
           case value: TypeInsnNode if value.getOpcode == Opcodes.CHECKCAST =>
-            if (!(data(value.desc) || Set("java/lang/Object", "spinal/core/ElabInt", "spinal/core/ParameterizedBitCount",
+            if (!(dataName(value.desc) || (composite && value.desc == "spinal/core/DataPrimitives") || Set("java/lang/Object", "spinal/core/ElabInt", "spinal/core/ParameterizedBitCount",
                 "spinal/core/BitCount")(value.desc))) fail("unsupported callback cast")
           case value: TypeInsnNode if value.getOpcode == Opcodes.NEW && value.desc == "spinal/idslplugin/Location" =>
             push(Location)
@@ -255,7 +269,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
             if (value.getOpcode != Opcodes.GETSTATIC) fail("host fields and external mutation are forbidden")
             if (value.owner == "scala/runtime/BoxedUnit" && value.name == "UNIT") push(UnitValue)
             else if (value.name == "MODULE$" && value.desc == "L" + value.owner + ";") {
-              if (!nativeModules(value.owner)) requirePureModule(value.owner)
+              if (!nativeModule(value.owner)) requirePureModule(value.owner)
               push(Module(value.owner))
             } else fail("unknown host field read")
           case value: InvokeDynamicInsnNode =>
@@ -287,16 +301,50 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
       val name = call.name
       val argumentTypes = Type.getArgumentTypes(call.desc).toVector.map(_.getDescriptor)
       val resultType = Type.getReturnType(call.desc).getDescriptor
-      def dataType(descriptor: String): Boolean = data.exists(name => descriptor == "L" + name + ";")
+      def dataType(descriptor: String): Boolean = descriptor.startsWith("L") && descriptor.endsWith(";") &&
+        dataName(descriptor.substring(1, descriptor.length - 1))
       def erasedDataType(descriptor: String): Boolean = dataType(descriptor) || descriptor == "Ljava/lang/Object;"
       def exact(descriptor: String): Boolean = call.desc == descriptor
       def hardware(value: Value): Boolean = value.isInstanceOf[Hardware]
       def integral(value: Value): Boolean = value == Integer || value == Configuration || value == Count
+      if (composite) {
+        // Accessors and static Vec indices preserve, never manufacture, write
+        // permission. A captured/operand record's fields remain read-only.
+        if (receiver.exists(hardware) && composites.exists(_.dataAccessor(call))) return receiver.get
+        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == "spinal/core/Vec" &&
+            name == "apply" && exact("(I)Lspinal/core/Data;") && args == Vector(Integer) &&
+            receiver.exists(hardware)) return receiver.get
+        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == "spinal/core/cloneOf$" &&
+            receiver.contains(Module(call.owner)) && name == "apply" &&
+            exact("(Lspinal/core/Data;)Lspinal/core/Data;") && args.size == 1 && args.forall(hardware))
+          return Hardware(writable = true)
+        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == "spinal/core/package$" &&
+            receiver.contains(Module(call.owner)) && name == "DataPimped" &&
+            exact("(Lspinal/core/Data;)Lspinal/core/DataPimper;") && args.size == 1 && args.forall(hardware))
+          return AssignmentTarget(args.head.asInstanceOf[Hardware])
+        if (name == "$colon$eq" && exact("(Lspinal/core/Data;Lspinal/idslplugin/Location;)V") &&
+            args.size == 2 && hardware(args.head) && args(1) == Location) {
+          if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == "spinal/core/DataPimper" &&
+              receiver.exists(_.isInstanceOf[AssignmentTarget])) {
+            if (!receiver.contains(AssignmentTarget(Hardware(writable = true))))
+              fail("write to callback argument or captured hardware is forbidden")
+            return UnitValue
+          }
+          if (receiver.exists(hardware) && composites.exists(_.nativeCall(call, bridge = false))) {
+            if (!receiver.contains(Hardware(writable = true)))
+              fail("write to callback argument or captured hardware is forbidden")
+            return UnitValue
+          }
+        }
+      }
       if (call.getOpcode == Opcodes.INVOKEVIRTUAL && data(call.owner) && receiver.exists(hardware)) {
         if (binary(name) && args.size == 1 && args.forall(hardware) &&
             argumentTypes.forall(erasedDataType) && erasedDataType(resultType)) return Hardware(writable = true)
         if (unary(name) && args.isEmpty && dataType(resultType))
-          return Hardware(writable = !Set("msb", "lsb")(name))
+          // Native self-casts can return the original object. They must not
+          // launder a read-only captured/operand leaf into a fresh write target.
+          return Hardware(writable = !Set("msb", "lsb")(name) &&
+            !(composite && Set("asBits", "asUInt", "asSInt", "asBool")(name)))
         if (name == "resize" && args.size == 1 && args.forall(integral) && dataType(resultType) &&
             Set("I", "Lspinal/core/ElabInt;", "Lspinal/core/BitCount;")(argumentTypes.head))
           return Hardware(writable = true)
@@ -369,7 +417,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
         return audit(call.owner, name, call.desc, args, None, depth + 1)
       }
       receiver match {
-        case Some(Module(owner)) if owner == call.owner && !nativeModules(owner) =>
+        case Some(Module(owner)) if owner == call.owner && !nativeModule(owner) =>
           requirePureModule(owner)
           return audit(owner, name, call.desc, args, receiver, depth + 1)
         case _ =>

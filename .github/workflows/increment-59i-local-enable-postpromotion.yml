@@ -1,0 +1,129 @@
+name: Increment 59i committed local-enable post-promotion gate
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-postpromotion.yml'
+      - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala'
+      - 'morphhdl/contracts/increment-59i-*local*enable*'
+      - 'morphhdl/scripts/*59i*local*enable*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-committed-local-enable-postpromotion
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Committed source and Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Require committed promoted source
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-postpromotion/$SCALA_VERSION"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/head.txt"
+          test -z "$(git status --porcelain)"
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'BRIDGE-CONTROL-REGISTER' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'callback.assignments ++ callback.statements' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          grep -q 'external and registered peer controls remain rejected' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          grep -q 'RegNextWhen(value.unsigned, value.valid)' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          ! grep -q 'BalancedLocalEnableOps' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+
+          mapfile -t checkers < <(find morphhdl/scripts -maxdepth 1 -type f \
+            \( -name '*59i*local*enable*review*.py' -o -name '*59i*local*enable*source*.py' \) | sort)
+          test "${#checkers[@]}" -ge 1
+          printf '%s\n' "${checkers[@]}" > "$out/checkers.txt"
+          for checker in "${checkers[@]}"; do
+            python3 "$checker"
+            if grep -q -- '--self-test' "$checker"; then
+              python3 "$checker" --self-test
+            fi
+          done 2>&1 | tee "$out/source-review.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-postpromotion/$SCALA_VERSION"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-postpromotion/$SCALA_VERSION"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" "$@"
+          SH
+
+      - name: Compile and run local-enable plus widening regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-postpromotion/$SCALA_VERSION"
+          status=0
+          bash "$out/sbt.sh" 'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$out/tests.log" 2>&1 || status=$?
+          tail -n 500 "$out/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          sha256sum \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala \
+            > "$out/source-sha256.txt"
+
+      - name: Upload exact committed-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-local-enable-postpromotion-${{ matrix.scala }}-${{ github.sha }}
+          path: target/increment-59i-local-enable-postpromotion/${{ matrix.scala }}
+          if-no-files-found: error
+          retention-days: 14

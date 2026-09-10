@@ -1,0 +1,102 @@
+name: Increment 59i promote reviewed composite widening
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths:
+      - '.github/workflows/increment-59i-composite-widening-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-composite-widening-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      BRANCH: agent/increment-59i-combined-reduction-closure
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+      - name: Promote exact patches and compose successor source review
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-application"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          test "$(git merge-base HEAD 8569835f481ad66c96bfc7dc28d4ce4ce77ae4e4)" = 8569835f481ad66c96bfc7dc28d4ce4ce77ae4e4
+          python3 morphhdl/repair-59i-composite-widening/promote-reviewed.py | tee "$output/promotion.log"
+          git diff --check
+          cat > "$output/expected-files.txt" <<'EOF'
+          morphhdl/contracts/increment-59i-widening-review.json
+          morphhdl/scripts/check-increment-59i-source-review.py
+          morphhdl/scripts/check-increment-59i-widening-source-review.py
+          morphhdl/scripts/test-increment-59i-widening-source-review.py
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeWidthSchedule.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
+          EOF
+          git add -f morphhdl/contracts/increment-59i-widening-review.json
+          git add $(tail -n +2 "$output/expected-files.txt")
+          git diff --cached --name-only | sort -u > "$output/actual-files.txt"
+          diff -u "$output/expected-files.txt" "$output/actual-files.txt"
+          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py | tee "$output/review-tests.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py | tee "$output/composed-review.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native-source.log"
+          sha256sum $(cat "$output/expected-files.txt") > "$output/source-sha256.txt"
+      - name: Re-run the exact focused Scala 2.13 suite on promoted source
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-application"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" '++2.13.12' 'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionWidthTransferTests' \
+            > "$output/tests.log" 2>&1 || { tail -n 240 "$output/tests.log"; exit 1; }
+          grep -q 'All tests passed' "$output/tests.log"
+      - name: Commit and push the exact reviewed production slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-application"
+          expected=$(cat "$output/staging-head.txt")
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: promote generic composite widening certificates with exact review'
+          git rev-parse HEAD > "$output/published-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/published-tree.txt"
+          git push origin "HEAD:refs/heads/$BRANCH"
+      - name: Upload exact application and review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-widening-application
+          path: target/increment-59i-widening-application
+          if-no-files-found: error
+          retention-days: 14

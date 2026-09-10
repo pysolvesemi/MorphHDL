@@ -1,0 +1,129 @@
+name: Increment 59i exact rollout composition
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-rollout-composition.yml'
+      - 'morphhdl/repair-59i-rollout-composition/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-rollout-composition
+  cancel-in-progress: false
+
+jobs:
+  compose:
+    name: Bind feature and target views to one merged tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      FEATURE_PARENT: ee2e7f2613e54f23158ce1eacae6028409a91ed6
+      TARGET_PARENT: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Verify exact two-parent ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          mkdir -p "$out"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor "$FEATURE_PARENT" HEAD
+          git merge-base --is-ancestor "$TARGET_PARENT" HEAD
+          git rev-parse HEAD > "$out/staging-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/staging-tree.txt"
+
+      - name: Prepare and commit exact bidirectional review
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          python3 morphhdl/repair-59i-rollout-composition/bootstrap.py | tee "$out/application.log"
+          python3 -m py_compile \
+            morphhdl/repair-59i-rollout-composition/apply.py \
+            morphhdl/scripts/check-increment-59i-rollout-composition.py \
+            morphhdl/scripts/test-increment-59i-rollout-composition.py
+          git diff --check
+          cat > "$out/expected-files.txt" <<'EOF'
+          docs/morphhdl/increment-59i-rollout-composition.md
+          morphhdl/contracts/increment-59i-rollout-composition.json
+          morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py
+          morphhdl/repair-59i-composite-local-enable/promote-reviewed.py
+          morphhdl/repair-59i-rollout-composition/apply.py
+          morphhdl/scripts/check-increment-59i-rollout-composition.py
+          morphhdl/scripts/check-increment-59i-source-review.py
+          morphhdl/scripts/check-increment-59i-widening-source-review.py
+          morphhdl/scripts/check-increment-60g-source-scope.py
+          morphhdl/scripts/test-increment-59i-rollout-composition.py
+          EOF
+          git add -f $(cat "$out/expected-files.txt")
+          git diff --cached --name-only | sort -u > "$out/actual-files.txt"
+          sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: bind exact feature and signed-rollout source views'
+          git rev-parse HEAD > "$out/composition-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/composition-tree.txt"
+          sha256sum $(cat "$out/expected-files.txt") > "$out/composition-sha256.txt"
+
+      - name: Run exact composition and inherited source audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          {
+            python3 morphhdl/scripts/check-increment-59i-rollout-composition.py --self-test
+            python3 morphhdl/scripts/test-increment-59i-rollout-composition.py
+            python3 morphhdl/scripts/check-increment-59i-widening-source-review.py
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/test-increment-59i-review-composition.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$out/source-audits.log"
+
+      - name: Publish only from unchanged draft head
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          expected=$(cat "$out/staging-head.txt")
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git rev-parse HEAD > "$out/pushed-head.txt"
+
+      - name: Upload exact composition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-rollout-composition
+          path: target/increment-59i-rollout-composition
+          if-no-files-found: error
+          retention-days: 21

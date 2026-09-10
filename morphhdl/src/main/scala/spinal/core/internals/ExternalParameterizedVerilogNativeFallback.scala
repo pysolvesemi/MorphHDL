@@ -621,36 +621,45 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     if (!declarationLine) return line
 
     widthsByName.foldLeft(line) { case (current, (name, range)) =>
-      val quotedName = Pattern.quote(name)
-      val declarationEnd = "(?=\\s*(?:/\\*.*?\\*/\\s*)*(?:[,;]|$))"
-      val packedPattern =
-        ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")" + declarationEnd).r
-      var replaced = false
-      val withRange = packedPattern.replaceAllIn(
-        current,
-        matched => {
-          if (replaced) matched.matched
-          else {
-            replaced = true
-            range + matched.group(2) + matched.group(3)
-          }
-        }
-      )
-      if (replaced) withRange
+      // A literal-name occurrence is necessary for either existing exact
+      // declaration pattern to match. Avoid compiling/running both patterns
+      // for every unrelated leaf in large combined aggregate/reduction graphs.
+      // Check the current text, not the initial line: an earlier replacement
+      // may introduce text used by a later entry. This is only a negative
+      // filter; the original declaration parser remains the sole authority.
+      if (!current.contains(name)) current
       else {
-        val scalarPattern =
-          ("(\\s+)(" + quotedName + ")" + declarationEnd).r
-        var inserted = false
-        scalarPattern.replaceAllIn(
-          withRange,
+        val quotedName = Pattern.quote(name)
+        val declarationEnd = "(?=\\s*(?:/\\*.*?\\*/\\s*)*(?:[,;]|$))"
+        val packedPattern =
+          ("(\\[[^\\]]+\\])(\\s+)(" + quotedName + ")" + declarationEnd).r
+        var replaced = false
+        val withRange = packedPattern.replaceAllIn(
+          current,
           matched => {
-            if (inserted) matched.matched
+            if (replaced) matched.matched
             else {
-              inserted = true
-              matched.group(1) + range + " " + matched.group(2)
+              replaced = true
+              range + matched.group(2) + matched.group(3)
             }
           }
         )
+        if (replaced) withRange
+        else {
+          val scalarPattern =
+            ("(\\s+)(" + quotedName + ")" + declarationEnd).r
+          var inserted = false
+          scalarPattern.replaceAllIn(
+            withRange,
+            matched => {
+              if (inserted) matched.matched
+              else {
+                inserted = true
+                matched.group(1) + range + " " + matched.group(2)
+              }
+            }
+          )
+        }
       }
     }
   }

@@ -222,7 +222,8 @@ private[internals] object ParameterizedVerilogVecs {
       net: String,
       comma: Boolean,
       declaratorStart: Int,
-      declaratorEnd: Int
+      declaratorEnd: Int,
+      signed: Boolean
   )
 
   private final case class CaseBlock(
@@ -1515,6 +1516,10 @@ private[internals] object ParameterizedVerilogVecs {
       .split("\n", -1)
       .toVector
 
+    // Native declarations are the signedness authority for exact reconstructed
+    // scalar reads. Packed carriers stay unsigned; a compatibility profile
+    // must not silently make a legacy unsigned SInt alias signed.
+    val nativeReadSignedness = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val layoutWiring = ArrayBuffer.empty[String]
     val packedReadBridges = new IdentityHashMap[Vec[_], java.lang.Boolean]()
     val publishedLayoutNames = plans.flatMap(plan =>
@@ -1844,7 +1849,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
 
     plans.filter(_.projection.isEmpty).foreach { plan =>
-      lines = collapseDeclaration(lines, plan)
+      lines = collapseDeclaration(lines, plan, nativeReadSignedness)
     }
 
     // Each reconstructed signed read retains the original exact native scalar
@@ -1939,13 +1944,9 @@ private[internals] object ParameterizedVerilogVecs {
             fail("SPINAL-PARAMETERIZED-VERILOG-VEC-NESTED-STATIC-INDEX-INVALID",
               s"static nested Vec leaf '${leaf.name}' is not active over every admitted inner dimension", plan.sourceLocation)
           if (isSignedLeaf(leaf.shape)) {
-            if (!morphhdl.MorphSignedCasts.isEnabled(pc.config) && plan.layout.isEmpty) {
-              fail(
-                "SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED",
-                s"constant indexed SInt leaf '${leaf.name}' of Vec '${plan.name}' requires signed boundary publication",
-                plan.sourceLocation
-              )
-            }
+            if (!nativeReadSignedness.containsKey(leaf.value))
+              fail("SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-DECLARATION-MISSING",
+                "constant signed read lost its exact native declaration evidence", plan.sourceLocation)
             // A residual write cannot drive a read reconstruction alias. All
             // aggregate writers must already have exact claimed lineage.
             val drivers = liveAssignments.keySet().iterator()
@@ -1970,8 +1971,13 @@ private[internals] object ParameterizedVerilogVecs {
             if (end < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-MODULE-BOUNDARY-MISSING",
               "signed leaf reconstruction requires one native module boundary", plan.sourceLocation)
             val width = render(leaf.shape.width)
+            // Retain the already-qualified field-layout alias contract. For
+            // legacy packed transport, replay the native declaration's actual
+            // qualifier instead of assuming that an SInt must emit signed.
+            val qualifier = if (plan.layout.nonEmpty || nativeReadSignedness.get(leaf.value).booleanValue())
+              " signed" else ""
             lines = lines.patch(end, Vector(
-              s"  wire signed [($width)-1:0] ${leaf.name};",
+              s"  wire$qualifier [($width)-1:0] ${leaf.name};",
               s"  assign ${leaf.name} = ${plan.constantSlice(leaf.elementIndex, leaf.leafIndex)};"
             ), 0)
             reconstructedSignedReads.put(leaf.value, java.lang.Boolean.TRUE)
@@ -3095,6 +3101,19 @@ private[internals] object ParameterizedVerilogVecs {
   private def compactExpression(value: String): String =
     value.filterNot(_.isWhitespace)
 
+  /** Syntactic restriction only. It cannot grant publication permission: the
+    * caller must separately prove the exact result/assignment/lexical-owner
+    * identities, a full blocking driver and its unchanged source expression.
+    */
+  private[internals] def isolatedRecursiveResultProcess(lines: Vector[String],
+      start: Int, end: Int, assignmentLine: Int): Boolean =
+    start >= 0 && start < assignmentLine && assignmentLine < end && end < lines.size &&
+      lines(start).trim == "always @(*) begin" && lines(end).trim == "end" &&
+      (start + 1 until end).filter { index =>
+        val text = lines(index).trim
+        text.nonEmpty && !text.startsWith("//")
+      }.toVector == Vector(assignmentLine)
+
   /** A reduction result deliberately retains scalar native anchors until the
     * reduction emitter has reconstructed their logical offsets. Consume only
     * exact full leaf-to-leaf assignments when it crosses into a public Vec.
@@ -3120,6 +3139,9 @@ private[internals] object ParameterizedVerilogVecs {
     if (sources.size != target.leaves.size || operation.assignments.size != sources.size)
       fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH",
         "certified recursive result needs one exact assignment per carrier leaf", operation.sourceLocation)
+    lazy val scopedResult = TypedBalancedReductionBackend.ownsPublishedRecursiveAssignment(
+      operation.source, operation.assignments)
+    lazy val nativeProcesses = alwaysBlocks(original)
     val replacements = target.leaves.zip(sources).map { case (leaf, source) =>
       val assignment = operation.assignments.filter { a =>
         (a.target eq leaf.value) && (a.source eq source)
@@ -3128,23 +3150,51 @@ private[internals] object ParameterizedVerilogVecs {
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH",
           "certified recursive result assignment changed a leaf or introduced a partial target", operation.sourceLocation)
       val name = requiredBaseName(source, "certified recursive result leaf", operation.sourceLocation)
-      val parsed = findAssignment(original, leaf.name, None,
+      val parsed = findAssignment(original, leaf.name, Some(name),
         "certified recursive result assignment", operation.sourceLocation)
-      if (!parsed.continuous || parsed.operator != "=" || parsed.rhs.trim != name)
+      if (parsed.operator != "=" || parsed.rhs.trim != name)
         fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH",
-          "certified recursive result requires an exact direct continuous leaf driver", operation.sourceLocation)
+          "certified recursive result requires an exact direct leaf driver", operation.sourceLocation)
+      val process = if (parsed.continuous) None else {
+        if (!scopedResult)
+          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-OWNER-MISMATCH",
+            "procedural recursive result requires its exact published structural owner", operation.sourceLocation)
+        val owners = nativeProcesses.filter(block =>
+          block.start < parsed.lineIndex && parsed.lineIndex < block.end)
+        val valid = owners.size == 1 && isolatedRecursiveResultProcess(original,
+          owners.head.start, owners.head.end, parsed.lineIndex)
+        if (!valid)
+          fail("SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-PROCESS-MISMATCH",
+            "scoped recursive result requires one isolated native combinational assignment", operation.sourceLocation)
+        Some(owners.head)
+      }
       val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)
       val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) "1"
         else s"(${leaf.elementIndex} < (${render(target.shape.depth)}))"
       val condition = Vector(outer, nested).filterNot(_ == "1").mkString(" && ")
-      val assign = s"assign ${target.constantSlice(leaf.elementIndex, leaf.leafIndex)} = $name;"
-      val body = if (condition.isEmpty) assign else
-        s"generate if ($condition) begin\n    $assign\n  end endgenerate"
-      parsed.lineIndex -> (parsed.indentation + body)
+      val targetSlice = target.constantSlice(leaf.elementIndex, leaf.leafIndex)
+      process match {
+        case None =>
+          val assign = s"assign $targetSlice = $name;"
+          val body = if (condition.isEmpty) assign else
+            s"generate if ($condition) begin\n    $assign\n  end endgenerate"
+          Vector(parsed.lineIndex -> (parsed.indentation + body))
+        case Some(block) =>
+          val assignmentLine = parsed.lineIndex -> s"${parsed.indentation}$targetSlice = $name;"
+          if (condition.isEmpty) Vector(assignmentLine)
+          else {
+            // The exact result owner has already been emitted beneath a
+            // generate region. Add only a local generate-if, never another
+            // generate/endgenerate wrapper or a runtime guard on the datapath.
+            val indentation = original(block.start).takeWhile(_.isWhitespace)
+            Vector(block.start -> (s"${indentation}if ($condition) begin\n" + original(block.start)),
+              assignmentLine, block.end -> (original(block.end) + "\n" + indentation + "end"))
+          }
+      }
     }
     claimAssignmentEvidence(operation.assignments, live, claimed,
       "certified recursive result assignment", operation.sourceLocation)
-    replacements.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }
+    replacements.flatten.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }
   }
 
   private final case class OwnedIndexedWrite(owner: VecPlan, operation: ParameterizedVecOperation)
@@ -6307,10 +6357,13 @@ private[internals] object ParameterizedVerilogVecs {
 
   private def collapseDeclaration(
       original: Vector[String],
-      plan: VecPlan
+      plan: VecPlan,
+      nativeReadSignedness: IdentityHashMap[BaseType, java.lang.Boolean]
   ): Vector[String] = {
     val declarations = plan.leaves.map { leaf =>
-      parseDeclaration(original, leaf.name, plan.sourceLocation)
+      val declaration = parseDeclaration(original, leaf.name, plan.sourceLocation)
+      nativeReadSignedness.put(leaf.value, java.lang.Boolean.valueOf(declaration.signed))
+      declaration
     }
     val indexes = declarations.map(_.lineIndex)
     if (indexes.distinct.size != indexes.size) {
@@ -6401,14 +6454,18 @@ private[internals] object ParameterizedVerilogVecs {
   ): ParsedDeclaration = {
     val port =
       ("^([ \\t]*)(.*?)(input|output|inout)\\s+(wire|reg|logic)" +
-        "\\s*(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "\\s*(?:(signed)\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*(,?)\\s*(?://.*)?$").r
     val signal =
       ("^([ \\t]*)(.*?)(wire|reg|logic)\\s*" +
-        "(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
+        "(?:(signed)\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*;\\s*(?://.*)?$").r
     val matches = lines.zipWithIndex.flatMap { case (line, index) =>
-      port
+      // Every match contains this exact quoted identifier. Reject unrelated
+      // lines before running the full parser; keep its syntax and uniqueness
+      // checks unchanged for all potentially matching declarations.
+      if (!line.contains(name)) None
+      else port
         .findFirstMatchIn(line)
         .map { value =>
           ParsedDeclaration(
@@ -6417,9 +6474,10 @@ private[internals] object ParameterizedVerilogVecs {
             value.group(2),
             Some(value.group(3)),
             value.group(4),
-            value.group(6) == ",",
-            value.start(5),
-            value.end(5)
+            value.group(7) == ",",
+            value.start(6),
+            value.end(6),
+            value.group(5) != null
           )
         }
         .orElse {
@@ -6431,8 +6489,9 @@ private[internals] object ParameterizedVerilogVecs {
               None,
               value.group(3),
               comma = false,
-              value.start(4),
-              value.end(4)
+              value.start(5),
+              value.end(5),
+              value.group(4) != null
             )
           }
         }

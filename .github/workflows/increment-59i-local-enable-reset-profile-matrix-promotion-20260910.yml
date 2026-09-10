@@ -1,0 +1,331 @@
+name: Increment 59i local-enable reset profile matrix promotion
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-reset-profile-matrix-promotion-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-local-enable-reset-profile-matrix-promotion
+  cancel-in-progress: false
+
+jobs:
+  qualify-and-publish:
+    name: Qualify eight reset profiles and publish exact test
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Guard exact branch head and stage focused matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          mkdir -p "$out"
+          expected=$(git rev-parse HEAD)
+          remote=$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')
+          test "$remote" = "$expected"
+          test -z "$(git status --porcelain)"
+          printf '%s\n' "$expected" > "$out/expected-head.txt"
+
+          test -f morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          test -f morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'callback.assignments ++ callback.statements' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+
+          test_path=morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeResetProfileMatrixTests.scala
+          test ! -e "$test_path"
+          cat > "$test_path" <<'SCALA'
+          package spinal.core.internals
+
+          import java.nio.charset.StandardCharsets
+          import java.nio.file.{Files, Paths}
+          import morphhdl.MorphVerilog
+          import morphhdl.frontend.HdlInt
+          import org.scalatest.funsuite.AnyFunSuite
+          import spinal.core._
+          import spinal.lib._
+
+          final case class BalancedLocalEnableResetMatrixRecord(width: HdlInt) extends Bundle {
+            val unsigned = UInt(width bits)
+            val signed = SInt(width bits)
+            val flags = Bits(width bits)
+            val valid = Bool()
+          }
+
+          private final class BalancedLocalEnableResetMatrixDut(
+              width: HdlInt,
+              count: HdlInt,
+              moduleName: String,
+              falling: Boolean,
+              asynchronous: Boolean,
+              activeLow: Boolean
+          ) extends Component {
+            setDefinitionName(moduleName)
+            val clk = in(Bool()).setName("clk")
+            val reset = in(Bool()).setName("reset")
+            val values = in(Vec(BalancedLocalEnableResetMatrixRecord(width), count)).setName("values")
+            val result = out(BalancedLocalEnableResetMatrixRecord(width)).setName("result")
+
+            val domain = ClockDomain(
+              clock = clk,
+              reset = reset,
+              config = ClockDomainConfig(
+                clockEdge = if (falling) FALLING else RISING,
+                resetKind = if (asynchronous) ASYNC else SYNC,
+                resetActiveLevel = if (activeLow) LOW else HIGH
+              )
+            )
+
+            val area = new ClockingArea(domain) {
+              val reduced = values.reduceBalancedTree(
+                (a: BalancedLocalEnableResetMatrixRecord, b: BalancedLocalEnableResetMatrixRecord) => {
+                  val r = cloneOf(a)
+                  r.unsigned := a.unsigned + b.unsigned
+                  r.signed := a.signed + b.signed
+                  r.flags := a.flags ^ b.flags
+                  r.valid := a.valid | b.valid
+                  r
+                },
+                (value: BalancedLocalEnableResetMatrixRecord, _: Int) => {
+                  val r = cloneOf(value)
+                  r.unsigned := RegNextWhen(value.unsigned, value.valid) init U(3)
+                  r.signed := RegNextWhen(value.signed, value.flags(0)) init S(-2)
+                  r.flags := RegNextWhen(value.flags, value.signed.msb) init B(1)
+                  r.valid := RegNextWhen(
+                    value.valid,
+                    value.unsigned(0) ^ value.flags.msb
+                  ) init False
+                  r
+                }
+              )
+              result := reduced
+            }
+          }
+
+          class TypedBalancedReductionCompositeResetProfileMatrixTests extends AnyFunSuite {
+            private final case class Profile(
+                name: String,
+                falling: Boolean,
+                asynchronous: Boolean,
+                activeLow: Boolean
+            )
+
+            private val profiles = for {
+              falling <- Vector(false, true)
+              asynchronous <- Vector(false, true)
+              activeLow <- Vector(false, true)
+            } yield Profile(
+              (if (falling) "falling" else "rising") + "_" +
+                (if (asynchronous) "async" else "sync") + "_" +
+                (if (activeLow) "low" else "high"),
+              falling,
+              asynchronous,
+              activeLow
+            )
+
+            test("composite local enables retain all supported edge reset and polarity profiles") {
+              assert(profiles.size == 8)
+              for (profile <- profiles) {
+                val moduleName = "BalancedLocalEnableResetMatrix_" + profile.name
+                val directory = Paths.get(
+                  "target",
+                  "increment-59i-local-enable-reset-matrix",
+                  sys.props.getOrElse("scala.version", "unknown"),
+                  profile.name
+                )
+                Files.createDirectories(directory)
+                val file = moduleName + ".v"
+                val config = SpinalConfig(
+                  targetDirectory = directory.toString,
+                  bitVectorWidthMax = 4096,
+                  headerWithDate = false,
+                  headerWithRepoHash = false
+                )
+                config.netlistFileName = file
+                MorphVerilog(config) {
+                  new BalancedLocalEnableResetMatrixDut(
+                    HdlInt.param("WIDTH", 5, 3, 16),
+                    HdlInt.param("COUNT", 4, 1, 7),
+                    moduleName,
+                    profile.falling,
+                    profile.asynchronous,
+                    profile.activeLow
+                  )
+                }
+                val path = directory.resolve(file)
+                assert(Files.isRegularFile(path), path.toString)
+                val rtl = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+                val compact = rtl.replaceAll("\\s+", " ")
+                assert(rtl.contains("parameter") && rtl.contains("WIDTH") && rtl.contains("COUNT"), rtl)
+                assert(rtl.contains("generate") && rtl.contains("always"), rtl)
+                assert(compact.contains((if (profile.falling) "negedge" else "posedge") + " clk"), rtl)
+                if (profile.asynchronous) {
+                  assert(compact.contains((if (profile.activeLow) "negedge" else "posedge") + " reset"), rtl)
+                }
+              }
+            }
+          }
+          SCALA
+          sed -i 's/^          //' "$test_path"
+          git diff --check -- "$test_path"
+          sha256sum "$test_path" > "$out/staged-test-sha256.txt"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          scala="$1"; shift
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$scala" "$@"
+          SH
+          chmod +x "$out/sbt.sh"
+
+      - name: Qualify Scala 2.12.18
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          status=0
+          "$out/sbt.sh" 2.12.18 \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeResetProfileMatrixTests spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$out/scala-2.12.18.log" 2>&1 || status=$?
+          tail -n 500 "$out/scala-2.12.18.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/scala-2.12.18.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/scala-2.12.18.log"
+          src=target/increment-59i-local-enable-reset-matrix/2.12.18
+          test "$(find "$src" -type f -name '*.v' | wc -l)" -eq 8
+          mkdir -p "$out/rtl-2.12.18"
+          find "$src" -type f -name '*.v' -exec cp {} "$out/rtl-2.12.18/" \;
+          for rtl in "$out/rtl-2.12.18"/*.v; do
+            iverilog -g2001 -tnull "$rtl"
+            yosys -q -p "read_verilog -sv $rtl; hierarchy -auto-top; proc; check"
+          done
+          sha256sum "$out/rtl-2.12.18"/*.v | sed 's#rtl-2.12.18/#rtl/#' > "$out/rtl-2.12.18.sha256"
+
+      - name: Qualify Scala 2.13.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          rm -rf target/increment-59i-local-enable-reset-matrix/2.13.12
+          status=0
+          "$out/sbt.sh" 2.13.12 \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeResetProfileMatrixTests spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$out/scala-2.13.12.log" 2>&1 || status=$?
+          tail -n 500 "$out/scala-2.13.12.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/scala-2.13.12.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/scala-2.13.12.log"
+          src=target/increment-59i-local-enable-reset-matrix/2.13.12
+          test "$(find "$src" -type f -name '*.v' | wc -l)" -eq 8
+          mkdir -p "$out/rtl-2.13.12"
+          find "$src" -type f -name '*.v' -exec cp {} "$out/rtl-2.13.12/" \;
+          for rtl in "$out/rtl-2.13.12"/*.v; do
+            iverilog -g2001 -tnull "$rtl"
+            yosys -q -p "read_verilog -sv $rtl; hierarchy -auto-top; proc; check"
+          done
+          sha256sum "$out/rtl-2.13.12"/*.v | sed 's#rtl-2.13.12/#rtl/#' > "$out/rtl-2.13.12.sha256"
+          diff -u "$out/rtl-2.12.18.sha256" "$out/rtl-2.13.12.sha256"
+          diff -ru "$out/rtl-2.12.18" "$out/rtl-2.13.12"
+
+      - name: Run exact source guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/typed-overlay.log"
+          if test -f morphhdl/scripts/check-increment-59i-source-review.py; then
+            python3 morphhdl/scripts/check-increment-59i-source-review.py | tee "$out/increment-59i-source-review.log"
+          fi
+          test -z "$(git status --porcelain | grep -v 'TypedBalancedReductionCompositeResetProfileMatrixTests.scala' || true)"
+
+      - name: Commit and publish the qualified matrix only
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix"
+          expected=$(cat "$out/expected-head.txt")
+          test "$(git rev-parse HEAD)" = "$expected"
+          remote=$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')
+          test "$remote" = "$expected"
+
+          test_path=morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeResetProfileMatrixTests.scala
+          doc=docs/morphhdl/increment-59i-local-enable-reset-profile-matrix.md
+          mkdir -p "$(dirname "$doc")"
+          test_sha=$(sha256sum "$test_path" | awk '{print $1}')
+          rtl_sha=$(sha256sum "$out/rtl-2.12.18.sha256" | awk '{print $1}')
+          cat > "$doc" <<EOF
+          # Increment 59i composite local-enable reset profile matrix
+
+          This qualified slice exercises the native-looking composite bridge with all eight combinations of rising/falling clock edge, synchronous/asynchronous reset and active-high/active-low reset polarity.
+
+          The unchanged callback uses field-local register data with same-composite cross-field enables. It retains symbolic \`WIDTH\` and \`COUNT\`, native initializers, exact field types and the native balanced-tree topology.
+
+          Both Scala 2.12.18 and 2.13.12 generated byte-identical Verilog for all eight profiles. Every file passed strict Icarus Verilog-2001 parsing and Yosys process/check validation.
+
+          Focused test SHA-256: \`$test_sha\`  
+          RTL manifest SHA-256: \`$rtl_sha\`  
+          Qualification parent: \`$expected\`
+
+          This is a finite 59i qualification slice. It does not mark the complete 59i join ready, does not change the roadmap checkbox and does not authorize merging PR #177.
+          EOF
+          sed -i 's/^          //' "$doc"
+          git diff --check -- "$test_path" "$doc"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$test_path" "$doc"
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m '59i: qualify composite local-enable reset profiles'
+          candidate=$(git rev-parse HEAD)
+          printf '%s\n' "$candidate" > "$out/published-head.txt"
+          remote=$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')
+          test "$remote" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+
+      - name: Upload exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-local-enable-reset-matrix-${{ github.sha }}
+          path: target/increment-59i-local-enable-reset-matrix
+          if-no-files-found: error
+          retention-days: 14

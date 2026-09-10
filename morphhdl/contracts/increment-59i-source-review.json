@@ -1,0 +1,1037 @@
+{
+  "schema_version": 2,
+  "base": "d32fcf71fc81662618d72b0ec0a5d8a59c50b4d6",
+  "offset_format": "utf8-bytes",
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "change": "modified",
+      "reason": "Extend immutable static-read wrapper evidence to exact audited composite containment; retain native assignment, source-hook and scalar-only validation behavior.",
+      "baseline_sha256": "189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c",
+      "edits": [
+        {
+          "id": "59i-01-01",
+          "reason": "Extend immutable static-read wrapper evidence to exact audited composite containment; retain native assignment, source-hook and scalar-only validation behavior.",
+          "before_start": 7925,
+          "before_end": 7970,
+          "after_start": 7925,
+          "after_end": 7994,
+          "before": "    leaf: BaseType,\n    previous: Assignable\n",
+          "after": "    private val leaf: BaseType,\n    private val previous: Assignable\n"
+        },
+        {
+          "id": "59i-01-02",
+          "reason": "Extend immutable static-read wrapper evidence to exact audited composite containment; retain native assignment, source-hook and scalar-only validation behavior.",
+          "before_start": 9169,
+          "before_end": 9169,
+          "after_start": 9193,
+          "after_end": 10699,
+          "before": "",
+          "after": "\n  /** Composite-read counterpart. The caller supplies exact containment leaves\n    * only AFTER auditing the runtime Data classes. This wrapper never invokes\n    * flatten, a clone/assignment hook, or an application callback to establish\n    * identity. Every previous link must independently resolve in that snapshot.\n    */\n  private[core] def isCertifiedReadOf(expected: BaseType,\n      auditedLeaves: java.util.IdentityHashMap[Data, Vector[BaseType]]): Boolean = {\n    def inspect(wrapped: ParameterizedVecStaticAccessAssign, remaining: Int): Boolean = {\n      if (remaining == 0 || (wrapped.leaf ne expected) || wrapped.vector == null ||\n          wrapped.vector.getClass != classOf[Vec[_]] || wrapped.elementIndex < 0 ||\n          wrapped.elementIndex >= wrapped.vector.vec.size) return false\n      val element = wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[Data]\n      val leaves = auditedLeaves.get(element)\n      leaves != null && wrapped.elementLeafIndex >= 0 && wrapped.elementLeafIndex < leaves.size &&\n        (leaves(wrapped.elementLeafIndex) eq expected) &&\n        ParameterizedVec.shapeOf(wrapped.vector).exists(shape =>\n          shape.carrierCapacity == wrapped.vector.vec.size && shape.elementLeaves.size == leaves.size) &&\n        (wrapped.previous match {\n          case null => true\n          case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)\n          case _ => false\n        })\n    }\n    auditedLeaves != null && inspect(this, 64)\n  }\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/contracts/increment-55-native-change-review.json",
+      "change": "modified",
+      "reason": "Review only the added composite static-read evidence inside the existing Vec wrapper seam; retain all older native algorithm spans and exact-text anchors.",
+      "baseline_sha256": "fe6263cc6d2941b6c084290b2a2d4187ac5d1f8276a55719b7bf1a6485735a01",
+      "edits": [
+        {
+          "id": "59i-02-01",
+          "reason": "Review only the added composite static-read evidence inside the existing Vec wrapper seam; retain all older native algorithm spans and exact-text anchors.",
+          "before_start": 35416,
+          "before_end": 35514,
+          "after_start": 35416,
+          "after_end": 35591,
+          "before": "        \"Increment 59c: field-preserving Vec publication and exact nested packing/write evidence\"\n",
+          "after": "        \"Increment 59c: field-preserving Vec publication and exact nested packing/write evidence\",\n        \"Increment 59i: exact composite static-read identity qualification\"\n"
+        },
+        {
+          "id": "59i-02-02",
+          "reason": "Review only the added composite static-read evidence inside the existing Vec wrapper seam; retain all older native algorithm spans and exact-text anchors.",
+          "before_start": 35523,
+          "before_end": 36086,
+          "after_start": 35600,
+          "after_end": 36308,
+          "before": "      \"reason\": \"Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.\",\n",
+          "after": "      \"reason\": \"Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.\",\n"
+        },
+        {
+          "id": "59i-02-03",
+          "reason": "Review only the added composite static-read evidence inside the existing Vec wrapper seam; retain all older native algorithm spans and exact-text anchors.",
+          "before_start": 41284,
+          "before_end": 41721,
+          "after_start": 41506,
+          "after_end": 42199,
+          "before": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.\",\n",
+          "after": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.\",\n"
+        },
+        {
+          "id": "59i-02-04",
+          "reason": "Review only the added composite static-read evidence inside the existing Vec wrapper seam; retain all older native algorithm spans and exact-text anchors.",
+          "before_start": 42726,
+          "before_end": 42726,
+          "after_start": 43204,
+          "after_end": 43872,
+          "before": "",
+          "after": "              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"val leaves = auditedLeaves.get(element)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"(leaves(wrapped.elementLeafIndex) eq expected)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"auditedLeaves != null && inspect(this, 64)\",\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/contracts/native-source-preservation.json",
+      "change": "modified",
+      "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+      "baseline_sha256": "52a3cb7e3278be35d218a3e54be94c5aae4067509b7969407e5f947351511e1f",
+      "edits": [
+        {
+          "id": "59i-03-01",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 441,
+          "before_end": 507,
+          "after_start": 441,
+          "after_end": 507,
+          "before": "      \"approved_tree\": \"88c0ac65967c4377626cec7eb0d83536a09e4a6c\"\n",
+          "after": "      \"approved_tree\": \"dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5\"\n"
+        },
+        {
+          "id": "59i-03-02",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 59604,
+          "before_end": 59702,
+          "after_start": 59604,
+          "after_end": 59779,
+          "before": "        \"Increment 59c: field-preserving Vec publication and exact nested packing/write evidence\"\n",
+          "after": "        \"Increment 59c: field-preserving Vec publication and exact nested packing/write evidence\",\n        \"Increment 59i: exact composite static-read identity qualification\"\n"
+        },
+        {
+          "id": "59i-03-03",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 59711,
+          "before_end": 60274,
+          "after_start": 59788,
+          "after_end": 60496,
+          "before": "      \"reason\": \"Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.\",\n",
+          "after": "      \"reason\": \"Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.\",\n"
+        },
+        {
+          "id": "59i-03-04",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 60642,
+          "before_end": 60787,
+          "after_start": 60864,
+          "after_end": 61009,
+          "before": "        \"blob\": \"07d1bca29389bda24a587ea3d145b302fec972df\",\n        \"sha256\": \"189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c\"\n",
+          "after": "        \"blob\": \"3cdeb62cc7471efcbd6a6ffe669f858efdb13459\",\n        \"sha256\": \"f66926276a79652795d91f54af3095c9938f4688a04079c4f19b1f851ff943f4\"\n"
+        },
+        {
+          "id": "59i-03-05",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 69288,
+          "before_end": 69725,
+          "after_start": 69510,
+          "after_end": 70203,
+          "before": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.\",\n",
+          "after": "          \"reason\": \"Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.\",\n"
+        },
+        {
+          "id": "59i-03-06",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 69964,
+          "before_end": 70078,
+          "after_start": 70442,
+          "after_end": 70557,
+          "before": "            \"end\": 9975,\n            \"sha256\": \"7a80c3125be70e0dcffb2b9b321c4898af2ec3a9ac1cc3eb252a7d703a2067f7\"\n",
+          "after": "            \"end\": 11505,\n            \"sha256\": \"56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20\"\n"
+        },
+        {
+          "id": "59i-03-07",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 71121,
+          "before_end": 71121,
+          "after_start": 71600,
+          "after_end": 72268,
+          "before": "",
+          "after": "            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"val leaves = auditedLeaves.get(element)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"(leaves(wrapped.elementLeafIndex) eq expected)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)\",\n              \"count\": 1\n            },\n            {\n              \"side\": \"approved\",\n              \"text\": \"auditedLeaves != null && inspect(this, 64)\",\n              \"count\": 1\n"
+        },
+        {
+          "id": "59i-03-08",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 71646,
+          "before_end": 71700,
+          "after_start": 72793,
+          "after_end": 72847,
+          "before": "            \"start\": 10990,\n            \"end\": 11352,\n",
+          "after": "            \"start\": 12520,\n            \"end\": 12882,\n"
+        },
+        {
+          "id": "59i-03-09",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 72479,
+          "before_end": 72533,
+          "after_start": 73626,
+          "after_end": 73680,
+          "before": "            \"start\": 11356,\n            \"end\": 11829,\n",
+          "after": "            \"start\": 12886,\n            \"end\": 13359,\n"
+        },
+        {
+          "id": "59i-03-10",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 73312,
+          "before_end": 73366,
+          "after_start": 74459,
+          "after_end": 74513,
+          "before": "            \"start\": 12841,\n            \"end\": 12893,\n",
+          "after": "            \"start\": 14371,\n            \"end\": 14423,\n"
+        },
+        {
+          "id": "59i-03-11",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 74163,
+          "before_end": 74217,
+          "after_start": 75310,
+          "after_end": 75364,
+          "before": "            \"start\": 13077,\n            \"end\": 13145,\n",
+          "after": "            \"start\": 14607,\n            \"end\": 14675,\n"
+        },
+        {
+          "id": "59i-03-12",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 75012,
+          "before_end": 75066,
+          "after_start": 76159,
+          "after_end": 76213,
+          "before": "            \"start\": 13660,\n            \"end\": 14249,\n",
+          "after": "            \"start\": 15190,\n            \"end\": 15779,\n"
+        },
+        {
+          "id": "59i-03-13",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 75851,
+          "before_end": 75905,
+          "after_start": 76998,
+          "after_end": 77052,
+          "before": "            \"start\": 14582,\n            \"end\": 14596,\n",
+          "after": "            \"start\": 16112,\n            \"end\": 16126,\n"
+        },
+        {
+          "id": "59i-03-14",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 76667,
+          "before_end": 76721,
+          "after_start": 77814,
+          "after_end": 77868,
+          "before": "            \"start\": 15462,\n            \"end\": 15601,\n",
+          "after": "            \"start\": 16992,\n            \"end\": 17131,\n"
+        },
+        {
+          "id": "59i-03-15",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 77521,
+          "before_end": 77575,
+          "after_start": 78668,
+          "after_end": 78722,
+          "before": "            \"start\": 15885,\n            \"end\": 15891,\n",
+          "after": "            \"start\": 17415,\n            \"end\": 17421,\n"
+        },
+        {
+          "id": "59i-03-16",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 78337,
+          "before_end": 78391,
+          "after_start": 79484,
+          "after_end": 79538,
+          "before": "            \"start\": 16100,\n            \"end\": 16183,\n",
+          "after": "            \"start\": 17630,\n            \"end\": 17713,\n"
+        },
+        {
+          "id": "59i-03-17",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 79188,
+          "before_end": 79242,
+          "after_start": 80335,
+          "after_end": 80389,
+          "before": "            \"start\": 16448,\n            \"end\": 17097,\n",
+          "after": "            \"start\": 17978,\n            \"end\": 18627,\n"
+        },
+        {
+          "id": "59i-03-18",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 80032,
+          "before_end": 80086,
+          "after_start": 81179,
+          "after_end": 81233,
+          "before": "            \"start\": 17108,\n            \"end\": 17385,\n",
+          "after": "            \"start\": 18638,\n            \"end\": 18915,\n"
+        },
+        {
+          "id": "59i-03-19",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 80870,
+          "before_end": 80924,
+          "after_start": 82017,
+          "after_end": 82071,
+          "before": "            \"start\": 17393,\n            \"end\": 17476,\n",
+          "after": "            \"start\": 18923,\n            \"end\": 19006,\n"
+        },
+        {
+          "id": "59i-03-20",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 81721,
+          "before_end": 81775,
+          "after_start": 82868,
+          "after_end": 82922,
+          "before": "            \"start\": 17520,\n            \"end\": 17679,\n",
+          "after": "            \"start\": 19050,\n            \"end\": 19209,\n"
+        },
+        {
+          "id": "59i-03-21",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 82550,
+          "before_end": 82604,
+          "after_start": 83697,
+          "after_end": 83751,
+          "before": "            \"start\": 17856,\n            \"end\": 17924,\n",
+          "after": "            \"start\": 19386,\n            \"end\": 19454,\n"
+        },
+        {
+          "id": "59i-03-22",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 83415,
+          "before_end": 83469,
+          "after_start": 84562,
+          "after_end": 84616,
+          "before": "            \"start\": 18846,\n            \"end\": 18921,\n",
+          "after": "            \"start\": 20376,\n            \"end\": 20451,\n"
+        },
+        {
+          "id": "59i-03-23",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 84280,
+          "before_end": 84334,
+          "after_start": 85427,
+          "after_end": 85481,
+          "before": "            \"start\": 19035,\n            \"end\": 19074,\n",
+          "after": "            \"start\": 20565,\n            \"end\": 20604,\n"
+        },
+        {
+          "id": "59i-03-24",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 85123,
+          "before_end": 85177,
+          "after_start": 86270,
+          "after_end": 86324,
+          "before": "            \"start\": 19172,\n            \"end\": 19508,\n",
+          "after": "            \"start\": 20702,\n            \"end\": 21038,\n"
+        },
+        {
+          "id": "59i-03-25",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 85992,
+          "before_end": 86046,
+          "after_start": 87139,
+          "after_end": 87193,
+          "before": "            \"start\": 19937,\n            \"end\": 20271,\n",
+          "after": "            \"start\": 21467,\n            \"end\": 21801,\n"
+        },
+        {
+          "id": "59i-03-26",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 87168,
+          "before_end": 87222,
+          "after_start": 88315,
+          "after_end": 88369,
+          "before": "            \"start\": 20288,\n            \"end\": 22763,\n",
+          "after": "            \"start\": 21818,\n            \"end\": 24293,\n"
+        },
+        {
+          "id": "59i-03-27",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 88717,
+          "before_end": 88771,
+          "after_start": 89864,
+          "after_end": 89918,
+          "before": "            \"start\": 23093,\n            \"end\": 23195,\n",
+          "after": "            \"start\": 24623,\n            \"end\": 24725,\n"
+        },
+        {
+          "id": "59i-03-28",
+          "reason": "Bind the one reviewed Vec seam and core root to exact new hashes, while preserving upstream baseline and every other native file/root/span.",
+          "before_start": 89582,
+          "before_end": 89636,
+          "after_start": 90729,
+          "after_end": 90783,
+          "before": "            \"start\": 23263,\n            \"end\": 23406,\n",
+          "after": "            \"start\": 24793,\n            \"end\": 24936,\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59g-source-review.py",
+      "change": "modified",
+      "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+      "baseline_sha256": "ed7a5e325c9614639582e3cf45586cca1ae2ed3515e0ea97aafc78282f332daf",
+      "edits": [
+        {
+          "id": "59i-04-01",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 516,
+          "before_end": 516,
+          "after_start": 516,
+          "after_end": 538,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "59i-04-02",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 10388,
+          "before_end": 10388,
+          "after_start": 10410,
+          "after_end": 11273,
+          "before": "",
+          "after": "def join_source_review(root: Path):\n    \"\"\"Verify the exact 59i join before exposing the frozen register view.\"\"\"\n    checker = root / \"morphhdl/scripts/check-increment-59i-source-review.py\"\n    contract = root / \"morphhdl/contracts/increment-59i-source-review.json\"\n    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):\n        return None\n    require(checker.is_file() and not checker.is_symlink() and\n            contract.is_file() and not contract.is_symlink(),\n            \"59i source-review checker or contract is missing\")\n    spec = importlib.util.spec_from_file_location(\"combined_59i_review\", checker)\n    require(spec is not None and spec.loader is not None, \"cannot load exact 59i source review\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n"
+        },
+        {
+          "id": "59i-04-03",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 10451,
+          "before_end": 10451,
+          "after_start": 11336,
+          "after_end": 11454,
+          "before": "",
+          "after": "    join = join_source_review(root)\n    if join is not None:\n        source = join.restore_source(root, path, source)\n"
+        },
+        {
+          "id": "59i-04-04",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 10768,
+          "before_end": 10768,
+          "after_start": 11771,
+          "after_end": 11864,
+          "before": "",
+          "after": "    join = join_source_review(root)\n    if join is not None:\n        join.verify_spans(root)\n"
+        },
+        {
+          "id": "59i-04-05",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 11433,
+          "before_end": 11535,
+          "after_start": 12529,
+          "after_end": 12783,
+          "before": "            restore_reviewed(entries[relative], baseline_source(root, relative), source.read_bytes())\n",
+          "after": "            current = source.read_bytes()\n            if join is not None:\n                current = join.restore_source(root, relative, current.decode()).encode()\n            restore_reviewed(entries[relative], baseline_source(root, relative), current)\n"
+        },
+        {
+          "id": "59i-04-06",
+          "reason": "Require complete exact 59i source verification before restoring only its reviewed successor bytes for the unchanged 59g/59h/60f source audits.",
+          "before_start": 11569,
+          "before_end": 11634,
+          "after_start": 12817,
+          "after_end": 13256,
+          "before": "    require_production_inventory(production_changes(root, BASE))\n",
+          "after": "    paths = production_changes(root, BASE)\n    join = join_source_review(root)\n    if join is not None:\n        # The join must verify its COMPLETE production delta first. Preserve\n        # every changed path already present in its pinned merged baseline for\n        # the independent inherited source-union and immutable-content checks.\n        paths = join.inherited_inventory(root, paths, BASE)\n    require_production_inventory(paths)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+      "change": "modified",
+      "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+      "baseline_sha256": "345544362f335e2c1268cd398a5ec520f04ea567f41507c3b6cac91e68f522de",
+      "edits": [
+        {
+          "id": "59i-05-01",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 637,
+          "before_end": 637,
+          "after_start": 637,
+          "after_end": 707,
+          "before": "",
+          "after": "JOIN_CONTRACT = \"morphhdl/contracts/increment-59i-source-review.json\"\n"
+        },
+        {
+          "id": "59i-05-02",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 4959,
+          "before_end": 4959,
+          "after_start": 5029,
+          "after_end": 5366,
+          "before": "",
+          "after": "    # A reviewed successor must reject its own mutations first. Keep the\n    # independent older diagnostics for files outside that exact inventory;\n    # this changes no production bytes, mutation actions or acceptance rules.\n    join = getattr(register, \"join_source_review\", lambda root: None)(ROOT) if register is not None else None\n"
+        },
+        {
+          "id": "59i-05-03",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 5018,
+          "before_end": 5018,
+          "after_start": 5425,
+          "after_end": 5532,
+          "before": "",
+          "after": "              \"unreviewed source change outside 59i spans\" if join is not None and path in join.PATHS else\n"
+        },
+        {
+          "id": "59i-05-04",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 5323,
+          "before_end": 5415,
+          "after_start": 5837,
+          "after_end": 6023,
+          "before": "        (\"missing owner implementation\", prod, \"remove\", \"59h reviewed source is missing\"),\n",
+          "after": "        (\"missing owner implementation\", prod, \"remove\",\n         \"59i reviewed source must be a regular non-executable file\" if join is not None else \"59h reviewed source is missing\"),\n"
+        },
+        {
+          "id": "59i-05-05",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 5515,
+          "before_end": 5622,
+          "after_start": 6123,
+          "after_end": 6309,
+          "before": "        (\"paired production and review mutation\", prod, \"paired\", \"59h reviewed source manifest changed\"),\n",
+          "after": "        (\"paired production and review mutation\", prod, \"paired\",\n         \"unreviewed source change outside 59i spans\" if join is not None else \"59h reviewed source manifest changed\"),\n"
+        },
+        {
+          "id": "59i-05-06",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 6355,
+          "before_end": 6476,
+          "after_start": 7042,
+          "after_end": 7194,
+          "before": "         (\"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n",
+          "after": "         (\"59i\" if join is not None else \"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n"
+        },
+        {
+          "id": "59i-05-07",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 6482,
+          "before_end": 6482,
+          "after_start": 7200,
+          "after_end": 7737,
+          "before": "",
+          "after": "    if join is not None:\n        cases += [\n            (\"changed inherited owner review alone\", CONTRACT, \"suffix\", \"59h reviewed source manifest changed\"),\n            (\"removed combined successor review\", JOIN_CONTRACT, \"remove\", \"59i source-review checker or contract is missing\"),\n            (\"changed combined successor review\", JOIN_CONTRACT, \"suffix\", \"59i reviewed source manifest changed\"),\n            (\"paired production and combined review mutation\", prod, \"paired-join\", \"59i reviewed source manifest changed\"),\n        ]\n"
+        },
+        {
+          "id": "59i-05-08",
+          "reason": "Preserve current mutation actions and historical detached-tree controls while expecting the exact newest review-layer rejection for overlapping source; add isolated old/new review and paired-tamper controls.",
+          "before_start": 7603,
+          "before_end": 7807,
+          "after_start": 8858,
+          "after_end": 9207,
+          "before": "                    path.write_bytes(original + b\"\\n\" + marker + b\" isolated unreviewed 59h mutation\\n\")\n                    if mutation == \"paired\":\n                        contract = fixture / CONTRACT\n",
+          "after": "                    path.write_bytes(original + (b\"\\n\" if relative in (CONTRACT, JOIN_CONTRACT) else\n                        b\"\\n\" + marker + b\" isolated unreviewed 59h mutation\\n\"))\n                    if mutation in (\"paired\", \"paired-join\"):\n                        contract = fixture / (JOIN_CONTRACT if mutation == \"paired-join\" else CONTRACT)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
+      "change": "modified",
+      "reason": "Skip impossible literal-name matches before the unchanged native declaration parser; preserve exact patterns, substitution ordering, attributes, widths and all positive admission checks.",
+      "baseline_sha256": "2f5617afcf9f97c5ace1afd71e7c37fde0efd12f1573990bdff78882679476f9",
+      "edits": [
+        {
+          "id": "59i-10-01",
+          "reason": "Skip impossible literal-name matches before the unchanged native declaration parser; preserve exact patterns, substitution ordering, attributes, widths and all positive admission checks.",
+          "before_start": 22656,
+          "before_end": 24234,
+          "after_start": 22656,
+          "after_end": 24821,
+          "before": "  private def rewriteDeclarationLine(\n      line: String,\n      widthsByName: Vector[(String, String)]\n  ): String = {\n    val trimmed = line.trim\n    // Native Verilog may prefix a declaration with one or more synthesis\n    // attributes. Those attributes are syntax attached to the declaration,\n    // not a reason to hide its retained packed-width identity from this pass.\n    val declarationLine =\n      \"^(?:\\\\(\\\\*.*?\\\\*\\\\)\\\\s*)*(?:input|output|inout|wire|reg|logic)\\\\b\".r\n        .findPrefixOf(trimmed)\n        .nonEmpty\n    if (!declarationLine) return line\n\n    widthsByName.foldLeft(line) { case (current, (name, range)) =>\n      val quotedName = Pattern.quote(name)\n      val declarationEnd = \"(?=\\\\s*(?:/\\\\*.*?\\\\*/\\\\s*)*(?:[,;]|$))\"\n      val packedPattern =\n        (\"(\\\\[[^\\\\]]+\\\\])(\\\\s+)(\" + quotedName + \")\" + declarationEnd).r\n      var replaced = false\n      val withRange = packedPattern.replaceAllIn(\n        current,\n        matched => {\n          if (replaced) matched.matched\n          else {\n            replaced = true\n            range + matched.group(2) + matched.group(3)\n          }\n        }\n      )\n      if (replaced) withRange\n      else {\n        val scalarPattern =\n          (\"(\\\\s+)(\" + quotedName + \")\" + declarationEnd).r\n        var inserted = false\n        scalarPattern.replaceAllIn(\n          withRange,\n          matched => {\n            if (inserted) matched.matched\n            else {\n              inserted = true\n              matched.group(1) + range + \" \" + matched.group(2)\n            }\n          }\n        )\n      }\n    }\n  }\n",
+          "after": "  private def rewriteDeclarationLine(\n      line: String,\n      widthsByName: Vector[(String, String)]\n  ): String = {\n    val trimmed = line.trim\n    // Native Verilog may prefix a declaration with one or more synthesis\n    // attributes. Those attributes are syntax attached to the declaration,\n    // not a reason to hide its retained packed-width identity from this pass.\n    val declarationLine =\n      \"^(?:\\\\(\\\\*.*?\\\\*\\\\)\\\\s*)*(?:input|output|inout|wire|reg|logic)\\\\b\".r\n        .findPrefixOf(trimmed)\n        .nonEmpty\n    if (!declarationLine) return line\n\n    widthsByName.foldLeft(line) { case (current, (name, range)) =>\n      // A literal-name occurrence is necessary for either existing exact\n      // declaration pattern to match. Avoid compiling/running both patterns\n      // for every unrelated leaf in large combined aggregate/reduction graphs.\n      // Check the current text, not the initial line: an earlier replacement\n      // may introduce text used by a later entry. This is only a negative\n      // filter; the original declaration parser remains the sole authority.\n      if (!current.contains(name)) current\n      else {\n        val quotedName = Pattern.quote(name)\n        val declarationEnd = \"(?=\\\\s*(?:/\\\\*.*?\\\\*/\\\\s*)*(?:[,;]|$))\"\n        val packedPattern =\n          (\"(\\\\[[^\\\\]]+\\\\])(\\\\s+)(\" + quotedName + \")\" + declarationEnd).r\n        var replaced = false\n        val withRange = packedPattern.replaceAllIn(\n          current,\n          matched => {\n            if (replaced) matched.matched\n            else {\n              replaced = true\n              range + matched.group(2) + matched.group(3)\n            }\n          }\n        )\n        if (replaced) withRange\n        else {\n          val scalarPattern =\n            (\"(\\\\s+)(\" + quotedName + \")\" + declarationEnd).r\n          var inserted = false\n          scalarPattern.replaceAllIn(\n            withRange,\n            matched => {\n              if (inserted) matched.matched\n              else {\n                inserted = true\n                matched.group(1) + range + \" \" + matched.group(2)\n              }\n            }\n          )\n        }\n      }\n    }\n  }\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+      "change": "modified",
+      "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+      "baseline_sha256": "ae84366b3cf4c2408df236fa16b15e2ab0fbfe70c32e6e05f7bd408080456332",
+      "edits": [
+        {
+          "id": "59i-06-01",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 744,
+          "before_end": 805,
+          "after_start": 744,
+          "after_end": 816,
+          "before": "  private final case class LineRange(start: Int, end: Int) {\n",
+          "after": "  private[internals] final case class LineRange(start: Int, end: Int) {\n"
+        },
+        {
+          "id": "59i-06-02",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 967,
+          "before_end": 967,
+          "after_start": 978,
+          "after_end": 1631,
+          "before": "",
+          "after": "\n  /** A sorted adjacent pair witnesses every interval overlap. Exact shared\n    * process duplicates are the sole existing exception. Sorting avoids the\n    * quadratic multiset-combination iterator on large captured native graphs;\n    * it neither drops intervals nor broadens the shared-process exception.\n    */\n  private[internals] def firstCaptureOverlap(ranges: Vector[LineRange],\n      shared: Set[LineRange]): Option[(LineRange, LineRange)] =\n    ranges.sortBy(range => (range.start, range.end)).sliding(2).collectFirst {\n      case Vector(left, right) if left.overlaps(right) && !(left == right && shared(left)) =>\n        left -> right\n    }\n"
+        },
+        {
+          "id": "59i-06-03",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 4161,
+          "before_end": 4351,
+          "after_start": 4825,
+          "after_end": 4974,
+          "before": "    ranges.combinations(2).foreach {\n      case Vector(a, b) if a.overlaps(b) =>\n        fail(\"MORPH-NATIVE-TEMPLATE-OVERLAP\", \"native templates share emitted module items\")\n      case _ =>\n",
+          "after": "    firstCaptureOverlap(ranges, Set.empty).foreach { _ =>\n      fail(\"MORPH-NATIVE-TEMPLATE-OVERLAP\", \"native templates share emitted module items\")\n"
+        },
+        {
+          "id": "59i-06-04",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 12884,
+          "before_end": 13276,
+          "after_start": 13507,
+          "after_end": 13794,
+          "before": "    allRanges.combinations(2).foreach {\n      case Vector(left, right)\n          if left.overlaps(right) &&\n            !(left == right && sharedProcessRanges(left)) =>\n        fail(\n          \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP\",\n          s\"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap\"\n        )\n      case _ =>\n",
+          "after": "    firstCaptureOverlap(allRanges, sharedProcessRanges).foreach { case (left, right) =>\n      fail(\n        \"SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-CAPTURE-OVERLAP\",\n        s\"captured native module-item ranges ${left.start}-${left.end} and ${right.start}-${right.end} overlap\"\n      )\n"
+        },
+        {
+          "id": "59i-06-05",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 64387,
+          "before_end": 64387,
+          "after_start": 64905,
+          "after_end": 65687,
+          "before": "",
+          "after": "  /** Index the same consumer relation as per-name whole-line definition\n    * removal. Lexical regions are blanked before splitting so comments and\n    * multiline strings keep exactly the existing reference-scan semantics.\n    * A definition excludes only its own name; other names on that line remain\n    * consumers. No driver, owner or reachability check is skipped.\n    */\n  private[internals] def verilogConsumedNames(value: String): Set[String] =\n    verilogReferenceText(value).split(\"\\n\", -1).iterator.flatMap { line =>\n      val normalized = line.trim\n      val definitions = standaloneDeclarationName(normalized).toSet ++\n        DirectContinuousAssignment.findFirstMatchIn(normalized).map(_.group(1)).toSet\n      verilogReferenceNames(line) -- definitions\n    }.toSet\n\n"
+        },
+        {
+          "id": "59i-06-06",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 97315,
+          "before_end": 97887,
+          "after_start": 98615,
+          "after_end": 98942,
+          "before": "    def bodyConsumesName(body: String, name: String): Boolean = {\n      val withoutDefinitions = verilogReferenceText(body)\n        .split(\"\\n\", -1)\n        .map { line =>\n          val normalized = line.trim\n          val isDefinition =\n            standaloneDeclarationName(normalized).contains(name) ||\n              DirectContinuousAssignment\n                .findFirstMatchIn(normalized)\n                .exists(_.group(1) == name)\n          if (isDefinition) \"\" else line\n        }\n        .mkString(\"\\n\")\n      verilogReferenceNames(withoutDefinitions)(name)\n    }\n",
+          "after": "    // Each immutable body/line is scanned once, not again for every candidate\n    // driver. The per-target definition exclusion is retained by the index.\n    val consumedByBody = plans.map(_.body).distinct.map(body => body -> verilogConsumedNames(body)).toMap\n    val lineReferences = lexicalLines.map(verilogReferenceNames)\n"
+        },
+        {
+          "id": "59i-06-07",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 98180,
+          "before_end": 98227,
+          "after_start": 99235,
+          "after_end": 99280,
+          "before": "        bodyConsumesName(plan.body, target) &&\n",
+          "after": "        consumedByBody(plan.body)(target) &&\n"
+        },
+        {
+          "id": "59i-06-08",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 99199,
+          "before_end": 99269,
+          "after_start": 100252,
+          "after_end": 100301,
+          "before": "                verilogReferenceNames(lexicalLines(index))(target) =>\n",
+          "after": "                lineReferences(index)(target) =>\n"
+        },
+        {
+          "id": "59i-06-09",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 193574,
+          "before_end": 193574,
+          "after_start": 194606,
+          "after_end": 194651,
+          "before": "",
+          "after": "    \"signed\",\n    \"unsigned\",\n    \"integer\",\n"
+        },
+        {
+          "id": "59i-06-10",
+          "reason": "Index the existing consumer/overlap relations and necessary-name filters without dropping ownership gates; exclude native type keywords from signal dependencies.",
+          "before_start": 196108,
+          "before_end": 196209,
+          "after_start": 197185,
+          "after_end": 197316,
+          "before": "    (\"(?<![A-Za-z0-9_$])\" + Pattern.quote(name) + \"(?![A-Za-z0-9_$])\").r.findFirstIn(value).nonEmpty\n",
+          "after": "    value.contains(name) &&\n      (\"(?<![A-Za-z0-9_$])\" + Pattern.quote(name) + \"(?![A-Za-z0-9_$])\").r.findFirstIn(value).nonEmpty\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogVecs.scala",
+      "change": "modified",
+      "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged. After exact native full-driver and compatible-shape checks, disambiguate each scoped result by its exact source leaf. Repack only an isolated native blocking combinational process whose result and complete assignments belong to an already-published lexical owner. Retain that native process and local parameter guards; reject clocked, conditional, multi-statement, partial, unknown-owner and nonblocking forms.",
+      "baseline_sha256": "78b96c71871c986b6e92a9960505cfc4d741c989d2bf83383be848f459df3998",
+      "edits": [
+        {
+          "id": "59i-07-01",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 10783,
+          "before_end": 10808,
+          "after_start": 10783,
+          "after_end": 10831,
+          "before": "      declaratorEnd: Int\n",
+          "after": "      declaratorEnd: Int,\n      signed: Boolean\n"
+        },
+        {
+          "id": "59i-07-02",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 67590,
+          "before_end": 67590,
+          "after_start": 67613,
+          "after_end": 67918,
+          "before": "",
+          "after": "    // Native declarations are the signedness authority for exact reconstructed\n    // scalar reads. Packed carriers stay unsigned; a compatibility profile\n    // must not silently make a legacy unsigned SInt alias signed.\n    val nativeReadSignedness = new IdentityHashMap[BaseType, java.lang.Boolean]()\n"
+        },
+        {
+          "id": "59i-07-03",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 81319,
+          "before_end": 81366,
+          "after_start": 81647,
+          "after_end": 81716,
+          "before": "      lines = collapseDeclaration(lines, plan)\n",
+          "after": "      lines = collapseDeclaration(lines, plan, nativeReadSignedness)\n"
+        },
+        {
+          "id": "59i-07-04",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 86227,
+          "before_end": 86601,
+          "after_start": 86577,
+          "after_end": 86826,
+          "before": "            if (!morphhdl.MorphSignedCasts.isEnabled(pc.config) && plan.layout.isEmpty) {\n              fail(\n                \"SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-SLICE-UNSUPPORTED\",\n                s\"constant indexed SInt leaf '${leaf.name}' of Vec '${plan.name}' requires signed boundary publication\",\n                plan.sourceLocation\n              )\n            }\n",
+          "after": "            if (!nativeReadSignedness.containsKey(leaf.value))\n              fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-SIGNED-DECLARATION-MISSING\",\n                \"constant signed read lost its exact native declaration evidence\", plan.sourceLocation)\n"
+        },
+        {
+          "id": "59i-07-05",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 88165,
+          "before_end": 88165,
+          "after_start": 88390,
+          "after_end": 88763,
+          "before": "",
+          "after": "            // Retain the already-qualified field-layout alias contract. For\n            // legacy packed transport, replay the native declaration's actual\n            // qualifier instead of assuming that an SInt must emit signed.\n            val qualifier = if (plan.layout.nonEmpty || nativeReadSignedness.get(leaf.value).booleanValue())\n              \" signed\" else \"\"\n"
+        },
+        {
+          "id": "59i-07-06",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 88210,
+          "before_end": 88271,
+          "after_start": 88808,
+          "after_end": 88872,
+          "before": "              s\"  wire signed [($width)-1:0] ${leaf.name};\",\n",
+          "after": "              s\"  wire$qualifier [($width)-1:0] ${leaf.name};\",\n"
+        },
+        {
+          "id": "59i-nested-result-owned-process",
+          "reason": "After exact native full-driver and compatible-shape checks, disambiguate each scoped result by its exact source leaf. Repack only an isolated native blocking combinational process whose result and complete assignments belong to an already-published lexical owner. Retain that native process and local parameter guards; reject clocked, conditional, multi-statement, partial, unknown-owner and nonblocking forms.",
+          "before_start": 142656,
+          "before_end": 146174,
+          "after_start": 143257,
+          "after_end": 149308,
+          "before": "  /** A reduction result deliberately retains scalar native anchors until the\n    * reduction emitter has reconstructed their logical offsets. Consume only\n    * exact full leaf-to-leaf assignments when it crosses into a public Vec.\n    */\n  private def rewriteRecursiveTransportAssignment(\n      original: Vector[String], target: VecPlan,\n      operation: ParameterizedVecWholeAssignment,\n      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],\n      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]\n  ): Vector[String] = {\n    val sourceShape = ParameterizedVec.shapeOf(operation.source).getOrElse {\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISSING\",\n        \"certified recursive result lost its Vec shape\", operation.sourceLocation)\n    }\n    requireCompatibleShapes(target.shape, target.name, sourceShape,\n      \"certified recursive result\", operation.sourceLocation)\n    if (!ParameterizedVecElementLayout.equivalent(target.shape.elementLayout.root, sourceShape.elementLayout.root))\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISMATCH\",\n        \"certified recursive result has a different dimension tree\", operation.sourceLocation)\n    val sources = vectorLeaves(operation.source)\n    requireLiveAssignmentEvidence(operation.assignments, live,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    if (sources.size != target.leaves.size || operation.assignments.size != sources.size)\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n        \"certified recursive result needs one exact assignment per carrier leaf\", operation.sourceLocation)\n    val replacements = target.leaves.zip(sources).map { case (leaf, source) =>\n      val assignment = operation.assignments.filter { a =>\n        (a.target eq leaf.value) && (a.source eq source)\n      }\n      if (assignment.size != 1)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n          \"certified recursive result assignment changed a leaf or introduced a partial target\", operation.sourceLocation)\n      val name = requiredBaseName(source, \"certified recursive result leaf\", operation.sourceLocation)\n      val parsed = findAssignment(original, leaf.name, None,\n        \"certified recursive result assignment\", operation.sourceLocation)\n      if (!parsed.continuous || parsed.operator != \"=\" || parsed.rhs.trim != name)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH\",\n          \"certified recursive result requires an exact direct continuous leaf driver\", operation.sourceLocation)\n      val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)\n      val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) \"1\"\n        else s\"(${leaf.elementIndex} < (${render(target.shape.depth)}))\"\n      val condition = Vector(outer, nested).filterNot(_ == \"1\").mkString(\" && \")\n      val assign = s\"assign ${target.constantSlice(leaf.elementIndex, leaf.leafIndex)} = $name;\"\n      val body = if (condition.isEmpty) assign else\n        s\"generate if ($condition) begin\\n    $assign\\n  end endgenerate\"\n      parsed.lineIndex -> (parsed.indentation + body)\n    }\n    claimAssignmentEvidence(operation.assignments, live, claimed,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    replacements.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }\n  }\n\n",
+          "after": "  /** Syntactic restriction only. It cannot grant publication permission: the\n    * caller must separately prove the exact result/assignment/lexical-owner\n    * identities, a full blocking driver and its unchanged source expression.\n    */\n  private[internals] def isolatedRecursiveResultProcess(lines: Vector[String],\n      start: Int, end: Int, assignmentLine: Int): Boolean =\n    start >= 0 && start < assignmentLine && assignmentLine < end && end < lines.size &&\n      lines(start).trim == \"always @(*) begin\" && lines(end).trim == \"end\" &&\n      (start + 1 until end).filter { index =>\n        val text = lines(index).trim\n        text.nonEmpty && !text.startsWith(\"//\")\n      }.toVector == Vector(assignmentLine)\n\n  /** A reduction result deliberately retains scalar native anchors until the\n    * reduction emitter has reconstructed their logical offsets. Consume only\n    * exact full leaf-to-leaf assignments when it crosses into a public Vec.\n    */\n  private def rewriteRecursiveTransportAssignment(\n      original: Vector[String], target: VecPlan,\n      operation: ParameterizedVecWholeAssignment,\n      claimed: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean],\n      live: IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]\n  ): Vector[String] = {\n    val sourceShape = ParameterizedVec.shapeOf(operation.source).getOrElse {\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISSING\",\n        \"certified recursive result lost its Vec shape\", operation.sourceLocation)\n    }\n    requireCompatibleShapes(target.shape, target.name, sourceShape,\n      \"certified recursive result\", operation.sourceLocation)\n    if (!ParameterizedVecElementLayout.equivalent(target.shape.elementLayout.root, sourceShape.elementLayout.root))\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-SHAPE-MISMATCH\",\n        \"certified recursive result has a different dimension tree\", operation.sourceLocation)\n    val sources = vectorLeaves(operation.source)\n    requireLiveAssignmentEvidence(operation.assignments, live,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    if (sources.size != target.leaves.size || operation.assignments.size != sources.size)\n      fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n        \"certified recursive result needs one exact assignment per carrier leaf\", operation.sourceLocation)\n    lazy val scopedResult = TypedBalancedReductionBackend.ownsPublishedRecursiveAssignment(\n      operation.source, operation.assignments)\n    lazy val nativeProcesses = alwaysBlocks(original)\n    val replacements = target.leaves.zip(sources).map { case (leaf, source) =>\n      val assignment = operation.assignments.filter { a =>\n        (a.target eq leaf.value) && (a.source eq source)\n      }\n      if (assignment.size != 1)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-LINEAGE-MISMATCH\",\n          \"certified recursive result assignment changed a leaf or introduced a partial target\", operation.sourceLocation)\n      val name = requiredBaseName(source, \"certified recursive result leaf\", operation.sourceLocation)\n      val parsed = findAssignment(original, leaf.name, Some(name),\n        \"certified recursive result assignment\", operation.sourceLocation)\n      if (parsed.operator != \"=\" || parsed.rhs.trim != name)\n        fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-DRIVER-MISMATCH\",\n          \"certified recursive result requires an exact direct leaf driver\", operation.sourceLocation)\n      val process = if (parsed.continuous) None else {\n        if (!scopedResult)\n          fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-OWNER-MISMATCH\",\n            \"procedural recursive result requires its exact published structural owner\", operation.sourceLocation)\n        val owners = nativeProcesses.filter(block =>\n          block.start < parsed.lineIndex && parsed.lineIndex < block.end)\n        val valid = owners.size == 1 && isolatedRecursiveResultProcess(original,\n          owners.head.start, owners.head.end, parsed.lineIndex)\n        if (!valid)\n          fail(\"SPINAL-PARAMETERIZED-VERILOG-VEC-RECURSIVE-TRANSPORT-PROCESS-MISMATCH\",\n            \"scoped recursive result requires one isolated native combinational assignment\", operation.sourceLocation)\n        Some(owners.head)\n      }\n      val nested = target.shape.elementLayout.leaves(leaf.leafIndex).activeCondition(render)\n      val outer = if (BigInt(leaf.elementIndex) < target.shape.depth.minimum) \"1\"\n        else s\"(${leaf.elementIndex} < (${render(target.shape.depth)}))\"\n      val condition = Vector(outer, nested).filterNot(_ == \"1\").mkString(\" && \")\n      val targetSlice = target.constantSlice(leaf.elementIndex, leaf.leafIndex)\n      process match {\n        case None =>\n          val assign = s\"assign $targetSlice = $name;\"\n          val body = if (condition.isEmpty) assign else\n            s\"generate if ($condition) begin\\n    $assign\\n  end endgenerate\"\n          Vector(parsed.lineIndex -> (parsed.indentation + body))\n        case Some(block) =>\n          val assignmentLine = parsed.lineIndex -> s\"${parsed.indentation}$targetSlice = $name;\"\n          if (condition.isEmpty) Vector(assignmentLine)\n          else {\n            // The exact result owner has already been emitted beneath a\n            // generate region. Add only a local generate-if, never another\n            // generate/endgenerate wrapper or a runtime guard on the datapath.\n            val indentation = original(block.start).takeWhile(_.isWhitespace)\n            Vector(block.start -> (s\"${indentation}if ($condition) begin\\n\" + original(block.start)),\n              assignmentLine, block.end -> (original(block.end) + \"\\n\" + indentation + \"end\"))\n          }\n      }\n    }\n    claimAssignmentEvidence(operation.assignments, live, claimed,\n      \"certified recursive result assignment\", operation.sourceLocation)\n    replacements.flatten.foldLeft(original) { case (lines, (index, body)) => lines.updated(index, body) }\n  }\n\n"
+        },
+        {
+          "id": "59i-07-07",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 291839,
+          "before_end": 291859,
+          "after_start": 294973,
+          "after_end": 295067,
+          "before": "      plan: VecPlan\n",
+          "after": "      plan: VecPlan,\n      nativeReadSignedness: IdentityHashMap[BaseType, java.lang.Boolean]\n"
+        },
+        {
+          "id": "59i-07-08",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 291932,
+          "before_end": 291997,
+          "after_start": 295140,
+          "after_end": 295331,
+          "before": "      parseDeclaration(original, leaf.name, plan.sourceLocation)\n",
+          "after": "      val declaration = parseDeclaration(original, leaf.name, plan.sourceLocation)\n      nativeReadSignedness.put(leaf.value, java.lang.Boolean.valueOf(declaration.signed))\n      declaration\n"
+        },
+        {
+          "id": "59i-07-09",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 295785,
+          "before_end": 295868,
+          "after_start": 299119,
+          "after_end": 299204,
+          "before": "        \"\\\\s*(?:signed\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n",
+          "after": "        \"\\\\s*(?:(signed)\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n"
+        },
+        {
+          "id": "59i-07-10",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 295968,
+          "before_end": 296047,
+          "after_start": 299304,
+          "after_end": 299385,
+          "before": "        \"(?:signed\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n",
+          "after": "        \"(?:(signed)\\\\s+)?(?:\\\\[[^\\\\]]+\\\\])?\\\\s*(\" + Pattern.quote(name) + \")\" +\n"
+        },
+        {
+          "id": "59i-07-11",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 296149,
+          "before_end": 296160,
+          "after_start": 299487,
+          "after_end": 299764,
+          "before": "      port\n",
+          "after": "      // Every match contains this exact quoted identifier. Reject unrelated\n      // lines before running the full parser; keep its syntax and uniqueness\n      // checks unchanged for all potentially matching declarations.\n      if (!line.contains(name)) None\n      else port\n"
+        },
+        {
+          "id": "59i-07-12",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 296382,
+          "before_end": 296470,
+          "after_start": 299986,
+          "after_end": 300110,
+          "before": "            value.group(6) == \",\",\n            value.start(5),\n            value.end(5)\n",
+          "after": "            value.group(7) == \",\",\n            value.start(6),\n            value.end(6),\n            value.group(5) != null\n"
+        },
+        {
+          "id": "59i-07-13",
+          "reason": "Reconstruct only exactly authorized constant signed reads with retained native declaration qualifiers; keep packed transport unsigned and residual-write checks unchanged.",
+          "before_start": 296756,
+          "before_end": 296813,
+          "after_start": 300396,
+          "after_end": 300491,
+          "before": "              value.start(4),\n              value.end(4)\n",
+          "after": "              value.start(5),\n              value.end(5),\n              value.group(4) != null\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "change": "modified",
+      "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels. Expose read-only evidence for exact nested output Vecs only after validated scoped publication. The complete native assignment collection must belong to the retained owner or descendants. Replay operands, unpublished/module-scope records, application Vecs and unknown owners cannot acquire this permission.",
+      "baseline_sha256": "1ea85c0a9c3a159be4e7c18451b7876de51223ae29d90b4333e6cb69dd6e5aec",
+      "edits": [
+        {
+          "id": "59i-nested-result-owner-evidence",
+          "reason": "Expose read-only evidence for exact nested output Vecs only after validated scoped publication. The complete native assignment collection must belong to the retained owner or descendants. Replay operands, unpublished/module-scope records, application Vecs and unknown owners cannot acquire this permission.",
+          "before_start": 2831,
+          "before_end": 2831,
+          "after_start": 2831,
+          "after_end": 3765,
+          "before": "",
+          "after": "  /** A procedural public-Vec boundary is admitted only for an exact result\n    * whose scoped topology has already passed the lexical handoff. Template\n    * operands and ordinary application Vecs cannot acquire this permission.\n    */\n  private[internals] def ownsPublishedRecursiveAssignment(vector: Vec[_],\n      assignments: Vector[DataAssignmentStatement]): Boolean = {\n    if (!ownsRecursiveTransport(vector) || assignments.isEmpty) return false\n    records(vector.component).exists { record =>\n      record.published && !record.lexicalOwner.isModuleScope &&\n        ParameterizedVecElementLayout.nestedVectors(record.output).exists(_ eq vector) &&\n        record.handoffOwner.exists { owner =>\n          val allowed = (Vector(owner) ++ owner.regions.flatMap(ParameterizedStructure.allBlocks))\n            .flatMap(_.assignments)\n          assignments.forall(assignment => allowed.exists(_ eq assignment))\n        }\n    }\n  }\n\n"
+        },
+        {
+          "id": "59i-08-01",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 19949,
+          "before_end": 20095,
+          "after_start": 20883,
+          "after_end": 21112,
+          "before": "    if (!lexicalOwner.isModuleScope)\n      fail(\"NESTED-COMPOSITE\", \"nested composite reduction qualification belongs to the cross-feature join\")\n",
+          "after": "    // Composite templates use the same exact lexical owner, pre-normalization\n    // handoff and result-escape validation as scalar templates. No ownership is\n    // inferred from the element layout or the generated block name.\n"
+        },
+        {
+          "id": "59i-08-02",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 27982,
+          "before_end": 28055,
+          "after_start": 28999,
+          "after_end": 29080,
+          "before": "      else rewriteComposite(component, current, record, pc, canonicalOf)\n",
+          "after": "      else rewriteComposite(component, current, record, pc, canonicalOf, nested)\n"
+        },
+        {
+          "id": "59i-08-03",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 33595,
+          "before_end": 33668,
+          "after_start": 34620,
+          "after_end": 34710,
+          "before": "      pc: PhaseContext, canonicalOf: Component => Component): String = {\n",
+          "after": "      pc: PhaseContext, canonicalOf: Component => Component, nested: Boolean): String = {\n"
+        },
+        {
+          "id": "59i-08-04",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 34109,
+          "before_end": 34184,
+          "after_start": 35151,
+          "after_end": 35256,
+          "before": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet\n",
+          "after": "    val identifiers = \"[A-Za-z_][A-Za-z0-9_$]*\".r.findAllIn(current).toSet ++ structuralNames(component)\n"
+        },
+        {
+          "id": "59i-08-05",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 38067,
+          "before_end": 38067,
+          "after_start": 39139,
+          "after_end": 39296,
+          "before": "",
+          "after": "    val scopedDeclarations = ArrayBuffer.empty[String]\n    def declare(line: String): Unit =\n      if (nested) scopedDeclarations += line else lines += line\n"
+        },
+        {
+          "id": "59i-08-06",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 38103,
+          "before_end": 38195,
+          "after_start": 39332,
+          "after_end": 39424,
+          "before": "    lines += s\"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;\"\n",
+          "after": "    declare(s\"  wire [(($width) * (${record.plan.count.expression.verilog}))-1:0] $first;\")\n"
+        },
+        {
+          "id": "59i-08-07",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 38938,
+          "before_end": 39065,
+          "after_start": 40167,
+          "after_end": 40307,
+          "before": "      lines += s\"  wire [(($width) * ($outputs))-1:0] $after;\"\n      lines += s\"  genvar $genvar;\"\n      lines += \"  generate\"\n",
+          "after": "      declare(s\"  wire [(($width) * ($outputs))-1:0] $after;\")\n      declare(s\"  genvar $genvar;\")\n      if (!nested) lines += \"  generate\"\n"
+        },
+        {
+          "id": "59i-08-08",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 39733,
+          "before_end": 39764,
+          "after_start": 40975,
+          "after_end": 41019,
+          "before": "      lines += \"  endgenerate\"\n",
+          "after": "      if (!nested) lines += \"  endgenerate\"\n"
+        },
+        {
+          "id": "59i-08-09",
+          "reason": "Place fixed-shape composite templates in their exact typed lexical owner, preserving native operator/register bodies, driver/escape checks, and collision-safe labels.",
+          "before_start": 39818,
+          "before_end": 39901,
+          "after_start": 41073,
+          "after_end": 41263,
+          "before": "    val updated = connect(remaining, record.output, last, \"0\", moduleScope = true)\n",
+          "after": "    val updated = connect(remaining, record.output, last, \"0\", moduleScope = !nested)\n    if (nested) return scopedDeclarations.mkString(\"\\n\") + \"\\n\" + updated + \"\\n\" + lines.mkString(\"\\n\")\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+      "change": "modified",
+      "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+      "baseline_sha256": "b0dca5577d1b32e742a3f78fc7cddfc5d38cb4533fa4acf57f3aff4040519416",
+      "edits": [
+        {
+          "id": "59i-09-01",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 1422,
+          "before_end": 1523,
+          "after_start": 1422,
+          "after_end": 1538,
+          "before": "  private val inspectedValues = new java.util.IdentityHashMap[spinal.core.Data, java.lang.Boolean]()\n",
+          "after": "  private val inspectedValues =\n    new java.util.IdentityHashMap[spinal.core.Data, Vector[spinal.core.BaseType]]()\n"
+        },
+        {
+          "id": "59i-09-02",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 1524,
+          "before_end": 1756,
+          "after_start": 1539,
+          "after_end": 1833,
+          "before": "  /** Native clone may dispatch through an object's actual class or hardtype,\n    * even when the callback signature says only Data/Bundle. Inspect those\n    * exact values before any callback or reflective constructor can execute.\n",
+          "after": "  /** Audit containment before following static-read evidence. A valid Vec\n    * wrapper can lead back to its containing record, but that metadata edge\n    * is not a containment cycle. No unaudited Data method or Assignable hook\n    * executes while deciding whether a callback input is safe.\n"
+        },
+        {
+          "id": "59i-09-03",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 1901,
+          "before_end": 1961,
+          "after_start": 1978,
+          "after_end": 2126,
+          "before": "    def visit(data: spinal.core.Data, depth: Int): Unit = {\n",
+          "after": "    val redirects = mutable.ArrayBuffer.empty[spinal.core.Data]\n    def visit(data: spinal.core.Data, depth: Int): Vector[spinal.core.BaseType] = {\n"
+        },
+        {
+          "id": "59i-09-04",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 2132,
+          "before_end": 2241,
+          "after_start": 2297,
+          "after_end": 2446,
+          "before": "      if (inspectedValues.containsKey(data)) return\n      if (depth > 64 || inspectedValues.size() >= 32768)\n",
+          "after": "      if (inspectedValues.containsKey(data)) return inspectedValues.get(data)\n      if (depth > 64 || inspectedValues.size() + path.size() >= 32768)\n"
+        },
+        {
+          "id": "59i-09-05",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 2317,
+          "before_end": 2373,
+          "after_start": 2522,
+          "after_end": 2522,
+          "before": "      inspectedValues.put(data, java.lang.Boolean.TRUE)\n",
+          "after": ""
+        },
+        {
+          "id": "59i-09-06",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 2476,
+          "before_end": 2509,
+          "after_start": 2625,
+          "after_end": 2716,
+          "before": "      if (scalarNames(owner)) ()\n",
+          "after": "      val leaves = if (scalarNames(owner)) Vector(data.asInstanceOf[spinal.core.BaseType])\n"
+        },
+        {
+          "id": "59i-09-07",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 2554,
+          "before_end": 2661,
+          "after_start": 2761,
+          "after_end": 2868,
+          "before": "        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.foreach(child => visit(child, depth + 1))\n",
+          "after": "        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.flatMap(child => visit(child, depth + 1))\n"
+        },
+        {
+          "id": "59i-09-08",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 2913,
+          "before_end": 2992,
+          "after_start": 3120,
+          "after_end": 3208,
+          "before": "        bundle.elements.foreach { case (_, child) => visit(child, depth + 1) }\n",
+          "after": "        bundle.elements.toVector.flatMap { case (_, child) => visit(child, depth + 1) }\n"
+        },
+        {
+          "id": "59i-09-09",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 3086,
+          "before_end": 3399,
+          "after_start": 3302,
+          "after_end": 3730,
+          "before": "      // Even an exact native Data class can redirect assignment to an opaque\n      // per-instance Assignable. Such a hook can run host code without adding\n      // an IR assignment, so post-callback external-write checks cannot detect\n      // it. Read this inherited property only after the class audit above.\n",
+          "after": "      path.remove(data)\n      inspectedValues.put(data, leaves)\n      redirects += data\n      leaves\n    }\n    visit(value, 0)\n    var index = 0\n    while (index < redirects.size) {\n      val data = redirects(index)\n      val owner = data.getClass.getName.replace('.', '/')\n      // Read this inherited property only after the exact class audit. The\n      // inspected final wrapper exposes metadata, never application methods.\n"
+        },
+        {
+          "id": "59i-09-10",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 3455,
+          "before_end": 3631,
+          "after_start": 3786,
+          "after_end": 4359,
+          "before": "        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign\n            if scalarNames(owner) && wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType]) =>\n",
+          "after": "        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign if scalarNames(owner) =>\n          if (wrapped.vector != null && wrapped.vector.getClass == classOf[spinal.core.Vec[_]] &&\n              wrapped.elementIndex >= 0 && wrapped.elementIndex < wrapped.vector.vec.size)\n            visit(wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[spinal.core.Data], 0)\n          if (!wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType], inspectedValues))\n            fail(\"composite callback input has an opaque native assignment redirect: \" + owner)\n"
+        },
+        {
+          "id": "59i-09-11",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 3741,
+          "before_end": 3765,
+          "after_start": 4469,
+          "after_end": 4486,
+          "before": "      path.remove(data)\n",
+          "after": "      index += 1\n"
+        },
+        {
+          "id": "59i-09-12",
+          "reason": "Audit runtime containment before accepting a bounded static-read metadata chain; reject mismatched elements/fields, unsafe containing records, opaque hooks and cycles before callback execution.",
+          "before_start": 3771,
+          "before_end": 3791,
+          "after_start": 4492,
+          "after_end": 4492,
+          "before": "    visit(value, 0)\n",
+          "after": ""
+        }
+      ]
+    }
+  ]
+}
