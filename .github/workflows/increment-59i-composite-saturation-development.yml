@@ -48,10 +48,16 @@ jobs:
           git rev-parse HEAD > "$out/head.txt"
           python3 morphhdl/repair-59i-composite-saturation/write-focused-test.py \
             2>&1 | tee "$out/application.log"
-          git diff --check
-          changed=$(git diff --name-only)
-          test "$changed" = 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
-          test -z "$(git diff --name-only | grep '/src/main/' || true)"
+          test_path=morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
+          test -s "$test_path"
+          mapfile -t changed < <(git status --porcelain=v1 --untracked-files=all | sed -E 's/^.. //')
+          test "${#changed[@]}" -eq 1
+          test "${changed[0]}" = "$test_path"
+          test -z "$(printf '%s\n' "${changed[@]}" | grep '/src/main/' || true)"
+          grep -q 'a.unsigned +| b.unsigned' "$test_path"
+          grep -q 'a.signed +| b.signed' "$test_path"
+          cp "$test_path" "$out/"
+          sha256sum "$test_path" > "$out/source-sha256.txt"
 
       - name: Bootstrap and execute focused Scala suites
         shell: bash
@@ -79,8 +85,6 @@ jobs:
           ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
           mkdir -p "$out/test-reports"
           find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
-          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala "$out/"
-          sha256sum "$out/TypedBalancedReductionCompositeSaturationTests.scala" > "$out/source-sha256.txt"
 
       - name: Upload exact development evidence
         if: always()
