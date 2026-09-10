@@ -1,0 +1,196 @@
+name: Increment 59i generated-child combination
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-generated-child-combination.yml'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala'
+      - 'morphhdl/contracts/native-source-preservation.json'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59i-generated-child-combination.yml'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala'
+      - 'morphhdl/contracts/native-source-preservation.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-generated-child-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scala:
+    name: Generated-child Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Bind exact source and bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-generated-child-$SCALA_VERSION"
+          mkdir -p "$out/bootstrap"
+          git rev-parse HEAD > "$out/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+          test -z "$(git status --porcelain)"
+          test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala
+          grep -q 'BalancedCombinedGeneratedChildTop' \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala
+          python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
+            | tee "$out/widening-source-review.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
+            | tee "$out/59i-source-self-test.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py \
+            | tee "$out/59i-source-review.log"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/bootstrap/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$out/bootstrap/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          out = Path('target') / ('increment-59i-generated-child-' + os.environ['SCALA_VERSION']) / 'bootstrap'
+          expected = (out / 'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((out / 'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/bootstrap/repositories"
+
+      - name: Run focused and inherited hierarchy joins
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-generated-child-$SCALA_VERSION"
+          rm -rf /tmp/balanced-generated-child-*
+          status=0
+          java -Xmx4G -Djava.io.tmpdir=/tmp -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/bootstrap/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/bootstrap/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionGeneratedChildCombinationTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.ParameterizedVerilogFieldLayoutTests' \
+            > "$out/tests.log" 2>&1 || status=$?
+          tail -n 500 "$out/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          mkdir -p "$out/test-reports" "$out/rtl/parameterized" "$out/rtl/concrete"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          for directory in /tmp/balanced-generated-child-*; do
+            test -d "$directory" || continue
+            case "$(basename "$directory")" in
+              balanced-generated-child-concrete-*) kind=concrete ;;
+              balanced-generated-child-*) kind=parameterized ;;
+              *) continue ;;
+            esac
+            find "$directory" -type f -name '*.v' -exec cp {} "$out/rtl/$kind/" \;
+          done
+          test "$(find "$out/rtl/parameterized" -type f -name '*.v' | wc -l)" -ge 2
+          test "$(find "$out/rtl/concrete" -type f -name '*.v' | wc -l)" -ge 1
+          python3 - <<'PY'
+          import os, xml.etree.ElementTree as ET
+          from pathlib import Path
+          out = Path('target') / ('increment-59i-generated-child-' + os.environ['SCALA_VERSION'])
+          reports = list((out / 'test-reports').glob('*.xml'))
+          assert reports, 'no JUnit reports'
+          totals = dict(tests=0, failures=0, errors=0, skipped=0)
+          focused = []
+          for path in reports:
+              root = ET.parse(path).getroot()
+              for key in totals:
+                  totals[key] += int(root.get(key, '0'))
+              if path.name.endswith('.TypedBalancedReductionGeneratedChildCombinationTests.xml'):
+                  focused.append(root)
+          assert len(focused) == 1, focused
+          assert int(focused[0].get('tests', '0')) == 3, focused[0].attrib
+          assert totals['failures'] == totals['errors'] == totals['skipped'] == 0, totals
+          (out / 'test-summary.txt').write_text(''.join(f'{key}={value}\n' for key, value in totals.items()))
+          PY
+
+      - name: Strict Verilog-2001 hierarchy and synthesis checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-generated-child-$SCALA_VERSION"
+          mapfile -t parameterized < <(find "$out/rtl/parameterized" -type f -name '*.v' | sort)
+          mapfile -t concrete < <(find "$out/rtl/concrete" -type f -name '*.v' | sort)
+          for top in BalancedCombinedGeneratedChildTop_packed BalancedCombinedGeneratedChildTop_fields; do
+            iverilog -g2001 -Wall -s "$top" -o "$out/$top.vvp" "${parameterized[@]}"
+            yosys -q -p "read_verilog -noautowire ${parameterized[*]}; hierarchy -check -top $top; proc; opt; check -assert; stat" \
+              > "$out/yosys-$top.log"
+          done
+          top=BalancedCombinedGeneratedChildTop_concrete
+          iverilog -g2001 -Wall -s "$top" -o "$out/$top.vvp" "${concrete[@]}"
+          yosys -q -p "read_verilog -noautowire ${concrete[*]}; hierarchy -check -top $top; proc; opt; check -assert; stat" \
+            > "$out/yosys-$top.log"
+          sha256sum $(find "$out/rtl" -type f -name '*.v' | sort) > "$out/rtl-sha256.txt"
+
+      - name: Require current native-source authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-generated-child-$SCALA_VERSION"
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test \
+            | tee "$out/native-source-self-test.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            | tee "$out/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py \
+            | tee "$out/typed-overlay.log"
+          test -z "$(git status --porcelain)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-generated-child-${{ matrix.scala }}
+          path: target/increment-59i-generated-child-${{ matrix.scala }}
+          if-no-files-found: error
+          retention-days: 21
+
+  cross-scala:
+    name: Generated-child cross-Scala RTL identity
+    needs: scala
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-59i-generated-child-2.*
+          path: evidence
+      - name: Compare exact source, test inventory and generated RTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=evidence/increment-59i-generated-child-2.12.18
+          b=evidence/increment-59i-generated-child-2.13.12
+          cmp "$a/head.txt" "$b/head.txt"
+          cmp "$a/tree.txt" "$b/tree.txt"
+          diff -ru "$a/rtl" "$b/rtl"
+          for summary in "$a/test-summary.txt" "$b/test-summary.txt"; do
+            grep -q '^failures=0$' "$summary"
+            grep -q '^errors=0$' "$summary"
+            grep -q '^skipped=0$' "$summary"
+          done
