@@ -1,0 +1,304 @@
+name: Increment 59i composite saturation checkpoint
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
+      - '.github/workflows/increment-59i-composite-saturation.yml'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
+      - '.github/workflows/increment-59i-composite-saturation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-composite-saturation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Composite saturation Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Bind exact source and inherited reviews
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor "$INTEGRATION_MERGE" HEAD
+          test "$(git rev-parse "$INTEGRATION_MERGE^2")" = "$TARGET_HEAD"
+
+          for role in feature target; do
+            if test "$role" = feature; then revision="$INTEGRATION_MERGE^1"; else revision="$INTEGRATION_MERGE^2"; fi
+            work=/tmp/59i-saturation-native-$role-$SCALA_VERSION
+            rm -rf "$work"
+            git worktree add --detach "$work" "$revision"
+            (cd "$work" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+              | tee "$out/native-$role.log"
+            (cd "$work" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+              | tee "$out/overlay-$role.log"
+            git worktree remove --force "$work"
+          done
+
+          for checker in \
+            morphhdl/scripts/check-increment-59i-source-review.py \
+            morphhdl/scripts/check-increment-59i-widening-source-review.py \
+            morphhdl/scripts/check-increment-59i-local-enable-source-review.py; do
+            if test -f "$checker"; then
+              python3 "$checker" --self-test | tee -a "$out/source-self-tests.log"
+              python3 "$checker" | tee -a "$out/source-reviews.log"
+            fi
+          done
+          git diff --check
+          test -z "$(git status --porcelain)"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$out/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          out = Path('target') / ('increment-59i-saturation-' + os.environ['SCALA_VERSION'])
+          expected = (out / 'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((out / 'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+
+      - name: Compile, test and retain original RTL
+        shell: bash
+        env:
+          MORPHDL_59I_SAT_OUTPUT: ${{ github.workspace }}/target/increment-59i-saturation-${{ matrix.scala }}/generated
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
+          status=0
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$out/tests.log" 2>&1 || status=$?
+          tail -n 420 "$out/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          test -f "$out/generated/packed/BalancedSaturatingReduction_packed.v"
+          test -f "$out/generated/fields/BalancedSaturatingReduction_fields.v"
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          sha256sum "$out/generated"/*/*.v > "$out/rtl-sha256.txt"
+
+      - name: Strict Verilog, simulation and formal interface equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
+          packed="$out/generated/packed/BalancedSaturatingReduction_packed.v"
+          fields="$out/generated/fields/BalancedSaturatingReduction_fields.v"
+          iverilog -g2001 -Wall -tnull "$packed"
+          iverilog -g2001 -Wall -tnull "$fields"
+          yosys -q -p "read_verilog -noautowire $packed; hierarchy -check -top BalancedSaturatingReduction_packed; proc; opt; check -assert; stat" > "$out/yosys-packed.log"
+          yosys -q -p "read_verilog -noautowire $fields; hierarchy -check -top BalancedSaturatingReduction_fields; proc; opt; check -assert; stat" > "$out/yosys-fields.log"
+
+          cat > "$out/tb.v" <<'VERILOG'
+          `timescale 1ns/1ps
+          module tb;
+            reg [14:0] values_value;
+            reg [9:0] values_tag;
+            reg [4:0] values_valid;
+            wire [2:0] result_value;
+            wire [1:0] result_tag;
+            wire result_valid;
+            integer i;
+            integer acc;
+            reg [1:0] tag_acc;
+            reg valid_acc;
+            reg [31:0] seed;
+            BalancedSaturatingReduction_fields #(
+              .WIDTH(3), .TAG_WIDTH(2), .COUNT(5)
+            ) dut (
+              .values_value(values_value), .values_tag(values_tag), .values_valid(values_valid),
+              .result_value(result_value), .result_tag(result_tag), .result_valid(result_valid)
+            );
+            task check;
+              begin
+                acc = 0; tag_acc = 0; valid_acc = 0;
+                for (i = 0; i < 5; i = i + 1) begin
+                  acc = acc + values_value[i*3 +: 3];
+                  tag_acc = tag_acc ^ values_tag[i*2 +: 2];
+                  valid_acc = valid_acc | values_valid[i];
+                end
+                #1;
+                if (result_value !== ((acc > 7) ? 3'd7 : acc[2:0]) ||
+                    result_tag !== tag_acc || result_valid !== valid_acc) begin
+                  $display("59I-SATURATION-MISMATCH value=%h expected=%h tag=%h expected_tag=%h valid=%b expected_valid=%b",
+                    result_value, ((acc > 7) ? 3'd7 : acc[2:0]), result_tag, tag_acc,
+                    result_valid, valid_acc);
+                  $finish(1);
+                end
+              end
+            endtask
+            initial begin
+              values_value = 0; values_tag = 0; values_valid = 0; check;
+              values_value = {5{3'd7}}; values_tag = 10'b0110110011; values_valid = 5'b10101; check;
+              values_value = {3'd1,3'd2,3'd3,3'd0,3'd1}; values_tag = 10'b1110010110; values_valid = 5'b01010; check;
+              seed = 32'h59095A7A;
+              for (i = 0; i < 256; i = i + 1) begin
+                seed = seed * 32'd1664525 + 32'd1013904223;
+                values_value = seed[14:0];
+                seed = seed * 32'd1664525 + 32'd1013904223;
+                values_tag = seed[9:0]; values_valid = seed[14:10];
+                check;
+              end
+              $display("59I-SATURATION-SIM-PASS");
+              $finish;
+            end
+          endmodule
+          VERILOG
+          iverilog -g2001 -Wall -s tb -o "$out/tb.vvp" "$fields" "$out/tb.v"
+          vvp "$out/tb.vvp" | tee "$out/simulation.log"
+          grep -q '59I-SATURATION-SIM-PASS' "$out/simulation.log"
+          ! grep -q '59I-SATURATION-MISMATCH' "$out/simulation.log"
+
+          cat > "$out/miter.v" <<'VERILOG'
+          module miter(
+            input wire [14:0] values_value,
+            input wire [9:0] values_tag,
+            input wire [4:0] values_valid,
+            output wire bad
+          );
+            wire [2:0] field_value, packed_value;
+            wire [1:0] field_tag, packed_tag;
+            wire field_valid, packed_valid;
+            wire [29:0] packed_values;
+            wire [5:0] sum = values_value[2:0] + values_value[5:3] +
+                             values_value[8:6] + values_value[11:9] + values_value[14:12];
+            wire [2:0] ref_value = (sum > 6'd7) ? 3'd7 : sum[2:0];
+            wire [1:0] ref_tag = values_tag[1:0] ^ values_tag[3:2] ^ values_tag[5:4] ^
+                                 values_tag[7:6] ^ values_tag[9:8];
+            wire ref_valid = |values_valid;
+            assign packed_values = {
+              values_valid[4], values_tag[9:8], values_value[14:12],
+              values_valid[3], values_tag[7:6], values_value[11:9],
+              values_valid[2], values_tag[5:4], values_value[8:6],
+              values_valid[1], values_tag[3:2], values_value[5:3],
+              values_valid[0], values_tag[1:0], values_value[2:0]
+            };
+            BalancedSaturatingReduction_fields #(.WIDTH(3), .TAG_WIDTH(2), .COUNT(5)) fields_dut(
+              .values_value(values_value), .values_tag(values_tag), .values_valid(values_valid),
+              .result_value(field_value), .result_tag(field_tag), .result_valid(field_valid));
+            BalancedSaturatingReduction_packed #(.WIDTH(3), .TAG_WIDTH(2), .COUNT(5)) packed_dut(
+              .values(packed_values), .result_value(packed_value),
+              .result_tag(packed_tag), .result_valid(packed_valid));
+            assign bad = (field_value != ref_value) || (field_tag != ref_tag) ||
+                         (field_valid != ref_valid) ||
+                         (field_value != packed_value) || (field_tag != packed_tag) ||
+                         (field_valid != packed_valid);
+          endmodule
+          VERILOG
+          cat > "$out/prove.ys" <<EOF
+          read_verilog -noautowire $packed $fields $out/miter.v
+          prep -top miter -flatten
+          opt -full
+          check -assert
+          sat -prove bad 0 -verify -show-inputs -show-outputs -timeout 120
+          EOF
+          yosys -Q -T -s "$out/prove.ys" | tee "$out/formal.log"
+          grep -q 'SAT proof finished - no model found: SUCCESS' "$out/formal.log"
+
+          python3 - "$fields" "$out/mutated.v" <<'PY'
+          import re, sys
+          from pathlib import Path
+          source = Path(sys.argv[1]).read_text()
+          # Corrupt the actual generated result-value binding while preserving
+          # a parseable/synthesizable candidate. This must produce a genuine
+          # counterexample, not a timeout or broken testbench.
+          pattern = re.compile(r'(assign\s+result_value\s*=\s*)([^;]+)(;)')
+          changed, count = pattern.subn(r"\g<1>{WIDTH{1'b0}}\g<3>", source, count=1)
+          if count != 1 or changed == source:
+              raise SystemExit('actual result_value mutation anchor missing')
+          Path(sys.argv[2]).write_text(changed)
+          PY
+          iverilog -g2001 -Wall -tnull "$out/mutated.v"
+          sed "s|$fields|$out/mutated.v|g" "$out/prove.ys" > "$out/mutation.ys"
+          set +e
+          yosys -Q -T -s "$out/mutation.ys" > "$out/mutation.log" 2>&1
+          mutation_status=$?
+          set -e
+          test "$mutation_status" -ne 0
+          grep -q 'model found' "$out/mutation.log"
+          ! grep -q 'timeout' "$out/mutation.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-saturation-${{ matrix.scala }}
+          path: target/increment-59i-saturation-${{ matrix.scala }}
+          if-no-files-found: error
+          retention-days: 21
+
+  determinism:
+    name: Composite saturation cross-Scala identity
+    needs: qualify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-59i-saturation-2.*
+          path: evidence
+      - name: Compare exact source, RTL and proof inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          a=evidence/increment-59i-saturation-2.12.18
+          b=evidence/increment-59i-saturation-2.13.12
+          cmp "$a/head.txt" "$b/head.txt"
+          cmp "$a/tree.txt" "$b/tree.txt"
+          diff -ru "$a/generated" "$b/generated"
+          grep -q '59I-SATURATION-SIM-PASS' "$a/simulation.log"
+          grep -q '59I-SATURATION-SIM-PASS' "$b/simulation.log"
+          grep -q 'SAT proof finished - no model found: SUCCESS' "$a/formal.log"
+          grep -q 'SAT proof finished - no model found: SUCCESS' "$b/formal.log"
+          grep -q 'model found' "$a/mutation.log"
+          grep -q 'model found' "$b/mutation.log"
