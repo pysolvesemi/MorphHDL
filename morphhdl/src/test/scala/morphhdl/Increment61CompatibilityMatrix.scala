@@ -116,6 +116,28 @@ object Increment61CompatibilityMatrixArtifacts {
 }
 
 class Increment61CompatibilityMatrixTests extends AnyFunSuite {
+  test("catalog covers every merged field and reduction publication surface") {
+    assert(
+      Increment61CompatibilityCatalog.cases.map(_.id) == Vector(
+        "named-field-access",
+        "named-field-nested",
+        "named-field-storage",
+        "named-field-streams",
+        "stream-fifo",
+        "stream-fifo-cc",
+        "signed-memory-hierarchy",
+        "recursive-generate",
+        "widening-reduction",
+        "composite-reduction",
+        "callback-graph-reduction",
+        "register-bridge-reduction",
+        "balanced-reduction",
+        "nested-reduction-hierarchy",
+        "typed-blackbox"
+      )
+    )
+  }
+
   test("roadmap compatibility matrix preserves exact component ownership") {
     withTemporaryDirectory { directory =>
       Increment61CompatibilityCatalog.cases.foreach { entry =>

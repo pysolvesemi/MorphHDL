@@ -85,17 +85,17 @@
       "status": "added"
     },
     {
-      "after_sha256": "eff63d72c64ff86014f9e08d0817f3fcf31aca6e1503055dff1a49a0892812fe",
+      "after_sha256": "d2fa00802748f60310ee155bcec0856129c140d83b4f1baf758dc851cbd3ce7c",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala",
       "status": "added"
     },
     {
-      "after_sha256": "b27e21d1876bc5a27294cb06d52ce6674f55be16f1838dd473376b234a32b2c3",
+      "after_sha256": "37625d0da35db57500893cdf6d69d7f0ff201efe6d539223d83bbac267114e6f",
       "before_sha256": null,
       "mode": "100644",
-      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala",
+       "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala",
       "status": "added"
     },
     {

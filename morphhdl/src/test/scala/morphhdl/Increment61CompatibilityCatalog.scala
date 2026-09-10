@@ -6,7 +6,14 @@ import nativeapplication.{
   TypedBlackBoxGenericBindingFixture
 }
 import spinal.core._
-import spinal.core.internals.{BalancedNestedHierarchy, BalancedPublicationHardware}
+import spinal.core.internals.{
+  BalancedBridgeHardware,
+  BalancedCallbackGraphHardware,
+  BalancedCompositeHardware,
+  BalancedNestedHierarchy,
+  BalancedPublicationHardware,
+  BalancedWideningHardware
+}
 
 import morphhdl.frontend.HdlInt
 
@@ -71,6 +78,33 @@ object Increment61CompatibilityCatalog {
 
   val cases: Vector[CompatibilityCase] = Vector(
     CompatibilityCase(
+      id = "named-field-access",
+      generatedTop = "NamedFieldVecAccess",
+      toolTop = "NamedFieldVecAccess",
+      requiredGeneratedModules = Set("NamedFieldVecAccess"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Access(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "named-field-nested",
+      generatedTop = "NamedFieldVecNested",
+      toolTop = "NamedFieldVecNested",
+      requiredGeneratedModules = Set("NamedFieldVecNested"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Nested(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17),
+        NamedFieldVecFixture.parameter("INNER", default = 2, maximum = 3)
+      )
+    ),
+    CompatibilityCase(
       id = "named-field-storage",
       generatedTop = "NamedFieldVecStorage",
       toolTop = "NamedFieldVecStorage",
@@ -78,6 +112,19 @@ object Increment61CompatibilityCatalog {
       forbiddenGeneratedModules = Set.empty,
       supportFile = None,
       build = () => new NamedFieldVecFixture.Storage(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "named-field-streams",
+      generatedTop = "NamedFieldVecStreams",
+      toolTop = "NamedFieldVecStreams",
+      requiredGeneratedModules = Set("NamedFieldVecStreams"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Streams(
         NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
         NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
         NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
@@ -128,6 +175,68 @@ object Increment61CompatibilityCatalog {
       forbiddenGeneratedModules = Set.empty,
       supportFile = Some("tool-top.v" -> RecursiveToolTop),
       build = () => BoundedRecursivePowerFixture.parameterized()
+    ),
+    CompatibilityCase(
+      id = "widening-reduction",
+      generatedTop = "BalancedWidening",
+      toolTop = "BalancedWidening",
+      requiredGeneratedModules = Set("BalancedWidening"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedWideningHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 5, min = 1, max = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "composite-reduction",
+      generatedTop = "BalancedCompositePublication",
+      toolTop = "BalancedCompositePublication",
+      requiredGeneratedModules = Set("BalancedCompositePublication"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => {
+        val widths = Vector(
+          "R_W", "G_W", "B_W", "KEY_W", "TAG_W",
+          "COORD_W", "C_W", "U_W", "S_W", "BITS_W"
+        ).map(name => HdlInt.param(name, default = 5, min = 1, max = 32))
+        new BalancedCompositeHardware(
+          widths(0), widths(1), widths(2), widths(3), widths(4),
+          widths(5), widths(6), widths(7), widths(8), widths(9),
+          HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+          "BalancedCompositePublication"
+        )
+      }
+    ),
+    CompatibilityCase(
+      id = "callback-graph-reduction",
+      generatedTop = "BalancedCallbackGraphSplit",
+      toolTop = "BalancedCallbackGraphSplit",
+      requiredGeneratedModules = Set("BalancedCallbackGraphSplit"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedCallbackGraphHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+        "BalancedCallbackGraphSplit"
+      )
+    ),
+    CompatibilityCase(
+      id = "register-bridge-reduction",
+      generatedTop = "BalancedBridgeSplit",
+      toolTop = "BalancedBridgeSplit",
+      requiredGeneratedModules = Set("BalancedBridgeSplit"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedBridgeHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+        "BalancedBridgeSplit",
+        rising = true,
+        asynchronous = false,
+        resetHigh = true,
+        enablePolarity = "HIGH"
+      )
     ),
     CompatibilityCase(
       id = "balanced-reduction",
