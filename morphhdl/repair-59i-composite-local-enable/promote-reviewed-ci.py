@@ -3,8 +3,10 @@
 
 All three source-bound transformations run exactly once. The review generator is
 then called through its pure helper functions, rather than its command-line main
-(which would apply the first patch a second time). Reviewers that require exact
-HEAD/index/worktree identity run only after the workflow commits these files.
+(which would apply the first patch a second time). The successor review covers
+the scalar bridge proof, composite partition/replay, and publication backend
+statement inventory. Reviewers requiring exact HEAD/index/worktree identity run
+only after the workflow commits these files.
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ PATCHERS = (
     DIRECTORY / "fix-generated.py",
     DIRECTORY / "include-statements.py",
 )
+BACKEND = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
 
 spec = importlib.util.spec_from_file_location("increment_59i_local_enable_promoter", SOURCE)
 if spec is None or spec.loader is None:
@@ -33,6 +36,23 @@ promote.require(all(path.is_file() for path in PATCHERS),
 promote.require(not promote.CONTRACT.exists() and not promote.CHECKER.exists() and
                 not promote.CHECKER_TEST.exists(),
                 "local-enable successor files already exist")
+promote.require(BACKEND not in promote.PRODUCTION,
+                "backend is already present in the base promotion inventory")
+promote.PRODUCTION = promote.PRODUCTION + (BACKEND,)
+checker_anchor = '''    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+)
+'''
+promote.require(promote.CHECKER_TEMPLATE.count(checker_anchor) == 1,
+                "local-enable reviewer path anchor changed")
+promote.CHECKER_TEMPLATE = promote.CHECKER_TEMPLATE.replace(
+    checker_anchor,
+    '''    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+)
+''',
+    1,
+)
+
 base = promote.output("git", "rev-parse", "HEAD")
 for patcher in PATCHERS:
     subprocess.run([sys.executable, str(patcher)], cwd=ROOT, check=True)
