@@ -1,0 +1,83 @@
+name: Increment 59i local-enable transaction diagnostic
+
+on:
+  push:
+    branches: ['agent/59i-local-enable-failure-diagnostic']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-transaction-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-local-enable-transaction-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  transaction:
+    name: Apply, commit and review exact candidate without publication
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    env:
+      SOURCE_HEAD: 3185eeb8a9b37b051c73615f94672ef792376d07
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Check exact promotion transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$SOURCE_HEAD"
+          git checkout --detach "$SOURCE_HEAD"
+          test "$(git rev-parse HEAD)" = "$SOURCE_HEAD"
+          test -z "$(git status --porcelain)"
+
+          python3 morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py | \
+            tee transaction-generation.log
+          git diff --check
+          python3 morphhdl/repair-59i-composite-local-enable/check-generated-paths.py | \
+            tee transaction-inventory.log
+          python3 -m py_compile \
+            morphhdl/repair-59i-composite-local-enable/*.py \
+            morphhdl/scripts/check-increment-59i-local-enable-source-review.py \
+            morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+
+          git config user.name '59i transaction diagnostic'
+          git config user.email '59i-diagnostic@example.invalid'
+          git add -- \
+            docs/morphhdl/increment-59i-composite-local-enables.md \
+            morphhdl/contracts/increment-59i-local-enable-review.json \
+            morphhdl/scripts/check-increment-59i-local-enable-source-review.py \
+            morphhdl/scripts/check-increment-59i-source-review.py \
+            morphhdl/scripts/test-increment-59i-local-enable-source-review.py \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          git diff --cached --check
+          git commit -m 'Temporary exact local-enable candidate'
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD | tee transaction-candidate-head.txt
+          git rev-parse 'HEAD^{tree}' | tee transaction-candidate-tree.txt
+
+          python3 morphhdl/scripts/check-increment-59i-local-enable-source-review.py --self-test | \
+            tee transaction-local-review.log
+          python3 morphhdl/scripts/check-increment-59i-source-review.py | \
+            tee transaction-composed-review.log
+          python3 morphhdl/scripts/check-native-source-preservation.py | \
+            tee transaction-native-review.log
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | \
+            tee transaction-overlay-review.log
+          test -z "$(git status --porcelain)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-transaction-diagnostic
+          path: |
+            transaction-*.log
+            transaction-*.txt
+          if-no-files-found: warn
+          retention-days: 7
