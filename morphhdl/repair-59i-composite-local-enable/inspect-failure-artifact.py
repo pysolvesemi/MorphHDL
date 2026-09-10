@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Print exact failed ScalaTest cases from a downloaded Actions artifact."""
+"""Print exact failed ScalaTest cases from a downloaded Actions artifact.
+
+A failing shell exits before copying JUnit XML into the evidence directory, but
+the complete redirected tests.log is uploaded. Prefer JUnit when present and
+otherwise extract each concrete ScalaTest failure with surrounding trace lines.
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,18 +13,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("root", type=Path)
-    args = parser.parse_args()
-    root = args.root.resolve()
-    if not root.is_dir():
-        raise SystemExit("artifact root is missing: " + str(root))
-
-    reports = sorted(root.rglob("*.xml"))
-    if not reports:
-        raise SystemExit("artifact contains no JUnit XML")
+def junit_failures(root: Path) -> int:
     failures = 0
+    reports = sorted(root.rglob("*.xml"))
     for report in reports:
         try:
             suite = ET.parse(report).getroot()
@@ -29,6 +25,7 @@ def main() -> None:
             children = list(case.findall("failure")) + list(case.findall("error"))
             for child in children:
                 failures += 1
+                print("FAILED_SOURCE=JUNIT")
                 print("FAILED_SUITE=" + str(suite.get("name", report.stem)))
                 print("FAILED_TEST=" + str(case.get("name", "<unnamed>")))
                 print("FAILED_CLASS=" + str(case.get("classname", "<unknown>")))
@@ -39,18 +36,51 @@ def main() -> None:
                     print("FAILED_TRACE_BEGIN")
                     print(body)
                     print("FAILED_TRACE_END")
-
     print("JUNIT_REPORTS=" + str(len(reports)))
-    print("JUNIT_FAILURES=" + str(failures))
+    return failures
+
+
+def log_failures(root: Path) -> int:
+    failures = 0
+    logs = sorted(root.rglob("tests.log"))
+    if not logs:
+        raise SystemExit("artifact contains neither JUnit XML nor tests.log")
+    concrete = re.compile(r"^\[info\] - .+ \*\*\* FAILED \*\*\*$")
+    for log in logs:
+        lines = log.read_text(errors="replace").splitlines()
+        indexes = [index for index, line in enumerate(lines) if concrete.match(line)]
+        for ordinal, index in enumerate(indexes, 1):
+            failures += 1
+            print("FAILED_SOURCE=TESTS_LOG")
+            print("FAILED_LOG=" + str(log.relative_to(root)))
+            print("FAILED_TEST=" + lines[index][len("[info] - "):-len(" *** FAILED ***")])
+            print("FAILED_TRACE_BEGIN")
+            start = index
+            end = min(len(lines), index + 90)
+            for line in lines[start:end]:
+                if line.startswith("[info] - ") and line != lines[index]:
+                    break
+                if line.startswith("[info] Run completed"):
+                    break
+                print(line)
+            print("FAILED_TRACE_END")
+    return failures
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("root", type=Path)
+    args = parser.parse_args()
+    root = args.root.resolve()
+    if not root.is_dir():
+        raise SystemExit("artifact root is missing: " + str(root))
+
+    failures = junit_failures(root)
     if failures == 0:
-        # Preserve useful context if the runner copied a different report root.
-        logs = sorted(root.rglob("tests.log"))
-        for log in logs:
-            text = log.read_text(errors="replace")
-            matches = list(re.finditer(r"(?m)^.*(?:FAILED|Exception|error).*$", text))
-            for match in matches[-100:]:
-                print("LOG_DIAGNOSTIC=" + match.group(0))
-        raise SystemExit("downloaded reports contain no failed testcase")
+        failures = log_failures(root)
+    print("EXACT_FAILURES=" + str(failures))
+    if failures == 0:
+        raise SystemExit("downloaded evidence contains no concrete failed testcase")
 
 
 if __name__ == "__main__":
