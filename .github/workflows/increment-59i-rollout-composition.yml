@@ -5,6 +5,7 @@ on:
     branches: ['agent/increment-59i-combined-reduction-closure']
     paths:
       - '.github/workflows/increment-59i-rollout-composition.yml'
+      - 'morphhdl/repair-59i-rollout-composition/**'
   workflow_dispatch:
 
 permissions:
