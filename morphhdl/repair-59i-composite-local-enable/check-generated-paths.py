@@ -2,7 +2,7 @@
 """Require the exact uncommitted file set produced by local-enable promotion.
 
 This is intentionally stricter than a directory-prefix allowlist. The source
-promoter may change two production files, one focused test, the parent 59i
+promoter may change three production files, one focused test, the parent 59i
 reviewer, and four new review/documentation files. Renames, staged input and any
 other path are rejected before the candidate commit is created.
 """
@@ -18,6 +18,7 @@ EXPECTED = {
     "morphhdl/scripts/check-increment-59i-local-enable-source-review.py",
     "morphhdl/scripts/check-increment-59i-source-review.py",
     "morphhdl/scripts/test-increment-59i-local-enable-source-review.py",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala",
