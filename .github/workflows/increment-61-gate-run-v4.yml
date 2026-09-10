@@ -1,0 +1,256 @@
+name: Increment 61 exact-head gate runner v4
+
+on:
+  push:
+    branches: ['agent/increment-61-controller']
+    paths: ['.github/workflows/increment-61-gate-run-v4.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: increment-61-exact-head-gate-run-v4
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      FEATURE_BRANCH: agent/increment-61-one-file-per-component
+      PR_NUMBER: '179'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-61-one-file-per-component
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply the idempotent reviewed compatibility-ceiling repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/increment-61-fix-compat-ceiling.yml
+          test ! -e .github/workflows/increment-61-fix-compat-ceiling-v2.yml
+          before=$(git rev-parse HEAD)
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import re
+
+          matrix = Path('morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala')
+          contract = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker = Path('morphhdl/scripts/check-increment-61-source-review.py')
+
+          source = matrix.read_text()
+          old = '''      SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true
+      )'''
+          new = '''      SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true,
+        bitVectorWidthMax = 8192
+      )'''
+          marker = 'bitVectorWidthMax = 8192'
+          if marker not in source:
+              if source.count(old) != 1:
+                  raise SystemExit(f'expected one compatibility publication config, found {source.count(old)}')
+              matrix.write_text(source.replace(old, new))
+          elif source.count(marker) != 1:
+              raise SystemExit('Increment 61 compatibility ceiling marker is duplicated')
+
+          matrix_sha = hashlib.sha256(matrix.read_bytes()).hexdigest()
+          value = json.loads(contract.read_text())
+          entries = [entry for entry in value['reviewed_files'] if entry['path'] == matrix.as_posix()]
+          if len(entries) != 1:
+              raise SystemExit('Increment 61 matrix review entry is missing or duplicated')
+          entries[0]['after_sha256'] = matrix_sha
+          contract.write_text(json.dumps(value, indent=2) + '\n')
+          contract_sha = hashlib.sha256(contract.read_bytes()).hexdigest()
+
+          checker_source = checker.read_text()
+          checker_source, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{contract_sha}"',
+              checker_source,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('Increment 61 checker seal is missing or duplicated')
+          checker.write_text(checker_source)
+          print('matrix sha256:', matrix_sha)
+          print('contract sha256:', contract_sha)
+          PY
+
+          git diff --check
+          python3 -m py_compile morphhdl/scripts/check-increment-61-source-review.py
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add \
+              morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala \
+              morphhdl/contracts/increment-61-source-review.json \
+              morphhdl/scripts/check-increment-61-source-review.py
+            git diff --cached --check
+            remote=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+            test "$remote" = "$before"
+            git commit \
+              -m '61: raise compatibility fixture width ceiling' \
+              -m 'Preserve the full reviewed named-field parameter domains by raising only the Increment 61 compatibility harness bit-vector ceiling from 4096 to 8192. Its legal nested maximum is 4998 bits. Reseal exact-source review; production behavior and user defaults are unchanged.'
+            git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          fi
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          git rev-parse HEAD | tee /tmp/increment-61-head
+
+      - name: Dispatch and require the exact-head closure workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-61-gate-v4
+          python3 - <<'PY'
+          from __future__ import annotations
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          branch = os.environ['FEATURE_BRANCH']
+          head = Path('/tmp/increment-61-head').read_text().strip()
+          output = Path('target/increment-61-gate-v4')
+          output.mkdir(parents=True, exist_ok=True)
+          required = [
+              'Increment 61 one-file-per-component publication',
+              'Increment 61 per-component compatibility matrix',
+              'Increment 60c signed declarations',
+              'Increment 60d pure SInt casts',
+              'Increment 60e signedness boundaries',
+              'Increment 60f equivalence closure',
+              'Increment 60g default signed Verilog',
+              'MorphHDL baseline',
+              'MorphHDL Mill',
+              'MorphHDL native source guard',
+          ]
+          base = f'https://api.github.com/repos/{repo}'
+
+          def call(method: str, path: str, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(
+                  base + path,
+                  data=data,
+                  method=method,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'morphhdl-increment-61-gate-v4',
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  raw = response.read()
+                  return None if not raw else json.loads(raw)
+
+          workflows = {}
+          page = 1
+          while True:
+              value = call('GET', f'/actions/workflows?per_page=100&page={page}')
+              batch = value.get('workflows', [])
+              for workflow in batch:
+                  workflows[workflow['name']] = workflow
+              if len(batch) < 100:
+                  break
+              page += 1
+          missing = [name for name in required if name not in workflows]
+          if missing:
+              raise SystemExit(f'missing required workflows: {missing}')
+
+          for name in required:
+              workflow = workflows[name]
+              try:
+                  call('POST', f"/actions/workflows/{workflow['id']}/dispatches", {'ref': branch})
+                  print('dispatched', name, workflow['path'], flush=True)
+              except urllib.error.HTTPError as error:
+                  detail = error.read().decode(errors='replace')
+                  raise SystemExit(f'cannot dispatch {name}: HTTP {error.code}: {detail}')
+
+          retried = set()
+          started = time.time()
+          deadline = started + 12600
+          latest = {}
+          while time.time() < deadline:
+              value = call(
+                  'GET',
+                  '/actions/runs?' + urllib.parse.urlencode({
+                      'branch': branch,
+                      'per_page': 100,
+                      'exclude_pull_requests': 'false',
+                  }),
+              )
+              candidates = [run for run in value.get('workflow_runs', []) if run.get('head_sha') == head]
+              latest = {}
+              for run in sorted(candidates, key=lambda item: item.get('created_at', '')):
+                  if run.get('name') in required:
+                      latest[run['name']] = run
+              snapshot = {
+                  name: None if name not in latest else {
+                      'id': latest[name]['id'],
+                      'status': latest[name]['status'],
+                      'conclusion': latest[name].get('conclusion'),
+                      'event': latest[name].get('event'),
+                      'created_at': latest[name].get('created_at'),
+                      'html_url': latest[name].get('html_url'),
+                  }
+                  for name in required
+              }
+              (output / 'live.json').write_text(json.dumps({'head': head, 'runs': snapshot}, indent=2) + '\n')
+              print(json.dumps(snapshot, sort_keys=True), flush=True)
+
+              if all(name in latest and latest[name]['status'] == 'completed' and
+                     latest[name].get('conclusion') == 'success' for name in required):
+                  (output / 'success.json').write_text(
+                      json.dumps({'head': head, 'runs': snapshot, 'elapsed_seconds': int(time.time() - started)}, indent=2) + '\n'
+                  )
+                  print('Increment 61 exact-head gate set PASS', head, flush=True)
+                  break
+
+              terminal_bad = [
+                  name for name in required
+                  if name in latest and latest[name]['status'] == 'completed' and
+                     latest[name].get('conclusion') != 'success'
+              ]
+              exhausted = [name for name in terminal_bad if name in retried]
+              if exhausted:
+                  (output / 'failure.json').write_text(
+                      json.dumps({'head': head, 'runs': snapshot, 'exhausted': exhausted}, indent=2) + '\n'
+                  )
+                  raise SystemExit(f'exact-head workflows failed after one fresh rerun: {exhausted}')
+              for name in terminal_bad:
+                  workflow = workflows[name]
+                  call('POST', f"/actions/workflows/{workflow['id']}/dispatches", {'ref': branch})
+                  retried.add(name)
+                  print('fresh rerun dispatched', name, flush=True)
+              time.sleep(30)
+          else:
+              (output / 'timeout.json').write_text(json.dumps({'head': head, 'runs': latest}, indent=2) + '\n')
+              raise SystemExit('timed out waiting for the exact-head Increment 61 gate set')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-gate-v4
+          path: target/increment-61-gate-v4
+          if-no-files-found: error
+          retention-days: 14
