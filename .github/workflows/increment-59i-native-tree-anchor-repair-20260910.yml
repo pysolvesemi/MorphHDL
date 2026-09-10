@@ -23,7 +23,7 @@ jobs:
       BRANCH: agent/increment-59i-combined-reduction-closure
       MANIFEST: morphhdl/contracts/native-source-preservation.json
       ANCHOR_REVIEW: morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py
-      EXPECTED_ANCHOR_REVIEW_BLOB: b15eab24e64bb788967ca1eee7d145dd390ab00f
+      EXPECTED_ANCHOR_REVIEW_BLOB: b936a111af4cb09c8475cf63ba0c199a4290137b
       EXPECTED_MANIFEST_BLOB: d99bc8f8e48a1740e49ad3bc05438073737822b6
       OLD_CORE_TREE: dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5
       REVIEWED_CORE_TREE: 943729ae908f900ec07cc7d7be666b64915e6aff
@@ -56,8 +56,8 @@ jobs:
           cp "$MANIFEST" "$out/before-manifest.json"
 
           # Validate the complete historical 59i view while its original
-          # native-manifest bytes are still present.  The one-line successor
-          # is reviewed separately after it is committed.
+          # native-manifest bytes are still present. The one-line successor is
+          # independently reviewed after it is committed.
           python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
             | tee "$out/predecessor-widening-source-review.log"
           python3 morphhdl/scripts/test-increment-59i-widening-source-review.py -v \
@@ -130,7 +130,7 @@ jobs:
           test -z "$(git status --porcelain)"
           test "$(git rev-parse 'HEAD:core/src/main')" = "$REVIEWED_CORE_TREE"
 
-      - name: Validate exact anchor successor and current native source
+      - name: Validate exact anchor successor and current source composition
         shell: bash
         run: |
           set -euo pipefail
@@ -148,6 +148,12 @@ jobs:
             | tee "$out/typed-overlay.log"
           python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
             | tee "$out/successor-widening-source-review.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
+            | tee "$out/successor-59i-source-self-test.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py \
+            | tee "$out/successor-59i-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v \
+            2>&1 | tee "$out/successor-review-composition.log"
           test -z "$(git status --porcelain)"
           sha256sum "$MANIFEST" "$ANCHOR_REVIEW" > "$out/candidate-source.sha256"
 
