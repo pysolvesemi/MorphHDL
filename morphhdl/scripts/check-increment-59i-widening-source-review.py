@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Exact successor review for Increment 59i composite widening production."""
+"""Exact historical successor review for Increment 59i composite widening.
+
+The widening implementation is one immutable layer in the larger 59i join.
+Later, independently reviewed target-branch and pass changes may add unrelated
+``src/main`` paths.  This checker therefore proves the exact BASE -> SUCCESSOR
+production delta, then requires every reviewed widening source and its contract
+to remain byte-identical at the current descendant.  The parent 59i reviewer
+continues to own the complete current production inventory.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -9,6 +17,7 @@ import subprocess
 from pathlib import Path
 
 BASE = "3c959a44e251df51d5a1faa6b17e5d88d7984081"
+SUCCESSOR = "df76262934b38516785fc7bf51595d918a20e7d2"
 CONTRACT = "morphhdl/contracts/increment-59i-widening-review.json"
 CONTRACT_SHA256 = "f85db8c98de37f8fd306e320455e564cecc05aa2b079ca9041bac26ba46f03e0"
 PATHS = (
@@ -27,6 +36,30 @@ def require(condition: bool, detail: str) -> None:
 
 def digest(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def git_bytes(root: Path, *arguments: str) -> bytes:
+    result = subprocess.run(["git", *arguments], cwd=root, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, check=False)
+    require(result.returncode == 0,
+            "59i widening Git command failed: git " + " ".join(arguments) +
+            "\n" + result.stderr.decode(errors="replace"))
+    return result.stdout
+
+
+def revision_source(root: Path, revision: str, path: str) -> bytes:
+    return git_bytes(root, "show", revision + ":" + path)
+
+
+def revision_mode(root: Path, revision: str, path: str) -> str:
+    line = git_bytes(root, "ls-tree", revision, "--", path).decode().strip().split()
+    require(len(line) >= 4 and line[1] == "blob", "59i widening reviewed Git blob is missing: " + path)
+    return line[0]
+
+
+def revision_production_changes(root: Path, before: str, after: str) -> set[str]:
+    changed = git_bytes(root, "diff", "--no-renames", "--name-only", before, after).decode().splitlines()
+    return {path for path in changed if re.search(r"(?:^|/)src/main/", path)}
 
 
 def validate_contract(value: dict) -> dict[str, dict]:
@@ -99,7 +132,7 @@ def load_contract(root: Path) -> dict[str, dict]:
 def baseline_source(root: Path, path: str) -> bytes:
     if path in ADDED_PATHS:
         return b""
-    return subprocess.check_output(["git", "show", BASE + ":" + path], cwd=root)
+    return revision_source(root, BASE, path)
 
 
 def restore_reviewed(entry: dict, baseline: bytes, source: bytes) -> bytes:
@@ -140,38 +173,43 @@ def restore_source(root: Path, path: str, source: str) -> str:
 
 
 def production_changes(root: Path, revision: str) -> set[str]:
-    tracked = subprocess.check_output(["git", "diff", "--no-renames", "--name-only", revision],
-                                     cwd=root, text=True).splitlines()
-    untracked = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard"],
-                                       cwd=root, text=True).splitlines()
+    tracked = git_bytes(root, "diff", "--no-renames", "--name-only", revision).decode().splitlines()
+    untracked = git_bytes(root, "ls-files", "--others", "--exclude-standard").decode().splitlines()
     return {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
 
 
 def verify(root: Path) -> None:
-    subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    # The exact reviewed layer is immutable and must remain in the ancestry.
+    git_bytes(root, "merge-base", "--is-ancestor", BASE, SUCCESSOR)
+    git_bytes(root, "merge-base", "--is-ancestor", SUCCESSOR, "HEAD")
     entries = load_contract(root)
-    require(production_changes(root, BASE) == PRODUCTION_PATHS,
-            "59i widening production delta differs from its reviewed three-file inventory")
-    for relative in (CONTRACT, *PATHS):
+    require(revision_production_changes(root, BASE, SUCCESSOR) == PRODUCTION_PATHS,
+            "59i widening successor delta differs from its reviewed three-file inventory")
+    require(revision_source(root, SUCCESSOR, CONTRACT) == (root / CONTRACT).read_bytes(),
+            "59i widening contract differs from its immutable successor")
+    for relative in PATHS:
         source = root / relative
         require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
                 "59i widening source must be a regular non-executable file: " + relative)
-        stage = subprocess.check_output(["git", "ls-files", "--stage", "--", relative],
-                                        cwd=root, text=True).split()
+        stage = git_bytes(root, "ls-files", "--stage", "--", relative).decode().split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == relative,
                 "59i widening reviewed source is not uniquely tracked: " + relative)
-        if relative in entries:
-            baseline = baseline_source(root, relative)
-            require(restore_source(root, relative, source.read_text()).encode() == baseline,
-                    "59i widening exact reversal failed: " + relative)
-    print("59i widening production inventory and exact successor spans PASS", flush=True)
+        require(revision_mode(root, SUCCESSOR, relative) == "100644",
+                "59i widening successor source mode changed: " + relative)
+        reviewed = revision_source(root, SUCCESSOR, relative)
+        require(source.read_bytes() == reviewed,
+                "59i widening production source differs from its immutable reviewed successor: " + relative)
+        baseline = baseline_source(root, relative)
+        require(restore_reviewed(entries[relative], baseline, reviewed) == baseline,
+                "59i widening exact successor reversal failed: " + relative)
+    print("59i widening immutable successor and exact reviewed spans PASS", flush=True)
 
 
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
+    """Remove only the verified widening layer from the caller's full inventory."""
     verify(root)
-    historical = subprocess.check_output(
-        ["git", "diff", "--no-renames", "--name-only", qualification_base, BASE],
-        cwd=root, text=True).splitlines()
+    historical = git_bytes(root, "diff", "--no-renames", "--name-only",
+                           qualification_base, BASE).decode().splitlines()
     inherited = {path for path in historical if re.search(r"(?:^|/)src/main/", path)}
     return (paths - PRODUCTION_PATHS) | (inherited & PRODUCTION_PATHS)
 
