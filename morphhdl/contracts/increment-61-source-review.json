@@ -95,7 +95,7 @@
       "after_sha256": "37625d0da35db57500893cdf6d69d7f0ff201efe6d539223d83bbac267114e6f",
       "before_sha256": null,
       "mode": "100644",
-       "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala",
       "status": "added"
     },
     {
