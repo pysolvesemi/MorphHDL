@@ -45,6 +45,38 @@ CAPTURE_CONTRACT = 'morphhdl/contracts/increment-59i-capture-review.json'
 CAPTURE_SHA256 = 'dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537'
 CAPTURE_PATHS = ('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py')
 WIDENING_CHECKER = "morphhdl/scripts/check-increment-59i-widening-source-review.py"
+ANCHOR_CHECKER = "morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py"
+ANCHOR_CHECKER_BLOB = "b936a111af4cb09c8475cf63ba0c199a4290137b"
+
+
+def require(condition: bool, detail: str) -> None:
+    if not condition:
+        raise RuntimeError(detail)
+
+
+def git_blob(value: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(value)).encode() + b"\0" + value).hexdigest()
+
+
+def load_anchor_review(root: Path):
+    source = root / ANCHOR_CHECKER
+    require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+            "missing regular 59i native-tree-anchor successor reviewer")
+    raw = source.read_bytes()
+    require(git_blob(raw) == ANCHOR_CHECKER_BLOB,
+            "59i native-tree-anchor successor reviewer changed")
+    stage = subprocess.check_output(["git", "ls-files", "--stage", "--", ANCHOR_CHECKER],
+                                    cwd=root, text=True).split()
+    require(len(stage) == 4 and stage[0] == "100644" and stage[1] == ANCHOR_CHECKER_BLOB and
+            stage[2] == "0" and stage[3] == ANCHOR_CHECKER,
+            "59i native-tree-anchor reviewer differs from HEAD/index")
+    spec = importlib.util.spec_from_file_location("increment_59i_native_tree_anchor_review", source)
+    require(spec is not None and spec.loader is not None,
+            "cannot load 59i native-tree-anchor successor reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 
 def load_widening_review(root: Path):
     source = root / WIDENING_CHECKER
@@ -62,11 +94,6 @@ ALL_PATHS = tuple(dict.fromkeys(PATHS + CAPTURE_PATHS))
 
 ADDED_PATHS = frozenset()
 PRODUCTION_PATHS = frozenset(path for path in ALL_PATHS if "/src/main/" in path)
-
-
-def require(condition: bool, detail: str) -> None:
-    if not condition:
-        raise RuntimeError(detail)
 
 
 def digest(value: bytes) -> str:
@@ -200,6 +227,7 @@ def baseline_source(root: Path, path: str) -> bytes:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
+    source = load_anchor_review(root).restore_source(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
     entries = load_contract(root)
     captures = load_capture_contract(root)
