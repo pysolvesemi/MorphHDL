@@ -1,0 +1,189 @@
+name: Increment 61 final exact-head merge guard
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-final-merge-guard.yml'
+      - 'controller/increment-61-final-merge-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-final-merge-guard
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  TARGET_BRANCH: parameterized-verilog
+  PR_NUMBER: '179'
+
+jobs:
+  guard-and-merge:
+    name: Require exact closeout checks and merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - name: Wait for the documentation-only closeout head
+        id: closeout
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 240); do
+            gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > /tmp/pr.json
+            state=$(python3 -c 'import json; print(json.load(open("/tmp/pr.json"))["state"])')
+            draft=$(python3 -c 'import json; print(str(json.load(open("/tmp/pr.json"))["draft"]).lower())')
+            head=$(python3 -c 'import json; print(json.load(open("/tmp/pr.json"))["head"]["sha"])')
+            branch=$(python3 -c 'import json; print(json.load(open("/tmp/pr.json"))["head"]["ref"])')
+            test "$state" = open
+            test "$branch" = "$FEATURE_BRANCH"
+            encoded=$(python3 -c 'import urllib.parse; print(urllib.parse.quote("docs/morphhdl/parameterized-verilog-todo.md", safe=""))')
+            gh api "/repos/$GITHUB_REPOSITORY/contents/docs/morphhdl/parameterized-verilog-todo.md?ref=$head" > /tmp/roadmap.json
+            python3 - <<'PY' >/tmp/roadmap-state
+          import base64,json
+          data=json.load(open('/tmp/roadmap.json'))
+          text=base64.b64decode(data['content']).decode()
+          checked='- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**'
+          unchecked='- [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**'
+          print('ready' if text.count(checked)==1 and unchecked not in text else 'waiting')
+          PY
+            roadmap_state=$(cat /tmp/roadmap-state)
+            echo "PR state=$state draft=$draft head=$head roadmap=$roadmap_state"
+            if test "$roadmap_state" = ready; then
+              echo "head=$head" >> "$GITHUB_OUTPUT"
+              break
+            fi
+            sleep 60
+          done
+          test -s "$GITHUB_OUTPUT"
+
+      - name: Wait for the complete exact-head PR acceptance set
+        id: checks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ steps.closeout.outputs.head }}'
+          cat > /tmp/required.txt <<'EOF'
+          Increment 61 one-file-per-component publication
+          Increment 61 per-component compatibility matrix
+          Increment 60c signed declarations
+          Increment 60d pure SInt casts
+          Increment 60e signedness boundaries
+          Increment 60f equivalence closure
+          Increment 60g default signed Verilog
+          MorphHDL baseline
+          MorphHDL Mill
+          MorphHDL native source guard
+          EOF
+          for attempt in $(seq 1 240); do
+            current=$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+            test "$current" = "$head"
+            gh api "/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$head&event=pull_request&per_page=100" > /tmp/runs.json
+            python3 - /tmp/runs.json /tmp/required.txt <<'PY' > /tmp/check-state.json
+          import json,sys
+          runs=json.load(open(sys.argv[1])).get('workflow_runs',[])
+          required=[x.strip() for x in open(sys.argv[2]) if x.strip()]
+          latest={}
+          for run in sorted(runs,key=lambda x:x.get('created_at',''),reverse=True):
+              latest.setdefault(run.get('name'),run)
+          result={}
+          all_ok=True
+          for name in required:
+              run=latest.get(name)
+              if run is None:
+                  result[name]={'state':'missing'}; all_ok=False
+              else:
+                  status=run.get('status'); conclusion=run.get('conclusion')
+                  result[name]={'state':status,'conclusion':conclusion,'id':run.get('id')}
+                  if status!='completed' or conclusion!='success': all_ok=False
+          print(json.dumps({'all_ok':all_ok,'required':result},indent=2))
+          PY
+            cat /tmp/check-state.json
+            if python3 -c 'import json; raise SystemExit(0 if json.load(open("/tmp/check-state.json"))["all_ok"] else 1)'; then
+              cp /tmp/check-state.json /tmp/final-check-state.json
+              break
+            fi
+            terminal_failure=$(python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/check-state.json'))['required']
+          print('yes' if any(v.get('state')=='completed' and v.get('conclusion') not in ('success',None) for v in data.values()) else 'no')
+          PY
+            )
+            if test "$terminal_failure" = yes; then
+              echo 'A required exact-head workflow failed; refusing merge.' >&2
+              exit 1
+            fi
+            sleep 60
+          done
+          test -f /tmp/final-check-state.json
+          echo "checks_json=$(base64 -w0 /tmp/final-check-state.json)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.closeout.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Final local source and ancestry verification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ steps.closeout.outputs.head }}'
+          test "$(git rev-parse HEAD)" = "$head"
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$FEATURE_BRANCH" --jq .object.sha)"
+          git fetch origin "$TARGET_BRANCH"
+          git merge-base --is-ancestor "origin/$TARGET_BRANCH" "$head"
+          test -z "$(git ls-tree -r --name-only HEAD | grep -E '(^|/)repair-61-phase-order|increment-61-(apply-phase-order|finalize-phase-order|commit-then-audit)' || true)"
+          grep -F -- '- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**' docs/morphhdl/parameterized-verilog-todo.md
+          grep -F '## Final completion record' docs/morphhdl/increment-61-one-file-per-component.md
+          grep -F '```scala' docs/morphhdl/increment-61-one-file-per-component.md
+          grep -F '```verilog' docs/morphhdl/increment-61-one-file-per-component.md
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+
+      - name: Mark ready and merge only the exact qualified head
+        id: merge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ steps.closeout.outputs.head }}'
+          gh pr ready "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            --merge --match-head-commit "$head" --delete-branch=false
+          test "$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .merged)" = true
+          merge_sha=$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .merge_commit_sha)
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Verify integrated target tree and publish completion record
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ steps.closeout.outputs.head }}'
+          git fetch origin "$TARGET_BRANCH"
+          target=$(git rev-parse "origin/$TARGET_BRANCH")
+          git merge-base --is-ancestor "$head" "$target"
+          git show "origin/$TARGET_BRANCH:docs/morphhdl/parameterized-verilog-todo.md" \
+            | grep -F -- '- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**'
+          git show "origin/$TARGET_BRANCH:morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala" >/dev/null
+          git show "origin/$TARGET_BRANCH:docs/morphhdl/increment-61-one-file-per-component.md" \
+            | grep -F '## Final completion record'
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Increment 61 is complete and merged. Exact qualified closeout head: \`$head\`; merge commit: \`${{ steps.merge.outputs.merge_sha }}\`; integrated target head: \`$target\`. The ten named final-head acceptance workflows all completed successfully, and the target tree contains the `[x]` roadmap record, reviewed implementation, and actual Scala/generated-Verilog completion examples."
