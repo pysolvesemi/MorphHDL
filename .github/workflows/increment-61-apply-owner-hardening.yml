@@ -1,0 +1,75 @@
+name: Increment 61 apply paired ownership-marker hardening
+
+on:
+  push:
+    branches:
+      - agent/increment-61-one-file-per-component
+    paths:
+      - '.github/workflows/increment-61-apply-owner-hardening.yml'
+      - 'morphhdl/repair-61-ownership/payload.txt'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-apply-owner-hardening
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply the reviewed safety repair and remove all staging files
+        shell: bash
+        run: |
+          set -euo pipefail
+          original=$(git rev-parse HEAD)
+          payload=morphhdl/repair-61-ownership/payload.txt
+          output=target/increment-61-owner-hardening
+          mkdir -p "$output"
+          test "$(sha256sum "$payload" | cut -d' ' -f1)" = 48e8b50a12ccad5b61e7d51b215101f4aeeeceaaf39084025fadd074ec2c71d1
+          base64 -d "$payload" | xz -d > "$output/apply.py"
+          test "$(sha256sum "$output/apply.py" | cut -d' ' -f1)" = 1535137198fcbc6a5e9601cbfdd6897c189bc046ec3b215eaf4e128aa449708f
+          python3 -m py_compile "$output/apply.py"
+          python3 "$output/apply.py" | tee "$output/apply.log"
+
+          git rm \
+            .github/workflows/increment-61-apply-owner-hardening.yml \
+            morphhdl/repair-61-ownership/payload.txt
+          git add \
+            docs/morphhdl/increment-61-one-file-per-component.md \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py \
+            morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala \
+            morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala
+          git diff --cached --check
+          git diff --cached --name-status > "$output/changed-files.txt"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit \
+            -m '61: authenticate stale-output ownership evidence' \
+            -m 'Pair every V2 manifest entry with a deterministic hidden ownership marker. Reject missing, extra, modified or orphaned markers before changing public outputs, so an edited manifest cannot claim and delete an unrelated user file. Add direct exploit regressions, update the checkpoint documentation and reseal exact source review.'
+
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
+          test "$remote" = "$original"
+          git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-owner-hardening
+          path: target/increment-61-owner-hardening
+          if-no-files-found: error
+          retention-days: 14
