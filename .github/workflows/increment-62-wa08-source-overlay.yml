@@ -22,6 +22,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          submodules: recursive
       - name: Exact source overlay and live mutation controls
         run: |
           python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py

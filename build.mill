@@ -152,7 +152,7 @@ object morph extends Cross[Morph](SpinalVersion.compilers) {
 }
 trait Morph extends SpinalModule {
   override def moduleDir = mill.api.BuildCtx.workspaceRoot / "morphhdl"
-  override def sources = Task.Sources {
+  override def sources = Task {
     val passes = mill.api.BuildCtx.workspaceRoot / "morphhdl-passes"
     super.sources() ++ Seq(PathRef(passes / "src" / "main" / "scala")) ++
       Seq("ParameterizedStreamFifo", "UnnamedWireAliasNativeBridge",

@@ -2,6 +2,7 @@
 """Exercise actual Git, disk and restoration attacks in a disposable worktree."""
 import importlib.util
 import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -57,6 +58,10 @@ def main():
                 for file in fixture.rglob("*"):
                     if file.is_symlink():
                         file.unlink()
+                for path, entry in overlay.tree(fixture, head).items():
+                    directory = fixture / path
+                    if entry[0] == "160000" and directory.exists() and not (directory / ".git").exists():
+                        shutil.rmtree(directory)
                 git(fixture, "reset", "--hard", head)
                 git(fixture, "clean", "-fdx")
 
@@ -101,6 +106,12 @@ def main():
                 path = "morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala"
                 (fixture / path).write_bytes(overlay.frozen(ROOT, overlay.BASE, path))
 
+            def uninitialized_submodule():
+                path = next(p for p, entry in overlay.tree(fixture, head).items()
+                            if entry[0] == "160000")
+                (fixture / path).mkdir(parents=True, exist_ok=True)
+                (fixture / path / "Unexpected.scala").write_text("// unreviewed\n")
+
             for label, mutate, committed in (
                 ("changed bytes", lambda: append(victim), False),
                 ("missing source", lambda: (fixture / victim).unlink(), False),
@@ -116,6 +127,7 @@ def main():
                 ("partial profile rollout", partial, True),
                 ("manifest mutation", lambda: append(overlay.CONTRACT), False),
                 ("helper mutation", lambda: append(HELPER), True),
+                ("uninitialized submodule source", uninitialized_submodule, False),
             ):
                 attack(label, mutate, committed)
             reset()
