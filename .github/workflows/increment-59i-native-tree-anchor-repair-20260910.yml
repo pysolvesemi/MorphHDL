@@ -134,6 +134,10 @@ jobs:
             | tee "$out/native-source.log"
           python3 morphhdl/scripts/check-typed-native-source-overlay.py \
             | tee "$out/typed-overlay.log"
+          python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
+            | tee "$out/increment-59i-widening-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py -v \
+            2>&1 | tee "$out/increment-59i-widening-source-tests.log"
           python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
             | tee "$out/increment-59i-source-self-test.log"
           python3 morphhdl/scripts/check-increment-59i-source-review.py \
