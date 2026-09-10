@@ -1,0 +1,192 @@
+name: Increment 61 qualified documentation closeout
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-closeout-after-controller.yml'
+      - 'controller/increment-61-closeout-after-controller-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-qualified-documentation-closeout
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  TARGET_BRANCH: parameterized-verilog
+  PR_NUMBER: '179'
+  PRECLOSEOUT_WORKFLOW: increment-61-precloseout-controller-20260910.yml
+
+jobs:
+  closeout:
+    name: Publish source-bound completion candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for successful exact-head precloseout qualification
+        id: qualified
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/precloseout
+          run_id=''
+          for attempt in $(seq 1 220); do
+            gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/$PRECLOSEOUT_WORKFLOW/runs?branch=agent%2Fincrement-61-controller&event=push&per_page=10" > /tmp/runs.json
+            run_id=$(python3 - <<'PY'
+          import json
+          runs=json.load(open('/tmp/runs.json')).get('workflow_runs', [])
+          print(runs[0]['id'] if runs else '')
+          PY
+            )
+            if test -n "$run_id"; then
+              status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .status)
+              conclusion=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion // ""')
+              echo "precloseout $run_id: $status / $conclusion"
+              if test "$status" = completed; then
+                test "$conclusion" = success
+                break
+              fi
+            fi
+            sleep 60
+          done
+          test -n "$run_id"
+          test "$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .status)" = completed
+          test "$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .conclusion)" = success
+
+          gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" > /tmp/artifacts.json
+          url=$(python3 - <<'PY'
+          import json
+          items=json.load(open('/tmp/artifacts.json')).get('artifacts', [])
+          matches=[x for x in items if x.get('name')=='increment-61-controller-source' and not x.get('expired')]
+          if len(matches)!=1: raise SystemExit(f'expected one source artifact, got {len(matches)}')
+          print(matches[0]['archive_download_url'])
+          PY
+          )
+          curl --fail --location --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "$url" -o target/precloseout/source.zip
+          unzip -q target/precloseout/source.zip -d target/precloseout/source
+          mapfile -t heads < <(find target/precloseout/source -name head.txt -type f -print)
+          test "${#heads[@]}" -eq 1
+          head=$(tr -d '\r\n' < "${heads[0]}")
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$FEATURE_BRANCH" --jq .object.sha)"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.qualified.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Require current target integration and exact clean source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ steps.qualified.outputs.head }}'
+          git fetch origin "$TARGET_BRANCH" "$FEATURE_BRANCH"
+          git merge-base --is-ancestor "origin/$TARGET_BRANCH" HEAD
+          test -z "$(git ls-tree -r --name-only HEAD | grep -E '(^|/)repair-61-phase-order|increment-61-(apply-phase-order|finalize-phase-order|commit-then-audit)' || true)"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+
+      - name: Mark Increment 61 complete and record qualified evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - '${{ steps.qualified.outputs.head }}' '${{ steps.qualified.outputs.run_id }}' <<'PY'
+          from __future__ import annotations
+          import hashlib, json, re, sys
+          from pathlib import Path
+
+          implementation_head, controller_run = sys.argv[1], sys.argv[2]
+          roadmap=Path('docs/morphhdl/parameterized-verilog-todo.md')
+          record=Path('docs/morphhdl/increment-61-one-file-per-component.md')
+          contract_path=Path('morphhdl/contracts/increment-61-source-review.json')
+          checker=Path('morphhdl/scripts/check-increment-61-source-review.py')
+
+          text=roadmap.read_text()
+          old='- [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**'
+          new='- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**'
+          if text.count(old)==1 and new not in text:
+              roadmap.write_text(text.replace(old,new))
+          elif text.count(new)!=1 or old in text:
+              raise SystemExit('Increment 61 roadmap checkbox state is ambiguous')
+
+          doc=record.read_text()
+          if '```scala' not in doc or '```verilog' not in doc:
+              raise SystemExit('actual Scala and generated Verilog examples are required')
+          heading='## Final completion record'
+          if heading in doc:
+              raise SystemExit('completion record already exists')
+          addition=f'''\n\n{heading}\n\nThe exact implementation head `{implementation_head}` passed controller run\n`{controller_run}` before this documentation-only transition. The run required:\n\n- exact Increment 61, native-source, and typed-overlay audits;\n- the complete MorphHDL test suite on Scala 2.12.18 and 2.13.12;\n- independent repeated split-publication and compatibility-corpus generation;\n- strict Verilog-2001 Icarus compile, Verilator lint, and Yosys synthesis for every generated `.lst` source set; and\n- byte-identical repeated and cross-Scala generated publication sets.\n\nThe Scala and actual generated-Verilog examples already recorded above remain the\ncompletion demonstration. This closeout changes documentation and reviewed\nhashes only; generated Verilog is unchanged from the qualified implementation.\n'''
+          record.write_text(doc.rstrip()+addition)
+
+          def sha(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          contract=json.loads(contract_path.read_text())
+          updates={str(roadmap):sha(roadmap), str(record):sha(record)}
+          found=set()
+          for entry in contract['reviewed_files']:
+              if entry['path'] in updates:
+                  entry['after_sha256']=updates[entry['path']]
+                  found.add(entry['path'])
+          if found != set(updates):
+              raise SystemExit(f'missing source-review entries: {sorted(set(updates)-found)}')
+          contract_path.write_text(json.dumps(contract,indent=2)+'\n')
+          checker_text,count=re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{sha(contract_path)}"',
+              checker.read_text(),
+          )
+          if count!=1: raise SystemExit('source-review digest marker changed')
+          checker.write_text(checker_text)
+          PY
+          python3 -m py_compile morphhdl/scripts/check-increment-61-source-review.py
+          git add \
+            docs/morphhdl/increment-61-one-file-per-component.md \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+
+      - name: Commit, audit, and expected-head publish
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          original='${{ steps.qualified.outputs.head }}'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit \
+            -m '61: record qualified per-component publication completion' \
+            -m 'Mark Increment 61 complete only after exact-head dual-Scala full tests, repeated generation, strict Verilog-2001 tools, source audits and cross-Scala byte determinism passed. Generated RTL is unchanged by this documentation-only transition.'
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          remote=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+          test "$remote" = "$original"
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          closeout=$(git rev-parse HEAD)
+          echo "closeout=$closeout" >> "$GITHUB_OUTPUT"
+
+      - name: Publish closeout status to PR 179
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Increment 61 documentation-only closeout candidate published at \`${{ steps.publish.outputs.closeout }}\` after exact implementation head \`${{ steps.qualified.outputs.head }}\` passed pre-closeout controller run \`${{ steps.qualified.outputs.run_id }}\`. The roadmap is now marked [x] on the feature branch. PR #179 remains draft and unmerged until the closeout SHA is requalified by the permanent PR workflows."
