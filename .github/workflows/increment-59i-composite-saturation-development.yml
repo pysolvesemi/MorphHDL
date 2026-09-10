@@ -1,0 +1,92 @@
+name: Increment 59i composite saturation development
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-composite-saturation-development.yml'
+      - 'morphhdl/repair-59i-composite-saturation/write-focused-test.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-composite-saturation-development
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Saturation Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Write exact test-only saturation probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-composite-saturation"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/head.txt"
+          python3 morphhdl/repair-59i-composite-saturation/write-focused-test.py \
+            2>&1 | tee "$out/application.log"
+          git diff --check
+          changed=$(git diff --name-only)
+          test "$changed" = 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
+          test -z "$(git diff --name-only | grep '/src/main/' || true)"
+
+      - name: Bootstrap and execute focused Scala suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-composite-saturation"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          status=0
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            > "$out/tests.log" 2>&1 || status=$?
+          tail -n 420 "$out/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala "$out/"
+          sha256sum "$out/TypedBalancedReductionCompositeSaturationTests.scala" > "$out/source-sha256.txt"
+
+      - name: Upload exact development evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-saturation-${{ matrix.scala }}-${{ github.sha }}
+          path: target/increment-59i-composite-saturation
+          if-no-files-found: error
+          retention-days: 14
