@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: increment-59i-direct-local-enable-publisher
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   publish:
@@ -50,6 +50,10 @@ jobs:
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala && \
              grep -q 'callback.assignments ++ callback.statements' \
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala && \
+             grep -q 'callbackStatements = ArrayBuffer.empty\[Statement\]' \
+              morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala && \
+             grep -q 'assignments, callbackStatements.toVector' \
+              morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala && \
              test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala; then
             printf 'already-promoted\n' | tee "$out/mode.txt"
           else
@@ -70,6 +74,7 @@ jobs:
               morphhdl/scripts/check-increment-59i-local-enable-source-review.py \
               morphhdl/scripts/check-increment-59i-source-review.py \
               morphhdl/scripts/test-increment-59i-local-enable-source-review.py \
+              morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala \
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala \
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala \
               morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
@@ -93,6 +98,10 @@ jobs:
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           grep -q 'callback.assignments ++ callback.statements' \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'callbackStatements = ArrayBuffer.empty\[Statement\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+          grep -q 'assignments, callbackStatements.toVector' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           grep -q 'external and registered peer controls remain rejected' \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
           ! grep -q 'BalancedLocalEnableOps' \
