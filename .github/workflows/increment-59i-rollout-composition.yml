@@ -68,7 +68,7 @@ jobs:
           morphhdl/scripts/check-increment-60g-source-scope.py
           morphhdl/scripts/test-increment-59i-rollout-composition.py
           EOF
-          git add $(cat "$out/expected-files.txt")
+          git add -f $(cat "$out/expected-files.txt")
           git diff --cached --name-only | sort -u > "$out/actual-files.txt"
           sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
           diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
