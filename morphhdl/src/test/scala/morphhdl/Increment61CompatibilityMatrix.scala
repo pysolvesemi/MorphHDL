@@ -21,6 +21,7 @@ object Increment61CompatibilityMatrix {
     val report = MorphVerilog(
       SpinalConfig(
         targetDirectory = directory.toString,
+        bitVectorWidthMax = 8192,
         oneFilePerComponent = true
       )
     )(entry.build())
