@@ -1,0 +1,116 @@
+name: Increment 59i repair combined native audit
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-repair-combined-native-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-repair-combined-native-audit
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Publish exact parent-composed native audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59i-combined-reduction-closure
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Validate exact parents and patch only the stale invocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-audit-repair"
+          mkdir -p "$out"
+          git fetch origin "$BRANCH"
+          git checkout --detach "origin/$BRANCH"
+          expected=$(git rev-parse HEAD)
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$expected"
+          printf '%s\n' "$expected" > "$out/expected-head.txt"
+          test "$(git rev-parse "$INTEGRATION_MERGE^2")" = "$TARGET_HEAD"
+          git merge-base --is-ancestor "$INTEGRATION_MERGE" HEAD
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/increment-59i-combined-closure.yml')
+          text = path.read_text()
+          old = '          python3 morphhdl/scripts/check-native-source-preservation.py\n'
+          new = '''          # Native manifests are immutable reviews of their exact source trees.\n          # Validate both integration parents separately, then require every\n          # successor-layer review below on the joined current head.\n          feature_native=/tmp/59i-native-feature-$SCALA_VERSION\n          target_native=/tmp/59i-native-target-$SCALA_VERSION\n          rm -rf "$feature_native" "$target_native"\n          git worktree add --detach "$feature_native" "$INTEGRATION_MERGE^1"\n          git worktree add --detach "$target_native" "$INTEGRATION_MERGE^2"\n          (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \\\n            | tee "$output/native-feature-parent.log"\n          (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \\\n            | tee "$output/native-target-parent.log"\n          (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \\\n            | tee "$output/overlay-feature-parent.log"\n          (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \\\n            | tee "$output/overlay-target-parent.log"\n          git worktree remove --force "$feature_native"\n          git worktree remove --force "$target_native"\n          '''
+          if old not in text:
+              if 'native-feature-parent.log' in text and 'native-target-parent.log' in text:
+                  print('combined native audit is already parent-composed')
+              else:
+                  raise SystemExit('exact native-audit invocation anchor changed')
+          else:
+              if text.count(old) != 1:
+                  raise SystemExit('native-audit invocation is not unique')
+              path.write_text(text.replace(old, new, 1))
+          PY
+
+          # The combined workflow needs these constants for the parent-bound
+          # worktrees. Insert them only when absent.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/increment-59i-combined-closure.yml')
+          text = path.read_text()
+          anchor = "      SCALA_VERSION: ${{ matrix.scala }}\n"
+          addition = (anchor +
+            "      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d\n" +
+            "      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6\n")
+          if 'INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d' not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit('Scala environment anchor changed')
+              text = text.replace(anchor, addition, 1)
+              path.write_text(text)
+          PY
+
+          git diff --check -- .github/workflows/increment-59i-combined-closure.yml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/increment-59i-combined-closure.yml').read_text()
+          assert p.count('native-feature-parent.log') == 1
+          assert p.count('native-target-parent.log') == 1
+          assert p.count('INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d') == 1
+          assert p.count('TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6') == 1
+          assert 'python3 morphhdl/scripts/check-native-source-preservation.py\n' not in p
+          PY
+
+          if git diff --quiet -- .github/workflows/increment-59i-combined-closure.yml; then
+            printf '%s\n' "$expected" > "$out/already-repaired.txt"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/increment-59i-combined-closure.yml
+          test "$(git diff --cached --name-only | wc -l)" -eq 1
+          git diff --cached --check
+          git commit -m '59i: compose native audit across exact integration parents'
+          candidate=$(git rev-parse HEAD)
+          printf '%s\n' "$candidate" > "$out/candidate-head.txt"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-native-audit-repair-${{ github.sha }}
+          path: target/increment-59i-native-audit-repair
+          if-no-files-found: error
+          retention-days: 14
