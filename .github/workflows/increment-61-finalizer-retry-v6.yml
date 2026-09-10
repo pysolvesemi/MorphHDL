@@ -1,0 +1,111 @@
+name: Increment 61 guarded finalizer retry v6
+
+on:
+  push:
+    branches: ['agent/increment-61-controller']
+    paths: ['.github/workflows/increment-61-finalizer-retry-v6.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: increment-61-finalizer-retry-v6
+  cancel-in-progress: false
+
+jobs:
+  retry-once:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Wait for v5, retry once on failure, and preserve exact state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-61-finalizer-retry-v6
+          python3 - <<'PY'
+          import json, os, time, urllib.parse, urllib.request
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          api = f'https://api.github.com/repos/{repo}'
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'morphhdl-increment-61-finalizer-retry-v6',
+          }
+          out = Path('target/increment-61-finalizer-retry-v6')
+
+          def call(method, path, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(api + path, data=data, method=method, headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  raw = response.read()
+                  return None if not raw else json.loads(raw)
+
+          def latest_v5():
+              value = call('GET', '/actions/runs?' + urllib.parse.urlencode({
+                  'branch': 'agent/increment-61-controller', 'per_page': 100
+              }))
+              runs = [run for run in value.get('workflow_runs', [])
+                      if run.get('name') == 'Increment 61 guarded finalizer v5']
+              return max(runs, key=lambda run: run.get('created_at', '')) if runs else None
+
+          deadline = time.time() + 18000
+          run = None
+          while time.time() < deadline:
+              pr = call('GET', '/pulls/179')
+              if pr.get('merged'):
+                  (out / 'already-merged.json').write_text(json.dumps(pr, indent=2) + '\n')
+                  print('Increment 61 already merged', pr.get('merge_commit_sha'), flush=True)
+                  raise SystemExit(0)
+              run = latest_v5()
+              if run:
+                  (out / 'before-retry.json').write_text(json.dumps(run, indent=2) + '\n')
+                  print('v5', run['id'], run['status'], run.get('conclusion'), flush=True)
+                  if run['status'] == 'completed':
+                      break
+              time.sleep(30)
+          else:
+              raise SystemExit('v5 did not reach a terminal state')
+
+          if run.get('conclusion') == 'success':
+              raise SystemExit('v5 succeeded without requiring a retry')
+
+          call('POST', f"/actions/runs/{run['id']}/rerun")
+          print('reran v5 once:', run['id'], flush=True)
+          prior_attempt = run.get('run_attempt', 1)
+          while time.time() < deadline:
+              value = call('GET', f"/actions/runs/{run['id']}")
+              (out / 'live.json').write_text(json.dumps(value, indent=2) + '\n')
+              print('v5 retry', value.get('run_attempt'), value['status'], value.get('conclusion'), flush=True)
+              if value.get('run_attempt', 1) > prior_attempt and value['status'] == 'completed':
+                  (out / 'after-retry.json').write_text(json.dumps(value, indent=2) + '\n')
+                  if value.get('conclusion') != 'success':
+                      jobs = call('GET', f"/actions/runs/{run['id']}/jobs?per_page=100")
+                      (out / 'failed-jobs.json').write_text(json.dumps(jobs, indent=2) + '\n')
+                      raise SystemExit('v5 failed again after its one permitted whole-job retry')
+                  pr = call('GET', '/pulls/179')
+                  (out / 'final-pr.json').write_text(json.dumps(pr, indent=2) + '\n')
+                  if not pr.get('merged'):
+                      raise SystemExit('v5 retry succeeded but PR #179 is not merged')
+                  print('Increment 61 merged after guarded v5 retry', pr.get('merge_commit_sha'), flush=True)
+                  break
+              time.sleep(30)
+          else:
+              raise SystemExit('v5 retry did not reach a terminal state')
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-finalizer-retry-v6
+          path: target/increment-61-finalizer-retry-v6
+          if-no-files-found: error
+          retention-days: 30
