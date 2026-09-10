@@ -1,0 +1,228 @@
+name: Increment 59i guarded current-head local-enable promotion
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-current-head-promotion.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-local-enable-current-head-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Review, test and publish local-enable successor
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Bind exact current integrated predecessor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/start-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/start-tree.txt"
+          git status --porcelain > "$out/status-before.txt"
+          test ! -s "$out/status-before.txt"
+          git merge-base --is-ancestor "$TARGET_HEAD" HEAD
+          merge=''
+          while read -r candidate; do
+            second=$(git rev-parse "$candidate^2" 2>/dev/null || true)
+            if [ "$second" = "$TARGET_HEAD" ]; then merge="$candidate"; break; fi
+          done < <(git rev-list --merges HEAD)
+          test -n "$merge"
+          feature=$(git rev-parse "$merge^1")
+          printf 'merge=%s\nfeature_parent=%s\ntarget_parent=%s\n' \
+            "$merge" "$feature" "$TARGET_HEAD" > "$out/integration-parents.txt"
+
+      - name: Validate each independently reviewed parent
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          feature=$(sed -n 's/^feature_parent=//p' "$out/integration-parents.txt")
+          rm -rf /tmp/59i-feature-parent /tmp/59i-target-parent
+          git worktree add --detach /tmp/59i-feature-parent "$feature"
+          git worktree add --detach /tmp/59i-target-parent "$TARGET_HEAD"
+          {
+            cd /tmp/59i-feature-parent
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } > "$out/feature-parent-audits.log" 2>&1 || {
+            tail -n 260 "$out/feature-parent-audits.log"; exit 1; }
+          {
+            cd /tmp/59i-target-parent
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } > "$out/target-parent-audits.log" 2>&1 || {
+            tail -n 260 "$out/target-parent-audits.log"; exit 1; }
+          git worktree remove --force /tmp/59i-feature-parent
+          git worktree remove --force /tmp/59i-target-parent
+
+      - name: Apply and record exact local-enable successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          base=$(cat "$out/start-head.txt")
+          test ! -e morphhdl/contracts/increment-59i-local-enable-review.json
+          test ! -e morphhdl/scripts/check-increment-59i-local-enable-source-review.py
+          test ! -e morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+          python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$out/application.log"
+          python3 morphhdl/repair-59i-composite-local-enable/fix-generated.py | tee -a "$out/application.log"
+          python3 morphhdl/repair-59i-composite-local-enable/include-statements.py | tee -a "$out/application.log"
+          BASE_FOR_REVIEW="$base" python3 - <<'PY'
+          import importlib.util, os
+          from pathlib import Path
+          root = Path.cwd()
+          source = root / 'morphhdl/repair-59i-composite-local-enable/promote-reviewed.py'
+          spec = importlib.util.spec_from_file_location('local_enable_promoter', source)
+          assert spec is not None and spec.loader is not None
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          base = os.environ['BASE_FOR_REVIEW']
+          contract_sha = module.write_contract(base)
+          module.write_reviewer(base, contract_sha)
+          module.write_doc(base)
+          PY
+          git diff --check
+          cat > "$out/expected-files.txt" <<'EOF'
+          docs/morphhdl/increment-59i-composite-local-enables.md
+          morphhdl/contracts/increment-59i-local-enable-review.json
+          morphhdl/scripts/check-increment-59i-local-enable-source-review.py
+          morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          EOF
+          git status --porcelain | awk '{print $2}' | sort -u > "$out/actual-files.txt"
+          sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
+          git add $(cat "$out/expected-files.txt")
+          git diff --cached --binary > "$out/successor.patch"
+          test -s "$out/successor.patch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: promote exact composite register-local enable replay'
+          git rev-parse HEAD > "$out/production-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/production-tree.txt"
+          sha256sum $(cat "$out/expected-files.txt") > "$out/promoted-sha256.txt"
+
+      - name: Validate committed successor and closed production delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          base=$(cat "$out/start-head.txt")
+          python3 morphhdl/scripts/check-increment-59i-local-enable-source-review.py --self-test | \
+            tee "$out/local-enable-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py | \
+            tee "$out/local-enable-source-review-tests.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/native-overlay.log"
+          git diff --no-renames --name-only "$base" HEAD -- '*src/main*' | sort -u > "$out/production-delta.txt"
+          cat > "$out/expected-production-delta.txt" <<'EOF'
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          EOF
+          diff -u "$out/expected-production-delta.txt" "$out/production-delta.txt"
+          test -z "$(git status --porcelain)"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$out/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+          root = Path('target/increment-59i-local-enable-promotion')
+          expected = (root / 'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          scala="$1"; shift
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$scala" "$@"
+          SH
+          chmod +x "$out/sbt.sh"
+
+      - name: Compile and test both supported Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          suites='morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionPublicationTests'
+          for scala in 2.12.18 2.13.12; do
+            log="$out/tests-$scala.log"
+            "$out/sbt.sh" "$scala" 'morph/Test/compile' "$suites" > "$log" 2>&1 || {
+              tail -n 420 "$log"; exit 1; }
+            grep -q 'All tests passed' "$log"
+            ! grep -q '\*\*\* FAILED \*\*\*' "$log"
+          done
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+
+      - name: Publish only from unchanged remote predecessor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-promotion"
+          expected=$(cat "$out/start-head.txt")
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git rev-parse HEAD > "$out/pushed-head.txt"
+
+      - name: Upload exact promotion evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-local-enable-current-head-promotion
+          path: target/increment-59i-local-enable-promotion
+          if-no-files-found: error
+          retention-days: 21
