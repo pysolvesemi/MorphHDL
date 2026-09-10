@@ -5,6 +5,7 @@ on:
     branches: ['agent/59i-local-enable-failure-diagnostic']
     paths:
       - '.github/workflows/increment-59i-local-enable-artifact-diagnostic.yml'
+      - 'morphhdl/repair-59i-composite-local-enable/inspect-failure-artifact.py'
   workflow_dispatch:
 
 permissions:
@@ -32,13 +33,13 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: 34380703463
-      - name: Extract exact JUnit failure
+      - name: Extract exact failed testcase from complete evidence
         shell: bash
         run: |
           set -euo pipefail
           python3 morphhdl/repair-59i-composite-local-enable/inspect-failure-artifact.py evidence | \
             tee local-enable-failure.txt
-          grep -q '^JUNIT_FAILURES=1$' local-enable-failure.txt
+          grep -q '^EXACT_FAILURES=1$' local-enable-failure.txt
           grep -q '^FAILED_TEST=' local-enable-failure.txt
       - uses: actions/upload-artifact@v4
         if: always()
