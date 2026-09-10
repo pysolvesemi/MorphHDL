@@ -36,7 +36,8 @@ the same path and hash; missing, extra, modified or orphaned markers fail before
 any public file changes. This prevents a modified manifest from claiming and
 deleting an unrelated user file. Stale generated files are deleted only when
 both ownership evidence and file bytes remain unchanged. Unowned filename
-collisions and user-modified managed files fail closed.
+collisions, user-modified managed files and symlinked target-parent paths fail
+closed before public output bytes are changed.
 
 `netlistFileName` is rejected with `oneFilePerComponent = true` because one name
 cannot identify several logical component definitions. Consolidated publication
@@ -46,8 +47,9 @@ and ordinary concrete `SpinalVerilog` remain unchanged.
 
 This checkpoint adds dual-Scala unit coverage for canonical repeated children,
 parameter bindings, enum ownership, external modules, deterministic manifests,
-paired ownership-marker validation, stale-file safety, manifest-tamper rejection
-and configuration diagnostics. A dedicated workflow also compiles, lints and
+paired ownership-marker validation, stale-file safety, manifest-tamper rejection,
+case-folded duplicate rejection, broken-target and symlink-parent containment, and
+configuration diagnostics. A dedicated workflow also compiles, lints and
 synthesizes both split and consolidated hierarchy outputs. Increment 61 remains
 unchecked until final-head CI, equivalence, mutation, inherited compatibility
 and source-audit gates are complete.

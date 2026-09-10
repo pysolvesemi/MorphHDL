@@ -318,6 +318,32 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
     }
   }
 
+  test("a case-folded duplicate manifest path fails closed") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(
+        targetDirectory = directory.toString,
+        oneFilePerComponent = true
+      )
+      MorphVerilog(config)(hierarchical())
+      val manifest = directory.resolve(
+        ".Increment61Top.morphhdl-one-file-per-component.manifest"
+      )
+      val original = read(manifest)
+      val first = original.split("\n", -1).toVector.drop(1).find(_.nonEmpty).get
+      val fields = first.split("\t", -1)
+      val duplicate = fields(0) + "\t" + fields(1).toUpperCase(java.util.Locale.ROOT) + "\n"
+      Files.write(manifest, (original + duplicate).getBytes(StandardCharsets.UTF_8))
+
+      MorphVerilog.tryGenerate(config)(hierarchical()) match {
+        case Left(failure) =>
+          assert(failure.stage == MorphVerilogStage.OutputWrite)
+          assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-MANIFEST-DUPLICATE"))
+        case Right(report) => fail(s"expected case-folded duplicate rejection, received $report")
+      }
+      assert(Files.exists(directory.resolve("Increment61Leaf.v")))
+    }
+  }
+
   test("a modified manifest cannot claim and delete an unrelated user file") {
     withTemporaryDirectory { directory =>
       val config = SpinalConfig(
@@ -372,6 +398,75 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       }
       assert(java.util.Arrays.equals(Files.readAllBytes(top), originalTop))
     }
+  }
+
+  test("a broken symlink output collision fails closed") {
+    val outside = Files.createTempDirectory("morphhdl-increment-61-broken-target-")
+    try {
+      withTemporaryDirectory { directory =>
+        val target = directory.resolve("Increment61Top.v")
+        Files.createSymbolicLink(target, outside.resolve("missing.v"))
+        val config = SpinalConfig(
+          targetDirectory = directory.toString,
+          oneFilePerComponent = true
+        )
+        val content =
+          "module Increment61Top;\nendmodule\n".getBytes(StandardCharsets.UTF_8)
+
+        MorphPerComponentPublication.publish(
+          config,
+          "Increment61Top",
+          Vector(
+            MorphPreparedPublicationFile(
+              "Increment61Top.v",
+              content,
+              reportAsSource = true
+            )
+          )
+        ) match {
+          case Left(failure) =>
+            assert(failure.stage == MorphVerilogStage.OutputWrite)
+            assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-TARGET-INVALID"))
+          case Right(paths) => fail(s"expected broken-symlink collision rejection, received $paths")
+        }
+        assert(Files.isSymbolicLink(target))
+        assert(!Files.exists(directory.resolve("Increment61Top.lst")))
+      }
+    } finally deleteTree(outside)
+  }
+
+  test("nested publication rejects a symlinked target parent before outside writes") {
+    val outside = Files.createTempDirectory("morphhdl-increment-61-outside-")
+    try {
+      withTemporaryDirectory { directory =>
+        Files.createSymbolicLink(directory.resolve("nested"), outside)
+        val config = SpinalConfig(
+          targetDirectory = directory.toString,
+          oneFilePerComponent = true
+        )
+        val content =
+          "module Increment61Top;\nendmodule\n".getBytes(StandardCharsets.UTF_8)
+
+        MorphPerComponentPublication.publish(
+          config,
+          "Increment61Top",
+          Vector(
+            MorphPreparedPublicationFile(
+              "nested/Increment61Top.v",
+              content,
+              reportAsSource = true
+            )
+          )
+        ) match {
+          case Left(failure) =>
+            assert(failure.stage == MorphVerilogStage.OutputWrite)
+            assert(failure.detail.contains("MORPHDL-ONE-FILE-PUBLISH-PARENT-SYMLINK"))
+          case Right(paths) => fail(s"expected symlink-parent rejection, received $paths")
+        }
+        assert(!Files.exists(outside.resolve("Increment61Top.v")))
+        assert(!Files.exists(directory.resolve("Increment61Top.lst")))
+      }
+    } finally deleteTree(outside)
   }
 
   test("oneFilePerComponent rejects a shared netlist filename before elaboration") {

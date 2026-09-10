@@ -1,7 +1,7 @@
 package morphhdl
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.{Files, Path, Paths, StandardCopyOption, StandardOpenOption}
+import java.nio.file.{Files, LinkOption, Path, Paths, StandardCopyOption, StandardOpenOption}
 import java.security.MessageDigest
 import java.util.Locale
 
@@ -143,7 +143,9 @@ private[morphhdl] object MorphPerComponentPublication {
       ensureOwnerDirectory(owners)
 
       managed.foreach { file =>
-        publishAtomically(resolveManaged(directory, file.relativePath), file.content)
+        val target = resolveManaged(directory, file.relativePath)
+        ensureSafeParentChain(directory, target.getParent)
+        publishAtomically(target, file.content)
       }
 
       val currentHashes = managed.map(file => file.relativePath -> sha256(file.content)).toMap
@@ -151,7 +153,7 @@ private[morphhdl] object MorphPerComponentPublication {
       previous.toVector.sortBy(_._1).foreach { case (relative, expectedHash) =>
         if (!currentPaths(relative)) {
           val target = resolveManaged(directory, relative)
-          if (Files.exists(target)) {
+          if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
             requireRegularUnmodified(target, expectedHash, "stale managed output")
             Files.delete(target)
           }
@@ -189,7 +191,7 @@ private[morphhdl] object MorphPerComponentPublication {
     val current = managed.map(file => file.relativePath -> sha256(file.content)).toMap
     managed.foreach { file =>
       val target = resolveManaged(directory, file.relativePath)
-      if (Files.exists(target)) {
+      if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
         if (!Files.isRegularFile(target) || Files.isSymbolicLink(target)) {
           throw new IllegalArgumentException(
             s"MORPHDL-ONE-FILE-PUBLISH-TARGET-INVALID: ${file.relativePath}"
@@ -212,7 +214,7 @@ private[morphhdl] object MorphPerComponentPublication {
     previous.toVector.foreach { case (relative, expected) =>
       if (!current.contains(relative)) {
         val target = resolveManaged(directory, relative)
-        if (Files.exists(target)) {
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
           requireRegularUnmodified(target, expected, "stale managed output")
         }
       }
@@ -241,8 +243,8 @@ private[morphhdl] object MorphPerComponentPublication {
       path: Path,
       owners: Path
   ): Map[String, String] = {
-    if (!Files.exists(path)) {
-      if (Files.exists(owners)) {
+    if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+      if (Files.exists(owners, LinkOption.NOFOLLOW_LINKS)) {
         throw new IllegalArgumentException(
           s"MORPHDL-ONE-FILE-PUBLISH-OWNER-DIRECTORY-ORPHANED: $owners"
         )
@@ -254,9 +256,15 @@ private[morphhdl] object MorphPerComponentPublication {
           s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-INVALID: $path"
         )
       }
-      val lines = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+      val normalizedText = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
         .replace("\r\n", "\n")
         .replace('\r', '\n')
+      if (!normalizedText.endsWith("\n")) {
+        throw new IllegalArgumentException(
+          s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-TERMINATOR: $path"
+        )
+      }
+      val lines = normalizedText
         .split("\n", -1)
         .toVector
         .dropRight(1)
@@ -284,7 +292,7 @@ private[morphhdl] object MorphPerComponentPublication {
           s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-EMPTY: $path"
         )
       }
-      if (entries.map(_._1).distinct.size != entries.size) {
+      if (entries.map(_._1.toLowerCase(Locale.ROOT)).distinct.size != entries.size) {
         throw new IllegalArgumentException(
           s"MORPHDL-ONE-FILE-PUBLISH-MANIFEST-DUPLICATE: $path"
         )
@@ -306,7 +314,7 @@ private[morphhdl] object MorphPerComponentPublication {
   }
 
   private def ensureOwnerDirectory(path: Path): Unit = {
-    if (Files.exists(path)) {
+    if (Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
       if (!Files.isDirectory(path) || Files.isSymbolicLink(path)) {
         throw new IllegalArgumentException(
           s"MORPHDL-ONE-FILE-PUBLISH-OWNER-DIRECTORY-INVALID: $path"
@@ -410,8 +418,48 @@ private[morphhdl] object MorphPerComponentPublication {
         s"MORPHDL-ONE-FILE-PUBLISH-PATH-ESCAPE: $relative"
       )
     }
-    Option(target.getParent).foreach(parent => Files.createDirectories(parent))
+    validateSafeParentChain(directory, target.getParent)
     target
+  }
+
+  private def validateSafeParentChain(directory: Path, parent: Path): Unit =
+    inspectSafeParentChain(directory, parent, createMissing = false)
+
+  private def ensureSafeParentChain(directory: Path, parent: Path): Unit =
+    inspectSafeParentChain(directory, parent, createMissing = true)
+
+  private def inspectSafeParentChain(
+      directory: Path,
+      parent: Path,
+      createMissing: Boolean
+  ): Unit = {
+    val root = directory.toAbsolutePath.normalize()
+    val absoluteParent = parent.toAbsolutePath.normalize()
+    if (!absoluteParent.startsWith(root)) {
+      throw new IllegalArgumentException(
+        s"MORPHDL-ONE-FILE-PUBLISH-PARENT-ESCAPE: $parent"
+      )
+    }
+    var current = root
+    val elements = root.relativize(absoluteParent).iterator().asScala.toVector
+    elements.foreach { element =>
+      current = current.resolve(element)
+      if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS) && createMissing) {
+        Files.createDirectory(current)
+      }
+      if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.isSymbolicLink(current)) {
+          throw new IllegalArgumentException(
+            s"MORPHDL-ONE-FILE-PUBLISH-PARENT-SYMLINK: $current"
+          )
+        }
+        if (!Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) {
+          throw new IllegalArgumentException(
+            s"MORPHDL-ONE-FILE-PUBLISH-PARENT-INVALID: $current"
+          )
+        }
+      }
+    }
   }
 
   private def sha256(bytes: Array[Byte]): String =
@@ -423,7 +471,6 @@ private[morphhdl] object MorphPerComponentPublication {
 
   private def publishAtomically(target: Path, content: Array[Byte]): Unit = {
     val parent = target.getParent
-    Files.createDirectories(parent)
     val temporary = Files.createTempFile(
       parent,
       "." + target.getFileName.toString + ".",
