@@ -2,16 +2,15 @@
 """Exact one-line successor review for the 59i native core-tree anchor.
 
 The historical 59i source contract remains immutable and is validated at the
-supplied predecessor.  This reviewer accepts only a direct successor whose sole
+supplied predecessor. This reviewer accepts only a direct successor whose sole
 committed change replaces the stale aggregate ``core/src/main`` approved-tree
-anchor with the already reviewed current tree.  File entries, reviewed spans,
+anchor with the already reviewed current tree. File entries, reviewed spans,
 production source bytes and every other manifest byte must remain unchanged.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import stat
 import subprocess
 import sys
@@ -68,6 +67,25 @@ def verify_bytes(before: bytes, after: bytes) -> None:
             "successor reversal does not reproduce the exact predecessor")
 
 
+def restore_source(root: Path, path: str, source: str) -> str:
+    """Expose the exact predecessor byte view to older source reviewers.
+
+    This accepts only the immutable predecessor or the exact one-line successor;
+    it cannot authorize any other manifest or production-source change.
+    """
+    if path != MANIFEST:
+        return source
+    raw = source.encode()
+    if blob_oid(raw) == EXPECTED_BASE_BLOB:
+        return source
+    require(raw.count(OLD_LINE) == 0 and raw.count(NEW_LINE) == 1,
+            "current manifest is neither the exact predecessor nor reviewed successor")
+    restored = raw.replace(NEW_LINE, OLD_LINE, 1)
+    require(blob_oid(restored) == EXPECTED_BASE_BLOB,
+            "reviewed successor contains a change outside the aggregate tree anchor")
+    return restored.decode()
+
+
 def regular(path: Path) -> bytes:
     require(path.is_file() and not path.is_symlink() and stat.S_ISREG(path.stat().st_mode),
             "manifest is not a regular file")
@@ -86,6 +104,8 @@ def verify(root: Path, predecessor: str) -> None:
     before = git(root, "show", predecessor + ":" + MANIFEST).stdout
     after = regular(root / MANIFEST)
     verify_bytes(before, after)
+    require(restore_source(root, MANIFEST, after.decode()).encode() == before,
+            "public predecessor view does not restore exact bytes")
 
     changed = git_text(root, "diff", "--no-renames", "--name-only", predecessor, head).splitlines()
     require(changed == [MANIFEST], "candidate changed files outside the manifest: " + repr(changed))
@@ -116,12 +136,15 @@ def verify(root: Path, predecessor: str) -> None:
 
 def self_test(root: Path) -> None:
     before = git(root, "show", "HEAD:" + MANIFEST).stdout
-    # The checked-out staging predecessor still has the old anchor.  When this
-    # test is run from a candidate, use its direct parent instead.
+    # When invoked from the candidate, HEAD contains the successor bytes.
     if before.count(OLD_LINE) != 1:
         before = git(root, "show", "HEAD^:" + MANIFEST).stdout
     after = replace_exact(before)
     verify_bytes(before, after)
+    require(restore_source(root, MANIFEST, before.decode()).encode() == before,
+            "predecessor passthrough changed bytes")
+    require(restore_source(root, MANIFEST, after.decode()).encode() == before,
+            "successor restoration changed bytes")
     rejected = 0
     mutations = (
         after.replace(NEW_TREE.encode(), ("0" * 40).encode(), 1),
@@ -137,7 +160,15 @@ def self_test(root: Path) -> None:
             rejected += 1
         else:
             raise ReviewError("59i native-tree-anchor review self-test accepted a mutation")
-    require(rejected == len(mutations), "self-test rejection count changed")
+    for mutation in mutations[:-1]:
+        try:
+            restore_source(root, MANIFEST, mutation.decode())
+        except ReviewError:
+            rejected += 1
+        else:
+            raise ReviewError("59i predecessor-view self-test accepted a mutation")
+    require(rejected == len(mutations) + len(mutations) - 1,
+            "self-test rejection count changed")
     print(f"59i native core-tree anchor review self-test PASS: {rejected} mutations rejected")
 
 
