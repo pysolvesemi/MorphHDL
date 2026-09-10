@@ -1,0 +1,400 @@
+name: Increment 61 guarded finalizer v5
+
+on:
+  push:
+    branches: ['agent/increment-61-controller']
+    paths: ['.github/workflows/increment-61-finalize-v5.yml']
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-guarded-finalizer-v5
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      FEATURE_BRANCH: agent/increment-61-one-file-per-component
+      TARGET_BRANCH: parameterized-verilog
+      PR_NUMBER: '179'
+      GH_TOKEN: ${{ github.token }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - name: Let the preceding exact-head controller reach a terminal state
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, time, urllib.parse, urllib.request
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          url = f'https://api.github.com/repos/{repo}/actions/runs?' + urllib.parse.urlencode({
+              'branch': 'agent/increment-61-controller', 'per_page': 100
+          })
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'morphhdl-increment-61-finalizer-v5',
+          }
+          deadline = time.time() + 14400
+          while time.time() < deadline:
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60) as response:
+                  runs = json.load(response).get('workflow_runs', [])
+              candidates = [run for run in runs if run.get('name') == 'Increment 61 exact-head gate runner v4']
+              if candidates:
+                  latest = max(candidates, key=lambda run: run.get('created_at', ''))
+                  print('preceding controller:', latest['id'], latest['status'], latest.get('conclusion'), flush=True)
+                  if latest['status'] == 'completed':
+                      break
+              time.sleep(30)
+          else:
+              raise SystemExit('preceding Increment 61 controller did not reach a terminal state')
+          PY
+
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-61-one-file-per-component
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Verify repaired source and install exact-head gate helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e .github/workflows/increment-61-fix-compat-ceiling.yml
+          test ! -e .github/workflows/increment-61-fix-compat-ceiling-v2.yml
+          test "$(grep -c 'bitVectorWidthMax = 8192' morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala)" = 1
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          git diff --exit-code
+
+          cat > /tmp/increment-61-gate.py <<'PY'
+          from __future__ import annotations
+          import argparse, json, os, time, urllib.error, urllib.parse, urllib.request
+          from pathlib import Path
+
+          REQUIRED = [
+              'Increment 61 one-file-per-component publication',
+              'Increment 61 per-component compatibility matrix',
+              'Increment 60c signed declarations',
+              'Increment 60d pure SInt casts',
+              'Increment 60e signedness boundaries',
+              'Increment 60f equivalence closure',
+              'Increment 60g default signed Verilog',
+              'MorphHDL baseline',
+              'MorphHDL Mill',
+              'MorphHDL native source guard',
+          ]
+
+          parser = argparse.ArgumentParser()
+          parser.add_argument('--branch', required=True)
+          parser.add_argument('--head', required=True)
+          parser.add_argument('--stage', required=True)
+          args = parser.parse_args()
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          api = f'https://api.github.com/repos/{repo}'
+          out = Path('target/increment-61-finalizer') / args.stage
+          out.mkdir(parents=True, exist_ok=True)
+
+          def call(method, path, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(
+                  api + path, data=data, method=method,
+                  headers={
+                      'Accept': 'application/vnd.github+json',
+                      'Authorization': f'Bearer {token}',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'morphhdl-increment-61-finalizer-v5',
+                  })
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  raw = response.read()
+                  return None if not raw else json.loads(raw)
+
+          workflows = {}
+          page = 1
+          while True:
+              value = call('GET', f'/actions/workflows?per_page=100&page={page}')
+              batch = value.get('workflows', [])
+              for workflow in batch:
+                  workflows[workflow['name']] = workflow
+              if len(batch) < 100:
+                  break
+              page += 1
+          missing = [name for name in REQUIRED if name not in workflows]
+          if missing:
+              raise SystemExit(f'missing required workflows: {missing}')
+
+          def dispatch(name):
+              workflow = workflows[name]
+              call('POST', f"/actions/workflows/{workflow['id']}/dispatches", {'ref': args.branch})
+              print('dispatched', name, workflow['path'], flush=True)
+
+          for name in REQUIRED:
+              dispatch(name)
+
+          retried = set()
+          started = time.time()
+          deadline = started + 12600
+          while time.time() < deadline:
+              value = call('GET', '/actions/runs?' + urllib.parse.urlencode({
+                  'branch': args.branch, 'per_page': 100, 'exclude_pull_requests': 'false'
+              }))
+              candidates = [run for run in value.get('workflow_runs', []) if run.get('head_sha') == args.head]
+              latest = {}
+              for run in sorted(candidates, key=lambda item: item.get('created_at', '')):
+                  if run.get('name') in REQUIRED:
+                      latest[run['name']] = run
+              snapshot = {
+                  name: None if name not in latest else {
+                      'id': latest[name]['id'],
+                      'status': latest[name]['status'],
+                      'conclusion': latest[name].get('conclusion'),
+                      'event': latest[name].get('event'),
+                      'created_at': latest[name].get('created_at'),
+                      'html_url': latest[name].get('html_url'),
+                  } for name in REQUIRED
+              }
+              (out / 'live.json').write_text(json.dumps({'head': args.head, 'runs': snapshot}, indent=2) + '\n')
+              print(args.stage, json.dumps(snapshot, sort_keys=True), flush=True)
+
+              if all(name in latest and latest[name]['status'] == 'completed' and
+                     latest[name].get('conclusion') == 'success' for name in REQUIRED):
+                  (out / 'success.json').write_text(json.dumps({
+                      'head': args.head,
+                      'runs': snapshot,
+                      'elapsed_seconds': int(time.time() - started),
+                  }, indent=2) + '\n')
+                  print(args.stage, 'PASS', args.head, flush=True)
+                  break
+
+              bad = [name for name in REQUIRED if name in latest and
+                     latest[name]['status'] == 'completed' and latest[name].get('conclusion') != 'success']
+              exhausted = [name for name in bad if name in retried]
+              if exhausted:
+                  (out / 'failure.json').write_text(json.dumps({
+                      'head': args.head, 'runs': snapshot, 'exhausted': exhausted
+                  }, indent=2) + '\n')
+                  raise SystemExit(f'{args.stage} failed after one fresh rerun: {exhausted}')
+              for name in bad:
+                  dispatch(name)
+                  retried.add(name)
+                  print('fresh rerun', name, flush=True)
+              time.sleep(30)
+          else:
+              raise SystemExit(f'{args.stage} timed out')
+          PY
+
+      - name: Require a fresh green implementation head
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          python3 /tmp/increment-61-gate.py --branch "$FEATURE_BRANCH" --head "$head" --stage pre-closeout
+
+      - name: Generate actual completion RTL from the qualified implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-finalizer/completion"
+          mkdir -p "$output"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" '++2.12.18' \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/generated" \
+            > "$output/generation.log" 2>&1 || { tail -n 300 "$output/generation.log"; exit 1; }
+          test -s "$output/generated/split/Increment61Leaf.v"
+          test -s "$output/generated/split/Increment61Top.v"
+          test "$(cat "$output/generated/split/Increment61Top.lst")" = $'Increment61Leaf.v\nIncrement61Top.v'
+
+      - name: Record completion evidence, mark the roadmap and reseal review
+        shell: bash
+        run: |
+          set -euo pipefail
+          before=$(git rev-parse HEAD)
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re, subprocess
+
+          docs = Path('docs/morphhdl/increment-61-one-file-per-component.md')
+          roadmap = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          contract = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker = Path('morphhdl/scripts/check-increment-61-source-review.py')
+          generated = Path('target/increment-61-finalizer/completion/generated/split')
+
+          scala = '''import morphhdl.MorphVerilog
+          import morphhdl.frontend.HdlInt
+          import spinal.core.SpinalConfig
+
+          val report = MorphVerilog(
+            SpinalConfig(
+              targetDirectory = "rtl",
+              oneFilePerComponent = true
+            )
+          ) {
+            new Increment61Top(
+              HdlInt.param("LEFT_WIDTH", default = 5, min = 1, max = 32),
+              HdlInt.param("RIGHT_WIDTH", default = 5, min = 1, max = 32)
+            )
+          }
+
+          assert(report.generatedSourcesPaths.map(java.nio.file.Paths.get(_).getFileName.toString) ==
+            Vector("Increment61Leaf.v", "Increment61Top.v"))'''
+          leaf = (generated / 'Increment61Leaf.v').read_text().rstrip()
+          top = (generated / 'Increment61Top.v').read_text().rstrip()
+          marker = '## Increment 61 completion evidence'
+          section = f'''\n\n{marker}\n\nThe completed implementation keeps the ordinary MorphHDL/SpinalHDL construction surface and changes only publication configuration. The Verilog below is copied from the qualified artifact writer, not handwritten.\n\n### MorphHDL Scala source\n\n```scala\n{scala}\n```\n\n### Actual generated `Increment61Leaf.v`\n\n```verilog\n{leaf}\n```\n\n### Actual generated `Increment61Top.v`\n\n```verilog\n{top}\n```\n\nThe generated source manifest is:\n\n```text\nIncrement61Leaf.v\nIncrement61Top.v\n```\n'''
+          original = docs.read_text()
+          if marker in original:
+              original = original.split(marker, 1)[0].rstrip()
+          docs.write_text(original.rstrip() + section)
+
+          text = roadmap.read_text()
+          pattern = re.compile(r'(?m)^(- \[) (\] \*\*Increment 61\b)')
+          text, count = pattern.subn(r'\1x\2', text, count=1)
+          if count != 1:
+              if not re.search(r'(?m)^- \[x\] \*\*Increment 61\b', text):
+                  raise SystemExit('Increment 61 roadmap checkbox was not found exactly once')
+          roadmap.write_text(text)
+
+          value = json.loads(contract.read_text())
+          by_path = {entry['path']: entry for entry in value['reviewed_files']}
+          docs_entry = by_path[docs.as_posix()]
+          roadmap_entry = by_path[roadmap.as_posix()]
+          docs_entry['after_sha256'] = hashlib.sha256(docs.read_bytes()).hexdigest()
+          roadmap_hash = hashlib.sha256(roadmap.read_bytes()).hexdigest()
+          if 'after_sha256_integrated' in roadmap_entry:
+              roadmap_entry['after_sha256_integrated'] = roadmap_hash
+          else:
+              roadmap_entry['after_sha256'] = roadmap_hash
+          contract.write_text(json.dumps(value, indent=2) + '\n')
+          contract_hash = hashlib.sha256(contract.read_bytes()).hexdigest()
+
+          source = checker.read_text()
+          source, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{contract_hash}"', source, count=1)
+          if count != 1:
+              raise SystemExit('Increment 61 checker seal was not found exactly once')
+          checker.write_text(source)
+          PY
+
+          git diff --check
+          git add \
+            docs/morphhdl/increment-61-one-file-per-component.md \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          remote=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+          test "$remote" = "$before"
+          git commit \
+            -m '61: record qualified completion evidence' \
+            -m 'Mark Increment 61 complete only after its implementation head passes the exact dual-Scala publication, compatibility, inherited regression, baseline, Mill and source-preservation gates. Record the actual generated split Verilog and reseal exact-source review.'
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          git rev-parse HEAD | tee /tmp/increment-61-closeout-head
+
+      - name: Require every gate again on the closeout SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(cat /tmp/increment-61-closeout-head)
+          python3 /tmp/increment-61-gate.py --branch "$FEATURE_BRANCH" --head "$head" --stage closeout
+
+      - name: Mark PR ready and merge the exact qualified head
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+
+          repo = os.environ['GITHUB_REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          number = int(os.environ['PR_NUMBER'])
+          expected = Path('/tmp/increment-61-closeout-head').read_text().strip()
+          headers = {
+              'Accept': 'application/vnd.github+json',
+              'Authorization': f'Bearer {token}',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'User-Agent': 'morphhdl-increment-61-finalizer-v5',
+          }
+
+          def rest(method, path, body=None):
+              data = None if body is None else json.dumps(body).encode()
+              request = urllib.request.Request(
+                  f'https://api.github.com/repos/{repo}{path}', data=data, method=method, headers=headers)
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  raw = response.read()
+                  return None if not raw else json.loads(raw)
+
+          pr = rest('GET', f'/pulls/{number}')
+          if pr['state'] != 'open' or pr.get('merged') or pr['head']['sha'] != expected:
+              raise SystemExit(f'PR state/head changed before merge: {pr["state"]} {pr.get("merged")} {pr["head"]["sha"]}')
+          if pr.get('draft'):
+              query = '''mutation($id:ID!){markPullRequestReadyForReview(input:{pullRequestId:$id}){pullRequest{isDraft}}}'''
+              request = urllib.request.Request(
+                  'https://api.github.com/graphql',
+                  data=json.dumps({'query': query, 'variables': {'id': pr['node_id']}}).encode(),
+                  method='POST',
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  result = json.load(response)
+              if result.get('errors') or result['data']['markPullRequestReadyForReview']['pullRequest']['isDraft']:
+                  raise SystemExit(f'could not mark PR ready: {result}')
+
+          merged = rest('PUT', f'/pulls/{number}/merge', {
+              'commit_title': 'Increment 61: parameterized one-file-per-component publication (#179)',
+              'commit_message': 'Publish one strict Verilog-2001 file per canonical component while preserving parameters, hierarchy, external ownership, deterministic manifests and safe atomic output management. Includes dual-Scala, strict-tool, equivalence, mutation, compatibility, baseline and Mill closure.',
+              'sha': expected,
+              'merge_method': 'merge',
+          })
+          if not merged.get('merged'):
+              raise SystemExit(f'GitHub refused the guarded Increment 61 merge: {merged}')
+          output = Path('target/increment-61-finalizer/merge.json')
+          output.write_text(json.dumps(merged, indent=2) + '\n')
+          Path('/tmp/increment-61-merge-head').write_text(merged['sha'] + '\n')
+          print('merged Increment 61 at', merged['sha'], flush=True)
+          PY
+
+      - name: Require post-merge closure on parameterized-verilog
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(cat /tmp/increment-61-merge-head)
+          remote=$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | cut -f1)
+          test "$remote" = "$head"
+          python3 /tmp/increment-61-gate.py --branch "$TARGET_BRANCH" --head "$head" --stage post-merge
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-finalizer-v5
+          path: target/increment-61-finalizer
+          if-no-files-found: error
+          retention-days: 30
