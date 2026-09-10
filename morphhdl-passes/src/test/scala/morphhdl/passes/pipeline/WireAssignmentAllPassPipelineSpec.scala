@@ -55,7 +55,7 @@ final class WireAssignmentAllPassPipelineSpec extends AnyFunSuite with Matchers 
     val result = WireAliasPassPipeline.run(design, WireAliasPassConfiguration(enabled = true))
     result.status shouldBe PassExecutionStatus.Changed
     result.executedPasses shouldBe PassId.allWireAssignmentPasses
-    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 1, 0)
+    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 1, 0, 0)
     result.eliminated.size shouldBe 2
     result.eliminatedExpressions.size shouldBe 1
     result.eliminatedExpressions.head.rootOperator shouldBe "binary:bitwise-xor"
@@ -65,7 +65,7 @@ final class WireAssignmentAllPassPipelineSpec extends AnyFunSuite with Matchers 
     outputModule.drivers.map(_.target) shouldBe Vector(sinkId)
     outputModule.drivers.head.value.referenceOccurrences.map(_.target).toSet shouldBe Set(sourceId, otherId)
     WireAliasPassPipeline.allPassId shouldBe
-      "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+constant-operand-simplification"
+      "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+constant-operand-simplification+boolean-ternary-simplification"
   }
 
   test("historical three-stage proof selection retains its original reports") {
@@ -78,13 +78,13 @@ final class WireAssignmentAllPassPipelineSpec extends AnyFunSuite with Matchers 
       "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed"
   }
 
-  test("all-pass pipeline reaches an idempotent four-stage fixed point") {
+  test("all-pass pipeline reaches an idempotent five-stage fixed point") {
     val first = WireAliasPassPipeline.run(design, WireAliasPassConfiguration(enabled = true))
     val second = WireAliasPassPipeline.run(first.output, WireAliasPassConfiguration(enabled = true))
     second.status shouldBe PassExecutionStatus.Unchanged
     second.output shouldBe first.output
     second.executedPasses shouldBe PassId.allWireAssignmentPasses
-    second.eliminationReports.map(_.changedCount) shouldBe Vector(0, 0, 0, 0)
+    second.eliminationReports.map(_.changedCount) shouldBe Vector(0, 0, 0, 0, 0)
   }
 
   test("constant simplification operates inside the expression-inlining assignment fence") {
@@ -98,7 +98,7 @@ final class WireAssignmentAllPassPipelineSpec extends AnyFunSuite with Matchers 
     })))
     val result = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(result.diagnostics.mkString("; ")) { result.isSuccess shouldBe true }
-    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 1, 0)
+    result.eliminationReports.map(_.eliminatedCount) shouldBe Vector(1, 1, 1, 0, 0)
     result.simplifiedExpressions.size shouldBe 1
     result.output.modules.head.drivers.head.value match {
       case RtlExpr.Resize(RtlExpr.Binary(RtlBinaryOperator.GreaterThan, _, _), size, Signedness.Unsigned) =>
@@ -123,8 +123,8 @@ final class WireAssignmentAllPassPipelineSpec extends AnyFunSuite with Matchers 
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
     first.executedPasses shouldBe PassId.allWireAssignmentPasses
-    first.eliminationReports.map(_.eliminatedCount) shouldBe Vector(0, 1, 0, 0)
-    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 1)
+    first.eliminationReports.map(_.eliminatedCount) shouldBe Vector(0, 1, 0, 0, 0)
+    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 1, 0)
     first.output.modules.head.declarations.map(_.id).toSet shouldBe Set(sourceId, sinkId)
     first.output.modules.head.drivers.head.value.directReference shouldBe Some(sourceId)
     WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true)) shouldBe first

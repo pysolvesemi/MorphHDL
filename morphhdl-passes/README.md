@@ -1,142 +1,134 @@
-# MorphHDL IR passes
+# MorphHDL IR pass workspace
 
-This is the standalone MorphHDL-owned workspace for the four optional
-wire-assignment passes controlled by
+This standalone workspace owns optional passes over the canonical
+MorphHDL-owned IR after parameterization/capture and before structured
+Verilog-2001 lowering. It is intentionally not a repository-root SBT/Mill
+aggregate member and does not duplicate the canonical IR implementation.
+
+The controlling checklist is
 [`morphhdl-ir-wire-assignment-passes-todo.md`](morphhdl-ir-wire-assignment-passes-todo.md).
-The workspace is deliberately outside the repository root SBT/Mill aggregate and
-must not modify upstream-owned SpinalHDL source.
+WA-07b's integrated implementation is qualified. Its exact-source results,
+actual emitted demonstration and separate completion-head CI/merge gate are
+recorded in [WA-07b evidence](wa07b-completion-evidence.md). Implementation and
+proof layers are described in [WA-07b notes](wa07b-implementation-notes.md).
+WA-08 is the successor only after the completion is merged.
 
-The passes consume the versioned `morphhdl.ir.v1` canonical IR after typed
-parameterization and before Verilog-2001 emission. They do not parse generated
-Verilog. Every adapter, safety rule, transformation and pipeline decision is
-component-generic and identity-based. No implementation may recognize
-`StreamFifo`, `StreamFifoCC`, `ParameterizedStreamFifo`, a module or component
-name, a source filename, or an emitted identifier.
+## Implemented boundary
 
-## WA-01 — isolated workspace and contracts
+WA-02 consumes `morphhdl.ir.v1` through `CanonicalIrPassAdapter`. Production
+binding accepts the read-only `CanonicalIrHandoff` published by Increment 58;
+unit fixtures explicitly use `bindFixture`. The adapter exposes immutable
+identity-indexed declarations, drivers, references, packed types, parameter
+domains, naming provenance, scope ownership, comments and observability.
 
-WA-01 established the cross-Scala nested SBT workspace, immutable pass
-configuration/result/diagnostic/elimination-report contracts, the path boundary
-guard, mutation-tested boundary checks, and CI coverage for Scala 2.12.18 and
-2.13.12. One public `enabled` flag controls the complete pipeline and is disabled by default.
+WA-03 adds `WireAliasSafetyGate` and the shared-witness proof contract. WA-04
+implements `UnnamedWireAliasEliminationPass`; WA-05 implements
+`NamedWireAliasEliminationPass`; WA-06 implements the ordered
+`WireAliasPassPipeline` for direct aliases. WA-07 adds
+`UnnamedWireExpressionEliminationPass` and replaces the product-facing per-pass
+Booleans with one product-facing `enabled` flag. WA-07a adds bounded
+`ConstantOperandSimplificationPass` and closes the four-stage fixed point.
+WA-07b adds `BooleanTernarySimplificationPass` as the fifth stage and extends
+fixed-point closure across both simplification passes. The original two-,
+three- and four-stage selections remain internal regression oracles. No signal
+renaming, generated-Verilog parsing, formatting or broader optimization pass is
+implemented here.
 
-## WA-02 — canonical IR adapter
+The final production handoff remains WA-08. Until then the production
+`CanonicalIrHandoff` is read-only; test-only native bridges demonstrate the
+same canonical decisions against generated RTL without making the standalone
+workspace a root build dependency.
 
-WA-02 binds the workspace to the separately owned `morphir` project without
-adding the workspace to the root aggregate. `CanonicalIrPassAdapter` accepts
-only a validated canonical-v1 `Design` at
-`PostParameterizationPreEmission` and exposes exact declaration, driver,
-reference, scope, packed-type, parameter-domain, naming-provenance, source
-location and observability identities.
+## WA-03 safety contract
 
-The adapter fails closed on incomplete or invalid metadata. Mutation guards
-reject generated-HDL parsing, regex/name recognition, Spinal implementation
-coupling and component-specific logic. WA-02 does not eliminate, rewrite or
-rename declarations, drivers, references or expressions.
+WA-03 is read-only and does not eliminate an alias. It checks the
+complete admitted parameter domain before any transforming pass runs.
 
-The shared parameterized regression source remains
-[`examples/ParameterizedStreamFifo.scala`](examples/ParameterizedStreamFifo.scala).
-It is a proof witness, never a pass implementation template or special case.
+A direct wire alias is eligible only when the canonical design proves:
 
-## WA-03 — common safety and proof gates
+- exactly one full-object continuous driver is a direct signal reference;
+- the alias is internal combinational, not an output/clock/reset/memory/state or
+  bidirectional/hierarchy-boundary object;
+- alias and source have equal signedness, value semantics and packed width for
+  every admitted parameter binding, with positive widths throughout;
+- source visibility and every rewritten reference are legal by scope identity;
+- the substitution cannot introduce a combinational cycle; and
+- naming/observability metadata is complete and no preservation, comment,
+  attribute, public, probe or source contract would be discarded.
 
-`WireAliasSafetyGate` is the read-only, component-generic eligibility analysis
-used by both direct-alias transforms. It proves a sole continuous full-object
-direct driver, exact packed signedness/value semantics, width equality over the
-complete admitted parameter domain and retained generate domains, legal scope
-replacement, and continuous-cycle freedom.
+Parameter equivalence is checked over the complete bounded admitted domain,
+not a few representative defaults. Failure or an unprovable fact retains the
+candidate. Diagnostic and report ordering is deterministic.
 
-It fails closed for observability, hierarchy, public export, clock/reset,
-tri-state, bidirectional, memory-port, instance-port, procedural, comment,
-attribute, preservation, probe and incomplete-control contracts. Adversarial
-fixtures cover mismatching admitted bindings, multiple/partial drivers,
-non-reference expressions, sibling scopes, dependency cycles, registered
-feedback, domain-expansion limits and deterministic repeated analysis.
+## WA-04 unnamed direct-alias pass
 
-WA-03 also supplies strict Verilog-2001 compilation, lint and synthesis,
-representative simulation, formal equivalence over the complete admitted
-parameter domain, a live mutation that must fail with a retained counterexample,
-and deterministic repeated proof evidence. Sequential miters force a
-reset-active clock transition before assertions become active.
+`UnnamedWireAliasEliminationPass` discovers candidates only from
+`NameOrigin.Unnamed`. It never recognizes `_zz_*` text. For each proven eligible
+candidate it replaces reads by exact symbol identity, removes the exact declaration
+and sole assignment, and leaves all surviving identifiers unchanged. It reaches a fixed
+point for chains and fanout and publishes the original input on a validation
+failure.
 
-WA-03 does not eliminate an alias. WA-04 and WA-05 remain the transforms for
-unnamed and explicitly named direct aliases.
+The pass excludes operators, muxes, literals, slices, indexes, concatenations,
+casts, resizes, procedural targets, clocks, resets, memory objects, public
+exports and incomplete naming/observability. The test-only
+`UnnamedWireAliasNativePhase` mirrors the canonical decision into the real
+shared witness before backend name allocation; it is not production handoff
+or a component-specific implementation.
 
-## WA-04 — unnamed alias elimination
+## WA-05 named direct-alias pass
 
-`UnnamedWireAliasEliminationPass` is disabled when the common
-`WireAliasPassConfiguration(enabled = false)` setting disables the pipeline. In
-normal product use it executes through the fixed-order pipeline when
-`enabled = true`. Package-private regression selection may exercise this stage
-independently. It selects candidates solely from canonical `NameOrigin.Unnamed`
-provenance, never from emitted-name text.
+`NamedWireAliasEliminationPass` discovers candidates only from
+`NameOrigin.Explicit`, which retains the explicit source name. It applies the
+same bounded direct-reference contract
+with the stricter named observability checks. An eligible named internal alias
+and its assignment are removed without transferring the removed name to its
+source or inventing a replacement name. Every removed name and available
+source location is recorded deterministically.
 
-For each safe candidate it replaces every read by exact symbol identity,
-removes the exact declaration and sole direct assignment, preserves surviving
-reference identities/owners/source locations/expression structure, and repeats
-to a validated fixed point. Alias chains therefore collapse safely and a second
-run is idempotent. Invalid intermediate IR returns the original validated input
-with deterministic error diagnostics.
+Public/hierarchical names, preservation/probe contracts, black-box boundaries,
+comments, attributes, unknown naming provenance, opaque metadata and all
+non-direct expressions remain unchanged. The transformation does not recognize
+source filenames, emitted identifiers, component names or library classes.
 
-The tests cover direct aliases, nested fanout, neighboring symbol isolation,
-unsafe rejection evidence, deterministic reports, exact surviving names and
-metadata, invalid-input rollback, and the complete symbolic `WIDTH=1..64` by
-`DEPTH=1..8` domain.
+`NamedWireAliasNativePhase` is a test-only bridge over real pre-emission native
+graph identities. It executes the canonical named pass, verifies complete
+reference replacement and unchanged surviving native names, then removes only
+the exact candidate declaration/assignment. `ParameterizedStreamFifoNamedPassWitness`
+emits the shared source through the existing backend while preserving symbolic
+`WIDTH` and `DEPTH`. No generated HDL text controls eligibility.
 
-The test-only `UnnamedWireAliasNativePhase` executes before name allocation,
-constructs a conservative canonical candidate, invokes the canonical pass, and
-writes an approved result back to the same native graph by exact object
-identity. It does not parse or postprocess emitted HDL and does not create the
-WA-08 production handoff.
+## WA-06 ordered direct-alias pipeline
 
-## WA-05 — named alias elimination
+`WireAliasPassPipeline` is an optional immutable entrypoint over the same
+canonical post-parameterization `Design` or production read-only
+`CanonicalIrHandoff`. Its configuration is disabled by default. WA-07 replaces
+the historical public per-pass flags with one all-or-none product flag while
+preserving individual selections only for internal regressions. WA-07a adds the
+fourth stage and WA-07b adds the fifth:
 
-`NamedWireAliasEliminationPass` is controlled by the same single master flag. In
-normal product use it runs after the unnamed direct-alias stage when
-`WireAliasPassConfiguration(enabled = true)`; package-private regression
-selection may exercise it independently. It selects only canonical
-`NameOrigin.Explicit` candidates carrying an explicit source name. Unnamed,
-reflected, generated and unknown origins remain untouched even when their
-emitted text appears user-friendly.
+```scala
+WireAliasPassConfiguration()                  // no pass
+WireAliasPassConfiguration(enabled = false)   // no pass
+WireAliasPassConfiguration(enabled = true)    // unnamed aliases, named aliases,
+                                             // unnamed expressions, constants,
+                                             // Boolean ternaries, to a fixed point
+```
 
-The unchanged WA-03 safety contract retains every public, hierarchical,
-preservation, probe, attribute, comment and source-contract dependency. A safe
-candidate is replaced by exact symbol identity; only its exact declaration and
-sole assignment are removed, without transferring the removed name to its
-source or another signal. The deterministic report retains every removed name
-and source location when available.
+The historical direct-alias stages remain supported as internal proof oracles:
 
-The pass reaches a validated fixed point, fails closed atomically, is
-idempotent, and leaves all surviving names and metadata unchanged. Tests cover
-exact identity, recursive expressions, adjacent symbols, chains, protected
-named-debug contracts, deterministic evidence, invalid-input rollback, and the
-complete `WIDTH=1..64` by `DEPTH=1..8` domain.
+| Regression selection | Historical order |
+| --- | --- |
+| Unnamed only | unnamed |
+| Named only | named |
+| Both direct stages | unnamed-then-named |
 
-The test-only `NamedWireAliasNativePhase` uses source/elaboration provenance on
-the witness, not component or identifier recognition. It invokes the canonical
-pass and applies the approved result to exact native identities before name
-allocation. It does not create the WA-08 production handoff.
-
-## WA-06 — ordered optional pipeline and closure
-
-`WireAliasPassPipeline` is the single optional canonical MorphHDL-IR entrypoint
-for these transforms. WA-06 proved the historical direct-alias stages and their
-unnamed-then-named order. WA-07 exposes only one product-facing `enabled` flag:
-`false` executes no pass; `true` executes unnamed direct aliases, named direct
-aliases, then unnamed continuous expression temporaries. Package-private stage
-selection exists only for regression evidence. The result retains one ordered
-report per executed stage.
-
-A stage consumes the validated output of the preceding stage. Any failed stage
-publishes the original pipeline input, preserving atomic fail-closed behavior.
-Successful execution reports `Changed` when any enabled stage transforms the
-design and `Unchanged` only after all enabled stages reach their fixed point.
-
-Cross-Scala tests validate alias chains and fanout without parsing emitted
-Verilog, package-private historical stage selection, exact fixed ordering,
-deterministic reports, idempotent IR, atomic rollback, surviving
-metadata/reference identity, module/source-path independence, and the complete
-512-binding `WIDTH`/`DEPTH` domain.
+The pipeline supports alias chains and fanout, preserves deterministic ordered
+per-stage reports, and reaches idempotent IR. Repeated execution from the same
+input produces identical reports and is suitable for byte-identical repeated
+emission. On any validation failure it returns the original pre-pipeline design;
+no partially transformed design is published. No pass or pipeline recognizer
+uses a component/library class, module name, signal name or source filename.
 
 The test-only `OrderedWireAliasNativePhase` first validates the real canonical
 pipeline order on a component-neutral identity graph, then executes the already
@@ -187,7 +179,7 @@ use only when the temporary is proven one bit wide. The complete selected-use
 contract is documented in
 [`WA07_SELECTED_USE_CONTRACT.md`](WA07_SELECTED_USE_CONTRACT.md).
 
-The public `WireAliasPassConfiguration(enabled = true)` executes all four
+The public `WireAliasPassConfiguration(enabled = true)` now executes all five
 passes in the fixed order. `enabled = false` executes none. Tests cover literal,
 nested and fanout expressions, exact identity, type fences, cycles, scopes,
 metadata, procedural source and receiver exclusions, selection composition and
@@ -197,9 +189,8 @@ supported Scala versions.
 `ParameterizedStreamFifoExpressionPassWitness` emits the expression-only
 candidate. `ParameterizedStreamFifoAllPassWitness` retains the historical
 three-stage candidate using package-private regression selection; its report
-explicitly does not claim execution of the current four-stage common flag.
-Both are test-only bridges;
-WA-08 owns production publication and writeback.
+explicitly does not claim execution of the current five-stage common flag.
+Both are test-only bridges; WA-08 owns production publication and writeback.
 
 `run-wa07-regression.sh` generates the unchanged common reference, every
 historical direct candidate, the expression-only candidate and the all-pass
@@ -227,12 +218,14 @@ vectors and retain self-determined truth-conversion boundaries. Unproven cases,
 procedural statements and preservation contracts remain untouched. Arithmetic
 cancellation and inter-signal constant propagation are not part of this pass.
 
-The common pipeline runs unnamed aliases, named aliases, unnamed expressions,
-then constant operands, repeating in that order to a checked fixed point.
-Rewrites are recorded separately as `simplifiedExpressions`/`simplifiedCount`;
-`eliminatedCount` still counts only removed wires. A failed stage rolls back to
-the original pre-pipeline input. Standalone simplification retains input item
-order, surviving names, comments, declaration and driver identities.
+The historical four-stage pipeline runs unnamed aliases, named aliases, unnamed
+expressions, then constant operands, repeating in that order to a checked fixed
+point. The current common pipeline additionally executes Boolean ternaries in
+each round. Rewrites are recorded separately as
+`simplifiedExpressions`/`simplifiedCount`; `eliminatedCount` still counts only
+removed wires. A failed stage rolls back to the original pre-pipeline input.
+Standalone simplification retains input item order, surviving names, comments,
+declaration and driver identities.
 
 The test-only `ConstantOperandNativePhase` captures the **actual complete
 Boolean RHS tree**, runs the canonical pass, and decodes its actual output back
@@ -254,15 +247,17 @@ unsafe Z identity mutation and a functional mutation in the formal miter.
 `constant-operand-simplification.v` plus `wire-assignment-four-pass.v`. Both new
 candidates must perform real rewrites, reach fixed points and reproduce
 byte-identical Verilog/reports. The new native reference must be byte-identical
-to the reference captured before **all** passes. Both new proof legs cover all
+to the reference captured before **all** passes. Both proof legs cover all
 512 legal WIDTH/DEPTH bindings, not just defaults or selected corners. Four-state
 simulation is an additional mandatory gate, not a claim made from two-state
-formal alone.
+formal alone. The four-stage native witness explicitly selects its historical
+stages and is not redirected to the current five-stage flag.
 
 The [WA-07a qualification record](wa07a-completion-evidence.md) identifies the
 verified implementation revision, complete aggregate evidence and required
-independent CI for the completion commit. WA-08 becomes eligible after WA-07a
-is merged; production execution and writeback remain its scope.
+independent CI for its completion commit. WA-08 additionally depends on WA-07b
+being qualified, completed and merged; production execution and writeback
+remain WA-08 scope.
 
 ### Non-vacuous clocked proofs
 
@@ -285,6 +280,39 @@ excluded from byte-determinism comparison; generated cover configurations,
 reachability evidence and equivalence artifacts remain compared. This corrects
 the proof model without weakening the reference snapshot, parameter domains,
 output comparisons, or four-state simulation requirements.
+
+## WA-07b — recursive Boolean ternary simplification
+
+`BooleanTernarySimplificationPass` visits every supported pure continuous RHS
+child bottom-up, including mux conditions and branches, operands, concatenations,
+selects and expression indices, casts and resizes. It removes opposite unsigned
+one-bit constant branches, including nested occurrences under nonmatching
+parents. Scope and preservation exclusions match the existing simplification
+contract. Procedural assignments and state are not changed.
+
+A proven one-bit no-Z logical/comparison condition can replace its positive
+ternary directly. Other conditions keep `!!condition`, preserving truth
+conversion and raw-Z-to-X behavior. The inverse uses `!condition`, which stays
+one bit in a widened context. Using raw `~condition` on an unnormalized vector,
+or letting a bitwise complement widen, is not allowed. Wider, signed and
+parameter-dependent branch types without a proof are retained.
+
+The implementation adds recursive positive/negative fixtures, four-state
+comparisons over 16,384 input patterns, independent functional mutations,
+symbolic WIDTH=1..8 rule proofs, cross-stage fixed-point tests and actual native
+before/after emission. Its shared StreamFifo standalone and all-five outputs
+must both compare with the unchanged pre-all-passes reference across all 512
+admitted bindings. A genuine no-op on the shared witness is reported explicitly;
+independent native fixtures must still exercise both positive and inverse rules.
+
+The [implementation notes](wa07b-implementation-notes.md) describe these layers
+and artifact paths. Integrated source `62e62146` passed the native gate, both
+Scala lanes, all 16 formal shards and full-domain aggregation in workflow
+`34200640436`, plus inherited/signedness closure in `34200640264`. The
+[qualification record](wa07b-completion-evidence.md) identifies the exact
+artifacts, actual RTL and proof limits. The documentation completion head
+requires its own CI before merge; WA-08 cannot start from an open PR.
+Test code alone is not successful proof evidence.
 
 ## Common witness and formal-equivalence baseline
 
@@ -324,6 +352,8 @@ python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
 python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
 python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
 python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
+python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py --self-test
+python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 (
   cd morphhdl-passes
@@ -334,12 +364,13 @@ python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-t
 The pinned CI toolchain runs the native witness and strict legality gates with:
 
 ```bash
-bash morphhdl-passes/scripts/run-wa07a-regression.sh
+# Includes run-wa07a-regression.sh and its historical prerequisites.
+bash morphhdl-passes/scripts/run-wa07b-regression.sh
 
 python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
   --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
   --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
-  --prove-pending WA-07a \
+  --prove-pending WA-07a --prove-pending WA-07b \
   --check-determinism
 ```
 
@@ -348,19 +379,21 @@ The regression publishes:
 - `morphhdl-passes/build/pass-outputs/wire-alias-unnamed.v`;
 - `morphhdl-passes/build/pass-outputs/wire-alias-named.v`;
 - `morphhdl-passes/build/pass-outputs/wire-alias-combined.v`;
-- `morphhdl-passes/build/pass-outputs/wire-expression-unnamed.v`; and
+- `morphhdl-passes/build/pass-outputs/wire-expression-unnamed.v`;
 - `morphhdl-passes/build/pass-outputs/wire-assignment-all.v` (historical three-stage);
-- `morphhdl-passes/build/pass-outputs/constant-operand-simplification.v`; and
-- `morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v`.
+- `morphhdl-passes/build/pass-outputs/constant-operand-simplification.v`;
+- `morphhdl-passes/build/pass-outputs/wire-assignment-four-pass.v` (historical four-stage);
+- `morphhdl-passes/build/pass-outputs/boolean-ternary-simplification.v`; and
+- `morphhdl-passes/build/pass-outputs/wire-assignment-five-pass.v`.
 
-All seven are compared to the same captured pre-pass design. WA-07a extends the
-one-flag standalone pipeline with constant simplification. WA-08 remains the
-separately reviewed production handoff into MorphHDL-owned generation flow.
+All nine must be compared to the same captured pre-pass design. WA-07b extends
+the one-flag standalone pipeline with recursive ternary simplification. WA-08
+remains the separately reviewed production handoff into MorphHDL-owned generation
+flow.
 
+### WA-07a and WA-07b complete-domain proof shards
 
-### WA-07a complete-domain proof shards
-
-The native generation job emits one pre-pass reference and all seven candidates.
+The native generation job emits one pre-pass reference and all nine candidates.
 It records their hashes together with the exact source commit, proof manifest and
 signature-registry hashes. Every proof job checks those identities before using
 the artifacts; a previous revision's results cannot qualify a newer checkout.
@@ -377,9 +410,11 @@ aggregation job requires all 16 jobs to succeed and checks the exact disjoint
 union for both runs and every pass. It rereads the actual solver statuses, miters,
 clock configurations, cover traces, mutation counterexamples and artifact hashes.
 Missing, duplicate, stale, reordered or failed evidence is rejected. A failed
-rerun removes any stale aggregate PASS. Only this final job can report the full
-7 x 512 x 2 = 7,168 equivalence proofs, with 7,168 comparison-reachability proofs,
-as complete. Native legality and four-state evidence remains in the separate
+rerun removes any stale aggregate PASS. Only this final job can qualify the full
+9 x 512 x 2 = 9,216 equivalence proofs and their 9,216 comparison-reachability
+proofs for WA-07b. The historical WA-07a qualification had seven candidates and
+7,168 results per proof category. Those results are not reused to qualify a new
+source revision. Native legality and four-state evidence remains in the separate
 native-input artifact; actual solver records are retained in all shard artifacts.
 
 Run `python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v` to test
@@ -396,9 +431,9 @@ Each successful Yosys preparation records the input, preparation script and
 RTLIL hashes. Aggregation checks those records, the exact parameter bindings,
 and the configuration and input copies retained by SBY for reachability and
 mutation runs. Positive equivalence uses the complete property proof described
-below. Repeated-run evidence cannot be a symlink to
-the first run. These checks detect stale or altered workflow artifacts; they
-do not replace solver execution or permit partial-domain qualification.
+below. Repeated-run evidence cannot be a symlink to the first run. These checks
+detect stale or altered workflow artifacts; they do not replace solver execution
+or permit partial-domain qualification.
 
 ### Complete output-property proofs
 
@@ -423,8 +458,8 @@ normalized formulas, canonical commands, actual solver records and invariants.
 The aggregator validates this evidence in addition to the original reachability
 and mutation records. A timeout, counterexample, omitted property, changed model
 or unverified result cannot qualify. The per-binding timeout remains unchanged.
-The 7,168 required equivalence results count complete binding qualifications,
-each of which may contain several distinct PDR property proofs.
+The required equivalence results count complete binding qualifications, each
+of which may contain several distinct PDR property proofs.
 
 Each nonconstant representative uses a fixed PDR search sequence: default,
 monolithic, then monolithic with structural flop priorities, each with
@@ -434,11 +469,11 @@ original `-m -y -r` search. The `-i -p` profile changes clause-pushing order
 and reuses blocked proof obligations; it does not change the formula or add
 assumptions. Every retry starts from the same canonical model. Each profile's
 declared bounds drive both its command and its accepted limit diagnostic.
-A later search
-starts only when a successful command explicitly reports the configured
-conflict or frame limit and an undecided property. Counterexamples, timeouts,
-tool errors and malformed evidence stop qualification. All attempts share the
-existing 600-second binding budget; an undecided attempt never supplies a proof.
+A later search starts only when a successful command explicitly reports the
+configured conflict or frame limit and an undecided property. Counterexamples,
+timeouts, tool errors and malformed evidence stop qualification. All attempts
+share the existing 600-second binding budget; an undecided attempt never
+supplies a proof.
 
 Schema 3 evidence retains every attempted script, model, execution record, log
 and clause dump in order. The checker matches each attempted model to the

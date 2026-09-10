@@ -59,20 +59,30 @@ from pathlib import Path
 out, native = map(Path, sys.argv[1:])
 constant_id = "constant-operand-simplification"
 all_ids = ["wire-alias-unnamed", "wire-alias-named", "wire-expression-unnamed", constant_id]
-for stem, ids in ((constant_id, [constant_id]), ("wire-assignment-four-pass", all_ids)):
-    report = json.loads((out / f"{stem}-report.json").read_text())
+
+def check_selection(report, ids):
     assert report["pass_id"] == "+".join(ids), report
     assert report["executed_passes"] == ids, report
+    assert report["executed_rounds"] and all(x == ids for x in report["executed_rounds"]), report
+    assert report["rounds"] == len(report["executed_rounds"]), report
+    # Neither standalone constants nor the historical four-stage selection
+    # executes the current five-stage product flag.
+    assert report["common_flag_enabled"] is False, report
+    assert report["historical_regression_selection"] is (ids == all_ids), report
+
+for stem, ids in ((constant_id, [constant_id]), ("wire-assignment-four-pass", all_ids)):
+    report = json.loads((out / f"{stem}-report.json").read_text())
+    check_selection(report, ids)
     assert report["actual_rhs_capture_writeback"] is True, report
     assert report["executed_before_name_allocation"] is True, report
     assert report["procedural_receiver_rewrites"] == 0, report
     assert report["simplified_assignment_count"] > 0 and report["rounds"] >= 2, report
     assert report["rules"], report
-    assert report["common_flag_enabled"] is (len(ids) == 4), report
     if len(ids) == 4:
         for key in ("unnamed_alias_eliminated_count", "named_alias_eliminated_count", "unnamed_expression_eliminated_count"):
             assert report[key] > 0, (key, report)
 report = json.loads((native / "candidate-report.json").read_text())
+check_selection(report, [constant_id])
 assert report["simplified_assignment_count"] >= 6, report
 assert report["actual_rhs_capture_writeback"] is True, report
 PY

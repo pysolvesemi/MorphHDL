@@ -77,7 +77,8 @@ private[examples] final class ConstantOperandNativePhase extends Phase {
     completed = true
   }
 
-  private def eligible(assignment: DataAssignmentStatement): Boolean = {
+  // Shared only by the independent native proof witnesses, not a product API.
+  private[examples] def eligible(assignment: DataAssignmentStatement): Boolean = {
     val target = assignment.finalTarget
     target.isInstanceOf[Bool] && target.isComb && !target.isAnalog &&
       !target.isInputOrInOut && !target.isFrozen() && target.isEmptyOfTag &&
@@ -105,7 +106,7 @@ private[examples] final class ConstantOperandNativePhase extends Phase {
     true
   }
 
-  private final class BooleanCodec {
+  private[examples] final class BooleanCodec {
     private val moduleId = ModuleId.unsafe("module.native-constant-expression")
     private val scopeId = ScopeId.unsafe("scope.native-constant-expression")
     private val sinkId = SymbolId.unsafe("symbol.native-constant-sink")
@@ -218,7 +219,10 @@ private[examples] final class ConstantOperandPipelineNativePhase(all: Boolean) e
       val constant = new ConstantOperandNativePhase
       constant.impl(pc)
       executed :+= PassId.ConstantOperandSimplification
-      val expected = if (all) WireAliasPassConfiguration(enabled = true).enabledPasses
+      // Preserve the historical four-stage proof; the current public flag
+      // belongs to the new five-stage witness, not this archived selection.
+      val expected = if (all) WireAliasPassConfiguration.selectedForTesting(
+        PassId.historicalConstantOperandPasses: _*).enabledPasses
         else Vector(PassId.ConstantOperandSimplification)
       require(executed == expected, "WA-07a native order differs from the canonical pipeline")
       executionRounds :+= executed
@@ -245,7 +249,8 @@ private[examples] final class ConstantOperandPipelineNativePhase(all: Boolean) e
        |  "pass_id": "$passId",
        |  "executed_passes": [$executed],
        |  "executed_rounds": [$roundsJson],
-       |  "common_flag_enabled": $all,
+       |  "common_flag_enabled": false,
+       |  "historical_regression_selection": $all,
        |  "executed_before_name_allocation": true,
        |  "actual_rhs_capture_writeback": true,
        |  "procedural_receiver_rewrites": 0,

@@ -92,6 +92,9 @@ def main() -> None:
     review = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(review)
     outside = "unreviewed source change outside 59h spans"
+    # Keep every original source mutation. Diagnose the first exact layer that
+    # owns the changed file; independently replay frozen historical controls.
+    rollout = review.rollout_scope(ROOT) if hasattr(review, "rollout_scope") else None
     register = getattr(review, "register_source_review", lambda root: None)(ROOT)
     # A reviewed successor must reject its own mutations first. Keep the
     # independent older diagnostics for files outside that exact inventory;
@@ -179,6 +182,25 @@ def main() -> None:
     frozen_inherited_fixture(
         ROOT, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
         "target/increment-59c-source-scope", lambda: records[:1], "59c current-source controls PASS")
+    if rollout is not None:
+        with tempfile.TemporaryDirectory(prefix="morphhdl-60g-frozen-59h-") as directory:
+            historical = Path(directory) / "completed-59h"
+            git(ROOT, "worktree", "add", "--detach", str(historical), rollout.BASE)
+            try:
+                result = subprocess.run([sys.executable,
+                    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"],
+                    cwd=historical, text=True, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, timeout=900, check=False)
+                (output / "pre-rollout-59h-controls.log").write_text(result.stdout)
+                if result.returncode or "59h current-source controls PASS" not in result.stdout:
+                    raise RuntimeError("unchanged pre-rollout 59h controls failed:\n" + result.stdout)
+                evidence = json.loads((historical / "target/increment-59h-source-scope/evidence.json").read_text())
+                if evidence["head"] != rollout.BASE:
+                    raise RuntimeError("pre-rollout 59h evidence has the wrong source head")
+                (output / "pre-rollout-59h-controls.json").write_text(json.dumps(evidence, indent=2) + "\n")
+            finally:
+                git(ROOT, "worktree", "remove", "--force", str(historical))
+        print("PASS: unchanged completed 59h controls independently replayed at " + rollout.BASE, flush=True)
     print(f"59h current-source controls PASS: two positives and {len(records) - 2} exact rejections; unchanged 59c historical controls separately scoped", flush=True)
 
 

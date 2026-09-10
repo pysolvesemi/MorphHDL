@@ -141,6 +141,7 @@ def joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:
 def restore_adapter(root: Path, path: str, source: str) -> str:
     if path not in ADAPTER_PATHS:
         return source
+    source = restore_rollout(root, path, source)
     value = load_contract(root)
     entry = next(x for x in value["checker_adapters"] if x["path"] == path)
     return restore_bytes(entry, frozen_source(root.resolve(), BASE, path),

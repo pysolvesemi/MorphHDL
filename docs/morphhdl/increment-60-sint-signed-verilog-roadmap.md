@@ -1,6 +1,10 @@
 # Increment 60 — Native signed `SInt` Verilog roadmap
 
-**Status:** 60a through 60f qualified; 60g remains unchecked.
+**Status:** 60a through 60g complete and merged into `parameterized-verilog`
+via [PR #167](https://github.com/pysolvesemi/MorphHDL/pull/167) at
+`a071c801c0e87daa13265986a000b000817fbc04`. The final qualified PR head is
+`fcae354f397f4e993a603c52e83311a762d06a9b`; post-merge CI is tracked separately
+in the PR. Earlier qualification records below retain their historical scope.
 
 The frozen rules and baseline limits are in [the signedness contract](increment-60-signedness-contract.md).
 
@@ -261,10 +265,10 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   change is included. Both lanes passed all 1,610 tests across 160 suites with
   zero failures or skips; the 213 downloaded RTL files match across Scala lanes.
   Strict tools, all inherited proofs, the exact 60a solver witness/replay and
-  the supplementary memory controls passed. Parent 60 and 60g remain open;
-  final completion-head checks must pass before merge.
+  the supplementary memory controls passed. At the 60f closeout, parent 60 and
+  60g remained open; their subsequent completion is recorded below.
 
-- [ ] **Increment 60g — Default rollout, documentation and legacy-cast cleanup**
+- [x] **Increment 60g — Default rollout, documentation and legacy-cast cleanup**
 
   **Dependencies:** Increment 60f implemented and merged.
 
@@ -280,6 +284,18 @@ Increment 60 is complete only when every child checkbox below is `[x]` on
   and state clearly that some `$signed(...)` uses are correct and expected.
   Mark Increment 60a through 60g and the controlling Increment 60 parent `[x]`
   only as the final source transition after the exact final-head gate passes.
+
+  **Completed implementation:** `f496ae8251dc4ce26e3e3a33894e7f1e652c8f92`,
+  including merged 59h. All applicable implementation-head PR workflows passed
+  on both Scala versions, including 1,872 non-skipped tests in 182 suites per
+  lane, the 64-case signedness matrix, both widening and nested-owner hardware
+  matrices, baseline, Mill and downloaded cross-Scala comparisons. The
+  [final qualification record](increment-60g-default-rollout.md#final-implementation-qualification)
+  includes actual Scala and generated Verilog, mode/boundary rules, retained
+  live native helpers and the exact native-change manifest. No independent
+  oracle arithmetic or golden was rewritten for closeout. This completion
+  transition is documentation-only and retains applicable final-head checks
+  and expected-head-protected merge in PR #167.
 
 ## Completion criteria
 

@@ -148,6 +148,12 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
 
+      - name: Enforce WA-07b recursive ternary and common-reference proof contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py --self-test
+          python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py
+
       - name: Verify formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
@@ -186,6 +192,32 @@ jobs:
           find morphhdl-passes/src morphhdl-passes/scripts -type f \
             \( -name '*.scala' -o -name '*.py' -o -name '*.sh' \) -print0 \
             | sort -z | xargs -0 sha256sum
+          # Read-only evidence for reviewing explicit registry updates. This
+          # never rewrites the checked-in registry or bypasses its comparison.
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          registry = json.loads(Path('morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json').read_text())
+          paths = set(registry['files']) | {
+              'morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala',
+              'morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala',
+              'morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernaryFourStateSpec.scala',
+              'morphhdl-passes/examples/BooleanTernaryNativeBridge.scala',
+              'morphhdl-passes/scripts/run-wa07b-regression.sh',
+              'morphhdl-passes/scripts/check-wa07b-ternary-pass.py',
+              'morphhdl-passes/tests/formal/wire_assignment_ir/boolean_ternary_native_tb.v',
+          }
+          actual = dict(registry)
+          actual['files'] = {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in sorted(paths)}
+          text = json.dumps(actual, indent=2, sort_keys=True) + '\n'
+          output = Path('morphhdl-passes/build/wa07b-source-signatures.json')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(text)
+          print('WA07B_SOURCE_SIGNATURES_BEGIN')
+          print(text, end='')
+          print('WA07B_SOURCE_SIGNATURES_END')
+          PY
 
       - name: Test standalone pass contracts and all-pass pipeline
         working-directory: morphhdl-passes
@@ -199,12 +231,14 @@ jobs:
           name: morphhdl-wa07a-rules-scala-${{ matrix.scala_version }}
           path: |
             morphhdl-passes/build/wa07a-rule-oracle
+            morphhdl-passes/build/wa07b-rule-oracle
+            morphhdl-passes/build/wa07b-source-signatures.json
             morphhdl-passes/target/test-reports
           if-no-files-found: error
           retention-days: 14
 
   native_generation:
-    name: WA-04 through WA-07a native generation, legality and four-state checks
+    name: WA-04 through WA-07b native generation, legality and four-state checks
     needs: [boundary, contracts]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -281,11 +315,15 @@ jobs:
           # historical leg, then emits both new candidates against that reference.
           bash morphhdl-passes/scripts/run-wa07a-regression.sh
 
+      - name: Generate recursive ternary and five-stage candidates against the same reference
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa07b-regression.sh --after-wa07a
+
       - name: Bind native inputs to this exact source revision
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --capture-native-inputs --prove-pending WA-07a
+            --capture-native-inputs --prove-pending WA-07a --prove-pending WA-07b
           git diff --exit-code -- .
 
       - name: Retain common reference, proof statuses and mutation counterexample
@@ -300,7 +338,7 @@ jobs:
 
 
   formal_shards:
-    name: WA-07a full-domain proof shard ${{ matrix.shard }} / 16
+    name: WA-07a and WA-07b full-domain proof shard ${{ matrix.shard }} / 16
     needs: [native_generation]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -330,7 +368,7 @@ jobs:
           set -euo pipefail
           yosys -V | grep -Eq '^Yosys 0\.41([ +]|$)'
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --verify-native-inputs --prove-pending WA-07a
+            --verify-native-inputs --prove-pending WA-07a --prove-pending WA-07b
 
       - name: Prove every owned binding twice without reducing the admitted domain
         shell: bash
@@ -339,7 +377,7 @@ jobs:
           python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
             --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
             --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
-            --prove-pending WA-07a \
+            --prove-pending WA-07a --prove-pending WA-07b \
             --formal-jobs 4 \
             --formal-shard-index ${{ matrix.shard }} --formal-shard-count 16 \
             --check-determinism
@@ -372,7 +410,7 @@ jobs:
           retention-days: 14
 
   equivalence:
-    name: WA-04 through WA-07a legality, equivalence, mutation and determinism proof
+    name: WA-04 through WA-07b legality, equivalence, mutation and determinism proof
     needs: [native_generation, formal_shards]
     if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
     runs-on: ubuntu-latest
@@ -413,7 +451,7 @@ jobs:
           set -euo pipefail
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
             --shards morphhdl-passes/build/formal-shards --shard-count 16 \
-            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a
+            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a --prove-pending WA-07b
           git diff --exit-code -- .
 
       - name: Retain full-domain qualification summary

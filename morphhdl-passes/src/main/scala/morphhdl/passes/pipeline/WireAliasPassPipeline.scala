@@ -16,6 +16,7 @@ import morphhdl.passes.api.RejectedWireAlias
 import morphhdl.passes.api.SimplifiedExpression
 import morphhdl.passes.api.WireAliasPassConfiguration
 import morphhdl.passes.safety.AliasSafetyConfiguration
+import morphhdl.passes.transform.BooleanTernarySimplificationPass
 import morphhdl.passes.transform.ConstantOperandSimplificationPass
 import morphhdl.passes.transform.NamedWireAliasEliminationPass
 import morphhdl.passes.transform.UnnamedWireAliasEliminationPass
@@ -74,10 +75,11 @@ final case class WireAliasPipelineResult(
   * Component-generic all-or-none entrypoint for canonical-IR rewrites.
   *
   * Product callers have one flag. Each fixed-point round executes unnamed
-  * direct aliases, named direct aliases, unnamed continuous expressions, then
-  * constant-operand simplification. Historical regression selections without
-  * the new simplification stage retain their original single-round behavior.
-  * No stage inspects generated HDL, identifiers, filenames or component names.
+  * direct aliases, named direct aliases, unnamed continuous expressions,
+  * constant-operand simplification, then Boolean ternary simplification.
+  * Historical regression selections without either simplification stage retain
+  * their original single-round behavior. No stage inspects generated HDL,
+  * identifiers, filenames or component names.
   */
 object WireAliasPassPipeline {
   /** Historical WA-06 two-pass identifier retained for its proof artifacts. */
@@ -89,6 +91,10 @@ object WireAliasPassPipeline {
   /** Historical WA-07 identifier retained independently of the current pipeline. */
   val historicalAllPassId: String =
     PassId.historicalWireAssignmentPasses.map(_.value).mkString("+")
+
+  /** Historical WA-07a four-pass identifier for its unchanged proof legs. */
+  val historicalConstantPassId: String =
+    PassId.historicalConstantOperandPasses.map(_.value).mkString("+")
 
   val allPassId: String = PassId.allWireAssignmentPasses.map(_.value).mkString("+")
 
@@ -124,6 +130,12 @@ object WireAliasPassPipeline {
         SimplifiedExpression(rewrite.module.value, rewrite.driver.value, rewrite.expressionPath, rewrite.rule)
       })
       PassResult(result.output, result.status, result.diagnostics, report).normalized
+    case PassId.BooleanTernarySimplification =>
+      val result = BooleanTernarySimplificationPass.run(design)
+      val report = EliminationReport(passId, simplifiedExpressions = result.rewrites.map { rewrite =>
+        SimplifiedExpression(rewrite.module.value, rewrite.driver.value, rewrite.expressionPath, rewrite.rule)
+      })
+      PassResult(result.output, result.status, result.diagnostics, report).normalized
     case other =>
       throw new IllegalArgumentException(s"unsupported wire-assignment pipeline pass '${other.value}'")
   }
@@ -149,6 +161,7 @@ object WireAliasPassPipeline {
     * Strict lexicographic progress measure. Alias/inlining stages remove a
     * declaration; simplification removes a binary/mux node, or a unary node.
     * Inlining may duplicate expressions, so declaration count comes first.
+    * Boolean normalization may add unary nodes but always removes its mux.
     */
   private def progressMeasure(design: Design): (Long, Long, Long) = {
     def count(expr: RtlExpr): (Long, Long) = {
@@ -187,7 +200,10 @@ object WireAliasPassPipeline {
     if (enabled.isEmpty) {
       WireAliasPipelineResult(design, PassExecutionStatus.Skipped, Vector.empty)
     } else {
-      val fixedPoint = enabled.contains(PassId.ConstantOperandSimplification)
+      val fixedPoint = enabled.contains(PassId.ConstantOperandSimplification) ||
+        enabled.contains(PassId.BooleanTernarySimplification)
+      val progressPass = if (enabled.contains(PassId.BooleanTernarySimplification))
+        PassId.BooleanTernarySimplification else PassId.ConstantOperandSimplification
       var current = design
       var aggregated = Vector.empty[PassResult[Design]]
       val history = Vector.newBuilder[PassResult[Design]]
@@ -209,12 +225,14 @@ object WireAliasPassPipeline {
           else aggregated.zip(stages).map { case (previous, stage) => accumulate(previous, stage) }
         repeat = fixedPoint && stages.exists(_.changed)
         if (repeat && !implicitly[Ordering[(Long, Long, Long)]].lt(progressMeasure(current), progressMeasure(before))) {
+          val code = if (progressPass == PassId.BooleanTernarySimplification)
+            "WA07B-PIPELINE-NONDECREASING" else "WA07A-PIPELINE-NONDECREASING"
           val failure = PassResult.failed(
             design,
-            EliminationReport(PassId.ConstantOperandSimplification),
-            Vector(PassDiagnostic("WA07A-PIPELINE-NONDECREASING", DiagnosticSeverity.Error,
+            EliminationReport(progressPass),
+            Vector(PassDiagnostic(code, DiagnosticSeverity.Error,
               "a changed pipeline round did not decrease its termination measure; original input retained",
-              Some(PassId.ConstantOperandSimplification)))
+              Some(progressPass)))
           )
           history += failure
           return WireAliasPipelineResult(design, PassExecutionStatus.Failed, history.result()).normalized

@@ -249,9 +249,9 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
     elif "**Status:** `IN PROGRESS`" not in wa07_body:
         failures.append(f"{path}: WA06-SUCCESSOR: open WA-07 must be IN PROGRESS")
 
-    # WA-07a is an authorized prerequisite inserted before the final handoff.
-    # Historical WA-07-only roadmaps still require READY; a new open prerequisite
-    # must instead keep WA-08 BLOCKED. Do not infer completion from its title.
+    # Authorized prerequisites inserted before the final handoff must be
+    # completed individually. Historical roadmaps without them retain their
+    # original dependency contract. Do not infer completion from a title.
     wa07a_complete = True
     if "WA-07a" in entries:
         checked, body = entries["WA-07a"]
@@ -259,7 +259,14 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         expected = "COMPLETED" if checked else "IN PROGRESS"
         if f"**Status:** `{expected}`" not in body or not wa07_checked:
             failures.append(f"{path}: WA06-SUCCESSOR: WA-07a status or dependency is inconsistent")
-    next_status = "READY" if wa07_checked and wa07a_complete else "BLOCKED"
+    wa07b_complete = True
+    if "WA-07b" in entries:
+        checked, body = entries["WA-07b"]
+        wa07b_complete = checked and "**Status:** `COMPLETED`" in body
+        allowed = ("COMPLETED",) if checked else ("READY", "IN PROGRESS")
+        if not any(f"**Status:** `{status}`" in body for status in allowed) or not wa07a_complete:
+            failures.append(f"{path}: WA06-SUCCESSOR: WA-07b status or dependency is inconsistent")
+    next_status = "READY" if wa07_checked and wa07a_complete and wa07b_complete else "BLOCKED"
     if wa08_checked or f"**Status:** `{next_status}`" not in wa08_body:
         failures.append(f"{path}: WA06-NEXT-STATUS: handoff requires open {next_status} WA-08")
 
@@ -448,6 +455,20 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
         raise AssertionError("READY handoff after completed WA-07a was rejected")
     if not roadmap_failures(Path("roadmap.md"), completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv_roadmap):
         raise AssertionError("stale dependency block after WA-07a completion was not rejected")
+
+    ternary = completed.replace("- [ ] **WA-08", "- [ ] **WA-07b — Ternaries**\n\n  **Status:** `IN PROGRESS`.\n\n- [ ] **WA-08")
+    if not roadmap_failures(Path("roadmap.md"), ternary, pv_roadmap):
+        raise AssertionError("READY handoff with incomplete WA-07b was not rejected")
+    ternary_blocked = ternary.replace("**Status:** `READY`", "**Status:** `BLOCKED`")
+    if roadmap_failures(Path("roadmap.md"), ternary_blocked, pv_roadmap):
+        raise AssertionError("valid WA-07b dependency block was rejected")
+    if not roadmap_failures(Path("roadmap.md"), ternary_blocked.replace("- [ ] **WA-07b", "- [x] **WA-07b"), pv_roadmap):
+        raise AssertionError("checked WA-07b without COMPLETED status was not rejected")
+    ternary_completed = ternary.replace("- [ ] **WA-07b", "- [x] **WA-07b").replace("**Status:** `IN PROGRESS`", "**Status:** `COMPLETED`")
+    if roadmap_failures(Path("roadmap.md"), ternary_completed, pv_roadmap):
+        raise AssertionError("READY handoff after completed WA-07b was rejected")
+    if not roadmap_failures(Path("roadmap.md"), ternary_completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv_roadmap):
+        raise AssertionError("stale dependency block after WA-07b completion was not rejected")
 
     manifest = {"shared_witness": {"future_pass_outputs": [{
         "activation_item": "WA-06",

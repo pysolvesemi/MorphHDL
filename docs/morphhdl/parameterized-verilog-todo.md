@@ -1070,23 +1070,121 @@ dependency chain is unchanged and may proceed independently.
 
 ### Native signed-Verilog track (Increment 60)
 
-- [ ] **Increment 60 — Native signed `SInt` Verilog**
+- [x] **Increment 60 — Native signed `SInt` Verilog**
 
   **Dependencies:** Increment 59 implemented and merged.
 
   Follow [the Increment 60 child roadmap](increment-60-sint-signed-verilog-roadmap.md)
   and [signedness semantic contract](increment-60-signedness-contract.md).
-  The serial chain is 60a through 60g; this parent remains open until every
-  child and its final-head gates are complete. Ordinary SpinalVerilog stays
-  unchanged by default.
+  The serial chain 60a through 60g is complete. The
+  [60g final qualification record](increment-60g-default-rollout.md#final-implementation-qualification)
+  identifies the exact source, actual Scala/Verilog example and terminal
+  dual-Scala CI evidence: 1,872 tests across 182 suites per lane, independent
+  signedness proofs, all integration hardware matrices, deterministic output,
+  native-source audits, baseline and Mill. The final completion transition is
+  documentation-only; its applicable checks and protected merge are tracked in
+  PR #167. Ordinary SpinalVerilog and VHDL remain unchanged by default.
+
+### Per-component parameterized publication track (Increment 61)
+
+- [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**
+
+  **Dependencies:** Increment 59i implemented and merged. Increment 60 is
+  already complete and must remain integrated.
+
+  Remove the current MorphHDL parameterized-Verilog restriction that rejects
+  `oneFilePerComponent = true`. Treat this as publication-path compatibility,
+  not as a second parameter model or RTL implementation. Reuse the canonical
+  typed module graph and exact logical-component identity; do not generate a
+  consolidated file and then recover component boundaries by reparsing or
+  emitted-text heuristics.
+
+  When enabled, emit one deterministic Verilog source file per generated logical
+  component definition while retaining that component's complete parameterized
+  module header and owned declarations. Parameter declarations, module-local
+  localparams/enums, helper functions, memories, signed declarations, generate
+  regions and other module-owned artifacts must stay with the owning definition.
+  Parent/child instances in separate files must preserve exact named parameter
+  bindings and one canonical definition per logical component even when several
+  instances use different parameter actuals. Recursive generated self-instances
+  must continue to target the same canonical module. `BlackBox`/external-module
+  definitions must not be regenerated or copied merely because publication is
+  split across files.
+
+  Define deterministic file naming, collision diagnostics, source ordering and
+  the returned/generated-source manifest. A split output must not accidentally
+  depend on declarations stranded in another component file; any intentionally
+  shared compilation-unit artifact must be explicit, deterministic and included
+  in the reported source set. Repeated generation into an existing target
+  directory must define safe stale-file handling without deleting unrelated
+  user files. Do not silently fall back to consolidated output when the option
+  is requested.
+
+  Preserve the existing consolidated parameterized output when
+  `oneFilePerComponent = false` and preserve ordinary concrete `SpinalVerilog`
+  behavior. Qualify nested hierarchy, repeated canonical children with distinct
+  parameter actuals, Mem/Vec and Stream/StreamFifo/StreamFifoCC users, signed
+  `SInt`, parameter-controlled generate regions, recursive modules,
+  field-preserving/reduction cases from 59i and typed BlackBox generic binding.
+  Compile/lint/synthesize the complete emitted file set with the supported tool
+  matrix and prove representative split-file specializations equivalent to the
+  existing consolidated parameterized publication. Require deterministic
+  dual-Scala output, live negative controls for missing/duplicate/wrong-file
+  module publication and every inherited compatibility/audit gate before this
+  checkbox can be marked complete.
+
+### WA-08 inherited workflow compatibility track (Increment 62)
+
+- [ ] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+
+  **Dependencies:** Increment 60 and WA-07b implemented and merged. This is the
+  qualification-repair companion for the open WA-08 production handoff. It is
+  independent of Increment 59i and Increment 61 and must be completed before
+  WA-08 merges.
+
+  Fix the inherited workflow failures caused when the intentional WA-08
+  canonical-IR and pass-adapter changes are presented to older closed
+  source-scope checkers. The observed Increment 60d failure is a source-review
+  rejection of the new `CanonicalIrPassAdapter.scala` bytes, not evidence that
+  pure-`SInt` cast behavior or signed-Verilog semantics failed.
+
+  Add one exact, immutable WA-08 source-overlay compatibility contract covering
+  every intended production, test, boundary, signature and canonical-IR handoff
+  file. Bind each path to reviewed SHA-256 bytes, file mode, HEAD/index/worktree
+  identity and immutable baseline/final anchors. Historical checkers may project
+  only that fully verified WA-08 delta out of their own historical inventory;
+  the outer WA-08 gate must still validate the real current bytes. Do not add
+  branch-name, PR-number, component-name or emitted-text exceptions.
+
+  Update the inherited WA-07b, 59x, 60d, 60f and 60g reviewers only through
+  exact reversible spans or one common generic overlay helper. Keep their
+  original source inventories and semantic checks intact. Reject partial
+  rollout, missing or extra files, changed hashes, symlinks, executable-bit
+  changes, staged or untracked content, mismatched profile/facet claims and any
+  unknown production delta. Add self-tests for each attack and prove the overlay
+  cannot hide a genuine historical-source mutation.
+
+  Preserve `SimpleWireAssignmentsV1` only for explicit legacy fixtures. The
+  WA-08 production handoff and pass adapter must require
+  `PureWireExpressionsV1` and the `PureExpressions` completeness facet. Do not
+  weaken or skip workflows, convert failures to allowed failures, or modify
+  SInt or parameterized RTL merely to satisfy a source audit.
+
+  Completion requires the previously failing inherited workflows, the WA-08
+  pass workspace, baseline and Mill, both Scala lanes and all applicable formal,
+  determinism, strict-Verilog and source-audit gates to pass on one exact final
+  head. Record the original failure classification and complete reviewed overlay
+  inventory. This increment changes qualification/source-audit compatibility
+  only and does not change generated Verilog.
 
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
 `ElabInt`/`ElabBool` values from API entry through elaboration and lower one
-readable parameterized Verilog-2001 definition per logical component. Literal
-`Int`/`Boolean` calls must still produce ordinary parameter-free SpinalHDL.
-Native algorithms must remain authoritative, approved native changes must be
-small and mechanical, and the production implementation must not reconstruct
-symbolic meaning from erased Scala values, component names, source-file special
-cases, emitted identifiers or equal concrete witnesses.
+readable parameterized Verilog-2001 definition per logical component, with
+correct publication in both consolidated and `oneFilePerComponent = true`
+modes. Literal `Int`/`Boolean` calls must still produce ordinary parameter-free
+SpinalHDL. Native algorithms must remain authoritative, approved native changes
+must be small and mechanical, and the production implementation must not
+reconstruct symbolic meaning from erased Scala values, component names,
+source-file special cases, emitted identifiers or equal concrete witnesses.

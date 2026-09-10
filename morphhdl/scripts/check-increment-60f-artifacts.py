@@ -489,6 +489,15 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
                             reviewed_counts[suite] = 12
                             minimum += 4
                 counts[project] = (minimum, old_suites + len(additions))
+    if "60g" in features:
+        # The production profile is validated before reports are inspected.
+        # Require the entire extended existing suite, not just a global count.
+        tests, total_suites = counts["morphhdl"]
+        counts["morphhdl"] = (tests + 18, total_suites)
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.SignednessCompatibilityTests"] = 22
+        extension.setdefault("morphhdl", {})[
+            "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests"] = 2
     if "wa07b" in features:
         require("wa07a" in features, "WA-07b suite obligations require WA-07a")
         reviewed = {'morphhdl.passes.adapter.CanonicalIrPassAdapterSpec': 9, 'morphhdl.passes.api.AllPassConfigurationSpec': 5, 'morphhdl.passes.api.NativeRunnerSourceClosureSpec': 3, 'morphhdl.passes.api.PassContractsSpec': 8, 'morphhdl.passes.pipeline.WireAliasPassPipelineSpec': 9, 'morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec': 6, 'morphhdl.passes.safety.WireAliasSafetyGateSpec': 20, 'morphhdl.passes.transform.BooleanTernaryFourStateSpec': 4, 'morphhdl.passes.transform.BooleanTernarySimplificationPassSpec': 14, 'morphhdl.passes.transform.ConstantOperandFixedPointSpec': 2, 'morphhdl.passes.transform.ConstantOperandFourStateSpec': 3, 'morphhdl.passes.transform.ConstantOperandSimplificationPassSpec': 14, 'morphhdl.passes.transform.NamedWireAliasEliminationPassSpec': 13, 'morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionAlgebraSpec': 1, 'morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionSelectionSafetySpec': 9}
@@ -1275,6 +1284,17 @@ def self_test() -> None:
             rejections += 1
         else:
             raise RuntimeError("missing nested-owner suite was accepted: " + missing)
+    # The rollout extends existing suites, not the nested-owner suite set.
+    # Its union must retain every pre-rollout exact obligation and require the
+    # two reviewed new counts, independent of arbitrary report contents.
+    joined = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59h-and-60g", True)
+    expected_joined = {**nested[2]["morphhdl"],
+        "spinal.core.internals.SignednessCompatibilityTests": 22,
+        "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests": 2}
+    require(joined[1] == nested[1] and joined[2]["morphhdl"] == expected_joined and
+            joined[0]["morphhdl"] == (nested[0]["morphhdl"][0] + 18, nested[0]["morphhdl"][1]),
+            "60g/59h integration lost an exact suite or test obligation")
+    print("60g/59h combined inventory retains nested owners and exact rollout test counts PASS")
     joint = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h", True)
     require(joint[1]["morphhdl"] == bridges[1]["morphhdl"] | set(nested_additions),
             "joint 59g/59h inventory lost an exact suite identity")
@@ -1284,6 +1304,14 @@ def self_test() -> None:
         rejected(lambda missing=missing: exact_names(set(joint[1]["morphhdl"]) - {missing},
                  set(joint[1]["morphhdl"]), "missing joint register/nested suite"),
                  "missing exact joint 59g/59h suite")
+    rollout_joint = catalog_for_profile("60f-with-59d-and-59e-and-59f-and-59c-and-59g-and-59h-and-60g", True)
+    require(rollout_joint[1] == joint[1] and
+            rollout_joint[2]["morphhdl"] == {**joint[2]["morphhdl"],
+                "spinal.core.internals.SignednessCompatibilityTests": 22,
+                "spinal.core.internals.ParameterizedVerilogStructuralLexicalTests": 2} and
+            rollout_joint[0]["morphhdl"] == (joint[0]["morphhdl"][0] + 18, joint[0]["morphhdl"][1]),
+            "60g/register/nested composition lost exact inherited tests or suites")
+    print("60g/59g/59h combined inventory preserves every register, nested and rollout obligation PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 
