@@ -1,0 +1,166 @@
+name: Increment 59i exact native tree-anchor repair
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-native-tree-anchor-repair-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-native-tree-anchor-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Validate and synchronize reviewed native tree anchor
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      MANIFEST: morphhdl/contracts/native-source-preservation.json
+      EXPECTED_MANIFEST_BLOB: d99bc8f8e48a1740e49ad3bc05438073737822b6
+      OLD_CORE_TREE: dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5
+      REVIEWED_CORE_TREE: 943729ae908f900ec07cc7d7be666b64915e6aff
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59i-combined-reduction-closure
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Bind exact latest predecessor and reviewed core tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          mkdir -p "$out"
+          git fetch origin "$BRANCH"
+          git checkout --detach "origin/$BRANCH"
+          expected=$(git rev-parse HEAD)
+          remote=$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')
+          test "$remote" = "$expected"
+          test -z "$(git status --porcelain)"
+          test "$(git hash-object "$MANIFEST")" = "$EXPECTED_MANIFEST_BLOB"
+          actual_tree=$(git rev-parse 'HEAD:core/src/main')
+          test "$actual_tree" = "$REVIEWED_CORE_TREE"
+          printf '%s\n' "$expected" > "$out/expected-head.txt"
+          printf '%s\n' "$actual_tree" > "$out/reviewed-core-tree.txt"
+          cp "$MANIFEST" "$out/before-manifest.json"
+
+      - name: Change only the stale aggregate core tree anchor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          python3 - <<'PY'
+          from copy import deepcopy
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['MANIFEST'])
+          old_tree = os.environ['OLD_CORE_TREE']
+          new_tree = os.environ['REVIEWED_CORE_TREE']
+          raw = path.read_text(encoding='utf-8')
+          value = json.loads(raw)
+          roots = value.get('source_roots')
+          assert isinstance(roots, list)
+          assert [item.get('path') for item in roots] == [
+              'core/src/main', 'idslpayload/src/main', 'idslplugin/src/main',
+              'lib/src/main', 'scalaplugin/src/main', 'sim/src/main', 'tester/src/main'
+          ]
+          assert roots[0].get('approved_tree') == old_tree
+          assert any(entry.get('path') == 'core/src/main/scala/spinal/core/Vec.scala' and
+                     entry.get('approved', {}).get('blob') == '3cdeb62cc7471efcbd6a6ffe669f858efdb13459'
+                     for entry in value.get('entries', []))
+          needle = f'"approved_tree": "{old_tree}"'
+          replacement = f'"approved_tree": "{new_tree}"'
+          assert raw.count(needle) == 1
+          updated = raw.replace(needle, replacement, 1)
+          after = json.loads(updated)
+          expected = deepcopy(value)
+          expected['source_roots'][0]['approved_tree'] = new_tree
+          assert after == expected
+          path.write_text(updated, encoding='utf-8')
+          PY
+          git diff --check -- "$MANIFEST"
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "$MANIFEST"
+          test "$(git diff --numstat -- "$MANIFEST")" = $'1\t1\tmorphhdl/contracts/native-source-preservation.json'
+          cp "$MANIFEST" "$out/candidate-manifest.json"
+
+      - name: Commit the isolated candidate before validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          expected=$(cat "$out/expected-head.txt")
+          test "$(git rev-parse HEAD)" = "$expected"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$MANIFEST"
+          git diff --cached --check
+          test "$(git diff --cached --name-only)" = "$MANIFEST"
+          git commit -m '59i: synchronize reviewed native core tree anchor'
+          candidate=$(git rev-parse HEAD)
+          printf '%s\n' "$candidate" > "$out/candidate-head.txt"
+          test -z "$(git status --porcelain)"
+          test "$(git rev-parse 'HEAD:core/src/main')" = "$REVIEWED_CORE_TREE"
+          python3 - <<'PY'
+          import subprocess
+          manifest = 'morphhdl/contracts/native-source-preservation.json'
+          diff = subprocess.check_output(
+              ['git', 'diff', '--unified=0', 'HEAD^', 'HEAD', '--', manifest], text=True)
+          removed = [line for line in diff.splitlines() if line.startswith('-') and not line.startswith('---')]
+          added = [line for line in diff.splitlines() if line.startswith('+') and not line.startswith('+++')]
+          assert len(removed) == len(added) == 1, diff
+          assert 'dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5' in removed[0], diff
+          assert '943729ae908f900ec07cc7d7be666b64915e6aff' in added[0], diff
+          PY
+
+      - name: Run audit self-tests and all applicable 59i source composition checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test \
+            | tee "$out/native-source-self-test.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py \
+            | tee "$out/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py \
+            | tee "$out/typed-overlay.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
+            | tee "$out/increment-59i-source-self-test.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py \
+            | tee "$out/increment-59i-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v \
+            2>&1 | tee "$out/increment-59i-review-composition.log"
+          test -z "$(git status --porcelain)"
+          sha256sum "$MANIFEST" > "$out/candidate-manifest.sha256"
+
+      - name: Publish only from the unchanged remote predecessor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          expected=$(cat "$out/expected-head.txt")
+          candidate=$(cat "$out/candidate-head.txt")
+          test "$(git rev-parse HEAD)" = "$candidate"
+          remote=$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')
+          test "$remote" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+
+      - name: Upload exact repair evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-native-tree-anchor-repair-${{ github.sha }}
+          path: target/increment-59i-native-tree-anchor-repair
+          if-no-files-found: error
+          retention-days: 21
