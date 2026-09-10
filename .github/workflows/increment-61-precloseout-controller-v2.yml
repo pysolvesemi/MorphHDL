@@ -1,0 +1,180 @@
+name: Increment 61 exact-head precloseout controller
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-precloseout-controller-v2.yml'
+      - 'controller/increment-61-precloseout-v2-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-exact-head-precloseout-v2
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  PR_NUMBER: '179'
+
+jobs:
+  source-and-permanent-gates:
+    name: Exact source and permanent publication gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      head: ${{ steps.identity.outputs.head }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - id: identity
+        name: Require exact clean reviewed feature head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/increment-61-controller
+          head=$(git rev-parse HEAD)
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$FEATURE_BRANCH" --jq .object.sha)"
+          git fetch origin parameterized-verilog
+          git merge-base --is-ancestor origin/parameterized-verilog "$head"
+          test -z "$(git ls-tree -r --name-only HEAD | grep -E '(^|/)repair-61-phase-order|increment-61-(apply-phase-order|finalize-phase-order|commit-then-audit)' || true)"
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee target/increment-61-controller/source-review.log
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a target/increment-61-controller/source-review.log
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee target/increment-61-controller/native-source.log
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee target/increment-61-controller/native-overlay.log
+          echo "$head" > target/increment-61-controller/head.txt
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+
+      - name: Require permanent Increment 61 workflows on this exact PR head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ steps.identity.outputs.head }}'
+          cat > /tmp/required.txt <<'EOF'
+          Increment 61 one-file-per-component publication
+          Increment 61 per-component compatibility matrix
+          EOF
+          for poll in $(seq 1 210); do
+            test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+            gh api "/repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$head&event=pull_request&per_page=100" > /tmp/runs.json
+            python3 - /tmp/runs.json /tmp/required.txt <<'PY' > /tmp/state.json
+          import json,sys
+          runs=json.load(open(sys.argv[1])).get('workflow_runs',[])
+          required=[x.strip() for x in open(sys.argv[2]) if x.strip()]
+          latest={}
+          for r in sorted(runs,key=lambda x:x.get('created_at',''),reverse=True): latest.setdefault(r.get('name'),r)
+          out={}; ok=True; failure=False
+          for name in required:
+              r=latest.get(name)
+              if not r: out[name]={'status':'missing'}; ok=False
+              else:
+                  out[name]={'id':r['id'],'status':r['status'],'conclusion':r.get('conclusion')}
+                  if r['status']!='completed' or r.get('conclusion')!='success': ok=False
+                  if r['status']=='completed' and r.get('conclusion') not in ('success',None): failure=True
+          print(json.dumps({'ok':ok,'failure':failure,'workflows':out},indent=2))
+          PY
+            cat /tmp/state.json | tee target/increment-61-controller/permanent-workflows.json
+            if python3 -c 'import json; raise SystemExit(0 if json.load(open("/tmp/state.json"))["ok"] else 1)'; then break; fi
+            if python3 -c 'import json; raise SystemExit(0 if json.load(open("/tmp/state.json"))["failure"] else 1)'; then
+              echo 'A permanent Increment 61 workflow failed on the exact head.' >&2
+              exit 1
+            fi
+            sleep 60
+          done
+          python3 -c 'import json; assert json.load(open("/tmp/state.json"))["ok"]'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-controller-source
+          path: target/increment-61-controller
+          if-no-files-found: error
+          retention-days: 30
+
+  full-tests:
+    needs: source-and-permanent-gates
+    name: Complete MorphHDL tests Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx6G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.source-and-permanent-gates.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Bootstrap pinned SBT and run full MorphHDL suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-full-${SCALA_VERSION}"
+          mkdir -p "$output"
+          test "$(git rev-parse HEAD)" = '${{ needs.source-and-permanent-gates.outputs.head }}'
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/source-review.log"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          java -Xmx5G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" 'morph/Test/test' \
+            > "$output/sbt.log" 2>&1 || { tail -n 500 "$output/sbt.log"; exit 1; }
+          git rev-parse HEAD > "$output/head.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-controller-full-${{ matrix.scala }}
+          path: |
+            target/increment-61-full-${{ matrix.scala }}
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  record:
+    needs: [source-and-permanent-gates, full-tests]
+    name: Record exact precloseout success
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require feature head unchanged and comment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head='${{ needs.source-and-permanent-gates.outputs.head }}'
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)"
+          test "$head" = "$(gh api "/repos/$GITHUB_REPOSITORY/git/ref/heads/$FEATURE_BRANCH" --jq .object.sha)"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Increment 61 exact-head pre-closeout qualification passed on \`$head\`: both permanent publication/tool workflows succeeded and the complete MorphHDL test suite passed independently on Scala 2.12.18 and 2.13.12. Controller run: \`${GITHUB_RUN_ID}\`. The roadmap remains unchanged unless the separate guarded documentation closeout succeeds."
