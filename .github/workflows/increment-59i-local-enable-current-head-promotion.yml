@@ -103,36 +103,27 @@ jobs:
           python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$out/application.log"
           python3 morphhdl/repair-59i-composite-local-enable/fix-generated.py | tee -a "$out/application.log"
           python3 morphhdl/repair-59i-composite-local-enable/include-statements.py | tee -a "$out/application.log"
-          BASE_FOR_REVIEW="$base" python3 - <<'PY'
-          import importlib.util, os
-          from pathlib import Path
-          root = Path.cwd()
-          source = root / 'morphhdl/repair-59i-composite-local-enable/promote-reviewed.py'
-          spec = importlib.util.spec_from_file_location('local_enable_promoter', source)
-          assert spec is not None and spec.loader is not None
-          module = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(module)
-          base = os.environ['BASE_FOR_REVIEW']
-          contract_sha = module.write_contract(base)
-          module.write_reviewer(base, contract_sha)
-          module.write_doc(base)
-          PY
+          BASE_FOR_REVIEW="$base" \
+            python3 morphhdl/repair-59i-composite-local-enable/promote-current-three-file-review.py | \
+            tee "$out/review-generation.log"
           git diff --check
           cat > "$out/expected-files.txt" <<'EOF'
           docs/morphhdl/increment-59i-composite-local-enables.md
           morphhdl/contracts/increment-59i-local-enable-review.json
           morphhdl/scripts/check-increment-59i-local-enable-source-review.py
           morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
           EOF
+          git add -f $(cat "$out/expected-files.txt")
           git status --porcelain | awk '{print $2}' | sort -u > "$out/actual-files.txt"
           sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
           diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
-          git add $(cat "$out/expected-files.txt")
           git diff --cached --binary > "$out/successor.patch"
           test -s "$out/successor.patch"
+          git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m '59i: promote exact composite register-local enable replay'
@@ -152,8 +143,11 @@ jobs:
             tee "$out/local-enable-source-review-tests.log"
           python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
           python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/native-overlay.log"
+          grep -q 'callbackStatements = ArrayBuffer.empty\[Statement\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           git diff --no-renames --name-only "$base" HEAD -- '*src/main*' | sort -u > "$out/production-delta.txt"
           cat > "$out/expected-production-delta.txt" <<'EOF'
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           EOF
