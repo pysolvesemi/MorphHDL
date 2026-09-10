@@ -5,6 +5,7 @@ on:
     branches: ['agent/increment-59i-combined-reduction-closure']
     paths:
       - '.github/workflows/increment-59i-local-enable-direct-publish.yml'
+      - 'morphhdl/repair-59i-composite-local-enable/**'
   workflow_dispatch:
 
 permissions:
@@ -53,54 +54,30 @@ jobs:
             printf 'already-promoted\n' | tee "$out/mode.txt"
           else
             printf 'apply-and-promote\n' | tee "$out/mode.txt"
-            python3 morphhdl/repair-59i-composite-local-enable/apply.py | tee "$out/application.log"
-            python3 morphhdl/repair-59i-composite-local-enable/fix-generated.py | tee -a "$out/application.log"
-            python3 morphhdl/repair-59i-composite-local-enable/include-statements.py | tee -a "$out/application.log"
+            python3 morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py | \
+              tee "$out/review-generation.log"
             git diff --check
-            python3 morphhdl/repair-59i-composite-local-enable/promote-reviewed.py | tee "$out/review-generation.log"
-            git diff --check
-
             git status --porcelain=v1 > "$out/generated-status.txt"
             test -s "$out/generated-status.txt"
-            python3 - <<'PY'
-            import subprocess
-            exact = {
-                'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala',
-                'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala',
-                'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala',
-                'morphhdl/scripts/check-increment-59i-source-review.py',
-                'morphhdl/scripts/test-increment-59i-review-composition.py',
-            }
-            prefixes = (
-                'morphhdl/contracts/increment-59i-',
-                'morphhdl/scripts/check-increment-59i-',
-                'morphhdl/scripts/test-increment-59i-',
-                'docs/morphhdl/increment-59i-',
-            )
-            rows = subprocess.check_output(['git', 'status', '--porcelain=v1', '-z']).split(b'\0')
-            found = []
-            for row in rows:
-                if not row:
-                    continue
-                path = row[3:].decode().split(' -> ')[-1]
-                if path not in exact and not path.startswith(prefixes):
-                    raise SystemExit('unreviewed generated path: ' + path)
-                found.append(path)
-            if not found or len(found) != len(set(found)):
-                raise SystemExit('invalid generated path inventory')
-            print('generated reviewed paths=' + str(len(found)))
-            PY
+            python3 morphhdl/repair-59i-composite-local-enable/check-generated-paths.py | \
+              tee "$out/generated-inventory.log"
+
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add -A -- \
+            git add -- \
+              docs/morphhdl/increment-59i-composite-local-enables.md \
+              morphhdl/contracts/increment-59i-local-enable-review.json \
+              morphhdl/scripts/check-increment-59i-local-enable-source-review.py \
+              morphhdl/scripts/check-increment-59i-source-review.py \
+              morphhdl/scripts/test-increment-59i-local-enable-source-review.py \
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala \
               morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala \
-              morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala \
-              morphhdl/contracts morphhdl/scripts docs/morphhdl
+              morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
             git diff --cached --check
             test -z "$(git status --porcelain=v1 | grep '^??' || true)"
             git commit -m '59i: promote reviewed composite local enables'
           fi
+
           git rev-parse HEAD > "$out/candidate-head.txt"
           git rev-parse 'HEAD^{tree}' > "$out/candidate-tree.txt"
           test -z "$(git status --porcelain)"
@@ -120,18 +97,15 @@ jobs:
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
           ! grep -q 'BalancedLocalEnableOps' \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
-          mapfile -t checkers < <(find morphhdl/scripts -maxdepth 1 -type f \
-            \( -name '*59i*local*enable*review*.py' -o -name '*59i*local*enable*source*.py' \) | sort)
-          test "${#checkers[@]}" -ge 1
-          printf '%s\n' "${checkers[@]}" > "$out/checkers.txt"
-          for checker in "${checkers[@]}"; do
-            python3 "$checker"
-            if grep -q -- '--self-test' "$checker"; then
-              python3 "$checker" --self-test
-            fi
-          done 2>&1 | tee "$out/source-review.log"
-          python3 morphhdl/scripts/check-native-source-preservation.py
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          test -f morphhdl/contracts/increment-59i-local-enable-review.json
+          test -f morphhdl/scripts/check-increment-59i-local-enable-source-review.py
+          test -f morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+          {
+            python3 morphhdl/scripts/check-increment-59i-local-enable-source-review.py --self-test
+            python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$out/source-review.log"
           test -z "$(git status --porcelain)"
 
       - name: Bootstrap pinned SBT
@@ -163,7 +137,7 @@ jobs:
           out="$GITHUB_WORKSPACE/target/increment-59i-direct-local-enable"
           status=0
           "$out/sbt.sh" 2.12.18 'morph/Test/compile' \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
             > "$out/scala-2.12.18.log" 2>&1 || status=$?
           tail -n 500 "$out/scala-2.12.18.log"
           test "$status" -eq 0
@@ -177,7 +151,7 @@ jobs:
           out="$GITHUB_WORKSPACE/target/increment-59i-direct-local-enable"
           status=0
           "$out/sbt.sh" 2.13.12 'morph/Test/compile' \
-            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
             > "$out/scala-2.13.12.log" 2>&1 || status=$?
           tail -n 500 "$out/scala-2.13.12.log"
           test "$status" -eq 0
