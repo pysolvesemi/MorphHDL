@@ -669,14 +669,18 @@ WA-04 or WA-05 can remove an alias.
   Test source and proof wiring alone do not satisfy these completion gates.
   Production integration remains WA-08 scope.
 
-- [ ] **WA-08 — Final MorphHDL IR-stage production handoff**
+- [x] **WA-08 — Final MorphHDL IR-stage production handoff**
 
   **Dependencies:** WA-07, WA-07a, WA-07b and PV-58 implemented and merged.
 
-  **Status:** `READY`.
+  **Status:** `COMPLETED`.
 
-  This identifies the successor after this reviewed WA-07b completion is
-  merged. It does not authorize starting WA-08 from an open completion PR.
+  Implemented the default-off production flag and the existing five-pass
+  writeback pipeline. Both Scala lanes, inherited compatibility workflows,
+  strict Verilog tools, determinism, live mutation controls and the full
+  512-binding proof qualify the implementation. See
+  [implementation and qualification notes](wa08-implementation-notes.md) and
+  [PR #178](https://github.com/pysolvesemi/MorphHDL/pull/178).
 
   Eligible to start only once WA-07b is implemented, checked complete and
   merged into `parameterized-verilog`; an open implementation PR does not
