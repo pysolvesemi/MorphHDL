@@ -152,14 +152,16 @@ object morph extends Cross[Morph](SpinalVersion.compilers) {
 }
 trait Morph extends SpinalModule {
   override def moduleDir = mill.api.BuildCtx.workspaceRoot / "morphhdl"
-  override def sources = Task {
-    val passes = mill.api.BuildCtx.workspaceRoot / "morphhdl-passes"
-    super.sources() ++ Seq(PathRef(passes / "src" / "main" / "scala")) ++
-      Seq("ParameterizedStreamFifo", "UnnamedWireAliasNativeBridge",
-        "NamedWireAliasNativeBridge", "UnnamedWireExpressionNativeBridge",
-        "ConstantOperandNativeBridge", "BooleanTernaryNativeBridge")
-        .map(name => PathRef(passes / "examples" / (name + ".scala")))
-  }
+  def wireAssignmentSources = Task.Sources(
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "src" / "main" / "scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "ParameterizedStreamFifo.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "UnnamedWireAliasNativeBridge.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "NamedWireAliasNativeBridge.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "UnnamedWireExpressionNativeBridge.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "ConstantOperandNativeBridge.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "BooleanTernaryNativeBridge.scala"
+  )
+  override def sources = Task { super.sources() ++ wireAssignmentSources() }
   def moduleDeps = Seq(
     core(crossScalaVersion),
     morphruntime(crossScalaVersion),

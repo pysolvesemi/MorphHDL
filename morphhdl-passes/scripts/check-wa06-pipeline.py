@@ -267,7 +267,13 @@ def roadmap_failures(path: Path, text: str, pv_text: str) -> list[str]:
         if not any(f"**Status:** `{status}`" in body for status in allowed) or not wa07a_complete:
             failures.append(f"{path}: WA06-SUCCESSOR: WA-07b status or dependency is inconsistent")
     next_status = "READY" if wa07_checked and wa07a_complete and wa07b_complete else "BLOCKED"
-    if wa08_checked or f"**Status:** `{next_status}`" not in wa08_body:
+    if wa08_checked:
+        if (not all(name in entries and entries[name][0] and
+                    "**Status:** `COMPLETED`" in entries[name][1]
+                    for name in ("WA-07", "WA-07a", "WA-07b")) or
+                "**Status:** `COMPLETED`" not in wa08_body):
+            failures.append(f"{path}: WA06-NEXT-STATUS: completed handoff requires every prerequisite and COMPLETED status")
+    elif f"**Status:** `{next_status}`" not in wa08_body:
         failures.append(f"{path}: WA06-NEXT-STATUS: handoff requires open {next_status} WA-08")
 
     required_scope = (
@@ -469,6 +475,15 @@ object Pipeline { def run(value: Design) = value.modules.map(_.id) }
         raise AssertionError("READY handoff after completed WA-07b was rejected")
     if not roadmap_failures(Path("roadmap.md"), ternary_completed.replace("**Status:** `READY`", "**Status:** `BLOCKED`"), pv_roadmap):
         raise AssertionError("stale dependency block after WA-07b completion was not rejected")
+
+    handoff = ternary_completed.replace("- [ ] **WA-08", "- [x] **WA-08").replace("**Status:** `READY`", "**Status:** `COMPLETED`")
+    if roadmap_failures(Path("roadmap.md"), handoff, pv_roadmap):
+        raise AssertionError("completed WA-08 with completed prerequisites was rejected")
+    for dependency in ("WA-07", "WA-07a", "WA-07b", "WA-08"):
+        if not roadmap_failures(Path("roadmap.md"), handoff.replace("- [x] **" + dependency + " —", "- [ ] **" + dependency + " —"), pv_roadmap):
+            raise AssertionError("unchecked completion was accepted: " + dependency)
+    if not roadmap_failures(Path("roadmap.md"), ternary_completed.replace("- [ ] **WA-08", "- [x] **WA-08"), pv_roadmap):
+        raise AssertionError("checked WA-08 with READY status was accepted")
 
     manifest = {"shared_witness": {"future_pass_outputs": [{
         "activation_item": "WA-06",

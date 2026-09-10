@@ -115,6 +115,21 @@ def main() -> None:
                             else "60g publication/serialization delta differs from the merged baseline")
             adapted.append((label, path, mutation, expected))
         cases = adapted
+    if (ROOT / "morphhdl/scripts/check-increment-62-wa08-source-overlay.py").is_file():
+        # The positive check above verifies the exact outer overlay. Keep each
+        # attack intact and require its earlier, path-specific rejection.
+        overlay_paths = {entry["path"] for entry in json.loads((ROOT /
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
+        adapted = []
+        for label, path, mutation, expected in cases:
+            if mutation == "suffix" and path in helper.PATHS and path in overlay_paths:
+                expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + path
+            elif path.startswith("foreign/src/main/"):
+                expected = "WA-08 source overlay: unreviewed production delta: governed inventory differs: " + repr([path])
+            elif mutation in ("untracked", "staged"):
+                expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([path])
+            adapted.append((label, path, mutation, expected))
+        cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59g-source-control-") as temporary:
         for index, (label, path, mutation, expected) in enumerate(cases):
             fixture = Path(temporary) / str(index)
