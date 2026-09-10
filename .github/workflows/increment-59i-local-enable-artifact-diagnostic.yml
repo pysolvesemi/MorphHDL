@@ -1,0 +1,49 @@
+name: Increment 59i local-enable prior-artifact diagnostic
+
+on:
+  push:
+    branches: ['agent/59i-local-enable-failure-diagnostic']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-artifact-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: increment-59i-local-enable-prior-artifact-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    name: Read exact failed ScalaTest testcase
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: increment-59i-composite-local-enable-2.13.12
+          path: evidence
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: 34380703463
+      - name: Extract exact JUnit failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/repair-59i-composite-local-enable/inspect-failure-artifact.py evidence | \
+            tee local-enable-failure.txt
+          grep -q '^JUNIT_FAILURES=1$' local-enable-failure.txt
+          grep -q '^FAILED_TEST=' local-enable-failure.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-prior-failure
+          path: local-enable-failure.txt
+          if-no-files-found: error
+          retention-days: 7
