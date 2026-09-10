@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: increment-59i-native-tree-anchor-repair
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   repair:
@@ -22,6 +22,8 @@ jobs:
     env:
       BRANCH: agent/increment-59i-combined-reduction-closure
       MANIFEST: morphhdl/contracts/native-source-preservation.json
+      ANCHOR_REVIEW: morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py
+      EXPECTED_ANCHOR_REVIEW_BLOB: b15eab24e64bb788967ca1eee7d145dd390ab00f
       EXPECTED_MANIFEST_BLOB: d99bc8f8e48a1740e49ad3bc05438073737822b6
       OLD_CORE_TREE: dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5
       REVIEWED_CORE_TREE: 943729ae908f900ec07cc7d7be666b64915e6aff
@@ -33,7 +35,7 @@ jobs:
           submodules: recursive
           persist-credentials: true
 
-      - name: Bind exact latest predecessor and reviewed core tree
+      - name: Bind exact latest predecessor and validate immutable reviews
         shell: bash
         run: |
           set -euo pipefail
@@ -46,11 +48,27 @@ jobs:
           test "$remote" = "$expected"
           test -z "$(git status --porcelain)"
           test "$(git hash-object "$MANIFEST")" = "$EXPECTED_MANIFEST_BLOB"
+          test "$(git hash-object "$ANCHOR_REVIEW")" = "$EXPECTED_ANCHOR_REVIEW_BLOB"
           actual_tree=$(git rev-parse 'HEAD:core/src/main')
           test "$actual_tree" = "$REVIEWED_CORE_TREE"
           printf '%s\n' "$expected" > "$out/expected-head.txt"
           printf '%s\n' "$actual_tree" > "$out/reviewed-core-tree.txt"
           cp "$MANIFEST" "$out/before-manifest.json"
+
+          # Validate the complete historical 59i view while its original
+          # native-manifest bytes are still present.  The one-line successor
+          # is reviewed separately after it is committed.
+          python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
+            | tee "$out/predecessor-widening-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py -v \
+            2>&1 | tee "$out/predecessor-widening-source-tests.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
+            | tee "$out/predecessor-59i-source-self-test.log"
+          python3 morphhdl/scripts/check-increment-59i-source-review.py \
+            | tee "$out/predecessor-59i-source-review.log"
+          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v \
+            2>&1 | tee "$out/predecessor-review-composition.log"
+          test -z "$(git status --porcelain)"
 
       - name: Change only the stale aggregate core tree anchor
         shell: bash
@@ -94,7 +112,7 @@ jobs:
           test "$(git diff --numstat -- "$MANIFEST")" = $'1\t1\tmorphhdl/contracts/native-source-preservation.json'
           cp "$MANIFEST" "$out/candidate-manifest.json"
 
-      - name: Commit the isolated candidate before validation
+      - name: Commit the isolated candidate before successor validation
         shell: bash
         run: |
           set -euo pipefail
@@ -111,23 +129,17 @@ jobs:
           printf '%s\n' "$candidate" > "$out/candidate-head.txt"
           test -z "$(git status --porcelain)"
           test "$(git rev-parse 'HEAD:core/src/main')" = "$REVIEWED_CORE_TREE"
-          python3 - <<'PY'
-          import subprocess
-          manifest = 'morphhdl/contracts/native-source-preservation.json'
-          diff = subprocess.check_output(
-              ['git', 'diff', '--unified=0', 'HEAD^', 'HEAD', '--', manifest], text=True)
-          removed = [line for line in diff.splitlines() if line.startswith('-') and not line.startswith('---')]
-          added = [line for line in diff.splitlines() if line.startswith('+') and not line.startswith('+++')]
-          assert len(removed) == len(added) == 1, diff
-          assert 'dc4a734b29cd4b5ac63ea017cc6e580ab6d4a4a5' in removed[0], diff
-          assert '943729ae908f900ec07cc7d7be666b64915e6aff' in added[0], diff
-          PY
 
-      - name: Run audit self-tests and all applicable 59i source composition checks
+      - name: Validate exact anchor successor and current native source
         shell: bash
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-native-tree-anchor-repair"
+          expected=$(cat "$out/expected-head.txt")
+          python3 "$ANCHOR_REVIEW" --self-test \
+            | tee "$out/native-tree-anchor-self-test.log"
+          python3 "$ANCHOR_REVIEW" --predecessor "$expected" \
+            | tee "$out/native-tree-anchor-review.log"
           python3 morphhdl/scripts/check-native-source-preservation.py --self-test \
             | tee "$out/native-source-self-test.log"
           python3 morphhdl/scripts/check-native-source-preservation.py \
@@ -135,17 +147,9 @@ jobs:
           python3 morphhdl/scripts/check-typed-native-source-overlay.py \
             | tee "$out/typed-overlay.log"
           python3 morphhdl/scripts/check-increment-59i-widening-source-review.py \
-            | tee "$out/increment-59i-widening-source-review.log"
-          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py -v \
-            2>&1 | tee "$out/increment-59i-widening-source-tests.log"
-          python3 morphhdl/scripts/check-increment-59i-source-review.py --self-test \
-            | tee "$out/increment-59i-source-self-test.log"
-          python3 morphhdl/scripts/check-increment-59i-source-review.py \
-            | tee "$out/increment-59i-source-review.log"
-          python3 morphhdl/scripts/test-increment-59i-review-composition.py -v \
-            2>&1 | tee "$out/increment-59i-review-composition.log"
+            | tee "$out/successor-widening-source-review.log"
           test -z "$(git status --porcelain)"
-          sha256sum "$MANIFEST" > "$out/candidate-manifest.sha256"
+          sha256sum "$MANIFEST" "$ANCHOR_REVIEW" > "$out/candidate-source.sha256"
 
       - name: Publish only from the unchanged remote predecessor
         shell: bash
