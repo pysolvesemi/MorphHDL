@@ -56,7 +56,7 @@ final class CanonicalIrHandoffSpec extends AnyFunSuite {
     }
     val failure = CanonicalIrHandoff.fromValidated(validated) match {
       case Left(value) => value
-      case Right(_) => fail(s"expected the simple-wire profile to reject $label")
+      case Right(_) => fail(s"expected the production profile to reject $label")
     }
     assert(failure.code == CanonicalIrHandoffFailureCode.ProfileShapeMismatch)
   }
@@ -67,7 +67,8 @@ final class CanonicalIrHandoffSpec extends AnyFunSuite {
       case Left(failure) => fail(failure.toString)
     }
 
-    assert(handoff.profile == CanonicalIrProfile.SimpleWireAssignmentsV1)
+    assert(handoff.profile == CanonicalIrProfile.PureWireExpressionsV1)
+    assert(handoff.completeFacets.contains(CanonicalIrFacet.PureExpressions))
     assert(handoff.completeFacets == CanonicalIrHandoff.productionFacets)
     assert(handoff.design eq handoff.validated.value)
     assert(handoff.design.version == CanonicalIrSchema.schemaVersion)
@@ -100,7 +101,7 @@ final class CanonicalIrHandoffSpec extends AnyFunSuite {
     assert(failure.diagnostics.codes.contains(IrDiagnosticCode.StageMismatch))
   }
 
-  test("production profile rejects generally valid snapshots outside its bounded shape") {
+  test("pure expressions require the production facet and remain outside the explicit legacy profile") {
     val base = validDesign
     val module = base.modules.head
     val output = Declaration(
@@ -145,7 +146,15 @@ final class CanonicalIrHandoffSpec extends AnyFunSuite {
       case Left(diagnostics) => fail(diagnostics.values.mkString("\n"))
     }
 
-    val failure = CanonicalIrHandoff.fromValidated(validated) match {
+    val production = CanonicalIrHandoff.fromValidated(validated)
+    assert(production.isRight)
+    val incomplete = CanonicalIrHandoff.fromValidated(validated,
+      completeFacets = CanonicalIrHandoff.productionFacets - CanonicalIrFacet.PureExpressions)
+    assert(incomplete.left.toOption.get.code == CanonicalIrHandoffFailureCode.FacetMissing)
+
+    val failure = CanonicalIrHandoff.fromValidated(validated,
+      profile = CanonicalIrProfile.SimpleWireAssignmentsV1,
+      completeFacets = CanonicalIrProfile.SimpleWireAssignmentsV1.requiredFacets) match {
       case Left(value) => value
       case Right(_) => fail("expected the simple-wire profile to reject an operator")
     }

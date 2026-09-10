@@ -1135,7 +1135,13 @@ dependency chain is unchanged and may proceed independently.
 
 ### WA-08 inherited workflow compatibility track (Increment 62)
 
-- [ ] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+- [x] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+
+  **Status:** `COMPLETED`. The exact overlay, inherited mutation controls and
+  profile compatibility are implemented and qualified with WA-08 in
+  [PR #178](https://github.com/pysolvesemi/MorphHDL/pull/178). The complete
+  reviewed inventory is recorded in
+  `morphhdl/contracts/increment-62-wa08-source-overlay.json`.
 
   **Dependencies:** Increment 60 and WA-07b implemented and merged. This is the
   qualification-repair companion for the open WA-08 production handoff. It is

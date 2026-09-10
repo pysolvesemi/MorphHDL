@@ -31,6 +31,26 @@ ADAPTER_PATHS = (
     "morphhdl/scripts/check-increment-60f-artifacts.py",
 )
 
+WA08_OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+
+
+def wa08_overlay(root: Path):
+    path = root / WA08_OVERLAY
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-08 overlay")
+    spec = importlib.util.spec_from_file_location("wa08_overlay", path)
+    require(spec is not None and spec.loader is not None, "cannot load WA-08 overlay")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def restore_wa08(root: Path, path: str, source: bytes) -> bytes:
+    overlay = wa08_overlay(root)
+    return source if overlay is None else overlay.restore_source(root, path, source)
+
+
 
 def require(condition: bool, detail: str) -> None:
     if not condition:
@@ -156,6 +176,9 @@ def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str,
 
 def verify(root: Path) -> bool:
     """Validate real checkout bytes, HEAD and index before choosing a profile."""
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        overlay.verify(root)
     value = load_contract(root)
     git(root, "merge-base", "--is-ancestor", BASE, "HEAD")
     entries = tree_entries(root, "HEAD", ROOTS)
@@ -186,7 +209,8 @@ def verify(root: Path) -> bool:
     # Removing only the ternary marker selects the old inventory. Verify the
     # remaining main bytes before reporting extra tests from a partial upgrade.
     for path in sorted(main(expected)):
-        require(digest(regular(root, path)) == expected[path],
+        inherited = restore_wa08(root, path, regular(root, path))
+        require(digest(inherited) == expected[path],
                 "unreviewed production delta: unreviewed pass main/test bytes: " + path)
     require(set(entries) == set(expected) and physical == set(expected),
             "incomplete or extra pass main/test source inventory; " +
@@ -203,11 +227,12 @@ def verify(root: Path) -> bool:
         indexed[path] = (mode, oid)
     require(indexed == entries, "staged or missing pass source differs from HEAD")
     for path, fingerprint in expected.items():
-        data = regular(root, path)
+        actual = regular(root, path)
+        data = restore_wa08(root, path, actual)
         category = ("unreviewed production delta" if path.startswith(ROOTS[0] + "/")
                     else "unreviewed pass test source")
         require(digest(data) == fingerprint, category + ": unreviewed pass main/test bytes: " + path)
-        oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        oid = hashlib.sha1(b"blob " + str(len(actual)).encode() + b"\0" + actual).hexdigest()
         require(oid == entries[path][1], "uncommitted pass source differs from HEAD: " + path)
     adapters = tree_entries(root, "HEAD", (*ADAPTER_PATHS, CONTRACT))
     require(set(adapters) == set(ADAPTER_PATHS) | {CONTRACT}, "uncommitted compatibility adapters or manifest")
@@ -225,9 +250,12 @@ def verify(root: Path) -> bool:
 
 
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
-    """Strip only the complete verified B delta; retain every unrelated path."""
+    """Strip only complete verified successor deltas; retain every unrelated path."""
     if not verify(root):
         return paths
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        paths = overlay.inherited_inventory(root, paths, qualification_base)
     delta = set(load_contract(root)["production_delta"])
     previous = set(git(root, "diff", "--no-renames", "--name-only", qualification_base, BASE,
                        "--", *sorted(delta)).decode().splitlines())
@@ -235,6 +263,7 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
 
 
 def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:
+    source = restore_wa08(root, path, source)
     value = load_contract(root)
     if path not in value["production_delta"]:
         return source
