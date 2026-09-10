@@ -1,0 +1,107 @@
+name: Increment 61 apply compatibility ceiling repair
+
+on:
+  push:
+    branches: ['agent/increment-61-one-file-per-component']
+    paths: ['.github/workflows/increment-61-fix-compat-ceiling.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-compat-ceiling-repair
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-61-one-file-per-component'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply reviewed test-only width ceiling and reseal source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_parent=79416636bc5ed529f0aaad6b1010c73ecb9602cb
+          test "$(git rev-parse HEAD^)" = "$expected_parent"
+          test "$(git diff-tree --no-commit-id --name-only -r HEAD)" = ".github/workflows/increment-61-fix-compat-ceiling.yml"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import re
+
+          matrix = Path('morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala')
+          contract = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker = Path('morphhdl/scripts/check-increment-61-source-review.py')
+
+          text = matrix.read_text()
+          old = '''      SpinalConfig(
+                targetDirectory = directory.toString,
+                oneFilePerComponent = true
+              )'''
+          new = '''      SpinalConfig(
+                targetDirectory = directory.toString,
+                oneFilePerComponent = true,
+                bitVectorWidthMax = 8192
+              )'''
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one Increment 61 publication SpinalConfig')
+          text = text.replace(old, new)
+          matrix.write_text(text)
+          matrix_sha = hashlib.sha256(matrix.read_bytes()).hexdigest()
+
+          value = json.loads(contract.read_text())
+          matches = [entry for entry in value['reviewed_files'] if entry['path'] == matrix.as_posix()]
+          if len(matches) != 1:
+              raise SystemExit('Increment 61 matrix review entry is missing or duplicated')
+          matches[0]['after_sha256'] = matrix_sha
+          contract.write_text(json.dumps(value, indent=2) + '\n')
+          contract_sha = hashlib.sha256(contract.read_bytes()).hexdigest()
+
+          source = checker.read_text()
+          updated, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{contract_sha}"',
+              source,
+              count=1
+          )
+          if count != 1:
+              raise SystemExit('Increment 61 checker seal is missing or duplicated')
+          checker.write_text(updated)
+
+          print('matrix sha256:', matrix_sha)
+          print('contract sha256:', contract_sha)
+          PY
+
+          git diff --check
+          python3 -m py_compile morphhdl/scripts/check-increment-61-source-review.py
+          git add \
+            morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+          git diff --cached --name-only | sort > /tmp/changed
+          printf '%s\n' \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py \
+            morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala | sort > /tmp/expected
+          cmp /tmp/expected /tmp/changed
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit \
+            -m '61: raise compatibility fixture width ceiling' \
+            -m 'Preserve the full reviewed named-field parameter domains by raising only the Increment 61 compatibility harness bit-vector ceiling from the default 4096 to 8192. The nested fixture has a proven legal maximum of 4998 bits. Reseal the exact-source review contract; production code and user defaults are unchanged.'
+
+          remote=$(git ls-remote origin refs/heads/agent/increment-61-one-file-per-component | cut -f1)
+          test "$remote" = "${{ github.sha }}"
+          git push origin HEAD:refs/heads/agent/increment-61-one-file-per-component
