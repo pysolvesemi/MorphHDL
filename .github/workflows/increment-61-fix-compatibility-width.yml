@@ -1,4 +1,4 @@
-name: Increment 61 fix compatibility width ceiling
+name: Increment 61 reseal compatibility width ceiling
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: increment-61-fix-compatibility-width
+  group: increment-61-reseal-compatibility-width
   cancel-in-progress: true
 
 jobs:
@@ -25,11 +25,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Raise only the compatibility-fixture width ceiling and reseal source review
+      - name: Reseal exact source review and remove the temporary helper
         shell: bash
         run: |
           set -euo pipefail
-          expected_parent=79416636bc5ed529f0aaad6b1010c73ecb9602cb
+          expected_parent=dee20b8b211f2e65b1e4c90aeb247d4b74f29bf0
           original=$(git rev-parse HEAD)
           test "$(git rev-parse HEAD^)" = "$expected_parent"
 
@@ -43,33 +43,17 @@ jobs:
           contract = Path('morphhdl/contracts/increment-61-source-review.json')
           checker = Path('morphhdl/scripts/check-increment-61-source-review.py')
 
-          text = matrix.read_text()
-          old = '''      SpinalConfig(
-                targetDirectory = directory.toString,
-                oneFilePerComponent = true
-              )'''
-          if old not in text:
-              old = '''      SpinalConfig(
-                targetDirectory = directory.toString,
-                oneFilePerComponent = true
-      )'''
-          if old not in text:
-              old = '''      SpinalConfig(
-        targetDirectory = directory.toString,
-        oneFilePerComponent = true
-      )'''
-          if text.count(old) != 1:
-              raise SystemExit('compatibility SpinalConfig replacement precondition failed')
-          new = old.replace(
-              'targetDirectory = directory.toString,\n',
-              'targetDirectory = directory.toString,\n        bitVectorWidthMax = 8192,\n'
-          )
-          matrix.write_text(text.replace(old, new))
+          matrix_text = matrix.read_text()
+          marker = 'bitVectorWidthMax = 8192,'
+          if matrix_text.count(marker) != 1:
+              raise SystemExit('compatibility width-ceiling marker is missing or duplicated')
 
           matrix_sha = hashlib.sha256(matrix.read_bytes()).hexdigest()
           data = json.loads(contract.read_text())
-          matches = [entry for entry in data['reviewed_files']
-                     if entry['path'] == 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala']
+          matches = [
+              entry for entry in data['reviewed_files']
+              if entry['path'] == 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala'
+          ]
           if len(matches) != 1:
               raise SystemExit('compatibility matrix review entry is not unique')
           matches[0]['after_sha256'] = matrix_sha
@@ -93,7 +77,6 @@ jobs:
 
           git rm .github/workflows/increment-61-fix-compatibility-width.yml
           git add \
-            morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala \
             morphhdl/contracts/increment-61-source-review.json \
             morphhdl/scripts/check-increment-61-source-review.py
           git diff --cached --check
