@@ -1,0 +1,284 @@
+name: Increment 61 exact-head precloseout controller
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-precloseout-controller-20260910.yml'
+      - 'controller/increment-61-precloseout-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-exact-head-precloseout
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  PR_NUMBER: '179'
+  CONTROLLER_DIR: target/increment-61-controller
+
+jobs:
+  prepare:
+    name: Clean and audit exact feature head
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      head: ${{ steps.identity.outputs.head }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Remove obsolete repair machinery and apply the idempotent phase-order repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$CONTROLLER_DIR"
+          original=$(git rev-parse HEAD)
+          git fetch origin parameterized-verilog "$FEATURE_BRANCH"
+          git merge-base --is-ancestor origin/parameterized-verilog HEAD
+
+          if test -f morphhdl/repair-61-phase-order-v3/apply.py; then
+            python3 morphhdl/repair-61-phase-order-v3/apply.py
+          elif test -f morphhdl/repair-61-phase-order-v2/apply.py; then
+            python3 morphhdl/repair-61-phase-order-v2/apply.py
+          elif test -f morphhdl/repair-61-phase-order/apply.py; then
+            python3 morphhdl/repair-61-phase-order/apply.py
+          fi
+
+          git rm -rf --ignore-unmatch \
+            .github/workflows/increment-61-apply-phase-order.yml \
+            .github/workflows/increment-61-finalize-phase-order.yml \
+            .github/workflows/increment-61-commit-then-audit.yml \
+            morphhdl/repair-61-phase-order \
+            morphhdl/repair-61-phase-order-v2 \
+            morphhdl/repair-61-phase-order-v3
+
+          git add -A
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit \
+              -m '61: finalize clean signedness-safe publication head' \
+              -m 'Apply the reviewed split-only recursive phase ordering and remove all temporary repair machinery before exact source review. This commit changes no Increment 61 scope and leaves the roadmap unchecked pending complete final-head qualification.'
+            remote=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+            test "$remote" = "$original"
+            git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          fi
+
+          test -z "$(git ls-tree -r --name-only HEAD | grep -E '(^|/)repair-61-phase-order|increment-61-(apply-phase-order|finalize-phase-order|commit-then-audit)' || true)"
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$CONTROLLER_DIR/source-review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$CONTROLLER_DIR/source-review.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$CONTROLLER_DIR/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$CONTROLLER_DIR/native-overlay.log"
+
+      - id: identity
+        name: Record exact qualification identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "$head" > "$CONTROLLER_DIR/head.txt"
+          git status --porcelain=v1 > "$CONTROLLER_DIR/status.txt"
+          test ! -s "$CONTROLLER_DIR/status.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-controller-source
+          path: target/increment-61-controller
+          if-no-files-found: error
+          retention-days: 30
+
+  qualify:
+    needs: prepare
+    name: Full qualification Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx6G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Require exact reviewed source and tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-controller-${SCALA_VERSION}"
+          mkdir -p "$output"
+          test "$(git rev-parse HEAD)" = '${{ needs.prepare.outputs.head }}'
+          test -z "$(git ls-tree -r --name-only HEAD | grep -E '(^|/)repair-61-phase-order|increment-61-(apply-phase-order|finalize-phase-order|commit-then-audit)' || true)"
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/source-review.log"
+          for tool in python3 java iverilog vvp verilator yosys; do command -v "$tool"; done
+          git rev-parse HEAD > "$output/head.txt"
+          iverilog -V > "$output/tool-versions.txt" 2>&1
+          verilator --version >> "$output/tool-versions.txt"
+          yosys -V >> "$output/tool-versions.txt"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-controller-${SCALA_VERSION}"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+
+      - name: Run complete MorphHDL tests and generate publication artifacts twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-controller-${SCALA_VERSION}"
+          java -Xmx5G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/test' \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/publication-a" \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/publication-b" \
+            "morph/Test/runMain morphhdl.Increment61CompatibilityMatrix $output/compatibility-a" \
+            "morph/Test/runMain morphhdl.Increment61CompatibilityMatrix $output/compatibility-b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 400 "$output/sbt.log"; exit 1; }
+          diff -ru "$output/publication-a" "$output/publication-b" > "$output/publication-repeat.diff"
+          diff -ru "$output/compatibility-a" "$output/compatibility-b" > "$output/compatibility-repeat.diff"
+
+      - name: Compile, lint and synthesize every emitted split source set
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-controller-${SCALA_VERSION}"
+          python3 - "$output" <<'PY'
+          from pathlib import Path
+          import re, shlex, subprocess, sys
+
+          output = Path(sys.argv[1])
+          manifests = sorted(set(output.rglob('*.lst')))
+          if not manifests:
+              raise SystemExit('no Increment 61 source manifests were generated')
+          module_re = re.compile(r'(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b')
+          checked = []
+          for index, manifest in enumerate(manifests):
+              names = [line.strip() for line in manifest.read_text().splitlines() if line.strip()]
+              if not names or len(names) != len(set(names)):
+                  raise RuntimeError(f'invalid source manifest: {manifest}')
+              files = [(manifest.parent / name).resolve() for name in names]
+              if any(not path.is_file() for path in files):
+                  raise RuntimeError(f'missing source in {manifest}')
+              top_text = files[-1].read_text()
+              modules = module_re.findall(top_text)
+              if not modules:
+                  raise RuntimeError(f'no top module in {files[-1]}')
+              top = modules[0]
+              stem = f'{index:04d}-{top}'
+              subprocess.run(['iverilog', '-g2001', '-s', top, '-o', str(output / f'{stem}.vvp'), *map(str, files)], check=True)
+              subprocess.run(['verilator', '--lint-only', '--language', '1364-2001', '--top-module', top, *map(str, files)], check=True)
+              yosys = 'read_verilog -noautowire ' + ' '.join(shlex.quote(str(p)) for p in files)
+              yosys += f'; hierarchy -check -top {top}; proc; memory; flatten; opt; check -assert; stat'
+              with (output / f'{stem}.yosys.log').open('w') as log:
+                  subprocess.run(['yosys', '-q', '-p', yosys], check=True, stdout=log, stderr=subprocess.STDOUT)
+              checked.append((str(manifest.relative_to(output)), top, len(files)))
+          (output / 'checked-source-sets.txt').write_text('\n'.join(f'{m}\t{t}\t{n}' for m,t,n in checked) + '\n')
+          print(f'checked {len(checked)} complete Increment 61 source sets')
+          PY
+
+      - name: Retain exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-controller-${{ matrix.scala }}
+          path: |
+            target/increment-61-controller-${{ matrix.scala }}
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 30
+
+  cross-scala:
+    needs: [prepare, qualify]
+    name: Cross-Scala exact publication bytes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-61-controller-2.*
+          path: target/increment-61-controller-cross
+      - name: Compare complete generated publication corpora
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=target/increment-61-controller-cross
+          left="$root/increment-61-controller-2.12.18"
+          right="$root/increment-61-controller-2.13.12"
+          test -d "$left/publication-a" && test -d "$right/publication-a"
+          test -d "$left/compatibility-a" && test -d "$right/compatibility-a"
+          diff -ru "$left/publication-a" "$right/publication-a" > "$root/publication-cross-scala.diff"
+          diff -ru "$left/compatibility-a" "$right/compatibility-a" > "$root/compatibility-cross-scala.diff"
+          test "$(cat "$left/head.txt")" = '${{ needs.prepare.outputs.head }}'
+          test "$(cat "$right/head.txt")" = '${{ needs.prepare.outputs.head }}'
+
+  record:
+    needs: [prepare, qualify, cross-scala]
+    name: Record precloseout qualification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require feature head has not changed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote=$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/ref/heads/${FEATURE_BRANCH}" \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["object"]["sha"])')
+          test "$remote" = '${{ needs.prepare.outputs.head }}'
+
+      - name: Publish a source-bound PR qualification comment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > /tmp/comment.json
+          import json, os
+          head = '${{ needs.prepare.outputs.head }}'
+          run = os.environ['GITHUB_RUN_ID']
+          body = f'''Increment 61 pre-closeout qualification passed on exact head `{head}`.\n\nController run `{run}` completed: exact source/native audits, complete MorphHDL tests on Scala 2.12.18 and 2.13.12, repeated split-publication and compatibility generation, strict Icarus/Verilator/Yosys checks for every generated `.lst` source set, and cross-Scala byte comparison.\n\nThis is pre-closeout evidence only. The roadmap remains unchecked and PR #179 remains draft until the documentation-only completion commit is made and requalified.'''
+          print(json.dumps({'body': body}))
+          PY
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --data-binary @/tmp/comment.json > /dev/null
