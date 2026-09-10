@@ -1,0 +1,65 @@
+name: Increment 61 precloseout transient rerun guard
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-precloseout-rerun-guard.yml'
+      - 'controller/increment-61-precloseout-rerun-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Wait for precloseout run and rerun failed jobs at most once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW: increment-61-precloseout-controller-20260910.yml
+          PR_NUMBER: '179'
+        run: |
+          set -euo pipefail
+          run_id=''
+          for attempt in $(seq 1 210); do
+            gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/$WORKFLOW/runs?branch=agent%2Fincrement-61-controller&event=push&per_page=10" > /tmp/runs.json
+            run_id=$(python3 -c 'import json; r=json.load(open("/tmp/runs.json")).get("workflow_runs",[]); print(r[0]["id"] if r else "")')
+            if test -n "$run_id"; then
+              status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .status)
+              if test "$status" = completed; then break; fi
+            fi
+            sleep 60
+          done
+          test -n "$run_id"
+          conclusion=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .conclusion)
+          if test "$conclusion" = success; then
+            echo "precloseout run $run_id already passed"
+            exit 0
+          fi
+          test "$conclusion" = failure
+          attempt=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .run_attempt)
+          if test "$attempt" -ge 2; then
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Increment 61 pre-closeout controller run \`$run_id\` failed again on attempt \`$attempt\`. The closeout and merge guards remain stopped; no feature source, roadmap checkbox, or assertions were changed by the rerun guard."
+            exit 1
+          fi
+          gh api --method POST "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/rerun-failed-jobs" >/dev/null
+          for poll in $(seq 1 210); do
+            status=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .status)
+            conclusion=$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq '.conclusion // ""')
+            echo "rerun $run_id: $status / $conclusion"
+            if test "$status" = completed; then
+              test "$conclusion" = success
+              gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Increment 61 pre-closeout controller run \`$run_id\` passed after one failed-job rerun. The original failure remains visible; the rerun changed no feature source and does not waive any closeout or exact-head PR gate."
+              exit 0
+            fi
+            sleep 60
+          done
+          exit 1
