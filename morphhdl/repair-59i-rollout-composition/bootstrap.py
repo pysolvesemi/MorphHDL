@@ -39,7 +39,7 @@ def main() -> None:
     text = replace_once(
         text,
         "    paths = changed(COMMON, FEATURE) | changed(COMMON, TARGET) | changed(COMMON, combined_base)\n    paths |= set(PATCHED)\n",
-        "    candidates = (changed(COMMON, FEATURE) | changed(COMMON, TARGET) |\n                  changed(COMMON, combined_base))\n    reviewed_prefixes = (\n        \"core/src/main/\", \"lib/src/main/\", \"idslplugin/src/main/\",\n        \"sim/src/main/\", \"morphhdl/src/main/\", \"morphhdl/src/test/\",\n        \"morphhdl/scripts/\", \"morphhdl/contracts/\",\n        \"morphhdl-passes/src/main/\", \"morphhdl-passes/src/test/\",\n    )\n    paths = {path for path in candidates if path.startswith(reviewed_prefixes)}\n    paths |= set(PATCHED)\n",
+        "    candidates = (changed(COMMON, FEATURE) | changed(COMMON, TARGET) |\n                  changed(COMMON, combined_base))\n    paths = {path for path in candidates if\n             \"/src/main/\" in \"/\" + path or \"/src/test/\" in \"/\" + path or\n             path.startswith(\"morphhdl/scripts/\") or\n             path.startswith(\"morphhdl/contracts/\")}\n    paths |= set(PATCHED)\n",
         "reviewed composition inventory filter",
     )
     compile(text, str(SOURCE), "exec")
