@@ -177,8 +177,7 @@ def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str,
 def verify(root: Path) -> bool:
     """Validate real checkout bytes, HEAD and index before choosing a profile."""
     overlay = wa08_overlay(root)
-    if overlay is not None:
-        overlay.verify(root)
+    reviewed_overlay = overlay.verify(root) if overlay is not None else None
     value = load_contract(root)
     git(root, "merge-base", "--is-ancestor", BASE, "HEAD")
     entries = tree_entries(root, "HEAD", ROOTS)
@@ -198,19 +197,19 @@ def verify(root: Path) -> bool:
             require(not path.is_symlink(), "symlink in pass source inventory: " + path.relative_to(root).as_posix())
             if path.is_file():
                 physical.add(path.relative_to(root).as_posix())
-    # A verified outer successor may add pass sources which did not exist at
-    # this frozen WA-07b boundary. Project that exact authenticated inventory
-    # before comparing names; overlay.verify above already rejected every
-    # unreviewed, dirty, linked or mismatched current path. Raw index/tree
-    # equality is still checked below, and every inherited path is restored to
-    # its immutable byte view before its digest is accepted.
+    # These are complete inventories, not revision-to-HEAD change sets. Remove
+    # only authenticated successor additions; an edited inherited declaration
+    # must remain present even when its restored bytes match an older revision.
+    # The outer verification above binds every addition and edit to actual
+    # source/index/HEAD bytes. Raw index/tree equality and frozen source hashes
+    # remain independently mandatory below.
     projected_entries = set(entries)
     projected_physical = set(physical)
-    if overlay is not None:
-        projected_entries = overlay.inherited_inventory(
-            root, projected_entries, QUALIFIED if enabled else BASE)
-        projected_physical = overlay.inherited_inventory(
-            root, projected_physical, QUALIFIED if enabled else BASE)
+    if reviewed_overlay is not None:
+        successor_additions = {entry["path"] for entry in reviewed_overlay["files"]
+                               if entry["before_sha256"] is None}
+        projected_entries -= successor_additions
+        projected_physical -= successor_additions
 
     # Older source-audit controls require this diagnostic category. The exact
     # projected inventory check can reject a changed sibling before those

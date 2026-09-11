@@ -49,7 +49,8 @@ def install_synthetic_overlay(root: Path, base: str, final_source_commit: str,
             {
                 "path": path,
                 "mode": "100644",
-                "before_sha256": None,
+                "before_sha256": (sha256(git(root, "show", base + ":" + path))
+                                  if git(root, "ls-tree", base, "--", path) else None),
                 "after_sha256": sha256(raw),
             }
             for path, raw in sorted(files.items())
@@ -302,6 +303,41 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
                  "WA-08 source overlay")
         negatives += 1
         git(root, "reset", "--hard", sealed)
+        assert module.verify(root) is True
+
+        # A full inventory must retain edited inherited files alongside newly
+        # added successor files. A revision-delta projection incorrectly drops
+        # this existing path when its restored bytes equal the qualified tree.
+        existing = next(path for path in sorted(candidate)
+                        if path.startswith(module.ROOTS[0] + "/")
+                        and path not in value["production_delta"])
+        modified = candidate[existing] + b"\n// reviewed successor existing-source edit\n"
+        git(root, "reset", "--hard", source_commit)
+        (root / existing).write_bytes(modified)
+        git(root, "add", "--", existing)
+        git(root, "commit", "-qm", "synthetic successor additions and inherited edit")
+        mixed_source = git(root, "rev-parse", "HEAD").decode().strip()
+        install_synthetic_overlay(root, head, mixed_source,
+                                  {**successor, existing: modified})
+        git(root, "add", "--", WA08_OVERLAY,
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json")
+        git(root, "commit", "-qm", "synthetic exact mixed successor seal")
+        mixed_seal = git(root, "rev-parse", "HEAD").decode().strip()
+        assert module.verify(root) is True
+        assert module.restore_wa08(root, existing, modified) == candidate[existing]
+        for mutation in ("changed", "removed", "staged"):
+            target = root / existing
+            if mutation == "removed":
+                target.unlink()
+            else:
+                target.write_bytes(modified + b"\n// unreviewed mixed-source mutation\n")
+                if mutation == "staged":
+                    git(root, "add", "--", existing)
+                    target.write_bytes(modified)
+            rejected("mixed successor inherited source " + mutation,
+                     lambda: module.verify(root), "WA-08 source overlay")
+            negatives += 1
+            git(root, "reset", "--hard", mixed_seal)
         assert module.verify(root) is True
         git(root, "reset", "--hard", head)
         assert module.verify(root) is True
