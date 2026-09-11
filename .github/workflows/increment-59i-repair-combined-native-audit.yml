@@ -63,18 +63,21 @@ jobs:
           PY
 
           # The combined workflow needs these constants for the parent-bound
-          # worktrees. Insert them only when absent.
+          # worktrees. Find the exact matrix line without embedding a GitHub
+          # expression inside this repair workflow's own run script.
           python3 - <<'PY'
           from pathlib import Path
           path = Path('.github/workflows/increment-59i-combined-closure.yml')
           text = path.read_text()
-          anchor = "      SCALA_VERSION: ${{ matrix.scala }}\n"
+          anchors = [line for line in text.splitlines(keepends=True)
+                     if line.startswith('      SCALA_VERSION: ')]
+          if len(anchors) != 1:
+              raise SystemExit('Scala environment anchor changed')
+          anchor = anchors[0]
           addition = (anchor +
             "      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d\n" +
             "      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6\n")
           if 'INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d' not in text:
-              if text.count(anchor) != 1:
-                  raise SystemExit('Scala environment anchor changed')
               text = text.replace(anchor, addition, 1)
               path.write_text(text)
           PY
