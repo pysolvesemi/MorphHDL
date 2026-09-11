@@ -1,0 +1,187 @@
+name: Increment 61 hierarchy root identity diagnostic v16
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-root-identity-diagnostic-v16.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-root-identity-diagnostic-v16
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Add exact expression and authority diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-identity-diagnostic"
+          source=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          python3 - "$source" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+
+          def one(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"identity diagnostic precondition changed: count={count} snippet={old[:100]!r}")
+              text = text.replace(old, new, 1)
+
+          one(
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String]
+              )''',
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String],
+                  origin: String,
+                  detail: String
+              )''')
+
+          one(
+          '''    def retainInteger(expression: ElaborationIntegerExpression): Unit = {
+                ElabInt.validateExpression(
+                  expression,
+                  s"component '${componentName(component)}' parameter inventory"
+                )
+                expression.parameters.foreach(parameter => schemas += (parameter -> expression.sourceLocation))
+                expression.completedParameterRoots.foreach { root =>
+                  uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))
+                }
+              }''',
+          '''    def retainInteger(
+                  expression: ElaborationIntegerExpression,
+                  origin: String
+              ): Unit = {
+                ElabInt.validateExpression(
+                  expression,
+                  s"component '${componentName(component)}' parameter inventory"
+                )
+                expression.parameters.foreach(parameter => schemas += (parameter -> expression.sourceLocation))
+                val exact = expression.exactDomain
+                  .map(domain => s"${domain.root.name}#${System.identityHashCode(domain.root)}:${domain.parameter.name}#${System.identityHashCode(domain.parameter)}")
+                  .getOrElse("<none>")
+                val projection = expression.projectionProvenance
+                  .map(value => s"${value.root.name}#${System.identityHashCode(value.root)}:${value.admitted.toVector.sorted.mkString("[", ",", "]")}")
+                  .getOrElse("<none>")
+                val detail =
+                  s"expr#${System.identityHashCode(expression)} '${expression.verilog}' params=${expression.parameters.map(value => s"${value.name}#${System.identityHashCode(value)}:decl#${System.identityHashCode(value.declarationRoot)}").mkString("[", ",", "]")} roots=${expression.parameterRoots.map(value => s"${value.name}#${System.identityHashCode(value)}").mkString("[", ",", "]")} completed=${expression.completedParameterRoots.map(value => s"${value.name}#${System.identityHashCode(value)}").mkString("[", ",", "]")} exact=$exact projection=$projection authority=${expression.hasExactAuthority} bounds=${expression.default}/${expression.minimum}/${expression.maximum}"
+                expression.completedParameterRoots.foreach { root =>
+                  uses += RootUse(
+                    root,
+                    root.sourceLocation.orElse(expression.sourceLocation),
+                    origin,
+                    detail
+                  )
+                }
+              }''')
+
+          one(
+          '''    def retainBoolean(expression: ElaborationBooleanExpression): Unit = {
+                ElabInt.validateExpression(
+                  expression,
+                  s"component '${componentName(component)}' parameter inventory"
+                )
+                expression.parameters.foreach(parameter => schemas += (parameter -> expression.sourceLocation))
+                expression.completedParameterRoots.foreach { root =>
+                  uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))
+                }
+              }''',
+          '''    def retainBoolean(
+                  expression: ElaborationBooleanExpression,
+                  origin: String
+              ): Unit = {
+                ElabInt.validateExpression(
+                  expression,
+                  s"component '${componentName(component)}' parameter inventory"
+                )
+                expression.parameters.foreach(parameter => schemas += (parameter -> expression.sourceLocation))
+                val detail =
+                  s"bool#${System.identityHashCode(expression)} '${expression.verilog}' params=${expression.parameters.map(value => s"${value.name}#${System.identityHashCode(value)}:decl#${System.identityHashCode(value.declarationRoot)}").mkString("[", ",", "]")} roots=${expression.parameterRoots.map(value => s"${value.name}#${System.identityHashCode(value)}").mkString("[", ",", "]")} completed=${expression.completedParameterRoots.map(value => s"${value.name}#${System.identityHashCode(value)}").mkString("[", ",", "]")} authority=${expression.hasExactAuthority}"
+                expression.completedParameterRoots.foreach { root =>
+                  uses += RootUse(
+                    root,
+                    root.sourceLocation.orElse(expression.sourceLocation),
+                    origin,
+                    detail
+                  )
+                }
+              }''')
+
+          replacements = [
+              ('ExternalParameterizedHierarchyResizeWidth.expressionOf(component, baseType).foreach(retainInteger)',
+               'ExternalParameterizedHierarchyResizeWidth.expressionOf(component, baseType).foreach(expression => retainInteger(expression, "dsl-width"))'),
+              ('retainInteger(metadata.depth)', 'retainInteger(metadata.depth, "memory-depth")'),
+              ('retainInteger(metadata.elementWidth)', 'retainInteger(metadata.elementWidth, "memory-element-width")'),
+              ('shape.geometryExpressions.foreach(retainInteger)', 'shape.geometryExpressions.foreach(expression => retainInteger(expression, "vec-geometry"))'),
+              ('retainInteger(record.expression)', 'retainInteger(record.expression, "external-value-registry")'),
+              ('.integerExpressionsOf(component)\n      .foreach(retainInteger)', '.integerExpressionsOf(component)\n      .foreach(expression => retainInteger(expression, "blackbox-integer-generic"))'),
+              ('.booleanExpressionsOf(component)\n      .foreach(retainBoolean)', '.booleanExpressionsOf(component)\n      .foreach(expression => retainBoolean(expression, "blackbox-boolean-generic"))'),
+              ('retainInteger(boundary.sourceWidth)', 'retainInteger(boundary.sourceWidth, "auto-resize-source")'),
+              ('retainInteger(boundary.targetWidth)', 'retainInteger(boundary.targetWidth, "auto-resize-target")'),
+              ('retainInteger(value.count)', 'retainInteger(value.count, "structural-for-count")'),
+              ('retainBoolean(value.condition)', 'retainBoolean(value.condition, "structural-if-condition")'),
+              ('retainInteger(value.selector)', 'retainInteger(value.selector, "structural-case-selector")'),
+              ('.foreach(loop => retainInteger(loop.count))', '.foreach(loop => retainInteger(loop.count, "process-loop-count"))'),
+              ('.foreach(binding => retainInteger(binding.actual))', '.foreach(binding => retainInteger(binding.actual, s"child-formal-actual:${componentName(child)}:${binding.formal.name}:formal#${System.identityHashCode(binding.formal)}:formal-root#${System.identityHashCode(binding.formal.declarationRoot)}"))'),
+          ]
+          for old, new in replacements:
+              one(old, new)
+
+          one(
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory",''',
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory [roots: ${declarations.map(value => s"${value.origin} root#${System.identityHashCode(value.root)} ${value.detail}@${value.sourceLocation.getOrElse("<unknown>")}").mkString("; ")}]",''')
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- "$source" > "$output/instrumentation.patch"
+
+      - name: Reproduce current failure with identity trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-identity-diagnostic"
+          set +e
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            > "$output/sbt.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$output/exit-code.txt"
+          tail -n 450 "$output/sbt.log" | tee "$output/tail.log"
+          test "$rc" -ne 0
+          grep -F '[roots:' "$output/sbt.log" | tee "$output/root-conflict.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-root-identity-diagnostic-v16
+          path: target/increment-61-root-identity-diagnostic
+          if-no-files-found: error
+          retention-days: 14
