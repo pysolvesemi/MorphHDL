@@ -1,0 +1,45 @@
+name: Increment 61 export current parameterized target
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-export-current-target.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-export-current-target
+  cancel-in-progress: true
+
+jobs:
+  export:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: pysolvesemi/MorphHDL
+          ref: 39d888874577dc989f43e602c577985ebc53bc69
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact source and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-current-target"
+          mkdir -p "$output"
+          test "$(git rev-parse HEAD)" = 39d888874577dc989f43e602c577985ebc53bc69
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          git archive HEAD | gzip -n > "$output/source.tar.gz"
+          git bundle create "$output/repository.bundle" --all
+          sha256sum "$output/source.tar.gz" "$output/repository.bundle" > "$output/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-current-target
+          path: target/increment-61-current-target
+          if-no-files-found: error
+          retention-days: 7
