@@ -1,17 +1,21 @@
 # MorphHDL IR simple-wire assignment passes roadmap
 
-This is the controlling checklist for five optional, behavior-preserving
+This is the controlling checklist for six optional, behavior-preserving
 passes over the canonical MorphHDL-owned IR after parameterization/capture
 and before Verilog-2001 emission:
 
 1. remove eligible direct wire aliases represented by unnamed internal signals;
-2. remove eligible direct wire aliases represented by explicitly named internal signals;
+2. remove eligible direct wire aliases represented by retained named/generated
+   internal signals, with provenance-first survivor preference;
 3. inline the pure right-hand-side expression of an eligible unnamed continuous
    wire assignment into every continuous receiver, then remove the temporary
    declaration and its assignment;
-4. simplify approved constant operands in pure continuous right-hand-side
+4. inline the pure right-hand-side expression of an eligible named continuous
+   wire assignment into every continuous receiver, then remove that internal
+   declaration and its assignment;
+5. simplify approved constant operands in pure continuous right-hand-side
    expressions without changing their packed value, width or signedness; and
-5. recursively simplify Boolean-valued ternary expressions with opposite
+6. recursively simplify Boolean-valued ternary expressions with opposite
    constant Boolean branches, preserving truth conversion and packed semantics.
 
 WA-07b is the user-authorized fifth pass, inserted before WA-08, whose
@@ -22,12 +26,15 @@ WA-07b's integrated implementation is qualified. Its exact-source results,
 actual emitted examples and separate completion-head merge gate are recorded
 in [WA-07b evidence](wa07b-completion-evidence.md); the transformation and proof
 layers are described in [WA-07b notes](wa07b-implementation-notes.md).
-Production execution and writeback remain the separate WA-08 increment.
+Production execution and writeback were completed by WA-08. WA-09 is the
+explicit successor that adds the sixth stage and deterministic direct-alias
+survivor preference; it does not revise WA-08's historical five-stage claim.
 
 Product code has one all-or-none `enabled` flag. `false` executes no pass;
-WA-07b extends `true` from the historical four stages to all five in the fixed
-order above. Internal proof fixtures may select historical stages directly,
-but those selections are not product flags. The complete pipeline must reach
+WA-09 extends `true` from the historical five stages to all six in the fixed
+order above. Internal proof fixtures retain the exact historical three-, four-
+and five-stage selections, but those selections are not product flags. The
+complete pipeline must reach
 an idempotent fixed point: a simplification that exposes an alias or another
 rewrite for an earlier stage must not require a second product invocation to
 finish the optimization.
@@ -55,6 +62,8 @@ canonical MorphHDL-owned IR
         |
         +--> unnamed continuous wire-expression inlining
         |
+        +--> named continuous wire-expression inlining (WA-09)
+        |
         +--> constant-operand expression simplification
         |
         +--> recursive Boolean ternary simplification (WA-07b; standalone qualified)
@@ -73,7 +82,9 @@ the typed native graph. WA-07 proves the third standalone pass and the
 historical one-flag pipeline. WA-07a adds constant-operand simplification;
 WA-07b adds the qualified recursive Boolean ternary simplification pass.
 WA-08 implements validated production writeback after both additions are
-complete and merged.
+complete and merged. WA-09 adds named-expression inlining and source-provenance
+aware direct-alias survivor selection while preserving those historical pass
+vectors and artifacts.
 
 The passes must:
 
@@ -133,6 +144,18 @@ canonical IR proves all of the following:
 WA-04 and WA-05 remain bounded to direct wire-to-wire aliases. They do not
 inline operators, literals, slices, indexes, concatenations, casts, resizes,
 muxes or other expression trees.
+
+WA-09 refines only which safely removable member of a direct-alias relation is
+preferred. A mandatory survivor such as a port, register, hierarchy boundary,
+preserved/debug identity, procedural value or otherwise ineligible declaration
+always wins. Between removable declarations, a meaningful retained source name
+(`Explicit` or `Reflected`) wins over `Unnamed` or `Generated` provenance;
+only between meaningful names does the shorter retained source name win.
+Deterministic name and symbol-identity tie breakers apply after length. This is
+not a spelling heuristic: an explicitly named `_zz` is meaningful, while a
+generated short identifier is not. A preference is applied only when the
+existing safety proof authorizes removal of the losing declaration; otherwise
+both declarations remain.
 
 ## Bounded unnamed continuous wire-expression contract
 
@@ -198,6 +221,89 @@ assign sink = source;
 
 Only the exact alias declaration, its sole assignment and references to that
 symbol may change. No surviving signal is renamed.
+
+## Bounded named continuous wire-expression contract
+
+WA-09 applies the WA-07 expression transformation to an internal continuous
+wire whose retained naming provenance is `Explicit`, `Reflected` or `Generated`.
+It does not infer provenance from the identifier text and does not transfer the
+removed name to a survivor.
+
+Every WA-07 expression safety condition remains mandatory: one full-object
+continuous non-reference driver, complete canonical expression capture, exact
+packed kind/width/signedness and symbolic identity, legal local continuous
+receivers, cycle freedom, fresh cloned references and an explicit assignment
+type fence. Ports, registers, procedural or multiply driven values, hierarchy
+boundaries, clock/reset/control identities, native metadata and registry
+references, preservation/debug contracts, comments, attributes and unknown
+metadata remain ineligible. An unrepresented native RHS fails closed rather
+than being approximated by a fabricated expression.
+
+For the ordinary production topology:
+
+```scala
+val bitSource = Bits(width bits)
+bitSource := a ^ b
+val bitCloneAlias = cloneOf(bitSource)
+bitCloneAlias := bitSource
+clonedResult := bitCloneAlias
+```
+
+the six-stage default pipeline removes the longer direct alias first and then
+inlines the named expression source, while retaining the output port:
+
+```verilog
+assign clonedResult = (a ^ b);
+```
+
+The pass does not promise to remove every syntactic intermediate. If either
+declaration cannot be removed under the complete safety contract, it stays;
+name length never overrides legality, provenance, observability or semantics.
+
+At the native handoff, both the source RHS and each receiver's actual whole RHS
+are captured with `NativeWireExpressionCodec`; no representative XOR or guessed
+expression may stand in for an unsupported tree. Native Boolean expressions use
+the exact `TypeBool` width of one, and the complete shared metadata, clock,
+scope, type, receiver and cycle checks apply. Reverse direct-alias preference
+must first validate the actual two-edge chain through the canonical named pass,
+then may remove only the independently safe source. An expression-driven source
+is deferred by provenance: true `Unnamed` goes to
+`UnnamedWireExpressionNativePhase`, while named/generated provenance goes to
+`NamedWireExpressionNativePhase`.
+
+### Bounded post-pass wrapper elision
+
+Native reproduction also shows that `fillExpressionToWrap` can create anonymous
+expression wrappers during Verilog emission, after every canonical/native
+wire-assignment phase has run. WA-09 may suppress only wrappers for an exact
+homogeneous fixed-width unsigned `UInt` addition tree feeding a whole-object
+fixed-width unsigned receiver. All add operands and intermediates must share
+that one proven positive width. Leaves are same-width fixed `UInt` declarations
+or exact fixed unsigned widening resizes from narrower fixed `UInt` values.
+Synthetic `Add`/`ResizeUInt` nodes selected for suppression must be unannotated
+and uniquely used; the unannotated whole-object target must be singly driven.
+Tags on a real leaf declaration do not authorize its removal: the declaration
+remains, and only emitter-created expression wrappers may disappear. This is a
+bounded emitter planning rule, not a seventh canonical pass.
+
+The positive witness is four 16-bit inputs accumulated in an exact 18-bit
+unsigned domain (`0..262140`); a separate same-width 18-bit witness exercises
+the original tree's modular overflow without reassociation. Mixed widths,
+signed values, narrowing, bit or part selections, direct symbolic-width
+expression nodes, incomplete facts and other operators retain their wrappers.
+Fixed native 16-to-18 `ResizeUInt` wrappers inline completely. For parameterized
+inputs, tagged parameterized resize `BaseType` carriers remain declared and may
+be fixed 18-bit leaves, while only the surrounding generated `Add` wrappers
+inline. Eligibility comes from native expression and type identities, never
+wrapper names or emitted text.
+
+The exact runnable source is
+`morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala`
+(`morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter`):
+
+```text
+sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"
+```
 
 ## Bounded constant-operand simplification contract
 
@@ -341,8 +447,9 @@ no public per-pass Boolean.
 
 ## Fixed non-goals
 
-Apart from the exact direct-alias substitution, expression-temporary inlining,
-constant-operand rewrites or Boolean ternary rewrites described above, the
+Apart from the exact direct-alias substitution, bounded unnamed/named
+expression-wire inlining, constant-operand rewrites or Boolean ternary rewrites
+described above, the
 passes must not change:
 
 - module, instance, port, parameter, local-parameter or generate-label names;
@@ -364,7 +471,7 @@ The following remain outside this roadmap:
 - algebraic or logic simplification beyond WA-07a's and WA-07b's explicitly bounded rules;
 - common-subexpression elimination;
 - process merging, retiming, register removal or hierarchy flattening; and
-- any additional pass beyond these five.
+- any additional pass beyond these six.
 
 A signal-renaming pass may be planned later only through a separate explicit
 roadmap update.
@@ -387,9 +494,9 @@ The workspace must:
 - not modify upstream-owned source under `core/`, `lib/`, `idslplugin/`,
   `idslpayload/`, `sim/` or `tester/`.
 
-One uniquely named MorphHDL-owned workflow may validate this workspace. The
-final WA-08 increment may add only the minimum optional handoff in
-MorphHDL-owned orchestration code; pass logic remains under `morphhdl-passes/`.
+One uniquely named MorphHDL-owned workflow may validate this workspace. WA-08
+added only the minimum optional handoff in MorphHDL-owned orchestration code;
+WA-09 retains that boundary and keeps pass logic under `morphhdl-passes/`.
 
 ## Dependency and execution discipline
 
@@ -705,10 +812,61 @@ WA-04 or WA-05 can remove an alias.
   flag is enabled. Do not add a generated-Verilog parser, file postprocessor,
   signal-renaming pass, formatting pass or broader optimization pass.
 
+- [ ] **WA-09 — Named expression-wire elimination and provenance-first alias preference**
+
+  **Dependencies:** WA-08 and PV-62 implemented and merged.
+
+  **Status:** `IN PROGRESS`.
+
+  Add `NamedWireExpressionEliminationPass` as the fourth stage, after unnamed
+  expression inlining and before the two simplification stages. Reuse the
+  canonical expression safety and rewrite engine; do not create a second IR,
+  parse emitted Verilog or fabricate an expression when native capture is
+  incomplete. Extend the production common flag to six stages while preserving
+  the exact historical three-, four- and five-stage pass vectors, native
+  witnesses, reports and proof artifacts.
+
+  Native validation must capture the actual source and receiver RHS through
+  `NativeWireExpressionCodec`, accept only whole-RHS continuous receivers, and
+  represent `TypeBool` at width one; a representative XOR is forbidden. For a
+  preferred reverse direct chain, require the canonical decision over both
+  actual edges before removing the independently safe source. Expression-source
+  deferral remains provenance-owned: `UnnamedWireExpressionNativePhase` handles
+  true unnamed origins and `NamedWireExpressionNativePhase` handles
+  explicit/reflected/generated origins.
+
+  Refine direct-alias survivor selection so non-removable identities win first,
+  meaningful `Explicit`/`Reflected` provenance wins over `Unnamed`/`Generated`,
+  and shorter names win only between otherwise removable meaningful names.
+  Identifier spelling is never provenance: generated `_zz`-style temporaries
+  lose to a meaningful name regardless of string length, while an explicitly
+  user-named `_zz` remains meaningful. If the losing declaration cannot pass
+  the existing removal proof, retain the relation rather than reverse an
+  assignment or transfer a name unsafely.
+
+  Qualify both direct-alias orientations, equal-length deterministic ties,
+  generated/unnamed and explicitly `_zz`-named controls, fanout and chains,
+  named expression nesting, symbolic-width identity, signedness, four-state
+  values and all preservation/procedural/hierarchy exclusions. The ordinary
+  production fixture must emit `assign clonedResult = (a ^ b);` with neither
+  intermediate declaration. Require repeat and cross-Scala byte identity,
+  fixed-point/idempotence, strict Verilog-2001, lint, synthesis, simulation,
+  functional mutations and formal equivalence to the common pre-pass reference.
+  Reproduce and close the later emitter-created-wrapper boundary with only the
+  homogeneous fixed-width unsigned-add policy above. Require the four-input
+  16-to-18-bit positive and mixed-width, signed, narrowing, selection and
+  direct symbolic-width retention controls. Tagged parameterized resize
+  `BaseType` carriers must remain declared even when the fixed 18-bit add
+  wrappers around them are proven redundant and inline. Run the committed
+  witness with `sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"`.
+  All inherited gates and complete proof domains remain mandatory before this
+  checkbox may be marked complete.
+
 ## Completion target
 
-This roadmap completes at WA-08 when MorphHDL can optionally run all five
-transformations from one flag on its canonical post-parameterization IR and
-write the validated result back into the structured Verilog-2001 production
-path while preserving parameterized RTL behavior and every surviving
-identifier. Signal renaming remains future work.
+The original roadmap completed at WA-08 with five production transformations.
+Its authorized successor completes at WA-09 when MorphHDL runs all six from one
+flag on canonical post-parameterization IR, writes the validated result back
+into structured Verilog-2001, and applies provenance-first alias survivor
+selection without renaming any surviving identifier. General signal renaming
+remains future work.

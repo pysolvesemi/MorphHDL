@@ -92,12 +92,55 @@ BRIDGE_RULES: tuple[TextRule, ...] = (
 
 SOURCE_NAME_LOOKUP = "Option(alias.getName()).filter(_.trim.nonEmpty)"
 SOURCE_NAME_GUARD = "if (alias.isNamed && sourceNamed)"
+BRIDGE_DISPLAY_NAME_LOOKUP = '.orElse(Option(alias.getName(""))).getOrElse("")'
+BRIDGE_TIE_NAME_LOOKUP = 'Option(candidate.source.getName("")).getOrElse("")'
+PROVENANCE_NAME_LOOKUP = 'Option(value.getName("")).map(_.trim).filter(_.nonEmpty)'
 SOURCE_NAME_PROVENANCE = (
     'readPrivateByte(alias, "namePriority").exists',
     "Nameable.USER_SET | Nameable.USER_WEAK",
     "Nameable.DATAMODEL_STRONG | Nameable.DATAMODEL_WEAK => true",
     "case _ => false",
     SOURCE_NAME_GUARD,
+)
+SUCCESSOR_PROVENANCE_MARKERS = (
+    "private[examples] object NativeWireNameProvenance",
+    "if (value == null) None",
+    "else if (value.isUnnamed) Some(NameOrigin.Unnamed)",
+    PROVENANCE_NAME_LOOKUP,
+    'readPrivateByte(value, "namePriority").flatMap',
+    "case Nameable.USER_SET | Nameable.USER_WEAK =>",
+    "name.map(NameOrigin.Explicit)",
+    "case Nameable.DATAMODEL_STRONG | Nameable.DATAMODEL_WEAK =>",
+    "name.map(NameOrigin.Reflected)",
+    "case Nameable.REMOVABLE => Some(NameOrigin.Generated)",
+    "case _                  => None",
+    "case NameOrigin.Unnamed | NameOrigin.Unknown => false",
+    "case _                                       => true",
+    "case _: NoSuchFieldException => current = current.getSuperclass",
+    "case _: Throwable            => return None",
+)
+SUCCESSOR_BRIDGE_MARKERS = (
+    "NativeWireNameProvenance.successorExpressionOrigin(alias)",
+    "NativeWireNameProvenance.origin(candidate.source)",
+    ".getOrElse(NameOrigin.Unknown)",
+    "private def selectRewrite(",
+    "candidateForValue(candidate.source, sourceOrigin, statements)",
+    "wholeRhsUse(_, candidate.alias)",
+    "wholeRhsUse(_, sourceCandidate.alias)",
+    "PreferredSourceRewrite(candidate, proof, sourceCandidate, sourceProof)",
+    "Right(DeferredExpressionRewrite)",
+    "private def aliasIsPreferred(",
+    "meaningfulName(candidate.nameOrigin)",
+    "meaningfulName(sourceOrigin)",
+    "implicitly[Ordering[(Int, String, String)]].lt",
+    "sourceOrigin == NameOrigin.Unnamed || sourceOrigin == NameOrigin.Generated",
+    "new UnnamedWireExpressionNativePhase().isIndependentlyRemovable",
+    "new NamedWireExpressionNativePhase().isIndependentlyRemovable",
+    BRIDGE_DISPLAY_NAME_LOOKUP,
+    BRIDGE_TIE_NAME_LOOKUP,
+    "case NameOrigin.Explicit(name)  => AliasNameOrigin.Explicit(name)",
+    "case NameOrigin.Reflected(name) => AliasNameOrigin.Reflected(name)",
+    "case NameOrigin.Generated       => AliasNameOrigin.Generated",
 )
 NATIVE_SAFETY_MARKERS = (
     "alias.isEmptyOfTag",
@@ -216,9 +259,17 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "PassResult.skipped",
     "WireAliasSafetyGate",
     "NameOrigin.Explicit",
-    "explicitName(value.nameOrigin).nonEmpty",
+    "NameOrigin.Reflected",
+    "NameOrigin.Generated",
+    "case NameOrigin.Unknown => false",
+    "candidateOrigin(value.nameOrigin).nonEmpty",
+    "isDirectPassReportCandidate",
+    "aliasIsPreferred",
+    "implicitly[Ordering[(Int, String, String)]].lt",
+    "isEligibleUnnamedCandidate",
+    "isEligibleNamedCandidate",
     "transformToFixedPoint",
-    "CanonicalIrPassAdapter.bindFixture(rewritten)",
+    "CanonicalIrPassAdapter.bindFixture(plan.output)",
     "declarations = module.declarations.filterNot(_.id == aliasSymbol)",
     ".filterNot(_.id == aliasDriverId)",
     "target == aliasSymbol",
@@ -232,6 +283,8 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "RtlExpr.Resize",
     "RtlExpr.Cast",
     "AliasNameOrigin.Explicit",
+    "AliasNameOrigin.Reflected",
+    "AliasNameOrigin.Generated",
     "without transferring the removed name",
 )
 
@@ -241,7 +294,9 @@ REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "alias.isNamed",
     SOURCE_NAME_LOOKUP,
     "alias.isEmptyOfTag",
-    "explicitSourceName(alias)",
+    "NativeWireNameProvenance.successorExpressionOrigin(alias)",
+    "NativeWireNameProvenance.origin(candidate.source)",
+    ".getOrElse(NameOrigin.Unknown)",
     "NamedWireAliasEliminationPass.run",
     "WireAliasPassConfiguration.selectedForTesting",
     "statement.walkRemapDrivingExpressions",
@@ -259,8 +314,13 @@ REQUIRED_TEST_MARKERS: tuple[str, ...] = (
     "exact symbol identity",
     "recursive expression rewriting",
     "neighboring symbols remain untouched",
-    "only explicit source names are candidates",
-    "emitted-name text is not classification",
+    "source provenance rather than emitted-name spelling selects candidates",
+    "shorter meaningful direct alias wins",
+    "equal-length meaningful names use a deterministic lexical identity tie-break",
+    "meaningful underscore name beats generated provenance regardless of length",
+    "meaningful name beats unnamed provenance through a removable direct chain",
+    "meaningful name survives independently eligible unnamed expression removal",
+    "protected direct source remains the anchor",
     "unsafe explicitly named alias is retained",
     "public hierarchical preservation probe attribute comment and source contracts are retained",
     "complete WIDTH and DEPTH domain",
@@ -345,9 +405,113 @@ def bridge_phase_failures(path: Path, text: str) -> list[str]:
         failures.extend(require_markers(
             path, helper.group(1), SOURCE_NAME_PROVENANCE, "WA05-BRIDGE-NAMING-METADATA",
         ))
-    # Removing exactly the reviewed read leaves every other getName,
-    # getPartialName and definitionName access subject to the original guard.
-    scanned = text.replace(SOURCE_NAME_LOOKUP, "retainedSourceNameMetadata", 1)
+    failures.extend(require_markers(
+        path, text, SUCCESSOR_BRIDGE_MARKERS, "WA05-BRIDGE-SUCCESSOR-PROVENANCE",
+    ))
+    successor_sections = (
+        (
+            "private def candidateSnapshot(",
+            "private def explicitSourceName(",
+            (
+                "NativeWireNameProvenance.successorExpressionOrigin(alias)",
+                BRIDGE_DISPLAY_NAME_LOOKUP,
+            ),
+        ),
+        (
+            "private def selectRewrite(",
+            "private def aliasIsPreferred(",
+            (
+                "NativeWireNameProvenance.origin(candidate.source)",
+                ".getOrElse(NameOrigin.Unknown)",
+                "candidateForValue(candidate.source, sourceOrigin, statements)",
+                "proveCandidate(pc, value)",
+                "wholeRhsUse(_, candidate.alias)",
+                "wholeRhsUse(_, sourceCandidate.alias)",
+                "PreferredSourceRewrite(candidate, proof, sourceCandidate, sourceProof)",
+                "expressionSourceIsIndependentlyRemovable",
+                "Right(DeferredExpressionRewrite)",
+                "Right(ForwardRewrite(candidate, proof))",
+            ),
+        ),
+        (
+            "private def aliasIsPreferred(",
+            "private def meaningfulName(",
+            (
+                "meaningfulName(candidate.nameOrigin)",
+                "meaningfulName(sourceOrigin)",
+                "implicitly[Ordering[(Int, String, String)]].lt",
+                BRIDGE_TIE_NAME_LOOKUP,
+                "sourceOrigin == NameOrigin.Unnamed || sourceOrigin == NameOrigin.Generated",
+            ),
+        ),
+        (
+            "private def meaningfulName(",
+            "private def expressionSourceIsIndependentlyRemovable(",
+            (
+                "case NameOrigin.Explicit(name)  => Some(name)",
+                "case NameOrigin.Reflected(name) => Some(name)",
+                "case _                          => None",
+            ),
+        ),
+        (
+            "private def expressionSourceIsIndependentlyRemovable(",
+            "private def wholeRhsUse(",
+            (
+                "case NameOrigin.Unnamed",
+                "new UnnamedWireExpressionNativePhase().isIndependentlyRemovable",
+                "case NameOrigin.Explicit(_) | NameOrigin.Reflected(_) | NameOrigin.Generated",
+                "new NamedWireExpressionNativePhase().isIndependentlyRemovable",
+                "case NameOrigin.Unknown => false",
+            ),
+        ),
+        (
+            "private def applyCanonicalDecision(",
+            "private def sourceKind(",
+            (
+                "NativeWireNameProvenance.origin(candidate.source)",
+                ".getOrElse(NameOrigin.Unknown)",
+                "nameOrigin = candidate.nameOrigin",
+                "NamedWireAliasEliminationPass.run",
+            ),
+        ),
+        (
+            "private def reportOrigin(",
+            "private def rewriteNativeIdentity(",
+            (
+                "case NameOrigin.Explicit(name)  => AliasNameOrigin.Explicit(name)",
+                "case NameOrigin.Reflected(name) => AliasNameOrigin.Reflected(name)",
+                "case NameOrigin.Generated       => AliasNameOrigin.Generated",
+            ),
+        ),
+    )
+    for start, end, markers in successor_sections:
+        begin = text.find(start)
+        finish = text.find(end, begin + len(start)) if begin >= 0 else -1
+        if begin < 0 or finish <= begin:
+            failures.append(
+                f"{path}: WA05-BRIDGE-SUCCESSOR-PROVENANCE: missing bounded helper {start!r}"
+            )
+        else:
+            failures.extend(require_markers(
+                path,
+                text[begin:finish],
+                markers,
+                "WA05-BRIDGE-SUCCESSOR-PROVENANCE",
+            ))
+    # Remove only the three authenticated metadata/display reads. Every other
+    # getName, getPartialName and definitionName access remains forbidden.
+    allowed_lookups = (
+        (SOURCE_NAME_LOOKUP, "retainedHistoricalSourceNameMetadata"),
+        (BRIDGE_DISPLAY_NAME_LOOKUP, "retainedCandidateDisplayNameMetadata"),
+        (BRIDGE_TIE_NAME_LOOKUP, "retainedSourceTieNameMetadata"),
+    )
+    scanned = text
+    for lookup, replacement in allowed_lookups:
+        if text.count(lookup) != 1:
+            failures.append(
+                f"{path}: WA05-BRIDGE-NAMING-METADATA: require exactly one authenticated occurrence of {lookup!r}"
+            )
+        scanned = scanned.replace(lookup, replacement, 1)
     failures.extend(scan_text(path, scanned, BRIDGE_RULES))
     failures.extend(require_markers(
         path, text, NATIVE_SAFETY_MARKERS, "WA05-BRIDGE-PRESERVATION-METADATA",
@@ -364,6 +528,25 @@ def bridge_phase_failures(path: Path, text: str) -> list[str]:
             failures.append(f"{path}: {code}: missing bounded native safety helper")
         else:
             failures.extend(require_markers(path, text[begin:finish], markers, code))
+    return failures
+
+
+def provenance_failures(path: Path, text: str) -> list[str]:
+    """Authenticate the shared exact pre-allocation Nameable classifier."""
+    failures: list[str] = []
+    start = text.find("private[examples] object NativeWireNameProvenance")
+    if start < 0:
+        return [f"{path}: WA05-NAME-PROVENANCE: shared provenance helper is missing"]
+    body = text[start:]
+    failures.extend(require_markers(
+        path, body, SUCCESSOR_PROVENANCE_MARKERS, "WA05-NAME-PROVENANCE",
+    ))
+    if body.count(PROVENANCE_NAME_LOOKUP) != 1:
+        failures.append(
+            f"{path}: WA05-NAME-PROVENANCE: require exactly one authenticated Nameable name read"
+        )
+    scanned = body.replace(PROVENANCE_NAME_LOOKUP, "retainedProvenanceNameMetadata", 1)
+    failures.extend(scan_text(path, scanned, BRIDGE_RULES))
     return failures
 
 
@@ -464,6 +647,7 @@ def check_repository(root: Path) -> list[str]:
         "source": pass_root / "src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala",
         "tests": pass_root / "src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala",
         "bridge": pass_root / "examples/NamedWireAliasNativeBridge.scala",
+        "provenance": pass_root / "examples/NativeWireExpressionCodec.scala",
         "metadata": root / "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala",
         "witness": pass_root / "examples/ParameterizedStreamFifo.scala",
         "roadmap": pass_root / "morphhdl-ir-wire-assignment-passes-todo.md",
@@ -481,6 +665,7 @@ def check_repository(root: Path) -> list[str]:
 
     source_text = paths["source"].read_text(encoding="utf-8")
     bridge_text = paths["bridge"].read_text(encoding="utf-8")
+    provenance_text = paths["provenance"].read_text(encoding="utf-8")
     test_text = paths["tests"].read_text(encoding="utf-8")
     witness_text = paths["witness"].read_text(encoding="utf-8")
     roadmap_text = paths["roadmap"].read_text(encoding="utf-8")
@@ -502,6 +687,9 @@ def check_repository(root: Path) -> list[str]:
     else:
         bridge_phase_text = bridge_text[phase_start:phase_end]
     failures.extend(bridge_phase_failures(paths["bridge"].relative_to(root), bridge_phase_text))
+    failures.extend(provenance_failures(
+        paths["provenance"].relative_to(root), provenance_text,
+    ))
     failures.extend(registered_identity_failures(
         {name: (pass_root / "examples" / name).read_text() for name in REGISTERED_IDENTITY_HOOKS},
         paths["metadata"].read_text(),
@@ -517,6 +705,7 @@ def check_repository(root: Path) -> list[str]:
     witness_markers = (
         "directNamedAlias",
         'setName("popPayloadNamedAlias")',
+        "expressionUnnamedAlias(popPayloadSource)",
         "directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))",
     )
     failures.extend(require_markers(
@@ -593,6 +782,17 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
     allowed_bridge = bridge_source[phase_start:phase_end]
     if bridge_phase_failures(Path("AllowedBridge.scala"), allowed_bridge):
         raise AssertionError("ordinary guarded Nameable metadata discovery was rejected")
+    provenance_source = (Path(__file__).resolve().parents[1] /
+                         "examples/NativeWireExpressionCodec.scala").read_text()
+    if provenance_failures(Path("AllowedProvenance.scala"), provenance_source):
+        raise AssertionError("exact shared Nameable provenance classifier was rejected")
+    for marker in SUCCESSOR_PROVENANCE_MARKERS:
+        mutant = provenance_source.replace(marker, "removedProvenanceGuard", 1)
+        failures = provenance_failures(Path("MutantProvenance.scala"), mutant)
+        if not any("WA05-NAME-PROVENANCE" in failure for failure in failures):
+            raise AssertionError(
+                f"native provenance mutation was not rejected: {marker}"
+            )
     bridge_mutations = (
         (allowed_bridge + 'component.definitionName == "ChosenComponent"',
          "WA05-BRIDGE-COMPONENT-RECOGNITION"),
@@ -627,6 +827,13 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
         failures = bridge_phase_failures(Path("MutantBridge.scala"), text)
         if not any(code in failure for failure in failures):
             raise AssertionError(f"bridge mutation was not rejected by {code}")
+    for marker in SUCCESSOR_BRIDGE_MARKERS:
+        mutant = allowed_bridge.replace(marker, "removedSuccessorProvenance")
+        failures = bridge_phase_failures(Path("MutantBridge.scala"), mutant)
+        if not any("WA05-BRIDGE-SUCCESSOR-PROVENANCE" in failure for failure in failures):
+            raise AssertionError(
+                f"successor bridge provenance mutation was not rejected: {marker}"
+            )
     for marker in NATIVE_SAFETY_MARKERS:
         failures = bridge_phase_failures(
             Path("MutantBridge.scala"), allowed_bridge.replace(marker, "removedSafetyGuard"),

@@ -7,8 +7,10 @@ and current full inherited checks are separate; neither replaces RTL proofs.
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +20,53 @@ ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-wa07b-inherited-review.py"
 CLOSURE = "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 ARTIFACTS = "morphhdl/scripts/check-increment-60f-artifacts.py"
+WA08_OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+
+
+def sha256(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def install_synthetic_overlay(root: Path, base: str, final_source_commit: str,
+                              files: dict[str, bytes]) -> None:
+    """Seal an exact successor delta with the real WA-08 overlay implementation."""
+    source = (ROOT / WA08_OVERLAY).read_bytes()
+    source = re.sub(rb'^BASE = "[0-9a-f]{40}"$',
+                    ('BASE = "' + base + '"').encode(), source, count=1, flags=re.M)
+    placeholder = b"0" * 64
+    source = re.sub(rb'^CONTRACT_SHA256 = "[0-9a-f]{64}"$',
+                    b'CONTRACT_SHA256 = "' + placeholder + b'"',
+                    source, count=1, flags=re.M)
+    normalized = re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',
+                        b'CONTRACT_SHA256 = "MANIFEST_HASH"',
+                        source, count=1, flags=re.M)
+    manifest = {
+        "schema_version": 1,
+        "base": base,
+        "final_source_commit": final_source_commit,
+        "helper_normalized_sha256": sha256(normalized),
+        "files": [
+            {
+                "path": path,
+                "mode": "100644",
+                "before_sha256": None,
+                "after_sha256": sha256(raw),
+            }
+            for path, raw in sorted(files.items())
+        ],
+    }
+    contract = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode()
+    source = source.replace(placeholder, sha256(contract).encode(), 1)
+    helper = root / WA08_OVERLAY
+    helper.parent.mkdir(parents=True, exist_ok=True)
+    helper.write_bytes(source)
+    # Multiple independently sealed variants are installed within one-second
+    # timestamp granularity in this synthetic repository. Never let a cached
+    # earlier verifier constant stand in for the exact helper bytes just written.
+    shutil.rmtree(helper.parent / "__pycache__", ignore_errors=True)
+    target = root / "morphhdl/contracts/increment-62-wa08-source-overlay.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(contract)
 
 
 def load(path: Path, name: str):
@@ -56,6 +105,9 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
     with tempfile.TemporaryDirectory(prefix="wa07b-source-controls-") as directory:
         root = Path(directory)
         git(root, "init", "-q")
+        # Match the production checkout: importing a Python verifier may create
+        # bytecode, which is ignored infrastructure rather than reviewed source.
+        (root / ".gitignore").write_text("__pycache__/\n")
         for path, data in baseline.items():
             target = root / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -160,9 +212,11 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
         extra = root / module.ROOTS[0] / "Unreviewed.scala"
         extra.write_text("// not reviewed\n")
         rejected("extra source", lambda: module.verify(root)); negatives += 1
-        (root / ".gitignore").write_text("Unreviewed.scala\n")
+        ignore = root / ".gitignore"
+        original_ignore = ignore.read_text()
+        ignore.write_text(original_ignore + "Unreviewed.scala\n")
         rejected("ignored extra source", lambda: module.verify(root)); negatives += 1
-        extra.unlink(); (root / ".gitignore").unlink()
+        extra.unlink(); ignore.write_text(original_ignore)
         # A source-name marker cannot select the profile while other files remain old.
         path = next(p for p in delta if p != module.MARKER)
         (root / path).write_bytes(baseline[path])
@@ -181,6 +235,77 @@ def synthetic_controls(helper_path: Path, manifest: dict, baseline: dict[str, by
         rejected("committed unreviewed bytes", lambda: module.verify(root)); negatives += 1
         git(root, "reset", "--hard", head)
         assert module.verify(root) is True
+
+        # A successor is allowed to extend the frozen pass inventory only after
+        # the complete new source set is bound to an immutable source commit by
+        # the independently verified outer overlay. Before that seal exists the
+        # same committed additions must be rejected by this historical audit.
+        successor = {
+            module.ROOTS[0] + "/scala/morphhdl/passes/transform/SyntheticSuccessorPass.scala":
+                b"package morphhdl.passes.transform\nobject SyntheticSuccessorPass\n",
+            module.ROOTS[1] + "/scala/morphhdl/passes/SyntheticSuccessorSpec.scala":
+                b"package morphhdl.passes\nobject SyntheticSuccessorSpec\n",
+        }
+        for path, data in successor.items():
+            target = root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        git(root, "add", "--", *successor)
+        git(root, "commit", "-qm", "synthetic unsealed successor additions")
+        source_commit = git(root, "rev-parse", "HEAD").decode().strip()
+        rejected("unsealed successor additions", lambda: module.verify(root),
+                 "unreviewed production delta")
+        negatives += 1
+
+        first_path = sorted(successor)[0]
+        install_synthetic_overlay(root, head, source_commit,
+                                  {first_path: successor[first_path]})
+        git(root, "add", "--", WA08_OVERLAY,
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json")
+        git(root, "commit", "-qm", "synthetic incomplete successor seal")
+        rejected("partially sealed successor additions", lambda: module.verify(root),
+                 "WA-08 source overlay")
+        negatives += 1
+        git(root, "reset", "--hard", source_commit)
+
+        install_synthetic_overlay(root, head, source_commit, successor)
+        git(root, "add", "--", WA08_OVERLAY,
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json")
+        git(root, "commit", "-qm", "synthetic sealed successor inventory")
+        sealed = git(root, "rev-parse", "HEAD").decode().strip()
+        assert module.verify(root) is True
+        inherited_paths = set(candidate) | set(successor)
+        assert module.inherited_inventory(root, inherited_paths, qualified) == set(candidate)
+
+        for path in successor:
+            target = root / path
+            original_successor = target.read_bytes()
+            target.write_bytes(original_successor + b"\n// unsealed mutation\n")
+            rejected("changed sealed successor " + path, lambda: module.verify(root),
+                     "WA-08 source overlay")
+            negatives += 1
+            target.write_bytes(original_successor)
+            target.unlink()
+            rejected("missing sealed successor " + path, lambda: module.verify(root),
+                     "WA-08 source overlay")
+            negatives += 1
+            target.write_bytes(original_successor)
+
+        unexpected = root / module.ROOTS[0] / "scala/morphhdl/passes/transform/UnexpectedSuccessor.scala"
+        unexpected.write_text("package morphhdl.passes.transform\nobject UnexpectedSuccessor\n")
+        rejected("untracked successor outside seal", lambda: module.verify(root),
+                 "WA-08 source overlay")
+        negatives += 1
+        git(root, "add", "--", unexpected.relative_to(root).as_posix())
+        git(root, "commit", "-qm", "synthetic committed successor outside seal")
+        rejected("committed successor outside seal", lambda: module.verify(root),
+                 "WA-08 source overlay")
+        negatives += 1
+        git(root, "reset", "--hard", sealed)
+        assert module.verify(root) is True
+        git(root, "reset", "--hard", head)
+        assert module.verify(root) is True
+
         # Once the qualified branch is merged, wholesale removal cannot silently
         # downgrade the source profile to the old 14-suite obligations.
         tree = git(root, "rev-parse", "HEAD^{tree}").decode().strip()

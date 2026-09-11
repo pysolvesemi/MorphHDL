@@ -232,6 +232,7 @@ lazy val morph = (project in file("morphhdl"))
       val examples = baseDirectory.value.getParentFile / "morphhdl-passes" / "examples"
       Seq("ParameterizedStreamFifo", "UnnamedWireAliasNativeBridge",
         "NamedWireAliasNativeBridge", "UnnamedWireExpressionNativeBridge",
+        "NativeWireExpressionCodec", "NamedWireExpressionNativeBridge",
         "ConstantOperandNativeBridge", "BooleanTernaryNativeBridge")
         .map(name => examples / (name + ".scala"))
     },

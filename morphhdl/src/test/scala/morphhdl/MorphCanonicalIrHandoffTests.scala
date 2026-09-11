@@ -696,8 +696,9 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           }
           assert(observed.get())
           val verilog = read(java.nio.file.Paths.get(report.generatedSourcesPaths.head))
-          assert(verilog.contains("ordinarySource"))
+          assert(!verilog.contains("ordinarySource"))
           assert(!verilog.contains("ordinaryAlias"))
+          assert(verilog.contains("assign ordinaryResult = (choose ^ input_1[0]);"))
           verilog
         }
         val default = generate("default")
@@ -732,7 +733,8 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
                 }
                 val declarations = live.result()
                 assert(alias.get().isEmptyOfTag, "the candidate must remain an ordinary untagged alias")
-                assert(declarations.exists(_ eq retainedSource.get()))
+                assert(declarations.exists(_ eq retainedSource.get()) == expectRetained,
+                  s"$metadata/$mode did not preserve the source expression metadata contract")
                 assert(declarations.exists(_ eq alias.get()) == expectRetained,
                   s"$metadata/$mode did not preserve the native metadata contract")
                 retainedTag.get() match {
@@ -781,6 +783,8 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           assert(observed.get())
           val verilog = read(java.nio.file.Paths.get(report.generatedSourcesPaths.head))
           assert(verilog.contains("ordinaryAlias") == expectRetained, metadata + "/" + mode)
+          if (!expectRetained)
+            assert(verilog.contains("assign result = (choose ^ input_1[0]);"), metadata + "/" + mode)
           verilog
         }
         val default = generate("default")

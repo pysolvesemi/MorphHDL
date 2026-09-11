@@ -198,24 +198,40 @@ def verify(root: Path) -> bool:
             require(not path.is_symlink(), "symlink in pass source inventory: " + path.relative_to(root).as_posix())
             if path.is_file():
                 physical.add(path.relative_to(root).as_posix())
-    # Older source-audit controls require this diagnostic category. The new
-    # exact inventory check can reject a changed sibling before those audits
-    # run; preserve the category without permitting any different source bytes.
+    # A verified outer successor may add pass sources which did not exist at
+    # this frozen WA-07b boundary. Project that exact authenticated inventory
+    # before comparing names; overlay.verify above already rejected every
+    # unreviewed, dirty, linked or mismatched current path. Raw index/tree
+    # equality is still checked below, and every inherited path is restored to
+    # its immutable byte view before its digest is accepted.
+    projected_entries = set(entries)
+    projected_physical = set(physical)
+    if overlay is not None:
+        projected_entries = overlay.inherited_inventory(
+            root, projected_entries, QUALIFIED if enabled else BASE)
+        projected_physical = overlay.inherited_inventory(
+            root, projected_physical, QUALIFIED if enabled else BASE)
+
+    # Older source-audit controls require this diagnostic category. The exact
+    # projected inventory check can reject a changed sibling before those
+    # audits run; preserve the category without permitting different bytes.
     main = lambda paths: {path for path in paths if path.startswith(ROOTS[0] + "/")}
-    require(main(entries) == main(expected) and main(physical) == main(expected),
+    require(main(projected_entries) == main(expected) and
+            main(projected_physical) == main(expected),
             "unreviewed production delta: incomplete or extra pass main source inventory; " +
-            "missing=" + repr(sorted(main(expected) - main(physical))) +
-            "; extra=" + repr(sorted(main(physical) - main(expected))))
+            "missing=" + repr(sorted(main(expected) - main(projected_physical))) +
+            "; extra=" + repr(sorted(main(projected_physical) - main(expected))))
     # Removing only the ternary marker selects the old inventory. Verify the
     # remaining main bytes before reporting extra tests from a partial upgrade.
     for path in sorted(main(expected)):
         inherited = restore_wa08(root, path, regular(root, path))
         require(digest(inherited) == expected[path],
                 "unreviewed production delta: unreviewed pass main/test bytes: " + path)
-    require(set(entries) == set(expected) and physical == set(expected),
+    require(projected_entries == set(expected) and
+            projected_physical == set(expected),
             "incomplete or extra pass main/test source inventory; " +
-            "missing=" + repr(sorted(set(expected) - physical)) +
-            "; extra=" + repr(sorted(physical - set(expected))))
+            "missing=" + repr(sorted(set(expected) - projected_physical)) +
+            "; extra=" + repr(sorted(projected_physical - set(expected))))
     indexed = {}
     for record in git(root, "ls-files", "--stage", "-z", "--", *ROOTS).split(b"\0"):
         if not record:

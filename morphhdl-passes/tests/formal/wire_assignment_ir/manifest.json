@@ -163,6 +163,16 @@
         "activation_item": "WA-07b",
         "candidate": "morphhdl-passes/build/pass-outputs/wire-assignment-five-pass.v",
         "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+constant-operand-simplification+boolean-ternary-simplification"
+      },
+      {
+        "activation_item": "WA-09",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-expression-named.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+wire-expression-named"
+      },
+      {
+        "activation_item": "WA-09",
+        "candidate": "morphhdl-passes/build/pass-outputs/wire-assignment-six-pass.v",
+        "pass_id": "wire-alias-unnamed+wire-alias-named+wire-expression-unnamed+wire-expression-named+constant-operand-simplification+boolean-ternary-simplification"
       }
     ],
     "generated_file_name": "parameterized_stream_fifo.v",

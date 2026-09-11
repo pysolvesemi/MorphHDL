@@ -1183,6 +1183,70 @@ dependency chain is unchanged and may proceed independently.
   inventory. This increment changes qualification/source-audit compatibility
   only and does not change generated Verilog.
 
+### WA-09 named-expression optimization track (Increment 63)
+
+- [ ] **Increment 63 — Named expression-wire elimination and provenance-first alias preference**
+
+  **Dependencies:** Increment 62 and WA-08 implemented and merged. This
+  successor is independent of unfinished Increments 59i and 61.
+
+  Extend the one-flag production wire pipeline from its frozen historical five
+  stages to six by adding bounded named continuous wire-expression inlining
+  after the unnamed expression stage and before constant/ternary
+  simplification. Reuse the canonical expression safety and rewrite engine,
+  capture the exact native RHS, and fail closed when the expression, naming,
+  type, scope, receiver or metadata inventory is incomplete. Preserve explicit
+  opt-out and exact historical three-, four- and five-stage artifacts.
+
+  Native validation must capture the actual source and receiver RHS with
+  `NativeWireExpressionCodec`, replace only whole-RHS continuous receivers and
+  represent `TypeBool` at width one; it must not fabricate a representative
+  XOR or another expression. Reverse source removal requires the canonical
+  preference decision over both actual direct edges and independent native
+  safety. Expression-driven sources retain pass ownership: true unnamed
+  provenance dispatches to `UnnamedWireExpressionNativePhase`, while
+  explicit/reflected/generated provenance dispatches to
+  `NamedWireExpressionNativePhase`.
+
+  Refine direct-alias planning with provenance before length. A non-removable
+  port, register, hierarchy/preservation identity or otherwise ineligible
+  declaration always survives. Among independently removable declarations,
+  `Explicit`/`Reflected` names beat `Unnamed`/`Generated`; only meaningful names
+  are compared by length, then by deterministic name and symbol identity.
+  Never infer provenance from `_zz` or any emitted spelling, rename a survivor,
+  transfer a removed name, or reverse an assignment without the full existing
+  removal proof.
+
+  Close the separately reproduced emitter boundary where
+  `fillExpressionToWrap` creates anonymous expression carriers only after all
+  pre-emission passes have finished. Permit emission-time wrapper elision solely
+  for an exact homogeneous fixed-width unsigned `UInt` addition tree feeding a
+  whole-object fixed-width unsigned receiver. Its leaves are same-width fixed
+  `UInt` values or exact unsigned widening resizes from narrower fixed `UInt`
+  values, and every synthetic expression node must be unannotated and uniquely
+  used. Fixed native 16-to-18 `ResizeUInt` wrappers inline completely. Tagged
+  parameterized resize carriers remain declared and may serve as proven fixed
+  18-bit leaves while only their surrounding `Add` wrappers inline. The
+  positive witness uses four 16-bit inputs in an 18-bit domain (`0..262140`),
+  and a same-width 18-bit companion proves unchanged modular-overflow tree
+  semantics. Retain wrappers for mixed widths, signed values, narrowing,
+  selections, direct symbolic-width expression nodes, other operators or
+  incomplete facts. This is a graph/type-proven emitter policy, not a seventh
+  pass or emitted-text cleanup. The exact source is
+  `morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala`;
+  run `sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"`.
+
+  The public ordinary-alias fixture must reduce the chain through `bitSource`
+  and `bitCloneAlias` to `assign clonedResult = (a ^ b);`, while retaining the
+  output port. Add both alias orientations, generated-short and explicitly
+  named `_zz` controls, equal-length ties, fanout, symbolic-width/signedness,
+  four-state and all safety exclusions, plus the unsigned-add positive and
+  wrapper-retention controls above. Require dual-Scala deterministic and
+  idempotent results, strict Verilog-2001, lint, synthesis, simulation,
+  functional mutation, formal equivalence and every inherited final-head gate
+  before marking this increment complete. The bounded contract is recorded in
+  [`wa09-named-expression-and-name-preference.md`](../../morphhdl-passes/wa09-named-expression-and-name-preference.md).
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
@@ -1194,3 +1258,7 @@ SpinalHDL. Native algorithms must remain authoritative, approved native changes
 must be small and mechanical, and the production implementation must not
 reconstruct symbolic meaning from erased Scala values, component names,
 source-file special cases, emitted identifiers or equal concrete witnesses.
+The independent Increment 63 track additionally requires the six-stage
+production wire pipeline and provenance-first direct-alias survivor selection
+to pass its complete final-head qualification without changing these
+parameterized-publication requirements.

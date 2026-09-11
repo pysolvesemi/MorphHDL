@@ -8,7 +8,7 @@ import spinal.core.SpinalConfig
   * The product surface intentionally exposes one all-or-none flag, enabled by
   * default. Explicitly disabling it preserves legacy generation, including when
   * the configuration is passed to MorphVerilog. Enabling the flag installs the
-  * reviewed five-stage canonical-IR pipeline after typed
+  * reviewed six-stage canonical-IR pipeline after typed
   * parameterization and width normalization, and before backend naming and
   * structured Verilog-2001 emission.
   */

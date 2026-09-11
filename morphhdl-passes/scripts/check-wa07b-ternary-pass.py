@@ -72,7 +72,7 @@ MARKERS = {
              'BooleanTernarySimplificationPass.run(snapshot)',
              'codec.decode(result.output.modules.head.drivers.head.value)',
              'assignment.source = rewritten', 'executionRounds :+= executed',
-             'WireAliasPassConfiguration(enabled = true).enabledPasses',
+             'PassId.historicalBooleanTernaryPasses: _*',
              'ternary_no_op', 'actual_rhs_capture_writeback', 'procedural_receiver_rewrites',
              'ParameterizedStreamFifoBooleanTernaryWitness', 'BooleanTernaryGenericNativeWitness'),
     CODEC: ('private[examples] def eligible', 'private[examples] final class BooleanCodec',
