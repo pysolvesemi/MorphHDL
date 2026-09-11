@@ -89,10 +89,20 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
       val parameterized = emitMorph(directory, "native_pipes.v", new NativePipes(width))
+      val legacyConfig = MorphWireAssignmentPasses(config(directory), enabled = false)
+      legacyConfig.netlistFileName = "native_pipes_legacy.v"
+      MorphVerilog(legacyConfig)(new NativePipes(width))
+      val legacy = read(directory.resolve("native_pipes_legacy.v"))
       val concrete = emitConcrete(directory, "native_pipes_concrete.v", new NativePipes(width))
+      NativeWireCompatibility.check(directory, parameterized, concrete, "NativePipes",
+        Vector("WIDTH" -> 8), "pipes_native")
+      Vector(1, 8, 32).foreach { value =>
+        NativeWireCompatibility.check(directory, parameterized, legacy, "NativePipes",
+          Vector("WIDTH" -> value), "pipes_legacy_" + value)
+      }
 
       assert(
-        module(concretize(parameterized, "NativePipes", 8), "NativePipes") ==
+        module(concretize(legacy, "NativePipes", 8), "NativePipes") ==
           module(concrete, "NativePipes")
       )
       assert(parameterized.contains("parameter integer WIDTH = 8"))

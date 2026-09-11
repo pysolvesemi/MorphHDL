@@ -88,6 +88,7 @@ object MorphHdlExternalParameterizedVerilog {
       )
     }
     val target = targetPath(pc, top)
+    top.userCache.remove(PublishedWidthParametersKey)
     if (!Files.isRegularFile(target)) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-SOURCE-MISSING",
@@ -112,6 +113,7 @@ object MorphHdlExternalParameterizedVerilog {
       )
     )
     validateFormalDeclarations(components)
+    val publishedWidthParameters = ExternalParameterizedHierarchyResizeWidth.parametersOf(top)
 
     val componentIdentities = new IdentityHashMap[Component, java.lang.Boolean]()
     components.foreach(component => componentIdentities.put(component, java.lang.Boolean.TRUE))
@@ -259,7 +261,16 @@ object MorphHdlExternalParameterizedVerilog {
       lines.drop(cursor).foreach(rewritten += _)
       publishAtomically(target, rewritten.result().mkString("\n"))
     }
+    top.userCache.update(PublishedWidthParametersKey, publishedWidthParameters)
   }
+
+  private object PublishedWidthParametersKey
+
+  /** Validated publication inventory survives cleanup of native resize lineage. */
+  def publishedWidthParametersOf(component: Component): Vector[ElaborationIntegerParameter] =
+    component.userCache.get(PublishedWidthParametersKey)
+      .map(_.asInstanceOf[Vector[ElaborationIntegerParameter]])
+      .getOrElse(ParameterizedWidth.parametersOf(component))
 
   private def targetPath(pc: PhaseContext, top: Component): Path = {
     val filename =
@@ -332,7 +343,7 @@ object MorphHdlExternalParameterizedVerilog {
 
     component.dslBody.walkLeafStatements {
       case baseType: BaseType =>
-        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)
+        ExternalParameterizedHierarchyResizeWidth.expressionOf(component, baseType).foreach(retainInteger)
       case _ =>
     }
 
@@ -755,7 +766,7 @@ object MorphHdlExternalParameterizedVerilog {
       component: Component
   ): Vector[ElaborationIntegerParameter] = {
     val values =
-      ParameterizedWidth.parametersOf(component) ++
+      ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
         ExternalParameterizedAutoResize.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
@@ -778,7 +789,7 @@ object MorphHdlExternalParameterizedVerilog {
   }
 
   private def hasParameterizedMetadata(component: Component): Boolean =
-    ParameterizedWidth.parametersOf(component).nonEmpty ||
+    ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
@@ -805,7 +816,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def requiresExpressionHierarchyRewrite(
       component: Component
   ): Boolean =
-    ParameterizedWidth.parametersOf(component).nonEmpty ||
+    ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
       ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
@@ -814,7 +825,7 @@ object MorphHdlExternalParameterizedVerilog {
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
-        ParameterizedWidth.parametersOf(child).nonEmpty ||
+        ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
         ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
         ParameterizedMemory.parametersOf(child).nonEmpty ||
         ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||

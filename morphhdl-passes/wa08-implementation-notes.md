@@ -48,6 +48,12 @@ repeated configuration and enable/disable transitions. Historical proof
 witnesses explicitly opt out of the production default and retain their own
 independent pass selections. No new qualification result is claimed here.
 
+The default-on revision also exposed a production candidate-discovery defect:
+the named-wire native adapter required a tag attached only by the FIFO fixture.
+Its repair belongs to WA-08 and uses ordinary elaboration naming metadata.
+See [named-alias repair evidence](wa08-named-alias-fix.md) for the preserved
+eligibility limits, public-path regressions and actual before/after Verilog.
+
 
 ## Public flag example
 

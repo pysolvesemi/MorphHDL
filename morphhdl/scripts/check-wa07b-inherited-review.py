@@ -263,10 +263,13 @@ def inherited_inventory(root: Path, paths: set[str], qualification_base: str) ->
 
 
 def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:
-    source = restore_wa08(root, path, source)
     value = load_contract(root)
     if path not in value["production_delta"]:
         return source
+    # Non-pass sources may already be restored by the independently verified
+    # publication layer. Only reverse the WA-08 overlay on this layer's owned
+    # pass sources; their exact signatures remain mandatory below.
+    source = restore_wa08(root, path, source)
     require(digest(source) == value["ternary_sources"][path], "unreviewed B source in inherited byte view: " + path)
     if path not in value["baseline_sources"]:
         require(not git(root, "ls-tree", BASE, "--", path), "new B source exists in the old baseline")

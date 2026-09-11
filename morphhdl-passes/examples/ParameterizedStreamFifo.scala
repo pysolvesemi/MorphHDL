@@ -7,9 +7,6 @@ import morphhdl.frontend.HdlInt
 import spinal.core._
 import spinal.lib._
 
-/** Test-only source/elaboration provenance for an explicitly user-named alias. */
-private[examples] final case class ExplicitNamedWireAliasSourceTag(name: String) extends SpinalTag
-
 /** Runnable example that emits one StreamFifo whose depth remains a Verilog parameter. */
 final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Component {
   setDefinitionName("ParameterizedStreamFifo")
@@ -31,7 +28,6 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   private def directNamedAlias[T <: Data](source: T): T = {
     val alias = ParameterizedWidth.cloneOf(source)
     alias.setName("popPayloadNamedAlias")
-    alias.addTag(ExplicitNamedWireAliasSourceTag("popPayloadNamedAlias"))
     alias := source
     alias
   }

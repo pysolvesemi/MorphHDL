@@ -94,7 +94,7 @@ private[internals] object ParameterizedVerilogStructural {
       "native scalar templates cannot carry unvalidated structural effects")
     val lines = verilog.split("\n", -1).toVector
     val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet
-    val parameters = mergeParameters(ParameterizedWidth.parametersOf(component) ++
+    val parameters = mergeParameters(ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
       ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component))
     val scalar = resolveScalarOperatorReplay(component, blocks, lines)
     val targets = blocks.flatMap(_.assignments.map(_.finalTarget.getName())).toSet
@@ -176,7 +176,7 @@ private[internals] object ParameterizedVerilogStructural {
     }
     val parameters = mergeParameters(
       childActualParameters ++
-        ParameterizedWidth.parametersOf(component) ++
+        ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++

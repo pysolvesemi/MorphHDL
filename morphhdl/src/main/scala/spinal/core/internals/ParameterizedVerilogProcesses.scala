@@ -470,7 +470,7 @@ private[internals] object ParameterizedVerilogProcesses {
     }
     val parameterNames =
       (
-        ParameterizedWidth.parametersOf(component) ++
+        ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
           ParameterizedVerilogVecs.parametersOf(component) ++
           ParameterizedStructure.parametersOf(component) ++
           ParameterizedProcess.parametersOf(component)

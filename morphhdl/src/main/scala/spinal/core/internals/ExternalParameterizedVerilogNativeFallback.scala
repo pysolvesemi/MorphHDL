@@ -42,7 +42,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ): Boolean =
     eligibleGateFailures.contains(failure.code) &&
       (
-        ParameterizedWidth.parametersOf(component).nonEmpty ||
+        ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ParameterizedMemory.parametersOf(component).nonEmpty ||
           ExternalParameterizedValueRegistry.parametersOf(component).nonEmpty ||
@@ -51,7 +51,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
-            ParameterizedWidth.parametersOf(child).nonEmpty ||
+            ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ParameterizedMemory.parametersOf(child).nonEmpty ||
             ExternalParameterizedValueRegistry.parametersOf(child).nonEmpty ||
@@ -3068,7 +3068,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
                   ExternalParameterizedAutoResize
                     .sourceDriverOfResizeSource(component, baseType)
                     .map { driver =>
-                      val sourceWidth = ofExpression(driver.source)
+                      val sourceWidth = ExternalParameterizedHierarchyResizeWidth
+                        .sourceWidthOf(component, baseType).map(retained)
+                        .getOrElse(ofExpression(driver.source))
                       if (sourceWidth.default != BigInt(baseType.getBitsWidth)) {
                         fail(
                           "SPINAL-PARAMETERIZED-VERILOG-AUTO-RESIZE-SOURCE-WITNESS-MISMATCH",

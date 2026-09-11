@@ -49,9 +49,14 @@ private final class CanonicalIrNoPublicationPhase(
   }
 }
 
+private final class CanonicalHiddenComment(val retained: BaseType)
+    extends CommentTag("native comment subclass")
+private final class CanonicalHiddenTimingPath(val retained: BaseType)
+    extends crossClockFalsePath(None)
+
 final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
   private def typedAlias(
-      definitionName: String = "GenericTypedAlias",
+      componentName: String = "GenericTypedAlias",
       inputName: String = "payload_in",
       aliasName: String = "payload_alias",
       outputName: String = "payload_out",
@@ -59,7 +64,7 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
   ): Component = {
     val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 64)
     new Component {
-      setDefinitionName(definitionName)
+      setDefinitionName(componentName)
       val input = in(Bits(width bits)).setName(inputName)
       val aliasValue = Bits(width bits).setName(aliasName).dontSimplifyIt()
       val output = out(Bits(width bits)).setName(outputName)
@@ -625,6 +630,163 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           "MORPH-IR-PRODUCER-ASSIGNMENT-OVERRIDE-UNSUPPORTED"
         )
       )
+    }
+  }
+
+  test("public wire passes retain exact named and unnamed Vec carriers beside an ordinary alias") {
+    withTemporaryDirectory { directory =>
+      for (componentName <- Vector("RetainedCarrierProbe", "UnrelatedGeometryRouter")) {
+        def generate(mode: String): String = {
+          val target = directory.resolve(componentName + "-" + mode)
+          Files.createDirectories(target)
+          val config = SpinalConfig(targetDirectory = target.toString)
+          config.netlistFileName = "design.v"
+          val owned = new AtomicReference[Vector[BaseType]]()
+          val ordinary = new AtomicReference[BaseType]()
+          val observed = new AtomicBoolean(false)
+          config.phasesInserters += { phases =>
+            val boundary = phases.indexWhere(_.isInstanceOf[PhasePropagateNames])
+            assert(boundary >= 0)
+            phases.insert(boundary, new PhaseMisc {
+              override def impl(pc: PhaseContext): Unit = {
+                val live = Vector.newBuilder[BaseType]
+                pc.topLevel.dslBody.walkDeclarations {
+                  case leaf: BaseType => live += leaf
+                  case _ =>
+                }
+                val declarations = live.result()
+                assert(owned.get().size == 4)
+                assert(owned.get().forall(value => declarations.exists(_ eq value)))
+                assert(!declarations.exists(_ eq ordinary.get()))
+                observed.set(true)
+              }
+            })
+          }
+          val selected = if (mode == "enabled") MorphWireAssignmentPasses(config)
+            else config
+          val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 8)
+          val report = MorphVerilog(selected) {
+            new Component {
+              setDefinitionName(componentName)
+              val input = in(Bits(width bits))
+              val other = in(Bits(width bits))
+              val choose = in(Bool())
+              val namedResult = out(Bits(width bits))
+              val unnamedResult = out(Bits(width bits))
+              val ordinaryResult = out(Bool())
+              val source = Bits(width bits)
+              source := input ^ other
+              val namedValues = morphhdl.frontend.Vec(Bits(width bits), 2)
+              @dontName val unnamedValues = morphhdl.frontend.Vec(Bits(width bits), 2)
+              namedValues(0) := source
+              namedValues(1) := namedValues(0)
+              unnamedValues(0) := source
+              unnamedValues(1) := unnamedValues(0)
+              namedResult := namedValues(1)
+              unnamedResult := unnamedValues(1)
+              val ordinarySource = Bool()
+              ordinarySource := choose ^ input(0)
+              val ordinaryAlias = Bool()
+              ordinaryAlias := ordinarySource
+              ordinaryResult := ordinaryAlias
+              owned.set(namedValues.asInstanceOf[Data].flatten.toVector ++
+                unnamedValues.asInstanceOf[Data].flatten.toVector)
+              ordinary.set(ordinaryAlias)
+            }
+          }
+          assert(observed.get())
+          val verilog = read(java.nio.file.Paths.get(report.generatedSourcesPaths.head))
+          assert(verilog.contains("ordinarySource"))
+          assert(!verilog.contains("ordinaryAlias"))
+          verilog
+        }
+        val default = generate("default")
+        assert(default == generate("enabled"))
+        assert(default == generate("repeated"))
+      }
+    }
+  }
+
+  test("public wire passes retain aliases referenced by unknown native metadata subclasses") {
+    withTemporaryDirectory { directory =>
+      for (metadata <- Vector("none", "native-comment", "comment-subclass", "native-timing", "timing-subclass")) {
+        def generate(mode: String): String = {
+          val target = directory.resolve(metadata + "-" + mode)
+          Files.createDirectories(target)
+          val config = SpinalConfig(targetDirectory = target.toString)
+          config.netlistFileName = "design.v"
+          val alias = new AtomicReference[BaseType]()
+          val retainedSource = new AtomicReference[BaseType]()
+          val retainedTag = new AtomicReference[SpinalTag]()
+          val observed = new AtomicBoolean(false)
+          val expectRetained = mode == "disabled" || metadata.endsWith("subclass")
+          config.phasesInserters += { phases =>
+            val boundary = phases.indexWhere(_.isInstanceOf[PhasePropagateNames])
+            assert(boundary >= 0)
+            phases.insert(boundary, new PhaseMisc {
+              override def impl(pc: PhaseContext): Unit = {
+                val live = Vector.newBuilder[BaseType]
+                pc.topLevel.dslBody.walkDeclarations {
+                  case leaf: BaseType => live += leaf
+                  case _ =>
+                }
+                val declarations = live.result()
+                assert(alias.get().isEmptyOfTag, "the candidate must remain an ordinary untagged alias")
+                assert(declarations.exists(_ eq retainedSource.get()))
+                assert(declarations.exists(_ eq alias.get()) == expectRetained,
+                  s"$metadata/$mode did not preserve the native metadata contract")
+                retainedTag.get() match {
+                  case tag: CanonicalHiddenComment => assert(tag.retained eq alias.get())
+                  case tag: CanonicalHiddenTimingPath => assert(tag.retained eq alias.get())
+                  case _ =>
+                }
+                observed.set(true)
+              }
+            })
+          }
+          val selected = mode match {
+            case "enabled" => MorphWireAssignmentPasses(config, enabled = true)
+            case "disabled" => MorphWireAssignmentPasses(config, enabled = false)
+            case "default" => config
+          }
+          val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 8)
+          val report = MorphVerilog(selected) {
+            new Component {
+              setDefinitionName("NativeMetadataSubclassProbe")
+              val input = in(Bits(width bits))
+              val choose = in(Bool())
+              val result = out(Bool())
+              val metadataOwner = out(Bits(width bits))
+              val source = Bool()
+              source := choose ^ input(0)
+              val ordinaryAlias = Bool()
+              ordinaryAlias := source
+              result := ordinaryAlias
+              metadataOwner := input
+              val tag: Option[SpinalTag] = metadata match {
+                case "none" => None
+                case "native-comment" => Some(new CommentTag("native comment"))
+                case "comment-subclass" => Some(new CanonicalHiddenComment(ordinaryAlias))
+                case "native-timing" => Some(crossClockFalsePath(None))
+                case "timing-subclass" => Some(new CanonicalHiddenTimingPath(ordinaryAlias))
+              }
+              tag.foreach { value =>
+                metadataOwner.addTag(value)
+                retainedTag.set(value)
+              }
+              alias.set(ordinaryAlias)
+              retainedSource.set(source)
+            }
+          }
+          assert(observed.get())
+          val verilog = read(java.nio.file.Paths.get(report.generatedSourcesPaths.head))
+          assert(verilog.contains("ordinaryAlias") == expectRetained, metadata + "/" + mode)
+          verilog
+        }
+        val default = generate("default")
+        assert(default == generate("enabled"))
+        generate("disabled")
+      }
     }
   }
 

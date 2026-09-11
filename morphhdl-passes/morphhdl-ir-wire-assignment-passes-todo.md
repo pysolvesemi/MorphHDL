@@ -685,6 +685,13 @@ WA-04 or WA-05 can remove an alias.
   [implementation and qualification notes](wa08-implementation-notes.md) and
   [PR #178](https://github.com/pysolvesemi/MorphHDL/pull/178).
 
+  The production named-alias discovery defect found at `39d888874` is a repair
+  of this completed handoff. Ordinary source/elaboration names must qualify
+  without the former fixture-only tag. The repair retains the existing
+  source-scope, use-context, type and preservation limits; its public-path
+  regression coverage and actual emitted examples are recorded in
+  [named-alias repair evidence](wa08-named-alias-fix.md).
+
   Eligible to start only once WA-07b is implemented, checked complete and
   merged into `parameterized-verilog`; an open implementation PR does not
   satisfy that dependency. Expand PV-58's validated
