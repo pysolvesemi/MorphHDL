@@ -206,7 +206,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "b38964d36720bbc1ffab9a6c1015d9595b046dbb",
+  "final_source_commit": "583feb581d51b7fc0972baafb201ec5cceaa4128",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
