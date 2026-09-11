@@ -185,9 +185,8 @@ jobs:
             else
               mode=$(git ls-files -s -- "$path" | awk '{print $1}')
               test -n "$mode"
-              encoded=$(base64 -w0 "$path")
-              blob=$(jq -nc --arg content "$encoded" \
-                '{content:$content,encoding:"base64"}' | \
+              blob=$(base64 -w0 "$path" | \
+                jq -Rs '{content:.,encoding:"base64"}' | \
                 gh api --method POST "repos/$REPOSITORY/git/blobs" --input - --jq .sha)
               jq --arg path "$path" --arg mode "$mode" --arg sha "$blob" \
                 '. + [{path:$path,mode:$mode,type:"blob",sha:$sha}]' \
