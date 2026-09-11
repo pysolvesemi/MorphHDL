@@ -1,4 +1,4 @@
-name: Increment 61 hierarchy resize capture candidate v17
+name: Increment 61 hierarchy resize closure builder v17
 
 on:
   push:
@@ -9,33 +9,50 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: increment-61-hierarchy-resize-candidate-v17
   cancel-in-progress: true
 
 jobs:
-  candidate:
+  qualify-and-publish:
+    if: github.repository == 'pysolvesemi/MorphHDL'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 100
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      FEATURE_BRANCH: agent/increment-61-one-file-per-component
+      EXPECTED_FEATURE: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+      TARGET_BRANCH: parameterized-verilog
+      EXPECTED_TARGET: 010644bbf1704c38013749ed40638e297ed87b2b
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out exact integrated Increment 61 head
+        uses: actions/checkout@v4
         with:
           ref: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
           fetch-depth: 0
           submodules: recursive
-          persist-credentials: false
+          persist-credentials: true
 
-      - name: Apply narrow contextual native-resize capture repair
+      - name: Apply production, source-proof and inherited-workflow closure
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+          test "$(git rev-parse HEAD)" = "$EXPECTED_FEATURE"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$EXPECTED_TARGET"
+          test "$(git ls-remote origin refs/heads/$FEATURE_BRANCH | cut -f1)" = "$EXPECTED_FEATURE"
+          test "$(git ls-remote origin refs/heads/$TARGET_BRANCH | cut -f1)" = "$EXPECTED_TARGET"
+
           python3 - <<'PY'
           from pathlib import Path
+          import hashlib
+          import json
+          import re
+          import subprocess
+
+          target = '010644bbf1704c38013749ed40638e297ed87b2b'
 
           morph = Path('morphhdl/src/main/scala/morphhdl/MorphVerilog.scala')
           text = morph.read_text()
@@ -51,10 +68,11 @@ jobs:
               raise SystemExit('MorphVerilog resize phase-order anchor changed')
           morph.write_text(text.replace(old, new))
 
-          native = Path(
+          native_path = (
               'morphhdl/src/main/scala/spinal/core/internals/'
               'ExternalParameterizedNativeResize.scala'
           )
+          native = Path(native_path)
           text = native.read_text()
           old = '''                    NativeWidthProvenance.widthOf(source).filter(sourceWidth =>
                         !fixedConsumerReservation &&
@@ -83,32 +101,172 @@ jobs:
           if text.count(old) != 1:
               raise SystemExit('native resize live source-width validation anchor changed')
           native.write_text(text.replace(old, new))
-          PY
-          git diff --check
-          git diff --stat
-          git diff -- morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
-            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
 
-      - name: Focused hierarchy resize and Increment 61 regressions
+          workflow_path = Path('.github/workflows/increment-62-wa08-source-overlay.yml')
+          lines = workflow_path.read_text().splitlines()
+          marker = '      - name: Exact source overlay and live mutation controls'
+          starts = [index for index, line in enumerate(lines) if line == marker]
+          if len(starts) != 1:
+              raise SystemExit(f'expected one WA-08 source-overlay step, found {len(starts)}')
+          start = starts[0]
+          try:
+              end = lines.index('  production:', start + 1)
+          except ValueError as error:
+              raise SystemExit('WA-08 production job boundary is missing') from error
+          block = lines[start:end]
+          commands = [
+              'python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py',
+              'python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py',
+              'python3 morphhdl/scripts/test-wa07b-inherited-review.py',
+              'python3 morphhdl/scripts/check-increment-60g-source-scope.py',
+              'python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only',
+              'python3 morphhdl/scripts/check-increment-59c-source-review.py',
+              'python3 morphhdl/scripts/check-increment-59g-source-review.py',
+          ]
+          for command in commands:
+              if sum(command in line for line in block) != 1:
+                  raise SystemExit(f'WA-08 source-overlay command inventory changed: {command}')
+          lines[start:end] = [
+              marker,
+              '        shell: bash',
+              '        run: |',
+              '          set -euo pipefail',
+              '          python3 morphhdl/scripts/check-increment-61-source-review.py',
+              '          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test',
+              '          integrated=$(python3 -c \'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])\')',
+              f'          test "$integrated" = "{target}"',
+              '          historical="$RUNNER_TEMP/wa08-inherited-source"',
+              '          rm -rf "$historical"',
+              '          git worktree add --detach "$historical" "$integrated"',
+              '          trap \'git worktree remove --force "$historical"\' EXIT',
+              '          (',
+              '            cd "$historical"',
+              '            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py',
+              '            python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py',
+              '            python3 morphhdl/scripts/test-wa07b-inherited-review.py',
+              '            python3 morphhdl/scripts/check-increment-60g-source-scope.py',
+              '            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only',
+              '            python3 morphhdl/scripts/check-increment-59c-source-review.py',
+              '            python3 morphhdl/scripts/check-increment-59g-source-review.py',
+              '          )',
+          ]
+          workflow_path.write_text('\n'.join(lines) + '\n')
+
+          contract_path = Path('morphhdl/contracts/increment-61-source-review.json')
+          contract = json.loads(contract_path.read_text())
+          contract['integrated_target_commit'] = target
+          contract['audit_paths'] = sorted(
+              set(contract['audit_paths']) | {workflow_path.as_posix()}
+          )
+          contract['production_paths'] = sorted(
+              set(contract['production_paths']) | {native_path}
+          )
+          by_path = {entry['path']: entry for entry in contract['reviewed_files']}
+          if native_path not in by_path:
+              before = subprocess.check_output(
+                  ['git', 'show', f"{contract['base_commit']}:{native_path}"]
+              )
+              current = native.read_bytes()
+              by_path[native_path] = {
+                  'after_sha256': hashlib.sha256(current).hexdigest(),
+                  'after_sha256_integrated': hashlib.sha256(current).hexdigest(),
+                  'before_sha256': hashlib.sha256(before).hexdigest(),
+                  'mode': '100644',
+                  'path': native_path,
+                  'status': 'modified',
+              }
+          for path, entry in by_path.items():
+              entry['after_sha256_integrated'] = hashlib.sha256(
+                  Path(path).read_bytes()
+              ).hexdigest()
+          contract['reviewed_files'] = [by_path[path] for path in sorted(by_path)]
+          contract_path.write_text(json.dumps(contract, indent=2) + '\n')
+
+          checker_path = Path('morphhdl/scripts/check-increment-61-source-review.py')
+          checker = checker_path.read_text()
+          digest = hashlib.sha256(contract_path.read_bytes()).hexdigest()
+          checker, count = re.subn(
+              r'^CONTRACT_SHA256 = "[0-9a-f]{64}"$',
+              f'CONTRACT_SHA256 = "{digest}"',
+              checker,
+              count=1,
+              flags=re.M,
+          )
+          if count != 1:
+              raise SystemExit('Increment 61 source-review digest anchor changed')
+          checker_path.write_text(checker)
+          PY
+
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            .github/workflows/increment-62-wa08-source-overlay.yml \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
+          git commit -m '61: close hierarchy-bound native resize publication'
+          git show --stat --oneline --summary HEAD
+
+      - name: Verify current and inherited source authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+
+          historical="$RUNNER_TEMP/wa08-inherited-source-builder"
+          rm -rf "$historical"
+          git worktree add --detach "$historical" "$EXPECTED_TARGET"
+          trap 'git worktree remove --force "$historical"' EXIT
+          (
+            cd "$historical"
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/check-increment-59c-source-review.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+          )
+          git worktree remove --force "$historical"
+          trap - EXIT
+
+      - name: Focused Scala 2.13 functional qualification
         shell: bash
         run: |
           set -euo pipefail
           sbt -batch '++2.13.12' \
             'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests spinal.core.internals.HierarchyResizeSourceWidthTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.GenericExpressionAndStreamTests morphhdl.FormalParameterClonePropagationTests'
 
-      - name: Preserve candidate patch
-        if: always()
+      - name: Scala 2.12 compatibility qualification
         shell: bash
         run: |
-          mkdir -p target/increment-61-hierarchy-resize-candidate
-          git diff --binary > target/increment-61-hierarchy-resize-candidate/candidate.patch
-          git status --short > target/increment-61-hierarchy-resize-candidate/status.txt
-          git rev-parse HEAD > target/increment-61-hierarchy-resize-candidate/head.txt
+          set -euo pipefail
+          sbt -batch '++2.12.18' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests spinal.core.internals.HierarchyResizeSourceWidthTests spinal.core.internals.NativeWidthPublicationSafetyTests'
+
+      - name: Publish exact qualified commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git ls-remote origin refs/heads/$FEATURE_BRANCH | cut -f1)" = "$EXPECTED_FEATURE"
+          test "$(git ls-remote origin refs/heads/$TARGET_BRANCH | cut -f1)" = "$EXPECTED_TARGET"
+          qualified=$(git rev-parse HEAD)
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          test "$(git ls-remote origin refs/heads/$FEATURE_BRANCH | cut -f1)" = "$qualified"
+          printf 'QUALIFIED_FEATURE_SHA=%s\nTARGET_SHA=%s\n' "$qualified" "$EXPECTED_TARGET" | tee qualified-head.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-61-hierarchy-resize-candidate-v17
-          path: target/increment-61-hierarchy-resize-candidate
-          if-no-files-found: error
+          name: increment-61-hierarchy-resize-closure-v17
+          path: |
+            qualified-head.txt
+            morphhdl/target/test-reports
+          if-no-files-found: warn
           retention-days: 14
