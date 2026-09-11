@@ -110,7 +110,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "a795593ca3eff71aeb2ecb067823e68bb2173033508eb1d198eabcffd7b9da89",
+      "after_sha256": "71a64af580e3f644d7d3ec8fd468dba8d92e8f1909f00b1ae6e9621acb31618e",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -164,7 +164,7 @@
       "path": "morphhdl-passes/scripts/run-wa09-regression.sh"
     },
     {
-      "after_sha256": "ef4bc241a4dbcab71ea6600143cd3b551244ddb2e376e43f1bae63dc86ea764f",
+      "after_sha256": "3748cc7c6efe5563077702d4aa7989f565d2e4500f187976c2f88dd45402f30b",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -266,7 +266,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "c5c91c54596cf55c53b52ab4016918379baba72c76e665e412868bbd448d68cc",
+      "after_sha256": "440f8a8c066f8a582e84b89f6c6dc26e8e9365b4288b14ddbdd20614a3c87058",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -320,7 +320,7 @@
       "path": "morphhdl/scripts/test-increment-59g-source-review.py"
     },
     {
-      "after_sha256": "7eb1869020a4c164be1a3d71de44e68be6367ecb20b692c74f5101ab1dceafb4",
+      "after_sha256": "c647a9f9b3127e073ef446f5d7b96ed194d13214a2b7cd8f2ef20f50f331e25e",
       "before_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
@@ -500,7 +500,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "809db0d6fae92f10a57e5ec1278124ce07ccf837",
+  "final_source_commit": "d4652b673ebc78644a10bde87b6815600506b071",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
