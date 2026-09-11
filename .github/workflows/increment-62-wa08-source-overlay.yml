@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           sbt -batch ++${{ matrix.scala }} \
             'morphir/testOnly *CanonicalIrHandoffSpec' \
-            'morph/testOnly *MorphCanonicalIrHandoffTests' \
+            'morph/testOnly *MorphCanonicalIrHandoffTests *HierarchyResizeSourceWidthTests *FormalParameterClonePropagationTests *NativeSymbolicMemoryTests *GenericExpressionAndStreamTests *NativeLibraryReuseTests' \
             "morph/Test/runMain morphhdl.examples.WireAssignmentProductionArtifactWriter $GITHUB_WORKSPACE/target/wa08-production"
       - name: Determinism default compatibility strict tools equivalence and mutations
         run: python3 morphhdl/scripts/check-wa08-production-artifacts.py target/wa08-production
@@ -81,9 +81,9 @@ jobs:
           left = Path('artifacts/wa08-production-2.12.18/target/wa08-production/first')
           right = Path('artifacts/wa08-production-2.13.12/target/wa08-production/first')
           paths = sorted(path.relative_to(left) for path in left.glob('*/generated.v'))
-          assert len(paths) == 10
+          assert len(paths) == 21
           assert paths == sorted(path.relative_to(right) for path in right.glob('*/generated.v'))
           for path in paths:
               assert (left / path).read_bytes() == (right / path).read_bytes(), path
-          print('WA08_CROSS_SCALA_PASS files=10')
+          print('WA08_CROSS_SCALA_PASS files=21')
           PY

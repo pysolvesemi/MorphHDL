@@ -979,6 +979,21 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     )
   }
 
+  /** Rendering only: the caller proves the exact child formal/root and composes
+    * its evaluation evidence independently before publishing this expression.
+    */
+  private[internals] def renderResizeSourceWidth(
+      definition: ElaborationIntegerExpression,
+      binding: ExternalFormalParameterBinding,
+      port: BaseType
+  ): String = instantiateDerivedPortWidth(
+    definition,
+    Map(binding.formal.name -> ExpressionBinding(binding.actual)),
+    port.component.definitionName,
+    port.component.getName(),
+    port.getName()
+  ).render
+
   private def isIdentifierStart(value: Char): Boolean =
     value == '_' || value == '$' || value.isLetter
 
@@ -989,7 +1004,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       component: Component
   ): Vector[ElaborationIntegerParameter] = {
     val values =
-      ParameterizedWidth.parametersOf(component) ++
+      ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
@@ -1753,7 +1768,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     case _: BoolLiteral => LiteralBinding(1)
     case value: Bool => LiteralBinding(1)
     case value: BitVector if value.component == parent =>
-      ParameterizedWidth.expressionOf(value) match {
+      ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, value) match {
         case Some(expression) => ExpressionBinding(expression)
         case None if value.isIo || allowConcreteInternal =>
           LiteralBinding(value.getBitsWidth)

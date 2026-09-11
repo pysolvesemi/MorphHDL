@@ -46,6 +46,51 @@ def main():
     raw = (ROOT / unrelated).read_bytes() + b"\n// historical mutation\n"
     assert overlay.restore_source(ROOT, unrelated, raw) == raw
     assert unrelated in overlay.inherited_inventory(ROOT, {unrelated}, overlay.BASE)
+    # A historical checker may already have removed an independently verified
+    # rollout delta. The overlay must compose with that projection without
+    # reintroducing its overlap, while still restoring genuinely canceled
+    # historical changes and preserving unrelated input paths.
+    reviewed = {entry["path"] for entry in entries}
+    production = {path for path in reviewed if "/src/main/" in "/" + path}
+    overlap = "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala"
+    # Read the immutable predecessor used by the register inventory instead of
+    # maintaining a second guessed source-history anchor in this test.
+    register_spec = importlib.util.spec_from_file_location(
+        "wa08_register_projection_test", ROOT / "morphhdl/scripts/check-increment-59g-source-review.py")
+    register = importlib.util.module_from_spec(register_spec)
+    register_spec.loader.exec_module(register)
+    older = register.BASE
+    current = {p.decode() for p in git(ROOT, "diff", "--no-renames", "--name-only",
+                                     "-z", older, "HEAD").split(b"\0") if p}
+    historical = {p.decode() for p in git(ROOT, "diff", "--no-renames", "--name-only",
+                                        "-z", older, overlay.BASE).split(b"\0") if p}
+    assert overlap in production & current & historical
+    complete = {path for path in current if "/src/main/" in "/" + path}
+    assert overlap in overlay.inherited_inventory(ROOT, complete, older)
+    projected = overlay.inherited_inventory(ROOT, (complete - {overlap}) | {unrelated}, older)
+    assert overlap not in projected and unrelated in projected
+    assert not (projected & reviewed) - production
+    # Against HEAD, every reviewed delta to the overlay base is a real
+    # cancellation in the current inventory, so those production paths return.
+    canceled = overlay.inherited_inventory(ROOT, {unrelated}, "HEAD")
+    assert production <= canceled and unrelated in canceled
+    assert not (canceled & reviewed) - production
+    rollout = register.rollout_scope(ROOT)
+    restored_publication = rollout.restore_60g_source(
+        ROOT, overlap, (ROOT / overlap).read_text()).encode()
+    assert restored_publication == git(ROOT, "show", rollout.BASE + ":" + overlap)
+    assert rollout.restore_60g_source(ROOT, overlap, restored_publication.decode()).encode() == restored_publication
+    rejected("changed already-restored publication source",
+             lambda: rollout.restore_60g_source(
+                 ROOT, overlap, restored_publication.decode() + "\n// historical mutation\n"))
+    count += 1
+    ternary = register.boolean_ternary_review(ROOT)
+    assert overlap not in ternary.load_contract(ROOT)["production_delta"]
+    assert ternary.restore_pass_source(ROOT, overlap, restored_publication) == restored_publication
+    # A layer must not consume or normalize bytes outside its own ownership.
+    # The enclosing historical source checker still validates those bytes.
+    changed_publication = restored_publication + b"\n// historical mutation\n"
+    assert ternary.restore_pass_source(ROOT, overlap, changed_publication) == changed_publication
     with tempfile.TemporaryDirectory(prefix="wa08-source-controls-") as temporary:
         fixture = Path(temporary) / "repo"
         git(ROOT, "worktree", "add", "--quiet", "--detach", str(fixture), "HEAD")

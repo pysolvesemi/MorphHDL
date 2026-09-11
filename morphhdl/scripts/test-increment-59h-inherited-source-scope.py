@@ -121,9 +121,13 @@ def main() -> None:
     if (ROOT / "morphhdl/scripts/check-increment-62-wa08-source-overlay.py").is_file():
         # These worktree/index mutations now meet the verified outer inventory
         # first. Preserve the mutations and require that exact path diagnostic.
+        overlay_paths = {entry["path"] for entry in json.loads((ROOT /
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
         adapted = []
         for label, relative, mutation, expected in cases:
-            if (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
+            if mutation == "suffix" and relative in overlay_paths:
+                expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
+            elif (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
                     relative.endswith("/TypedBalancedReductionCompositeReplay.scala")):
                 expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([relative])
             adapted.append((label, relative, mutation, expected))

@@ -792,7 +792,8 @@ object MorphVerilog {
             .flatMap(_.actual.parameters)
         }
       val retained =
-        spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
+        spinal.core.internals.MorphHdlExternalParameterizedVerilog
+          .publishedWidthParametersOf(report.toplevel) ++
           spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedVec.parametersOf(report.toplevel) ++
           spinal.core.ExternalParameterizedValueRegistry.parametersOf(report.toplevel) ++

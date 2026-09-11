@@ -82,6 +82,7 @@ private[examples] final class ConstantOperandNativePhase extends Phase {
     val target = assignment.finalTarget
     target.isInstanceOf[Bool] && target.isComb && !target.isAnalog &&
       !target.isInputOrInOut && !target.isFrozen() && target.isEmptyOfTag &&
+      !NativeWireAssignmentMetadata.retains(target) &&
       !preserved(target) && target.hasOnlyOneStatement &&
       (assignment.target eq target) && assignment.parentScope != null &&
       (assignment.parentScope eq target.rootScopeStatement) &&
