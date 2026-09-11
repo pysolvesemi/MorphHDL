@@ -68,6 +68,24 @@ def main() -> None:
         "anchor-aware 59i feature-view restoration",
     )
 
+    # A caller such as the frozen 59g reviewer supplies its own older baseline
+    # inventory. After verifying complete 59i, remove the independently sealed
+    # widening layer with that caller baseline before removing the original
+    # fixed/composite 59i production inventory. This preserves historical
+    # overlap while removing only the two genuinely new widening helper files.
+    text = replace_once(
+        text,
+        '    text = replace_once(text, verify, verified, "59i feature inventory")\n'
+        '    PARENT.write_text(text)\n',
+        '    text = replace_once(text, verify, verified, "59i feature inventory")\n'
+        '    text = replace_once(text,\n'
+        '        "    verify(root)\\n    historical = subprocess.check_output(\\n",\n'
+        '        "    verify(root)\\n    paths = load_widening_review(root).inherited_inventory(root, paths, qualification_base)\\n    historical = subprocess.check_output(\\n",\n'
+        '        "59i inherited widening inventory")\n'
+        '    PARENT.write_text(text)\n',
+        "59i inherited widening composition",
+    )
+
     # The current WA-07b file contains an orphaned restore_rollout call from a
     # partial reconciliation. Its existing joined_adapter_source is already the
     # required fail-closed handoff: unchanged/pass bytes return untouched,
