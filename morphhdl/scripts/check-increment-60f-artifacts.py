@@ -343,6 +343,14 @@ WA07A_SUITES = frozenset({
     "morphhdl.passes.transform.ConstantOperandSimplificationPassSpec",
 })
 
+# WA-08 adds this exact three-case source-width authority regression. The
+# immutable 60f catalog remains unchanged unless the complete WA-08 source
+# overlay verifies and includes this newly added source file.
+WA08_SUITES = {
+    "morphhdl": {"spinal.core.internals.HierarchyResizeSourceWidthTests": 3},
+}
+WA08_SUITE_SOURCE = "morphhdl/src/test/scala/spinal/core/internals/HierarchyResizeSourceWidthTests.scala"
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -425,7 +433,7 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
-def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict, dict]:
+def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -506,7 +514,30 @@ def catalog_for_profile(profile: str, packing: bool = False) -> tuple[dict, dict
         suites["morphhdl-passes"] = frozenset(reviewed)
         counts["morphhdl-passes"] = (sum(reviewed.values()), len(reviewed))
         extension["morphhdl-passes"] = reviewed
+    if wa08:
+        require("wa07b" in features, "WA-08 suite obligations require the reviewed WA-07b profile")
+        for project, additions in WA08_SUITES.items():
+            require(not suites[project].intersection(additions),
+                    "WA-08 inventory replaced an inherited suite")
+            suites[project] |= frozenset(additions)
+            tests, total_suites = counts[project]
+            counts[project] = (tests + sum(additions.values()), total_suites + len(additions))
+            extension.setdefault(project, {}).update(additions)
     return counts, suites, extension
+
+
+def reviewed_wa08_suites(root: Path) -> bool:
+    ternary = closure_module().boolean_ternary_review(root)
+    adapter = getattr(ternary, "wa08_overlay", None)
+    overlay = adapter(root) if adapter is not None else None
+    if overlay is None:
+        return False
+    # Presence or XML cannot authorize a new suite: verify immutable source
+    # bytes, full governed inventory, Git index/worktree and source ancestry.
+    entries = {entry["path"]: entry for entry in overlay.verify(root)["files"]}
+    require(WA08_SUITE_SOURCE in entries and entries[WA08_SUITE_SOURCE]["before_sha256"] is None,
+            "WA-08 hierarchy suite is absent from the verified added-source inventory")
+    return True
 
 
 def descendant_extensions(root: Path) -> tuple[str, ...]:
@@ -553,7 +584,7 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
         reviewed = publisher.reviewed_59d59e_packing(root)
         require(set(reviewed) == closure.PACKING_59D59E_PATHS,
                 "reviewed packing inventory escaped its exact source paths")
-    counts, suite_inventory, extension = catalog_for_profile(profile, packing)
+    counts, suite_inventory, extension = catalog_for_profile(profile, packing, reviewed_wa08_suites(root))
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -1312,6 +1343,98 @@ def self_test() -> None:
             rollout_joint[0]["morphhdl"] == (joint[0]["morphhdl"][0] + 18, joint[0]["morphhdl"][1]),
             "60g/register/nested composition lost exact inherited tests or suites")
     print("60g/59g/59h combined inventory preserves every register, nested and rollout obligation PASS")
+    wa08_profile = "60f-with-wa07a-and-wa07b"
+    historical = catalog_for_profile(wa08_profile)
+    current = catalog_for_profile(wa08_profile, wa08=True)
+    additions = WA08_SUITES["morphhdl"]
+    require(current[1]["morphhdl"] == historical[1]["morphhdl"] | set(additions) and
+            current[0]["morphhdl"] == (historical[0]["morphhdl"][0] + 3,
+                                      historical[0]["morphhdl"][1] + 1) and
+            current[2]["morphhdl"] == {**historical[2].get("morphhdl", {}), **additions} and
+            all(current[index][project] == values for index in range(3)
+                for project, values in historical[index].items() if project != "morphhdl"),
+            "WA-08 changed an inherited suite or exact test obligation")
+    rejected(lambda: catalog_for_profile("60f-baseline", wa08=True),
+             "WA-08 inventory without its inherited source profile")
+    with tempfile.TemporaryDirectory(prefix="increment-60f-wa08-inventory-") as temporary:
+        root = Path(temporary)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        subprocess.run(["git", "-c", "user.name=Synthetic Test", "-c",
+                        "user.email=synthetic@example.invalid", "commit", "--allow-empty",
+                        "-qm", "synthetic inventory fixture"], cwd=root, check=True)
+        for project, (minimum, _) in current[0].items():
+            exact = current[2].get(project, {})
+            counts = {name: exact.get(name, 1) for name in current[1][project]}
+            inherited = current[1][project] - exact.keys()
+            if inherited:
+                counts[min(inherited)] += minimum - sum(counts.values())
+            directory = root / project / "target/test-reports"
+            directory.mkdir(parents=True)
+            for name, count in counts.items():
+                suite = ET.Element("testsuite", name=name, tests=str(count), failures="0", errors="0", skipped="0")
+                for case in range(count):
+                    ET.SubElement(suite, "testcase", name=f"synthetic-case-{case}")
+                ET.ElementTree(suite).write(directory / (name + ".xml"))
+        # Only the source verifier's result is synthetic here. Its real Git and
+        # byte-integrity attacks run in the separate WA-08 overlay self-test;
+        # these controls exercise the unchanged report parser and exact catalog.
+        overlay = mock.Mock()
+        reviewed = {"files": [{"path": WA08_SUITE_SOURCE, "before_sha256": None}]}
+        overlay.verify.return_value = reviewed
+        ternary = mock.Mock()
+        ternary.wa08_overlay.return_value = overlay
+        output = root / "result.json"
+
+        def validate_wa08_reports() -> None:
+            output.unlink(missing_ok=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                _regression_inventory(root, output, wa08_profile)
+
+        with mock.patch.object(closure_module(), "boolean_ternary_review", return_value=ternary):
+            validate_wa08_reports()
+            overlay.verify.assert_called_once_with(root)
+            name = next(iter(additions))
+            path = root / "morphhdl/target/test-reports" / (name + ".xml")
+            original = path.read_bytes()
+            for attribute, value in (("name", "synthetic.SubstituteSuite"), ("skipped", "1")):
+                tree = ET.parse(path)
+                tree.getroot().set(attribute, value)
+                tree.write(path)
+                rejected(validate_wa08_reports, "WA-08 changed exact suite " + attribute)
+                require(not output.exists(), "failed WA-08 inventory retained stale success")
+                path.write_bytes(original)
+            for count in (2, 4):
+                tree = ET.parse(path)
+                suite = tree.getroot()
+                suite.set("tests", str(count))
+                if count == 2:
+                    suite.remove(suite.find("testcase"))
+                else:
+                    ET.SubElement(suite, "testcase", name="synthetic-extra-case")
+                tree.write(path)
+                rejected(validate_wa08_reports, "WA-08 changed exact test count")
+                path.write_bytes(original)
+            path.unlink()
+            rejected(validate_wa08_reports, "missing WA-08 suite")
+            path.write_bytes(original)
+            extra = path.with_name("unknown.xml")
+            tree = ET.parse(path)
+            tree.getroot().set("name", "synthetic.UnknownSuite")
+            tree.write(extra)
+            rejected(validate_wa08_reports, "unexpected suite alongside WA-08")
+            extra.unlink()
+            ternary.wa08_overlay.return_value = None
+            rejected(validate_wa08_reports, "WA-08 reports without source overlay")
+            ternary.wa08_overlay.return_value = overlay
+            for entries in ([], [{"path": WA08_SUITE_SOURCE, "before_sha256": "0" * 64}]):
+                overlay.verify.return_value = {"files": entries}
+                rejected(validate_wa08_reports, "WA-08 suite outside reviewed added-source inventory")
+            overlay.verify.side_effect = RuntimeError("synthetic source-integrity rejection")
+            rejected(validate_wa08_reports, "WA-08 verifier rejection must propagate")
+            overlay.verify.side_effect = None
+            overlay.verify.return_value = reviewed
+            validate_wa08_reports()
+    print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 

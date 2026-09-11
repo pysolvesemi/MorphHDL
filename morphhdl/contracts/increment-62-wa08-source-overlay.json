@@ -122,6 +122,12 @@
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
     },
     {
+      "after_sha256": "db563da7d160639f3508d111210bea95592c8bb26f80ccf504b64f394f369e0e",
+      "before_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1",
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-increment-60f-artifacts.py"
+    },
+    {
       "after_sha256": "04a70697d3cb2ab2e8a7d98565fc4303172c7fb2decf2affdaa91f8509e67dc9",
       "before_sha256": "a49e07e936054dedef0b8f37d0254d9bd3a2550540aa8ffc570d609f67c5042a",
       "mode": "100644",
@@ -308,7 +314,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "e5015566362e901e1d7e848d8e5db51434f1561d",
+  "final_source_commit": "3335c29ad62f2c93e6d4dd0e0182ec2a8fe9e097",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
