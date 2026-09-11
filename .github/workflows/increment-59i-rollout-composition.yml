@@ -51,6 +51,23 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+
+          # The widening reviewer is now an immutable BASE->SUCCESSOR audit.
+          # Keep it hash-bound in the composition contract, but do not rewrite
+          # its current-source inventory as the older generator once did.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/repair-59i-rollout-composition/apply.py')
+          text = path.read_text()
+          old = "    patch_parent()\n    patch_widening()\n    patch_rollout()\n"
+          new = ("    patch_parent()\n"
+                 "    # Immutable widening review needs no live-inventory adapter.\n"
+                 "    patch_rollout()\n")
+          if text.count(old) != 1:
+              raise SystemExit('obsolete widening-patch invocation anchor changed')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
           python3 morphhdl/repair-59i-rollout-composition/bootstrap.py | tee "$out/application.log"
           python3 -m py_compile \
             morphhdl/repair-59i-rollout-composition/apply.py \
@@ -66,7 +83,6 @@ jobs:
           morphhdl/repair-59i-rollout-composition/apply.py
           morphhdl/scripts/check-increment-59i-rollout-composition.py
           morphhdl/scripts/check-increment-59i-source-review.py
-          morphhdl/scripts/check-increment-59i-widening-source-review.py
           morphhdl/scripts/check-increment-60g-source-scope.py
           morphhdl/scripts/check-wa07b-inherited-review.py
           morphhdl/scripts/test-increment-59i-rollout-composition.py
