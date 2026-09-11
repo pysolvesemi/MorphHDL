@@ -86,6 +86,7 @@ wa09_cross_workspace_path() {
   local path="$1"
   case "${path}" in
     .github/workflows/increment-60f-equivalence-closure.yml|\
+    .github/workflows/increment-60g-default-signed-verilog.yml|\
     core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala|\
     core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala|\
     core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala|\
@@ -134,7 +135,7 @@ allowed_path() {
       fi
       return 1
       ;;
-    core/*|.github/workflows/increment-60f-equivalence-closure.yml)
+    core/*|.github/workflows/increment-60f-equivalence-closure.yml|.github/workflows/increment-60g-default-signed-verilog.yml)
       if [[ "${is_wa09}" == true ]] && \
          [[ "${wa08_overlay_verified:-false}" == true ]] && \
          wa09_dependencies_satisfied && wa09_cross_workspace_path "${path}"; then

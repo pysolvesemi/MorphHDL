@@ -95,6 +95,7 @@ expect_failure \
 wa09_manifest="${tmp_dir}/wa09.txt"
 printf '%s\n' \
   '.github/workflows/increment-60f-equivalence-closure.yml' \
+  '.github/workflows/increment-60g-default-signed-verilog.yml' \
   'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala' \
   'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala' \
   'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala' \

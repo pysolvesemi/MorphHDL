@@ -235,3 +235,8 @@ historical pass-vector controls, deterministic repeated output, fixed-point and
 idempotence checks, strict Verilog-2001 parsing/lint/synthesis, four-state
 simulation, functional mutations, formal equivalence, and every inherited
 source-integrity and compatibility gate on the final commit.
+
+The complete 60g source-audit job has a 60-minute budget. Its former 20-minute
+job limit cancelled C18 after the inherited 59h controls passed and before the
+remaining inventory/source checks completed. Every audit command, per-command
+limit, mutation control and downstream dependency remains required.
