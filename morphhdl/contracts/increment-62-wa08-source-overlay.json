@@ -110,7 +110,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "3ab302e95fa8825ddc6deea2d4b35edd657c198b21688a92640a0cd3e45d6ae7",
+      "after_sha256": "a795593ca3eff71aeb2ecb067823e68bb2173033508eb1d198eabcffd7b9da89",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -164,7 +164,7 @@
       "path": "morphhdl-passes/scripts/run-wa09-regression.sh"
     },
     {
-      "after_sha256": "1cd1c62f3db60363abb56b687b4b0f6e368674199cde3835230aad1cebb0beef",
+      "after_sha256": "ef4bc241a4dbcab71ea6600143cd3b551244ddb2e376e43f1bae63dc86ea764f",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -266,10 +266,22 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "8c96307ef29a51a19a8f1543eab443204678398066f04fc41d65e60cea11e38a",
+      "after_sha256": "c5c91c54596cf55c53b52ab4016918379baba72c76e665e412868bbd448d68cc",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+    },
+    {
+      "after_sha256": "6022cf2c75aa296005340cc5f2a57c291f053e3d873fd5818d9dc410ebe4b789",
+      "before_sha256": "98209f1dac84b7577a469399b0efadb3c9e986c6b1a7d96e8b794a43d44d88ae",
+      "mode": "100644",
+      "path": "morphhdl/contracts/increment-55-native-change-review.json"
+    },
+    {
+      "after_sha256": "1efba38930187798ac1dc1d884197fec602b1b7c5c1068f0d6a28e7335cf418d",
+      "before_sha256": "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0",
+      "mode": "100644",
+      "path": "morphhdl/contracts/native-source-preservation.json"
     },
     {
       "after_sha256": "815160d4462179009d0f07092bb7192643e27df7a27771a6ef5b71146b6efcd4",
@@ -278,7 +290,13 @@
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py"
     },
     {
-      "after_sha256": "04a70697d3cb2ab2e8a7d98565fc4303172c7fb2decf2affdaa91f8509e67dc9",
+      "after_sha256": "46b2bdcdecd50efba5a0ea4443e563381a54ee0eb71e2d342837c67516a63020",
+      "before_sha256": "1f3ca7fd40faf4b865a7bc4b39bac4d7dbe5f4628ec95839ff418621d349ba64",
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
+    },
+    {
+      "after_sha256": "8df0f23c5db529e073b0eacaeb4c03e25b3cbef0a5d633d0abd7581257e255dc",
       "before_sha256": "a49e07e936054dedef0b8f37d0254d9bd3a2550540aa8ffc570d609f67c5042a",
       "mode": "100644",
       "path": "morphhdl/scripts/check-increment-60g-source-scope.py"
@@ -306,6 +324,12 @@
       "before_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
+    },
+    {
+      "after_sha256": "d7fadc53c8efc3f639a6f571ee1834a1ebcec9c8d35f038339b28c05fc283b67",
+      "before_sha256": "878d23fbccf6825bc37362a2298502c11fa6d97dd1ea305003bb43098cfdedff",
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-increment-60f-inherited-source-scope.py"
     },
     {
       "after_sha256": "8e7bcac0cbd085317a5e4b8cc6e8584c079bd4f508e401630cd32767125ef094",
@@ -476,7 +500,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "38d78e34b08924a8c95cb9470b11ac57e4329414",
+  "final_source_commit": "14883867a31e5f429a67b60969c33c714a64ca69",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
