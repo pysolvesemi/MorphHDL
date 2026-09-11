@@ -1,0 +1,79 @@
+name: Increment 61 prune obsolete Actions queue v8
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-prune-actions-queue-v8.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: increment-61-prune-obsolete-actions-queue-v8
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  REQUIRED_HEAD: 5614c2da2e53e1220d3f3df58347eb67c13a3904
+
+jobs:
+  prune:
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    steps:
+      - name: Cancel obsolete and unrelated feature-branch runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          records="$RUNNER_TEMP/feature-runs.tsv"
+          : > "$records"
+
+          for status in queued in_progress pending waiting requested; do
+            gh api --paginate \
+              "/repos/$repo/actions/runs?branch=$FEATURE_BRANCH&status=$status&per_page=100" \
+              --jq '.workflow_runs[] | [.id, .name, .head_sha, .status] | @tsv' \
+              >> "$records" || true
+          done
+
+          sort -u "$records" -o "$records"
+          kept=0
+          cancelled=0
+          while IFS=$'\t' read -r id name sha status; do
+            test -n "$id" || continue
+            keep=0
+            if test "$sha" = "$REQUIRED_HEAD"; then
+              case "$name" in
+                'Increment 61 one-file-per-component publication'|
+                'Increment 61 per-component compatibility matrix'|
+                'Increment 60c signed declarations'|
+                'Increment 60d pure SInt casts'|
+                'Increment 60e signedness boundaries'|
+                'Increment 60f equivalence closure'|
+                'Increment 60g default signed Verilog'|
+                'MorphHDL baseline'|
+                'MorphHDL Mill'|
+                'MorphHDL native source guard')
+                  keep=1
+                  ;;
+              esac
+            fi
+
+            if test "$keep" -eq 1; then
+              printf 'KEEP\t%s\t%s\t%s\t%s\n' "$id" "$status" "$sha" "$name"
+              kept=$((kept + 1))
+            else
+              printf 'CANCEL\t%s\t%s\t%s\t%s\n' "$id" "$status" "$sha" "$name"
+              gh api --method POST "/repos/$repo/actions/runs/$id/cancel" >/dev/null 2>&1 || true
+              cancelled=$((cancelled + 1))
+            fi
+          done < "$records"
+
+          echo "Preserved $kept required runs and requested cancellation of $cancelled obsolete/unrelated runs."
+          test "$kept" -ge 8
