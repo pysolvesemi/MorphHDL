@@ -55,7 +55,8 @@ jobs:
           python3 -m py_compile \
             morphhdl/repair-59i-rollout-composition/apply.py \
             morphhdl/scripts/check-increment-59i-rollout-composition.py \
-            morphhdl/scripts/test-increment-59i-rollout-composition.py
+            morphhdl/scripts/test-increment-59i-rollout-composition.py \
+            morphhdl/scripts/check-wa07b-inherited-review.py
           git diff --check
           cat > "$out/expected-files.txt" <<'EOF'
           docs/morphhdl/increment-59i-rollout-composition.md
@@ -67,6 +68,7 @@ jobs:
           morphhdl/scripts/check-increment-59i-source-review.py
           morphhdl/scripts/check-increment-59i-widening-source-review.py
           morphhdl/scripts/check-increment-60g-source-scope.py
+          morphhdl/scripts/check-wa07b-inherited-review.py
           morphhdl/scripts/test-increment-59i-rollout-composition.py
           EOF
           git add -f $(cat "$out/expected-files.txt")
@@ -104,9 +106,33 @@ jobs:
             python3 morphhdl/scripts/test-increment-59f-source-scope.py
             python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
             python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
-            python3 morphhdl/scripts/check-native-source-preservation.py
-            python3 morphhdl/scripts/check-typed-native-source-overlay.py
           } 2>&1 | tee "$out/source-audits.log"
+
+      - name: Validate immutable native source reviews at both exact parents
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          feature_native=/tmp/59i-rollout-native-feature
+          target_native=/tmp/59i-rollout-native-target
+          rm -rf "$feature_native" "$target_native"
+          cleanup_native_worktrees() {
+            git worktree remove --force "$feature_native" >/dev/null 2>&1 || true
+            git worktree remove --force "$target_native" >/dev/null 2>&1 || true
+          }
+          trap cleanup_native_worktrees EXIT
+          git worktree add --detach "$feature_native" "$FEATURE_PARENT"
+          git worktree add --detach "$target_native" "$TARGET_PARENT"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$out/native-feature-parent.log"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$out/overlay-feature-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$out/native-target-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$out/overlay-target-parent.log"
+          cleanup_native_worktrees
+          trap - EXIT
 
       - name: Publish only from unchanged draft head
         shell: bash
