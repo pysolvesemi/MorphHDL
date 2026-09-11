@@ -51,7 +51,12 @@ import spinal.core.internals._
   * It never parses generated HDL and never recognizes a component or signal
   * name. Candidate names come from retained source/elaboration Nameable metadata.
   */
-private[examples] final class NamedWireAliasNativePhase extends Phase {
+private[examples] final class NamedWireAliasNativePhase(
+    // Historical pipelines end after this pass and therefore cannot defer an
+    // expression source for a later named-expression stage.  WA-09's six-stage
+    // and production pipelines opt in explicitly once that stage is present.
+    deferPreferredExpressionSource: Boolean = false
+) extends Phase {
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
@@ -321,7 +326,7 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
             Right(
               PreferredSourceRewrite(candidate, proof, sourceCandidate, sourceProof)
             )
-        case None if expressionSourceIsIndependentlyRemovable(
+        case None if deferPreferredExpressionSource && expressionSourceIsIndependentlyRemovable(
               pc,
               candidate.source,
               sourceOrigin
@@ -1117,7 +1122,9 @@ object ParameterizedStreamFifoNamedPassWitness {
     val reportFile = Paths.get(args(3)).toAbsolutePath.normalize
     val phase = mode match {
       case "reference" => None
-      case "candidate" => Some(new NamedWireAliasNativePhase)
+      case "candidate" => Some(
+        new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
+      )
       case other        => throw new IllegalArgumentException(s"unsupported witness mode '$other'")
     }
 

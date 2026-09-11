@@ -115,6 +115,14 @@ an expression driver, true `Unnamed` provenance dispatches to
 provenance dispatches to `NamedWireExpressionNativePhase`. Unknown provenance
 or a failed proof retains the relation.
 
+That expression-source deferral is an explicit pipeline capability, not an
+intrinsic behavior of the named-alias phase. The production and WA-09
+six-stage pipelines enable it because a following named-expression stage owns
+the deferred declaration. Historical WA-05 through WA-07b pipelines disable
+it, so their terminal named-alias stage still eliminates the alias immediately.
+This distinction prevents a preferred expression source from stranding a
+named alias when no later expression stage exists.
+
 ## Post-pass emitter-created wrappers
 
 Reproduction exposed a second, later boundary: the native and canonical passes

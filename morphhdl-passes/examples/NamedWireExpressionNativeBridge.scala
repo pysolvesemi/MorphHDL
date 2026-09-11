@@ -716,7 +716,7 @@ private[examples] final class NamedWireExpressionPipelineNativePhase(all: Boolea
         val unnamedAlias = new UnnamedWireAliasNativePhase
         unnamedAlias.impl(pc)
         executed :+= PassId.UnnamedWireAliasElimination
-        val namedAlias = new NamedWireAliasNativePhase
+        val namedAlias = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
         namedAlias.impl(pc)
         executed :+= PassId.NamedWireAliasElimination
         val unnamedExpression = new UnnamedWireExpressionNativePhase
@@ -746,7 +746,7 @@ private[examples] final class NamedWireExpressionPipelineNativePhase(all: Boolea
         val unnamedAlias = new UnnamedWireAliasNativePhase
         unnamedAlias.impl(pc)
         executed :+= PassId.UnnamedWireAliasElimination
-        val namedAlias = new NamedWireAliasNativePhase
+        val namedAlias = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
         namedAlias.impl(pc)
         executed :+= PassId.NamedWireAliasElimination
         val unnamedExpression = new UnnamedWireExpressionNativePhase
@@ -1100,7 +1100,7 @@ object NamedWirePreferenceNativeWitness {
     val mode = args(0)
     val phase = mode match {
       case "reference" => None
-      case "candidate" => Some(new NamedWireAliasNativePhase)
+      case "candidate" => Some(new NamedWireAliasNativePhase(deferPreferredExpressionSource = true))
       case other => throw new IllegalArgumentException(
         s"unsupported native preference mode '$other'"
       )

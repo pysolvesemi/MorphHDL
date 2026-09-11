@@ -114,6 +114,8 @@ MARKERS = {
         "WireAliasSafetyGate",
     ),
     NAMED_ALIAS_NATIVE: (
+        "deferPreferredExpressionSource: Boolean = false",
+        "deferPreferredExpressionSource && expressionSourceIsIndependentlyRemovable(",
         "private final case class PreferredSourceRewrite",
         "private case object DeferredExpressionRewrite",
         "applyCanonicalPreferenceDecision(plan)",
@@ -173,6 +175,7 @@ MARKERS = {
     NATIVE: (
         "final class NamedWireExpressionNativePhase extends Phase",
         "final class NamedWireExpressionPipelineNativePhase(all: Boolean)",
+        "new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)",
         "object NamedWireExpressionWitnessPhasePlan",
         "NativeWireNameProvenance.successorExpressionOrigin(alias)",
         "new NativeWireExpressionCodec",
@@ -210,6 +213,7 @@ MARKERS = {
         "PassId.UnnamedWireExpressionElimination,",
         "PassId.NamedWireExpressionElimination,",
         "PassId.ConstantOperandSimplification,",
+        "new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)",
         "val namedExpression = new NamedWireExpressionNativePhase",
         "namedExpression.report.eliminatedCount",
         "VerilogEmitterExpressionInlining.configure(configured, enabled)",

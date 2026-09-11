@@ -113,7 +113,7 @@ private final class ProductionWireAssignmentPhase extends Phase {
 
       val unnamed = new UnnamedWireAliasNativePhase
       unnamed.impl(pc)
-      val named = new NamedWireAliasNativePhase
+      val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
       named.impl(pc)
       val expression = new UnnamedWireExpressionNativePhase
       expression.impl(pc)

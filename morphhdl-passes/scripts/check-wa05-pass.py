@@ -289,7 +289,8 @@ REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
 )
 
 REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
-    "final class NamedWireAliasNativePhase extends Phase",
+    "final class NamedWireAliasNativePhase(",
+    "deferPreferredExpressionSource: Boolean = false",
     "PhaseRemoveIntermediateUnnameds",
     "alias.isNamed",
     SOURCE_NAME_LOOKUP,
@@ -677,7 +678,7 @@ def check_repository(root: Path) -> list[str]:
         paths["source"].relative_to(root), source_text, REQUIRED_SOURCE_MARKERS,
         "WA05-SOURCE-CONTRACT-MISSING",
     ))
-    phase_start = bridge_text.find("final class NamedWireAliasNativePhase extends Phase")
+    phase_start = bridge_text.find("final class NamedWireAliasNativePhase(")
     phase_end = bridge_text.find("final case class NamedWireAliasNativeReport")
     if phase_start < 0 or phase_end <= phase_start:
         failures.append(
@@ -777,7 +778,7 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
     # must not hide a missing guard at the receiver or metadata proof boundary.
     bridge_source = (Path(__file__).resolve().parents[1] /
                      "examples/NamedWireAliasNativeBridge.scala").read_text()
-    phase_start = bridge_source.index("final class NamedWireAliasNativePhase extends Phase")
+    phase_start = bridge_source.index("final class NamedWireAliasNativePhase(")
     phase_end = bridge_source.index("final case class NamedWireAliasNativeReport", phase_start)
     allowed_bridge = bridge_source[phase_start:phase_end]
     if bridge_phase_failures(Path("AllowedBridge.scala"), allowed_bridge):
