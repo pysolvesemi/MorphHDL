@@ -94,6 +94,14 @@ def main() -> None:
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
          "WA-08 source overlay: HEAD/index/worktree identity differs: "
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-committed-successor-pass-contracts", head,
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", True,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+        ("changed-staged-successor-pass-contracts-restored-worktree", head,
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged",
+         "WA-08 source overlay: HEAD/index/worktree identity differs: "
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
         ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
@@ -126,7 +134,7 @@ def main() -> None:
     output = ROOT / "target/increment-60f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: two positive and fourteen exact negative inherited 60f source-scope cases", flush=True)
+    print("PASS: two positive and sixteen exact negative inherited 60f source-scope cases", flush=True)
 
 
 if __name__ == "__main__":

@@ -514,10 +514,13 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         source_bytes = source.read_bytes()
         if rollout is not None and path in rollout.PRODUCTION:
             source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()
-        if ternary_enabled:
-            source_bytes = ternary.restore_pass_source(root, path, source_bytes)
+        # The named/publication reviewers first restore the authenticated
+        # outer successor. The ternary pass layer then restores its older
+        # WA-07a bytes; those must never re-enter the later WA-08 projection.
         if named is not None:
             source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
+        if ternary_enabled:
+            source_bytes = ternary.restore_pass_source(root, path, source_bytes)
         require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
