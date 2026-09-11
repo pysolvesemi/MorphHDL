@@ -110,7 +110,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "71a64af580e3f644d7d3ec8fd468dba8d92e8f1909f00b1ae6e9621acb31618e",
+      "after_sha256": "e7b2c7da9da15218005cf03aa0373acceedc7ec0ab1069865dc0b66fbb4e335e",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -164,7 +164,7 @@
       "path": "morphhdl-passes/scripts/run-wa09-regression.sh"
     },
     {
-      "after_sha256": "3748cc7c6efe5563077702d4aa7989f565d2e4500f187976c2f88dd45402f30b",
+      "after_sha256": "40c1a165771c65ed0f2cd1fd953a4449d3d061f5f6c0bdcd20987fa38f022600",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -266,7 +266,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "440f8a8c066f8a582e84b89f6c6dc26e8e9365b4288b14ddbdd20614a3c87058",
+      "after_sha256": "60e5f332d220c057b4091b79e210cfd244e2a227ecbba63291a75b00cdcbb684",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -312,6 +312,12 @@
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py"
+    },
+    {
+      "after_sha256": "6c7abf62b032ccb8a4821e4dc18a9c4eeb08b3fd2780b48bdff2172092c7e301",
+      "before_sha256": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
     },
     {
       "after_sha256": "4d7b6a5a961aa9315e34efb8e5d9b321ace4a61a284276710debb5274b0ecfc3",
@@ -500,7 +506,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "0d69c62fc79b51dcb8d3b82443434f7b8a50fa76",
+  "final_source_commit": "bb5cb9061c9b3583ff990fed5723d41f096a2506",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
