@@ -49,8 +49,24 @@ jobs:
           printf '%s\n' "$predecessor" > "$out/predecessor.txt"
 
           python3 -m py_compile morphhdl/repair-59i-widening-captures/apply.py
-          python3 morphhdl/repair-59i-widening-captures/apply.py \
-            2>&1 | tee "$out/application.log"
+          python3 - <<'PY' 2>&1 | tee "$out/application.log"
+          import importlib.util
+          from pathlib import Path
+
+          path = Path("morphhdl/repair-59i-widening-captures/apply.py")
+          spec = importlib.util.spec_from_file_location("increment_59i_widening_captures", path)
+          if spec is None or spec.loader is None:
+              raise RuntimeError("cannot load the exact widening-capture apply transaction")
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          old = "math.max(left.maximum, right.maximum)"
+          new = "scala.math.max(left.maximum, right.maximum)"
+          if module.TEST_SOURCE.count(old) != 1:
+              raise RuntimeError("widening-capture test namespace repair no longer has one exact anchor")
+          module.TEST_SOURCE = module.TEST_SOURCE.replace(old, new, 1)
+          module.main()
+          print("59i widening-capture test uses the explicit Scala math namespace")
+          PY
           git add -N -- \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           git diff --check
