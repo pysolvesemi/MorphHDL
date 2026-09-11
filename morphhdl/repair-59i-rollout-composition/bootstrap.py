@@ -69,10 +69,8 @@ def main() -> None:
     )
 
     # A caller such as the frozen 59g reviewer supplies its own older baseline
-    # inventory. After verifying complete 59i, remove the independently sealed
-    # widening layer with that caller baseline before removing the original
-    # fixed/composite 59i production inventory. This preserves historical
-    # overlap while removing only the two genuinely new widening helper files.
+    # inventory. Remove the independently sealed widening layer with that
+    # baseline before removing the original fixed/composite 59i inventory.
     text = replace_once(
         text,
         '    text = replace_once(text, verify, verified, "59i feature inventory")\n'
@@ -86,26 +84,27 @@ def main() -> None:
         "59i inherited widening composition",
     )
 
-    # The current WA-07b file contains an orphaned restore_rollout call from a
-    # partial reconciliation. Its existing joined_adapter_source is already the
-    # required fail-closed handoff: unchanged/pass bytes return untouched,
-    # combined bytes require exact 59i reviewer+manifest evidence, and only then
-    # flow through the composition-aware 59i restore_source generated above.
+    # Include the WA-07b and 59h checker adaptations in the exact bidirectional
+    # hash contract. They are checker composition only, never new HDL source.
     text = replace_once(
         text,
         'ROLLOUT = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"\nPROMOTER = ROOT /',
         'ROLLOUT = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"\n'
         'WA07B = ROOT / "morphhdl/scripts/check-wa07b-inherited-review.py"\n'
+        'OWNER59H = ROOT / "morphhdl/scripts/check-increment-59h-source-review.py"\n'
         'PROMOTER = ROOT /',
-        "WA-07b composition path",
+        "composed checker paths",
     )
     text = replace_once(
         text,
         "                (PARENT, WIDENING, ROLLOUT, PROMOTER, PROMOTER_CI))",
-        "                (PARENT, WIDENING, ROLLOUT, WA07B, PROMOTER, PROMOTER_CI))",
-        "WA-07b reviewed path inventory",
+        "                (PARENT, WIDENING, ROLLOUT, WA07B, OWNER59H, PROMOTER, PROMOTER_CI))",
+        "composed checker reviewed inventory",
     )
 
+    # The current WA-07b file contains an orphaned restore_rollout call from a
+    # partial reconciliation. Its joined_adapter_source already supplies the
+    # required fail-closed 59i handoff.
     wa_patch = r'''
 def patch_wa07b() -> None:
     text = WA07B.read_text()
@@ -119,14 +118,64 @@ def patch_wa07b() -> None:
 
 
 '''
+
+    # 59h is an older owner audit. On a joined 59i checkout the generated 59g
+    # reviewer must consume the exact composition first; on standalone 60g it
+    # retains the historical rollout-first order. Both paths remain fail closed.
+    owner_patch = r'''
+def patch_59h() -> None:
+    text = OWNER59H.read_text()
+    old_restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+    source = restore_rollout(root, path, source)
+    """Leave unrelated historical hooks to their own exact source contracts."""
+    register = register_source_review(root)
+    if register is not None:
+        source = register.restore_source(root, path, source)
+    entries = load_contract(root)
+'''
+    new_restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+    """Leave unrelated historical hooks to their own exact source contracts."""
+    register = register_source_review(root)
+    joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
+    if joined is not None:
+        source = register.restore_source(root, path, source)
+    else:
+        source = restore_rollout(root, path, source)
+        if register is not None:
+            source = register.restore_source(root, path, source)
+    entries = load_contract(root)
+'''
+    text = replace_once(text, old_restore, new_restore,
+                        "59h joined restore ordering")
+    old_spans = '''        current = restore_rollout(root, path, source.read_text()).encode()
+        if register is not None:
+            current = register.restore_source(root, path, current.decode()).encode()
+        restore_reviewed(entry, baseline, current)
+'''
+    new_spans = '''        current = source.read_text()
+        joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
+        if joined is not None:
+            current = register.restore_source(root, path, current)
+        else:
+            current = restore_rollout(root, path, current)
+            if register is not None:
+                current = register.restore_source(root, path, current)
+        restore_reviewed(entry, baseline, current.encode())
+'''
+    text = replace_once(text, old_spans, new_spans,
+                        "59h joined span ordering")
+    OWNER59H.write_text(text)
+
+
+'''
     text = replace_once(text, "\ndef patch_promoter() -> None:\n",
-                        wa_patch + "def patch_promoter() -> None:\n",
-                        "WA-07b checker patch function")
+                        wa_patch + owner_patch + "def patch_promoter() -> None:\n",
+                        "composed checker patch functions")
     text = replace_once(
         text,
         "    patch_rollout()\n    patch_promoter()\n",
-        "    patch_rollout()\n    patch_wa07b()\n    patch_promoter()\n",
-        "WA-07b checker patch invocation",
+        "    patch_rollout()\n    patch_wa07b()\n    patch_59h()\n    patch_promoter()\n",
+        "composed checker patch invocation",
     )
 
     # Keep the original 59i diagnostic category required by inherited mutation
