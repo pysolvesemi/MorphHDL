@@ -68,12 +68,20 @@ jobs:
           path.write_text(text.replace(old, new, 1))
           PY
 
+          # 60f is frozen historical qualification. Preserve its standalone
+          # current-tree audit, while making its joined mode validate the exact
+          # composition and immutable feature/target native parent views.
+          python3 morphhdl/repair-59i-rollout-composition/patch-60f-native-audit.py \
+            | tee "$out/patch-60f-native-audit.log"
+
           python3 morphhdl/repair-59i-rollout-composition/run-current.py | tee "$out/application.log"
           python3 -m py_compile \
             morphhdl/repair-59i-rollout-composition/apply.py \
             morphhdl/repair-59i-rollout-composition/run-current.py \
+            morphhdl/repair-59i-rollout-composition/patch-60f-native-audit.py \
             morphhdl/scripts/check-increment-59i-rollout-composition.py \
             morphhdl/scripts/test-increment-59i-rollout-composition.py \
+            morphhdl/scripts/check-increment-60f-equivalence-closure.py \
             morphhdl/scripts/check-wa07b-inherited-review.py
           git diff --check
           cat > "$out/expected-files.txt" <<'EOF'
@@ -84,6 +92,7 @@ jobs:
           morphhdl/repair-59i-rollout-composition/apply.py
           morphhdl/scripts/check-increment-59i-rollout-composition.py
           morphhdl/scripts/check-increment-59i-source-review.py
+          morphhdl/scripts/check-increment-60f-equivalence-closure.py
           morphhdl/scripts/check-increment-60g-source-scope.py
           morphhdl/scripts/check-wa07b-inherited-review.py
           morphhdl/scripts/test-increment-59i-rollout-composition.py
