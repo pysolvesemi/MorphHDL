@@ -159,6 +159,45 @@ jobs:
           find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
           sha256sum $(cat "$out/expected-files.txt") > "$out/source-sha256.txt"
 
+      - name: Print exact failing test diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          failures = 0
+          for report in sorted(Path("morphhdl/target").rglob("*.xml")):
+              try:
+                  root = ET.parse(report).getroot()
+              except ET.ParseError:
+                  continue
+              suite = root.get("name", report.name)
+              for case in root.iter("testcase"):
+                  problem = case.find("failure")
+                  kind = "failure"
+                  if problem is None:
+                      problem = case.find("error")
+                      kind = "error"
+                  if problem is None:
+                      continue
+                  failures += 1
+                  print("=" * 96)
+                  print(f"{kind.upper()}: {suite} :: {case.get('name', '<unnamed>')}")
+                  message = problem.get("message", "")
+                  if message:
+                      print("MESSAGE:", message)
+                  detail = (problem.text or "").strip()
+                  if detail:
+                      print(detail[:16000])
+          print("=" * 96)
+          print("Exact failing test cases:", failures)
+          if failures == 0:
+              print("No JUnit failure nodes were found; inspect the preserved raw test log artifact.")
+          PY
+
       - name: Commit and publish only the qualified source set
         shell: bash
         run: |
