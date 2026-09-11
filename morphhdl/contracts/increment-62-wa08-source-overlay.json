@@ -326,7 +326,7 @@
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
     },
     {
-      "after_sha256": "b117dcc6956cb018ccd37d31b6100d8ff0013001ac6912642852462498c71e65",
+      "after_sha256": "b22ea907b952b846d430e18b3bea2950e0d65d3aa8fdb1d21094b2bfcc5e6f3b",
       "before_sha256": "878d23fbccf6825bc37362a2298502c11fa6d97dd1ea305003bb43098cfdedff",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-60f-inherited-source-scope.py"
@@ -500,7 +500,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "d4652b673ebc78644a10bde87b6815600506b071",
+  "final_source_commit": "0d69c62fc79b51dcb8d3b82443434f7b8a50fa76",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
