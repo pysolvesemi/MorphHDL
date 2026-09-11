@@ -175,6 +175,35 @@ parameterized artifacts plus the same-width modular-overflow control twice with:
 sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"
 ```
 
+The actual fixed-width disabled artifact contains these six emitter carriers:
+
+```verilog
+wire [17:0] _zz_hTotal;
+wire [17:0] _zz_hTotal_1;
+wire [17:0] _zz_hTotal_2;
+wire [17:0] _zz_hTotal_3;
+wire [17:0] _zz_hTotal_4;
+wire [17:0] _zz_hTotal_5;
+assign _zz_hTotal = (_zz_hTotal_1 + _zz_hTotal_4);
+assign _zz_hTotal_1 = (_zz_hTotal_2 + _zz_hTotal_3);
+assign _zz_hTotal_2 = {2'd0, hActive};
+assign _zz_hTotal_3 = {2'd0, hFrontPorch};
+assign _zz_hTotal_4 = {2'd0, hSyncWidth};
+assign _zz_hTotal_5 = {2'd0, hBackPorch};
+assign hTotal = (_zz_hTotal + _zz_hTotal_5);
+```
+
+Default and explicit-on generation emit the same expression directly, with
+none of those six carriers:
+
+```verilog
+assign hTotal = ((({2'd0, hActive} + {2'd0, hFrontPorch}) + {2'd0, hSyncWidth}) + {2'd0, hBackPorch});
+```
+
+The complete source includes an independent parameterized witness port pair
+to exercise the production `MorphVerilog` publication path. That pair does not
+participate in the fixed-width sum or authorize its optimization.
+
 ## Safety and remaining limits
 
 WA-09 preserves all WA-05, WA-07 and WA-08 safety anchors. Candidates remain

@@ -90,8 +90,13 @@ wa09_cross_workspace_path() {
     core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala|\
     core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala|\
     morphhdl/contracts/increment-62-wa08-source-overlay.json|\
+    morphhdl/contracts/increment-55-native-change-review.json|\
+    morphhdl/contracts/native-source-preservation.json|\
     morphhdl/scripts/check-increment-62-wa08-source-overlay.py|\
     morphhdl/scripts/check-increment-60f-artifacts.py|\
+    morphhdl/scripts/check-increment-60f-equivalence-closure.py|\
+    morphhdl/scripts/test-increment-60f-inherited-source-scope.py|\
+    morphhdl/scripts/check-increment-60g-source-scope.py|\
     morphhdl/scripts/check-wa07b-inherited-review.py|\
     morphhdl/scripts/check-wa08-production-artifacts.py|\
     morphhdl/scripts/test-wa07b-inherited-review.py|\

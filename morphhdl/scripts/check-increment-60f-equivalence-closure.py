@@ -594,6 +594,25 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
     return module.restore_60g_source(root, path, source)
 
 
+def verify_native_hooks(root: Path) -> None:
+    """Authenticate successor bytes before comparing the exact frozen hooks."""
+    ternary = boolean_ternary_review(root)
+    adapter = getattr(ternary, "wa08_overlay", None)
+    overlay = adapter(root) if adapter is not None else None
+    if overlay is not None:
+        # restore_source alone checks enrolled bytes but is not a substitute
+        # for source-anchor ancestry and complete HEAD/index/worktree identity.
+        overlay.verify(root)
+    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
+        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
+        current = (root / path).read_bytes()
+        if overlay is not None:
+            current = overlay.restore_source(root, path, current)
+        require(current == old,
+                "native signed declaration/cast hooks changed after their frozen qualification")
+
+
 def source_scope(root: Path) -> None:
     # Preserve the inherited oracle/authority rejection diagnostics. The exact
     # production union is still mandatory after all historical source audits.
@@ -641,11 +660,7 @@ def source_scope(root: Path) -> None:
             require(current == old, "sealed writer/checker changed: " + path)
     # Current native printers and signedness policies remain sealed while 59e
     # legitimately evolves the independently reviewed Vec publication path.
-    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
-        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old,
-                "native signed declaration/cast hooks changed after their frozen qualification")
+    verify_native_hooks(root)
     publisher = root / "morphhdl/scripts/check-increment-59f-source-scope.py"
     if publisher.exists():
         load(root, "59f-source-scope").source_scope(root)

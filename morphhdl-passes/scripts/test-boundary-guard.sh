@@ -99,7 +99,12 @@ printf '%s\n' \
   'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala' \
   'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala' \
   'morphhdl/contracts/increment-62-wa08-source-overlay.json' \
+  'morphhdl/contracts/increment-55-native-change-review.json' \
+  'morphhdl/contracts/native-source-preservation.json' \
   'morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
+  'morphhdl/scripts/check-increment-60f-equivalence-closure.py' \
+  'morphhdl/scripts/test-increment-60f-inherited-source-scope.py' \
+  'morphhdl/scripts/check-increment-60g-source-scope.py' \
   'morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala' \
   'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala' \
   'morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala' \

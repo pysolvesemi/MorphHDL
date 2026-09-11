@@ -293,6 +293,49 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
             "60g HEAD changed while binding reviewed sources")
 
 
+NATIVE_SOURCE_ROOTS = ("core/src/main", "lib/src/main", "idslplugin/src/main", "sim/src/main")
+NATIVE_SOURCE_MANIFESTS = (
+    "morphhdl/contracts/native-source-preservation.json",
+    "morphhdl/contracts/typed-native-source-overlay.json",
+)
+
+
+def native_inventory(root: Path, revision: str) -> set[str]:
+    """Project the verified successor delta within the original native domain."""
+    raw = subprocess.check_output(
+        ["git", "diff", "--no-renames", "--name-only", "-z", revision, "--",
+         *NATIVE_SOURCE_ROOTS, *NATIVE_SOURCE_MANIFESTS], cwd=root)
+    paths = {path.decode() for path in raw.split(b"\0") if path}
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        paths = overlay.inherited_inventory(root, paths, revision)
+    # The shared projection restores historical changes canceled by successor
+    # bytes. Keep those native paths, but not cancellations in another compiler
+    # project's source tree outside this gate's original pathspec.
+    return {path for path in paths if path in NATIVE_SOURCE_MANIFESTS or
+            any(path == prefix or path.startswith(prefix + "/") for prefix in NATIVE_SOURCE_ROOTS)}
+
+
+def native_delta_scope(root: Path) -> None:
+    native = native_inventory(root, BASE)
+    require(native == {
+        "core/src/main/scala/spinal/core/internals/Phase.scala",
+        "morphhdl/contracts/native-source-preservation.json"
+    }, "60g native delta exceeds the exact lifecycle hook and its approved manifest: " +
+        str(sorted(native)))
+
+
+def native_manifest_scope(root: Path) -> None:
+    manifest_path = "morphhdl/contracts/native-source-preservation.json"
+    raw = (root / manifest_path).read_bytes()
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        overlay.verify(root)
+        raw = overlay.restore_source(root, manifest_path, raw)
+    require(hashlib.sha256(raw).hexdigest() == NATIVE_MANIFEST_SHA256,
+            "60g reviewed native manifest changed")
+
+
 def source_scope(root: Path) -> None:
     overlay = wa08_overlay(root)
     if overlay is not None:
@@ -332,16 +375,8 @@ def source_scope(root: Path) -> None:
         require(digest(source) == entry["after_sha256"], "60g reviewed current source differs: " + path)
         require(restore_entry(entry, source) == git("show", BASE + ":" + path),
                 "60g source restoration differs from its recorded base: " + path)
-    native = git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
-                 "idslplugin/src/main", "sim/src/main", "morphhdl/contracts/native-source-preservation.json",
-                 "morphhdl/contracts/typed-native-source-overlay.json")
-    require(set(native.splitlines()) == {
-        "core/src/main/scala/spinal/core/internals/Phase.scala",
-        "morphhdl/contracts/native-source-preservation.json"
-    }, "60g native delta exceeds the exact lifecycle hook and its approved manifest: " + native)
-    manifest_path = "morphhdl/contracts/native-source-preservation.json"
-    require(digest((root / manifest_path).read_text()) == NATIVE_MANIFEST_SHA256,
-            "60g reviewed native manifest changed")
+    native_delta_scope(root)
+    native_manifest_scope(root)
     reviewed_blob_scope(root, reviewed_sources(root))
     oracle_only(root)
     print("60g seven-file publication/serialization policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
@@ -692,6 +727,146 @@ def reviewed_blob_self_test(repository: Path) -> None:
           "rejections and restored positive cases PASS (not RTL proof)", flush=True)
 
 
+def native_projection_self_test(repository: Path) -> None:
+    """Real sealed added/edited native sources and attacks; not RTL proof."""
+    import tempfile
+    from unittest import mock
+
+    fixture_path = repository / "morphhdl/scripts/test-wa07b-inherited-review.py"
+    spec = importlib.util.spec_from_file_location("native_projection_fixture", fixture_path)
+    require(spec is not None and spec.loader is not None, "missing native projection fixture")
+    fixture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixture)
+    phase = "core/src/main/scala/spinal/core/internals/Phase.scala"
+    emitter = "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
+    added = "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala"
+    manifest = NATIVE_SOURCE_MANIFESTS[0]
+    outside = "morphhdl/src/main/scala/RestoredOutsideNative.scala"
+    canceled_native = "lib/src/main/scala/RestoredInsideNative.scala"
+    rejections = 0
+    with tempfile.TemporaryDirectory(prefix="morphhdl-60g-native-projection-") as directory:
+        root = Path(directory)
+
+        def git(*args: str) -> str:
+            return fixture.git(root, *args).decode().strip()
+
+        def write(path: str, raw: bytes) -> None:
+            file = root / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_bytes(raw)
+
+        def commit(message: str) -> str:
+            git("add", ".")
+            git("-c", "core.hooksPath=/dev/null", "commit", "-qm", message)
+            return git("rev-parse", "HEAD")
+
+        def reject(label: str, diagnostic: str) -> None:
+            nonlocal rejections
+            fixture.rejected(label, validate, diagnostic)
+            rejections += 1
+
+        def validate() -> None:
+            native_delta_scope(root)
+            native_manifest_scope(root)
+
+        def seal(base: str, source: str, files: dict[str, bytes]) -> str:
+            fixture.install_synthetic_overlay(root, base, source, files)
+            return commit("exact synthetic native successor seal")
+
+        git("init", "-q")
+        write(".gitignore", b"__pycache__/\n")
+        original = {path: ("synthetic original " + path + "\n").encode()
+                    for path in (phase, emitter, manifest, outside, canceled_native)}
+        for path, raw in original.items():
+            write(path, raw)
+        baseline = commit("synthetic native baseline")
+        own = {phase: b"synthetic qualified lifecycle hook\n",
+               manifest: b"synthetic qualified native manifest\n",
+               outside: b"synthetic historical non-native change\n"}
+        for path, raw in own.items():
+            write(path, raw)
+        inherited = commit("synthetic exact historical native delta")
+        with mock.patch.dict(globals(), BASE=baseline,
+                             NATIVE_MANIFEST_SHA256=hashlib.sha256(own[manifest]).hexdigest()):
+            validate()
+            successor = {phase: b"synthetic successor edited lifecycle hook\n",
+                         emitter: b"synthetic successor edited emitter\n",
+                         added: b"synthetic successor added emitter policy\n",
+                         manifest: b"synthetic successor reviewed native manifest\n",
+                         outside: original[outside]}
+            for path, raw in successor.items():
+                write(path, raw)
+            source = commit("synthetic added and edited native sources")
+            reject("unsealed native additions and edits", "60g native delta")
+            seal(inherited, source, {p: raw for p, raw in successor.items() if p != added})
+            reject("incompletely sealed native inventory", "WA-08 source overlay")
+            git("reset", "--hard", source)
+            sealed = seal(inherited, source, successor)
+            validate()
+            raw = {p.decode() for p in fixture.git(root, "diff", "--name-only", "-z",
+                   baseline, "--", *NATIVE_SOURCE_ROOTS, *NATIVE_SOURCE_MANIFESTS).split(b"\0") if p}
+            projected = wa08_overlay(root).inherited_inventory(root, raw, baseline)
+            require(outside in projected and outside not in native_inventory(root, baseline),
+                    "native projection did not exercise a canceled non-native change")
+            for path in (phase, emitter, added, manifest):
+                for mutation in ("changed", "removed", "staged", "executable", "linked"):
+                    file = root / path
+                    if mutation == "removed":
+                        file.unlink()
+                    elif mutation == "executable":
+                        file.chmod(0o755)
+                    elif mutation == "linked":
+                        file.unlink()
+                        file.symlink_to(root / manifest)
+                    else:
+                        file.write_bytes(successor[path] + b"unreviewed native mutation\n")
+                        if mutation == "staged":
+                            git("add", "--", path)
+                            file.write_bytes(successor[path])
+                    reject(mutation + " sealed native source " + path, "WA-08 source overlay")
+                    git("reset", "--hard", sealed)
+            unexpected = "sim/src/main/scala/UnreviewedNative.scala"
+            write(unexpected, b"synthetic unreviewed native source\n")
+            reject("untracked native source outside seal", "WA-08 source overlay")
+            commit("unreviewed committed native source")
+            reject("committed native source outside seal", "WA-08 source overlay")
+            git("reset", "--hard", sealed)
+            validate()
+
+            # A successor can cancel an unapproved historical native change in
+            # the raw diff. Its authenticated projection must restore that path
+            # and let the exact native inventory reject it, not filter it out.
+            git("reset", "--hard", inherited)
+            git("clean", "-fd")
+            write(canceled_native, b"synthetic historical native change outside 60g\n")
+            extra_inherited = commit("historical native change outside exact delta")
+            for path, raw in {**successor, canceled_native: original[canceled_native]}.items():
+                write(path, raw)
+            extra_source = commit("successor cancels historical native delta")
+            seal(extra_inherited, extra_source,
+                 {**successor, canceled_native: original[canceled_native]})
+            require(canceled_native in native_inventory(root, baseline),
+                    "projection discarded a canceled historical native source")
+            reject("canceled historical native source outside exact delta", "60g native delta")
+
+            # Even an authentic successor seal cannot bless a different 60g
+            # manifest. Its restored bytes must still match the frozen digest.
+            git("reset", "--hard", inherited)
+            git("clean", "-fd")
+            write(manifest, b"synthetic corrupted historical native manifest\n")
+            corrupted_inherited = commit("corrupted historical manifest before successor")
+            for path, raw in successor.items():
+                write(path, raw)
+            successor_source = commit("successor over corrupted historical manifest")
+            seal(corrupted_inherited, successor_source, successor)
+            native_delta_scope(root)
+            reject("sealed successor over wrong historical manifest", "60g reviewed native manifest")
+    require(rejections == 26, "missing native projection rejection controls")
+    print("60g native projection controls: genuine added/edited sources, historical overlap, "
+          "native/non-native cancellations, exact restored manifest and 26 rejections PASS (not RTL proof)",
+          flush=True)
+
+
 def self_test(root: Path) -> None:
     rejected = 0
     for entry in contract(root)["files"]:
@@ -711,6 +886,7 @@ def self_test(root: Path) -> None:
     reviewed_blob_self_test(root)
     sibling_scope_self_test(root)
     inherited_projection_self_test(root)
+    native_projection_self_test(root)
 
 
 if __name__ == "__main__":

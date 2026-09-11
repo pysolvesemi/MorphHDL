@@ -79,6 +79,21 @@ def main() -> None:
         ("changed-native-hook", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/internals/VerilogBase.scala", True,
          "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-historical-emitter", module.COMPLETED_60F,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
+         "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-committed-successor-emitter", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-uncommitted-successor-emitter", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", False,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-staged-successor-emitter-restored-worktree", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
+         "WA-08 source overlay: HEAD/index/worktree identity differs: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
         ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
@@ -91,13 +106,18 @@ def main() -> None:
                 if path is not None:
                     target = fixture / path
                     target.parent.mkdir(parents=True, exist_ok=True)
+                    original = target.read_bytes() if target.is_file() else None
                     with target.open("a") as stream:
                         stream.write("\n// Deliberate isolated source-scope fixture mutation.\n")
                     if commit:
                         git(fixture, "add", "--", path)
-                        git(fixture, "-c", "user.name=Scope guard fixture",
-                            "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
-                            "-m", "isolated 60f inherited source-scope fixture")
+                        if commit == "staged":
+                            assert original is not None
+                            target.write_bytes(original)
+                        else:
+                            git(fixture, "-c", "user.name=Scope guard fixture",
+                                "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
+                                "-m", "isolated 60f inherited source-scope fixture")
                 records.append(check(fixture, label, rejection))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
@@ -106,7 +126,7 @@ def main() -> None:
     output = ROOT / "target/increment-60f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: two positive and ten exact negative inherited 60f source-scope cases", flush=True)
+    print("PASS: two positive and fourteen exact negative inherited 60f source-scope cases", flush=True)
 
 
 if __name__ == "__main__":
