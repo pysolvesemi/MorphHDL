@@ -1,0 +1,148 @@
+name: Increment 61 integrate latest parameterized-verilog v9
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-integrate-latest-base-v9.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-61-integrate-latest-parameterized-verilog-v9
+  cancel-in-progress: true
+
+env:
+  FEATURE_BRANCH: agent/increment-61-one-file-per-component
+  FEATURE_HEAD: 5614c2da2e53e1220d3f3df58347eb67c13a3904
+  TARGET_BRANCH: parameterized-verilog
+  TARGET_HEAD: 39d888874577dc989f43e602c577985ebc53bc69
+
+jobs:
+  integrate:
+    runs-on: ubuntu-slim
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FEATURE_HEAD }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Merge current target and compose exact source reviews
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-base-integration"
+          target_worktree="$output/target-source"
+          mkdir -p "$output"
+          exec > >(tee "$output/integration.log") 2>&1
+
+          test "$(git rev-parse HEAD)" = "$FEATURE_HEAD"
+          remote_feature=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+          remote_target=$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | cut -f1)
+          test "$remote_feature" = "$FEATURE_HEAD"
+          test "$remote_target" = "$TARGET_HEAD"
+
+          git worktree add --detach "$target_worktree" "$TARGET_HEAD"
+          trap 'git worktree remove --force "$target_worktree"' EXIT
+          (
+            cd "$target_worktree"
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          ) | tee "$output/target-audit.log"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff --no-commit "$TARGET_HEAD"
+
+          python3 - "$TARGET_HEAD" <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import re
+          import sys
+
+          target = sys.argv[1]
+          contract_path = Path('morphhdl/contracts/increment-61-source-review.json')
+          checker_path = Path('morphhdl/scripts/check-increment-61-source-review.py')
+          contract = json.loads(contract_path.read_text())
+          if contract.get('integrated_target_commit') != '2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6':
+              raise SystemExit('unexpected predecessor integrated target')
+          contract['integrated_target_commit'] = target
+
+          integrated_paths = {
+              'docs/morphhdl/parameterized-verilog-todo.md',
+              'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala',
+          }
+          found = set()
+          for entry in contract['reviewed_files']:
+              path = entry['path']
+              if path in integrated_paths:
+                  file = Path(path)
+                  if not file.is_file() or file.is_symlink():
+                      raise SystemExit(f'missing integrated reviewed file: {path}')
+                  entry['after_sha256_integrated'] = hashlib.sha256(file.read_bytes()).hexdigest()
+                  found.add(path)
+          if found != integrated_paths:
+              raise SystemExit(f'missing integrated review entries: {sorted(integrated_paths - found)}')
+
+          contract_path.write_text(json.dumps(contract, indent=2) + '\n')
+          checker = checker_path.read_text()
+          old = '''    changed_raw = git("diff", "--no-renames", "--name-only", "-z", base, "HEAD", root=root)\n'''
+          new = '''    scope_base = contract["integrated_target_commit"] if integrated else base\n    changed_raw = git("diff", "--no-renames", "--name-only", "-z", scope_base, "HEAD", root=root)\n'''
+          if checker.count(old) != 1:
+              raise SystemExit('Increment 61 changed-inventory source span changed')
+          checker = checker.replace(old, new, 1)
+          digest = hashlib.sha256(contract_path.read_bytes()).hexdigest()
+          checker, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{digest}"',
+              checker,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('Increment 61 contract digest marker changed')
+          checker_path.write_text(checker)
+          print('increment_61_contract_sha256=' + digest)
+          PY
+
+          git add docs/morphhdl/parameterized-verilog-todo.md \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
+            morphhdl/contracts/increment-61-source-review.json \
+            morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+          git commit -m 'Merge latest parameterized-verilog into Increment 61' \
+            -m 'Integrate target head 39d888874577dc989f43e602c577985ebc53bc69, retain the WA-08 production handoff, compose the Increment 61 exact changed-file inventory against that target, and reseal only the two overlapping reviewed files. Production one-file-per-component behavior remains source-audited.'
+
+          integrated=$(git rev-parse HEAD)
+          test "$(git rev-list --parents -n1 HEAD | wc -w)" -eq 3
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/increment-61-review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/increment-61-review.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native-review.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$output/overlay-review.log"
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse HEAD^1 > "$output/feature-parent.txt"
+          git rev-parse HEAD^2 > "$output/target-parent.txt"
+
+          remote_feature=$(git ls-remote origin "refs/heads/$FEATURE_BRANCH" | cut -f1)
+          remote_target=$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | cut -f1)
+          test "$remote_feature" = "$FEATURE_HEAD"
+          test "$remote_target" = "$TARGET_HEAD"
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          echo "Published integrated Increment 61 head $integrated"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-latest-base-integration-v9
+          path: target/increment-61-base-integration
+          if-no-files-found: error
+          retention-days: 14
