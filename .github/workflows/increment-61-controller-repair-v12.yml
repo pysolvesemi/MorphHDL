@@ -48,13 +48,13 @@ jobs:
                     continue
                     ;;
                 esac
-'''
+          '''
           new = '''                case "$name" in
                   'Increment 61 one-file-per-component publication'|'Increment 61 per-component compatibility matrix'|'Increment 60c signed declarations'|'Increment 60d pure SInt casts'|'Increment 60e signedness boundaries'|'Increment 60f equivalence closure'|'Increment 60g default signed Verilog'|'Increment 62 WA-08 inherited workflow closure'|'MorphHDL baseline'|'MorphHDL Mill'|'MorphHDL native source guard')
                     continue
                     ;;
                 esac
-'''
+          '''
           if text.count(old) != 1:
               raise SystemExit('guarded-finalizer case pattern did not match exactly once')
           text = text.replace(old, new)
