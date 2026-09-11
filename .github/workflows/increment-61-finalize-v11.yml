@@ -1,0 +1,488 @@
+name: Increment 61 guarded finalization v11
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-finalize-v11.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: increment-61-guarded-finalization-v11
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FEATURE_BRANCH: agent/increment-61-one-file-per-component
+      TARGET_BRANCH: parameterized-verilog
+      PR_NUMBER: '179'
+      EXPECTED_FEATURE_HEAD: ffd607e684c516d5e1fa63d90faeee78371b5453
+    steps:
+      - name: Check out the exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FEATURE_BRANCH }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Integrate, qualify, close out, merge and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          output="$GITHUB_WORKSPACE/target/increment-61-finalization-v11"
+          mkdir -p "$output"
+          exec > >(tee "$output/controller.log") 2>&1
+
+          workflows=(
+            increment-61-one-file-per-component.yml
+            increment-61-compatibility-matrix.yml
+            increment-60c-signed-declarations.yml
+            increment-60d-pure-sint-casts.yml
+            increment-60e-signedness-boundaries.yml
+            increment-60f-equivalence-closure.yml
+            increment-60g-default-signed-verilog.yml
+            increment-62-wa08-source-overlay.yml
+            morphhdl-baseline.yml
+            morphhdl-mill.yml
+            morphhdl-native-source-guard.yml
+          )
+
+          current_remote() {
+            git ls-remote origin "refs/heads/$1" | awk '{print $1}'
+          }
+
+          wait_for_pr_mergeability() {
+            local expected="$1"
+            for _ in $(seq 1 60); do
+              local json mergeable state draft head base
+              json=$(gh api "repos/$repo/pulls/$PR_NUMBER")
+              state=$(jq -r .state <<<"$json")
+              draft=$(jq -r .draft <<<"$json")
+              head=$(jq -r .head.sha <<<"$json")
+              base=$(jq -r .base.ref <<<"$json")
+              mergeable=$(jq -r '.mergeable // "unknown"' <<<"$json")
+              test "$state" = open
+              test "$draft" = true || test "$draft" = false
+              test "$head" = "$expected"
+              test "$base" = "$TARGET_BRANCH"
+              if test "$mergeable" = true; then
+                return 0
+              fi
+              if test "$mergeable" = false; then
+                echo "PR is not mergeable at $expected" >&2
+                return 1
+              fi
+              sleep 5
+            done
+            echo "PR mergeability did not resolve" >&2
+            return 1
+          }
+
+          cancel_active_feature_runs() {
+            local keep_sha="${1:-}"
+            local records="$output/active-runs.tsv"
+            : > "$records"
+            for status in queued in_progress pending waiting requested; do
+              gh api --paginate \
+                "/repos/$repo/actions/runs?branch=$FEATURE_BRANCH&status=$status&per_page=100" \
+                --jq '.workflow_runs[] | [.id, .name, .head_sha, .status] | @tsv' \
+                >> "$records" || true
+            done
+            sort -u "$records" -o "$records"
+            while IFS=$'\t' read -r id name sha status; do
+              test -n "$id" || continue
+              if test -n "$keep_sha" && test "$sha" = "$keep_sha"; then
+                case "$name" in
+                  'Increment 61 one-file-per-component publication'|
+                  'Increment 61 per-component compatibility matrix'|
+                  'Increment 60c signed declarations'|
+                  'Increment 60d pure SInt casts'|
+                  'Increment 60e signedness boundaries'|
+                  'Increment 60f equivalence closure'|
+                  'Increment 60g default signed Verilog'|
+                  'Increment 62 WA-08 inherited workflow closure'|
+                  'MorphHDL baseline'|
+                  'MorphHDL Mill'|
+                  'MorphHDL native source guard')
+                    continue
+                    ;;
+                esac
+              fi
+              echo "Cancelling obsolete run $id ($status, $sha, $name)"
+              gh api --method POST "/repos/$repo/actions/runs/$id/cancel" >/dev/null 2>&1 || true
+            done < "$records"
+          }
+
+          require_successful_jobs() {
+            local run_id="$1"
+            local file="$2"
+            gh api --paginate "/repos/$repo/actions/runs/$run_id/jobs?per_page=100" \
+              --jq '.jobs[] | [.name, .status, (.conclusion // "")] | @tsv' > "$file"
+            test -s "$file"
+            while IFS=$'\t' read -r name status conclusion; do
+              test "$status" = completed
+              test "$conclusion" = success
+            done < "$file"
+          }
+
+          dispatch_and_wait() {
+            local ref="$1"
+            local sha="$2"
+            local phase="$3"
+            local table="$output/${phase}-runs.tsv"
+            : > "$table"
+            declare -A ids=()
+            declare -A retried=()
+            local stamp
+            stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+            for workflow in "${workflows[@]}"; do
+              test -f ".github/workflows/$workflow"
+              grep -q 'workflow_dispatch' ".github/workflows/$workflow"
+              echo "Dispatching $workflow on $ref at $sha"
+              gh api --method POST "repos/$repo/actions/workflows/$workflow/dispatches" -f ref="$ref"
+            done
+
+            for workflow in "${workflows[@]}"; do
+              local id=''
+              for _ in $(seq 1 100); do
+                id=$(gh api "repos/$repo/actions/workflows/$workflow/runs?branch=$ref&event=workflow_dispatch&per_page=50" \
+                  --jq ".workflow_runs | map(select(.head_sha == \"$sha\" and .created_at >= \"$stamp\")) | sort_by(.created_at) | last | .id // empty")
+                test -n "$id" && break
+                sleep 5
+              done
+              test -n "$id"
+              ids[$workflow]="$id"
+              retried[$workflow]=0
+              printf '%s\t%s\n' "$workflow" "$id" >> "$table"
+            done
+
+            for _ in $(seq 1 660); do
+              local pending=0
+              local failed=0
+              for workflow in "${workflows[@]}"; do
+                local id="${ids[$workflow]}"
+                local run run_sha status conclusion
+                run=$(gh api "repos/$repo/actions/runs/$id")
+                run_sha=$(jq -r .head_sha <<<"$run")
+                status=$(jq -r .status <<<"$run")
+                conclusion=$(jq -r '.conclusion // ""' <<<"$run")
+                test "$run_sha" = "$sha"
+                printf '%s\t%s\t%s\t%s\n' "$workflow" "$id" "$status" "$conclusion" \
+                  > "$output/${phase}-${workflow}.state"
+                if test "$status" != completed; then
+                  pending=1
+                elif test "$conclusion" != success; then
+                  if test "${retried[$workflow]}" -eq 0 && \
+                     test "$conclusion" != action_required && \
+                     test "$conclusion" != skipped; then
+                    echo "Retrying failed jobs for $workflow run $id ($conclusion)"
+                    gh api --method POST "repos/$repo/actions/runs/$id/rerun-failed-jobs"
+                    retried[$workflow]=1
+                    pending=1
+                  else
+                    echo "Required workflow failed: $workflow run $id ($conclusion)" >&2
+                    failed=1
+                  fi
+                else
+                  require_successful_jobs "$id" "$output/${phase}-${workflow}.jobs.tsv" || failed=1
+                fi
+              done
+              test "$failed" -eq 0
+              if test "$pending" -eq 0; then
+                echo "$phase exact-head workflow barrier PASS at $sha"
+                return 0
+              fi
+              sleep 30
+            done
+            echo "$phase workflow barrier timed out" >&2
+            return 1
+          }
+
+          reseal_source_review() {
+            local integrated_target="$1"
+            python3 - "$integrated_target" <<'PY'
+          from pathlib import Path
+          import hashlib, json, re, sys
+
+          root = Path('.')
+          target = sys.argv[1]
+          contract = root / 'morphhdl/contracts/increment-61-source-review.json'
+          checker = root / 'morphhdl/scripts/check-increment-61-source-review.py'
+          data = json.loads(contract.read_text())
+          data['integrated_target_commit'] = target
+          for entry in data['reviewed_files']:
+              path = root / entry['path']
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit(f"missing reviewed file: {entry['path']}")
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              entry['after_sha256_integrated'] = digest
+          contract.write_text(json.dumps(data, indent=2) + '\n')
+          digest = hashlib.sha256(contract.read_bytes()).hexdigest()
+          text = checker.read_text()
+          text, count = re.subn(
+              r'CONTRACT_SHA256 = "[0-9a-f]{64}"',
+              f'CONTRACT_SHA256 = "{digest}"',
+              text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit('source-review digest marker changed')
+          checker.write_text(text)
+          print('source_review_contract_sha256=' + digest)
+          PY
+          }
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          initial=$(git rev-parse HEAD)
+          remote_feature=$(current_remote "$FEATURE_BRANCH")
+          test "$initial" = "$EXPECTED_FEATURE_HEAD"
+          test "$remote_feature" = "$EXPECTED_FEATURE_HEAD"
+          test -z "$(git status --porcelain)"
+
+          pr_json=$(gh api "repos/$repo/pulls/$PR_NUMBER")
+          test "$(jq -r .state <<<"$pr_json")" = open
+          test "$(jq -r .merged <<<"$pr_json")" = false
+          test "$(jq -r .draft <<<"$pr_json")" = true
+          test "$(jq -r .head.ref <<<"$pr_json")" = "$FEATURE_BRANCH"
+          test "$(jq -r .head.sha <<<"$pr_json")" = "$initial"
+          test "$(jq -r .base.ref <<<"$pr_json")" = "$TARGET_BRANCH"
+
+          git fetch origin "$TARGET_BRANCH" "$FEATURE_BRANCH"
+          target_sha=$(git rev-parse "origin/$TARGET_BRANCH")
+          echo "$target_sha" > "$output/target-head.txt"
+          if ! git merge-base --is-ancestor "$target_sha" HEAD; then
+            echo "Integrating target $target_sha into Increment 61"
+            git merge --no-ff --no-commit "origin/$TARGET_BRANCH"
+            reseal_source_review "$target_sha"
+            git add -A
+            git diff --cached --check
+            git commit \
+              -m 'Merge latest parameterized-verilog into Increment 61' \
+              -m "Integrate target head $target_sha, preserve target work, and reseal the exact Increment 61 integrated-source contract."
+            integrated=$(git rev-parse HEAD)
+            python3 morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+            test "$(current_remote "$FEATURE_BRANCH")" = "$initial"
+            git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+          else
+            integrated=$(git rev-parse HEAD)
+            python3 morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          fi
+          echo "$integrated" > "$output/integrated-head.txt"
+          test -z "$(git status --porcelain)"
+          test "$(current_remote "$FEATURE_BRANCH")" = "$integrated"
+          test "$(current_remote "$TARGET_BRANCH")" = "$target_sha"
+          wait_for_pr_mergeability "$integrated"
+
+          cancel_active_feature_runs
+          sleep 20
+          dispatch_and_wait "$FEATURE_BRANCH" "$integrated" candidate
+
+          pub_run=$(awk '$1 == "increment-61-one-file-per-component.yml" {print $2}' "$output/candidate-runs.tsv")
+          test -n "$pub_run"
+          evidence="$output/publication-evidence"
+          mkdir -p "$evidence"
+          gh run download "$pub_run" --repo "$repo" -n increment-61-2.13.12 -D "$evidence"
+          leaf=$(find "$evidence" -type f -path '*/generated-a/split/Increment61Leaf.v' -print -quit)
+          top=$(find "$evidence" -type f -path '*/generated-a/split/Increment61Top.v' -print -quit)
+          list=$(find "$evidence" -type f -path '*/generated-a/split/Increment61Top.lst' -print -quit)
+          test -n "$leaf" && test -s "$leaf"
+          test -n "$top" && test -s "$top"
+          test -n "$list" && test -s "$list"
+
+          CANDIDATE_HEAD="$integrated" LEAF_PATH="$leaf" TOP_PATH="$top" LIST_PATH="$list" \
+            python3 - <<'PY'
+          from pathlib import Path
+          import os, re
+
+          candidate = os.environ['CANDIDATE_HEAD']
+          leaf = Path(os.environ['LEAF_PATH']).read_text().rstrip()
+          top = Path(os.environ['TOP_PATH']).read_text().rstrip()
+          source_list = Path(os.environ['LIST_PATH']).read_text().rstrip()
+          doc_path = Path('docs/morphhdl/increment-61-one-file-per-component.md')
+          roadmap_path = Path('docs/morphhdl/parameterized-verilog-todo.md')
+          doc = doc_path.read_text()
+          for marker in ('## Completion evidence', '## Current status'):
+              if marker in doc:
+                  doc = doc.split(marker, 1)[0].rstrip()
+                  break
+
+          scala = '''import morphhdl.MorphVerilog
+          import morphhdl.frontend.{Bits, HdlInt, formalParam}
+          import spinal.core._
+
+          final class Leaf(actualWidth: HdlInt) extends Component {
+            setDefinitionName("Increment61Leaf")
+            @dontName private val width = formalParam(
+              actualWidth, "WIDTH", minimum = BigInt(1), maximum = BigInt(64)
+            )
+            val din  = in(Bits(width bits))
+            val dout = out(Bits(width bits))
+            dout := din
+          }
+
+          final class Top(leftWidth: HdlInt, rightWidth: HdlInt) extends Component {
+            setDefinitionName("Increment61Top")
+            val left  = new Leaf(leftWidth)
+            val right = new Leaf(rightWidth)
+          }
+
+          val leftWidth  = HdlInt.param("LEFT_WIDTH",  default = 5, min = 1, max = 64)
+          val rightWidth = HdlInt.param("RIGHT_WIDTH", default = 5, min = 1, max = 64)
+          MorphVerilog(
+            SpinalConfig(targetDirectory = "rtl", oneFilePerComponent = true)
+          )(new Top(leftWidth, rightWidth))'''
+
+          completion = f'''## Completion evidence
+
+          The final pre-closeout qualification candidate was `{candidate}`. The source
+          below is the unchanged MorphHDL/SpinalHDL-style API exercised by the
+          Increment 61 publication tests.
+
+          ```scala
+          {scala}
+          ```
+
+          The same elaboration produced these actual strict Verilog-2001 files.
+
+          `Increment61Leaf.v`:
+
+          ```verilog
+          {leaf}
+          ```
+
+          `Increment61Top.v`:
+
+          ```verilog
+          {top}
+          ```
+
+          `Increment61Top.lst`:
+
+          ```text
+          {source_list}
+          ```
+
+          ## Completed qualification
+
+          - Scala 2.12.18 and 2.13.12 publication and compatibility lanes.
+          - Strict Icarus Verilog, Verilator and Yosys checks.
+          - Split-versus-consolidated specialization equivalence and negative mutations.
+          - Cross-Scala generated-byte determinism.
+          - Complete field, Mem, Vec, Stream, FIFO, CDC, signedness, generate,
+            recursion, reduction and typed-BlackBox compatibility coverage.
+          - Inherited Increment 60 closure, Increment 62/WA-08 compatibility,
+            MorphHDL baseline, Mill and native-source guards.
+
+          Increment 61 affects generated Verilog: when `oneFilePerComponent = true`,
+          MorphHDL publishes one deterministic parameterized Verilog-2001 file per
+          canonical component. Consolidated generation remains unchanged when false.
+          '''
+          doc_path.write_text(doc + '\n\n' + completion.strip() + '\n')
+
+          roadmap = roadmap_path.read_text()
+          pattern = re.compile(
+              r'- \[ \] \*\*Increment 61 — Parameterized `oneFilePerComponent` publication\*\*'
+          )
+          roadmap, count = pattern.subn(
+              '- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**',
+              roadmap,
+              count=1,
+          )
+          if count != 1:
+              if '- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**' not in roadmap:
+                  raise SystemExit('Increment 61 roadmap checkbox precondition failed')
+          roadmap_path.write_text(roadmap)
+          PY
+
+          reseal_source_review "$target_sha"
+          git add docs/morphhdl/increment-61-one-file-per-component.md \
+                  docs/morphhdl/parameterized-verilog-todo.md \
+                  morphhdl/contracts/increment-61-source-review.json \
+                  morphhdl/scripts/check-increment-61-source-review.py
+          git diff --cached --check
+          git commit \
+            -m '61: record qualified completion evidence' \
+            -m 'Record the actual Scala source, generated per-component Verilog and source manifest from the green qualification candidate; mark Increment 61 complete and reseal exact integrated-source review.'
+          closeout=$(git rev-parse HEAD)
+          echo "$closeout" > "$output/closeout-head.txt"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          test -z "$(git status --porcelain)"
+          test "$(current_remote "$FEATURE_BRANCH")" = "$integrated"
+          test "$(current_remote "$TARGET_BRANCH")" = "$target_sha"
+          git push origin "HEAD:refs/heads/$FEATURE_BRANCH"
+
+          cancel_active_feature_runs
+          sleep 20
+          dispatch_and_wait "$FEATURE_BRANCH" "$closeout" closeout
+
+          test "$(current_remote "$FEATURE_BRANCH")" = "$closeout"
+          test "$(current_remote "$TARGET_BRANCH")" = "$target_sha"
+          wait_for_pr_mergeability "$closeout"
+          grep -Fq -- '- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq '## Completion evidence' docs/morphhdl/increment-61-one-file-per-component.md
+          grep -Fq '```scala' docs/morphhdl/increment-61-one-file-per-component.md
+          grep -Fq '```verilog' docs/morphhdl/increment-61-one-file-per-component.md
+
+          pr_node=$(gh api "repos/$repo/pulls/$PR_NUMBER" --jq .node_id)
+          gh api graphql -f query='mutation($id:ID!){markPullRequestReadyForReview(input:{pullRequestId:$id}){pullRequest{isDraft}}}' \
+            -f id="$pr_node" --jq '.data.markPullRequestReadyForReview.pullRequest.isDraft' \
+            | grep -Fx false
+
+          gh api --method PATCH "repos/$repo/pulls/$PR_NUMBER" \
+            -f title='Increment 61: parameterized one-file-per-component publication' \
+            -f body="## Completed\n\nIncrement 61 is implemented and fully qualified on exact closeout SHA \`$closeout\`. The roadmap is checked, and the completion document contains the actual Scala source, generated Verilog files and source manifest. Candidate and closeout workflow inventories are retained in the finalization evidence."
+
+          merge_json=$(gh api --method PUT "repos/$repo/pulls/$PR_NUMBER/merge" \
+            -f sha="$closeout" \
+            -f merge_method=merge \
+            -f commit_title='Merge PR #179: Increment 61 one-file-per-component publication' \
+            -f commit_message='Publish parameterized Verilog as one deterministic file per canonical component, with exact ownership, manifests, safe stale-output handling and complete dual-Scala/tool/inherited qualification.')
+          test "$(jq -r .merged <<<"$merge_json")" = true
+          merge_sha=$(jq -r .sha <<<"$merge_json")
+          test -n "$merge_sha" && test "$merge_sha" != null
+          echo "$merge_sha" > "$output/merge-head.txt"
+
+          for _ in $(seq 1 40); do
+            test "$(current_remote "$TARGET_BRANCH")" = "$merge_sha" && break
+            sleep 5
+          done
+          test "$(current_remote "$TARGET_BRANCH")" = "$merge_sha"
+          git fetch origin "$TARGET_BRANCH"
+          git checkout --detach "$merge_sha"
+          test "$(git rev-parse HEAD)" = "$merge_sha"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          dispatch_and_wait "$TARGET_BRANCH" "$merge_sha" postmerge
+          test "$(current_remote "$TARGET_BRANCH")" = "$merge_sha"
+
+          gh api --method PATCH "repos/$repo/pulls/$PR_NUMBER" \
+            -f body="## Completed and merged\n\nIncrement 61 was merged into \`parameterized-verilog\` as \`$merge_sha\`. Candidate, exact closeout and post-merge runs all passed for the required Increment 61, inherited Increment 60, Increment 62/WA-08, baseline, Mill and native-source workflows. The roadmap is checked and the completion document contains actual Scala and generated Verilog evidence."
+          echo "INCREMENT_61_COMPLETE merge=$merge_sha"
+
+      - name: Upload finalization evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-finalization-v11
+          path: target/increment-61-finalization-v11
+          if-no-files-found: error
+          retention-days: 30
