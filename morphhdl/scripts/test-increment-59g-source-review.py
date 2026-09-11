@@ -124,6 +124,8 @@ def main() -> None:
         for label, path, mutation, expected in cases:
             if mutation == "suffix" and path in overlay_paths:
                 expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + path
+            elif mutation == "staged" and path in overlay_paths:
+                expected = "WA-08 source overlay: HEAD/index/worktree identity differs: " + path
             elif path.startswith("foreign/src/main/"):
                 expected = "WA-08 source overlay: unreviewed production delta: governed inventory differs: " + repr([path])
             elif mutation in ("untracked", "staged"):

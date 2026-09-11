@@ -140,7 +140,7 @@
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py"
     },
     {
-      "after_sha256": "abdca91761e866a140e1f94d51f284e1176e96d28ccf58b180e489a69a20a683",
+      "after_sha256": "4d7b6a5a961aa9315e34efb8e5d9b321ace4a61a284276710debb5274b0ecfc3",
       "before_sha256": "9ca0cbba29b323a9853ff73f704c086fbe1950198996192e02f65091fd7853be",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59g-source-review.py"
@@ -308,7 +308,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "f60e8ce417a9a829dd4ce99e01d89450a1b74d36",
+  "final_source_commit": "28b3277ed9511f1ae333e026c8884b82642285d1",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
