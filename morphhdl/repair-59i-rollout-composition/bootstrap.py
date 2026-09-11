@@ -68,9 +68,11 @@ def main() -> None:
         "anchor-aware 59i feature-view restoration",
     )
 
-    # The reconciled WA-07b adapter already calls restore_rollout, but the
-    # helper and the direct verify() path were not composed. Add one exact
-    # checker patch and include it in the bidirectional hash contract.
+    # The current WA-07b file contains an orphaned restore_rollout call from a
+    # partial reconciliation. Its existing joined_adapter_source is already the
+    # required fail-closed handoff: unchanged/pass bytes return untouched,
+    # combined bytes require exact 59i reviewer+manifest evidence, and only then
+    # flow through the composition-aware 59i restore_source generated above.
     text = replace_once(
         text,
         'ROLLOUT = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"\nPROMOTER = ROOT /',
@@ -89,49 +91,11 @@ def main() -> None:
     wa_patch = r'''
 def patch_wa07b() -> None:
     text = WA07B.read_text()
-    anchor = "\ndef joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:\n"
-    helper = (
-        "\ndef rollout_composition(root: Path):\n"
-        "    source = root / \"morphhdl/scripts/check-increment-59i-rollout-composition.py\"\n"
-        "    if not (source.exists() or source.is_symlink()):\n"
-        "        return None\n"
-        "    require(source.is_file() and not source.is_symlink(),\n"
-        "            \"missing regular 59i rollout-composition reviewer\")\n"
-        "    spec = importlib.util.spec_from_file_location(\"wa07b_rollout_composition\", source)\n"
-        "    require(spec is not None and spec.loader is not None,\n"
-        "            \"cannot load exact 59i rollout-composition reviewer\")\n"
-        "    module = importlib.util.module_from_spec(spec)\n"
-        "    spec.loader.exec_module(module)\n"
-        "    return module\n\n"
-        "\ndef restore_rollout(root: Path, path: str, source: str) -> str:\n"
-        "    composition = rollout_composition(root)\n"
-        "    if composition is not None:\n"
-        "        source = composition.target_view(root, path, source)\n"
-        "    helper = root / \"morphhdl/scripts/check-increment-60g-source-scope.py\"\n"
-        "    if not (helper.exists() or helper.is_symlink()):\n"
-        "        return source\n"
-        "    require(helper.is_file() and not helper.is_symlink(),\n"
-        "            \"missing regular 60g rollout reviewer\")\n"
-        "    spec = importlib.util.spec_from_file_location(\"wa07b_rollout_source_review\", helper)\n"
-        "    require(spec is not None and spec.loader is not None,\n"
-        "            \"cannot load exact 60g rollout reviewer\")\n"
-        "    module = importlib.util.module_from_spec(spec)\n"
-        "    spec.loader.exec_module(module)\n"
-        "    return module.restore_60g_source(root, path, source)\n\n"
-    )
-    text = replace_once(text, anchor, helper + anchor,
-                        "WA-07b rollout helper insertion")
-    entry = '    entry = next((entry for entry in load_contract(root)["checker_adapters"]\n'
-    text = replace_once(
-        text, entry,
-        '    source = restore_rollout(root, path, source.decode()).encode()\n' + entry,
-        "WA-07b joined adapter rollout ordering",
-    )
     text = replace_once(
         text,
         "    source = restore_rollout(root, path, source)\n",
         "",
-        "WA-07b duplicate rollout removal",
+        "WA-07b orphaned rollout removal",
     )
     WA07B.write_text(text)
 
