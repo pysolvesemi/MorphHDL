@@ -33,31 +33,56 @@ jobs:
 
           workflow = Path('.github/workflows/increment-61-finalize-v11.yml')
           text = workflow.read_text()
-          old = '''                case "$name" in
-                  'Increment 61 one-file-per-component publication'|
-                  'Increment 61 per-component compatibility matrix'|
-                  'Increment 60c signed declarations'|
-                  'Increment 60d pure SInt casts'|
-                  'Increment 60e signedness boundaries'|
-                  'Increment 60f equivalence closure'|
-                  'Increment 60g default signed Verilog'|
-                  'Increment 62 WA-08 inherited workflow closure'|
-                  'MorphHDL baseline'|
-                  'MorphHDL Mill'|
-                  'MorphHDL native source guard')
-                    continue
-                    ;;
-                esac
-          '''
-          new = '''                case "$name" in
-                  'Increment 61 one-file-per-component publication'|'Increment 61 per-component compatibility matrix'|'Increment 60c signed declarations'|'Increment 60d pure SInt casts'|'Increment 60e signedness boundaries'|'Increment 60f equivalence closure'|'Increment 60g default signed Verilog'|'Increment 62 WA-08 inherited workflow closure'|'MorphHDL baseline'|'MorphHDL Mill'|'MorphHDL native source guard')
-                    continue
-                    ;;
-                esac
-          '''
-          if text.count(old) != 1:
-              raise SystemExit('guarded-finalizer case pattern did not match exactly once')
-          text = text.replace(old, new)
+          lines = text.splitlines()
+          names = [
+              'Increment 61 one-file-per-component publication',
+              'Increment 61 per-component compatibility matrix',
+              'Increment 60c signed declarations',
+              'Increment 60d pure SInt casts',
+              'Increment 60e signedness boundaries',
+              'Increment 60f equivalence closure',
+              'Increment 60g default signed Verilog',
+              'Increment 62 WA-08 inherited workflow closure',
+              'MorphHDL baseline',
+              'MorphHDL Mill',
+              'MorphHDL native source guard',
+          ]
+
+          starts = [
+              index
+              for index, line in enumerate(lines)
+              if line == '                case "$name" in'
+          ]
+          if len(starts) != 1:
+              raise SystemExit(
+                  f'expected one guarded-finalizer case block, found {len(starts)}'
+              )
+          start = starts[0]
+          ends = [
+              index
+              for index in range(start + 1, len(lines))
+              if lines[index] == '                esac'
+          ]
+          if not ends:
+              raise SystemExit('guarded-finalizer case block has no esac')
+          end = ends[0]
+          block = lines[start : end + 1]
+          for name in names:
+              if not any(name in line for line in block):
+                  raise SystemExit(
+                      f'guarded-finalizer case block lost expected workflow name: {name}'
+                  )
+
+          quoted = '|'.join("'" + name.replace("'", "'\\''") + "'" for name in names)
+          replacement = [
+              '                case "$name" in',
+              f'                  {quoted})',
+              '                    continue',
+              '                    ;;',
+              '                esac',
+          ]
+          lines[start : end + 1] = replacement
+          text = '\n'.join(lines) + '\n'
           workflow.write_text(text)
 
           step = '      - name: Integrate, qualify, close out, merge and verify\n'
