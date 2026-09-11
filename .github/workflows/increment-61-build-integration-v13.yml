@@ -1,0 +1,237 @@
+name: Increment 61 target integration builder v13
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-build-integration-v13.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: pysolvesemi/MorphHDL
+      FEATURE_BRANCH: agent/increment-61-one-file-per-component
+      EXPECTED_FEATURE: ffd607e684c516d5e1fa63d90faeee78371b5453
+      TARGET_BRANCH: parameterized-verilog
+      EXPECTED_TARGET: 010644bbf1704c38013749ed40638e297ed87b2b
+    steps:
+      - name: Check out exact Increment 61 source
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-61-one-file-per-component
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build reviewed unattached merge commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_FEATURE"
+          test "$(git rev-parse origin/$TARGET_BRANCH)" = "$EXPECTED_TARGET"
+          test "$(git ls-remote https://github.com/$REPOSITORY.git refs/heads/$FEATURE_BRANCH | cut -f1)" = "$EXPECTED_FEATURE"
+          test "$(git ls-remote https://github.com/$REPOSITORY.git refs/heads/$TARGET_BRANCH | cut -f1)" = "$EXPECTED_TARGET"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          set +e
+          git merge --no-commit --no-ff "origin/$TARGET_BRANCH"
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -eq 0 ]; then
+            echo 'Expected the two reviewed overlapping production files to require resolution.' >&2
+            exit 1
+          fi
+
+          mapfile -t conflicts < <(git diff --name-only --diff-filter=U | LC_ALL=C sort)
+          expected=(
+            'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+            'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+          )
+          if [ "${conflicts[*]}" != "${expected[*]}" ]; then
+            printf 'Unexpected integration conflicts:\n%s\n' "${conflicts[*]}" >&2
+            exit 1
+          fi
+
+          git checkout --ours -- "${expected[@]}"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          morph = Path('morphhdl/src/main/scala/morphhdl/MorphVerilog.scala')
+          text = morph.read_text()
+          old = (
+              '      val retained =\n'
+              '        spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++\n'
+          )
+          new = (
+              '      val retained =\n'
+              '        spinal.core.internals.MorphHdlExternalParameterizedVerilog\n'
+              '          .publishedWidthParametersOf(report.toplevel) ++\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('MorphVerilog WA-08 publication inventory anchor changed')
+          morph.write_text(text.replace(old, new))
+
+          emitter = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'MorphHdlExternalParameterizedVerilog.scala'
+          )
+          text = emitter.read_text()
+
+          old = (
+              '    val top = Option(pc.topLevel).getOrElse {\n'
+              '      fail(\n'
+              '        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-TOP-MISSING",\n'
+              '        "external lowering ran without an elaborated top-level component"\n'
+              '      )\n'
+              '    }\n'
+              '    val consolidated =\n'
+          )
+          new = old[:-len('    val consolidated =\n')] + (
+              '    top.userCache.remove(PublishedWidthParametersKey)\n'
+              '    val consolidated =\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('emitter top/publication anchor changed')
+          text = text.replace(old, new)
+
+          old = (
+              '    validateFormalDeclarations(components)\n\n'
+              '    val componentIdentities = new IdentityHashMap[Component, java.lang.Boolean]()\n'
+          )
+          new = (
+              '    validateFormalDeclarations(components)\n'
+              '    val publishedWidthParameters =\n'
+              '      ExternalParameterizedHierarchyResizeWidth.parametersOf(top)\n\n'
+              '    val componentIdentities = new IdentityHashMap[Component, java.lang.Boolean]()\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('emitter validated-inventory anchor changed')
+          text = text.replace(old, new)
+
+          old = (
+              '        publication.lines.drop(cursor).foreach(rewritten += _)\n'
+              '        publishAtomically(publication.target, rewritten.result().mkString("\\n"))\n'
+              '      }\n'
+              '    }\n'
+              '  }\n\n'
+              '  private def readPublication(target: Path): PublicationFile = {\n'
+          )
+          new = (
+              '        publication.lines.drop(cursor).foreach(rewritten += _)\n'
+              '        publishAtomically(publication.target, rewritten.result().mkString("\\n"))\n'
+              '      }\n'
+              '    }\n'
+              '    top.userCache.update(PublishedWidthParametersKey, publishedWidthParameters)\n'
+              '  }\n\n'
+              '  private object PublishedWidthParametersKey\n\n'
+              '  /** Validated publication inventory survives cleanup of native resize lineage. */\n'
+              '  def publishedWidthParametersOf(\n'
+              '      component: Component\n'
+              '  ): Vector[ElaborationIntegerParameter] =\n'
+              '    component.userCache.get(PublishedWidthParametersKey)\n'
+              '      .map(_.asInstanceOf[Vector[ElaborationIntegerParameter]])\n'
+              '      .getOrElse(ParameterizedWidth.parametersOf(component))\n\n'
+              '  private def readPublication(target: Path): PublicationFile = {\n'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('emitter completion/cache anchor changed')
+          text = text.replace(old, new)
+
+          old = '        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)'
+          new = (
+              '        ExternalParameterizedHierarchyResizeWidth'
+              '.expressionOf(component, baseType).foreach(retainInteger)'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('emitter root-inventory width anchor changed')
+          text = text.replace(old, new)
+
+          old = 'ParameterizedWidth.parametersOf(component)'
+          if text.count(old) != 4:
+              raise SystemExit(
+                  f'emitter component width inventory count changed: {text.count(old)}'
+              )
+          # Preserve the fallback in publishedWidthParametersOf itself. Replace
+          # the three pre-existing production inventory uses only.
+          parts = text.split(old)
+          text = old.join(parts[:1]) + (
+              'ExternalParameterizedHierarchyResizeWidth.parametersOf(component)'
+          ) + old.join(parts[1:])
+          # The first split replacement above is intentionally explicit; now
+          # replace the next two production uses while retaining the final cache fallback.
+          for _ in range(2):
+              index = text.find(old)
+              if index < 0:
+                  raise SystemExit('missing remaining component width inventory anchor')
+              text = (
+                  text[:index]
+                  + 'ExternalParameterizedHierarchyResizeWidth.parametersOf(component)'
+                  + text[index + len(old):]
+              )
+
+          old = 'ParameterizedWidth.parametersOf(child)'
+          new = 'ExternalParameterizedHierarchyResizeWidth.parametersOf(child)'
+          if text.count(old) != 1:
+              raise SystemExit('emitter child width inventory anchor changed')
+          text = text.replace(old, new)
+
+          emitter.write_text(text)
+          PY
+
+          git add --all
+          test -z "$(git diff --name-only --diff-filter=U)"
+          git diff --cached --check
+
+          feature_tree=$(git rev-parse "$EXPECTED_FEATURE^{tree}")
+          mapfile -d '' changed < <(git diff --cached --name-only -z "$EXPECTED_FEATURE")
+          test "${#changed[@]}" -gt 0
+          entries=$(mktemp)
+          printf '[]' > "$entries"
+          for path in "${changed[@]}"; do
+            status=$(git diff --cached --name-status "$EXPECTED_FEATURE" -- "$path" | cut -f1)
+            if [ "$status" = D ]; then
+              jq --arg path "$path" '. + [{path:$path,mode:"100644",type:"blob",sha:null}]' \
+                "$entries" > "$entries.next"
+            else
+              mode=$(git ls-files -s -- "$path" | awk '{print $1}')
+              test -n "$mode"
+              encoded=$(base64 -w0 "$path")
+              blob=$(jq -nc --arg content "$encoded" \
+                '{content:$content,encoding:"base64"}' | \
+                gh api --method POST "repos/$REPOSITORY/git/blobs" --input - --jq .sha)
+              jq --arg path "$path" --arg mode "$mode" --arg sha "$blob" \
+                '. + [{path:$path,mode:$mode,type:"blob",sha:$sha}]' \
+                "$entries" > "$entries.next"
+            fi
+            mv "$entries.next" "$entries"
+          done
+
+          tree=$(jq -nc --arg base_tree "$feature_tree" --slurpfile tree "$entries" \
+            '{base_tree:$base_tree,tree:$tree[0]}' | \
+            gh api --method POST "repos/$REPOSITORY/git/trees" --input - --jq .sha)
+          commit=$(jq -nc \
+            --arg message 'Merge parameterized-verilog into Increment 61 qualification head' \
+            --arg tree "$tree" --arg first "$EXPECTED_FEATURE" --arg second "$EXPECTED_TARGET" \
+            '{message:$message,tree:$tree,parents:[$first,$second]}' | \
+            gh api --method POST "repos/$REPOSITORY/git/commits" --input - --jq .sha)
+
+          remote_tree=$(gh api "repos/$REPOSITORY/git/commits/$commit" --jq .tree.sha)
+          test "$remote_tree" = "$tree"
+          printf 'MERGE_COMMIT_SHA=%s\nMERGE_TREE_SHA=%s\n' "$commit" "$tree" | tee integration-result.txt
+
+      - name: Upload integration identity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-61-integration-v13
+          path: integration-result.txt
+          if-no-files-found: warn
