@@ -68,6 +68,12 @@ jobs:
           path.write_text(text.replace(old, new, 1))
           PY
 
+          # 59c is a frozen historical reviewer. In the joined profile it must
+          # hand current bytes to the exact 59h -> 59g -> 59i/60g chain before
+          # applying its own immutable spans. Standalone ordering stays intact.
+          python3 morphhdl/repair-59i-rollout-composition/patch-59c-joined-order.py \
+            | tee "$out/patch-59c-joined-order.log"
+
           # 60f is frozen historical qualification. Preserve its standalone
           # current-tree audit, while making its joined mode validate the exact
           # composition and immutable feature/target native parent views.
@@ -78,7 +84,9 @@ jobs:
           python3 -m py_compile \
             morphhdl/repair-59i-rollout-composition/apply.py \
             morphhdl/repair-59i-rollout-composition/run-current.py \
+            morphhdl/repair-59i-rollout-composition/patch-59c-joined-order.py \
             morphhdl/repair-59i-rollout-composition/patch-60f-native-audit.py \
+            morphhdl/scripts/check-increment-59c-source-review.py \
             morphhdl/scripts/check-increment-59i-rollout-composition.py \
             morphhdl/scripts/test-increment-59i-rollout-composition.py \
             morphhdl/scripts/check-increment-60f-equivalence-closure.py \
@@ -90,6 +98,7 @@ jobs:
           morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py
           morphhdl/repair-59i-composite-local-enable/promote-reviewed.py
           morphhdl/repair-59i-rollout-composition/apply.py
+          morphhdl/scripts/check-increment-59c-source-review.py
           morphhdl/scripts/check-increment-59i-rollout-composition.py
           morphhdl/scripts/check-increment-59i-source-review.py
           morphhdl/scripts/check-increment-60f-equivalence-closure.py
