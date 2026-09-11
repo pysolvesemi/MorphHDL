@@ -1,0 +1,85 @@
+name: Increment 61 controller repair v12
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-controller-repair-v12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out controller branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-61-controller
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Repair and syntax-check guarded finalizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/increment-61-finalize-v11.yml')
+          text = workflow.read_text()
+          old = '''                case "$name" in
+                  'Increment 61 one-file-per-component publication'|
+                  'Increment 61 per-component compatibility matrix'|
+                  'Increment 60c signed declarations'|
+                  'Increment 60d pure SInt casts'|
+                  'Increment 60e signedness boundaries'|
+                  'Increment 60f equivalence closure'|
+                  'Increment 60g default signed Verilog'|
+                  'Increment 62 WA-08 inherited workflow closure'|
+                  'MorphHDL baseline'|
+                  'MorphHDL Mill'|
+                  'MorphHDL native source guard')
+                    continue
+                    ;;
+                esac
+'''
+          new = '''                case "$name" in
+                  'Increment 61 one-file-per-component publication'|'Increment 61 per-component compatibility matrix'|'Increment 60c signed declarations'|'Increment 60d pure SInt casts'|'Increment 60e signedness boundaries'|'Increment 60f equivalence closure'|'Increment 60g default signed Verilog'|'Increment 62 WA-08 inherited workflow closure'|'MorphHDL baseline'|'MorphHDL Mill'|'MorphHDL native source guard')
+                    continue
+                    ;;
+                esac
+'''
+          if text.count(old) != 1:
+              raise SystemExit('guarded-finalizer case pattern did not match exactly once')
+          text = text.replace(old, new)
+          workflow.write_text(text)
+
+          step = '      - name: Integrate, qualify, close out, merge and verify\n'
+          start = text.index(step)
+          start = text.index('        run: |\n', start) + len('        run: |\n')
+          end = text.index('\n      - name: Upload finalization evidence', start)
+          body = text[start:end]
+          script_lines = []
+          for number, line in enumerate(body.splitlines(), 1):
+              if line and not line.startswith('          '):
+                  raise SystemExit(
+                      f'unexpected YAML indentation in extracted shell line {number}: {line!r}'
+                  )
+              script_lines.append(line[10:] if line else '')
+          script = Path('/tmp/increment-61-finalize-v11.sh')
+          script.write_text('\n'.join(script_lines) + '\n')
+          PY
+
+          bash -n /tmp/increment-61-finalize-v11.sh
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/increment-61-finalize-v11.yml
+          git commit -m '61: fix guarded finalizer case syntax'
+          git push origin HEAD:refs/heads/agent/increment-61-controller
