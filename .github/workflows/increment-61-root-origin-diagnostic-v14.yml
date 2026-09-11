@@ -1,0 +1,135 @@
+name: Increment 61 parameter-root origin diagnostic v14
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-root-origin-diagnostic-v14.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-root-origin-diagnostic-v14
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ffd607e684c516d5e1fa63d90faeee78371b5453
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Label every parameter-root collection path
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-origin-diagnostic"
+          source=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          python3 - "$source" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+
+          def one(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"origin diagnostic precondition changed: count={count} snippet={old[:100]!r}")
+              text = text.replace(old, new, 1)
+
+          one(
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String]
+              )''',
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String],
+                  origin: String
+              )''')
+          one('''    def retainInteger(expression: ElaborationIntegerExpression): Unit = {''',
+              '''    def retainInteger(expression: ElaborationIntegerExpression, origin: String): Unit = {''')
+          one('''    def retainBoolean(expression: ElaborationBooleanExpression): Unit = {''',
+              '''    def retainBoolean(expression: ElaborationBooleanExpression, origin: String): Unit = {''')
+          roots = '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))'''
+          if text.count(roots) != 2:
+              raise SystemExit(f"origin diagnostic root-use count changed: {text.count(roots)}")
+          text = text.replace(roots,
+              '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation), origin)''')
+
+          one('''        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)''',
+              '''        ParameterizedWidth.expressionOf(baseType).foreach(expression => retainInteger(expression, "dsl-width"))''')
+          one('''        retainInteger(metadata.depth)''', '''        retainInteger(metadata.depth, "memory-depth")''')
+          one('''        retainInteger(metadata.elementWidth)''', '''        retainInteger(metadata.elementWidth, "memory-element-width")''')
+          one('''        shape.geometryExpressions.foreach(retainInteger)''',
+              '''        shape.geometryExpressions.foreach(expression => retainInteger(expression, "vec-geometry"))''')
+          one('''      retainInteger(record.expression)''',
+              '''      retainInteger(record.expression, "external-value-registry")''')
+          one('''      .integerExpressionsOf(component)
+                .foreach(retainInteger)''',
+              '''      .integerExpressionsOf(component)
+                .foreach(expression => retainInteger(expression, "blackbox-integer-generic"))''')
+          one('''      .booleanExpressionsOf(component)
+                .foreach(retainBoolean)''',
+              '''      .booleanExpressionsOf(component)
+                .foreach(expression => retainBoolean(expression, "blackbox-boolean-generic"))''')
+          one('''        retainInteger(boundary.sourceWidth)''',
+              '''        retainInteger(boundary.sourceWidth, "auto-resize-source")''')
+          one('''        retainInteger(boundary.targetWidth)''',
+              '''        retainInteger(boundary.targetWidth, "auto-resize-target")''')
+          one('''          retainInteger(value.count)''',
+              '''          retainInteger(value.count, "structural-for-count")''')
+          one('''          retainBoolean(value.condition)''',
+              '''          retainBoolean(value.condition, "structural-if-condition")''')
+          one('''          retainInteger(value.selector)''',
+              '''          retainInteger(value.selector, "structural-case-selector")''')
+          one('''      .foreach(loop => retainInteger(loop.count))''',
+              '''      .foreach(loop => retainInteger(loop.count, "process-loop-count"))''')
+          one('''          .foreach(binding => retainInteger(binding.actual))''',
+              '''          .foreach(binding => retainInteger(binding.actual, "child-formal-actual"))''')
+          one(
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory",''',
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory [roots: ${declarations.map(value => s"${value.origin}#${System.identityHashCode(value.root)}@${value.sourceLocation.getOrElse("<unknown>")}").mkString("; ")}]",''')
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- "$source" > "$output/instrumentation.patch"
+
+      - name: Reproduce and capture collection origins
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-origin-diagnostic"
+          set +e
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            > "$output/sbt.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$output/exit-code.txt"
+          tail -n 400 "$output/sbt.log" | tee "$output/tail.log"
+          test "$rc" -ne 0
+          grep -F '[roots:' "$output/sbt.log" | tee "$output/root-conflict.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-root-origin-diagnostic-v14
+          path: target/increment-61-root-origin-diagnostic
+          if-no-files-found: error
+          retention-days: 14
