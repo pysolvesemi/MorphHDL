@@ -70,6 +70,18 @@ jobs:
           '''
           if text.count(old) != 1:
               raise SystemExit('native resize source-width anchor changed')
+          text = text.replace(old, new)
+
+          old = '''      NativeWidthProvenance.widthOf(record.source)
+                .exists(NativePublicationWidth.equivalentAtOwner(_, record.sourceWidth, component, record.source)) &&
+          '''
+          new = '''      ExternalParameterizedHierarchyResizeWidth
+                .sourceWidthOf(component, record.source)
+                .orElse(NativeWidthProvenance.widthOf(record.source))
+                .exists(NativePublicationWidth.equivalentAtOwner(_, record.sourceWidth, component, record.source)) &&
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('native resize live source-width validation anchor changed')
           native.write_text(text.replace(old, new))
           PY
           git diff --check
