@@ -120,10 +120,17 @@ def restore_entry(entry: dict, source: str) -> str:
 
 
 def restore_60g_source(root: Path, path: str, source: str) -> str:
+    entry = (next(e for e in contract(root)["files"] if e["path"] == path)
+             if path in PATHS else None)
+    # Nested historical audits can revisit this layer after its exact reversal.
+    # Honor only the existing sealed before-hash idempotence before consulting
+    # an outer overlay, which correctly accepts only its own before/after bytes.
+    # source_scope still verifies every physical file against the current tree.
+    if entry is not None and digest(source) == entry["before_sha256"]:
+        return restore_entry(entry, source)
     source = restore_wa08_text(root, path, source)
     if path not in PATHS:
         return source
-    entry = next(e for e in contract(root)["files"] if e["path"] == path)
     return restore_entry(entry, source)
 
 

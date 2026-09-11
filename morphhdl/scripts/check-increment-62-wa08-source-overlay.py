@@ -14,7 +14,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "e02a57e723c6f5570267032850a6b04ad4a4493dd042c56b1d24981a89505044"
+CONTRACT_SHA256 = "eca90e1172b8efd9b679c8b014ad18c01770637c618942612ec9151b3e6d7001"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -198,9 +198,16 @@ def restore_text(root: Path, path: str, source: str) -> str:
 
 def inherited_inventory(root: Path, paths: set[str], revision: str) -> set[str]:
     entries = {entry["path"] for entry in verify(root)["files"]}
+    current = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
+                                      "-z", revision, "HEAD").split(b"\0") if p}
     # Callers may supply a production-only inventory. Do not introduce test or
-    # audit paths from the historical tree into that narrower domain.
-    visible = (entries & set(paths)) | {p for p in entries if "/src/main/" in "/" + p}
+    # audit paths from the historical tree into that narrower domain. A missing
+    # current delta was already projected by an outer verified successor; do
+    # not resurrect it here. Still restore historical changes canceled by the
+    # WA-08 bytes, which are absent from the actual revision-to-HEAD delta.
+    visible = (entries & set(paths)) | {
+        p for p in entries if "/src/main/" in "/" + p and p not in current
+    }
     previous = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
                                        "-z", revision, BASE).split(b"\0") if p}
     return (set(paths) - entries) | (previous & visible)

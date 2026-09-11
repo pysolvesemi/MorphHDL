@@ -75,6 +75,62 @@ BRIDGE_RULES: tuple[TextRule, ...] = (
         "native witness bridge must mutate exact graph identities rather than parse generated HDL",
         re.compile(r"\b(?:parseVerilog|generatedVerilog|emittedVerilog|verilogText)\b", re.IGNORECASE),
     ),
+    TextRule(
+        "WA05-BRIDGE-FIXTURE-TAG-DEPENDENCY",
+        "production candidate discovery must not require the former fixture-only source tag",
+        re.compile(r"\bExplicitNamedWireAliasSourceTag\b"),
+    ),
+    TextRule(
+        "WA05-BRIDGE-SOURCE-NAME-RECOGNITION",
+        "retained source names are metadata, never candidate-selection predicates",
+        re.compile(
+            r'\b(?:explicitName|sourceName|nativeName)\s*(?:==|!=|\.\s*(?:equals|matches|startsWith|endsWith|contains)\s*\()\s*"|'
+            r'"(?:\\.|[^"\\])*"\s*(?:==|!=)\s*\b(?:explicitName|sourceName|nativeName)\b'
+        ),
+    ),
+)
+
+SOURCE_NAME_LOOKUP = "Option(alias.getName()).filter(_.trim.nonEmpty)"
+SOURCE_NAME_GUARD = "if (alias.isNamed && sourceNamed)"
+SOURCE_NAME_PROVENANCE = (
+    'readPrivateByte(alias, "namePriority").exists',
+    "Nameable.USER_SET | Nameable.USER_WEAK",
+    "Nameable.DATAMODEL_STRONG | Nameable.DATAMODEL_WEAK => true",
+    "case _ => false",
+    SOURCE_NAME_GUARD,
+)
+NATIVE_SAFETY_MARKERS = (
+    "alias.isEmptyOfTag",
+    "!alias.isFrozen()",
+    "Option(assignment.locationString).forall(_.isEmpty)",
+    '!readPrivateBoolean(alias, "dontSimplify").getOrElse(true)',
+    "hasClockDomainUse(pc, alias)",
+    "Vector(domain.clock, domain.reset, domain.softReset, domain.clockEnable)",
+    "component.pulledDataCache.get(control).exists(value => value eq alias)",
+    "statement.foreachClockDomain",
+    "pc.components().toVector.flatMap(statementsOf)",
+    "hasReferencedMetadata(pc, alias)",
+    'Left("WA05-NATIVE-REFERENCED-METADATA")',
+)
+REFERENCED_METADATA_MARKERS = (
+    "case value: crossClockFalsePath => value.source.exists(_ eq alias)",
+    "case value: ClockSyncTag => (value.a eq alias) || (value.b eq alias)",
+    "case value: ExternalDriverTag => dataUses(value.driver)",
+    "case value: GenericValue => expressionUses(value.e)",
+    "case value: SimInitTag => expressionUses(value.value)",
+    "case _ => true",
+    "var found = tagsUse(component)",
+    "statement.walkDrivingExpressions",
+    "statement.foreachClockDomain",
+)
+CONTINUOUS_RECEIVER_MARKERS = (
+    "(assignment.parentScope eq assignment.rootScopeStatement)",
+    "(assignment.target eq assignment.finalTarget)",
+    "(assignment.finalTarget.component eq component)",
+    "assignment.finalTarget.hasOnlyOneStatement",
+    "assignment.finalTarget.isComb",
+    "!assignment.finalTarget.isAnalog",
+    "!assignment.finalTarget.isInputOrInOut",
 )
 
 REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
@@ -106,7 +162,8 @@ REQUIRED_BRIDGE_MARKERS: tuple[str, ...] = (
     "final class NamedWireAliasNativePhase extends Phase",
     "PhaseRemoveIntermediateUnnameds",
     "alias.isNamed",
-    "ExplicitNamedWireAliasSourceTag",
+    SOURCE_NAME_LOOKUP,
+    "alias.isEmptyOfTag",
     "explicitSourceName(alias)",
     "NamedWireAliasEliminationPass.run",
     "WireAliasPassConfiguration.selectedForTesting",
@@ -192,6 +249,45 @@ def require_markers(
         for marker in markers
         if marker not in text
     ]
+
+
+def bridge_phase_failures(path: Path, text: str) -> list[str]:
+    """Admit one reviewed Nameable metadata read, retaining all recognition bans."""
+    failures: list[str] = []
+    helper = re.search(
+        r"private def explicitSourceName\(alias: BaseType\): Option\[String\] = \{([\s\S]*?)\n  \}",
+        text,
+    )
+    if (helper is None or text.count(SOURCE_NAME_LOOKUP) != 1 or
+            SOURCE_NAME_LOOKUP not in helper.group(1) or
+            SOURCE_NAME_GUARD not in helper.group(1)):
+        failures.append(
+            f"{path}: WA05-BRIDGE-NAMING-METADATA: require exactly one guarded pre-allocation Nameable source-name read"
+        )
+    if helper is not None:
+        failures.extend(require_markers(
+            path, helper.group(1), SOURCE_NAME_PROVENANCE, "WA05-BRIDGE-NAMING-METADATA",
+        ))
+    # Removing exactly the reviewed read leaves every other getName,
+    # getPartialName and definitionName access subject to the original guard.
+    scanned = text.replace(SOURCE_NAME_LOOKUP, "retainedSourceNameMetadata", 1)
+    failures.extend(scan_text(path, scanned, BRIDGE_RULES))
+    failures.extend(require_markers(
+        path, text, NATIVE_SAFETY_MARKERS, "WA05-BRIDGE-PRESERVATION-METADATA",
+    ))
+    for start, end, markers, code in (
+        ("private def hasReferencedMetadata(", "private def allowedUse(",
+         REFERENCED_METADATA_MARKERS, "WA05-BRIDGE-REFERENCED-METADATA"),
+        ("private def allowedUse(", "private def packedTypeProof(",
+         CONTINUOUS_RECEIVER_MARKERS, "WA05-BRIDGE-CONTINUOUS-RECEIVER"),
+    ):
+        begin = text.find(start)
+        finish = text.find(end, begin + len(start)) if begin >= 0 else -1
+        if begin < 0 or finish <= begin:
+            failures.append(f"{path}: {code}: missing bounded native safety helper")
+        else:
+            failures.extend(require_markers(path, text[begin:finish], markers, code))
+    return failures
 
 
 def roadmap_entries(text: str) -> dict[str, tuple[bool, str]]:
@@ -327,7 +423,7 @@ def check_repository(root: Path) -> list[str]:
         bridge_phase_text = bridge_text
     else:
         bridge_phase_text = bridge_text[phase_start:phase_end]
-    failures.extend(scan_text(paths["bridge"].relative_to(root), bridge_phase_text, BRIDGE_RULES))
+    failures.extend(bridge_phase_failures(paths["bridge"].relative_to(root), bridge_phase_text))
     failures.extend(require_markers(
         paths["bridge"].relative_to(root), bridge_text, REQUIRED_BRIDGE_MARKERS,
         "WA05-BRIDGE-CONTRACT-MISSING",
@@ -337,7 +433,6 @@ def check_repository(root: Path) -> list[str]:
         "WA05-TEST-COVERAGE-MISSING",
     ))
     witness_markers = (
-        "ExplicitNamedWireAliasSourceTag",
         "directNamedAlias",
         'setName("popPayloadNamedAlias")',
         "directNamedAlias(directUnnamedAlias(expressionUnnamedAlias(popPayloadSource)))",
@@ -346,6 +441,10 @@ def check_repository(root: Path) -> list[str]:
         paths["witness"].relative_to(root), witness_text, witness_markers,
         "WA05-WITNESS-CONTRACT-MISSING",
     ))
+    if "ExplicitNamedWireAliasSourceTag" in witness_text:
+        failures.append(
+            f"{paths['witness'].relative_to(root)}: WA05-WITNESS-FIXTURE-TAG: named witness must use ordinary untagged elaboration naming"
+        )
     failures.extend(require_markers(
         paths["workflow"].relative_to(root), workflow_text, REQUIRED_WORKFLOW_MARKERS,
         "WA05-WORKFLOW-GATE-MISSING",
@@ -402,6 +501,70 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
         failures = scan_text(Path("Mutant.scala"), text, GENERIC_RULES)
         if not any(code in failure for failure in failures):
             raise AssertionError(f"mutation was not rejected by {code}")
+
+    # Mutate the actual production bridge: guards repeated in other helpers
+    # must not hide a missing guard at the receiver or metadata proof boundary.
+    bridge_source = (Path(__file__).resolve().parents[1] /
+                     "examples/NamedWireAliasNativeBridge.scala").read_text()
+    phase_start = bridge_source.index("final class NamedWireAliasNativePhase extends Phase")
+    phase_end = bridge_source.index("final case class NamedWireAliasNativeReport", phase_start)
+    allowed_bridge = bridge_source[phase_start:phase_end]
+    if bridge_phase_failures(Path("AllowedBridge.scala"), allowed_bridge):
+        raise AssertionError("ordinary guarded Nameable metadata discovery was rejected")
+    bridge_mutations = (
+        (allowed_bridge + 'component.definitionName == "ChosenComponent"',
+         "WA05-BRIDGE-COMPONENT-RECOGNITION"),
+        (allowed_bridge + 'alias.getName() == "chosenSignal"',
+         "WA05-BRIDGE-COMPONENT-RECOGNITION"),
+        (allowed_bridge + 'source.getPartialName() == "chosenSignal"',
+         "WA05-BRIDGE-COMPONENT-RECOGNITION"),
+        (allowed_bridge + 'explicitName == "chosenSignal"',
+         "WA05-BRIDGE-SOURCE-NAME-RECOGNITION"),
+        (allowed_bridge + 'sourceName.startsWith("chosen")',
+         "WA05-BRIDGE-SOURCE-NAME-RECOGNITION"),
+        (allowed_bridge + 'alias.hasTag(ExplicitNamedWireAliasSourceTag)',
+         "WA05-BRIDGE-FIXTURE-TAG-DEPENDENCY"),
+        (allowed_bridge.replace(SOURCE_NAME_GUARD, "true"),
+         "WA05-BRIDGE-NAMING-METADATA"),
+        (allowed_bridge.replace("alias.isNamed && sourceNamed", "alias.isNamed"),
+         "WA05-BRIDGE-NAMING-METADATA"),
+        (allowed_bridge.replace("case _ => false", "case _ => true"),
+         "WA05-BRIDGE-NAMING-METADATA"),
+        (allowed_bridge.replace(SOURCE_NAME_LOOKUP, 'Some("chosenSignal")'),
+         "WA05-BRIDGE-NAMING-METADATA"),
+        (allowed_bridge + "\n" + SOURCE_NAME_LOOKUP,
+         "WA05-BRIDGE-NAMING-METADATA"),
+        (allowed_bridge.replace("alias.isEmptyOfTag", "true"),
+         "WA05-BRIDGE-PRESERVATION-METADATA"),
+        (allowed_bridge.replace("case _ => true", "case _ => false"),
+         "WA05-BRIDGE-REFERENCED-METADATA"),
+        (allowed_bridge.replace("value.source.exists(_ eq alias)", "false"),
+         "WA05-BRIDGE-REFERENCED-METADATA"),
+    )
+    for text, code in bridge_mutations:
+        failures = bridge_phase_failures(Path("MutantBridge.scala"), text)
+        if not any(code in failure for failure in failures):
+            raise AssertionError(f"bridge mutation was not rejected by {code}")
+    for marker in NATIVE_SAFETY_MARKERS:
+        failures = bridge_phase_failures(
+            Path("MutantBridge.scala"), allowed_bridge.replace(marker, "removedSafetyGuard"),
+        )
+        if not any("WA05-BRIDGE-PRESERVATION-METADATA" in failure for failure in failures):
+            raise AssertionError(f"native safety mutation was not rejected: {marker}")
+    for start, end, markers, code in (
+        ("private def hasReferencedMetadata(", "private def allowedUse(",
+         REFERENCED_METADATA_MARKERS, "WA05-BRIDGE-REFERENCED-METADATA"),
+        ("private def allowedUse(", "private def packedTypeProof(",
+         CONTINUOUS_RECEIVER_MARKERS, "WA05-BRIDGE-CONTINUOUS-RECEIVER"),
+    ):
+        begin, finish = allowed_bridge.index(start), allowed_bridge.index(end)
+        body = allowed_bridge[begin:finish]
+        for marker in markers:
+            mutant = (allowed_bridge[:begin] + body.replace(marker, "removedSafetyGuard") +
+                      allowed_bridge[finish:])
+            failures = bridge_phase_failures(Path("MutantBridge.scala"), mutant)
+            if not any(code in failure for failure in failures):
+                raise AssertionError(f"native proof-boundary mutation was not rejected: {marker}")
 
     open_roadmap = """- [x] **WA-04 — Unnamed**
 

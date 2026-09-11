@@ -42,14 +42,14 @@ import spinal.core._
 import spinal.core.internals._
 
 /**
-  * Test-only bridge proving that the WA-05 canonical pass can control an exact
-  * native SpinalHDL graph rewrite before name allocation and Verilog emission.
+  * Native adapter for the WA-05 canonical pass, shared by the proof witnesses
+  * and the WA-08 production handoff before name allocation and Verilog emission.
   *
   * The bridge is deliberately conservative. It offers the canonical pass only
   * root-scope, full-object, direct BaseType aliases whose preservation, type,
   * use-context and cycle safety can be established from native object identity.
   * It never parses generated HDL and never recognizes a component or signal
-  * name. Production handoff remains reserved for WA-07.
+  * name. Candidate names come from retained source/elaboration Nameable metadata.
   */
 private[examples] final class NamedWireAliasNativePhase extends Phase {
   private var completed = false
@@ -133,8 +133,10 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
 
   private def candidateSnapshot(pc: PhaseContext): Vector[NativeCandidate] = {
     val values = Vector.newBuilder[NativeCandidate]
+    // Include reads owned by other components so hierarchy uses fail the same
+    // local continuous-use proof instead of disappearing from the inventory.
+    val statements = pc.components().toVector.flatMap(statementsOf)
     pc.components().foreach { component =>
-      val statements = statementsOf(component)
       component.dslBody.walkDeclarations {
         case alias: BaseType
             if alias.isNamed && alias.isComb && alias.isDirectionLess &&
@@ -172,10 +174,18 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
   }
 
   private def explicitSourceName(alias: BaseType): Option[String] = {
-    val tags = alias.getTags().toVector
-    tags.collectFirst { case value: ExplicitNamedWireAliasSourceTag => value }
-      .filter(value => tags.size == 1 && value.name.trim.nonEmpty)
-      .map(_.name)
+    // This phase precedes PhasePropagateNames and PhaseAllocateNames. At this
+    // boundary Nameable retains Scala val/Bundle/Area elaboration names and
+    // explicit setName names; no emitted identifier or name pattern is used.
+    // Naming is not a preservation tag: ordinary production aliases need no
+    // fixture marker, and all real tags still veto removal below.
+    val sourceNamed = readPrivateByte(alias, "namePriority").exists {
+      case Nameable.USER_SET | Nameable.USER_WEAK |
+          Nameable.DATAMODEL_STRONG | Nameable.DATAMODEL_WEAK => true
+      case _ => false
+    }
+    if (alias.isNamed && sourceNamed) Option(alias.getName()).filter(_.trim.nonEmpty)
+    else None
   }
 
   private def proveCandidate(
@@ -192,8 +202,12 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       Left("WA05-NATIVE-SOURCE-SCOPE")
     else if (source.isAnalog || source.isInOut)
       Left("WA05-NATIVE-SOURCE-KIND")
-    else if (!preservationMetadataAllows(alias))
+    else if (!preservationMetadataAllows(alias, assignment))
       Left("WA05-NATIVE-PRESERVATION")
+    else if (hasClockDomainUse(pc, alias))
+      Left("WA05-NATIVE-CLOCK-DOMAIN")
+    else if (hasReferencedMetadata(pc, alias))
+      Left("WA05-NATIVE-REFERENCED-METADATA")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA05-NATIVE-USE-CONTEXT")
     else if (createsCycle(candidate.component, alias, source))
@@ -205,21 +219,143 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       }
   }
 
-  private def preservationMetadataAllows(alias: BaseType): Boolean =
+  private def preservationMetadataAllows(
+      alias: BaseType,
+      assignment: DataAssignmentStatement
+  ): Boolean =
     !alias.isFrozen() &&
+      alias.isEmptyOfTag &&
+      Option(assignment.locationString).forall(_.isEmpty) &&
       explicitSourceName(alias).nonEmpty &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
+
+  private def hasClockDomainUse(pc: PhaseContext, alias: BaseType): Boolean =
+    pc.components().exists { component =>
+      def uses(domain: ClockDomain): Boolean =
+        clockDomainUses(component, domain, alias)
+
+      // Clock/reset tags are already protected. softReset and pulled clock
+      // controls can also be referenced outside the driving-expression graph.
+      var found = uses(component.clockDomain.get)
+      component.dslBody.walkStatements { statement =>
+        statement.foreachClockDomain(domain => if (uses(domain)) found = true)
+      }
+      found
+    }
+
+  private def clockDomainUses(
+      component: Component,
+      domain: ClockDomain,
+      alias: BaseType
+  ): Boolean =
+    domain != null &&
+      Vector(domain.clock, domain.reset, domain.softReset, domain.clockEnable)
+        .filter(_ != null).exists { control =>
+          (control eq alias) ||
+            component.pulledDataCache.get(control).exists(value => value eq alias)
+        }
+
+  private def hasReferencedMetadata(pc: PhaseContext, alias: BaseType): Boolean =
+    pc.components().exists { component =>
+      def dataUses(value: Data): Boolean =
+        value != null && value.flatten.exists(_ eq alias)
+      def expressionUses(value: Expression): Boolean =
+        value != null && referencedBaseTypes(value).exists(_ eq alias)
+      def domainUses(value: ClockDomain): Boolean =
+        clockDomainUses(component, value, alias)
+      def statementUses(value: Statement): Boolean = {
+        var found = references(value, alias) > 0
+        value.foreachClockDomain(domain => if (domainUses(domain)) found = true)
+        found
+      }
+      // Native metadata can reference a declaration without a driving-expression
+      // edge. Preserve those identities; remapping only RTL reads would leave
+      // timing constraints, initialization or retained native contracts dangling.
+      def tagUses(tag: SpinalTag): Boolean = tag match {
+        case value: crossClockFalsePath => value.source.exists(_ eq alias)
+        case value: ClockDomainTag => domainUses(value.clockDomain)
+        case value: ClockDomainReportTag => domainUses(value.clockDomain)
+        case value: ClockTag => domainUses(value.clockDomain)
+        case value: ResetTag => domainUses(value.clockDomain)
+        case value: ClockEnableTag => domainUses(value.clockDomain)
+        case value: ClockSyncTag => (value.a eq alias) || (value.b eq alias)
+        case value: ClockDrivedTag => value.driver eq alias
+        case value: ClockDriverTag => value.drived eq alias
+        case value: DefaultTag => value.that eq alias
+        case value: ExternalDriverTag => dataUses(value.driver)
+        case value: VarAssignementTag => dataUses(value.from)
+        case value: GenericValue => expressionUses(value.e)
+        case value: SimInitTag => expressionUses(value.value)
+        case value: PhaseNextifyTag => value.dest eq alias
+        case value: MemReadBufferTag =>
+          (value.reg eq alias) || statementUses(value.rs) ||
+            value.through.exists {
+              case expression: Expression => expressionUses(expression)
+              case statement: Statement => statementUses(statement)
+              case _ => false
+            }
+        case value: MemBlackboxOf =>
+          var found = false
+          value.mem.foreachStatements(statement => if (statementUses(statement)) found = true)
+          found
+        case value: Attribute if value.getClass == classOf[AttributeFlag] ||
+            value.getClass == classOf[AttributeString] ||
+            value.getClass == classOf[AttributeInteger] => false
+        case spinal.core.Verilator.public | spinal.core.Verilator.tracing_off |
+            spinal.core.Verilator.tracing_on | spinal.lib.KeepAttribute.keep |
+            spinal.lib.KeepAttribute.syn_keep_verilog |
+            spinal.lib.KeepAttribute.syn_keep_vhdl => false
+        case _: IfDefTag | _: CommentTag | _: CrossClockBufferDepth |
+            _: TagAFixTruncated | _: MemSymbolesTag => false
+        case `allowDirectionLessIoTag` | `unsetRegIfNoAssignementTag` |
+            `allowAssignmentOverride` | `allowFloating` | `allowOutOfRangeLiterals` |
+            `dontObfuscate` | `noInit` | `unusedTag` | `noCombinatorialLoopCheck` |
+            `noLatchCheck` | `noBackendCombMerge` | `noBackendSyncMerge` |
+            `reportIncludeSourceLocation` | `crossClockDomain` | `crossClockBuffer` |
+            `randomBoot` | `tagAutoResize` | `tagTruncated` | `tagAFixResized` |
+            AllowPartialyAssignedTag | AllowMixedWidth | IsInterface |
+            `uLogic` | `noNumericType` | `addDefaultGenericValue` |
+            spinal.core.sim.SimPublic | spinal.core.sim.TracingOff => false
+        // A custom tag can hide references outside constructor fields. Without
+        // a known complete metadata contract, retain the candidate identity.
+        case _ => true
+      }
+      def tagsUse(value: SpinalTagReady): Boolean = value.getTags().exists(tagUses)
+
+      var found = tagsUse(component)
+      val defaultDomain = component.clockDomain.get
+      if (defaultDomain != null && tagsUse(defaultDomain)) found = true
+      component.dslBody.walkStatements { statement =>
+        statement match {
+          case tagged: SpinalTagReady => if (tagsUse(tagged)) found = true
+          case _ =>
+        }
+        statement.walkDrivingExpressions {
+          case tagged: SpinalTagReady => if (tagsUse(tagged)) found = true
+          case _ =>
+        }
+        statement.foreachClockDomain { domain =>
+          if (domain != null && tagsUse(domain)) found = true
+        }
+      }
+      found
+    }
 
   private def allowedUse(
       component: Component,
       alias: BaseType,
       statement: Statement
   ): Boolean = statement match {
+    // A root default assignment can still belong to an always block when its
+    // receiver also has conditional or partial drivers. Require the complete
+    // receiver to have exactly this one full-object continuous assignment.
     case assignment: DataAssignmentStatement
         if assignment.parentScope != null &&
           (assignment.parentScope eq assignment.rootScopeStatement) &&
+          (assignment.target eq assignment.finalTarget) &&
           (assignment.finalTarget ne alias) &&
           (assignment.finalTarget.component eq component) &&
+          assignment.finalTarget.hasOnlyOneStatement &&
           assignment.finalTarget.isComb &&
           !assignment.finalTarget.isAnalog &&
           !assignment.finalTarget.isInputOrInOut =>
@@ -517,6 +653,21 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
         val field = current.getDeclaredField(name)
         field.setAccessible(true)
         return Some(field.getBoolean(value))
+      } catch {
+        case _: NoSuchFieldException => current = current.getSuperclass
+        case _: Throwable            => return None
+      }
+    }
+    None
+  }
+
+  private def readPrivateByte(value: AnyRef, name: String): Option[Byte] = {
+    var current: Class[_] = value.getClass
+    while (current != null) {
+      try {
+        val field = current.getDeclaredField(name)
+        field.setAccessible(true)
+        return Some(field.getByte(value))
       } catch {
         case _: NoSuchFieldException => current = current.getSuperclass
         case _: Throwable            => return None
