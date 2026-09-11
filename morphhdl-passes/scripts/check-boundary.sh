@@ -76,11 +76,17 @@ allowed_path() {
     morphhdl-passes/*|"${workflow}")
       return 0
       ;;
-    morphhdl/*)
+    morphhdl/*|morphir/*)
       if [[ "${is_wa08}" == true ]] && wa08_dependencies_satisfied; then
         return 0
       fi
       return 1
+      ;;
+    build.sbt|build.mill|.github/workflows/increment-62-wa08-source-overlay.yml|docs/morphhdl/parameterized-verilog-todo.md)
+      # Production build inputs and the compatibility gate are accepted only
+      # through the exact reviewed overlay, independent of branch spelling.
+      [[ "${wa08_overlay_verified:-false}" == true ]]
+      return
       ;;
     *)
       return 1
@@ -89,6 +95,14 @@ allowed_path() {
 }
 
 mapfile -t changed_files < <(collect_changed_files | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)
+
+wa08_overlay_verified=false
+overlay="morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+contract="morphhdl/contracts/increment-62-wa08-source-overlay.json"
+if [[ -e "${overlay}" || -e "${contract}" ]]; then
+  python3 "${overlay}"
+  wa08_overlay_verified=true
+fi
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   printf 'MorphHDL pass boundary: no changed files detected.\n'
@@ -106,7 +120,7 @@ if [[ ${#violations[@]} -ne 0 ]]; then
   printf 'MorphHDL pass boundary rejected the following path(s):\n' >&2
   printf '  - %s\n' "${violations[@]}" >&2
   if [[ "${is_wa08}" == true ]]; then
-    printf 'WA-08 MorphHDL-owned handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
+    printf 'WA-08 MorphHDL and canonical-IR handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
   else
     printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-08-* branch.\n' "${workflow}" >&2
   fi

@@ -118,6 +118,16 @@ def main() -> None:
          if rollout is not None else
          ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
+    if (ROOT / "morphhdl/scripts/check-increment-62-wa08-source-overlay.py").is_file():
+        # These worktree/index mutations now meet the verified outer inventory
+        # first. Preserve the mutations and require that exact path diagnostic.
+        adapted = []
+        for label, relative, mutation, expected in cases:
+            if (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
+                    relative.endswith("/TypedBalancedReductionCompositeReplay.scala")):
+                expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([relative])
+            adapted.append((label, relative, mutation, expected))
+        cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
             fixture = Path(directory) / ("negative-" + str(index))

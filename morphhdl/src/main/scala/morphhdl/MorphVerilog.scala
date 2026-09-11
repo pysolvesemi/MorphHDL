@@ -765,7 +765,7 @@ object MorphVerilog {
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
-    MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
+    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -774,7 +774,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )))
+    ))))
   }
 
   private def readSingleSourceParameters[T <: Component](

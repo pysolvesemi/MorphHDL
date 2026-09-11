@@ -284,7 +284,9 @@ object ParameterizedStreamFifoConstantPassWitness {
     ConstantOperandWitnessPhasePlan.install(config, phase)
     val width = HdlInt.param("WIDTH", default = BigInt(8), min = BigInt(1), max = BigInt(64))
     val depth = HdlInt.param("DEPTH", default = BigInt(5), min = BigInt(1), max = BigInt(8))
-    val generated = MorphVerilog(config) { new ParameterizedStreamFifo(width, depth) }
+    val generated = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
+      new ParameterizedStreamFifo(width, depth)
+    }
     val json = phase.map(_.toJson).getOrElse(
       """{"schema_version":1,"mode":"common-pre-pass-reference","native_full_alias_removal_suppressed":true} """ + "\n")
     Files.write(report, json.getBytes(StandardCharsets.UTF_8))

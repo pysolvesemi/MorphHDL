@@ -225,12 +225,20 @@ def current_controls(root: Path) -> None:
         fixture = Path(directory) / "integrated"
         git(root, "worktree", "add", "--quiet", "--detach", str(fixture), "HEAD")
         try:
+            overlay = review.wa08_overlay(root)
             for path, data in candidate.items():
                 target = fixture / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)
             git(fixture, "add", "--", *review.ROOTS)
             git(fixture, "commit", "--allow-empty", "-qm", "WA-07b exact qualified source integration control")
+            if overlay is not None:
+                # Restoring a complete older pass layer is a forbidden partial
+                # WA-08 downgrade. Keep the historical synthetic controls above
+                # and require the real combined audit to reject this mutation.
+                rejected("WA-08 partial downgrade", lambda: closure.source_scope(fixture),
+                         "WA-08")
+                git(fixture, "reset", "--hard", source_head)
             closure.source_scope(fixture)
             profile = closure.regression_profile(fixture)
             assert "wa07b" in closure.profile_features(profile)

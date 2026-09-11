@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "morphhdl/contracts/increment-61-source-review.json"
-CONTRACT_SHA256 = "8f840daa4cb92177728ad889e53adff872c2bfa32c88ce4f01528aa1aef4ea42"
+CONTRACT_SHA256 = "be689dedee91c2412ae4595598e4932138e92b72f071c0d80d58205809c46f8e"
 
 
 def require(condition: bool, detail: str) -> None:
@@ -87,7 +87,8 @@ def verify(root: Path = ROOT) -> None:
     base = contract["base_commit"]
     integrated = integrated_target_is_ancestor(contract, root)
     subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"], cwd=root, check=True)
-    changed_raw = git("diff", "--no-renames", "--name-only", "-z", base, "HEAD", root=root)
+    scope_base = contract["integrated_target_commit"] if integrated else base
+    changed_raw = git("diff", "--no-renames", "--name-only", "-z", scope_base, "HEAD", root=root)
     changed = {item.decode() for item in changed_raw.split(b"\0") if item}
     expected = {entry["path"] for entry in contract["reviewed_files"]} | set(contract["audit_paths"])
     require(changed == expected,

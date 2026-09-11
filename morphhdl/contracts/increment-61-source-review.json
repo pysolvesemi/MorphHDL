@@ -40,7 +40,7 @@
       "mode": "100644",
       "path": "docs/morphhdl/parameterized-verilog-todo.md",
       "status": "modified",
-      "after_sha256_integrated": "eb46cbcffe876b5b02a89f38bfa47427ae3c982de4feb28e79c4a4c4af143e79"
+      "after_sha256_integrated": "4365c993c5f651f9b3e01eeeffab7446607f6444a3d831fc6a212ae611a15510"
     },
     {
       "after_sha256": "09d42b95cdb53c964939c1ecae7ddacd2ea566b972a28a6993a00003ad292e2d",
@@ -54,7 +54,8 @@
       "before_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
-      "status": "modified"
+      "status": "modified",
+      "after_sha256_integrated": "dc24304d6f9c8408b058c4f2047bc0f433b45a7e1de43d037321f97474dd4c04"
     },
     {
       "after_sha256": "77133794259d597e19784639cc4b19a7595e6a9e3cf74e32f3d3abc888a2d038",
@@ -107,5 +108,5 @@
     }
   ],
   "schema": 1,
-  "integrated_target_commit": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
+  "integrated_target_commit": "39d888874577dc989f43e602c577985ebc53bc69"
 }

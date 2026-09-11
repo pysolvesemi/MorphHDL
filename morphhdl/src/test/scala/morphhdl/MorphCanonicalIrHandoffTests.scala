@@ -104,8 +104,9 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
       assert(schema.default == 8)
       assert(schema.minimum == 1)
       assert(schema.maximum == 64)
-      assert(report.handoff.profile == CanonicalIrProfile.SimpleWireAssignmentsV1)
+      assert(report.handoff.profile == CanonicalIrProfile.PureWireExpressionsV1)
       assert(report.handoff.completeFacets == CanonicalIrHandoff.productionFacets)
+      assert(report.handoff.completeFacets.contains(CanonicalIrFacet.PureExpressions))
       assert(report.handoff.completeFacets.contains(CanonicalIrFacet.NameOrigins))
 
       val phases = report.phaseClassNames
