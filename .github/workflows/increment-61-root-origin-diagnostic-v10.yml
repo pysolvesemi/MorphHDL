@@ -1,0 +1,145 @@
+name: Increment 61 parameter-root origin diagnostic v10
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-root-origin-diagnostic-v10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-root-origin-diagnostic-v10
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ffd607e684c516d5e1fa63d90faeee78371b5453
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Instrument exact parameter-root collection origins
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-origin-diagnostic"
+          source=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          test "$(git rev-parse HEAD)" = ffd607e684c516d5e1fa63d90faeee78371b5453
+          python3 - "$source" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              if text.count(old) != 1:
+                  raise SystemExit(f"diagnostic patch precondition changed: {old[:100]!r} count={text.count(old)}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String]
+              )''',
+          '''    final case class RootUse(
+                  root: ElaborationIntegerParameterRoot,
+                  sourceLocation: Option[String],
+                  origin: String
+              )''')
+
+          replace_once(
+          '''    def retainInteger(expression: ElaborationIntegerExpression): Unit = {''',
+          '''    def retainInteger(expression: ElaborationIntegerExpression, origin: String): Unit = {''')
+          replace_once(
+          '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))''',
+          '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation), origin)''')
+          replace_once(
+          '''    def retainBoolean(expression: ElaborationBooleanExpression): Unit = {''',
+          '''    def retainBoolean(expression: ElaborationBooleanExpression, origin: String): Unit = {''')
+          replace_once(
+          '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation))''',
+          '''        uses += RootUse(root, root.sourceLocation.orElse(expression.sourceLocation), origin)''')
+
+          replace_once(
+          '''        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)''',
+          '''        ParameterizedWidth.expressionOf(baseType).foreach(expression =>
+                  retainInteger(expression, "dsl-leaf:" + baseType.getClass.getSimpleName)
+                )''')
+          replace_once('''        retainInteger(metadata.depth)''', '''        retainInteger(metadata.depth, "memory-depth")''')
+          replace_once('''        retainInteger(metadata.elementWidth)''', '''        retainInteger(metadata.elementWidth, "memory-element-width")''')
+          replace_once(
+          '''        shape.geometryExpressions.foreach(retainInteger)''',
+          '''        shape.geometryExpressions.zipWithIndex.foreach { case (expression, index) =>
+                  retainInteger(expression, s"vec-geometry[$index]")
+                }''')
+          replace_once(
+          '''      retainInteger(record.expression)''',
+          '''      retainInteger(record.expression, "external-value-registry")''')
+          replace_once(
+          '''      .foreach(retainInteger)
+              ParameterizedBlackBoxGenericRegistry
+                .booleanExpressionsOf(component)
+                .foreach(retainBoolean)''',
+          '''      .foreach(expression => retainInteger(expression, "blackbox-integer-generic"))
+              ParameterizedBlackBoxGenericRegistry
+                .booleanExpressionsOf(component)
+                .foreach(expression => retainBoolean(expression, "blackbox-boolean-generic"))''')
+          replace_once('''        retainInteger(boundary.sourceWidth)''', '''        retainInteger(boundary.sourceWidth, "auto-resize-source")''')
+          replace_once('''        retainInteger(boundary.targetWidth)''', '''        retainInteger(boundary.targetWidth, "auto-resize-target")''')
+          replace_once('''          retainInteger(value.count)''', '''          retainInteger(value.count, "structural-for-count")''')
+          replace_once('''          retainBoolean(value.condition)''', '''          retainBoolean(value.condition, "structural-if-condition")''')
+          replace_once('''          retainInteger(value.selector)''', '''          retainInteger(value.selector, "structural-case-selector")''')
+          replace_once(
+          '''      .foreach(loop => retainInteger(loop.count))''',
+          '''      .foreach(loop => retainInteger(loop.count, "process-loop-count"))''')
+          replace_once(
+          '''          .foreach(binding => retainInteger(binding.actual))''',
+          '''          .foreach(binding => retainInteger(binding.actual, "child-formal-actual"))''')
+          replace_once(
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory",''',
+          '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory [roots: ${declarations.map(value => s"${value.origin}#${System.identityHashCode(value.root)}@${value.sourceLocation.getOrElse("<unknown>")}").mkString("; ")}]",''')
+
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- "$source" > "$output/instrumentation.patch"
+
+      - name: Reproduce only the failing Increment 61 compatibility suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-origin-diagnostic"
+          set +e
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            > "$output/sbt.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$output/exit-code.txt"
+          tail -n 400 "$output/sbt.log" | tee "$output/tail.log"
+          test "$rc" -ne 0
+          grep -F 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' "$output/sbt.log"
+          grep -F '[roots:' "$output/sbt.log" | tee "$output/root-conflict.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-root-origin-diagnostic-v10
+          path: target/increment-61-root-origin-diagnostic
+          if-no-files-found: error
+          retention-days: 14
