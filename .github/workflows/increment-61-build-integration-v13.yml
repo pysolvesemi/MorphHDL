@@ -47,13 +47,12 @@ jobs:
           merge_status=$?
           set -e
           if [ "$merge_status" -eq 0 ]; then
-            echo 'Expected the two reviewed overlapping production files to require resolution.' >&2
+            echo 'Expected the reviewed emitter overlap to require resolution.' >&2
             exit 1
           fi
 
           mapfile -t conflicts < <(git diff --name-only --diff-filter=U | LC_ALL=C sort)
           expected=(
-            'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
             'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
           )
           if [ "${conflicts[*]}" != "${expected[*]}" ]; then
@@ -61,24 +60,10 @@ jobs:
             exit 1
           fi
 
-          git checkout --ours -- "${expected[@]}"
+          emitter='morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+          git checkout --ours -- "$emitter"
           python3 - <<'PY'
           from pathlib import Path
-
-          morph = Path('morphhdl/src/main/scala/morphhdl/MorphVerilog.scala')
-          text = morph.read_text()
-          old = (
-              '      val retained =\n'
-              '        spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++\n'
-          )
-          new = (
-              '      val retained =\n'
-              '        spinal.core.internals.MorphHdlExternalParameterizedVerilog\n'
-              '          .publishedWidthParametersOf(report.toplevel) ++\n'
-          )
-          if text.count(old) != 1:
-              raise SystemExit('MorphVerilog WA-08 publication inventory anchor changed')
-          morph.write_text(text.replace(old, new))
 
           emitter = Path(
               'morphhdl/src/main/scala/spinal/core/internals/'
@@ -95,7 +80,13 @@ jobs:
               '    }\n'
               '    val consolidated =\n'
           )
-          new = old[:-len('    val consolidated =\n')] + (
+          new = (
+              '    val top = Option(pc.topLevel).getOrElse {\n'
+              '      fail(\n'
+              '        "SPINAL-PARAMETERIZED-VERILOG-EXTERNAL-TOP-MISSING",\n'
+              '        "external lowering ran without an elaborated top-level component"\n'
+              '      )\n'
+              '    }\n'
               '    top.userCache.remove(PublishedWidthParametersKey)\n'
               '    val consolidated =\n'
           )
@@ -115,6 +106,29 @@ jobs:
           )
           if text.count(old) != 1:
               raise SystemExit('emitter validated-inventory anchor changed')
+          text = text.replace(old, new)
+
+          old = '        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)'
+          new = (
+              '        ExternalParameterizedHierarchyResizeWidth'
+              '.expressionOf(component, baseType).foreach(retainInteger)'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('emitter root-inventory width anchor changed')
+          text = text.replace(old, new)
+
+          old = 'ParameterizedWidth.parametersOf(component)'
+          new = 'ExternalParameterizedHierarchyResizeWidth.parametersOf(component)'
+          if text.count(old) != 3:
+              raise SystemExit(
+                  f'emitter component width inventory count changed: {text.count(old)}'
+              )
+          text = text.replace(old, new)
+
+          old = 'ParameterizedWidth.parametersOf(child)'
+          new = 'ExternalParameterizedHierarchyResizeWidth.parametersOf(child)'
+          if text.count(old) != 1:
+              raise SystemExit('emitter child width inventory anchor changed')
           text = text.replace(old, new)
 
           old = (
@@ -146,50 +160,17 @@ jobs:
               raise SystemExit('emitter completion/cache anchor changed')
           text = text.replace(old, new)
 
-          old = '        ParameterizedWidth.expressionOf(baseType).foreach(retainInteger)'
-          new = (
-              '        ExternalParameterizedHierarchyResizeWidth'
-              '.expressionOf(component, baseType).foreach(retainInteger)'
-          )
-          if text.count(old) != 1:
-              raise SystemExit('emitter root-inventory width anchor changed')
-          text = text.replace(old, new)
-
-          old = 'ParameterizedWidth.parametersOf(component)'
-          if text.count(old) != 4:
-              raise SystemExit(
-                  f'emitter component width inventory count changed: {text.count(old)}'
-              )
-          # Preserve the fallback in publishedWidthParametersOf itself. Replace
-          # the three pre-existing production inventory uses only.
-          parts = text.split(old)
-          text = old.join(parts[:1]) + (
-              'ExternalParameterizedHierarchyResizeWidth.parametersOf(component)'
-          ) + old.join(parts[1:])
-          # The first split replacement above is intentionally explicit; now
-          # replace the next two production uses while retaining the final cache fallback.
-          for _ in range(2):
-              index = text.find(old)
-              if index < 0:
-                  raise SystemExit('missing remaining component width inventory anchor')
-              text = (
-                  text[:index]
-                  + 'ExternalParameterizedHierarchyResizeWidth.parametersOf(component)'
-                  + text[index + len(old):]
-              )
-
-          old = 'ParameterizedWidth.parametersOf(child)'
-          new = 'ExternalParameterizedHierarchyResizeWidth.parametersOf(child)'
-          if text.count(old) != 1:
-              raise SystemExit('emitter child width inventory anchor changed')
-          text = text.replace(old, new)
-
           emitter.write_text(text)
           PY
 
           git add --all
           test -z "$(git diff --name-only --diff-filter=U)"
           git diff --cached --check
+
+          # MorphVerilog.scala must have accepted the target WA-08 inventory
+          # change through Git's ordinary three-way merge.
+          grep -Fq '.publishedWidthParametersOf(report.toplevel) ++' \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
 
           feature_tree=$(git rev-parse "$EXPECTED_FEATURE^{tree}")
           mapfile -d '' changed < <(git diff --cached --name-only -z "$EXPECTED_FEATURE")
