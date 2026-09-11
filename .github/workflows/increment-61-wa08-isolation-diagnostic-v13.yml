@@ -1,0 +1,87 @@
+name: Increment 61 WA-08 isolation diagnostic v13
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-wa08-isolation-diagnostic-v13.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-wa08-isolation-diagnostic-v13
+  cancel-in-progress: true
+
+jobs:
+  isolate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ffd607e684c516d5e1fa63d90faeee78371b5453
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Disable only the default WA-08 pipeline in the compatibility harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-wa08-isolation"
+          source=morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          python3 - "$source" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+          old = '''    val report = MorphVerilog(
+                SpinalConfig(
+                  targetDirectory = directory.toString,
+                  bitVectorWidthMax = 8192,
+                  oneFilePerComponent = true
+                )
+              )(entry.build())'''
+          new = '''    val report = MorphVerilog(
+                MorphWireAssignmentPasses(
+                  SpinalConfig(
+                    targetDirectory = directory.toString,
+                    bitVectorWidthMax = 8192,
+                    oneFilePerComponent = true
+                  ),
+                  enabled = false
+                )
+              )(entry.build())'''
+          if text.count(old) != 1:
+              raise SystemExit(f"WA-08 isolation precondition changed: count={text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- "$source" > "$output/isolation.patch"
+
+      - name: Run the full Increment 61 compatibility suite with WA-08 disabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-wa08-isolation"
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            > "$output/sbt.log" 2>&1 || { tail -n 400 "$output/sbt.log"; exit 1; }
+          tail -n 250 "$output/sbt.log" | tee "$output/tail.log"
+          grep -F 'All tests passed.' "$output/sbt.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-wa08-isolation-diagnostic-v13
+          path: target/increment-61-wa08-isolation
+          if-no-files-found: error
+          retention-days: 14
