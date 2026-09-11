@@ -208,6 +208,8 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       Left("WA05-NATIVE-CLOCK-DOMAIN")
     else if (hasReferencedMetadata(pc, alias))
       Left("WA05-NATIVE-REFERENCED-METADATA")
+    else if (NativeWireAssignmentMetadata.retains(alias))
+      Left("WA05-NATIVE-REGISTERED-IDENTITY")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA05-NATIVE-USE-CONTEXT")
     else if (createsCycle(candidate.component, alias, source))
@@ -272,50 +274,56 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       // edge. Preserve those identities; remapping only RTL reads would leave
       // timing constraints, initialization or retained native contracts dangling.
       def tagUses(tag: SpinalTag): Boolean = tag match {
-        case value: crossClockFalsePath => value.source.exists(_ eq alias)
-        case value: ClockDomainTag => domainUses(value.clockDomain)
-        case value: ClockDomainReportTag => domainUses(value.clockDomain)
-        case value: ClockTag => domainUses(value.clockDomain)
-        case value: ResetTag => domainUses(value.clockDomain)
-        case value: ClockEnableTag => domainUses(value.clockDomain)
-        case value: ClockSyncTag => (value.a eq alias) || (value.b eq alias)
-        case value: ClockDrivedTag => value.driver eq alias
-        case value: ClockDriverTag => value.drived eq alias
-        case value: DefaultTag => value.that eq alias
-        case value: ExternalDriverTag => dataUses(value.driver)
-        case value: VarAssignementTag => dataUses(value.from)
-        case value: GenericValue => expressionUses(value.e)
-        case value: SimInitTag => expressionUses(value.value)
-        case value: PhaseNextifyTag => value.dest eq alias
-        case value: MemReadBufferTag =>
+        case value: crossClockFalsePath if value.getClass == classOf[crossClockFalsePath] => value.source.exists(_ eq alias)
+        case value: ClockDomainTag if value.getClass == classOf[ClockDomainTag] => domainUses(value.clockDomain)
+        case value: ClockDomainReportTag if value.getClass == classOf[ClockDomainReportTag] => domainUses(value.clockDomain)
+        case value: ClockTag if value.getClass == classOf[ClockTag] => domainUses(value.clockDomain)
+        case value: ResetTag if value.getClass == classOf[ResetTag] => domainUses(value.clockDomain)
+        case value: ClockEnableTag if value.getClass == classOf[ClockEnableTag] => domainUses(value.clockDomain)
+        case value: ClockSyncTag if value.getClass == classOf[ClockSyncTag] => (value.a eq alias) || (value.b eq alias)
+        case value: ClockDrivedTag if value.getClass == classOf[ClockDrivedTag] => value.driver eq alias
+        case value: ClockDriverTag if value.getClass == classOf[ClockDriverTag] => value.drived eq alias
+        case value: DefaultTag if value.getClass == classOf[DefaultTag] => value.that eq alias
+        case value: ExternalDriverTag if value.getClass == classOf[ExternalDriverTag] => dataUses(value.driver)
+        case value: VarAssignementTag if value.getClass == classOf[VarAssignementTag] => dataUses(value.from)
+        case value: GenericValue if value.getClass == classOf[GenericValue] => expressionUses(value.e)
+        case value: SimInitTag if value.getClass == classOf[SimInitTag] => expressionUses(value.value)
+        case value: PhaseNextifyTag if value.getClass == classOf[PhaseNextifyTag] => value.dest eq alias
+        case value: MemReadBufferTag if value.getClass == classOf[MemReadBufferTag] =>
           (value.reg eq alias) || statementUses(value.rs) ||
             value.through.exists {
               case expression: Expression => expressionUses(expression)
               case statement: Statement => statementUses(statement)
-              case _ => false
+              case _ => true
             }
-        case value: MemBlackboxOf =>
+        case value: MemBlackboxOf if value.getClass == classOf[MemBlackboxOf] =>
           var found = false
           value.mem.foreachStatements(statement => if (statementUses(statement)) found = true)
           found
         case value: Attribute if value.getClass == classOf[AttributeFlag] ||
             value.getClass == classOf[AttributeString] ||
             value.getClass == classOf[AttributeInteger] => false
-        case spinal.core.Verilator.public | spinal.core.Verilator.tracing_off |
-            spinal.core.Verilator.tracing_on | spinal.lib.KeepAttribute.keep |
-            spinal.lib.KeepAttribute.syn_keep_verilog |
-            spinal.lib.KeepAttribute.syn_keep_vhdl => false
-        case _: IfDefTag | _: CommentTag | _: CrossClockBufferDepth |
-            _: TagAFixTruncated | _: MemSymbolesTag => false
-        case `allowDirectionLessIoTag` | `unsetRegIfNoAssignementTag` |
-            `allowAssignmentOverride` | `allowFloating` | `allowOutOfRangeLiterals` |
-            `dontObfuscate` | `noInit` | `unusedTag` | `noCombinatorialLoopCheck` |
-            `noLatchCheck` | `noBackendCombMerge` | `noBackendSyncMerge` |
-            `reportIncludeSourceLocation` | `crossClockDomain` | `crossClockBuffer` |
-            `randomBoot` | `tagAutoResize` | `tagTruncated` | `tagAFixResized` |
-            AllowPartialyAssignedTag | AllowMixedWidth | IsInterface |
-            `uLogic` | `noNumericType` | `addDefaultGenericValue` |
-            spinal.core.sim.SimPublic | spinal.core.sim.TracingOff => false
+        case value: IfDefTag if value.getClass == classOf[IfDefTag] => false
+        case value: CommentTag if value.getClass == classOf[CommentTag] => false
+        case value: CrossClockBufferDepth if value.getClass == classOf[CrossClockBufferDepth] => false
+        case value: TagAFixTruncated if value.getClass == classOf[TagAFixTruncated] => false
+        case value: MemSymbolesTag if value.getClass == classOf[MemSymbolesTag] =>
+          (value.mapping eq null) || value.mapping.exists(mapping =>
+            (mapping eq null) || mapping.getClass != classOf[MemSymbolesMapping])
+        // Match flags by identity: user subclasses and custom equality cannot
+        // borrow a native tag's reference-free metadata contract.
+        case value if Vector[SpinalTag](
+            spinal.core.Verilator.public, spinal.core.Verilator.tracing_off,
+            spinal.core.Verilator.tracing_on, spinal.lib.KeepAttribute.keep,
+            spinal.lib.KeepAttribute.syn_keep_verilog, spinal.lib.KeepAttribute.syn_keep_vhdl,
+            allowDirectionLessIoTag, unsetRegIfNoAssignementTag, allowAssignmentOverride,
+            allowFloating, allowOutOfRangeLiterals, dontObfuscate, noInit, unusedTag,
+            noCombinatorialLoopCheck, noLatchCheck, noBackendCombMerge, noBackendSyncMerge,
+            reportIncludeSourceLocation, crossClockDomain, crossClockBuffer, randomBoot,
+            tagAutoResize, tagTruncated, tagAFixResized, AllowPartialyAssignedTag,
+            AllowMixedWidth, IsInterface, uLogic, noNumericType, addDefaultGenericValue,
+            spinal.core.sim.SimPublic, spinal.core.sim.TracingOff).exists(_ eq value) => false
+        case value if NativeWireAssignmentMetadata.isReferenceFreeTag(value) => false
         // A custom tag can hide references outside constructor fields. Without
         // a known complete metadata contract, retain the candidate identity.
         case _ => true

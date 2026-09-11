@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           sbt -batch ++${{ matrix.scala }} \
             'morphir/testOnly *CanonicalIrHandoffSpec' \
-            'morph/testOnly *MorphCanonicalIrHandoffTests' \
+            'morph/testOnly *MorphCanonicalIrHandoffTests *HierarchyResizeSourceWidthTests *FormalParameterClonePropagationTests *NativeSymbolicMemoryTests *GenericExpressionAndStreamTests *NativeLibraryReuseTests' \
             "morph/Test/runMain morphhdl.examples.WireAssignmentProductionArtifactWriter $GITHUB_WORKSPACE/target/wa08-production"
       - name: Determinism default compatibility strict tools equivalence and mutations
         run: python3 morphhdl/scripts/check-wa08-production-artifacts.py target/wa08-production

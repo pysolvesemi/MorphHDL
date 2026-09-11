@@ -39,6 +39,10 @@ also uses genuine naming metadata and no longer supplies the obsolete tag.
   removal. Unknown metadata tags fail closed because their complete reference
   inventory is unavailable.
   Such metadata can conservatively retain otherwise eligible aliases.
+- All five stages preserve exact declarations and expression references owned
+  by the typed-Vec carrier and operation registries. An unrelated alias in the
+  same component remains eligible. Integer-only native-memory shape metadata
+  does not by itself reference an alias; unknown tags remain protected.
 - The existing cycle and canonical decision gates remain unchanged. Rewriting
   replaces direct references by identity and introduces no arithmetic, casts,
   truncation, latency or two-state assumptions.
@@ -180,6 +184,31 @@ strict-tool and equivalence checks against the independent frozen reference.
 Both Scala lanes regenerate all three original hashes, pass the unchanged 60a
 strict-tool/simulation/equivalence/mutation gate and pass all 26 signedness
 authority tests.
+
+Full compatibility CI also exposed two earlier production-handoff gaps. The
+unnamed stage could remove one declaration still owned by the typed-Vec
+registry. The shared identity guard now protects those exact declarations and
+recorded references in every stage. The formal-clone fixture retains its full
+original width domain and supplies the corresponding 8192-bit test budget;
+an added negative still rejects the insufficient default 4096-bit budget.
+
+Surviving native UInt `.resized` clones could carry a direct child's formal
+width root into the parent. Publication now instantiates only an exactly
+captured, single-use clone through its child's retained formal binding and
+complete finite evaluation evidence. It preserves the original native width
+object, validates the parent root and schema inventory, and retains the
+validated report inventory across capture cleanup. Unrelated same-name roots,
+lost lineage and unsupported ownership still fail. The existing FIFO sources
+continue to use their original `.resized` expressions.
+
+Memory/expression/stream compatibility tests retain independent native byte
+witnesses with explicit opt-out, then compare current default-on candidates by
+strict Verilog, equivalence and four-state simulation. Both Scala lanes pass
+31 such paired comparisons at selected parameter bindings, including live
+functional and alias-trace mutations. Memory clock, guard, order and collision
+assertions remain intact; RHS checks accept only proven unique, full-width
+direct wire chains. Historical mutation controls still require the precise
+rejection from the first applicable verified source-overlay layer.
 
 Local qualification passed both Scala lanes: 22 canonical/public-handoff tests
 per lane, 144 standalone pass tests per lane, all 21 cross-Scala byte comparisons,

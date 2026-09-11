@@ -194,6 +194,7 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
   ): Boolean =
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
+      !NativeWireAssignmentMetadata.retains(alias) &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def allowedUse(

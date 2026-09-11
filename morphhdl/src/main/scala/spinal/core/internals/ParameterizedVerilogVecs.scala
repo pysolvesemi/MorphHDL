@@ -2365,7 +2365,7 @@ private[internals] object ParameterizedVerilogVecs {
       occupiedProjectionNames += loop.label
       occupiedProjectionNames += loop.indexName
     }
-    val projectionParameters = ParameterizedWidth.parametersOf(component) ++
+    val projectionParameters = ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
       ExternalParameterizedAutoResize.parametersOf(component) ++
       ParameterizedMemory.parametersOf(component) ++
       ExternalParameterizedValueRegistry.parametersOf(component) ++
@@ -2467,7 +2467,7 @@ private[internals] object ParameterizedVerilogVecs {
       occupied += loop.label
       occupied += loop.indexName
     }
-    val parameters = ParameterizedWidth.parametersOf(component) ++
+    val parameters = ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
       ExternalParameterizedAutoResize.parametersOf(component) ++
       ParameterizedMemory.parametersOf(component) ++
       ExternalParameterizedValueRegistry.parametersOf(component) ++
@@ -6800,7 +6800,7 @@ private[internals] object ParameterizedVerilogVecs {
     }
 
     val retainedParameters =
-      ParameterizedWidth.parametersOf(component) ++
+      ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
         ExternalParameterizedAutoResize.parametersOf(component) ++
         ParameterizedMemory.parametersOf(component) ++
         ExternalParameterizedValueRegistry.parametersOf(component) ++

@@ -222,6 +222,7 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
   private def preservationMetadataAllows(alias: BaseType): Boolean =
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
+      !NativeWireAssignmentMetadata.retains(alias) &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
 

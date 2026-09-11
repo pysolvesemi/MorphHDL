@@ -111,17 +111,48 @@ NATIVE_SAFETY_MARKERS = (
     "pc.components().toVector.flatMap(statementsOf)",
     "hasReferencedMetadata(pc, alias)",
     'Left("WA05-NATIVE-REFERENCED-METADATA")',
+    "NativeWireAssignmentMetadata.retains(alias)",
+    'Left("WA05-NATIVE-REGISTERED-IDENTITY")',
 )
 REFERENCED_METADATA_MARKERS = (
-    "case value: crossClockFalsePath => value.source.exists(_ eq alias)",
-    "case value: ClockSyncTag => (value.a eq alias) || (value.b eq alias)",
-    "case value: ExternalDriverTag => dataUses(value.driver)",
-    "case value: GenericValue => expressionUses(value.e)",
-    "case value: SimInitTag => expressionUses(value.value)",
+    "case value: crossClockFalsePath if value.getClass == classOf[crossClockFalsePath] => value.source.exists(_ eq alias)",
+    "case value: ClockSyncTag if value.getClass == classOf[ClockSyncTag] => (value.a eq alias) || (value.b eq alias)",
+    "case value: ExternalDriverTag if value.getClass == classOf[ExternalDriverTag] => dataUses(value.driver)",
+    "case value: GenericValue if value.getClass == classOf[GenericValue] => expressionUses(value.e)",
+    "case value: SimInitTag if value.getClass == classOf[SimInitTag] => expressionUses(value.value)",
+    "case value if NativeWireAssignmentMetadata.isReferenceFreeTag(value) => false",
     "case _ => true",
     "var found = tagsUse(component)",
     "statement.walkDrivingExpressions",
     "statement.foreachClockDomain",
+    "(mapping eq null) || mapping.getClass != classOf[MemSymbolesMapping]",
+    "spinal.core.sim.SimPublic, spinal.core.sim.TracingOff).exists(_ eq value) => false",
+) + tuple(
+    "case value: " + tag + " if value.getClass == classOf[" + tag + "] =>"
+    for tag in (
+        "crossClockFalsePath",
+        "ClockDomainTag",
+        "ClockDomainReportTag",
+        "ClockTag",
+        "ResetTag",
+        "ClockEnableTag",
+        "ClockSyncTag",
+        "ClockDrivedTag",
+        "ClockDriverTag",
+        "DefaultTag",
+        "ExternalDriverTag",
+        "VarAssignementTag",
+        "GenericValue",
+        "SimInitTag",
+        "PhaseNextifyTag",
+        "MemReadBufferTag",
+        "MemBlackboxOf",
+        "IfDefTag",
+        "CommentTag",
+        "CrossClockBufferDepth",
+        "TagAFixTruncated",
+        "MemSymbolesTag",
+    )
 )
 CONTINUOUS_RECEIVER_MARKERS = (
     "(assignment.parentScope eq assignment.rootScopeStatement)",
@@ -132,6 +163,52 @@ CONTINUOUS_RECEIVER_MARKERS = (
     "!assignment.finalTarget.isAnalog",
     "!assignment.finalTarget.isInputOrInOut",
 )
+REGISTERED_IDENTITY_HOOKS = {
+    "NamedWireAliasNativeBridge.scala": "else if (NativeWireAssignmentMetadata.retains(alias))",
+    "UnnamedWireAliasNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(alias) &&",
+    "UnnamedWireExpressionNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(alias) &&",
+    "ConstantOperandNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(target) &&",
+    "BooleanTernaryNativeBridge.scala": "if bridge.eligible(assignment)",
+}
+REGISTERED_IDENTITY_MARKERS = (
+    "if (alias == null || alias.component == null) return true",
+    "new IdentityHashMap[AnyRef, java.lang.Boolean]()",
+    "case leaf: BaseType => leaf eq alias",
+    "case data: Data => data.flatten.exists(_ eq alias)",
+    "value.productIterator.exists(uses)",
+    "case value: ParameterizedVecStaticWrite => recordUses(value)",
+    "case value: ParameterizedVecPackedAssignment => recordUses(value)",
+    "case value: ParameterizedVecWriteInvocation => recordUses(value)",
+    "case _ => true",
+    "root.walkComponents",
+    "ParameterizedVec.retainedVectorsOf(component)",
+    "uses(vector)",
+    "ParameterizedVec.operationsOf(vector).exists(uses)",
+    "ParameterizedVec.writeInvocationsOf(vector).exists(uses)",
+)
+REFERENCE_FREE_TAG_CASES = (
+    "case _: ParameterizedMemoryTag | _: ParameterizedMemoryDepthOverrideTag => true "
+    "case _ => false"
+)
+
+
+def registered_identity_failures(sources: dict[str, str], metadata: str) -> list[str]:
+    failures: list[str] = []
+    for path, marker in REGISTERED_IDENTITY_HOOKS.items():
+        failures.extend(require_markers(Path(path), sources[path], (marker,),
+                                        "WA05-REGISTERED-IDENTITY-HOOK"))
+    failures.extend(scan_text(Path("NativeWireAssignmentMetadata.scala"), metadata, BRIDGE_RULES))
+    failures.extend(require_markers(Path("NativeWireAssignmentMetadata.scala"), metadata,
+                                    REGISTERED_IDENTITY_MARKERS, "WA05-REGISTERED-IDENTITY-INVENTORY"))
+    reference_free = re.search(
+        r"def isReferenceFreeTag\(tag: SpinalTag\): Boolean = tag match \{([\s\S]*?)\n  \}",
+        metadata,
+    )
+    if (reference_free is None or
+            " ".join(reference_free.group(1).split()) != REFERENCE_FREE_TAG_CASES):
+        failures.append("NativeWireAssignmentMetadata.scala: WA05-REFERENCE-FREE-TAGS: "
+                        "only the two final integer-only memory metadata tags may be reference-free")
+    return failures
 
 REQUIRED_SOURCE_MARKERS: tuple[str, ...] = (
     "PassId.NamedWireAliasElimination",
@@ -387,6 +464,7 @@ def check_repository(root: Path) -> list[str]:
         "source": pass_root / "src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala",
         "tests": pass_root / "src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala",
         "bridge": pass_root / "examples/NamedWireAliasNativeBridge.scala",
+        "metadata": root / "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala",
         "witness": pass_root / "examples/ParameterizedStreamFifo.scala",
         "roadmap": pass_root / "morphhdl-ir-wire-assignment-passes-todo.md",
         "readme": pass_root / "README.md",
@@ -424,6 +502,10 @@ def check_repository(root: Path) -> list[str]:
     else:
         bridge_phase_text = bridge_text[phase_start:phase_end]
     failures.extend(bridge_phase_failures(paths["bridge"].relative_to(root), bridge_phase_text))
+    failures.extend(registered_identity_failures(
+        {name: (pass_root / "examples" / name).read_text() for name in REGISTERED_IDENTITY_HOOKS},
+        paths["metadata"].read_text(),
+    ))
     failures.extend(require_markers(
         paths["bridge"].relative_to(root), bridge_text, REQUIRED_BRIDGE_MARKERS,
         "WA05-BRIDGE-CONTRACT-MISSING",
@@ -465,7 +547,7 @@ def check_repository(root: Path) -> list[str]:
         registry = json.loads(paths["signatures"].read_text(encoding="utf-8"))
         registered = registry.get("files", {}) if isinstance(registry, dict) else {}
         required_registered = (
-            paths["source"], paths["tests"], paths["bridge"], paths["witness"],
+            paths["source"], paths["tests"], paths["bridge"], paths["witness"], paths["metadata"],
             Path(__file__).resolve(),
         )
         for registered_path in required_registered:
@@ -551,6 +633,35 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
         )
         if not any("WA05-BRIDGE-PRESERVATION-METADATA" in failure for failure in failures):
             raise AssertionError(f"native safety mutation was not rejected: {marker}")
+    repository = Path(__file__).resolve().parents[2]
+    hooks = {name: (repository / "morphhdl-passes/examples" / name).read_text()
+             for name in REGISTERED_IDENTITY_HOOKS}
+    metadata = (repository /
+                "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala").read_text()
+    if registered_identity_failures(hooks, metadata):
+        raise AssertionError("registered identity preservation was rejected")
+    for name, marker in REGISTERED_IDENTITY_HOOKS.items():
+        mutant = dict(hooks)
+        mutant[name] = mutant[name].replace(marker, "removedRegistryGuard")
+        if not any("WA05-REGISTERED-IDENTITY-HOOK" in failure
+                   for failure in registered_identity_failures(mutant, metadata)):
+            raise AssertionError(f"registered identity hook removal survived: {name}")
+    for marker in REGISTERED_IDENTITY_MARKERS:
+        mutant = metadata.replace(marker, "removedRegistryInventory")
+        if not any("WA05-REGISTERED-IDENTITY-INVENTORY" in failure
+                   for failure in registered_identity_failures(hooks, mutant)):
+            raise AssertionError(f"registered identity inventory removal survived: {marker}")
+    for before, after in (
+        ("case _ => false", "case _ => true"),
+        ("case _: ParameterizedMemoryTag | _: ParameterizedMemoryDepthOverrideTag => true",
+         "case _: SpinalTag => true"),
+        ("case _: ParameterizedMemoryTag | _: ParameterizedMemoryDepthOverrideTag => true",
+         "case _: ParameterizedMemoryTag => true"),
+    ):
+        mutant = metadata.replace(before, after, 1)
+        if not any("WA05-REFERENCE-FREE-TAGS" in failure
+                   for failure in registered_identity_failures(hooks, mutant)):
+            raise AssertionError("unsafe or incomplete reference-free metadata classifier survived")
     for start, end, markers, code in (
         ("private def hasReferencedMetadata(", "private def allowedUse(",
          REFERENCED_METADATA_MARKERS, "WA05-BRIDGE-REFERENCED-METADATA"),

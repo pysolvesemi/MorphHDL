@@ -122,7 +122,7 @@ def main() -> None:
             "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
         adapted = []
         for label, path, mutation, expected in cases:
-            if mutation == "suffix" and path in helper.PATHS and path in overlay_paths:
+            if mutation == "suffix" and path in overlay_paths:
                 expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + path
             elif path.startswith("foreign/src/main/"):
                 expected = "WA-08 source overlay: unreviewed production delta: governed inventory differs: " + repr([path])

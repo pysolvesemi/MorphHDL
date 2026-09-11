@@ -313,7 +313,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       val connected =
         HdlInt.param("CONNECTED_WIDTH", default = 8, min = 1, max = 16)
 
-      val config = SpinalConfig(targetDirectory = directory.toString)
+      val config = publicationConfig(directory)
       config.netlistFileName = "formal_clone_connection_conflict.v"
       MorphVerilog.tryGenerate(config)(new MismatchedTop(formalActual, connected)) match {
         case Left(failure) =>
@@ -338,7 +338,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       val connected =
         HdlInt.param("SHARED_WIDTH", default = 8, min = 1, max = 16)
 
-      val config = SpinalConfig(targetDirectory = directory.toString)
+      val config = publicationConfig(directory)
       config.netlistFileName = "formal_clone_same_name_root_conflict.v"
       MorphVerilog.tryGenerate(config)(new MismatchedTop(formalActual, connected)) match {
         case Left(failure) =>
@@ -353,6 +353,18 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
             "Expected independently rooted formal connection conflict, received " +
               report
           )
+      }
+    }
+  }
+
+  test("retained formal Vec carriers still reject an insufficient packed width budget") {
+    withTemporaryDirectory { directory =>
+      val config = SpinalConfig(targetDirectory = directory.toString)
+      MorphVerilog.tryGenerate(config)(component()) match {
+        case Left(failure) =>
+          assert(failure.detail.contains("SPINAL-PARAMETERIZED-VERILOG-VEC-TOTAL-WIDTH-TOO-LARGE"),
+            failure.detail)
+        case Right(report) => fail("Expected retained full-domain width budget rejection, received " + report)
       }
     }
   }
@@ -392,7 +404,7 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       filename: String,
       component: => Component
   ): String = {
-    val config = SpinalConfig(targetDirectory = directory.toString)
+    val config = publicationConfig(directory)
     config.netlistFileName = filename
     MorphVerilog(config)(component)
     new String(
@@ -400,6 +412,12 @@ class FormalParameterClonePropagationTests extends AnyFunSuite {
       StandardCharsets.UTF_8
     )
   }
+
+  // The unchanged definition formal admits WIDTH up to 4096. Keeping both
+  // exact Vec carriers requires the complete 2 * 4096 packed domain budget;
+  // the previous native cleanup erased this Vec and concealed that requirement.
+  private def publicationConfig(directory: Path): SpinalConfig =
+    SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 8192)
 
   private def hasDeclarationWidth(
       verilog: String,

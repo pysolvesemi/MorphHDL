@@ -153,7 +153,8 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val verilog = emitMorph(
         directory,
         "native_single_port_memory.v",
-        new NativeSinglePortMemory(width, depth)
+        new NativeSinglePortMemory(width, depth),
+        compatibilityAddress = Some("address")
       )
 
       assert(verilog.contains("module NativeSinglePortMemory #("))
@@ -172,11 +173,12 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       assert(verilog.contains("if (read_enable == 1'b1) begin"))
       assert(verilog.contains("if (write_enable == 1'b1) begin"))
       assert(verilog.contains("<= memory[address];"))
-      assert(verilog.contains("memory[address] <= write_data;"))
+      val writeStatement = NativeWireCompatibility.memoryWrite(verilog, "memory", "address", "write_data")
+      assert(verilog.contains(writeStatement))
       assert(verilog.contains("<= {WIDTH{1'b0}};"))
 
       val readIndex = verilog.indexOf("<= memory[address];")
-      val writeIndex = verilog.indexOf("memory[address] <= write_data;")
+      val writeIndex = verilog.indexOf(writeStatement)
       assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
     }
@@ -248,13 +250,15 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val verilog = emitMorph(
         directory,
         "native_simple_dual_port_memory.v",
-        new NativeSimpleDualPortMemory(width, depth)
+        new NativeSimpleDualPortMemory(width, depth),
+        compatibilityAddress = Some("write_address")
       )
 
       assert(verilog.contains("if (read_address < DEPTH) begin"))
       assert(verilog.contains("if (write_address < DEPTH) begin"))
       assert(verilog.contains("<= memory[read_address];"))
-      assert(verilog.contains("memory[write_address] <= write_data;"))
+      val writeStatement = NativeWireCompatibility.memoryWrite(verilog, "memory", "write_address", "write_data")
+      assert(verilog.contains(writeStatement))
       assert(verilog.contains("else if (read_enable == 1'b1) begin"))
       assert(verilog.contains("<= {WIDTH{1'b0}};"))
       assert(count(verilog, "always @(posedge clk)") == 1)
@@ -268,15 +272,17 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val verilog = emitMorph(
         directory,
         "native_dontcare_simple_dual_port_memory.v",
-        new NativeDontCareSimpleDualPortMemory(width, depth)
+        new NativeDontCareSimpleDualPortMemory(width, depth),
+        compatibilityAddress = Some("write_address")
       )
 
       assert(verilog.contains("if (read_address < DEPTH) begin"))
       assert(verilog.contains("if (write_address < DEPTH) begin"))
       assert(verilog.contains("<= memory[read_address];"))
-      assert(verilog.contains("memory[write_address] <= write_data;"))
+      val writeStatement = NativeWireCompatibility.memoryWrite(verilog, "memory", "write_address", "write_data")
+      assert(verilog.contains(writeStatement))
       val readIndex = verilog.indexOf("<= memory[read_address];")
-      val writeIndex = verilog.indexOf("memory[write_address] <= write_data;")
+      val writeIndex = verilog.indexOf(writeStatement)
       assert(readIndex >= 0 && writeIndex > readIndex)
       assert(count(verilog, "always @(posedge clk)") == 1)
     }
@@ -289,7 +295,8 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       val verilog = emitMorph(
         directory,
         "resized_native_memory_address.v",
-        new ResizedNativeMemoryAddress(width, depth)
+        new ResizedNativeMemoryAddress(width, depth),
+        compatibilityAddress = Some("address")
       )
 
       assert(
@@ -300,7 +307,8 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
       )
       assert("""DEPTH\)?\s*==\s*\(?8""".r.findFirstIn(verilog).nonEmpty)
       assert(verilog.contains("if (address < DEPTH) begin"))
-      assert(verilog.contains("memory[address] <= write_data;"))
+      val writeStatement = NativeWireCompatibility.memoryWrite(verilog, "memory", "address", "write_data")
+      assert(verilog.contains(writeStatement))
     }
   }
 
@@ -328,14 +336,16 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
           )
           memory.write(address, write_data, enable = write_enable)
           read_data := read_word
-        }
+        },
+        compatibilityAddress = Some("address")
       )
 
       assert(verilog.contains("parameter integer WIDTH = 8"))
       assert(!verilog.contains("parameter integer DEPTH"))
       assert(verilog.contains("reg [WIDTH-1:0] memory [0:4];"))
       assert(verilog.contains("if (address < 5) begin"))
-      assert(verilog.contains("memory[address] <= write_data;"))
+      val writeStatement = NativeWireCompatibility.memoryWrite(verilog, "memory", "address", "write_data")
+      assert(verilog.contains(writeStatement))
     }
   }
 
@@ -471,6 +481,41 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     }
   }
 
+  test("memory write data tracing rejects non-identity and ambiguous aliases") {
+    val source = """module MemoryTrace (
+      |  input wire [WIDTH-1:0] write_data,
+      |  input wire [WIDTH-1:0] other
+      |);
+      |  wire [WIDTH-1:0] alias_word;
+      |  reg [WIDTH-1:0] memory [0:DEPTH-1];
+      |  assign alias_word = write_data;
+      |  always @(posedge clk) begin
+      |    memory[address] <= alias_word;
+      |  end
+      |endmodule
+      |""".stripMargin
+    assert(NativeWireCompatibility.memoryWrite(source, "memory", "address", "write_data") ==
+      "memory[address] <= alias_word;")
+    Vector(
+      source.replace("assign alias_word = write_data;", "assign alias_word = ~write_data;"),
+      source.replace("assign alias_word = write_data;", "assign alias_word = other;"),
+      source.replace("assign alias_word = write_data;", "assign alias_word = alias_word;"),
+      source.replace("wire [WIDTH-1:0] alias_word", "wire [WIDTH:0] alias_word"),
+      source.replace("reg [WIDTH-1:0] memory", "reg [WIDTH:0] memory"),
+      source.replace("wire [WIDTH-1:0] alias_word", "wire signed [WIDTH-1:0] alias_word"),
+      source.replace("wire [WIDTH-1:0] alias_word", "reg [WIDTH-1:0] alias_word"),
+      source.replace("assign alias_word = write_data;", "alias_word = write_data;"),
+      source.replace("assign alias_word = write_data;", "assign alias_word[0] = write_data;"),
+      source.replace("assign alias_word = write_data;", "assign alias_word = write_data; assign alias_word = other;"),
+      source.replace("memory[address] <= alias_word;", "memory[address] <= alias_word; memory[address] <= other;"),
+      source.replace("assign alias_word = write_data;", "assign alias_word = write_data;\n  assign alias_word = write_data;")
+    ).foreach { mutation =>
+      intercept[IllegalArgumentException] {
+        NativeWireCompatibility.memoryWrite(mutation, "memory", "address", "write_data")
+      }
+    }
+  }
+
   private def config(directory: Path, filename: String): SpinalConfig = {
     val value = SpinalConfig(targetDirectory = directory.toString)
     value.netlistFileName = filename
@@ -480,10 +525,29 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
   private def emitMorph(
       directory: Path,
       filename: String,
-      component: => Component
+      component: => Component,
+      compatibilityAddress: Option[String] = None
   ): String = {
     MorphVerilog(config(directory, filename))(component)
-    read(directory.resolve(filename))
+    val current = read(directory.resolve(filename))
+    compatibilityAddress.foreach { address =>
+      val legacyName = "legacy_" + filename
+      MorphVerilog(MorphWireAssignmentPasses(config(directory, legacyName), enabled = false))(component)
+      val legacy = read(directory.resolve(legacyName))
+      // Preserve the historical exact direct-data expectation on its independently
+      // generated legacy pipeline; the current pipeline is checked without rewriting RTL.
+      assert(legacy.contains(s"memory[$address] <= write_data;"))
+      assert(NativeWireCompatibility.memoryWrite(legacy, "memory", address, "write_data") ==
+        s"memory[$address] <= write_data;")
+      val top = "(?m)^module ([A-Za-z_][A-Za-z0-9_$]*)".r.findFirstMatchIn(current).get.group(1)
+      Vector((1, 1), (8, 5), (32, 8)).foreach { case (width, depth) =>
+        val bindings = Vector("WIDTH" -> width) ++
+          (if (current.contains("parameter integer DEPTH")) Vector("DEPTH" -> depth) else Vector.empty)
+        NativeWireCompatibility.check(directory, current, legacy, top, bindings,
+          s"${top}_compatibility_${width}_$depth")
+      }
+    }
+    current
   }
 
   private def emitConcrete(
