@@ -68,9 +68,10 @@ jobs:
           path.write_text(text.replace(old, new, 1))
           PY
 
-          python3 morphhdl/repair-59i-rollout-composition/bootstrap.py | tee "$out/application.log"
+          python3 morphhdl/repair-59i-rollout-composition/run-current.py | tee "$out/application.log"
           python3 -m py_compile \
             morphhdl/repair-59i-rollout-composition/apply.py \
+            morphhdl/repair-59i-rollout-composition/run-current.py \
             morphhdl/scripts/check-increment-59i-rollout-composition.py \
             morphhdl/scripts/test-increment-59i-rollout-composition.py \
             morphhdl/scripts/check-wa07b-inherited-review.py
