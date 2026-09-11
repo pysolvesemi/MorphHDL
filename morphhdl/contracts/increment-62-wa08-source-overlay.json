@@ -2,22 +2,52 @@
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
   "files": [
     {
-      "after_sha256": "58685a1c88b1915092aabf0899e3c22d2dd1dc8f90b74c6e4c0b9c16eb8c5220",
+      "after_sha256": "de1d3be15e5a2ec254c196a607d5d6fac759790856425cd9d21a1e53e995d18d",
+      "before_sha256": "2e32d9ed31d845ac025d1b9bd92bd91fc6935727536dd9f421d736ea32c896c1",
+      "mode": "100644",
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml"
+    },
+    {
+      "after_sha256": "252f5d68ff2d3c01bc4297bb7db9b24c0f3712d3d2e6b4c0db28358b58dfcf3d",
       "before_sha256": null,
       "mode": "100644",
       "path": ".github/workflows/increment-62-wa08-source-overlay.yml"
     },
     {
-      "after_sha256": "4918aa85639db124d7896a6fc47dadc1e470483b1e5d787766c71a9ece298946",
+      "after_sha256": "1c57671360ccea626af6ec33ed9c44f545cf7a57f6fb3cd36c50c4cd96519f45",
+      "before_sha256": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
+      "mode": "100644",
+      "path": ".github/workflows/morphhdl-passes.yml"
+    },
+    {
+      "after_sha256": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
       "before_sha256": "2a0ab720da477dd60ffc4c664b6cb85bb1560cf58f7338e9ecb388db0b0c5497",
       "mode": "100644",
       "path": "build.mill"
     },
     {
-      "after_sha256": "0d75e6db5ba792fbd109e0c724c2ce4cf7680c6f5e8e015a6d78c75d189409e6",
+      "after_sha256": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
       "before_sha256": "034a36d1794d1772b433985c6e278871ecbcf98e0b5bbe571cf1aeb27b06d9be",
       "mode": "100644",
       "path": "build.sbt"
+    },
+    {
+      "after_sha256": "95f24fd292f45029f4372f94d16750691924ec1c770ad0188e89e019c36ce21e",
+      "before_sha256": "8dfe14204b6a18337ba883aa9928aaa8334ee27ef807ca45034ab8a0c596f28d",
+      "mode": "100644",
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"
+    },
+    {
+      "after_sha256": "cbd6861ada0ba3c17d05792722066daccc73ea7ad6d598c3e2792bb887c8ee16",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala"
+    },
+    {
+      "after_sha256": "cb2d6cdfaffd0f5b7fd11372002ebc2db6a52c8f579bbe6d78c5b09562a4440c",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala"
     },
     {
       "after_sha256": "97f5e85f7663c68349925691de69bb9dac3c5026e1d7deed54e51086da8416a5",
@@ -26,7 +56,7 @@
       "path": "morphhdl-passes/examples/AllWireAssignmentNativeBridge.scala"
     },
     {
-      "after_sha256": "833bf00bff40480d2c82737595935ebdcdbbe871a04f2193ce8f9d985cbccd4d",
+      "after_sha256": "7fbeac78367c4193b5a309516f6a15c8b3c4581400cf3640bcbaccd9897347b6",
       "before_sha256": "a7ff7af033b8d69e3dc8bdc4d0a0376e05e832efbdce55978ad53388e158f194",
       "mode": "100644",
       "path": "morphhdl-passes/examples/BooleanTernaryNativeBridge.scala"
@@ -38,10 +68,22 @@
       "path": "morphhdl-passes/examples/ConstantOperandNativeBridge.scala"
     },
     {
-      "after_sha256": "35359b52f330e754df4b29115c63ec5a84f2003013757c38960ffe9d7ce5027a",
+      "after_sha256": "b5a1c073e60fea300551a1b4438eab4f87d1a6306209258eced7e7725fb11585",
       "before_sha256": "d2d82eea2b22039828155ca839a09c1ea46d21738a7bc5462218fe82aa75a687",
       "mode": "100644",
       "path": "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala"
+    },
+    {
+      "after_sha256": "95fd1bd8f5b5efd75c5c7e5b45387b96386f024d332965779b9f4b7df8ae9692",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala"
+    },
+    {
+      "after_sha256": "799ca96c98a2171638f7a34bfe3c9ae8c0b8ac460d3603d10f98f6b23c81934d",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/examples/NativeWireExpressionCodec.scala"
     },
     {
       "after_sha256": "7dfe0908524abf2537694cc99f9e43a734ad0d02ddeeecb41034e53c3c2f2848",
@@ -50,7 +92,7 @@
       "path": "morphhdl-passes/examples/OrderedWireAliasNativeBridge.scala"
     },
     {
-      "after_sha256": "f6aaa1afa74b37c9b4b627bde623f99f26e19e4dca96e0c3b91a73a3996199e7",
+      "after_sha256": "2c30dc62b1ae0366d227dfe4c2b986b2d2b6c5f7b44e01ef7356df726d48aa53",
       "before_sha256": "441aa14cb111498129f2f468d82d3b59eb1dcc6e4c70b9becd0c950b04475bc9",
       "mode": "100644",
       "path": "morphhdl-passes/examples/ParameterizedStreamFifo.scala"
@@ -62,19 +104,25 @@
       "path": "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala"
     },
     {
-      "after_sha256": "92066a6d2000be5a4e771a1639c4141375b96d04e6b32981e3962a97eda5bd36",
+      "after_sha256": "ed7fa2214d46c3af57e2af13bf91c39185fbf376d60c76fd05cb9e7b47244c16",
       "before_sha256": "ff78fd2384d30e616a648cf507fefbccc17459beb2ba64d34cc614bb6b02bc6f",
       "mode": "100644",
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "a90c0e5096fc9d6af8f940445c5a901b5896fcfa4a349f4fcb50264c50cf7538",
+      "after_sha256": "3ab302e95fa8825ddc6deea2d4b35edd657c198b21688a92640a0cd3e45d6ae7",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
     },
     {
-      "after_sha256": "9528317ffa09c0273cdcb472ddb4c3578fd9ea24a42f6e2b242628d11c92ff8b",
+      "after_sha256": "dfd3c62caea1769a4d4b06203dd8b284f1138d2c6f97f68effcec760a576fcfd",
+      "before_sha256": "d55e6de3f6a2ef322137edf3d32f9d445ccfa8aa57876f453344e86b177d8ee0",
+      "mode": "100755",
+      "path": "morphhdl-passes/scripts/check-wa03-gates.py"
+    },
+    {
+      "after_sha256": "f28061fd82971d87af642718c3ed88eddae5d1f3c6f7d47f52c7d492f85a0c90",
       "before_sha256": "ef959220ea65beb0c555ad24dd2018499c1a5de67385727249614a52f08914e8",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-wa05-pass.py"
@@ -86,7 +134,7 @@
       "path": "morphhdl-passes/scripts/check-wa06-pipeline.py"
     },
     {
-      "after_sha256": "e9171f8c2bb046d5c34a0922f3d4c58d3358d0d82560481786eeac9bc1c26057",
+      "after_sha256": "bc7961dfeb43c01e5dae507d45129f1e22784974059a05cee5e3184d608b3ede",
       "before_sha256": "b2994949282d02a445ff3e036ea4084e28652ec4e595ece31edac6f08f0c05fc",
       "mode": "100644",
       "path": "morphhdl-passes/scripts/check-wa07-expression-pass.py"
@@ -98,7 +146,25 @@
       "path": "morphhdl-passes/scripts/check-wa07a-constant-pass.py"
     },
     {
-      "after_sha256": "f825bfbd072e02a6e606f811433da428bccbd7ddd1b0c771d45b690872ca9532",
+      "after_sha256": "909a2459c42d1546b6d0bc0bee23d2a1f310c59daddc443842fd1654fea03216",
+      "before_sha256": "683093914b686c7a0a9bb3c65b751a636282a65b8aa70fae1cd1603abcf7f60b",
+      "mode": "100644",
+      "path": "morphhdl-passes/scripts/check-wa07b-ternary-pass.py"
+    },
+    {
+      "after_sha256": "03212afd025b4aaab8901f8ddf47ef3598b02959db26f4a6db6f0eb9840267ce",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/scripts/check-wa09-named-expression.py"
+    },
+    {
+      "after_sha256": "ca5e7685be74d3d72177cd234cbd4268555da0c35be445780f2e54b9b1d747ca",
+      "before_sha256": null,
+      "mode": "100755",
+      "path": "morphhdl-passes/scripts/run-wa09-regression.sh"
+    },
+    {
+      "after_sha256": "1cd1c62f3db60363abb56b687b4b0f6e368674199cde3835230aad1cebb0beef",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -110,19 +176,103 @@
       "path": "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala"
     },
     {
+      "after_sha256": "c8819a207e5f9f82adafbb85dd32bc5ae681681d9db70b7181e954d0582f08f5",
+      "before_sha256": "4caad5ad946df553b0c6a9649e0a3329abd230783145ece7991b73dabcd0ea8a",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"
+    },
+    {
+      "after_sha256": "21928f8a8b3dc92d8e7b6a1a63c8426b6d9b680f8311881f869880fee0cb0c35",
+      "before_sha256": "9658543584ac619ff1fb652c2921ddc388e28688effc3fb4f185a5e6e89c5f8a",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala"
+    },
+    {
+      "after_sha256": "4386fcc0aaf4ae3e68214cc208e287d8acbfcd8c7ce2966ac960545725a2e3f0",
+      "before_sha256": "80b78210d7e44f3d4ee435cbaa60c5a183fef926eb560fae86658dd10137d6f5",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala"
+    },
+    {
+      "after_sha256": "3d359ceea2bc34a9d1120e818b20ca50552a90607ea1e13573d5755392c640b4",
+      "before_sha256": "001e523673815bfcff0f179f2fca712e602630e6ea79b7d17eae24de1cd6c3bf",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala"
+    },
+    {
       "after_sha256": "9e79863e46e50279ac8b695b085407a10e137a2b1df3fec65a889635dcb93539",
       "before_sha256": "90a475505e7dea1c88f3d7f0c41f73d22a356e6010e22c49638b851c2586e165",
       "mode": "100644",
       "path": "morphhdl-passes/src/test/scala/morphhdl/passes/adapter/CanonicalIrPassAdapterSpec.scala"
     },
     {
-      "after_sha256": "ef2906eab6466a22174ed7214f0c9502f3599f8c3d81afbac21b131f0124b223",
+      "after_sha256": "e9a631d02e43e51182af6c1c9e9617cae45a74eefbb141c7dd6b51e7b9ab354b",
+      "before_sha256": "6c03ec57a44049abc5314144d7efc5583ef247ece30caceddecc80e4cd7167fa",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala"
+    },
+    {
+      "after_sha256": "5dba8f69543e2bfa9f7e7a430329a32dba4c5d090f29e2877137587fbd3a56ae",
+      "before_sha256": "4d8bd34a70d51e6124f1d9264c66f8b906cef2f3a38a9999b77d51f058f4609e",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/api/NativeRunnerSourceClosureSpec.scala"
+    },
+    {
+      "after_sha256": "09c5b2756076906237feac71d86d3279c4c61e75b4743a4c5404f86062a7870d",
+      "before_sha256": "a28b291fd9ce32cdd3ceee2e70d8a63d26e4967fc9a9858f67dcdcc40d4ec9e6",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAliasPassPipelineSpec.scala"
+    },
+    {
+      "after_sha256": "a557717f910b032457c6b3e839779a6e3bdad21a9ca71e9690f16b9d857f8035",
+      "before_sha256": "f2d89807c433bba891c4420b0ed7414553f72629859f1cd7cf75d32b892ad590",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala"
+    },
+    {
+      "after_sha256": "d5874173b2185c58a7ea4f354c450638526299d3ad0eb76e3244dbbdaa381c5d",
+      "before_sha256": "e866bfcea56c7d53fa51b4632949b206198bfbfe4456fad4ba62ceeadd146502",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala"
+    },
+    {
+      "after_sha256": "1d3c200b90eaafb7832a2c37b9888e83bfa39b41a40688f360e2b48a5cab24e5",
+      "before_sha256": "2e9963e8dd58cfa0e3c5cd0bae2199b006754e29e9e7e14e016e43ae772bf492",
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala"
+    },
+    {
+      "after_sha256": "de20ac3bb3759a3a1bba871e19b13d933b587ae60cf257d6e9a38d97cba83334",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireExpressionEliminationPassSpec.scala"
+    },
+    {
+      "after_sha256": "f6a10f5326372a0e44b0de537db2a2222d1c8d4ab3eac8241d59660c11a1c650",
+      "before_sha256": "7fc800115077dfaea58df5e81298261e6154ae3c8800f72e2138130fddc40e96",
+      "mode": "100644",
+      "path": "morphhdl-passes/tests/formal/wire_assignment_ir/manifest.json"
+    },
+    {
+      "after_sha256": "35314bcc6af85601af432befc66d063f5c59519fd118c7472294fbfeafc7ab0a",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_expression_native_tb.v"
+    },
+    {
+      "after_sha256": "cf3b25018a5bf4cea26f1ec7d87857dec0395403effb5ac89fbc72edf8718f30",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
+    },
+    {
+      "after_sha256": "8c96307ef29a51a19a8f1543eab443204678398066f04fc41d65e60cea11e38a",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
     },
     {
-      "after_sha256": "db563da7d160639f3508d111210bea95592c8bb26f80ccf504b64f394f369e0e",
+      "after_sha256": "815160d4462179009d0f07092bb7192643e27df7a27771a6ef5b71146b6efcd4",
       "before_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1",
       "mode": "100644",
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py"
@@ -134,13 +284,13 @@
       "path": "morphhdl/scripts/check-increment-60g-source-scope.py"
     },
     {
-      "after_sha256": "8785d92afb08ff45d9322a98d1477a0cf7813885b070a3962d9ebdee141e92a8",
+      "after_sha256": "8a722dd2dca14b3e2e9813d3c068aa190e7e963127ded7cbf2425ae4a9a685ad",
       "before_sha256": "166272d092b418e4252abf70841c05774afe0213967e4ac35ee8988f2515b806",
       "mode": "100644",
       "path": "morphhdl/scripts/check-wa07b-inherited-review.py"
     },
     {
-      "after_sha256": "6e87fd3eef8f7889632ddae066d9ea9357eed9d12e5b6d2394968b3cd8902063",
+      "after_sha256": "6401e0695c2c14f82dd520ce237fffdd5a8f77a94a1a33d0ede35718b08eb14f",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py"
@@ -164,7 +314,7 @@
       "path": "morphhdl/scripts/test-increment-62-wa08-source-overlay.py"
     },
     {
-      "after_sha256": "ff8776d975c374e5cb4840fa1696b7e7e0f71e03177c483ae9d9002eabf6f71f",
+      "after_sha256": "83e37294cc2e90c76b7f10b8236ae09e8591ff4c991d313c468462ae48af9a33",
       "before_sha256": "a5de0d39119acd2f24a77114806a25f2fdce8c09534d3d851e5e20cf8bcfd023",
       "mode": "100644",
       "path": "morphhdl/scripts/test-wa07b-inherited-review.py"
@@ -176,13 +326,13 @@
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala"
     },
     {
-      "after_sha256": "0f7ce82689ff7b1ad4dc2c0b36b3edc6fe176389b289abe64a9268919639d53e",
+      "after_sha256": "125e940da6c08dd80b2aed9d0c313007f6df81834302fcf49a8797f17ef413a9",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala"
     },
     {
-      "after_sha256": "827247d8fbe3b9592226fa98097a94bc8ad4507defaf9b86ed00f7e71fa1eb7c",
+      "after_sha256": "1a0f668b8ca0716443e314cc1c23c01b3289cfda93b2012c745f40fa91976f63",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala"
@@ -254,7 +404,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala"
     },
     {
-      "after_sha256": "1f9474b23520992dac04149d0475599d52ecd047fe96a618cc6c5f7cdade2f7e",
+      "after_sha256": "68748d1225a0123795d958c7a0ab1c119ad472d0e7340b2585eb8b929e1de88c",
       "before_sha256": "8b1016be519de304c2a3cfad99dece574e03a707addeaf6c9c103978b431a598",
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala"
@@ -284,16 +434,28 @@
       "path": "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala"
     },
     {
+      "after_sha256": "97b216a4a6b6453a5c96e06221d42f1f5d91aca8e6421b9d700d8c2c7f642fbc",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala"
+    },
+    {
       "after_sha256": "55a1d824bdd9d754ace2bf110f830abbb1932130f61c7ae804dcaed6a8dfefda",
       "before_sha256": "a238290761b5901f0ffff300da2bb2023a6df2908dc0269d8978c5a806656fa5",
       "mode": "100644",
       "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     },
     {
-      "after_sha256": "bd99fffe9450774d60868be5e33a11d4a9fe0ea405c54d361d0eac9967615230",
+      "after_sha256": "38c09d76de8bd1258a1be3032da7300bd4af56545e744d0b1c12c9d2a7a8c1fd",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala"
+    },
+    {
+      "after_sha256": "5bb162362c86eb71bdfba4aef3cf475aab700bcce997ac89ee3c673e37a66e50",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala"
     },
     {
       "after_sha256": "9b1422616115e7adcfc88e1e183975463f88f78a9f1997bb1a80fac4c6a8db5c",
@@ -314,7 +476,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "1b333025d3a97e570f5acbbee6f01b54a0098bd4",
+  "final_source_commit": "2af7b90a200237ee5f37d1d899ca0406dcb5b3ff",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
