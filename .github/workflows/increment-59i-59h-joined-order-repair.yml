@@ -22,6 +22,7 @@ jobs:
     env:
       BRANCH: agent/increment-59i-combined-reduction-closure
       CHECKER: morphhdl/scripts/check-increment-59h-source-review.py
+      REPAIR: morphhdl/repair-59i-rollout-composition/patch-59h-order.py
       EXPECTED_BLOB: 232ff70b9dcff471a450093f712996dd4ff20ac4
     steps:
       - uses: actions/checkout@v4
@@ -42,57 +43,12 @@ jobs:
           predecessor=$(git rev-parse HEAD)
           test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$predecessor"
           test "$(git hash-object "$CHECKER")" = "$EXPECTED_BLOB"
+          test -f "$REPAIR"
           printf '%s\n' "$predecessor" > "$out/predecessor.txt"
           cp "$CHECKER" "$out/before.py"
 
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('morphhdl/scripts/check-increment-59h-source-review.py')
-          text = path.read_text()
-          old_restore = '''def restore_source(root: Path, path: str, source: str) -> str:
-    source = restore_rollout(root, path, source)
-    """Leave unrelated historical hooks to their own exact source contracts."""
-    register = register_source_review(root)
-    if register is not None:
-        source = register.restore_source(root, path, source)
-    entries = load_contract(root)
-'''
-          new_restore = '''def restore_source(root: Path, path: str, source: str) -> str:
-    """Leave unrelated historical hooks to their own exact source contracts."""
-    register = register_source_review(root)
-    joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
-    if joined is not None:
-        source = register.restore_source(root, path, source)
-    else:
-        source = restore_rollout(root, path, source)
-        if register is not None:
-            source = register.restore_source(root, path, source)
-    entries = load_contract(root)
-'''
-          old_spans = '''        current = restore_rollout(root, path, source.read_text()).encode()
-        if register is not None:
-            current = register.restore_source(root, path, current.decode()).encode()
-        restore_reviewed(entry, baseline, current)
-'''
-          new_spans = '''        current = source.read_text()
-        joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
-        if joined is not None:
-            current = register.restore_source(root, path, current)
-        else:
-            current = restore_rollout(root, path, current)
-            if register is not None:
-                current = register.restore_source(root, path, current)
-        restore_reviewed(entry, baseline, current.encode())
-'''
-          assert text.count(old_restore) == 1
-          assert text.count(old_spans) == 1
-          text = text.replace(old_restore, new_restore, 1)
-          text = text.replace(old_spans, new_spans, 1)
-          path.write_text(text)
-          PY
-
-          python3 -m py_compile "$CHECKER"
+          python3 "$REPAIR" | tee "$out/application.log"
+          python3 -m py_compile "$CHECKER" "$REPAIR"
           git diff --check -- "$CHECKER"
           test "$(git diff --name-only)" = "$CHECKER"
           grep -q 'joined = None if register is None' "$CHECKER"
