@@ -1,0 +1,78 @@
+name: Increment 61 parameter-root identity diagnostic v11
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-root-identity-diagnostic-v11.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-root-identity-diagnostic-v11
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ffd607e684c516d5e1fa63d90faeee78371b5453
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Add non-publishing root-identity detail
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-identity-diagnostic"
+          source=morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          python3 - "$source" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          text = path.read_text()
+          old = '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory",'''
+          new = '''          s"component '${componentName(component)}' combines independently sourced declarations for parameter '$name' across its complete emitted parameter inventory [roots: ${declarations.map(value => s"${System.identityHashCode(value.root)}@${value.sourceLocation.getOrElse("<unknown>")}:${value.root.toString}").mkString("; ")}]",'''
+          if text.count(old) != 1:
+              raise SystemExit(f"root diagnostic precondition changed: count={text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- "$source" > "$output/instrumentation.patch"
+
+      - name: Reproduce the compatibility failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-root-identity-diagnostic"
+          set +e
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            > "$output/sbt.log" 2>&1
+          rc=$?
+          set -e
+          echo "$rc" > "$output/exit-code.txt"
+          tail -n 400 "$output/sbt.log" | tee "$output/tail.log"
+          test "$rc" -ne 0
+          grep -F 'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED' "$output/sbt.log"
+          grep -F '[roots:' "$output/sbt.log" | tee "$output/root-conflict.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-root-identity-diagnostic-v11
+          path: target/increment-61-root-identity-diagnostic
+          if-no-files-found: error
+          retention-days: 14
