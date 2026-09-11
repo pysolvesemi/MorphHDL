@@ -104,6 +104,7 @@ printf '%s\n' \
   'morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
   'morphhdl/scripts/check-increment-60f-equivalence-closure.py' \
   'morphhdl/scripts/test-increment-60f-inherited-source-scope.py' \
+  'morphhdl/scripts/test-increment-59h-inherited-source-scope.py' \
   'morphhdl/scripts/check-increment-60g-source-scope.py' \
   'morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala' \
   'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala' \

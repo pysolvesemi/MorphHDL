@@ -96,6 +96,7 @@ wa09_cross_workspace_path() {
     morphhdl/scripts/check-increment-60f-artifacts.py|\
     morphhdl/scripts/check-increment-60f-equivalence-closure.py|\
     morphhdl/scripts/test-increment-60f-inherited-source-scope.py|\
+    morphhdl/scripts/test-increment-59h-inherited-source-scope.py|\
     morphhdl/scripts/check-increment-60g-source-scope.py|\
     morphhdl/scripts/check-wa07b-inherited-review.py|\
     morphhdl/scripts/check-wa08-production-artifacts.py|\
