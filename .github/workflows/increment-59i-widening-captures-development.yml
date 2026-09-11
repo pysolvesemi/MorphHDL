@@ -1,0 +1,150 @@
+name: Increment 59i widening captures development
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-widening-captures-development.yml'
+      - 'morphhdl/repair-59i-widening-captures/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-widening-captures-development
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    name: Prove bounded shape-changing capture composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Apply the exact bounded production slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
+          mkdir -p "$out"
+          predecessor=$(git rev-parse HEAD)
+          test "$predecessor" = "${{ github.sha }}"
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$predecessor"
+          printf '%s\n' "$predecessor" > "$out/predecessor.txt"
+
+          python3 -m py_compile morphhdl/repair-59i-widening-captures/apply.py
+          python3 morphhdl/repair-59i-widening-captures/apply.py \
+            2>&1 | tee "$out/application.log"
+          git add -N -- \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
+          git diff --check
+
+          cat > "$out/expected-files.txt" <<'EOF'
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
+          EOF
+          {
+            git diff --name-only
+            git ls-files --others --exclude-standard
+          } | sort -u > "$out/actual-files.txt"
+          sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
+          git diff --stat | tee "$out/diff-stat.txt"
+          git diff --binary > "$out/candidate.diff"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
+          scala="$1"
+          shift
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$scala" "$@"
+          SH
+          chmod +x "$out/sbt.sh"
+
+      - name: Compile and run both Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
+          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
+          for scala in 2.12.18 2.13.12; do
+            log="$out/tests-$scala.log"
+            status=0
+            "$out/sbt.sh" "$scala" \
+              'morph/Test/compile' \
+              "morph/Test/testOnly $suites" > "$log" 2>&1 || status=$?
+            tail -n 500 "$log"
+            test "$status" -eq 0
+            grep -q 'All tests passed' "$log"
+            ! grep -q '\*\*\* FAILED \*\*\*' "$log"
+          done
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          sha256sum $(cat "$out/expected-files.txt") > "$out/source-sha256.txt"
+
+      - name: Commit and publish only the qualified source set
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
+          predecessor=$(cat "$out/predecessor.txt")
+          git add -- $(cat "$out/expected-files.txt")
+          git diff --cached --check
+          git diff --cached --name-only | sort -u > "$out/staged-files.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/staged-files.txt"
+          test -z "$(git status --porcelain | grep '^??' || true)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: compose exact runtime captures with widening leaves'
+          candidate=$(git rev-parse HEAD)
+          git rev-parse 'HEAD^{tree}' > "$out/candidate-tree.txt"
+          printf '%s\n' "$candidate" > "$out/candidate.txt"
+
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$predecessor"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+          printf '%s\n' "$candidate" > "$out/pushed-head.txt"
+
+      - name: Upload exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-widening-captures-${{ github.sha }}
+          path: target/increment-59i-widening-captures
+          if-no-files-found: error
+          retention-days: 21
