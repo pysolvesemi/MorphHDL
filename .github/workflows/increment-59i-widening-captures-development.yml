@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/increment-59i-widening-captures-development.yml'
       - 'morphhdl/repair-59i-widening-captures/**'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
   workflow_dispatch:
 
 permissions:
@@ -59,13 +60,72 @@ jobs:
               raise RuntimeError("cannot load the exact widening-capture apply transaction")
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
-          old = "math.max(math.max(left, 3) + 1, right) + 1"
-          new = "scala.math.max(scala.math.max(left, 3) + 1, right) + 1"
-          if module.TEST_SOURCE.count(old) != 1:
-              raise RuntimeError("widening-capture test namespace repair no longer has one exact anchor")
-          module.TEST_SOURCE = module.TEST_SOURCE.replace(old, new, 1)
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              if module.TEST_SOURCE.count(old) != 1:
+                  raise RuntimeError(label + " no longer has one exact anchor")
+              module.TEST_SOURCE = module.TEST_SOURCE.replace(old, new, 1)
+
+          replace_once(
+              "math.max(math.max(left, 3) + 1, right) + 1",
+              "scala.math.max(scala.math.max(left, 3) + 1, right) + 1",
+              "widening-capture expected-width namespace")
+
+          replace_once(
+              '''  val reduced = values.reduceBalancedTree(
+              (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
+                BalancedCapturedWideningFixture.combine(a, b, bias, factor))''',
+              '''  val reduced = {
+              val capturedBias = bias
+              val capturedFactor = factor
+              values.reduceBalancedTree(
+                (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
+                  BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor))
+            }''',
+              "public widening-capture lambda boundary")
+
+          replace_once(
+              '''      val callback = (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
+              BalancedCapturedWideningFixture.combine(a, b, bias, factor)''',
+              '''      val callback = {
+              val capturedBias = bias
+              val capturedFactor = factor
+              (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
+                BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor)
+            }''',
+              "focused widening-capture lambda boundary")
+
+          replace_once(
+              '''        val callback = (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {
+              val left = (a.right +^ bias) +^ b.left
+              val right = (a.right +^ bias) +^ b.right
+              val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))
+              result.left := left
+              result.right := right
+              result
+            }''',
+              '''        val callback = {
+              val capturedBias = bias
+              (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {
+                val left = (a.right +^ capturedBias) +^ b.left
+                val right = (a.right +^ capturedBias) +^ b.right
+                val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))
+                result.left := left
+                result.right := right
+                result
+              }
+            }''',
+              "cross-field widening-capture lambda boundary")
+
+          replace_once(
+              '''    val config = SpinalConfig(targetDirectory = directory.toString,
+              headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)''',
+              '''    val config = SpinalConfig(targetDirectory = directory.toString,
+              headerWithDate = false, bitVectorWidthMax = 8192)''',
+              "widening-capture MorphVerilog configuration")
+
           module.main()
-          print("59i widening-capture test uses the explicit Scala math namespace")
+          print("59i widening-capture test boundaries normalized without widening admission")
           PY
           git add -N -- \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
