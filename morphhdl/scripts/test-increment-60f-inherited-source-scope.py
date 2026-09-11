@@ -34,10 +34,11 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def check(root: Path, label: str, rejection: str | None = None) -> dict:
+def check(root: Path, label: str, rejection: str | None = None,
+          timeout_seconds: int = 120) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     if rejection is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass:\n" + result.stdout)
@@ -52,7 +53,11 @@ def main() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [check(ROOT, "current descendant with separately owned production changes")]
+    # The exact 83-file overlay plus inherited source traversal took 127-154s
+    # locally. Only this full positive audit gets a larger finite wall budget;
+    # every historical/mutation check and Git command retains its 120s limit.
+    records = [check(ROOT, "current descendant with separately owned production changes",
+                     timeout_seconds=600)]
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     cases = (
