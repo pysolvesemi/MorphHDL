@@ -43,6 +43,8 @@ jobs:
       SBT_TEST_PARALLEL: '0'
       JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
       SCALA_VERSION: ${{ matrix.scala }}
+      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +60,33 @@ jobs:
           mkdir -p "$output/bootstrap"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
-          python3 morphhdl/scripts/check-native-source-preservation.py
+
+          # The feature and target sides each have immutable native-source
+          # reviews. Validate those exact parents separately, then require all
+          # joined 59i successor reviews below on the current checkout.
+          test "$(git rev-parse "$INTEGRATION_MERGE^2")" = "$TARGET_HEAD"
+          git merge-base --is-ancestor "$INTEGRATION_MERGE" HEAD
+          feature_native="/tmp/59i-native-feature-$SCALA_VERSION"
+          target_native="/tmp/59i-native-target-$SCALA_VERSION"
+          rm -rf "$feature_native" "$target_native"
+          cleanup_native_worktrees() {
+            git worktree remove --force "$feature_native" >/dev/null 2>&1 || true
+            git worktree remove --force "$target_native" >/dev/null 2>&1 || true
+          }
+          trap cleanup_native_worktrees EXIT
+          git worktree add --detach "$feature_native" "$INTEGRATION_MERGE^1"
+          git worktree add --detach "$target_native" "$INTEGRATION_MERGE^2"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$output/native-feature-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$output/native-target-parent.log"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$output/overlay-feature-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$output/overlay-target-parent.log"
+          cleanup_native_worktrees
+          trap - EXIT
+
           for layer in 59i 59g 59h; do
             python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-source-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-source-self-test.log"; exit 1; }
             python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-source-review.log" 2>&1 || { tail -n 100 "$output/$layer-source-review.log"; exit 1; }
