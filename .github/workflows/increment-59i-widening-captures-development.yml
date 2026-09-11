@@ -72,56 +72,23 @@ jobs:
               "widening-capture expected-width namespace")
 
           replace_once(
-              '''  val reduced = values.reduceBalancedTree(
-              (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
-                BalancedCapturedWideningFixture.combine(a, b, bias, factor))''',
-              '''  val reduced = {
-              val capturedBias = bias
-              val capturedFactor = factor
-              values.reduceBalancedTree(
-                (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
-                  BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor))
-            }''',
+              "  val reduced = values.reduceBalancedTree(\n    (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n      BalancedCapturedWideningFixture.combine(a, b, bias, factor))",
+              "  val reduced = {\n    val capturedBias = bias\n    val capturedFactor = factor\n    values.reduceBalancedTree(\n      (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n        BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor))\n  }",
               "public widening-capture lambda boundary")
 
           replace_once(
-              '''      val callback = (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
-              BalancedCapturedWideningFixture.combine(a, b, bias, factor)''',
-              '''      val callback = {
-              val capturedBias = bias
-              val capturedFactor = factor
-              (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>
-                BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor)
-            }''',
+              "      val callback = (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n        BalancedCapturedWideningFixture.combine(a, b, bias, factor)",
+              "      val callback = {\n        val capturedBias = bias\n        val capturedFactor = factor\n        (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n          BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor)\n      }",
               "focused widening-capture lambda boundary")
 
           replace_once(
-              '''        val callback = (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {
-              val left = (a.right +^ bias) +^ b.left
-              val right = (a.right +^ bias) +^ b.right
-              val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))
-              result.left := left
-              result.right := right
-              result
-            }''',
-              '''        val callback = {
-              val capturedBias = bias
-              (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {
-                val left = (a.right +^ capturedBias) +^ b.left
-                val right = (a.right +^ capturedBias) +^ b.right
-                val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))
-                result.left := left
-                result.right := right
-                result
-              }
-            }''',
+              "        val callback = (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {\n          val left = (a.right +^ bias) +^ b.left\n          val right = (a.right +^ bias) +^ b.right\n          val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))\n          result.left := left\n          result.right := right\n          result\n        }",
+              "        val callback = {\n          val capturedBias = bias\n          (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {\n            val left = (a.right +^ capturedBias) +^ b.left\n            val right = (a.right +^ capturedBias) +^ b.right\n            val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))\n            result.left := left\n            result.right := right\n            result\n          }\n        }",
               "cross-field widening-capture lambda boundary")
 
           replace_once(
-              '''    val config = SpinalConfig(targetDirectory = directory.toString,
-              headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)''',
-              '''    val config = SpinalConfig(targetDirectory = directory.toString,
-              headerWithDate = false, bitVectorWidthMax = 8192)''',
+              "    val config = SpinalConfig(targetDirectory = directory.toString,\n      headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)",
+              "    val config = SpinalConfig(targetDirectory = directory.toString,\n      headerWithDate = false, bitVectorWidthMax = 8192)",
               "widening-capture MorphVerilog configuration")
 
           module.main()
