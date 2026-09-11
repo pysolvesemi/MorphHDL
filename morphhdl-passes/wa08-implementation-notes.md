@@ -1,7 +1,9 @@
 # WA-08 production handoff and Increment 62 source compatibility
 
-WA-08 adds `MorphWireAssignmentPasses(config, enabled = true)`. The default is
-false. Enabled generation runs the existing five canonical passes to a fixed
+`MorphVerilog(config) { ... }` enables wire-assignment passes by default on the
+single-source production path. `MorphWireAssignmentPasses(config)` also defaults
+to enabled; pass `enabled = false` to select legacy generation explicitly.
+Enabled generation runs the existing five canonical passes to a fixed
 point before Verilog name allocation. The pass algorithms stay under
 `morphhdl-passes/`; SBT and Mill compile those shared source files directly.
 
@@ -20,7 +22,8 @@ bits, hidden staged changes and manifest/helper corruption. A mutation outside
 the overlay remains visible to historical review.
 
 Qualification uses the public flag on a generic Boolean fixture and a
-parameterized FIFO. It checks default-off byte identity, repeated generation,
+parameterized FIFO. It checks default-on identity with explicit enable,
+explicit opt-out byte identity with the legacy fixtures, repeated generation,
 four-state simulation, strict Verilog-2001 tools, synthesis, formal equivalence
 and a failing functional mutation. The actual production FIFO must match the
 independently generated five-pass candidate byte for byte. The pass workflow
@@ -37,13 +40,21 @@ on the completion head before merge. The exact reviewed inventory is in
 Temporary publisher workflows and stale success markers have been removed.
 Increment 62 changes qualification only; it does not change generated Verilog.
 
+The subsequent default-on update was requested directly on
+`parameterized-verilog`, with CI skipped. The original PR qualification above
+applies to its original default-off revision. The updated production fixture
+covers ten deterministic files, both default entry paths, explicit opt-out,
+repeated configuration and enable/disable transitions. Historical proof
+witnesses explicitly opt out of the production default and retain their own
+independent pass selections. No new qualification result is claimed here.
+
 
 ## Public flag example
 
 The generic production artifact uses the same public flag:
 
 ```scala
-val config = MorphWireAssignmentPasses(SpinalConfig(), enabled = true)
+val config = MorphWireAssignmentPasses(SpinalConfig())
 SpinalVerilog(config) {
   new Component {
     val a, b = in Bool()
@@ -64,4 +75,19 @@ assign y1 = 1'b0;
 
 The full fixture, additional four-state expressions and artifact generator are
 in `morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala`.
-Omitting `enabled = true` retains the original configuration and generation.
+For normal parameterized generation, no wrapper is needed:
+
+```scala
+MorphVerilog(SpinalConfig()) { new MyComponent() }
+```
+
+To turn all five passes off:
+
+```scala
+val config = MorphWireAssignmentPasses(SpinalConfig(), enabled = false)
+MorphVerilog(config) { new MyComponent() }
+```
+
+Configuration changes copy the caller's mutable collections. Explicit opt-out
+survives config copies, and repeated enabling installs the pipeline only once.
+Ordinary `SpinalVerilog` requires the wrapper to enable these MorphHDL passes.

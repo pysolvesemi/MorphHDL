@@ -30,10 +30,11 @@ object WireAssignmentProductionArtifactWriter {
     val original = config(output)
     val selected = mode match {
       case "enabled" => MorphWireAssignmentPasses(original, enabled = true)
+      case "default" => MorphWireAssignmentPasses(original)
       case "reference" =>
         ConstantOperandWitnessPhasePlan.install(original, None)
         original
-      case "disabled" => MorphWireAssignmentPasses(original)
+      case "disabled" => MorphWireAssignmentPasses(original, enabled = false)
       case "plain" => original
     }
     SpinalVerilog(selected) {
@@ -57,25 +58,40 @@ object WireAssignmentProductionArtifactWriter {
     require(args.length == 1, "usage: OUTPUT_DIRECTORY")
     val output = Paths.get(args(0)).toAbsolutePath.normalize
     val original = config(output.resolve("configuration"))
-    require(MorphWireAssignmentPasses(original) eq original)
-    require(MorphWireAssignmentPasses(original, enabled = false) eq original)
     val count = original.phasesInserters.size
     val enabled = MorphWireAssignmentPasses(original, enabled = true)
+    val default = MorphWireAssignmentPasses(original)
+    val disabled = MorphWireAssignmentPasses(default, enabled = false)
     require(original.phasesInserters.size == count)
     require(enabled.phasesInserters.size == count + 1)
+    require(default.phasesInserters == enabled.phasesInserters)
+    require(MorphWireAssignmentPasses(enabled).phasesInserters == enabled.phasesInserters)
+    val withCustomInserter = enabled.copy(phasesInserters = enabled.phasesInserters.clone())
+    withCustomInserter.phasesInserters += (_ => ())
+    require(MorphWireAssignmentPasses(withCustomInserter).phasesInserters == withCustomInserter.phasesInserters)
+    require(disabled.phasesInserters.size == count + 1)
+    require(disabled.phasesInserters != enabled.phasesInserters)
+    require(MorphWireAssignmentPasses(disabled).phasesInserters == enabled.phasesInserters)
+    val copiedDisabled = disabled.copy()
+    require(MorphWireAssignmentPasses.forPublication(copiedDisabled) eq copiedDisabled)
+    require(MorphWireAssignmentPasses.forPublication(enabled) eq enabled)
+    require(MorphWireAssignmentPasses.forPublication(original).phasesInserters == enabled.phasesInserters)
     require(!(enabled.phasesInserters eq original.phasesInserters))
+    require(!(disabled.phasesInserters eq default.phasesInserters))
     for (round <- Vector("first", "repeat")) {
       val directory = output.resolve(round)
       fifo(directory.resolve("fifo-enabled"), Some(true))
       fifo(directory.resolve("fifo-disabled"), Some(false))
       fifo(directory.resolve("fifo-plain"), None)
+      ParameterizedStreamFifoExample.main(Array(
+        directory.resolve("fifo-legacy").toString, "generated.v"))
       val expected = directory.resolve("fifo-historical-all")
       ParameterizedStreamFifoBooleanTernaryWitness.main(Array(
         "all", expected.toString, "generated.v", expected.resolve("report.json").toString))
-      for (mode <- Vector("reference", "enabled", "disabled", "plain"))
+      for (mode <- Vector("reference", "enabled", "default", "disabled", "plain"))
         generic(directory.resolve("generic-" + mode), mode)
     }
     Files.write(output.resolve("configuration.txt"),
-      "default-off identity and enabled configuration isolation PASS\n".getBytes(StandardCharsets.UTF_8))
+      "default-on selection, explicit opt-out and configuration isolation PASS\n".getBytes(StandardCharsets.UTF_8))
   }
 }

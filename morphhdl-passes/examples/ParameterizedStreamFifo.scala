@@ -98,7 +98,7 @@ object ParameterizedStreamFifoExample {
       max = BigInt(8)
     )
 
-    val report = MorphVerilog(config) {
+    val report = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
       new ParameterizedStreamFifo(width, depth)
     }
 

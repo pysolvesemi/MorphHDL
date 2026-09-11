@@ -675,8 +675,11 @@ WA-04 or WA-05 can remove an alias.
 
   **Status:** `COMPLETED`.
 
-  Implemented the default-off production flag and the existing five-pass
-  writeback pipeline. Both Scala lanes, inherited compatibility workflows,
+  Implemented the production flag and the existing five-pass writeback pipeline.
+  The subsequent user-requested default-on update enables the single-source
+  `MorphVerilog` path automatically and retains explicit `enabled = false` opt-out;
+  CI was skipped for that update. For the original WA-08 revision, both Scala
+  lanes, inherited compatibility workflows,
   strict Verilog tools, determinism, live mutation controls and the full
   512-binding proof qualify the implementation. See
   [implementation and qualification notes](wa08-implementation-notes.md) and

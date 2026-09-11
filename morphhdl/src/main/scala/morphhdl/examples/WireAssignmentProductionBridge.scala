@@ -18,12 +18,32 @@ import spinal.core.internals.{
   * exact order selected by the one common canonical configuration.
   */
 private[morphhdl] object WireAssignmentProductionBridge {
-  def enable(config: SpinalConfig): SpinalConfig = {
+  // Stable identities preserve explicit selection across config copies and
+  // prevent installing the production phase twice.
+  private val installer: ArrayBuffer[Phase] => Unit = install _
+  private val disabledMarker: ArrayBuffer[Phase] => Unit = _ => ()
+
+  def forPublication(config: SpinalConfig): SpinalConfig = {
+    if (config == null)
+      throw new IllegalArgumentException("SpinalConfig must not be null")
+    if (config.phasesInserters.contains(installer) ||
+        config.phasesInserters.contains(disabledMarker)) config
+    else enable(config)
+  }
+
+  def enable(config: SpinalConfig): SpinalConfig = configure(config, enabled = true)
+
+  def disable(config: SpinalConfig): SpinalConfig = configure(config, enabled = false)
+
+  private def configure(config: SpinalConfig, enabled: Boolean): SpinalConfig = {
     if (config == null)
       throw new IllegalArgumentException("SpinalConfig must not be null")
 
     val inserters = config.phasesInserters.clone()
-    inserters += install _
+    val selected = if (enabled) installer else disabledMarker
+    val opposite = if (enabled) disabledMarker else installer
+    inserters -= opposite
+    if (!inserters.contains(selected)) inserters += selected
     config.copy(
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),

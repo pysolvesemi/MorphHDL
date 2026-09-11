@@ -14,12 +14,15 @@ def main():
     output = args.output.resolve()
     first, repeat = output / "first", output / "repeat"
     sources = sorted(first.glob("*/generated.v"))
-    assert len(sources) == 8, sources
+    assert len(sources) == 10, sources
     for file in sources:
         assert file.read_bytes() == (repeat / file.relative_to(first)).read_bytes(), file
-    for kind in ("fifo", "generic"):
-        assert (first / (kind + "-plain/generated.v")).read_bytes() == (
+    for kind, baseline in (("fifo", "legacy"), ("generic", "plain")):
+        assert (first / (kind + "-" + baseline + "/generated.v")).read_bytes() == (
             first / (kind + "-disabled/generated.v")).read_bytes(), kind
+    for kind, default in (("fifo", "plain"), ("generic", "default")):
+        assert (first / (kind + "-" + default + "/generated.v")).read_bytes() == (
+            first / (kind + "-enabled/generated.v")).read_bytes(), kind
     # Exact symbolic RTL identity connects the real public API to the independently
     # generated five-pass candidate proved over all 512 bindings by the pass CI.
     fifo = first / "fifo-enabled/generated.v"
@@ -77,7 +80,8 @@ def main():
     failed = run("mutation", ["yosys", "-Q", "-p", proof_command], success=False)
     assert "proof did fail" in failed or "model found: FAIL" in failed
     (proof / "candidate.v").write_text(mutation)
-    report = {"deterministic_files": 8, "default_off_byte_identity": True,
+    report = {"deterministic_files": 10, "default_on_matches_enabled": True,
+              "explicit_opt_out_byte_identity": True,
               "fifo_matches_full_domain_proof_candidate": True, "four_state_cases": 16,
               "formal_mutation_rejected": True,
               "fifo_sha256": hashlib.sha256(fifo.read_bytes()).hexdigest()}

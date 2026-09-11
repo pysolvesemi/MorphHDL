@@ -712,7 +712,7 @@ object ParameterizedStreamFifoExpressionPassWitness {
       max = BigInt(8)
     )
 
-    val generated = MorphVerilog(config) {
+    val generated = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
       new ParameterizedStreamFifo(width, depth)
     }
     val generatedPath = Paths
