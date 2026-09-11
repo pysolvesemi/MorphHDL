@@ -171,6 +171,16 @@ results. No proof domain, mutation control, inherited workflow or source
 integrity check is removed or changed to an allowed failure. The PR must pass
 the applicable gates on its final commit before merge.
 
+The historical 60a SInt reference writer explicitly opts out of wire passes,
+as do the two signedness-observer paths checked against that reference. This
+preserves its original frozen Verilog hashes independently of the default
+production wire pipeline. Shared component definitions and current signedness
+candidate writers are unchanged: their default-on outputs still undergo the existing simulation,
+strict-tool and equivalence checks against the independent frozen reference.
+Both Scala lanes regenerate all three original hashes, pass the unchanged 60a
+strict-tool/simulation/equivalence/mutation gate and pass all 26 signedness
+authority tests.
+
 Local qualification passed both Scala lanes: 22 canonical/public-handoff tests
 per lane, 144 standalone pass tests per lane, all 21 cross-Scala byte comparisons,
 the production strict-tool/four-state/equivalence/mutation checks above, and

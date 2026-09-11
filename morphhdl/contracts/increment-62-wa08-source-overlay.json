@@ -188,6 +188,18 @@
       "path": "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala"
     },
     {
+      "after_sha256": "5dde652a45b4831c51b9d2e377e3e72c8f4c14cf304285f783d364bfa7090992",
+      "before_sha256": "27b53a03a4f8ed0e69531d4db2eef73291acf3981a0e5137e811957dac27fb5c",
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala"
+    },
+    {
+      "after_sha256": "55a1d824bdd9d754ace2bf110f830abbb1932130f61c7ae804dcaed6a8dfefda",
+      "before_sha256": "a238290761b5901f0ffff300da2bb2023a6df2908dc0269d8978c5a806656fa5",
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
+    },
+    {
       "after_sha256": "bd99fffe9450774d60868be5e33a11d4a9fe0ea405c54d361d0eac9967615230",
       "before_sha256": null,
       "mode": "100644",
@@ -206,7 +218,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "583feb581d51b7fc0972baafb201ec5cceaa4128",
+  "final_source_commit": "220aa0414251cdf6c9f1dcd60a0f4f9ef79ed33a",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
