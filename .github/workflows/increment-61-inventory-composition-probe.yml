@@ -1,0 +1,168 @@
+name: Increment 61 inventory composition artifact probe
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-inventory-composition-probe.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: increment-61-inventory-composition-artifact-probe
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate composed inventory Scala ${{ matrix.scala }}
+    runs-on: ubuntu-slim
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: pysolvesemi/MorphHDL
+          ref: 5614c2da2e53e1220d3f3df58347eb67c13a3904
+          fetch-depth: 0
+          path: feature
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          repository: pysolvesemi/MorphHDL
+          run-id: 34520237641
+          github-token: ${{ github.token }}
+          name: increment-60f-regressions-${{ matrix.scala }}
+          path: evidence
+
+      - name: Replay exact predecessor and Increment 61 inventory composition
+        shell: bash
+        run: |
+          set -euo pipefail
+          feature="$GITHUB_WORKSPACE/feature"
+          output="$GITHUB_WORKSPACE/target/increment-61-inventory-${{ matrix.scala }}"
+          predecessor="$output/predecessor"
+          mkdir -p "$output"
+
+          reports=$(find "$GITHUB_WORKSPACE/evidence" -type d -path '*/morphhdl/target/test-reports' -print)
+          test "$(printf '%s\n' "$reports" | sed '/^$/d' | wc -l)" -eq 1
+          artifact_root=$(dirname "$(dirname "$(dirname "$reports")")")
+          test "$(cat "$artifact_root/target/increment-60f-regressions/head.txt")" = \
+            981a96bc39622118dce4d74ab49d97a4550c8159
+
+          projects=(paramrtl frontend backends/verilog morphhdl morphir morphplugin core morphhdl-passes)
+          for project in "${projects[@]}"; do
+            source="$artifact_root/$project/target/test-reports"
+            target="$feature/$project/target/test-reports"
+            test -d "$source"
+            mkdir -p "$(dirname "$target")"
+            cp -a "$source" "$target"
+          done
+
+          cd "$feature"
+          test "$(git rev-parse HEAD)" = 5614c2da2e53e1220d3f3df58347eb67c13a3904
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/source-review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/source-review.log"
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+
+          python3 - "$feature" "$predecessor" "$output/increment-61.json" <<'PY'
+          from pathlib import Path
+          import json
+          import shutil
+          import sys
+          import xml.etree.ElementTree as ET
+
+          current, predecessor, output = map(Path, sys.argv[1:])
+          projects = (
+              "paramrtl", "frontend", "backends/verilog", "morphhdl",
+              "morphir", "morphplugin", "core", "morphhdl-passes",
+          )
+          expected = {
+              "morphhdl.Increment61CompatibilityMatrixTests": 4,
+              "morphhdl.Increment61PerComponentPublicationTests": 16,
+          }
+
+          def require(condition, detail):
+              if not condition:
+                  raise RuntimeError(detail)
+
+          for project in projects:
+              source = current / project / "target/test-reports"
+              target = predecessor / project / "target/test-reports"
+              require(source.is_dir(), f"missing report directory: {source}")
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copytree(source, target)
+
+          reports = predecessor / "morphhdl/target/test-reports"
+          observed = {}
+          for name, count in expected.items():
+              path = reports / f"TEST-{name}.xml"
+              require(path.is_file(), f"missing Increment 61 report: {path.name}")
+              suite = ET.parse(path).getroot()
+              require(suite.tag == "testsuite" and suite.get("name") == name,
+                      f"wrong Increment 61 suite identity: {path.name}")
+              require(int(suite.get("tests", "0")) == count,
+                      f"changed Increment 61 test count: {name}")
+              require(all(int(suite.get(key, "0")) == 0
+                          for key in ("failures", "errors", "skipped")),
+                      f"failed or skipped Increment 61 suite: {name}")
+              cases = suite.findall("testcase")
+              names = [case.get("name") for case in cases]
+              require(len(cases) == count and all(names) and len(set(names)) == count,
+                      f"incomplete Increment 61 testcase identities: {name}")
+              observed[name] = count
+              path.unlink()
+
+          remaining = sorted(path.name for path in reports.glob("TEST-morphhdl.Increment61*.xml"))
+          require(not remaining, f"unexpected Increment 61 report(s): {remaining}")
+          output.write_text(json.dumps({
+              "increment": "61",
+              "tests": sum(observed.values()),
+              "suites": sorted(observed),
+              "counts": observed,
+              "skipped": 0,
+          }, indent=2) + "\n")
+          PY
+
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
+              . "$output/inherited.json"
+          )
+
+          python3 - "$output/inherited.json" "$output/increment-61.json" "$output/complete.json" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+
+          inherited_path, successor_path, output_path = map(Path, sys.argv[1:])
+          inherited = json.loads(inherited_path.read_text())
+          successor = json.loads(successor_path.read_text())
+          morphhdl = inherited["morphhdl"]
+          overlap = set(morphhdl["suites"]) & set(successor["suites"])
+          if overlap:
+              raise RuntimeError(f"successor suite overlap: {sorted(overlap)}")
+          morphhdl["tests"] += successor["tests"]
+          morphhdl["suites"] = sorted(morphhdl["suites"] + successor["suites"])
+          if any(record["skipped"] != 0 for record in inherited.values()) or successor["skipped"] != 0:
+              raise RuntimeError("composed inventory contains skipped tests")
+          total = sum(record["tests"] for record in inherited.values())
+          output_path.write_text(json.dumps(inherited, indent=2) + "\n")
+          print(f"Increment 61 composed inventory PASS: {total} tests, zero skips")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-inventory-probe-${{ matrix.scala }}
+          path: target/increment-61-inventory-${{ matrix.scala }}
+          if-no-files-found: error
+          retention-days: 7
