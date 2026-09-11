@@ -38,7 +38,7 @@ object TypedBalancedReductionCompositeSaturationArtifacts {
   private def config(directory: Path, file: String): SpinalConfig = {
     Files.createDirectories(directory)
     val result = SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)
+      headerWithDate = false, bitVectorWidthMax = 8192)
     result.netlistFileName = file
     result
   }
