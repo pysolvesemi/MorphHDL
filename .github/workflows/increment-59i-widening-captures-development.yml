@@ -59,8 +59,8 @@ jobs:
               raise RuntimeError("cannot load the exact widening-capture apply transaction")
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
-          old = "math.max(left.maximum, right.maximum)"
-          new = "scala.math.max(left.maximum, right.maximum)"
+          old = "math.max(math.max(left, 3) + 1, right) + 1"
+          new = "scala.math.max(scala.math.max(left, 3) + 1, right) + 1"
           if module.TEST_SOURCE.count(old) != 1:
               raise RuntimeError("widening-capture test namespace repair no longer has one exact anchor")
           module.TEST_SOURCE = module.TEST_SOURCE.replace(old, new, 1)
