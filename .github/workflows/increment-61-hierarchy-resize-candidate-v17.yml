@@ -1,0 +1,102 @@
+name: Increment 61 hierarchy resize capture candidate v17
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-hierarchy-resize-candidate-v17.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-hierarchy-resize-candidate-v17
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Apply narrow contextual native-resize capture repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+          python3 - <<'PY'
+          from pathlib import Path
+
+          morph = Path('morphhdl/src/main/scala/morphhdl/MorphVerilog.scala')
+          text = morph.read_text()
+          old = '''    phaseInserters += ExternalParameterizedNativeResize.install _
+              phaseInserters += ExternalParameterizedAutoResize.install _
+          '''
+          new = '''    // Auto-resize owns the exact parent/child assignment lineage used
+              // to contextualize a surviving child output before native resize capture.
+              phaseInserters += ExternalParameterizedAutoResize.install _
+              phaseInserters += ExternalParameterizedNativeResize.install _
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('MorphVerilog resize phase-order anchor changed')
+          morph.write_text(text.replace(old, new))
+
+          native = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ExternalParameterizedNativeResize.scala'
+          )
+          text = native.read_text()
+          old = '''                    NativeWidthProvenance.widthOf(source).filter(sourceWidth =>
+                        !fixedConsumerReservation &&
+                          (sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty)).foreach { sourceWidth =>
+          '''
+          new = '''                    val contextualSourceWidth =
+                        ExternalParameterizedHierarchyResizeWidth
+                          .sourceWidthOf(component, source)
+                          .orElse(NativeWidthProvenance.widthOf(source))
+                      contextualSourceWidth.filter(sourceWidth =>
+                        !fixedConsumerReservation &&
+                          (sourceWidth.parameters.nonEmpty || targetWidth.parameters.nonEmpty)).foreach { sourceWidth =>
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('native resize source-width anchor changed')
+          native.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          git diff --stat
+          git diff -- morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala
+
+      - name: Focused hierarchy resize and Increment 61 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests spinal.core.internals.HierarchyResizeSourceWidthTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.GenericExpressionAndStreamTests morphhdl.FormalParameterClonePropagationTests'
+
+      - name: Preserve candidate patch
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p target/increment-61-hierarchy-resize-candidate
+          git diff --binary > target/increment-61-hierarchy-resize-candidate/candidate.patch
+          git status --short > target/increment-61-hierarchy-resize-candidate/status.txt
+          git rev-parse HEAD > target/increment-61-hierarchy-resize-candidate/head.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-hierarchy-resize-candidate-v17
+          path: target/increment-61-hierarchy-resize-candidate
+          if-no-files-found: error
+          retention-days: 14
