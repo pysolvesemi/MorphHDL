@@ -33,7 +33,9 @@ object TypedBalancedReductionCombinedArtifactWriter {
     val base = config(directory, name + ".v")
     val shaped = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
     val configured = signedMode match {
-      case "legacy" => shaped
+      // An unset policy now selects MorphVerilog's signed-output default.
+      // Keep this historical profile an explicit opt-out, not a default alias.
+      case "legacy" => MorphSignedDeclarations.disable(MorphSignedCasts.disable(shaped))
       case "declarations" => MorphSignedDeclarations.enable(shaped)
       case "casts" => MorphSignedCasts.enable(shaped)
     }
