@@ -10,11 +10,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: increment-59i-widening-captures-development
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   qualify:
@@ -35,9 +35,9 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           submodules: recursive
-          persist-credentials: true
+          persist-credentials: false
 
-      - name: Apply the exact bounded production slice
+      - name: Apply the exact bounded development candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -49,8 +49,12 @@ jobs:
           test "$(git rev-parse FETCH_HEAD)" = "$predecessor"
           printf '%s\n' "$predecessor" > "$out/predecessor.txt"
 
-          python3 -m py_compile morphhdl/repair-59i-widening-captures/apply.py
-          python3 - <<'PY' 2>&1 | tee "$out/application.log"
+          python3 -m py_compile \
+            morphhdl/repair-59i-widening-captures/allow-audited-construction.py \
+            morphhdl/repair-59i-widening-captures/apply.py
+          python3 morphhdl/repair-59i-widening-captures/allow-audited-construction.py \
+            | tee "$out/application.log"
+          python3 - <<'PY' 2>&1 | tee -a "$out/application.log"
           import importlib.util
           from pathlib import Path
 
@@ -70,6 +74,11 @@ jobs:
               "math.max(math.max(left, 3) + 1, right) + 1",
               "scala.math.max(scala.math.max(left, 3) + 1, right) + 1",
               "widening-capture expected-width namespace")
+
+          replace_once(
+              "  def typedWidth(value: BaseType): ElabInt =\n    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)\n      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))",
+              "  def typedWidth(value: BaseType): ElabInt =\n    ElabInt.widthOf(value)",
+              "widening-capture exact typed-width query")
 
           replace_once(
               "  val reduced = values.reduceBalancedTree(\n    (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n      BalancedCapturedWideningFixture.combine(a, b, bias, factor))",
@@ -92,17 +101,22 @@ jobs:
               "widening-capture MorphVerilog configuration")
 
           module.main()
-          print("59i widening-capture test boundaries normalized without widening admission")
+          print("59i widening-capture policy and replay candidate applied")
           PY
           git add -N -- \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           git diff --check
 
           cat > "$out/expected-files.txt" <<'EOF'
+          core/src/main/scala/spinal/core/ElabInt.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
           EOF
           {
             git diff --name-only
@@ -143,7 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
-          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
+          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
           for scala in 2.12.18 2.13.12; do
             log="$out/tests-$scala.log"
             status=0
@@ -198,29 +212,18 @@ jobs:
               print("No JUnit failure nodes were found; inspect the preserved raw test log artifact.")
           PY
 
-      - name: Commit and publish only the qualified source set
+      - name: Seal the read-only candidate
         shell: bash
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
           predecessor=$(cat "$out/predecessor.txt")
-          git add -- $(cat "$out/expected-files.txt")
-          git diff --cached --check
-          git diff --cached --name-only | sort -u > "$out/staged-files.txt"
-          diff -u "$out/expected-files.sorted.txt" "$out/staged-files.txt"
-          test -z "$(git status --porcelain | grep '^??' || true)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m '59i: compose exact runtime captures with widening leaves'
-          candidate=$(git rev-parse HEAD)
-          git rev-parse 'HEAD^{tree}' > "$out/candidate-tree.txt"
-          printf '%s\n' "$candidate" > "$out/candidate.txt"
-
+          git diff --check
           git fetch origin "$BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$predecessor"
-          git push origin "HEAD:refs/heads/$BRANCH"
-          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
-          printf '%s\n' "$candidate" > "$out/pushed-head.txt"
+          test -z "$(git diff --name-only | comm -23 - "$out/expected-files.sorted.txt" || true)"
+          printf '%s\n' 'Development candidate qualified but intentionally not published.' \
+            > "$out/candidate-not-published.txt"
 
       - name: Upload exact qualification evidence
         if: always()
