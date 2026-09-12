@@ -873,6 +873,38 @@ WA-04 or WA-05 can remove an alias.
   All inherited gates and complete proof domains remain mandatory before this
   checkbox may be marked complete.
 
+## Symbolic elaboration normalization
+
+WA-11 is an authorized compiler follow-up to this roadmap. It operates on
+elaboration-time Boolean/integer construction, before symbolic widths and
+other parameter expressions reach their consumers. It is canonical
+normalization, independent of the optional six hardware wire passes and their
+all-or-none flag. It does not add a seventh hardware wire-assignment pass.
+
+- [ ] **WA-11 — Redundant symbolic Boolean/integer conversion normalization**
+
+  **Status:** `IN PROGRESS`.
+
+  Reproduce the public `MorphVerilog` width expression
+  `HdlBool.param("PPC4", false).asElabBool.toElabInt * 3 + 1`. Remove redundant
+  frontend/native conversion round trips at their typed construction
+  boundaries. Retain authenticated parameter root/schema identity, defaults,
+  legal domains, exact evaluations, source provenance, branch projection and
+  child bindings. Use a direct signed integer parameter only when full-domain
+  evidence proves equivalence over its declared `{0,1}` domain. General
+  predicates retain a signed integer conversion fence; a one-bit Boolean is
+  not an integer replacement.
+
+  Qualify compound predicates, negation, repeated conversion, arithmetic and
+  signedness/sizing boundaries, child bindings, non-Boolean integer domains,
+  existing invalid-domain/unsupported diagnostics and deterministic emission.
+  Compile the same generated artifact with `PPC4=0` and `PPC4=1`, checking
+  one-/four-bit ports and data propagation. Do not parse/rewrite generated
+  Verilog, specialize defaults, bypass production generation or weaken gates.
+
+  The runnable reproduction, actual before/after RTL and observed validation
+  are recorded in [WA-11 evidence](wa11-boolean-width-normalization.md).
+
 ## Completion target
 
 The original roadmap completed at WA-08 with five production transformations.

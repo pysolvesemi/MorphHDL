@@ -8,8 +8,11 @@ package spinal.core
   * reviewed concrete SpinalHDL construction boundary.
   */
 final class ElabInt private[core] (
-    private[core] val expression: ElaborationIntegerExpression
+    private[core] val expression: ElaborationIntegerExpression,
+    private[core] val booleanEncodingSource: Option[ElabBool]
 ) {
+  private[core] def this(expression: ElaborationIntegerExpression) =
+    this(expression, None)
   ElabInt.validateExpression(expression, "ElabInt")
 
   private[spinal] def witness: Int = projectedExpression("ElabInt witness").default.toInt
@@ -490,9 +493,22 @@ object ElabBool {
       case AlwaysFalse => BigInt(0) -> BigInt(0)
       case Unknown     => BigInt(0) -> BigInt(1)
     }
-    ElabInt.fromDerivedExpression(
+    // This is canonical construction normalization, independent of RTL wire
+    // passes. Only a complete authenticated identity over the declared 0/1
+    // domain permits the integer parameter itself. These declarations are
+    // emitted as signed 32-bit `parameter integer`, matching the unsized 1/0
+    // branches. An arbitrary predicate must keep that integer sizing fence.
+    val directIntegerParameter = value.expression.exactDomain.filter { domain =>
+      domain.hasCompleteCoverage &&
+        domain.parameter.minimum == 0 && domain.parameter.maximum == 1 &&
+        domain.evaluations.forall { case (rootValue, result) =>
+          result == (rootValue == 1)
+        }
+    }
+    val result = ElabInt.fromDerivedExpression(
       ElaborationIntegerExpression(
-        verilog = s"((${value.expression.verilog}) ? 1 : 0)",
+        verilog = directIntegerParameter.map(_.parameter.name)
+          .getOrElse(s"((${value.expression.verilog}) ? 1 : 0)"),
         default = if (value.expression.default) BigInt(1) else BigInt(0),
         minimum = bounds._1,
         maximum = bounds._2,
@@ -524,6 +540,10 @@ object ElabBool {
       ),
       "Boolean-to-integer expression"
     )
+    // Keep the typed construction origin on this value, never on public
+    // copyable metadata. A later comparison with literal 0/1 can remove the
+    // round trip while deriving fresh domain/projection evidence as usual.
+    new ElabInt(result.expression, Some(value))
   }
 
   private def requireSourceProjection(
@@ -1664,10 +1684,28 @@ object ElabInt {
         if (left.witness == right.witness) ElabBool.AlwaysTrue
         else ElabBool.AlwaysFalse
       } else ElabBool.Unknown
+    def encodedPredicate(encoded: ElabInt, literal: ElabInt): Option[String] = {
+      if (literal.expression.parameters.nonEmpty ||
+          (literal.expression.default != 0 && literal.expression.default != 1)) None
+      else encoded.booleanEncodingSource.map { source =>
+        requireAuthoritativeBooleanDomain(source.expression,
+          "Boolean-integer round trip", "SPINAL-ELAB-BOOL-EXACT-DOMAIN-REQUIRED")
+        if (literal.expression.default == 1) source.expression.verilog
+        else s"!(${source.expression.verilog})"
+      }
+    }
+    // Validate and derive the complete original operation even when its
+    // rendering is normalized. In particular, never return a saved source
+    // object with a broader branch domain than this equality's result.
+    val default = projectedDefault(left) == projectedDefault(right)
+    val exactDomain = combineIntegerBooleanDomains(left, right)(_ == _)
+    val normalized = encodedPredicate(left, right)
+      .orElse(encodedPredicate(right, left))
     ElabBool.derived(
       ElaborationBooleanExpression(
-        verilog = s"((${left.expression.verilog}) == (${right.expression.verilog}))",
-        default = projectedDefault(left) == projectedDefault(right),
+        verilog = normalized.getOrElse(
+          s"((${left.expression.verilog}) == (${right.expression.verilog}))"),
+        default = default,
         parameters = mergeParameters(
           left.expression.parameters,
           right.expression.parameters,
@@ -1678,7 +1716,7 @@ object ElabInt {
           left.expression.parameterRoots,
           right.expression.parameterRoots
         ),
-        exactDomain = combineIntegerBooleanDomains(left, right)(_ == _)
+        exactDomain = exactDomain
       ),
       truth,
       "typed equality predicate"
