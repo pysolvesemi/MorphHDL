@@ -314,7 +314,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "f030aeb1a8d6350eda1691c5262e6e19c2f47850112fa33000a4a1d763f68af5",
+      "after_sha256": "6700e33b52ac12242edd61730a433c9b0f0a146107e7b87b69d6c858c1ce74c9",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -578,7 +578,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "58b5f4193b60f56ed01fe569cf664c6463f51194",
+  "final_source_commit": "ef5283859c9dfc158fa121004adaf14e98da77b8",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
