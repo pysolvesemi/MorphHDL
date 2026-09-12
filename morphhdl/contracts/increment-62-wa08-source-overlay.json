@@ -308,7 +308,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "1783066d3b2475655b08e22b7fb7295b91d8c8b3ce2ce14687b3736d88948dc9",
+      "after_sha256": "7bde0518d5ee4d65a82907852179e15dad993b8d1799cf9da609f6a00c5cf419",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -344,7 +344,7 @@
       "path": "morphhdl/contracts/wa10-source-scope.json"
     },
     {
-      "after_sha256": "c522c049174d644b506049001f9df73883f19c6b777dc2764f3cf3bd71b3a386",
+      "after_sha256": "2b11398fc0a7b05c8d4b1fdfeb274d115debe86dadb8619dac3ef2ab3c127429",
       "before_sha256": "8d8610b5f00d088cad1213dc4aeb12d36031128a0261ddaabaf438a3675314b1",
       "mode": "100644",
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py"
@@ -608,7 +608,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "ce94768b818008e940ce620bfc5f32d264ea8c59",
+  "final_source_commit": "6a73fc1d587c8c6ab101f439f28824b8be94b411",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
