@@ -604,6 +604,19 @@ WA09_SUITE_SOURCES = {
     "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": True,
 }
 
+# WA-10 extends the existing public MorphVerilog suite by one independently
+# reviewed case. Keep WA-09's ten-case record immutable and apply the successor
+# count only when the exact WA-10 source inventory is present in the verified
+# outer overlay.
+WA10_CONTRACT = "morphhdl/contracts/wa10-source-scope.json"
+WA10_SUITES = {
+    "morphhdl": {
+        "spinal.core.MorphVerilogExpressionInliningTests": 11,
+    },
+}
+WA10_CHANGED_SUITE_SOURCE = \
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala"
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -687,7 +700,7 @@ def compare(left: Path, right: Path) -> None:
 
 
 def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
-                        wa09: bool = False) -> tuple[dict, dict, dict]:
+                        wa09: bool = False, wa10: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -814,16 +827,30 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                     total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
+    if wa10:
+        require(wa09, "WA-10 suite obligations require the reviewed WA-09 profile")
+        for project, exact in WA10_SUITES.items():
+            tests, total_suites = counts[project]
+            reviewed_counts = extension.setdefault(project, {})
+            for name, expected_count in exact.items():
+                require(name in suites[project] and name in reviewed_counts,
+                        "WA-10 changed an unauthenticated suite: " + name)
+                previous_count = reviewed_counts[name]
+                require(expected_count > previous_count,
+                        "WA-10 exact suite count did not extend its predecessor: " + name)
+                tests += expected_count - previous_count
+                reviewed_counts[name] = expected_count
+            counts[project] = (tests, total_suites)
     return counts, suites, extension
 
 
-def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool]:
+def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool]:
     wa08 = entries.get(WA08_SUITE_SOURCE)
     require(wa08 is not None and wa08["before_sha256"] is None,
             "WA-08 hierarchy suite is absent from the verified added-source inventory")
     selected = set(entries).intersection(WA09_SUITE_SOURCES)
     if not selected:
-        return True, False
+        return True, False, False
     require(selected == set(WA09_SUITE_SOURCES),
             "partial WA-09 suite-source enrollment: " +
             repr(sorted(set(WA09_SUITE_SOURCES) - selected)))
@@ -831,15 +858,22 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool]:
         before = entries[path]["before_sha256"]
         require((before is None) == added,
                 "WA-09 suite source has changed baseline identity: " + path)
-    return True, True
+    if WA10_CONTRACT not in entries:
+        return True, True, False
+    require(entries[WA10_CONTRACT]["before_sha256"] is None,
+            "WA-10 successor contract has changed baseline identity")
+    require(WA10_CHANGED_SUITE_SOURCE in entries and
+            entries[WA10_CHANGED_SUITE_SOURCE]["before_sha256"] is None,
+            "WA-10 changed suite source is absent from the reviewed overlay")
+    return True, True, True
 
 
-def reviewed_successor_suites(root: Path) -> tuple[bool, bool]:
+def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool]:
     ternary = closure_module().boolean_ternary_review(root)
     adapter = getattr(ternary, "wa08_overlay", None)
     overlay = adapter(root) if adapter is not None else None
     if overlay is None:
-        return False, False
+        return False, False, False
     # Presence or XML cannot authorize a new suite: verify immutable source
     # bytes, full governed inventory, Git index/worktree and source ancestry.
     entries = {entry["path"]: entry for entry in overlay.verify(root)["files"]}
@@ -895,8 +929,9 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
         reviewed = publisher.reviewed_59d59e_packing(root)
         require(set(reviewed) == closure.PACKING_59D59E_PATHS,
                 "reviewed packing inventory escaped its exact source paths")
-    wa08, wa09 = reviewed_successor_suites(root)
-    counts, suite_inventory, extension = catalog_for_profile(profile, packing, wa08, wa09)
+    wa08, wa09, wa10 = reviewed_successor_suites(root)
+    counts, suite_inventory, extension = catalog_for_profile(
+        profile, packing, wa08, wa09, wa10)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -1673,6 +1708,8 @@ def self_test() -> None:
     wa09_profile = "60f-with-wa07a-and-59d-and-59e-and-59f-and-59c-and-59g-and-59h-and-wa07b-and-60g"
     wa09_previous = catalog_for_profile(wa09_profile, packing=True, wa08=True)
     successor = catalog_for_profile(wa09_profile, packing=True, wa08=True, wa09=True)
+    wa10_successor = catalog_for_profile(
+        wa09_profile, packing=True, wa08=True, wa09=True, wa10=True)
     expected_totals = {
         "paramrtl": (234, 23), "frontend": (257, 22), "backends/verilog": (148, 21),
         "morphhdl": (1115, 104), "morphir": (32, 2), "morphplugin": (16, 2),
@@ -1683,6 +1720,16 @@ def self_test() -> None:
             sum(sum(exact.values()) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 1941 and
             sum(len(exact) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 191,
             "WA-09 exact per-project inherited or successor totals changed")
+    require(wa10_successor[0] == {
+                **expected_totals, "morphhdl": (1116, 104)
+            } and
+            wa10_successor[1] == successor[1] and
+            wa10_successor[2]["morphhdl"] == {
+                **successor[2]["morphhdl"],
+                "spinal.core.MorphVerilogExpressionInliningTests": 11,
+            } and
+            sum(tests for tests, _ in wa10_successor[0].values()) == 1983,
+            "WA-10 exact public suite successor count changed")
     for project, inherited in WA09_INHERITED_SUITE_COUNTS.items():
         exact = WA09_SUITES.get(project, {})
         expected_names = wa09_previous[1][project] | (set(exact) - WA09_EXISTING_SUITES)
@@ -1696,6 +1743,9 @@ def self_test() -> None:
              "WA-09 exact catalog without the verified packing profile")
     rejected(lambda: catalog_for_profile(wa08_profile, wa08=True, wa09=True),
              "WA-09 exact catalog without the complete inherited source profile")
+    rejected(lambda: catalog_for_profile(
+        wa09_profile, packing=True, wa08=True, wa10=True),
+        "WA-10 inventory without its reviewed WA-09 predecessor")
     with tempfile.TemporaryDirectory(prefix="increment-60f-wa08-inventory-") as temporary:
         root = Path(temporary)
         subprocess.run(["git", "init", "-q", str(root)], check=True)
@@ -1888,8 +1938,35 @@ def self_test() -> None:
                 rejected(validate_wa09_reports, "changed WA-09 source baseline identity " + path)
             overlay.verify.return_value = reviewed_wa09
             validate_wa09_reports()
+            reviewed_wa10 = {"files": [*reviewed_wa09["files"], {
+                "path": WA10_CONTRACT, "before_sha256": None,
+            }]}
+            overlay.verify.return_value = reviewed_wa10
+            write_reports(wa10_successor)
+            validate_wa09_reports()
+            wa10_path = root / "morphhdl/target/test-reports" / \
+                "spinal.core.MorphVerilogExpressionInliningTests.xml"
+            wa10_original = wa10_path.read_bytes()
+            tree = ET.parse(wa10_path)
+            suite = tree.getroot()
+            suite.set("tests", "10")
+            suite.remove(suite.find("testcase"))
+            tree.write(wa10_path)
+            rejected(validate_wa09_reports, "WA-10 removed its reviewed public test")
+            wa10_path.write_bytes(wa10_original)
+            overlay.verify.return_value = reviewed_wa09
+            rejected(validate_wa09_reports,
+                     "WA-10 report count without WA-10 source enrollment")
+            changed_contract = [dict(entry) for entry in reviewed_wa10["files"]]
+            next(entry for entry in changed_contract
+                 if entry["path"] == WA10_CONTRACT)["before_sha256"] = "b" * 64
+            overlay.verify.return_value = {"files": changed_contract}
+            rejected(validate_wa09_reports, "changed WA-10 contract baseline identity")
+            overlay.verify.return_value = reviewed_wa10
+            validate_wa09_reports()
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")
+    print("WA-10 successor inventory requires exactly 1983 cases / 194 suites: 1116 Morph cases PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 
