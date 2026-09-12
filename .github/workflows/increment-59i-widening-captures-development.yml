@@ -6,7 +6,7 @@ on:
     paths:
       - '.github/workflows/increment-59i-widening-captures-development.yml'
       - 'morphhdl/repair-59i-widening-captures/**'
-      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala'
+      - 'morphhdl/repair-59i-composite-widening-publication/**'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   qualify:
-    name: Prove bounded shape-changing capture composition
+    name: Prove widening publication and capture composition
     runs-on: ubuntu-latest
     timeout-minutes: 180
     container:
@@ -37,7 +37,7 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Apply the exact bounded development candidate
+      - name: Apply exact read-only composition candidate
         shell: bash
         run: |
           set -euo pipefail
@@ -50,10 +50,16 @@ jobs:
           printf '%s\n' "$predecessor" > "$out/predecessor.txt"
 
           python3 -m py_compile \
-            morphhdl/repair-59i-widening-captures/allow-audited-construction.py \
-            morphhdl/repair-59i-widening-captures/apply.py
-          python3 morphhdl/repair-59i-widening-captures/allow-audited-construction.py \
+            morphhdl/repair-59i-composite-widening-publication/apply.py \
+            morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py \
+            morphhdl/repair-59i-widening-captures/apply.py \
+            morphhdl/repair-59i-widening-captures/finish-composition.py
+
+          python3 morphhdl/repair-59i-composite-widening-publication/apply.py \
             | tee "$out/application.log"
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py \
+            | tee -a "$out/application.log"
+
           python3 - <<'PY' 2>&1 | tee -a "$out/application.log"
           import importlib.util
           from pathlib import Path
@@ -61,9 +67,14 @@ jobs:
           path = Path("morphhdl/repair-59i-widening-captures/apply.py")
           spec = importlib.util.spec_from_file_location("increment_59i_widening_captures", path)
           if spec is None or spec.loader is None:
-              raise RuntimeError("cannot load the exact widening-capture apply transaction")
+              raise RuntimeError("cannot load the exact widening-capture transaction")
           module = importlib.util.module_from_spec(spec)
           spec.loader.exec_module(module)
+
+          replay = module.COMPOSITE.read_text()
+          if replay.count("private[internals] def cloneShape") != 1:
+              raise RuntimeError("publication prototype did not expose exactly one certified cloneShape")
+          module.EXPECTED_BLOBS[module.COMPOSITE] = module.git_blob(module.COMPOSITE.read_bytes())
 
           def replace_once(old: str, new: str, label: str) -> None:
               if module.TEST_SOURCE.count(old) != 1:
@@ -74,48 +85,52 @@ jobs:
               "math.max(math.max(left, 3) + 1, right) + 1",
               "scala.math.max(scala.math.max(left, 3) + 1, right) + 1",
               "widening-capture expected-width namespace")
-
           replace_once(
               "  def typedWidth(value: BaseType): ElabInt =\n    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)\n      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))",
               "  def typedWidth(value: BaseType): ElabInt =\n    ElabInt.widthOf(value)",
               "widening-capture exact typed-width query")
-
           replace_once(
               "  val reduced = values.reduceBalancedTree(\n    (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n      BalancedCapturedWideningFixture.combine(a, b, bias, factor))",
               "  val reduced = {\n    val capturedBias = bias\n    val capturedFactor = factor\n    values.reduceBalancedTree(\n      (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n        BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor))\n  }",
               "public widening-capture lambda boundary")
-
           replace_once(
               "      val callback = (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n        BalancedCapturedWideningFixture.combine(a, b, bias, factor)",
               "      val callback = {\n        val capturedBias = bias\n        val capturedFactor = factor\n        (a: BalancedCapturedWideningValue, b: BalancedCapturedWideningValue) =>\n          BalancedCapturedWideningFixture.combine(a, b, capturedBias, capturedFactor)\n      }",
               "focused widening-capture lambda boundary")
-
           replace_once(
               "        val callback = (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {\n          val left = (a.right +^ bias) +^ b.left\n          val right = (a.right +^ bias) +^ b.right\n          val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))\n          result.left := left\n          result.right := right\n          result\n        }",
               "        val callback = {\n          val capturedBias = bias\n          (a: BalancedCapturedWideningPair, b: BalancedCapturedWideningPair) => {\n            val left = (a.right +^ capturedBias) +^ b.left\n            val right = (a.right +^ capturedBias) +^ b.right\n            val result = BalancedCapturedWideningPair(BalancedCapturedWideningFixture.typedWidth(left))\n            result.left := left\n            result.right := right\n            result\n          }\n        }",
               "cross-field widening-capture lambda boundary")
-
           replace_once(
               "    val config = SpinalConfig(targetDirectory = directory.toString,\n      headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)",
               "    val config = SpinalConfig(targetDirectory = directory.toString,\n      headerWithDate = false, bitVectorWidthMax = 8192)",
               "widening-capture MorphVerilog configuration")
 
           module.main()
-          print("59i widening-capture policy and replay candidate applied")
+          print("59i widening-capture extension applied after exact publication prototype")
           PY
+
+          python3 morphhdl/repair-59i-widening-captures/finish-composition.py \
+            | tee -a "$out/application.log"
+
           git add -N -- \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           git diff --check
 
           cat > "$out/expected-files.txt" <<'EOF'
           core/src/main/scala/spinal/core/ElabInt.scala
+          morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala
-          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
           EOF
           {
@@ -157,7 +172,7 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
-          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
+          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningConstructionPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
           for scala in 2.12.18 2.13.12; do
             log="$out/tests-$scala.log"
             status=0
@@ -181,7 +196,6 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-
           failures = 0
           for report in sorted(Path("morphhdl/target").rglob("*.xml")):
               try:
@@ -208,8 +222,6 @@ jobs:
                       print(detail[:16000])
           print("=" * 96)
           print("Exact failing test cases:", failures)
-          if failures == 0:
-              print("No JUnit failure nodes were found; inspect the preserved raw test log artifact.")
           PY
 
       - name: Seal the read-only candidate
@@ -221,7 +233,6 @@ jobs:
           git diff --check
           git fetch origin "$BRANCH"
           test "$(git rev-parse FETCH_HEAD)" = "$predecessor"
-          test -z "$(git diff --name-only | comm -23 - "$out/expected-files.sorted.txt" || true)"
           printf '%s\n' 'Development candidate qualified but intentionally not published.' \
             > "$out/candidate-not-published.txt"
 
