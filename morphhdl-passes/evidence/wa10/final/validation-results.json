@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "status": "pass",
+  "structure_checked": true,
+  "fixtures": {
+    "timing": {
+      "modes": {
+        "default": {
+          "sha256": "d1e01ae11ffd12c9225a21e68fe2eeea7ceedb856426afa690bb6dbc3c187bde",
+          "continuous_assignments": 7,
+          "internal_declarations": 3,
+          "registers": [
+            "vSyncEnd"
+          ],
+          "assignments": {
+            "_zz_vSyncEnd": "(({2'd0, io_vActive} + {2'd0, io_vFront}) + {2'd0, io_vSync})",
+            "proposedHTotal": "((({2'd0, io_hActive} + {2'd0, io_hFront}) + {2'd0, io_hSync}) + {2'd0, io_hBack})",
+            "io_legal": "(((((16'h0001 <= io_hActive) && (io_hActive <= 16'h0780)) && (16'h0001 <= io_vActive)) && (io_vActive <= 16'h0438)) && (proposedHTotal <= 18'h01000))",
+            "io_proposedHTotal": "proposedHTotal",
+            "io_finalGroup": "((io_laneX == (io_hTotal - 13'h0001)) && (io_laneY == (io_vTotal - 12'h001)))",
+            "io_vSyncEnd": "vSyncEnd",
+            "io_laneMaskOut": "io_laneMaskIn"
+          }
+        },
+        "enabled": {
+          "sha256": "d1e01ae11ffd12c9225a21e68fe2eeea7ceedb856426afa690bb6dbc3c187bde",
+          "continuous_assignments": 7,
+          "internal_declarations": 3,
+          "registers": [
+            "vSyncEnd"
+          ],
+          "assignments": {
+            "_zz_vSyncEnd": "(({2'd0, io_vActive} + {2'd0, io_vFront}) + {2'd0, io_vSync})",
+            "proposedHTotal": "((({2'd0, io_hActive} + {2'd0, io_hFront}) + {2'd0, io_hSync}) + {2'd0, io_hBack})",
+            "io_legal": "(((((16'h0001 <= io_hActive) && (io_hActive <= 16'h0780)) && (16'h0001 <= io_vActive)) && (io_vActive <= 16'h0438)) && (proposedHTotal <= 18'h01000))",
+            "io_proposedHTotal": "proposedHTotal",
+            "io_finalGroup": "((io_laneX == (io_hTotal - 13'h0001)) && (io_laneY == (io_vTotal - 12'h001)))",
+            "io_vSyncEnd": "vSyncEnd",
+            "io_laneMaskOut": "io_laneMaskIn"
+          }
+        },
+        "disabled": {
+          "sha256": "f9073c6c85ca347fdeae5438160540546a77fc189880d7edab11024a35e20681",
+          "continuous_assignments": 19,
+          "internal_declarations": 15,
+          "registers": [
+            "vSyncEnd"
+          ],
+          "assignments": {
+            "_zz_proposedHTotal": "(_zz_proposedHTotal_1 + _zz_proposedHTotal_4)",
+            "_zz_proposedHTotal_1": "(_zz_proposedHTotal_2 + _zz_proposedHTotal_3)",
+            "_zz_proposedHTotal_2": "{2'd0, io_hActive}",
+            "_zz_proposedHTotal_3": "{2'd0, io_hFront}",
+            "_zz_proposedHTotal_4": "{2'd0, io_hSync}",
+            "_zz_proposedHTotal_5": "{2'd0, io_hBack}",
+            "_zz_io_finalGroup": "(io_hTotal - 13'h0001)",
+            "_zz_io_finalGroup_1": "(io_vTotal - 12'h001)",
+            "_zz_vSyncEnd": "(_zz_vSyncEnd_1 + _zz_vSyncEnd_4)",
+            "_zz_vSyncEnd_1": "(_zz_vSyncEnd_2 + _zz_vSyncEnd_3)",
+            "_zz_vSyncEnd_2": "{2'd0, io_vActive}",
+            "_zz_vSyncEnd_3": "{2'd0, io_vFront}",
+            "_zz_vSyncEnd_4": "{2'd0, io_vSync}",
+            "proposedHTotal": "(_zz_proposedHTotal + _zz_proposedHTotal_5)",
+            "io_legal": "(((((16'h0001 <= io_hActive) && (io_hActive <= 16'h0780)) && (16'h0001 <= io_vActive)) && (io_vActive <= 16'h0438)) && (proposedHTotal <= 18'h01000))",
+            "io_proposedHTotal": "proposedHTotal",
+            "io_finalGroup": "((io_laneX == _zz_io_finalGroup) && (io_laneY == _zz_io_finalGroup_1))",
+            "io_vSyncEnd": "vSyncEnd",
+            "io_laneMaskOut": "io_laneMaskIn"
+          }
+        }
+      },
+      "parameters": {
+        "0": {
+          "iverilog_verilog_2001": "pass",
+          "four_state_oracle": "pass",
+          "four_state_trace_equivalence": "pass",
+          "trace_samples": 848,
+          "underflow_oracle_mutation_rejected": true,
+          "yosys_sequential_equivalence": "pass"
+        },
+        "1": {
+          "iverilog_verilog_2001": "pass",
+          "four_state_oracle": "pass",
+          "four_state_trace_equivalence": "pass",
+          "trace_samples": 848,
+          "underflow_oracle_mutation_rejected": true,
+          "yosys_sequential_equivalence": "pass"
+        }
+      },
+      "deterministic": true,
+      "diagnostic_bytes_equal_production_enabled": true
+    },
+    "general": {
+      "modes": {
+        "default": {
+          "sha256": "216b29c5ba97d38f78be5ad847189bb317fb10c935cef0adf252dca62400da3f",
+          "continuous_assignments": 30,
+          "internal_declarations": 11,
+          "registers": [
+            "state"
+          ],
+          "assignments": {
+            "_zz_mixedSigned": "{{2{signedA[7]}}, signedA}",
+            "_zz_mixedSigned_1": "_zz_mixedSigned_2",
+            "_zz_mixedSigned_2": "{1'd0, unsignedWide}",
+            "_zz_truncated": "({2'd0, word} + {2'd0, other})",
+            "_zz_sliced": "_zz_sliced_1",
+            "_zz_sliced_1": "(total - 13'h0001)",
+            "_zz_state": "({2'd0, word} + {2'd0, other})",
+            "constantOK": "(16'h0001 <= word)",
+            "constantMux": "(choose ? 16'h0001 : other)",
+            "extensionSum": "({2'd0, word} + {2'd0, other})",
+            "extensionOK": "({2'd0, word} <= 18'h0ffff)",
+            "subtractionOK": "(index == (total - 13'h0001))",
+            "subtractionMux": "(choose ? (total - 13'h0001) : index)",
+            "wrappedAdd": "(narrow + 8'h01)",
+            "widenedAdd": "{1'd0, (narrow + 8'h01)}",
+            "wrappedSub": "(narrow - 8'h01)",
+            "widenedSub": "{1'd0, (narrow - 8'h01)}",
+            "_zz_signedOK": "(signedA - 8'sh01)",
+            "signedOK": "(signedB < _zz_signedOK)",
+            "signedExtended": "{{4{_zz_signedOK[7]}}, _zz_signedOK}",
+            "mixedSigned": "(_zz_mixedSigned + _zz_mixedSigned_1)",
+            "truncated": "_zz_truncated[4:0]",
+            "sliced": "_zz_sliced[8 : 2]",
+            "muxResult": "((choose ? {2'd0, word} : {2'd0, other}) + 18'h00001)",
+            "registerResult": "state",
+            "protectedDifference": "(total - 13'h0001)",
+            "keptResult": "protectedDifference",
+            "vitalDifference": "(total - 13'h0001)",
+            "guardedResult": "vitalDifference",
+            "laneMaskOut": "laneMaskIn"
+          }
+        },
+        "enabled": {
+          "sha256": "216b29c5ba97d38f78be5ad847189bb317fb10c935cef0adf252dca62400da3f",
+          "continuous_assignments": 30,
+          "internal_declarations": 11,
+          "registers": [
+            "state"
+          ],
+          "assignments": {
+            "_zz_mixedSigned": "{{2{signedA[7]}}, signedA}",
+            "_zz_mixedSigned_1": "_zz_mixedSigned_2",
+            "_zz_mixedSigned_2": "{1'd0, unsignedWide}",
+            "_zz_truncated": "({2'd0, word} + {2'd0, other})",
+            "_zz_sliced": "_zz_sliced_1",
+            "_zz_sliced_1": "(total - 13'h0001)",
+            "_zz_state": "({2'd0, word} + {2'd0, other})",
+            "constantOK": "(16'h0001 <= word)",
+            "constantMux": "(choose ? 16'h0001 : other)",
+            "extensionSum": "({2'd0, word} + {2'd0, other})",
+            "extensionOK": "({2'd0, word} <= 18'h0ffff)",
+            "subtractionOK": "(index == (total - 13'h0001))",
+            "subtractionMux": "(choose ? (total - 13'h0001) : index)",
+            "wrappedAdd": "(narrow + 8'h01)",
+            "widenedAdd": "{1'd0, (narrow + 8'h01)}",
+            "wrappedSub": "(narrow - 8'h01)",
+            "widenedSub": "{1'd0, (narrow - 8'h01)}",
+            "_zz_signedOK": "(signedA - 8'sh01)",
+            "signedOK": "(signedB < _zz_signedOK)",
+            "signedExtended": "{{4{_zz_signedOK[7]}}, _zz_signedOK}",
+            "mixedSigned": "(_zz_mixedSigned + _zz_mixedSigned_1)",
+            "truncated": "_zz_truncated[4:0]",
+            "sliced": "_zz_sliced[8 : 2]",
+            "muxResult": "((choose ? {2'd0, word} : {2'd0, other}) + 18'h00001)",
+            "registerResult": "state",
+            "protectedDifference": "(total - 13'h0001)",
+            "keptResult": "protectedDifference",
+            "vitalDifference": "(total - 13'h0001)",
+            "guardedResult": "vitalDifference",
+            "laneMaskOut": "laneMaskIn"
+          }
+        },
+        "disabled": {
+          "sha256": "2aae167bf1916b95ababa0a3b19cc366d6d988722c15ee1cb3d591621ffb36fd",
+          "continuous_assignments": 42,
+          "internal_declarations": 23,
+          "registers": [
+            "state"
+          ],
+          "assignments": {
+            "_zz_extensionSum": "{2'd0, other}",
+            "_zz_mixedSigned": "{{2{signedA[7]}}, signedA}",
+            "_zz_mixedSigned_1": "_zz_mixedSigned_2",
+            "_zz_mixedSigned_2": "{1'd0, unsignedWide}",
+            "_zz_truncated": "(_zz_truncated_1 + _zz_truncated_2)",
+            "_zz_truncated_1": "{2'd0, word}",
+            "_zz_truncated_2": "{2'd0, other}",
+            "_zz_sliced": "_zz_sliced_1",
+            "_zz_sliced_1": "(total - 13'h0001)",
+            "_zz_muxResult": "{2'd0, word}",
+            "_zz_muxResult_1": "{2'd0, other}",
+            "_zz_state": "(_zz_state_1 + _zz_state_2)",
+            "_zz_state_1": "{2'd0, word}",
+            "_zz_state_2": "{2'd0, other}",
+            "_zz_constantOK": "16'h0001",
+            "constantOK": "(_zz_constantOK <= word)",
+            "constantMux": "(choose ? _zz_constantOK : other)",
+            "_zz_extensionOK": "{2'd0, word}",
+            "extensionSum": "(_zz_extensionOK + _zz_extensionSum)",
+            "extensionOK": "(_zz_extensionOK <= 18'h0ffff)",
+            "_zz_subtractionOK": "(total - 13'h0001)",
+            "subtractionOK": "(index == _zz_subtractionOK)",
+            "subtractionMux": "(choose ? _zz_subtractionOK : index)",
+            "_zz_wrappedAdd": "(narrow + 8'h01)",
+            "wrappedAdd": "_zz_wrappedAdd",
+            "widenedAdd": "{1'd0, _zz_wrappedAdd}",
+            "_zz_wrappedSub": "(narrow - 8'h01)",
+            "wrappedSub": "_zz_wrappedSub",
+            "widenedSub": "{1'd0, _zz_wrappedSub}",
+            "_zz_signedOK": "(signedA - 8'sh01)",
+            "signedOK": "(signedB < _zz_signedOK)",
+            "signedExtended": "{{4{_zz_signedOK[7]}}, _zz_signedOK}",
+            "mixedSigned": "(_zz_mixedSigned + _zz_mixedSigned_1)",
+            "truncated": "_zz_truncated[4:0]",
+            "sliced": "_zz_sliced[8 : 2]",
+            "muxResult": "((choose ? _zz_muxResult : _zz_muxResult_1) + 18'h00001)",
+            "registerResult": "state",
+            "protectedDifference": "(total - 13'h0001)",
+            "keptResult": "protectedDifference",
+            "vitalDifference": "(total - 13'h0001)",
+            "guardedResult": "vitalDifference",
+            "laneMaskOut": "laneMaskIn"
+          }
+        }
+      },
+      "parameters": {
+        "0": {
+          "iverilog_verilog_2001": "pass",
+          "four_state_oracle": "pass",
+          "four_state_trace_equivalence": "pass",
+          "trace_samples": 784,
+          "underflow_oracle_mutation_rejected": true,
+          "yosys_sequential_equivalence": "pass"
+        },
+        "1": {
+          "iverilog_verilog_2001": "pass",
+          "four_state_oracle": "pass",
+          "four_state_trace_equivalence": "pass",
+          "trace_samples": 784,
+          "underflow_oracle_mutation_rejected": true,
+          "yosys_sequential_equivalence": "pass"
+        }
+      },
+      "deterministic": true,
+      "diagnostic_bytes_equal_production_enabled": true
+    }
+  },
+  "legacy_baseline_checked": true
+}

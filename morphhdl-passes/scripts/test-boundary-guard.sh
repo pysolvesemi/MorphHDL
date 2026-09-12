@@ -128,6 +128,24 @@ expect_failure \
   'WA-09 does not authorize an unenumerated upstream source' \
   run_checker agent/wa-09-named-expression-name-preference "${wa09_unreviewed_manifest}"
 
+wa10_manifest="${tmp_dir}/wa10.txt"
+printf '%s\n' \
+  'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala' \
+  'morphhdl/src/test/scala/nativeapplication/GenerateTimingExpressionExample.scala' \
+  'morphhdl/contracts/wa10-source-scope.json' \
+  >"${wa10_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/wa10-source-scope.json" ]]; then
+  expect_success \
+    'WA-10 exact general-expression scope is admitted after its predecessor and source seal' \
+    run_checker agent/wa-10-general-expression-inlining "${wa10_manifest}"
+  expect_failure \
+    'WA-10 cross-workspace scope is not admitted on an unrelated branch' \
+    run_checker agent/wa-01-isolated-pass-workspace "${wa10_manifest}"
+fi
+expect_failure \
+  'WA-10 branch spelling does not authorize an unenumerated upstream source' \
+  run_checker agent/wa-10-general-expression-inlining "${wa09_unreviewed_manifest}"
+
 wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"
 if grep -Eq '^- \[[xX]\] \*\*WA-07[[:space:]]+—' \

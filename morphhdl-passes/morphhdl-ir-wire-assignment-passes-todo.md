@@ -873,11 +873,63 @@ WA-04 or WA-05 can remove an alias.
   All inherited gates and complete proof domains remain mandatory before this
   checkbox may be marked complete.
 
+- [ ] **WA-10 — General typed expression inlining through final emission**
+
+  **Dependencies:** WA-09 implemented and merged.
+
+  **Status:** `IN PROGRESS`.
+
+  This user-authorized successor extends the existing expression-elimination
+  stages and their structured-emitter policy. It supersedes the historical
+  direct-receiver, continuous-receiver-only and addition-only restrictions for
+  cases proved safe below; it does not revise earlier qualification evidence.
+  The existing default-enabled, all-or-none production flag remains the only
+  switch. Symbolic Boolean/integer parameter normalization is a separate issue.
+
+  - [x] Execute the supplied reduced timing fixture through production
+    `MorphVerilog`, retaining baseline, enabled, disabled and repeat artifacts.
+    Classify native candidates by retained provenance and actual rejection
+    reasons; distinguish wrappers first introduced during emission.
+  - [x] Extend identity-based canonical/native substitution to eligible nested
+    receivers, including literals, proven resize/extension cases and subtraction.
+    Preserve each node's authoritative packed width and signedness, complete
+    capture, assignment fences and validated writeback. Unsupported symbolic or
+    otherwise unprovable cases fail closed.
+  - [x] Admit safe procedural RHS reads of continuously driven combinational
+    expressions while preserving assignment kind, timing, conditional scope,
+    register state, clocks and reset behavior. Never inline a register driver.
+  - [x] Generalize typed emitter planning across comparison, arithmetic, mux and
+    procedural RHS contexts. Keep any carrier required for legal Verilog-2001
+    selection, truncation, extension, signedness or modular arithmetic.
+  - [x] Preserve ports, hierarchy, protected/debug/vital identities, driver
+    restrictions, cycles, metadata and parameter identities. Bound duplication
+    and shared-expression growth; delete a driver/declaration only after every
+    reference has been safely replaced.
+  - [x] Add dedicated production regressions for all three reported patterns and
+    controls for mixed widths/signedness, overflow/underflow, truncation, slices,
+    nested and multiple uses, conditional register updates and protected signals.
+  - [x] Compile the same native parameterized artifact with `PPC4=0` and `PPC4=1`;
+    execute equivalence and four-state simulation checks, including zero/max and
+    boundary arithmetic, and demonstrate that the oracle detects mutations.
+  - [x] Verify deterministic generation and documented legacy disabled behavior;
+    regenerate the production timing source when accessible without making the
+    standalone regression depend on the application repository.
+  - [ ] Record exact commands, actual before/after Verilog, validation outcomes,
+    per-pattern root causes and remaining limitations. Complete the repository's
+    applicable workflow and exact-source review gates before merge/completion.
+
+  Executed reproductions, corrected root causes, output evidence, exact commands
+  and conservative remaining boundaries are recorded in
+  [`wa10-general-expression-inlining.md`](wa10-general-expression-inlining.md).
+
 ## Completion target
 
 The original roadmap completed at WA-08 with five production transformations.
-Its authorized successor completes at WA-09 when MorphHDL runs all six from one
+WA-09 established that MorphHDL runs all six from one
 flag on canonical post-parameterization IR, writes the validated result back
 into structured Verilog-2001, and applies provenance-first alias survivor
-selection without renaming any surviving identifier. General signal renaming
-remains future work.
+selection without renaming any surviving identifier. The authorized WA-10
+successor completes when eligible general expressions inline through final
+emission under the same flag, with the above semantic and qualification gates
+satisfied. General signal renaming and symbolic Boolean/integer parameter
+normalization remain separate future work.

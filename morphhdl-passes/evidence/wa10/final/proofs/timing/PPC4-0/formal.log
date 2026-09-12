@@ -1,0 +1,275 @@
+
+-- Executing script file `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/checks/timing/PPC4-0/equivalence.ys' --
+
+1. Executing Verilog-2005 frontend: /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v
+Parsing Verilog input from `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v' to AST representation.
+Generating RTLIL representation for module `\TimingExpressionExample'.
+Successfully finished Verilog frontend.
+Parameter \PPC4 = 0
+
+2. Executing AST frontend in derive mode using pre-parsed AST for module `\TimingExpressionExample'.
+Parameter \PPC4 = 0
+Generating RTLIL representation for module `$paramod\TimingExpressionExample\PPC4=32'00000000000000000000000000000000'.
+Renaming module \TimingExpressionExample to \gold.
+
+3. Executing PROC pass (convert processes to netlists).
+
+3.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+3.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40 in module gold.
+Removed a total of 0 dead cases.
+
+3.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+3.4. Executing PROC_INIT pass (extract init attributes).
+
+3.5. Executing PROC_ARST pass (detect async resets in processes).
+Found async reset \reset in `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40'.
+
+3.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~1 debug messages>
+
+3.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40'.
+     1/1: $0\vSyncEnd[11:0]
+
+3.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+3.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\gold.\vSyncEnd' using process `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40'.
+  created $adff cell `$procdff$43' with positive edge clock and positive level reset.
+
+3.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+3.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40'.
+Removing empty process `gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:61$40'.
+Cleaned up 1 empty switch.
+
+3.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module gold.
+
+4. Executing MEMORY pass.
+
+4.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+4.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+4.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+4.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+4.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+4.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+Removed 0 unused cells and 11 unused wires.
+<suppressed ~1 debug messages>
+
+4.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+4.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+4.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+
+4.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+4.11. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+5. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+
+6. Executing ASYNC2SYNC pass.
+Replacing gold.$procdff$43 ($adff): ARST=\reset, D=$0\vSyncEnd[11:0], Q=\vSyncEnd
+
+7. Executing Verilog-2005 frontend: /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v
+Parsing Verilog input from `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v' to AST representation.
+Generating RTLIL representation for module `\TimingExpressionExample'.
+Successfully finished Verilog frontend.
+Parameter \PPC4 = 0
+
+8. Executing AST frontend in derive mode using pre-parsed AST for module `\TimingExpressionExample'.
+Parameter \PPC4 = 0
+Generating RTLIL representation for module `$paramod\TimingExpressionExample\PPC4=32'00000000000000000000000000000000'.
+Renaming module \TimingExpressionExample to \gate.
+
+9. Executing PROC pass (convert processes to netlists).
+
+9.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+9.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100 in module gate.
+Removed a total of 0 dead cases.
+
+9.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+9.4. Executing PROC_INIT pass (extract init attributes).
+
+9.5. Executing PROC_ARST pass (detect async resets in processes).
+Found async reset \reset in `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100'.
+
+9.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~1 debug messages>
+
+9.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100'.
+     1/1: $0\vSyncEnd[11:0]
+
+9.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+9.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\gate.\vSyncEnd' using process `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100'.
+  created $adff cell `$procdff$103' with positive edge clock and positive level reset.
+
+9.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+9.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 1 empty switch in `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100'.
+Removing empty process `gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:37$100'.
+Cleaned up 1 empty switch.
+
+9.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module gate.
+
+10. Executing MEMORY pass.
+
+10.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+10.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+10.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+10.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+10.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+10.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+Removed 0 unused cells and 6 unused wires.
+<suppressed ~1 debug messages>
+
+10.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+10.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+10.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+
+10.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+10.11. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+11. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+
+12. Executing ASYNC2SYNC pass.
+Replacing gate.$procdff$103 ($adff): ARST=\reset, D=$0\vSyncEnd[11:0], Q=\vSyncEnd
+
+13. Executing EQUIV_MAKE pass (creating equiv checking module).
+Presumably equivalent wires: clk_gold (\clk_gold), clk_gate (\clk_gate) -> clk
+Presumably equivalent wires: io_cfgLoad_gold (\io_cfgLoad_gold), io_cfgLoad_gate (\io_cfgLoad_gate) -> io_cfgLoad
+Presumably equivalent wires: io_finalGroup_gold (\io_finalGroup_gold), io_finalGroup_gate (\io_finalGroup_gate) -> io_finalGroup
+Presumably equivalent wires: io_hActive_gold (\io_hActive_gold), io_hActive_gate (\io_hActive_gate) -> io_hActive
+Presumably equivalent wires: io_hBack_gold (\io_hBack_gold), io_hBack_gate (\io_hBack_gate) -> io_hBack
+Presumably equivalent wires: io_hFront_gold (\io_hFront_gold), io_hFront_gate (\io_hFront_gate) -> io_hFront
+Presumably equivalent wires: io_hSync_gold (\io_hSync_gold), io_hSync_gate (\io_hSync_gate) -> io_hSync
+Presumably equivalent wires: io_hTotal_gold (\io_hTotal_gold), io_hTotal_gate (\io_hTotal_gate) -> io_hTotal
+Presumably equivalent wires: io_laneMaskIn_gold (\io_laneMaskIn_gold), io_laneMaskIn_gate (\io_laneMaskIn_gate) -> io_laneMaskIn
+Presumably equivalent wires: io_laneMaskOut_gold (\io_laneMaskIn_gold), io_laneMaskOut_gate (\io_laneMaskIn_gate) -> io_laneMaskOut
+Presumably equivalent wires: io_laneX_gold (\io_laneX_gold), io_laneX_gate (\io_laneX_gate) -> io_laneX
+Presumably equivalent wires: io_laneY_gold (\io_laneY_gold), io_laneY_gate (\io_laneY_gate) -> io_laneY
+Presumably equivalent wires: io_legal_gold (\io_legal_gold), io_legal_gate (\io_legal_gate) -> io_legal
+Presumably equivalent wires: io_proposedHTotal_gold ($auto$rename.cc:418:execute$59_gold), io_proposedHTotal_gate ($auto$rename.cc:418:execute$107_gate) -> io_proposedHTotal
+Presumably equivalent wires: io_vActive_gold (\io_vActive_gold), io_vActive_gate (\io_vActive_gate) -> io_vActive
+Presumably equivalent wires: io_vFront_gold (\io_vFront_gold), io_vFront_gate (\io_vFront_gate) -> io_vFront
+Presumably equivalent wires: io_vSync_gold (\io_vSync_gold), io_vSync_gate (\io_vSync_gate) -> io_vSync
+Presumably equivalent wires: io_vSyncEnd_gold ($auto$rename.cc:418:execute$60_gold), io_vSyncEnd_gate ($auto$rename.cc:418:execute$108_gate) -> io_vSyncEnd
+Presumably equivalent wires: io_vTotal_gold (\io_vTotal_gold), io_vTotal_gate (\io_vTotal_gate) -> io_vTotal
+Presumably equivalent wires: reset_gold (\reset_gold), reset_gate (\reset_gate) -> reset
+Changing input A of cell $le$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v:32$93_gate ($le): $auto$rename.cc:418:execute$107_gate -> \io_proposedHTotal
+Changing input A of cell $procmux$101_gate ($mux): $auto$rename.cc:418:execute$108_gate -> \io_vSyncEnd
+Changing input A of cell $le$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v:56$35_gold ($le): $auto$rename.cc:418:execute$59_gold -> \io_proposedHTotal
+Changing input A of cell $procmux$41_gold ($mux): $auto$rename.cc:418:execute$60_gold -> \io_vSyncEnd
+
+14. Executing HIERARCHY pass (managing design hierarchy).
+
+14.1. Analyzing design hierarchy..
+Top module:  \equiv
+
+14.2. Analyzing design hierarchy..
+Top module:  \equiv
+Removing unused module `\gold'.
+Removing unused module `\gate'.
+Removed 2 unused modules.
+
+15. Executing EQUIV_SIMPLE pass.
+Found 33 unproven $equiv cells (5 groups) in equiv:
+  Trying to prove $equiv for \io_legal: success!
+  Trying to prove $equiv for \io_finalGroup: success!
+ Grouping SAT models for \io_proposedHTotal:
+  Trying to prove $equiv for \io_proposedHTotal [0]: success!
+  Trying to prove $equiv for \io_proposedHTotal [1]: success!
+  Trying to prove $equiv for \io_proposedHTotal [2]: success!
+  Trying to prove $equiv for \io_proposedHTotal [3]: success!
+  Trying to prove $equiv for \io_proposedHTotal [4]: success!
+  Trying to prove $equiv for \io_proposedHTotal [5]: success!
+  Trying to prove $equiv for \io_proposedHTotal [6]: success!
+  Trying to prove $equiv for \io_proposedHTotal [7]: success!
+  Trying to prove $equiv for \io_proposedHTotal [8]: success!
+  Trying to prove $equiv for \io_proposedHTotal [9]: success!
+  Trying to prove $equiv for \io_proposedHTotal [10]: success!
+  Trying to prove $equiv for \io_proposedHTotal [11]: success!
+  Trying to prove $equiv for \io_proposedHTotal [12]: success!
+  Trying to prove $equiv for \io_proposedHTotal [13]: success!
+  Trying to prove $equiv for \io_proposedHTotal [14]: success!
+  Trying to prove $equiv for \io_proposedHTotal [15]: success!
+  Trying to prove $equiv for \io_proposedHTotal [16]: success!
+  Trying to prove $equiv for \io_proposedHTotal [17]: success!
+ Grouping SAT models for \io_vSyncEnd:
+  Trying to prove $equiv for \io_vSyncEnd [0]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [1]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [2]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [3]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [4]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [5]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [6]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [7]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [8]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [9]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [10]: failed.
+  Trying to prove $equiv for \io_vSyncEnd [11]: failed.
+  Trying to prove $equiv for \io_laneMaskOut: success!
+Proved 21 previously unproven $equiv cells.
+
+16. Executing EQUIV_INDUCT pass.
+Found 12 unproven $equiv cells in module equiv:
+  Undef modelling: force def on 24 initial reg values and 166 inputs.
+  Proving existence of base case for step 1. (20483 clauses over 7678 variables)
+  Proving induction step 1. (42453 clauses over 15859 variables)
+  Proof for induction step holds. Entire workset of 12 cells proven!
+Proved 12 previously unproven $equiv cells.
+
+17. Executing EQUIV_STATUS pass.
+Found 33 $equiv cells in equiv:
+  Of those cells 33 are proven and 0 are unproven.
+  Equivalence successfully proven!
+
+End of script. Logfile hash: 455cfa8dca, CPU: user 0.10s system 0.03s, MEM: 20.09 MB peak
+Yosys 0.33 (git sha1 2584903a060)
+Time spent: 65% 1x equiv_induct (0 sec), 18% 1x equiv_simple (0 sec), ...

@@ -160,6 +160,14 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa09-named-expression.py --self-test
           python3 morphhdl-passes/scripts/check-wa09-named-expression.py
 
+      - name: Authenticate WA-10 scope and current general-expression safety contracts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/check-wa10-source-scope.py
+          python3 morphhdl/scripts/check-wa10-source-scope.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py
+
       - name: Verify formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
@@ -242,6 +250,99 @@ jobs:
             morphhdl-passes/target/test-reports
           if-no-files-found: error
           retention-days: 14
+
+  wa10_production:
+    name: WA-10 general-expression production Scala ${{ matrix.scala }}
+    needs: [boundary, contracts]
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Generate enabled disabled and repeated production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} \
+            "core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests" \
+            "morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests" \
+            "morph/Test/runMain TimingExpressionArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/timing" \
+            "morph/Test/runMain morphhdl.examples.GeneralExpressionInliningArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/general" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter timing $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/timing" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter general $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/general"
+      - name: Compare disabled output to the executed WA-09 legacy artifact
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          baseline = Path('morphhdl-passes/evidence/wa10/baseline')
+          recorded = json.loads((baseline / 'manifest.json').read_text())
+          assert recorded['compiler_commit'] == '086cb4c642d0182e33bd86fd391f46fc7c0eb2a8'
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              path = Path(fixture) / 'disabled' / name
+              original = (baseline / path).read_bytes()
+              assert hashlib.sha256(original).hexdigest() == recorded['files'][path.as_posix()], path
+              current = Path('morphhdl-passes/build/wa10') / fixture / 'first/disabled' / name
+              assert current.read_bytes() == original, path
+          print('WA10_DISABLED_LEGACY_BYTES_PASS files=2')
+          PY
+      - name: Validate actual emitted expressions and arithmetic equivalence
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa10-regression.sh --artifacts morphhdl-passes/build/wa10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-production-${{ matrix.scala }}
+          path: morphhdl-passes/build/wa10
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-test-reports-${{ matrix.scala }}
+          path: |
+            core/target/test-reports
+            morphhdl/target/test-reports
+          if-no-files-found: error
+
+  wa10_cross_scala:
+    name: WA-10 production byte identity across Scala versions
+    needs: wa10_production
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wa10-production-*
+          path: artifacts
+      - name: Compare every fixture and optimization mode
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          left = Path('artifacts/wa10-production-2.12.18')
+          right = Path('artifacts/wa10-production-2.13.12')
+          count = 0
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              for mode in ('default', 'enabled', 'disabled'):
+                  path = Path(fixture) / 'first' / mode / name
+                  assert (left / path).read_bytes() == (right / path).read_bytes(), path
+                  count += 1
+          assert count == 6
+          print('WA10_CROSS_SCALA_PASS files=6')
+          PY
 
   native_generation:
     name: WA-04 through WA-09 native generation, legality and four-state checks

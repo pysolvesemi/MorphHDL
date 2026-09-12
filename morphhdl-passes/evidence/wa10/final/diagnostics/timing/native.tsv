@@ -1,0 +1,6 @@
+round-1-before	proposedHTotal	Some(Reflected(proposedHTotal))	width=18	typeNode=true,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt + UInt	io_legal:Bool && Bool:register=false:occurrences=1;io_proposedHTotal:UInt:register=false:occurrences=1
+round-1-unnamed-expression	UnnamedWireExpressionNativeReport(0,Vector(),Map(),0,Vector(),0)
+round-1-named-expression	NamedWireExpressionNativeReport(0,Vector(),Vector(),Vector(),Map(),0,Vector(),0)
+round-1-constant	0
+round-1-ternary	0
+pre-emission	proposedHTotal	Some(Reflected(proposedHTotal))	width=18	typeNode=true,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt + UInt	io_legal:Bool && Bool:register=false:occurrences=1;io_proposedHTotal:UInt:register=false:occurrences=1

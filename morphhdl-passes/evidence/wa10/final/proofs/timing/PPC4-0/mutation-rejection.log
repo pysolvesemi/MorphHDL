@@ -1,0 +1,4 @@
+TRACE 0 0 1 00000 000 0
+WA10_FAIL sample=1 reason=mutation detected hTotal=0000 vTotal=000 laneX=1fff laneY=fff
+FATAL: /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/tests/wa10/timing_expression_tb.v:35:
+       Time: 4000  Scope: TimingExpressionExampleTb.fail
