@@ -611,11 +611,17 @@ WA09_SUITE_SOURCES = {
 WA10_CONTRACT = "morphhdl/contracts/wa10-source-scope.json"
 WA10_SUITES = {
     "morphhdl": {
+        "morphhdl.examples.NativeWireExpressionCodecTests": 3,
         "spinal.core.MorphVerilogExpressionInliningTests": 11,
     },
 }
-WA10_CHANGED_SUITE_SOURCE = \
-    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala"
+WA10_EXISTING_SUITES = frozenset({
+    "spinal.core.MorphVerilogExpressionInliningTests",
+})
+WA10_SUITE_SOURCES = frozenset({
+    "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala",
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala",
+})
 
 def require(ok: bool, message: str) -> None:
     if not ok:
@@ -833,12 +839,21 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
             tests, total_suites = counts[project]
             reviewed_counts = extension.setdefault(project, {})
             for name, expected_count in exact.items():
-                require(name in suites[project] and name in reviewed_counts,
-                        "WA-10 changed an unauthenticated suite: " + name)
-                previous_count = reviewed_counts[name]
-                require(expected_count > previous_count,
-                        "WA-10 exact suite count did not extend its predecessor: " + name)
-                tests += expected_count - previous_count
+                inherited = name in suites[project]
+                expected_inherited = name in WA10_EXISTING_SUITES
+                require(inherited == expected_inherited,
+                        "WA-10 suite identity changed inherited/new classification: " + name)
+                if inherited:
+                    require(name in reviewed_counts,
+                            "WA-10 changed suite lacks an inherited exact count: " + name)
+                    previous_count = reviewed_counts[name]
+                    require(expected_count > previous_count,
+                            "WA-10 exact suite count did not extend its predecessor: " + name)
+                    tests += expected_count - previous_count
+                else:
+                    suites[project] |= frozenset((name,))
+                    tests += expected_count
+                    total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
     return counts, suites, extension
@@ -862,9 +877,10 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool]:
         return True, True, False
     require(entries[WA10_CONTRACT]["before_sha256"] is None,
             "WA-10 successor contract has changed baseline identity")
-    require(WA10_CHANGED_SUITE_SOURCE in entries and
-            entries[WA10_CHANGED_SUITE_SOURCE]["before_sha256"] is None,
-            "WA-10 changed suite source is absent from the reviewed overlay")
+    require(WA10_SUITE_SOURCES <= set(entries),
+            "WA-10 suite source is absent from the reviewed overlay")
+    require(all(entries[path]["before_sha256"] is None for path in WA10_SUITE_SOURCES),
+            "WA-10 suite source has changed baseline identity")
     return True, True, True
 
 
@@ -1721,14 +1737,18 @@ def self_test() -> None:
             sum(len(exact) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 191,
             "WA-09 exact per-project inherited or successor totals changed")
     require(wa10_successor[0] == {
-                **expected_totals, "morphhdl": (1116, 104)
+                **expected_totals, "morphhdl": (1119, 105)
             } and
-            wa10_successor[1] == successor[1] and
+            wa10_successor[1]["morphhdl"] == successor[1]["morphhdl"] |
+                {"morphhdl.examples.NativeWireExpressionCodecTests"} and
+            all(wa10_successor[1][project] == successor[1][project]
+                for project in successor[1] if project != "morphhdl") and
             wa10_successor[2]["morphhdl"] == {
                 **successor[2]["morphhdl"],
+                "morphhdl.examples.NativeWireExpressionCodecTests": 3,
                 "spinal.core.MorphVerilogExpressionInliningTests": 11,
             } and
-            sum(tests for tests, _ in wa10_successor[0].values()) == 1983,
+            sum(tests for tests, _ in wa10_successor[0].values()) == 1986,
             "WA-10 exact public suite successor count changed")
     for project, inherited in WA09_INHERITED_SUITE_COUNTS.items():
         exact = WA09_SUITES.get(project, {})
@@ -1938,9 +1958,13 @@ def self_test() -> None:
                 rejected(validate_wa09_reports, "changed WA-09 source baseline identity " + path)
             overlay.verify.return_value = reviewed_wa09
             validate_wa09_reports()
-            reviewed_wa10 = {"files": [*reviewed_wa09["files"], {
-                "path": WA10_CONTRACT, "before_sha256": None,
-            }]}
+            wa10_source_entries = [
+                {"path": path, "before_sha256": None}
+                for path in WA10_SUITE_SOURCES if path not in WA09_SUITE_SOURCES
+            ]
+            reviewed_wa10 = {"files": [*reviewed_wa09["files"],
+                *wa10_source_entries,
+                {"path": WA10_CONTRACT, "before_sha256": None}]}
             overlay.verify.return_value = reviewed_wa10
             write_reports(wa10_successor)
             validate_wa09_reports()
@@ -1966,7 +1990,7 @@ def self_test() -> None:
             validate_wa09_reports()
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")
-    print("WA-10 successor inventory requires exactly 1983 cases / 194 suites: 1116 Morph cases PASS")
+    print("WA-10 successor inventory requires exactly 1986 cases / 195 suites: 1119 Morph cases PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 
