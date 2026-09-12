@@ -1,3 +1,27 @@
 {
-  "status": "pending exact Yosys 0.41 installation"
+  "tool_path": "/tmp/wa10-formal-tools/bin",
+  "source_container": "ghcr.io/spinalhdl/docker:v1.2.0",
+  "source_docker_commit": "2d706ec43bdd2a8aee294254d1c12b7885dd54d5",
+  "sby_tag": "yosys-0.41",
+  "sby_commit": "7dd287f287a4e6ed5ea37026df90276b360482b8",
+  "sby_sha256": "b15af1c4d962fdea0ca6433d1ec6cc2d07aa975487cb7954c12d8e206cdba0ba",
+  "yices_release_url": "https://github.com/GaloisInc/what4-solvers/releases/download/snapshot-20221212/ubuntu-22.04-bin.zip",
+  "yices_archive_sha256": "f4c557face7e1aa3d4af94c80d77ab6b8b33a22f7c3ba8ba4387b8027d80cf95",
+  "yices_smt2_sha256": "bf6d40b4bdd3283e5fc33f4a3e7ccc24aeecc33a1c203140dc2858eb3301afd5",
+  "yices_version": "Yices 2.6.2\nCopyright SRI International.\nLinked with GMP 6.2.1\nCopyright Free Software Foundation, Inc.\nBuild date: 2022-12-12\nPlatform: x86_64-pc-linux-gnu (release/static)\nRevision: 8509cfb5c294df3c0ac3a4814483f39c58879606",
+  "yosys_version": "Yosys 0.41 (git sha1 c1ad37779, g++ 13.3.0-6ubuntu2~24.04 -fPIC -Os)",
+  "notes": [
+    "Yosys 0.41, ABC, SBY and Yices all use ghcr.io/spinalhdl/docker:v1.2.0 source pins.",
+    "Yosys standard feature switches remain enabled; gcc compiled from original pinned source.",
+    "Build dependencies extracted under /tmp and SHA-512 checked against Ubuntu apt package metadata.",
+    "Real abc pdr invariant proof passed with assertion mapping, DONE (PASS, rc=0).",
+    "Real smtbmc yices depth-two expected-failure smoke passed using the full pinned toolchain with counterexample trace, DONE (FAIL, rc=0).",
+    "No repository changes or SBT executed."
+  ],
+  "yosys_tag": "yosys-0.41",
+  "yosys_commit": "c1ad37779eea6211866a466026322416fb3a832f",
+  "abc_commit": "237d81397fcc85dd3894bf1a449d2955cd3df02d",
+  "yosys_sha256": "b8ed419876fc3f401034315a38f2a06251e401f2b148e75672df701b4ef36aeb",
+  "yosys_abc_sha256": "4bba22d8eb197425357fc37b26b698d3ce874d74a008788e0ee942b94578d5b3",
+  "build_log": "/tmp/wa10-yosys-041-build.log"
 }

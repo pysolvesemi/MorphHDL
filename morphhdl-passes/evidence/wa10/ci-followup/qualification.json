@@ -1,5 +1,5 @@
 {
-  "status": "pending final formal rerun",
+  "status": "reviewed correction validated locally; final-head CI pending",
   "targeted": {
     "Scala 2.13.12": {
       "passed": 28,
@@ -25,5 +25,54 @@
     "failed": 1,
     "failure": "Yosys 0.33/SBY 0.41 ABC witness schema mismatch"
   },
-  "final_head_ci": "pending"
+  "final_head_ci": "pending",
+  "reviewed_source_commit": "847f2e01f2337ed70cf7311779cb551b230151f9",
+  "source_seal_commit": "68a87e060134a22f17c2da56e5a16a2f3d5a68dd",
+  "source_gates": {
+    "passed": true,
+    "reviewed_files": 101,
+    "overlay_mutations_rejected": 117,
+    "wa10_scope_mutations": 12,
+    "wa10_current_contract_mutations": 116,
+    "inherited_wa07b_mutations_rejected": 86,
+    "log": "target/wa10-evidence/ci-followup-source-gates.log",
+    "raw_sha256": "52bdd019422f0ee03e7050f9f6c06ef09b95eb4b29cfe03e1a61440bdf200266"
+  },
+  "formal_final_rerun": {
+    "scala": "2.13.12",
+    "passed": 4,
+    "failed": 0,
+    "canceled": 0,
+    "suites": [
+      "morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests",
+      "morphhdl.TypedPrimitiveClosureFormalEquivalenceTests"
+    ],
+    "primitive_statuses": {
+      "typed_primitive_closure_W13D5_equivalence": "PASS 0 0",
+      "typed_primitive_closure_W16D8_equivalence": "PASS 0 0",
+      "typed_primitive_closure_W5D1_equivalence": "PASS 0 0",
+      "typed_primitive_closure_W8D3_equivalence": "PASS 0 0",
+      "typed_primitive_closure_W8D3_mutation": "FAIL 0 0"
+    },
+    "primitive_witnesses": [
+      [
+        5,
+        1
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        13,
+        5
+      ],
+      [
+        16,
+        8
+      ]
+    ],
+    "scope": "Existing combined Bits-payload synchronous-reset fixture; complementary to the UInt/asynchronous shape fixture, not exhaustive WIDTH 1..16.",
+    "compiler_classes": "Existing compiled Scala 2.13.12 classpath from the completed SBT run. Production compiler and formal test sources are unchanged by this test-only correction."
+  }
 }

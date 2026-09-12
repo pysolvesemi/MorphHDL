@@ -14,5 +14,11 @@
     "raw_sha256": "9e4d61a82a2d0e04104d723b657f1e4e133ea38497a4bd0f20d5cd6f6bafbf6f",
     "saved_sha256": "aa1bba016312f1c42188d1b8063901a02332166fc75437f09fafaf6e3889b99e",
     "transformation": "select result, cancellation and required-tool failure lines; strip trailing whitespace"
+  },
+  "formal-rerun.log": {
+    "raw_log": "target/wa10-evidence/ci-formal-final.log",
+    "raw_sha256": "e8cd7bb08e10e2a58ca8959565ea5d71f6137a15a81896d807f06f8a5aba02d8",
+    "saved_sha256": "e8cd7bb08e10e2a58ca8959565ea5d71f6137a15a81896d807f06f8a5aba02d8",
+    "format_only_change": "strip trailing line whitespace; preserve actual text"
   }
 }

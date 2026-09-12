@@ -49,3 +49,50 @@ current-source inherited 60f Scala 2.13 job `103529957982` ran 1,119 tests with
 1,118 passing, zero canceled, and only the same typed shape suite failing;
 all eight mandatory formal tests executed successfully. New final-head CI
 must still pass before WA-10 is marked complete or merged.
+
+## Additional executed qualification
+
+The full local Scala 2.13 run completed with 1,110 passed, one failed and eight
+canceled tests. Its sole failure was an unavailable `sby` executable; the
+shape assertion passed. The chained Scala 2.12 full run consequently did not
+start. This command is not reported as a passing full-suite run:
+
+```sh
+/tmp/wa10-sbt '++2.13.12' morph/test '++2.12.18' morph/test
+```
+
+After installing the CI-pinned tools, both the adapter formal suite and the
+primitive-closure formal suite passed: four tests, zero failures/cancellations,
+including required genuine counterexample mutations. An intermediate attempt
+with Yosys 0.33 and SBY 0.41 had an ABC witness-schema mismatch; the final run
+uses actual Yosys 0.41, its matching ABC, SBY and Yices. Versions, pins and
+binary hashes are in `formal-tools.json`; no tool check or test was weakened.
+
+The exact successful launch reused the Scala 2.13 test classpath compiled by
+the preceding SBT run. Compiler and formal-test sources are unchanged by the
+shape-test correction:
+
+```sh
+wa10_formal_cp="$(cat morphhdl/target/streams/test/fullClasspath/_global/streams/export)"
+PATH="/tmp/wa10-formal-tools/bin:$PATH" \
+MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE=1 \
+MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE="$PWD/target/wa10-evidence/ci-typed-primitive-formal-final" \
+/usr/lib/jvm/java-11-openjdk-amd64/bin/java -Xmx3G -XX:ActiveProcessorCount=2 \
+  -cp "$wa10_formal_cp" org.scalatest.tools.Runner \
+  -R morphhdl/target/scala-2.13/test-classes \
+  -s morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests \
+  -s morphhdl.TypedPrimitiveClosureFormalEquivalenceTests -oW
+```
+
+Primitive closure proves four existing `(WIDTH, DEPTH)` witnesses: `(5,1)`,
+`(8,3)`, `(13,5)`, `(16,8)`, and rejects the deliberate `(8,3)` mutation.
+Its combined fixture uses the same pipe algorithms with Bits payloads and
+synchronous reset; it is complementary coverage, not an exhaustive proof of
+the separate UInt/asynchronous-reset shape fixture at every width.
+
+The exact source-overlay workflow command sequence also passed on sealed
+commit `68a87e060134a22f17c2da56e5a16a2f3d5a68dd`: 101 reviewed files,
+117 rejected overlay mutations, preserved native manifest and inherited source
+audits. The additional WA-10 checks passed all 12 scope and 116 safety controls.
+`qualification.json` records these results and hashes the full local audit
+log. Final-head GitHub CI remains required before completion and merge.
