@@ -1,0 +1,141 @@
+name: Increment 61 hierarchy resize candidate v19
+
+on:
+  push:
+    branches:
+      - agent/increment-61-controller
+    paths:
+      - '.github/workflows/increment-61-hierarchy-resize-candidate-v19.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-hierarchy-resize-candidate-v19
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      EXPECTED_FEATURE: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+      EXPECTED_TARGET: 010644bbf1704c38013749ed40638e297ed87b2b
+    steps:
+      - name: Check out exact integrated Increment 61 head
+        uses: actions/checkout@v4
+        with:
+          ref: 67c08b3fd6d6302c5fae32a003d9c994903e9a13
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Apply line-anchored production candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_FEATURE"
+          test "$(git rev-parse origin/parameterized-verilog)" = "$EXPECTED_TARGET"
+          output="$GITHUB_WORKSPACE/target/increment-61-hierarchy-resize-candidate-v19"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/source-head.txt"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def unique_index(lines, stripped, label):
+              matches = [i for i, line in enumerate(lines) if line.strip() == stripped]
+              if len(matches) != 1:
+                  raise SystemExit(f'{label}: expected one line, found {len(matches)}')
+              return matches[0]
+
+          morph = Path('morphhdl/src/main/scala/morphhdl/MorphVerilog.scala')
+          lines = morph.read_text().splitlines()
+          native_line = 'phaseInserters += ExternalParameterizedNativeResize.install _'
+          auto_line = 'phaseInserters += ExternalParameterizedAutoResize.install _'
+          native_index = unique_index(lines, native_line, 'native resize phase')
+          auto_index = unique_index(lines, auto_line, 'auto resize phase')
+          if auto_index != native_index + 1:
+              raise SystemExit(
+                  f'unexpected resize phase adjacency: native={native_index} auto={auto_index}'
+              )
+          indent = lines[native_index][: len(lines[native_index]) - len(lines[native_index].lstrip())]
+          lines[native_index : auto_index + 1] = [
+              indent + '// Auto-resize owns exact parent/child assignment lineage',
+              indent + '// before native resize captures a surviving hierarchy output.',
+              indent + auto_line,
+              indent + native_line,
+          ]
+          morph.write_text('\n'.join(lines) + '\n')
+
+          native = Path(
+              'morphhdl/src/main/scala/spinal/core/internals/'
+              'ExternalParameterizedNativeResize.scala'
+          )
+          lines = native.read_text().splitlines()
+
+          capture = 'NativeWidthProvenance.widthOf(source).filter(sourceWidth =>'
+          index = unique_index(lines, capture, 'native resize source capture')
+          indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+          lines[index : index + 1] = [
+              indent + 'val contextualSourceWidth =',
+              indent + '  ExternalParameterizedHierarchyResizeWidth',
+              indent + '    .sourceWidthOf(component, source)',
+              indent + '    .orElse(NativeWidthProvenance.widthOf(source))',
+              indent + 'contextualSourceWidth.filter(sourceWidth =>',
+          ]
+
+          validation = 'NativeWidthProvenance.widthOf(record.source)'
+          index = unique_index(lines, validation, 'native resize live source validation')
+          indent = lines[index][: len(lines[index]) - len(lines[index].lstrip())]
+          lines[index : index + 1] = [
+              indent + 'ExternalParameterizedHierarchyResizeWidth',
+              indent + '  .sourceWidthOf(component, record.source)',
+              indent + '  .orElse(NativeWidthProvenance.widthOf(record.source))',
+          ]
+          native.write_text('\n'.join(lines) + '\n')
+          PY
+
+          git diff --check
+          git diff --stat | tee "$output/diff-stat.txt"
+          git diff -- \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala \
+            > "$output/production.patch"
+
+      - name: Qualify Scala 2.13
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.13.12' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests morphhdl.Increment61PerComponentPublicationTests spinal.core.internals.HierarchyResizeSourceWidthTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.GenericExpressionAndStreamTests morphhdl.FormalParameterClonePropagationTests'
+
+      - name: Qualify Scala 2.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch '++2.12.18' \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests morphhdl.Increment61PerComponentPublicationTests spinal.core.internals.HierarchyResizeSourceWidthTests spinal.core.internals.NativeWidthPublicationSafetyTests'
+
+      - name: Record qualified candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-hierarchy-resize-candidate-v19"
+          git diff --check
+          printf 'SOURCE_HEAD=%s\nTARGET_HEAD=%s\n' \
+            "$EXPECTED_FEATURE" "$EXPECTED_TARGET" | tee "$output/qualified.txt"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-hierarchy-resize-candidate-v19
+          path: |
+            target/increment-61-hierarchy-resize-candidate-v19
+            morphhdl/target/test-reports
+          if-no-files-found: error
+          retention-days: 14
