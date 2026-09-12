@@ -24,14 +24,28 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Exact source overlay and live mutation controls
+        shell: bash
         run: |
-          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
-          python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py
-          python3 morphhdl/scripts/test-wa07b-inherited-review.py
-          python3 morphhdl/scripts/check-increment-60g-source-scope.py
-          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
-          python3 morphhdl/scripts/check-increment-59c-source-review.py
-          python3 morphhdl/scripts/check-increment-59g-source-review.py
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          # The current Increment 61 delta is sealed above. Keep the historical
+          # WA-08 contract and its mutation tests unchanged at the merged target.
+          integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+          test "$integrated" = "010644bbf1704c38013749ed40638e297ed87b2b"
+          historical=$(mktemp -d "${RUNNER_TEMP:-/tmp}/wa08-inherited-source.XXXXXX")
+          git worktree add --detach "$historical" "$integrated"
+          trap 'git worktree remove --force "$historical"' EXIT
+          (
+            cd "$historical"
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/test-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/check-increment-59c-source-review.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+          )
   production:
     needs: source-overlay
     runs-on: ubuntu-24.04

@@ -6,6 +6,7 @@ import nativeapplication.{
   TypedBlackBoxGenericBindingFixture
 }
 import spinal.core._
+import spinal.lib._
 import spinal.core.internals.{
   BalancedBridgeHardware,
   BalancedCallbackGraphHardware,
@@ -30,6 +31,28 @@ object Increment61CompatibilityCatalog {
       supportFile: Option[(String, String)],
       build: () => Component
   )
+
+  // The catalog admits DEPTH=16. Occupancy and availability can therefore
+  // equal 16, which needs five bits. The inherited four-bit test harness is
+  // deliberately left unchanged: using it here would test an unsupported
+  // domain-crossing resize rather than per-component publication.
+  private final class StreamFifoPublicationHarness(depth: HdlInt) extends Component {
+    setDefinitionName("Increment61StreamFifo")
+    val io = new Bundle {
+      val push = slave Stream(Bits(8 bits))
+      val pop = master Stream(Bits(8 bits))
+      val flush = in Bool()
+      val occupancy = out UInt(5 bits)
+      val availability = out UInt(5 bits)
+    }
+    val fifo = StreamFifo(HardType(Bits(8 bits)), depth.asElabInt)
+    fifo.setName("fifo")
+    fifo.io.push << io.push
+    io.pop << fifo.io.pop
+    fifo.io.flush := io.flush
+    io.occupancy := fifo.io.occupancy.resized
+    io.availability := fifo.io.availability.resized
+  }
 
   private val SignedExternalStub =
     """module SIntCastHeavyExternal #(
@@ -132,12 +155,12 @@ object Increment61CompatibilityCatalog {
     ),
     CompatibilityCase(
       id = "stream-fifo",
-      generatedTop = "NativeParameterizedStreamFifoHarness",
-      toolTop = "NativeParameterizedStreamFifoHarness",
-      requiredGeneratedModules = Set("StreamFifo", "NativeParameterizedStreamFifoHarness"),
+      generatedTop = "Increment61StreamFifo",
+      toolTop = "Increment61StreamFifo",
+      requiredGeneratedModules = Set("StreamFifo", "Increment61StreamFifo"),
       forbiddenGeneratedModules = Set.empty,
       supportFile = None,
-      build = () => new NativeParameterizedStreamFifoHarness(
+      build = () => new StreamFifoPublicationHarness(
         HdlInt.param("DEPTH", default = 5, min = 1, max = 16)
       )
     ),

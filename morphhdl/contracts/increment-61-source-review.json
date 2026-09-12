@@ -9,6 +9,7 @@
     ".github/workflows/increment-60g-default-signed-verilog.yml",
     ".github/workflows/increment-61-compatibility-matrix.yml",
     ".github/workflows/increment-61-one-file-per-component.yml",
+    ".github/workflows/increment-62-wa08-source-overlay.yml",
     "morphhdl/contracts/increment-61-source-review.json",
     "morphhdl/scripts/check-increment-60g-default-rollout.py",
     "morphhdl/scripts/check-increment-61-source-review.py"
@@ -55,7 +56,7 @@
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
       "status": "modified",
-      "after_sha256_integrated": "dc24304d6f9c8408b058c4f2047bc0f433b45a7e1de43d037321f97474dd4c04"
+      "after_sha256_integrated": "8d1f013fccaa81cfa6f7021292210db988a0d55c59d71dd731ba8b724a3ab33b"
     },
     {
       "after_sha256": "77133794259d597e19784639cc4b19a7595e6a9e3cf74e32f3d3abc888a2d038",
@@ -76,7 +77,8 @@
       "before_sha256": "82b95d538c187dc0d34c551ce017e560b9c6633ddcef66683fa80721de3399b2",
       "mode": "100644",
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
-      "status": "modified"
+      "status": "modified",
+      "after_sha256_integrated": "742d5c29788237eab80855c1aa26eaa601b403e07fcca17413ce6e803d0770d4"
     },
     {
       "after_sha256": "3103284c4d5a8d442b3baa59cc49841c1261ebfcd9e53e94a9bc20d78f9aaf0f",
@@ -90,7 +92,8 @@
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala",
-      "status": "added"
+      "status": "added",
+      "after_sha256_integrated": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910"
     },
     {
       "after_sha256": "23182c8d50be2c24d58204c74a714a0957895ff779525655fd20279c6728fb4f",
@@ -108,5 +111,5 @@
     }
   ],
   "schema": 1,
-  "integrated_target_commit": "39d888874577dc989f43e602c577985ebc53bc69"
+  "integrated_target_commit": "010644bbf1704c38013749ed40638e297ed87b2b"
 }
