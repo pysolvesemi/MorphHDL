@@ -1,5 +1,7 @@
 name: Increment 59i exact continuation source snapshot
 
+# Refresh the exact source/history archive for local reproduction of the
+# f6ae688 widening-capture failures; this export is not qualification.
 on:
   push:
     branches: ['agent/increment-59i-combined-reduction-closure']
