@@ -179,7 +179,11 @@ jobs:
           # reports out of the frozen 60f inventory.
           python3 morphhdl/scripts/check-increment-61-source-review.py
           python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          # Use the sealed integrated target, not the pre-WA-08 branch point.
+          # Its unchanged catalog also requires the inherited resize-width suite.
+          base=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+          git merge-base --is-ancestor "$base" HEAD
+          printf '%s\n' "$base" > "$output/inherited-source-head.txt"
           git worktree add --detach "$predecessor" "$base"
           trap 'git worktree remove --force "$predecessor"' EXIT
 
