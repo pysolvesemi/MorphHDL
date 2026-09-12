@@ -124,10 +124,13 @@ jobs:
           morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala

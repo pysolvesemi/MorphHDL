@@ -6,6 +6,8 @@ transactions. The native algorithms and ordinary width-conflict checks remain
 authoritative. This candidate still requires executable and source review.
 """
 from pathlib import Path
+import hashlib
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
@@ -133,6 +135,53 @@ def add_clone_regression() -> None:
         "native/external/HardType clone and equal-witness root rejection regression"))
 
 
+def apply_scoped_conditional_replay() -> None:
+    """Compose only the exact reviewed source delta, never a scope allowlist.
+
+    All six before/after blobs are bound independently of the patch context.
+    The default observer, complete suite inventory and symbolic-width rejection
+    remain unchanged contracts. A passing fixed-width case is not 59i closure.
+    """
+    patch_directory = ROOT / "morphhdl/repair-59i-widening-captures"
+    patch_hashes = {
+        "scoped-observer.patch": "00cc5561cd18df5d959b1002175d03b121e8ad0c8ea90c675e31c4f7c35093c5",
+        "composite-replay.patch": "2ae6b88214492dd6d1303853fdfde807106adc97a7f543f1c1b6a91c80aa22a7",
+        "saturation-test.patch": "cbe1d427b7261b8409d401dfc7adb1e4e414b8b1b6f0d359d550f0e04697c17b",
+    }
+    patches = [patch_directory / name for name in patch_hashes]
+    for patch in patches:
+        require(patch.is_file() and not patch.is_symlink(), "missing regular scoped replay patch")
+        require(hashlib.sha256(patch.read_bytes()).hexdigest() == patch_hashes[patch.name],
+                "scoped replay patch fingerprint changed: " + patch.name)
+    expected = {
+        'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala':
+            ('aba9411ce495a6396a79900f43eb944ceac2a70b', '1ec30ec83eab77c3d837c6ac7333e78d2bfc0829'),
+        'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala':
+            ('2042d868b8b25d9c2eb415d221801221a817938e', '4c47f3e5719e6882f19cfee2f45ef60660d95a87'),
+        'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala':
+            ('764f6f7b1f2418101b024e77acb38a62481aefd5', '881411e2ed6e4a5b82bf11e40cf0c86016ef7bfe'),
+        'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala':
+            ('2ff657fa2b81606a0c4051cfc22eb0e6851bc496', '062873d6d2a21fa9e23c0cbd5fa8292d7e6b99aa'),
+        'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala':
+            ('1429b50aaa0fc5d230977415fdb8217137bc0899', '0d0dde8787ba9c4c1f7057dcc15c46111743dd73'),
+        'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala':
+            ('6e21b307f95be582176064a2f25ff31753a00dea', '4e6996ab2c3e763326f29eb4071bf7948799960f'),
+    }
+
+    def git_blob(path: Path) -> str:
+        require(path.is_file() and not path.is_symlink(), "missing regular scoped source: " + str(path))
+        raw = path.read_bytes()
+        return hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+
+    for path, (before, _) in expected.items():
+        require(git_blob(ROOT / path) == before, "scoped replay predecessor changed: " + path)
+    subprocess.run(["git", "apply", "--check", "--whitespace=error-all", *map(str, patches)], cwd=ROOT, check=True)
+    subprocess.run(["git", "apply", "--whitespace=error-all", *map(str, patches)], cwd=ROOT, check=True)
+    for path, (_, after) in expected.items():
+        require(git_blob(ROOT / path) == after, "scoped replay result changed: " + path)
+    print("59i scoped conditional replay: six exact source transitions applied")
+
+
 def main() -> None:
     backend = BACKEND.read_text()
     require(backend.count("private final case class WideningCompositeStage") == 1,
@@ -175,6 +224,8 @@ def main() -> None:
       bitVectorWidthMax = 65536)
 ''', "supported widening publication config")
     PUBLICATION_TEST.write_text(publication)
+
+    apply_scoped_conditional_replay()
 
     print("59i widening/capture composition with recursive native clone factories applied")
 
