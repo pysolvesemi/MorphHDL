@@ -338,7 +338,7 @@
       "path": "morphhdl/contracts/native-source-preservation.json"
     },
     {
-      "after_sha256": "dee8928e86867cc3a90a46ce34eb77a6ed1caeb78eda2d566de73cfc694c5f05",
+      "after_sha256": "ceb8ffeb64a731b4606da2ce2dffb363de3be95836770e4d87f3128b3b8e2b97",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/wa10-source-scope.json"
@@ -608,7 +608,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "0d9e6756f6c92244ffc160df4e0800def83e219a",
+  "final_source_commit": "ce94768b818008e940ce620bfc5f32d264ea8c59",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
