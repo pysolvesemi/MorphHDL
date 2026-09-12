@@ -176,6 +176,7 @@
     "morphhdl/contracts/increment-62-wa08-source-overlay.json",
     "morphhdl/contracts/native-source-preservation.json",
     "morphhdl/contracts/wa10-source-scope.json",
+    "morphhdl/scripts/check-increment-60f-artifacts.py",
     "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
     "morphhdl/scripts/check-wa08-production-artifacts.py",
     "morphhdl/scripts/check-wa10-source-scope.py",
