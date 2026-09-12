@@ -1,0 +1,168 @@
+name: P1 DDR read pinned MorphHDL toolchain export
+
+on:
+  push:
+    branches:
+      - agent/p1-ddr-read-rtl-01-toolchain
+    paths:
+      - '.github/workflows/p1-ddr-read-toolchain-export.yml'
+  pull_request:
+    branches:
+      - parameterized-verilog
+    paths:
+      - '.github/workflows/p1-ddr-read-toolchain-export.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-ddr-read-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  export-toolchain:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out exact MorphHDL source
+        uses: actions/checkout@v4
+        with:
+          ref: agent/p1-ddr-read-rtl-01-toolchain
+          fetch-depth: 0
+
+      - name: Verify pinned source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=81abd25518551b8a452ecf038e409331e646f726
+          git merge-base --is-ancestor "${expected}" HEAD
+          git diff --exit-code "${expected}" -- \
+            build.sbt \
+            project/ \
+            idslpayload/ \
+            idslplugin/ \
+            sim/ \
+            paramrtl/ \
+            frontend/ \
+            backends/ \
+            core/ \
+            lib/ \
+            morphhdl/
+
+      - name: Set up Java and SBT
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+
+      - name: Set up SBT launcher
+        uses: sbt/setup-sbt@v1
+
+      - name: Build exact Scala 2.12 MorphHDL runtime products
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch \
+            '++2.12.18' \
+            'clean' \
+            'idslpayload/Compile/packageBin' \
+            'idslplugin/Compile/packageBin' \
+            'sim/Compile/packageBin' \
+            'paramrtl/Compile/packageBin' \
+            'core/Compile/packageBin' \
+            'lib/Compile/packageBin' \
+            'frontend/Compile/packageBin' \
+            'verilogBackend/Compile/packageBin' \
+            'morph/Compile/packageBin'
+
+      - name: Collect module products and resolved runtime jars
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${GITHUB_WORKSPACE}"
+          out=/tmp/p1-ddr-read-toolchain
+          rm -rf "${out}"
+          mkdir -p "${out}/modules" "${out}/external" "${out}/debs"
+
+          while IFS= read -r -d '' jar; do
+            rel=${jar#"${root}/"}
+            safe=$(printf '%s' "${rel}" | tr '/' '_')
+            cp "${jar}" "${out}/modules/${safe}"
+          done < <(find \
+            idslpayload idslplugin sim paramrtl frontend backends/verilog core lib morphhdl \
+            -type f -path '*/target/scala-2.12/*.jar' -print0 | sort -z)
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          roots = [Path.home() / '.cache' / 'coursier', Path.home() / '.ivy2']
+          out = Path('/tmp/p1-ddr-read-toolchain/external')
+          seen = set()
+          for root in roots:
+              if not root.exists():
+                  continue
+              for jar in sorted(root.rglob('*.jar')):
+                  data = jar.read_bytes()
+                  digest = hashlib.sha256(data).hexdigest()
+                  if digest in seen:
+                      continue
+                  seen.add(digest)
+                  target = out / f'{digest[:16]}-{jar.name}'
+                  target.write_bytes(data)
+          PY
+
+          sudo apt-get update
+          cd "${out}/debs"
+          apt-get download iverilog verilator yosys
+
+          cd "${out}"
+          printf '%s\n' '81abd25518551b8a452ecf038e409331e646f726' > morphhdl-commit.txt
+          java -version > java-version.txt 2>&1
+          sbt --script-version > sbt-version.txt
+          find modules external debs -type f -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > manifest.sha256
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import zipfile
+
+          root = Path('/tmp/p1-ddr-read-toolchain')
+          modules = list((root / 'modules').glob('*.jar'))
+          required_entries = {
+              'spinal/core/Component.class': False,
+              'spinal/lib/Stream.class': False,
+              'spinal/idslplugin/IdslPlugin.class': False,
+              'morphhdl/MorphVerilog.class': False,
+          }
+          for jar in modules:
+              with zipfile.ZipFile(jar) as archive:
+                  names = set(archive.namelist())
+                  for entry in required_entries:
+                      required_entries[entry] |= entry in names
+          missing = sorted(entry for entry, present in required_entries.items() if not present)
+          if missing:
+              raise SystemExit(f'missing required runtime classes: {missing}')
+
+          manifest = {
+              'schema': 'morphhdl-offline-toolchain/v1',
+              'morphhdl_commit': '81abd25518551b8a452ecf038e409331e646f726',
+              'scala': '2.12.18',
+              'module_jars': len(modules),
+              'external_jars': len(list((root / 'external').glob('*.jar'))),
+              'debian_packages': len(list((root / 'debs').glob('*.deb'))),
+              'required_runtime_classes': required_entries,
+          }
+          (root / 'toolchain.json').write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+          PY
+
+      - name: Upload offline toolchain bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphhdl-81abd255-scala-2.12-offline
+          path: /tmp/p1-ddr-read-toolchain
+          if-no-files-found: error
+          retention-days: 7
