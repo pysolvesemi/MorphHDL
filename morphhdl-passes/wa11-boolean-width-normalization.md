@@ -87,8 +87,22 @@ independent feature tests. Repeat and hardware-pass-toggle byte checks passed.
 Four helper compilation rejections are reported separately and provide no
 successful simulation credit.
 
-Final source audits and final-head CI remain in progress. No formal or merge
+Source audits passed, including the sealed overlay and its live mutation
+controls. The dedicated WA-11 CI at `cb12f2825a8826cc4f60eecbabdc1a02629ea2bf`
+passed both Scala lanes (82 tests in seven suites per lane), the production
+artifact checks above, and byte comparison of all 131 generated Verilog files.
+Inherited qualification remains in progress; no complete formal or merge
 success is claimed here.
+
+The first inherited CI attempt exposed three stale formal-registry digests
+for the reviewed WA-11 boundary checker, boundary tests and regression catalog.
+Their expected hashes are refreshed without changing the 85-file inventory or
+any proof behavior. The formal validator self-test, 146 existing equivalence,
+shard and cone tests, and three independent source-mutation rejection controls
+passed after that repair. Two other failed jobs stopped before tests because
+Maven reset their dependency-download connections; failed-job retries were
+requested without changing compiler or workflow behavior. The repaired source
+still requires all applicable checks before completion and merge.
 
 ## Preserved limits
 
