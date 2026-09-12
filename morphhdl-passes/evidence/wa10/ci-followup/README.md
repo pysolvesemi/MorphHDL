@@ -50,6 +50,53 @@ current-source inherited 60f Scala 2.13 job `103529957982` ran 1,119 tests with
 all eight mandatory formal tests executed successfully. New final-head CI
 must still pass before WA-10 is marked complete or merged.
 
+## Final-head inherited-inventory correction
+
+Final-head [run 34689891226](https://github.com/pysolvesemi/MorphHDL/actions/runs/34689891226),
+job `103543196609`, executed the complete Scala 2.13 inherited regression set
+and then rejected the results with:
+
+```text
+RuntimeError: changed exact reviewed test inventory: spinal.core.MorphVerilogExpressionInliningTests: 11
+```
+
+The compiler, SBT tests and mandatory formal cases had executed; the failure
+was the immutable 60f catalog correctly refusing an unauthenticated successor
+count. Comparing all 195 XML reports from artifact `10297729227` against the
+WA-09 catalog found the complete WA-10 delta, rather than changing only the
+first suite named by the failure:
+
+| Project / suite | WA-09 | WA-10 |
+| --- | ---: | ---: |
+| `core`: `spinal.core.internals.VerilogEmitterExpressionInliningTests` | 16 | 25 |
+| `morphhdl`: `morphhdl.examples.NativeWireExpressionCodecTests` | absent | 3 |
+| `morphhdl`: `spinal.core.MorphVerilogExpressionInliningTests` | 10 | 11 |
+| `morphhdl-passes`: `morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec` | 12 | 13 |
+
+`check-increment-60f-artifacts.py` now keeps the historical WA-09 catalog
+exactly at 1,982 tests / 194 suites and selects an exact 1,996-test / 195-suite
+WA-10 successor only when its source-scope contract and all four suite sources
+have their reviewed added/inherited identities. Its self-test rejects a
+missing predecessor, contract, source, case or changed baseline identity.
+
+The downloaded job reports were replayed without changing them:
+
+```sh
+python3 morphhdl/scripts/check-increment-60f-artifacts.py \
+  regressions . target/wa10-ci-followup-inventory-final.json \
+  > target/wa10-ci-followup-inventory-final.log 2>&1
+```
+
+The command exited zero. The project totals were `paramrtl` 234/23,
+`frontend` 257/22, `backends/verilog` 148/21, `morphhdl` 1119/105,
+`morphir` 32/2, `morphplugin` 16/2, `core` 30/2, and `morphhdl-passes`
+160/18 (tests/suites). The raw replay log and JSON SHA-256 values are
+`83b501dd2cbb32c5099975c59fb26e8ceb146e5a444e8b7b8803bdf51ccc90b1`
+and `0c552c5d4efac711cc76f2154fe87552295918e7e095fa529dae751a70fb8d79`.
+The reviewed correction is commit
+`dab690bf94920d18ab8e47dedda69d3984519778`; source seal
+`650f75f0217340fead8a04107fd9170fcfea1c8b` authenticates it.
+
 ## Additional executed qualification
 
 The full local Scala 2.13 run completed with 1,110 passed, one failed and eight
@@ -91,8 +138,9 @@ synchronous reset; it is complementary coverage, not an exhaustive proof of
 the separate UInt/asynchronous-reset shape fixture at every width.
 
 The exact source-overlay workflow command sequence also passed on sealed
-commit `68a87e060134a22f17c2da56e5a16a2f3d5a68dd`: 101 reviewed files,
+commit `650f75f0217340fead8a04107fd9170fcfea1c8b`: 101 reviewed files,
 117 rejected overlay mutations, preserved native manifest and inherited source
-audits. The additional WA-10 checks passed all 12 scope and 116 safety controls.
+audits. The additional WA-10 checks passed its 184-path scope, all 12 scope
+mutations and 116 safety controls. The exact 60f report replay also passed.
 `qualification.json` records these results and hashes the full local audit
 log. Final-head GitHub CI remains required before completion and merge.

@@ -1,5 +1,5 @@
 {
-  "status": "reviewed correction validated locally; final-head CI pending",
+  "status": "inherited 60f catalog correction validated locally; successor CI pending",
   "targeted": {
     "Scala 2.13.12": {
       "passed": 28,
@@ -25,15 +25,61 @@
     "failed": 1,
     "failure": "Yosys 0.33/SBY 0.41 ABC witness schema mismatch"
   },
+  "current_ci_failure": {
+    "workflow_run": 34689891226,
+    "job": 103543196609,
+    "artifact": 10297729227,
+    "head": "bb542115cf517134af3f070e671f42f75682ceb6",
+    "reason": "changed exact reviewed test inventory: spinal.core.MorphVerilogExpressionInliningTests: 11",
+    "classification": "the complete regression and mandatory formal cases executed; the post-test 60f catalog rejected an unauthenticated WA-10 successor"
+  },
+  "catalog_correction": {
+    "historical_wa09": {
+      "tests": 1982,
+      "suites": 194,
+      "preserved": true
+    },
+    "wa10_successor": {
+      "tests": 1996,
+      "suites": 195,
+      "suite_counts": {
+        "spinal.core.internals.VerilogEmitterExpressionInliningTests": 25,
+        "morphhdl.examples.NativeWireExpressionCodecTests": 3,
+        "spinal.core.MorphVerilogExpressionInliningTests": 11,
+        "morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec": 13
+      }
+    },
+    "selection": "exact WA-10 contract plus all four reviewed suite-source identities",
+    "self_test_passed": true
+  },
+  "artifact_replay": {
+    "passed": true,
+    "source_artifact": 10297729227,
+    "tests": 1996,
+    "suites": 195,
+    "project_counts": {
+      "paramrtl": [234, 23],
+      "frontend": [257, 22],
+      "backends/verilog": [148, 21],
+      "morphhdl": [1119, 105],
+      "morphir": [32, 2],
+      "morphplugin": [16, 2],
+      "core": [30, 2],
+      "morphhdl-passes": [160, 18]
+    },
+    "log_sha256": "83b501dd2cbb32c5099975c59fb26e8ceb146e5a444e8b7b8803bdf51ccc90b1",
+    "json_sha256": "0c552c5d4efac711cc76f2154fe87552295918e7e095fa529dae751a70fb8d79"
+  },
   "final_head_ci": "pending",
-  "reviewed_source_commit": "847f2e01f2337ed70cf7311779cb551b230151f9",
-  "source_seal_commit": "68a87e060134a22f17c2da56e5a16a2f3d5a68dd",
+  "reviewed_source_commit": "dab690bf94920d18ab8e47dedda69d3984519778",
+  "source_seal_commit": "650f75f0217340fead8a04107fd9170fcfea1c8b",
   "source_gates": {
     "passed": true,
     "reviewed_files": 101,
     "overlay_mutations_rejected": 117,
     "wa10_scope_mutations": 12,
     "wa10_current_contract_mutations": 116,
+    "wa10_reviewed_paths": 184,
     "inherited_wa07b_mutations_rejected": 86,
     "log": "target/wa10-evidence/ci-followup-source-gates.log",
     "raw_sha256": "52bdd019422f0ee03e7050f9f6c06ef09b95eb4b29cfe03e1a61440bdf200266"
