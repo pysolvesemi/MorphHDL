@@ -85,7 +85,7 @@
     "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "5f69f96e62e4b001867e0362591130acf9d9ecc04437e72768f6e6c9dc3f09c9",
     "morphhdl-passes/tests/wa10/general_expression_tb.v": "d3235eaff587a4c4a21e7c76b7db41a3f6c910cad861284185aa38bafd999e12",
     "morphhdl-passes/tests/wa10/timing_expression_tb.v": "ee72b2afbac37070aadabaf7d7be0c7811f423b4ffbdc4a4b0c0c224572b6d5b",
-    "morphhdl/scripts/check-increment-60f-artifacts.py": "2b11398fc0a7b05c8d4b1fdfeb274d115debe86dadb8619dac3ef2ab3c127429",
+    "morphhdl/scripts/check-increment-60f-artifacts.py": "0b080f920ed9e7742e00266593fba31c1594be4b02f17522887c47d6f16e8987",
     "morphhdl/scripts/check-wa08-production-artifacts.py": "c90241a032083d6d7fcf0a78d298e8fa4cfcbbd92608d93eb687135aacbeee02",
     "morphhdl/scripts/check-wa10-source-scope.py": "376b596811aadb1a13dd18e8790684aa84e39ea8d57023128ff5f8b8dc6f6ddd",
     "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala": "125e940da6c08dd80b2aed9d0c313007f6df81834302fcf49a8797f17ef413a9",

@@ -610,18 +610,28 @@ WA09_SUITE_SOURCES = {
 # outer overlay.
 WA10_CONTRACT = "morphhdl/contracts/wa10-source-scope.json"
 WA10_SUITES = {
+    "core": {
+        "spinal.core.internals.VerilogEmitterExpressionInliningTests": 25,
+    },
     "morphhdl": {
         "morphhdl.examples.NativeWireExpressionCodecTests": 3,
         "spinal.core.MorphVerilogExpressionInliningTests": 11,
     },
+    "morphhdl-passes": {
+        "morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec": 13,
+    },
 }
 WA10_EXISTING_SUITES = frozenset({
+    "morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec",
     "spinal.core.MorphVerilogExpressionInliningTests",
+    "spinal.core.internals.VerilogEmitterExpressionInliningTests",
 })
-WA10_SUITE_SOURCES = frozenset({
-    "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala",
-    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala",
-})
+WA10_SUITE_SOURCES = {
+    "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala": True,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPassSpec.scala": False,
+    "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala": True,
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": True,
+}
 
 def require(ok: bool, message: str) -> None:
     if not ok:
@@ -877,10 +887,11 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool]:
         return True, True, False
     require(entries[WA10_CONTRACT]["before_sha256"] is None,
             "WA-10 successor contract has changed baseline identity")
-    require(WA10_SUITE_SOURCES <= set(entries),
+    require(set(WA10_SUITE_SOURCES) <= set(entries),
             "WA-10 suite source is absent from the reviewed overlay")
-    require(all(entries[path]["before_sha256"] is None for path in WA10_SUITE_SOURCES),
-            "WA-10 suite source has changed baseline identity")
+    require(all((entries[path]["before_sha256"] is None) == added
+                for path, added in WA10_SUITE_SOURCES.items()),
+            "WA-10 suite source has changed added/inherited baseline identity")
     return True, True, True
 
 
@@ -1737,18 +1748,29 @@ def self_test() -> None:
             sum(len(exact) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 191,
             "WA-09 exact per-project inherited or successor totals changed")
     require(wa10_successor[0] == {
-                **expected_totals, "morphhdl": (1119, 105)
+                **expected_totals,
+                "core": (30, 2),
+                "morphhdl": (1119, 105),
+                "morphhdl-passes": (160, 18),
             } and
             wa10_successor[1]["morphhdl"] == successor[1]["morphhdl"] |
                 {"morphhdl.examples.NativeWireExpressionCodecTests"} and
             all(wa10_successor[1][project] == successor[1][project]
                 for project in successor[1] if project != "morphhdl") and
+            wa10_successor[2]["core"] == {
+                **successor[2]["core"],
+                "spinal.core.internals.VerilogEmitterExpressionInliningTests": 25,
+            } and
             wa10_successor[2]["morphhdl"] == {
                 **successor[2]["morphhdl"],
                 "morphhdl.examples.NativeWireExpressionCodecTests": 3,
                 "spinal.core.MorphVerilogExpressionInliningTests": 11,
             } and
-            sum(tests for tests, _ in wa10_successor[0].values()) == 1986,
+            wa10_successor[2]["morphhdl-passes"] == {
+                **successor[2]["morphhdl-passes"],
+                "morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec": 13,
+            } and
+            sum(tests for tests, _ in wa10_successor[0].values()) == 1996,
             "WA-10 exact public suite successor count changed")
     for project, inherited in WA09_INHERITED_SUITE_COUNTS.items():
         exact = WA09_SUITES.get(project, {})
@@ -1959,8 +1981,9 @@ def self_test() -> None:
             overlay.verify.return_value = reviewed_wa09
             validate_wa09_reports()
             wa10_source_entries = [
-                {"path": path, "before_sha256": None}
-                for path in WA10_SUITE_SOURCES if path not in WA09_SUITE_SOURCES
+                {"path": path, "before_sha256": None if added else "a" * 64}
+                for path, added in WA10_SUITE_SOURCES.items()
+                if path not in WA09_SUITE_SOURCES
             ]
             reviewed_wa10 = {"files": [*reviewed_wa09["files"],
                 *wa10_source_entries,
@@ -1986,11 +2009,23 @@ def self_test() -> None:
                  if entry["path"] == WA10_CONTRACT)["before_sha256"] = "b" * 64
             overlay.verify.return_value = {"files": changed_contract}
             rejected(validate_wa09_reports, "changed WA-10 contract baseline identity")
+            for path, added in WA10_SUITE_SOURCES.items():
+                missing_source = [entry for entry in reviewed_wa10["files"]
+                                  if entry["path"] != path]
+                overlay.verify.return_value = {"files": missing_source}
+                rejected(validate_wa09_reports, "missing WA-10 suite source " + path)
+                changed_source = [dict(entry) for entry in reviewed_wa10["files"]]
+                next(entry for entry in changed_source
+                     if entry["path"] == path)["before_sha256"] = \
+                    "b" * 64 if added else None
+                overlay.verify.return_value = {"files": changed_source}
+                rejected(validate_wa09_reports,
+                         "changed WA-10 suite source baseline identity " + path)
             overlay.verify.return_value = reviewed_wa10
             validate_wa09_reports()
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")
-    print("WA-10 successor inventory requires exactly 1986 cases / 195 suites: 1119 Morph cases PASS")
+    print("WA-10 successor inventory requires exactly 1996 cases / 195 suites: 1119 Morph, 160 pass, 30 core cases PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 
