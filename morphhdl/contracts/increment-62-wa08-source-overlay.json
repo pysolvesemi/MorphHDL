@@ -92,7 +92,7 @@
       "path": "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala"
     },
     {
-      "after_sha256": "f3d1b28154af3044b44ff79bd5bdc0621c8da4822ba386ae4b208fffcd1025a5",
+      "after_sha256": "a98930b10a88646d9cf20af1dc7deb4659e5d7e3fdb824223e1f7a49c3cda258",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala"
@@ -176,7 +176,7 @@
       "path": "morphhdl-passes/scripts/check-wa09-named-expression.py"
     },
     {
-      "after_sha256": "8f6c9db5c69184c269a749fb719827b11a8a902e3879f72c73d178b1cb12409c",
+      "after_sha256": "2b1fea68e7ca1252fe77b2191b4875dfe0725f8c182cae7adeef7f25c3563bc9",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl-passes/scripts/check-wa10-general-expression.py"
@@ -308,7 +308,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "53fbc52c3728850d15bcbe2925c27583aa1926cd1c972d839c102be910c2d07e",
+      "after_sha256": "71fb4d0b65e09bb6427fcfe45c11e4c7daae067f0b963c17471f46ca2dc5cce0",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -338,7 +338,7 @@
       "path": "morphhdl/contracts/native-source-preservation.json"
     },
     {
-      "after_sha256": "5c72c5a3266f155aa1a5732d27692d5f8516210dbd3e1c56e58188536b4bc928",
+      "after_sha256": "f37e4cc6a4923b2a0626c0d62da2b7410e19fbf9fa3fa50c383e64d93d9ce211",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/wa10-source-scope.json"
@@ -368,7 +368,7 @@
       "path": "morphhdl/scripts/check-wa07b-inherited-review.py"
     },
     {
-      "after_sha256": "6401e0695c2c14f82dd520ce237fffdd5a8f77a94a1a33d0ede35718b08eb14f",
+      "after_sha256": "c90241a032083d6d7fcf0a78d298e8fa4cfcbbd92608d93eb687135aacbeee02",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py"
@@ -536,7 +536,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala"
     },
     {
-      "after_sha256": "c5d14ccf808f26e381a0bf0167ccd3e2e2feff72ca784e64fb00530c11a1f417",
+      "after_sha256": "a690c384cbde0f069a6f2d9aaede2640de2e6ddd2c7030907ff846f15bf38488",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala"
@@ -602,7 +602,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "84af7b00b3f7c7838062a9f6f759e1d73b2e24f7",
+  "final_source_commit": "1163ad3a8f6af4243a029f49dbd19f8f6aa7d66c",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
