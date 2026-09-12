@@ -274,6 +274,6 @@ Found 36 $equiv cells in equiv:
   Of those cells 36 are proven and 0 are unproven.
   Equivalence successfully proven!
 
-End of script. Logfile hash: fe9893e0f7, CPU: user 0.11s system 0.04s, MEM: 20.36 MB peak
+End of script. Logfile hash: fe9893e0f7, CPU: user 0.11s system 0.01s, MEM: 20.37 MB peak
 Yosys 0.33 (git sha1 2584903a060)
-Time spent: 65% 1x equiv_induct (0 sec), 20% 1x equiv_simple (0 sec), ...
+Time spent: 62% 1x equiv_induct (0 sec), 19% 1x equiv_simple (0 sec), ...

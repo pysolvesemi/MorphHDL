@@ -439,6 +439,6 @@ Found 179 $equiv cells in equiv:
   Of those cells 179 are proven and 0 are unproven.
   Equivalence successfully proven!
 
-End of script. Logfile hash: 8f9128fa94, CPU: user 0.14s system 0.01s, MEM: 24.46 MB peak
+End of script. Logfile hash: 8f9128fa94, CPU: user 0.14s system 0.01s, MEM: 24.24 MB peak
 Yosys 0.33 (git sha1 2584903a060)
-Time spent: 67% 1x equiv_induct (0 sec), 14% 1x equiv_simple (0 sec), ...
+Time spent: 61% 1x equiv_induct (0 sec), 18% 1x equiv_simple (0 sec), ...

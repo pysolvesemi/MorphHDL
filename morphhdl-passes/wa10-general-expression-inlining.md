@@ -52,7 +52,7 @@ use native expression/symbol identities and retained naming provenance.
 | Boundary | Baseline behavior | WA-10 treatment |
 | --- | --- | --- |
 | Native unnamed expression bridge | Rejects non-direct receivers before canonical substitution; historical bridge also uses a separate capture path. | Share the lossless typed expression engine while retaining distinct unnamed/named pass identities and provenance ownership. |
-| Native named expression bridge | Requires the whole receiver RHS to be the candidate and the receiver to supply the same packed boundary. | Prove fixed-width nested RHS uses and preserve an explicit native fence at each replacement; retain the stricter symbolic-boundary proof. |
+| Native named expression bridge | Requires the whole receiver RHS to be the candidate and the receiver to supply the same packed boundary. | Prove fixed-width nested RHS uses and preserve an assignment or explicit native sizing fence at each replacement; retain the stricter symbolic-boundary proof. |
 | Native codec | Rejects every `Resize`; operator capture lacks explicit result-width fences. | Capture proven fixed resizes and authoritative per-node width/signedness, retaining unsupported symbolic cases. |
 | Constant-operand bridge | Accepts Boolean targets and a bounded Boolean algebra. | Remains a separate simplification stage. Literal carrier elimination belongs to expression inlining and does not require expanding this algebra. |
 | Final emitter | `fillExpressionToWrap` reintroduces carriers after the native passes; suppression is limited to homogeneous unsigned additions in whole combinational assignments. `cutLongExpressions` can subsequently add literal leaves as depth-frontier carriers. | Plan wrapper suppression using typed receiver contexts across supported comparisons, arithmetic, muxes and procedural RHS expressions. Preserve required depth fences; suppress only newly depth-wrapped literal leaves already proved eligible. |
@@ -141,7 +141,7 @@ Names in this evidence table identify inspected output; no compiler rule tests
 their spelling.
 
 The focused suites passed **27 core tests** (25 emitter, two copier) and
-**13 MorphHDL tests** (11 public integration, two codec) on both Scala versions. The canonical suite
+**14 MorphHDL tests** (11 public integration, three codec/bridge) on both Scala versions. The canonical suite
 passed **160 tests on each of Scala 2.12.18 and 2.13.12**. See
 [`verification/wa10-regression-commands.md`](verification/wa10-regression-commands.md)
 for runnable commands and artifact layout.
@@ -181,3 +181,30 @@ regression has no dependency on the private application source.
 
 Exact-source workflow gates are pending at this source revision. WA-10 remains
 open until those gates pass.
+
+## Inherited runtime compatibility
+
+An additional inherited WA-09 native witness caught a redundant resize inserted
+at a direct whole-RHS receiver when using the historical emitter. Its four-state
+simulation and miter proof passed, but its required direct XOR assignment gained
+an avoidable wrapper. The bridge now recognizes when the exact receiver already
+supplies the removed packed boundary. It omits only that redundant fence;
+nested/differently typed uses retain explicit fences. A dedicated legacy-emitter
+regression and the unchanged inherited emitted-assignment assertion pass.
+
+The complete inherited WA-08 production writer also exposed an obsolete
+retention assertion: the unprotected combinational `sampledAlias` is now eligible
+for substitution into the authenticated nonblocking `sampled` register RHS.
+The successor assertion requires that alias to disappear in enabled output,
+requires its legacy disabled identity, and independently retains the actual
+register, nonblocking update and registered output. The existing semantic proof
+and genuine metadata/control/hierarchy preservation checks remain mandatory.
+The complete 31-artifact production writer (with repeated generation) and
+successor checker passed **6,672 four-state cases, 51 formal equivalence cases
+and four negative mutations**. The original SBT launch initially failed locally
+loading `spinal.lib.slave$` because a generated Scala 2.12 library JAR was
+truncated. The same plugin-compiled writer first ran successfully through
+production MorphVerilog using the exact exported SBT Test classpath with Java.
+After rebuilding only that corrupt generated JAR, the standard SBT writer and
+complete qualification also passed. Both attempts, the diagnosed local cause
+and the successful standard commands are recorded.

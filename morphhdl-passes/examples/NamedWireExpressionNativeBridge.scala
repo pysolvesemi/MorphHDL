@@ -612,6 +612,12 @@ private[examples] final class NamedWireExpressionNativePhase(unnamedOnly: Boolea
     }
     var replacements = 0
     receivers.foreach { case (assignment, copiedSource) =>
+      // An exact whole-RHS assignment already supplies the removed wire's
+      // packed fence, including retained width identity. An additional Resize
+      // there needlessly recreates a wrapper with the legacy emitter. Nested
+      // or differently typed receivers still require an explicit native fence.
+      val receiverSuppliesFence = (copiedSource eq candidate.alias) &&
+        samePackedBoundary(assignment.finalTarget, candidate.alias)
       assignment.source = copiedSource
       assignment.walkRemapDrivingExpressions {
         case reference: BaseType if reference eq candidate.alias =>
@@ -619,7 +625,7 @@ private[examples] final class NamedWireExpressionNativePhase(unnamedOnly: Boolea
           if (assignment.finalTarget.isReg) proceduralReceiverRewrites += 1
           val copied = NativePureExpressionCopy(candidate.sourceExpression).getOrElse(
             throw new IllegalStateException("WA-10 proven source copy became unsupported"))
-          if (ParameterizedWidth.expressionOf(candidate.alias).isEmpty &&
+          if (!receiverSuppliesFence && ParameterizedWidth.expressionOf(candidate.alias).isEmpty &&
               NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression))
             NativeWireExpressionCodec.fenced(copied, candidate.alias)
           else copied

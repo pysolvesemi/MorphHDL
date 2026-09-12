@@ -189,3 +189,88 @@ failure. A successful build or an absent test result is never accepted as an
 equivalence result. Formal proofs cover two-state input valuations; simulation
 provides the explicitly listed four-state witnesses rather than an exhaustive
 four-state proof.
+
+## Executed inherited production qualification
+
+The existing WA-09 generic native witness exposed an extra same-width resize
+fence in a whole-RHS XOR assignment. Its inherited final-Verilog assertion
+failed while its 256-pattern four-state simulation and Yosys miter proof
+passed. The compiler correction preserves the receiver's existing packed
+boundary for that exact direct-assignment case; the inherited direct-XOR
+assertion remains unchanged.
+
+The inherited WA-08 31-artifact production writer was also executed. Its first
+local SBT invocation failed before generating HDL with
+`NoClassDefFoundError: spinal/lib/slave$`. Loading the same already compiled
+entry point with the SBT-exported `morph/Test/fullClasspath` succeeded. The
+working fallback command was equivalent to the following argument list;
+`target/wa10-evidence/inherited-direct-java-command.json` retains the exact
+executed Java arguments and complete classpath. For a fresh checkout, prepare
+that exported class-directory classpath with
+`sbt -batch '++2.12.18' 'export morph/Test/fullClasspath'` before the Java call:
+
+```sh
+wa10_repo="$(git rev-parse --show-toplevel)"
+wa10_cp="$(cat morphhdl/target/streams/test/fullClasspath/_global/streams/export)"
+/usr/lib/jvm/java-11-openjdk-amd64/bin/java -Xmx5G -XX:ActiveProcessorCount=4 \
+  -cp "${wa10_cp}" morphhdl.examples.WireAssignmentProductionArtifactWriter \
+  "${wa10_repo}/target/wa10-evidence/inherited/wa08-production"
+python3 morphhdl/scripts/check-wa08-production-artifacts.py \
+  target/wa10-evidence/inherited/wa08-production
+```
+
+Both invocation forms call the same production `MorphVerilog` writer and use
+the plugin-compiled local sources. The first successful qualification used
+the direct Java invocation; the failed SBT attempt is recorded separately.
+Subsequent inspection found the local Scala 2.12 library JAR used by SBT's
+`fullClasspathAsJars` was truncated and lacked its ZIP central directory.
+The class-directory export contained valid classes. This local generated
+artifact problem is recorded in `inherited-jar-diagnosis.log`. After removing
+only that validated corrupt generated JAR, the following original SBT path
+and complete checker both passed:
+
+```sh
+wa10_repo="$(git rev-parse --show-toplevel)"
+sbt -batch '++2.12.18' 'lib/packageBin' \
+  "morph/Test/runMain morphhdl.examples.WireAssignmentProductionArtifactWriter ${wa10_repo}/target/wa10-evidence/inherited-sbt/wa08-production"
+python3 morphhdl/scripts/check-wa08-production-artifacts.py \
+  target/wa10-evidence/inherited-sbt/wa08-production
+```
+
+The regenerated JAR is valid and contains `spinal/lib/slave$.class`.
+All 31 first-round Verilog files from the repaired SBT invocation are
+byte-identical to the direct Java artifacts. The successful repack, original
+SBT generation, and full qualification are recorded in
+`target/wa10-evidence/inherited-sbt-repack.log`. This closes the local launch
+failure without changing application logic, compiler behavior, or CI flags.
+
+After the direct-boundary compiler correction, the focused suites passed on
+both Scala 2.12.18 and 2.13.12: 27 core tests and 14 native/public MorphVerilog
+tests, 41 per Scala version. The targeted invocation is:
+
+```sh
+sbt -batch '++2.12.18' \
+  'core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests' \
+  'morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests'
+sbt -batch '++2.13.12' \
+  'core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests' \
+  'morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests'
+```
+
+That original production checker initially required `sampledAlias` to survive
+solely because its receiver is a register. Actual WA-10 output removes this
+ordinary expression alias and preserves the `WIDTH`-wide `sampled` register,
+its nonblocking assignment `sampled <= (a ^ b)`, and the output reference to
+that register. The current checker requires this exact successor behavior,
+requires the original alias and nonblocking source in disabled output, and
+retains every existing metadata/control/hierarchy preservation check. The
+existing functional equivalence proofs were unchanged.
+
+The complete revised checker passed on all 31 artifacts and their repeats:
+6,672 four-state cases, 51 formal equivalence cases, and four rejected
+functional mutations. These results are in
+`target/wa10-evidence/inherited/wa08-production/qualification.json`; the initial
+failures, complete generation output, and successful checker result are in
+`target/wa10-evidence/inherited-runtime-check.log`. The independent successful
+original-SBT rerun has the same qualification counts in
+`target/wa10-evidence/inherited-sbt/wa08-production/qualification.json`.

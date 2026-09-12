@@ -32,6 +32,38 @@ class NativeWireExpressionCodecTests extends AnyFunSuite {
 
   private def codec = new NativeWireExpressionCodec(ScopeId.unsafe("scope.codec"), "codec-test")
 
+  test("an exact direct receiver supplies its fence with the historical native emitter") {
+    val directory = Files.createTempDirectory("native-expression-legacy-emitter-")
+    try {
+      val phase = new NamedWireExpressionNativePhase
+      val config = SpinalConfig(targetDirectory = directory.toString, headerWithDate = false)
+      NamedWireExpressionWitnessPhasePlan.install(config, Some(phase))
+      val report = SpinalVerilog(config) {
+        new Component {
+          setDefinitionName("DirectExpressionLegacyEmitter")
+          val a, b = in Bits(8 bits)
+          val result = out Bits(8 bits)
+          val carrier = Bits(8 bits)
+          a.setName("a")
+          b.setName("b")
+          result.setName("result")
+          carrier.setName("carrier")
+          carrier := a ^ b
+          result := carrier
+        }
+      }
+      val generated = new String(Files.readAllBytes(java.nio.file.Paths.get(
+        report.generatedSourcesPaths.head)), java.nio.charset.StandardCharsets.UTF_8)
+      assert(phase.report.eliminatedCount == 1, phase.report)
+      assert(generated.contains("assign result = (a ^ b);"), generated)
+      assert(!generated.contains("carrier"), generated)
+    } finally {
+      val paths = Files.walk(directory)
+      try paths.iterator().asScala.toVector.sortBy(_.getNameCount).reverse.foreach(Files.deleteIfExists(_))
+      finally paths.close()
+    }
+  }
+
   test("fixed resize and subtraction preserve authoritative native widths in capture") {
     inNativeContext {
       val extension = new ResizeUInt

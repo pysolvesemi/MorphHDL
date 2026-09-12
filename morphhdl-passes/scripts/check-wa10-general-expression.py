@@ -16,6 +16,7 @@ NATIVE = "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala"
 SHARED = "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala"
 CANONICAL = "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala"
 WORKFLOW = ".github/workflows/morphhdl-passes.yml"
+PRODUCTION_CHECKER = "morphhdl/scripts/check-wa08-production-artifacts.py"
 
 # These are safety contracts, not semantic proofs. The source seal covers every
 # byte, and current compiled tests and enabled/disabled RTL equivalence cover
@@ -57,6 +58,9 @@ MARKERS = {
         "allowRegisterRhs = true", "NativeWireExpressionCodec.fenced",
         "DriverKind.Procedural else DriverKind.Continuous",
         "runWithNativeNonblockingReceivers", "snapshot.nonblockingReceivers",
+        "val receiverSuppliesFence = (copiedSource eq candidate.alias) &&",
+        "samePackedBoundary(assignment.finalTarget, candidate.alias)",
+        "if (!receiverSuppliesFence && ParameterizedWidth.expressionOf(candidate.alias).isEmpty &&",
     ),
     SHARED: (
         "allowRegisterRhs: Boolean = false", "allowedRegisterRhs",
@@ -81,6 +85,20 @@ MARKERS = {
         "morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests",
         "NativeExpressionDiagnosticsWriter timing", "NativeExpressionDiagnosticsWriter general",
         "WA10_DISABLED_LEGACY_BYTES_PASS files=2",
+    ),
+    PRODUCTION_CHECKER: (
+        'assert declares_wire(reference, "sampledAlias")',
+        'assert re.search(r"\\bsampledAlias\\b", enabled) is None',
+        'kind, "sampled register or symbolic width was not preserved"',
+        'assert "assign registeredResult = sampled;" in source',
+        'assert "sampled <= sampledAlias;" in reference',
+        'assert "sampled <= (a ^ b);" in enabled',
+        'for name in protected_aliases + ineligible_direct_port_aliases:',
+        'assert declares_wire(reference, name) and declares_wire(enabled, name)',
+        'for width in range(1, 17):',
+        '"sat -seq 4 -set-init-zero -verify -prove ok 1 -show-inputs"',
+        'assert "WA08 NAMED FOUR STATE PASS cases=64" in simulation and "FAIL" not in simulation',
+        'failed = run("mutation", ["yosys", "-Q", "-p", proof_command(8)], success=False)',
     ),
 }
 
@@ -140,9 +158,11 @@ def self_test(root: Path) -> None:
     # A valid predecessor projection is exact, and an unsealed current byte
     # cannot reach the historical marker check: the outer overlay mutation
     # suite exercises this boundary with committed, staged and dirty sources.
-    historical = source_scope(root).historical_sources(root, (EMITTER, CODEC))
+    historical = source_scope(root).historical_sources(root, (EMITTER, CODEC, PRODUCTION_CHECKER))
     assert "def redundantUnsignedAddWrappers()" in historical[EMITTER]
     assert "case _: Resize => None" in historical[CODEC]
+    assert 'protected_aliases = ("keptAlias", "guardedAlias", "sampledAlias", "conditionalAlias",' in (
+        historical[PRODUCTION_CHECKER])
     print("WA10_CURRENT_CONTRACT_MUTATIONS_PASS controls=" + str(controls))
 
 
