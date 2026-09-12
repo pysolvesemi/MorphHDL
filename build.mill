@@ -158,6 +158,8 @@ trait Morph extends SpinalModule {
     mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "UnnamedWireAliasNativeBridge.scala",
     mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "NamedWireAliasNativeBridge.scala",
     mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "UnnamedWireExpressionNativeBridge.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "NativeWireExpressionCodec.scala",
+    mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "NamedWireExpressionNativeBridge.scala",
     mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "ConstantOperandNativeBridge.scala",
     mill.api.BuildCtx.workspaceRoot / "morphhdl-passes" / "examples" / "BooleanTernaryNativeBridge.scala"
   )

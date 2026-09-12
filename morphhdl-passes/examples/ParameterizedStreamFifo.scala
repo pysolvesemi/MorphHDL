@@ -8,7 +8,15 @@ import spinal.core._
 import spinal.lib._
 
 /** Runnable example that emits one StreamFifo whose depth remains a Verilog parameter. */
-final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Component {
+final class ParameterizedStreamFifo(
+    width: HdlInt,
+    depth: HdlInt,
+    namedExpressionWitness: Boolean = false
+) extends Component {
+  // Preserve the historical JVM constructor used by the frozen WA-04..WA-07b
+  // runners as well as the source-level default argument.
+  def this(width: HdlInt, depth: HdlInt) = this(width, depth, false)
+
   setDefinitionName("ParameterizedStreamFifo")
 
   val io = new Bundle {
@@ -44,7 +52,14 @@ final class ParameterizedStreamFifo(width: HdlInt, depth: HdlInt) extends Compon
   // including the common snapshot taken before ANY pass. No RTL is injected.
   val popValidSource = Bool()
   popValidSource := fifo.io.pop.valid
-  io.pop.valid := ((popValidSource === True) & True) | False
+  if (namedExpressionWitness) {
+    val named = Bool()
+    named.setName("popValidNamedExpression")
+    named := ((popValidSource === True) & True) | False
+    io.pop.valid := named
+  } else {
+    io.pop.valid := ((popValidSource === True) & True) | False
+  }
   fifo.io.pop.ready := io.pop.ready
 
   // Keep the source on the parent side of the hierarchy boundary so the

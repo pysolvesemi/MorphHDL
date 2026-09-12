@@ -7,7 +7,8 @@ import spinal.core.SpinalConfig
 import spinal.core.internals.{
   Phase,
   PhaseContext,
-  PhaseRemoveIntermediateUnnameds
+  PhaseRemoveIntermediateUnnameds,
+  VerilogEmitterExpressionInlining
 }
 
 /** MorphHDL-owned installation and writeback glue for WA-08.
@@ -44,7 +45,7 @@ private[morphhdl] object WireAssignmentProductionBridge {
     val opposite = if (enabled) disabledMarker else installer
     inserters -= opposite
     if (!inserters.contains(selected)) inserters += selected
-    config.copy(
+    val configured = config.copy(
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
       phasesInserters = inserters,
@@ -52,6 +53,7 @@ private[morphhdl] object WireAssignmentProductionBridge {
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
     )
+    VerilogEmitterExpressionInlining.configure(configured, enabled)
   }
 
   private def install(phases: ArrayBuffer[Phase]): Unit = {
@@ -91,6 +93,7 @@ private final class ProductionWireAssignmentPhase extends Phase {
       PassId.UnnamedWireAliasElimination,
       PassId.NamedWireAliasElimination,
       PassId.UnnamedWireExpressionElimination,
+      PassId.NamedWireExpressionElimination,
       PassId.ConstantOperandSimplification,
       PassId.BooleanTernarySimplification
     )
@@ -110,10 +113,12 @@ private final class ProductionWireAssignmentPhase extends Phase {
 
       val unnamed = new UnnamedWireAliasNativePhase
       unnamed.impl(pc)
-      val named = new NamedWireAliasNativePhase
+      val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
       named.impl(pc)
       val expression = new UnnamedWireExpressionNativePhase
       expression.impl(pc)
+      val namedExpression = new NamedWireExpressionNativePhase
+      namedExpression.impl(pc)
       val constant = new ConstantOperandNativePhase
       constant.impl(pc)
       val ternary = new BooleanTernaryNativePhase
@@ -123,6 +128,7 @@ private final class ProductionWireAssignmentPhase extends Phase {
         unnamed.report.eliminatedCount +
           named.report.eliminatedCount +
           expression.report.eliminatedCount +
+          namedExpression.report.eliminatedCount +
           constant.changedCount +
           ternary.changedCount > 0
     }

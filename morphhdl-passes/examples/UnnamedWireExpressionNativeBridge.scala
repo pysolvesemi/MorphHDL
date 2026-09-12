@@ -26,10 +26,6 @@ import morphhdl.ir.v1.PackedType
 import morphhdl.ir.v1.PackedValueSemantics
 import morphhdl.ir.v1.ParameterId
 import morphhdl.ir.v1.PortDirection
-import morphhdl.ir.v1.ReferenceId
-import morphhdl.ir.v1.RtlBinaryOperator
-import morphhdl.ir.v1.RtlExpr
-import morphhdl.ir.v1.RtlUnaryOperator
 import morphhdl.ir.v1.Scope
 import morphhdl.ir.v1.ScopeId
 import morphhdl.ir.v1.ScopeKind
@@ -80,6 +76,22 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
 
   override def hasNetlistImpact: Boolean = true
 
+  /**
+    * Read-only eligibility proof used by the named direct-alias phase. It uses
+    * the lossless WA-09 codec while dispatching the decision to the historical
+    * unnamed canonical pass; the historical native phase and artifacts remain
+    * otherwise frozen.
+    */
+  private[examples] def isIndependentlyRemovable(
+      pc: PhaseContext,
+      value: BaseType
+  ): Boolean =
+    new NamedWireExpressionNativePhase().isIndependentlyRemovableWithOrigin(
+      pc,
+      value,
+      NameOrigin.Unnamed
+    )
+
   override def impl(pc: PhaseContext): Unit = {
     if (completed)
       throw new IllegalStateException("WA-07 expression witness phase executed more than once")
@@ -98,7 +110,7 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
         nextOrdinal += 1
         visited += 1
 
-        proveCandidate(candidate) match {
+        proveCandidate(pc, candidate) match {
           case Left(reason) =>
             rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
           case Right(proof) =>
@@ -184,39 +196,50 @@ private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
   }
 
   private def proveCandidate(
+      pc: PhaseContext,
       candidate: NativeCandidate
   ): Either[String, NativeProof] = {
     val alias = candidate.alias
     val expression = candidate.sourceExpression
+    val sharedSafety = new NamedWireAliasNativePhase
 
-    if (!preservationMetadataAllows(alias))
-      Left("WA07-NATIVE-PRESERVATION")
-    else if (candidate.useStatements.isEmpty)
+    if (candidate.useStatements.isEmpty)
       Left("WA07-NATIVE-NO-RECEIVER")
     else if (candidate.useStatements.exists(selectedAliasUse(_, alias)))
       Left("WA07-NATIVE-SELECTED-RECEIVER")
-    else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
-      Left("WA07-NATIVE-PROCEDURAL-OR-EXCLUDED-RECEIVER")
-    else if (candidate.receiverOccurrenceCount < 1)
-      Left("WA07-NATIVE-NO-RECEIVER")
-    else if (
-      candidate.sourceReferences.exists { source =>
-        (source eq alias) || (source.component ne candidate.component) ||
-        source.parentScope == null || !(source.parentScope eq source.rootScopeStatement)
-      }
-    )
-      Left("WA07-NATIVE-SOURCE-BOUNDARY")
-    else if (
-      candidate.sourceReferences.exists(source => source.isAnalog || source.isInOut)
-    )
-      Left("WA07-NATIVE-SOURCE-KIND")
-    else if (createsCycle(candidate))
-      Left("WA07-NATIVE-CYCLE")
-    else
-      packedTypeProof(alias, expression) match {
-        case Some(value) => Right(value)
-        case None        => Left("WA07-NATIVE-PACKED-TYPE")
-      }
+    else if (!candidate.useStatements.forall {
+          case assignment: DataAssignmentStatement => assignment.source eq alias
+          case _                                   => false
+        })
+      Left("WA07-NATIVE-NON-DIRECT-RECEIVER")
+    else sharedSafety.expressionRemovalBlocker(
+          pc,
+          candidate.component,
+          alias,
+          candidate.assignment,
+          candidate.useStatements
+        ) match {
+      case Some(reason) => Left("WA07-NATIVE-" + reason)
+      case None if candidate.receiverOccurrenceCount < 1 =>
+        Left("WA07-NATIVE-NO-RECEIVER")
+      case None if candidate.sourceReferences.exists { source =>
+            (source eq alias) || (source.component ne candidate.component) ||
+            (source.isDirectionLess &&
+              (source.parentScope == null ||
+                !(source.parentScope eq source.rootScopeStatement)))
+          } =>
+        Left("WA07-NATIVE-SOURCE-BOUNDARY")
+      case None if candidate.sourceReferences.exists(source =>
+            source.isAnalog || source.isInOut) =>
+        Left("WA07-NATIVE-SOURCE-KIND")
+      case None if createsCycle(candidate) =>
+        Left("WA07-NATIVE-CYCLE")
+      case None =>
+        packedTypeProof(alias, expression) match {
+          case Some(value) => Right(value)
+          case None        => Left("WA07-NATIVE-PACKED-TYPE")
+        }
+    }
   }
 
   private def preservationMetadataAllows(alias: BaseType): Boolean =
@@ -281,7 +304,8 @@ private def expressionReferences(
   ): Option[NativeProof] = {
     val expressionWidth = expression match {
       case value: WidthProvider => value.getWidth
-      case _                    => return None
+      case _ if expression.getTypeObject == TypeBool => 1
+      case _                                         => return None
     }
     if (
       expressionWidth != alias.getBitsWidth || alias.getBitsWidth < 1 ||
@@ -353,99 +377,68 @@ private def expressionReferences(
     val moduleId = ModuleId.unsafe("module.native-expression-witness")
     val scopeId = ScopeId.unsafe("scope.native-expression-root")
     val aliasId = SymbolId.unsafe("symbol.native-expression-alias")
-    val declarations = Vector.newBuilder[Declaration]
-    val drivers = Vector.newBuilder[Driver]
+    val receiverTargets = candidate.useStatements.collect {
+      case assignment: DataAssignmentStatement => assignment.finalTarget
+    }.distinct
+    if (receiverTargets.size != candidate.useStatements.size)
+      return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
 
-    val sourcePairs = candidate.sourceReferences.zipWithIndex.map {
-      case (source, index) =>
-        val sourceId = SymbolId.unsafe(s"symbol.native-expression-source-$index")
-        declarations += Declaration(
-          id = sourceId,
-          owner = scopeId,
-          kind = sourceKind(source),
-          packedType = Some(proof.packedType),
-          nameOrigin = NameOrigin.Explicit(s"nativeExpressionSource$index"),
-          sourceLocation = None,
-          observability = sourceObservability(source)
-        )
-        source -> sourceId
+    val targetPairs = receiverTargets.zipWithIndex.map { case (target, index) =>
+      target -> SymbolId.unsafe(s"symbol.native-expression-receiver-$index")
     }
-
-    declarations += Declaration(
-      id = aliasId,
-      owner = scopeId,
-      kind = DeclarationKind.InternalCombinational,
-      packedType = Some(proof.packedType),
-      nameOrigin = NameOrigin.Unnamed,
-      sourceLocation = None,
-      observability = Observability.Unobserved
+    val codec = new NativeWireExpressionCodec(
+      scopeId,
+      "native-expression",
+      (Vector(candidate.alias -> aliasId) ++ targetPairs).distinct
     )
-
-    val sourceRefs = sourcePairs.zipWithIndex.map {
-      case ((_, sourceId), index) =>
-        RtlExpr.Ref(
-          id = ReferenceId.unsafe(s"reference.native-expression-source-$index"),
-          target = sourceId,
-          owner = scopeId
-        ): RtlExpr
-    }
-    val canonicalExpression: RtlExpr = sourceRefs.headOption match {
-      case None =>
-        RtlExpr.Literal(BigInt(0), candidate.alias.getBitsWidth)
-      case Some(head) =>
-        val combined = sourceRefs.tail.foldLeft(head) { (left, right) =>
-          RtlExpr.Binary(RtlBinaryOperator.BitwiseXor, left, right)
-        }
-        RtlExpr.Unary(
-          RtlUnaryOperator.BitwiseNot,
-          RtlExpr.Unary(RtlUnaryOperator.BitwiseNot, combined)
-        )
-    }
-
-    drivers += Driver(
-      id = DriverId.unsafe("driver.native-expression-alias"),
-      owner = scopeId,
-      target = aliasId,
-      kind = DriverKind.Continuous,
-      coverage = DriverCoverage.FullObject,
-      value = canonicalExpression
+    val sourceExpression = codec.capture(candidate.sourceExpression).getOrElse(
+      return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
     )
-
-    var receiverOrdinal = 0
-    candidate.useStatements.foreach { statement =>
-      val sinkId = SymbolId.unsafe(s"symbol.native-expression-sink-$receiverOrdinal")
-      val occurrenceCount = references(statement, candidate.alias)
-      declarations += Declaration(
-        id = sinkId,
-        owner = scopeId,
-        kind = DeclarationKind.Port(PortDirection.Output),
-        packedType = Some(proof.packedType),
-        nameOrigin = NameOrigin.Explicit(s"nativeExpressionSink$receiverOrdinal"),
-        sourceLocation = None,
-        observability = Observability(complete = true, externallyVisible = true)
-      )
-      val aliases = Vector.tabulate(occurrenceCount) { occurrence =>
-        RtlExpr.Ref(
-          id = ReferenceId.unsafe(
-            s"reference.native-expression-sink-$receiverOrdinal-alias-$occurrence"
-          ),
-          target = aliasId,
-          owner = scopeId
-        ): RtlExpr
-      }
-      val receiverValue = aliases.tail.foldLeft(aliases.head) { (left, right) =>
-        RtlExpr.Binary(RtlBinaryOperator.BitwiseXor, left, right)
-      }
-      drivers += Driver(
-        id = DriverId.unsafe(s"driver.native-expression-sink-$receiverOrdinal"),
-        owner = scopeId,
-        target = sinkId,
-        kind = DriverKind.Continuous,
-        coverage = DriverCoverage.FullObject,
-        value = receiverValue
-      )
-      receiverOrdinal += 1
+    val receiverValues = candidate.useStatements.map {
+      case assignment: DataAssignmentStatement =>
+        codec.capture(assignment.source).getOrElse(
+          return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
+        )
+      case _ => return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
     }
+    if (codec.capturedSources.exists { case (native, _) => packedSemantics(native).isEmpty })
+      return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
+
+    val declarations = codec.capturedSources.map { case (native, id) =>
+      Declaration(
+        id,
+        scopeId,
+        if (native eq candidate.alias) DeclarationKind.InternalCombinational
+        else sourceKind(native),
+        Some(packedTypeFor(native, candidate.alias, proof)),
+        if (native eq candidate.alias) NameOrigin.Unnamed
+        else NativeWireNameProvenance.origin(native).getOrElse(NameOrigin.Unknown),
+        None,
+        if (native eq candidate.alias) Observability.Unobserved
+        else sourceObservability(native)
+      )
+    }
+    val receiverDrivers = candidate.useStatements.zip(receiverValues).zipWithIndex.map {
+      case ((assignment: DataAssignmentStatement, value), index) =>
+        val targetId = targetPairs.find(_._1 eq assignment.finalTarget).get._2
+        Driver(
+          DriverId.unsafe(s"driver.native-expression-receiver-$index"),
+          scopeId,
+          targetId,
+          DriverKind.Continuous,
+          DriverCoverage.FullObject,
+          value
+        )
+      case _ => return Left("WA07-NATIVE-EXPRESSION-UNREPRESENTED")
+    }
+    val aliasDriver = Driver(
+      DriverId.unsafe("driver.native-expression-alias"),
+      scopeId,
+      aliasId,
+      DriverKind.Continuous,
+      DriverCoverage.FullObject,
+      sourceExpression
+    )
 
     val canonical = Design(
       version = CanonicalIrSchema.schemaVersion,
@@ -464,8 +457,8 @@ private def expressionReferences(
             )
           ),
           generateIndices = Vector.empty,
-          declarations = declarations.result(),
-          drivers = drivers.result(),
+          declarations = declarations,
+          drivers = aliasDriver +: receiverDrivers,
           sourceLocation = None
         )
       )
@@ -484,6 +477,28 @@ private def expressionReferences(
       eliminated.head.receiverCount == candidate.receiverOccurrenceCount
     ) Right(())
     else Left("WA07-NATIVE-CANONICAL-DECISION")
+  }
+
+  private def packedTypeFor(
+      value: BaseType,
+      alias: BaseType,
+      proof: NativeProof
+  ): PackedType = {
+    val sameNativeType =
+      value.getBitsWidth == alias.getBitsWidth &&
+        packedSemantics(value) == packedSemantics(alias) &&
+        ((ParameterizedWidth.expressionOf(value), ParameterizedWidth.expressionOf(alias)) match {
+          case (None, None)              => true
+          case (Some(left), Some(right)) => left eq right
+          case _                         => false
+        })
+    if (sameNativeType) proof.packedType
+    else {
+      val semantics = packedSemantics(value).getOrElse(
+        throw new IllegalStateException("unrepresentable native packed source")
+      )
+      PackedType(IntExpr.Literal(BigInt(value.getBitsWidth)), semantics._1, semantics._2)
+    }
   }
 
   private def sourceKind(value: BaseType): DeclarationKind =

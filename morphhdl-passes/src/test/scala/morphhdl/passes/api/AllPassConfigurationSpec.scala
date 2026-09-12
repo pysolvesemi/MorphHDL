@@ -18,12 +18,29 @@ final class AllPassConfigurationSpec extends AnyFunSuite with Matchers {
       PassId.UnnamedWireAliasElimination,
       PassId.NamedWireAliasElimination,
       PassId.UnnamedWireExpressionElimination,
+      PassId.NamedWireExpressionElimination,
       PassId.ConstantOperandSimplification,
       PassId.BooleanTernarySimplification
     )
     PassId.allWireAssignmentPasses shouldBe configuration.enabledPasses
-    PassId.historicalWireAssignmentPasses shouldBe configuration.enabledPasses.take(3)
-    PassId.historicalConstantOperandPasses shouldBe configuration.enabledPasses.take(4)
+    PassId.historicalWireAssignmentPasses shouldBe Vector(
+      PassId.UnnamedWireAliasElimination,
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination
+    )
+    PassId.historicalConstantOperandPasses shouldBe Vector(
+      PassId.UnnamedWireAliasElimination,
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination,
+      PassId.ConstantOperandSimplification
+    )
+    PassId.historicalBooleanTernaryPasses shouldBe Vector(
+      PassId.UnnamedWireAliasElimination,
+      PassId.NamedWireAliasElimination,
+      PassId.UnnamedWireExpressionElimination,
+      PassId.ConstantOperandSimplification,
+      PassId.BooleanTernarySimplification
+    )
   }
 
   test("expression elimination evidence normalizes independently of discovery order") {

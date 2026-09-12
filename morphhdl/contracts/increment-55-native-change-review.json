@@ -1387,9 +1387,10 @@
       "introduced_by": [
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
-        "Increment 60e: signedness boundaries, aggregates and hierarchy closure"
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-09 uses the existing Morph wire-assignment enable state to suppress only proven redundant emitter wrappers for unique-use, unannotated, fixed-width unsigned addition trees assigned wholly and unconditionally to one combinational UInt. Signedness, symbolic width, truncation, slices, shared expressions and unknown forms retain the existing wrapper policy; ordinary SpinalVerilog and explicitly disabled Morph generation retain legacy behavior.",
       "edits": [
         {
           "id": "signed-boundary-60e-componentemitterverilog-1",
@@ -1426,6 +1427,24 @@
             {
               "side": "approved",
               "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "wa09-componentemitterverilog-unsigned-add-wrapper-proof",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "WA-09 uses the existing Morph wire-assignment enable state to suppress only proven redundant emitter wrappers for unique-use, unannotated, fixed-width unsigned addition trees assigned wholly and unconditionally to one combinational UInt. Signedness, symbolic width, truncation, slices, shared expressions and unknown forms retain the existing wrapper policy; ordinary SpinalVerilog and explicitly disabled Morph generation retain legacy behavior.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "def applyTo(that: Expression) =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "/**\n      * The normal Verilog policy materializes nested UInt arithmetic after all\n      * netlist passes have completed. Under MorphHDL's explicit production\n      * marker, admit only the one case for which removing those emitter-created\n      * carriers cannot alter a Verilog sizing boundary:\n      *\n      *   - an unconditional whole-object assignment to a combinational UInt;\n      *   - one exact, fixed output width throughout an unsigned addition tree;\n      *   - fixed UInt leaves of that width, or fixed unsigned widening resizes\n      *     from UInt leaves;\n      *   - no shared expression node.\n      *\n      * Symbolic widths, annotated targets, signed/mixed-width nodes, slices,\n      * truncation, procedural assignments and all unknown forms fail closed.\n      * Leaf annotations are preserved on their real declarations; the policy\n      * removes only emitter-created expression wrappers, never a leaf carrier.\n      */\n    def redundantUnsignedAddWrappers(): java.util.IdentityHashMap[Expression, java.lang.Boolean] = {\n      val result = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n      if (!VerilogEmitterExpressionInlining.isEnabled(spinalConfig)) return result\n\n      val occurrences = new java.util.IdentityHashMap[Expression, java.lang.Integer]()\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          val previous = occurrences.get(expression)\n          occurrences.put(expression, if (previous == null) 1 else previous.intValue + 1)\n        }\n      }\n\n      def fixedUIntLeaf(value: spinal.core.UInt, width: Int): Boolean =\n        value.getWidth == width &&\n          value.component == component &&\n          ParameterizedWidth.expressionOf(value).isEmpty\n\n      def collect(\n          expression: Expression,\n          width: Int,\n          wrappers: ArrayBuffer[Expression]\n      ): Boolean = expression match {\n        case add: Operator.UInt.Add\n            if add.getWidth == width &&\n              VerilogEmitterExpressionInlining.isUnannotated(add) =>\n          wrappers += add\n          collect(add.left, width, wrappers) && collect(add.right, width, wrappers)\n\n        case resize: ResizeUInt\n            if resize.size == width &&\n              ParameterizedWidth.resizeExpressionOf(resize).isEmpty &&\n              VerilogEmitterExpressionInlining.isUnannotated(resize) =>\n          resize.input match {\n            case source: spinal.core.UInt\n                if source.getWidth > 0 && source.getWidth < width &&\n                  fixedUIntLeaf(source, source.getWidth) =>\n              wrappers += resize\n              true\n            case _ => false\n          }\n\n        case source: spinal.core.UInt => fixedUIntLeaf(source, width)\n        case _                        => false\n      }\n\n      component.dslBody.walkStatements {\n        case assignment: DataAssignmentStatement =>\n          assignment.target match {\n            case target: spinal.core.UInt\n                if (assignment.target eq target) &&\n                  assignment.parentScope == component.dslBody &&\n                  target.isComb &&\n                  target.hasOnlyOneStatement &&\n                  (target.head eq assignment) &&\n                  target.getWidth > 0 &&\n                  target.isEmptyOfTag &&\n                  ParameterizedWidth.expressionOf(target).isEmpty =>\n              assignment.source match {\n                case root: Operator.UInt.Add if root.getWidth == target.getWidth =>\n                  val wrappers = ArrayBuffer[Expression]()\n                  if (collect(root, target.getWidth, wrappers) &&\n                      wrappers.forall(node => {\n                        val count = occurrences.get(node)\n                        count != null && count.intValue == 1\n                      })) {\n                    wrappers.foreach(node => result.put(node, java.lang.Boolean.TRUE))\n                  }\n                case _ =>\n              }\n            case _ =>\n          }\n        case _ =>\n      }\n      result\n    }\n\n    val wrappersProvenRedundant = redundantUnsignedAddWrappers()\n\n    def applyTo(that: Expression) =\n      if (!wrappersProvenRedundant.containsKey(that))",
               "count": 1
             }
           ]
@@ -1695,6 +1714,17 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination"
+      ],
+      "reason": "Private generation-scoped opt-in for the proven emitter wrapper policy. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. MorphVerilog derives this marker from the existing wire-assignment optimization configuration.",
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",

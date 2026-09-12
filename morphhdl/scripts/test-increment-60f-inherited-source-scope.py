@@ -34,10 +34,11 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def check(root: Path, label: str, rejection: str | None = None) -> dict:
+def check(root: Path, label: str, rejection: str | None = None,
+          timeout_seconds: int = 120) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     if rejection is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass:\n" + result.stdout)
@@ -52,7 +53,11 @@ def main() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [check(ROOT, "current descendant with separately owned production changes")]
+    # The exact 83-file overlay plus inherited source traversal took 127-154s
+    # locally. Only this full positive audit gets a larger finite wall budget;
+    # every historical/mutation check and Git command retains its 120s limit.
+    records = [check(ROOT, "current descendant with separately owned production changes",
+                     timeout_seconds=600)]
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     cases = (
@@ -79,6 +84,29 @@ def main() -> None:
         ("changed-native-hook", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/internals/VerilogBase.scala", True,
          "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-historical-emitter", module.COMPLETED_60F,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
+         "native signed declaration/cast hooks changed after their frozen qualification"),
+        ("changed-committed-successor-emitter", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-uncommitted-successor-emitter", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", False,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-staged-successor-emitter-restored-worktree", head,
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
+         "WA-08 source overlay: HEAD/index/worktree identity differs: "
+         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+        ("changed-committed-successor-pass-contracts", head,
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", True,
+         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+        ("changed-staged-successor-pass-contracts-restored-worktree", head,
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged",
+         "WA-08 source overlay: HEAD/index/worktree identity differs: "
+         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
         ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
@@ -91,13 +119,18 @@ def main() -> None:
                 if path is not None:
                     target = fixture / path
                     target.parent.mkdir(parents=True, exist_ok=True)
+                    original = target.read_bytes() if target.is_file() else None
                     with target.open("a") as stream:
                         stream.write("\n// Deliberate isolated source-scope fixture mutation.\n")
                     if commit:
                         git(fixture, "add", "--", path)
-                        git(fixture, "-c", "user.name=Scope guard fixture",
-                            "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
-                            "-m", "isolated 60f inherited source-scope fixture")
+                        if commit == "staged":
+                            assert original is not None
+                            target.write_bytes(original)
+                        else:
+                            git(fixture, "-c", "user.name=Scope guard fixture",
+                                "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
+                                "-m", "isolated 60f inherited source-scope fixture")
                 records.append(check(fixture, label, rejection))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
@@ -106,7 +139,7 @@ def main() -> None:
     output = ROOT / "target/increment-60f/source-scope"
     output.mkdir(parents=True, exist_ok=True)
     (output / "evidence.json").write_text(json.dumps({"head": head, "cases": records}, indent=2) + "\n")
-    print("PASS: two positive and ten exact negative inherited 60f source-scope cases", flush=True)
+    print("PASS: two positive and sixteen exact negative inherited 60f source-scope cases", flush=True)
 
 
 if __name__ == "__main__":
