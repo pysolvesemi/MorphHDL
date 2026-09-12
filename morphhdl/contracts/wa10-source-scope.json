@@ -17,6 +17,14 @@
     "morphhdl-passes/evidence/wa10/baseline/timing/default/TimingExpressionExample.v",
     "morphhdl-passes/evidence/wa10/baseline/timing/disabled/TimingExpressionExample.v",
     "morphhdl-passes/evidence/wa10/baseline/timing/enabled/TimingExpressionExample.v",
+    "morphhdl-passes/evidence/wa10/ci-followup/README.md",
+    "morphhdl-passes/evidence/wa10/ci-followup/formal-rerun.log",
+    "morphhdl-passes/evidence/wa10/ci-followup/formal-tools.json",
+    "morphhdl-passes/evidence/wa10/ci-followup/full-morph-summary.log",
+    "morphhdl-passes/evidence/wa10/ci-followup/log-identities.json",
+    "morphhdl-passes/evidence/wa10/ci-followup/qualification.json",
+    "morphhdl-passes/evidence/wa10/ci-followup/typed-primitive-ci-after.log",
+    "morphhdl-passes/evidence/wa10/ci-followup/typed-primitive-ci-before.log",
     "morphhdl-passes/evidence/wa10/file-sha256.json",
     "morphhdl-passes/evidence/wa10/final/cross-scala-validation.json",
     "morphhdl-passes/evidence/wa10/final/diagnostics/general/diagnostic.v",
@@ -175,6 +183,7 @@
     "morphhdl/src/test/scala/nativeapplication/GeneralExpressionInliningArtifactWriter.scala",
     "morphhdl/src/test/scala/nativeapplication/GenerateTimingExpressionExample.scala",
     "morphhdl/src/test/scala/nativeapplication/NativeExpressionDiagnosticsWriter.scala",
-    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala"
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala",
+    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala"
   ]
 }

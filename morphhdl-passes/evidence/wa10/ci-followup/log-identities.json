@@ -1,0 +1,18 @@
+{
+  "typed-primitive-ci-before.log": {
+    "raw_sha256": "7e46bbbd56a91286011feb41a6d672ed6b9616c42cc63ad700aa59f8a7cb851a",
+    "saved_sha256": "b45172ed009312a223e85acb7137db2d2de78b18905d845ce451ba88e033a21f",
+    "format_only_change": "strip trailing line whitespace; preserve actual text"
+  },
+  "typed-primitive-ci-after.log": {
+    "raw_sha256": "f158a6941b54799ea0ac3d5b086fe60bfdac1b2a6164de93c5f49056fded383b",
+    "saved_sha256": "f158a6941b54799ea0ac3d5b086fe60bfdac1b2a6164de93c5f49056fded383b",
+    "format_only_change": "strip trailing line whitespace; preserve actual text"
+  },
+  "full-morph-summary.log": {
+    "raw_log": "target/wa10-evidence/typed-primitive-full-morph-tests.log",
+    "raw_sha256": "9e4d61a82a2d0e04104d723b657f1e4e133ea38497a4bd0f20d5cd6f6bafbf6f",
+    "saved_sha256": "aa1bba016312f1c42188d1b8063901a02332166fc75437f09fafaf6e3889b99e",
+    "transformation": "select result, cancellation and required-tool failure lines; strip trailing whitespace"
+  }
+}

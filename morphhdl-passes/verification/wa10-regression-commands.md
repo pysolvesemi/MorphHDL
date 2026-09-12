@@ -274,3 +274,18 @@ failures, complete generation output, and successful checker result are in
 `target/wa10-evidence/inherited-runtime-check.log`. The independent successful
 original-SBT rerun has the same qualification counts in
 `target/wa10-evidence/inherited-sbt/wa08-production/qualification.json`.
+
+For the CI-discovered typed Stream payload shape assertion, run the unchanged
+28-case suite with its corrected enabled/disabled expectations:
+
+```sh
+sbt -batch '++2.13.12' 'morph/testOnly spinal.core.TypedPrimitiveClosureTests'
+sbt -batch '++2.12.18' 'morph/testOnly spinal.core.TypedPrimitiveClosureTests'
+```
+
+Both invocations passed all 28 cases. The original assertion failure and exact
+successful output are retained in
+[`evidence/wa10/ci-followup`](../evidence/wa10/ci-followup). The successor checks
+the symbolic payload register and guarded NBA, while disabled optimization
+still requires the original combinational mux carrier. It does not alter the
+compiler or reduce the inherited test/formal inventory.

@@ -1,0 +1,29 @@
+{
+  "status": "pending final formal rerun",
+  "targeted": {
+    "Scala 2.13.12": {
+      "passed": 28,
+      "failed": 0,
+      "canceled": 0
+    },
+    "Scala 2.12.18": {
+      "passed": 28,
+      "failed": 0,
+      "canceled": 0
+    }
+  },
+  "full_morph_first_attempt": {
+    "scala": "2.13.12",
+    "passed": 1110,
+    "failed": 1,
+    "canceled": 8,
+    "failure": "required formal tool sby unavailable",
+    "scala_2_12_not_started": true
+  },
+  "formal_first_rerun": {
+    "passed": 3,
+    "failed": 1,
+    "failure": "Yosys 0.33/SBY 0.41 ABC witness schema mismatch"
+  },
+  "final_head_ci": "pending"
+}

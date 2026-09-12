@@ -97,7 +97,8 @@
     "morphhdl/src/test/scala/nativeapplication/NativeExpressionDiagnosticsWriter.scala": "ec241ed6820f6cd66ba6e76feab3b5f0f5011f640ded2566988a89bc4301e99c",
     "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala": "97b216a4a6b6453a5c96e06221d42f1f5d91aca8e6421b9d700d8c2c7f642fbc",
     "morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala": "38c09d76de8bd1258a1be3032da7300bd4af56545e744d0b1c12c9d2a7a8c1fd",
-    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "d354e40812d7e4e6ff0719ecd2a3b4a134eb87d1cb93712dd775365a44375cd3"
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "d354e40812d7e4e6ff0719ecd2a3b4a134eb87d1cb93712dd775365a44375cd3",
+    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": "3cf9890f8f19b92eaaed9915469cb2fb844b507b6ee1042b76b9316f32c274ec"
   },
   "schema_version": 1
 }

@@ -156,7 +156,7 @@ truncation, mixed signedness, multiple uses, conditional state updates and
 explicit X/Z witnesses. Formal checks prove the recorded two-state domains;
 the four-state witnesses are simulations, not an exhaustive four-state proof.
 The retained proof scripts/logs and validation report are under
-[`evidence/wa10/final`](evidence/wa10/final); `file-sha256.json` binds the evidence.
+[`evidence/wa10/final`](evidence/wa10/final); `manifest.json` binds the evidence.
 
 The production artifact validator also passed on Scala 2.13.12, and all six
 fixture/mode artifacts are byte-identical between the two Scala versions.
@@ -181,6 +181,35 @@ regression has no dependency on the private application source.
 
 Exact-source workflow gates are pending at this source revision. WA-10 remains
 open until those gates pass.
+
+## CI follow-up: inherited symbolic Stream shape
+
+The reported source-overlay run
+[`34684811098`](https://github.com/pysolvesemi/MorphHDL/actions/runs/34684811098)
+checked source commit `1163ad3a8f6af4243a029f49dbd19f8f6aa7d66c` before its
+updated source-review seal. It rejected the stale hash for
+`NamedWireExpressionNativeBridge.scala`. Seal commit `43169985ec6886441c95d47d35c8ad4fd866e4c8`
+resolved that mismatch; its corresponding
+[`34684853063`](https://github.com/pysolvesemi/MorphHDL/actions/runs/34684853063)
+passed the source audit/mutations, both production Scala lanes and cross-Scala
+comparison.
+
+The later full SBT and Mill Scala 2.13 runs exposed one common obsolete shape
+assertion in `TypedPrimitiveClosureTests`: the test required
+`stream_s2m_payload`, an unprotected `s2mPipe` mux consumed as the whole RHS of
+the next payload register. WA-10 legitimately removes this combinational alias
+under the existing identical symbolic-width/parameter-identity proof. The
+`WIDTH`-wide register, asynchronous reset and guarded nonblocking assignment
+remain. No further compiler change is needed.
+
+The existing test now checks both optimization modes, retaining all previous
+port/payload/resize/slice checks and adding exact register, reset, guard and mux
+checks. Disabled mode must retain the old alias and register source; enabled
+mode must inline the mux into the same guarded register update. The suite still
+contains exactly 28 tests, preserving its inherited inventory contract. The
+unchanged formal pipeline suite remains a required CI gate; structural tests
+are not described as formal equivalence. Commands and executed results are
+recorded in the [CI follow-up evidence](evidence/wa10/ci-followup/README.md).
 
 ## Inherited runtime compatibility
 

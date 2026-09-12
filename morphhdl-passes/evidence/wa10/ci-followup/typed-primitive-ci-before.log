@@ -1,0 +1,829 @@
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13791 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] compiling 1 Scala source to /workspace/scratch/6b630b856865/MorphHdl/core/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] TypedPrimitiveClosureTests:
+[info] - typed addressWidth is exact and positive at depths 1, 3, 5 and 8
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:29
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.241 : Checks and transforms
+[Progress] at 0.476 : Generate Verilog to /tmp/morphhdl-single-source-15787952633047902520
+[Done] at 0.717
+[info] - direct typed Mem keeps an unpacked symbolic memory and portable address geometry
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:30
+[Progress] at 0.825 : Elaborate components
+[Progress] at 0.944 : Checks and transforms
+[Progress] at 1.011 : Generate Verilog to /tmp/morphhdl-single-source-10473139291061304588
+[Warning] 5 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.455
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.459 : Elaborate components
+[Progress] at 1.477 : Checks and transforms
+[Progress] at 1.486 : Generate Verilog to /tmp/morphhdl-single-source-5351906677258051096
+[Warning] 2 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.518
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[info] - typed Counter retains state-count and inclusive-limit expressions
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.523 : Elaborate components
+[Progress] at 1.538 : Checks and transforms
+[Progress] at 1.553 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-11409842568288238646/ordinary
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.563
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.564 : Elaborate components
+[Progress] at 1.577 : Checks and transforms
+[Progress] at 1.589 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-11409842568288238646/typed
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.597
+[info] - typed literal Mem and Counter preserve ordinary concrete RTL
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.601 : Elaborate components
+[Progress] at 1.613 : Checks and transforms
+[Progress] at 1.615 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-11361626045991573646
+[Done] at 1.618
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.619 : Elaborate components
+[Progress] at 1.623 : Checks and transforms
+[Progress] at 1.624 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-3837263983634306120
+[Done] at 1.626
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.628 : Elaborate components
+[Progress] at 1.632 : Checks and transforms
+[Progress] at 1.633 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-15024767501242190736
+[Done] at 1.635
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.637 : Elaborate components
+[Progress] at 1.640 : Checks and transforms
+spinal.core.SpinalExit$.apply(Misc.scala:469)
+spinal.core.SpinalError$.apply(Misc.scala:524)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42(Phase.scala:767)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42$adapted(Phase.scala:749)
+scala.collection.mutable.LinkedHashSet.foreach(LinkedHashSet.scala:128)
+spinal.core.internals.PhaseMemBlackboxing.impl(Phase.scala:749)
+spinal.core.internals.PhaseMemBlackboxing.impl$(Phase.scala:734)
+spinal.core.internals.PhaseMemBlackBoxingWithPolicy.impl(Phase.scala:908)
+spinal.core.internals.PhaseContext.doPhase(Phase.scala:190)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12(Phase.scala:3623)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12$adapted(Phase.scala:3621)
+scala.collection.IterableOnceOps.foreach(IterableOnce.scala:576)
+scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:574)
+scala.collection.AbstractIterable.foreach(Iterable.scala:933)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$7(Phase.scala:3621)
+spinal.core.ScopeProperty$.sandbox(ScopeProperty.scala:71)
+spinal.core.internals.SpinalVerilogBoot$.singleShot(Phase.scala:3552)
+spinal.core.internals.SpinalVerilogBoot$.apply(Phase.scala:3519)
+spinal.core.Spinal$.apply(Spinal.scala:473)
+spinal.core.SpinalVerilog$.apply(Spinal.scala:507)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$withSpinalElaboration$1(TypedPrimitiveClosureTests.scala:2137)
+spinal.core.TypedPrimitiveClosureTests.withTemporaryDirectory(TypedPrimitiveClosureTests.scala:2314)
+spinal.core.TypedPrimitiveClosureTests.withSpinalElaboration(TypedPrimitiveClosureTests.scala:2135)
+spinal.core.TypedPrimitiveClosureTests.depthOutcome$1(TypedPrimitiveClosureTests.scala:619)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54(TypedPrimitiveClosureTests.scala:632)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54$adapted(TypedPrimitiveClosureTests.scala:630)
+scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$44(TypedPrimitiveClosureTests.scala:630)
+org.scalatest.OutcomeOf.outcomeOf(OutcomeOf.scala:85)
+org.scalatest.OutcomeOf.outcomeOf$(OutcomeOf.scala:83)
+org.scalatest.OutcomeOf$.outcomeOf(OutcomeOf.scala:104)
+org.scalatest.Transformer.apply(Transformer.scala:22)
+org.scalatest.Transformer.apply(Transformer.scala:20)
+org.scalatest.funsuite.AnyFunSuiteLike$$anon$1.apply(AnyFunSuiteLike.scala:226)
+org.scalatest.TestSuite.withFixture(TestSuite.scala:196)
+org.scalatest.TestSuite.withFixture$(TestSuite.scala:195)
+org.scalatest.funsuite.AnyFunSuite.withFixture(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.invokeWithFixture$1(AnyFunSuiteLike.scala:224)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTest$1(AnyFunSuiteLike.scala:236)
+org.scalatest.SuperEngine.runTestImpl(Engine.scala:306)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest(AnyFunSuiteLike.scala:236)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest$(AnyFunSuiteLike.scala:218)
+org.scalatest.funsuite.AnyFunSuite.runTest(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTests$1(AnyFunSuiteLike.scala:269)
+org.scalatest.SuperEngine.$anonfun$runTestsInBranch$1(Engine.scala:413)
+scala.collection.immutable.List.foreach(List.scala:333)
+org.scalatest.SuperEngine.traverseSubNodes$1(Engine.scala:401)
+org.scalatest.SuperEngine.runTestsInBranch(Engine.scala:396)
+org.scalatest.SuperEngine.runTestsImpl(Engine.scala:475)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests(AnyFunSuiteLike.scala:269)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests$(AnyFunSuiteLike.scala:268)
+org.scalatest.funsuite.AnyFunSuite.runTests(AnyFunSuite.scala:1564)
+org.scalatest.Suite.run(Suite.scala:1114)
+org.scalatest.Suite.run$(Suite.scala:1096)
+org.scalatest.funsuite.AnyFunSuite.org$scalatest$funsuite$AnyFunSuiteLike$$super$run(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$run$1(AnyFunSuiteLike.scala:273)
+org.scalatest.SuperEngine.runImpl(Engine.scala:535)
+org.scalatest.funsuite.AnyFunSuiteLike.run(AnyFunSuiteLike.scala:273)
+org.scalatest.funsuite.AnyFunSuiteLike.run$(AnyFunSuiteLike.scala:272)
+org.scalatest.funsuite.AnyFunSuite.run(AnyFunSuite.scala:1564)
+org.scalatest.tools.Framework.org$scalatest$tools$Framework$$runSuite(Framework.scala:321)
+org.scalatest.tools.Framework$ScalaTestTask.execute(Framework.scala:517)
+sbt.ForkMain$Run.lambda$runTest$1(ForkMain.java:414)
+java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:829)
+
+**********************************************************************************************
+[Warning] Elaboration failed (1 error).
+          Spinal will restart with scala trace to help you to find the problem.
+**********************************************************************************************
+
+[Progress] at 1.643 : Elaborate components
+[Progress] at 1.650 : Checks and transforms
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.653 : Elaborate components
+[Progress] at 1.656 : Checks and transforms
+spinal.core.SpinalExit$.apply(Misc.scala:469)
+spinal.core.SpinalError$.apply(Misc.scala:524)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42(Phase.scala:767)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42$adapted(Phase.scala:749)
+scala.collection.mutable.LinkedHashSet.foreach(LinkedHashSet.scala:128)
+spinal.core.internals.PhaseMemBlackboxing.impl(Phase.scala:749)
+spinal.core.internals.PhaseMemBlackboxing.impl$(Phase.scala:734)
+spinal.core.internals.PhaseMemBlackBoxingWithPolicy.impl(Phase.scala:908)
+spinal.core.internals.PhaseContext.doPhase(Phase.scala:190)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12(Phase.scala:3623)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12$adapted(Phase.scala:3621)
+scala.collection.IterableOnceOps.foreach(IterableOnce.scala:576)
+scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:574)
+scala.collection.AbstractIterable.foreach(Iterable.scala:933)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$7(Phase.scala:3621)
+spinal.core.ScopeProperty$.sandbox(ScopeProperty.scala:71)
+spinal.core.internals.SpinalVerilogBoot$.singleShot(Phase.scala:3552)
+spinal.core.internals.SpinalVerilogBoot$.apply(Phase.scala:3519)
+spinal.core.Spinal$.apply(Spinal.scala:473)
+spinal.core.SpinalVerilog$.apply(Spinal.scala:507)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$withSpinalElaboration$1(TypedPrimitiveClosureTests.scala:2137)
+spinal.core.TypedPrimitiveClosureTests.withTemporaryDirectory(TypedPrimitiveClosureTests.scala:2314)
+spinal.core.TypedPrimitiveClosureTests.withSpinalElaboration(TypedPrimitiveClosureTests.scala:2135)
+spinal.core.TypedPrimitiveClosureTests.depthOutcome$1(TypedPrimitiveClosureTests.scala:619)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54(TypedPrimitiveClosureTests.scala:633)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54$adapted(TypedPrimitiveClosureTests.scala:630)
+scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$44(TypedPrimitiveClosureTests.scala:630)
+org.scalatest.OutcomeOf.outcomeOf(OutcomeOf.scala:85)
+org.scalatest.OutcomeOf.outcomeOf$(OutcomeOf.scala:83)
+org.scalatest.OutcomeOf$.outcomeOf(OutcomeOf.scala:104)
+org.scalatest.Transformer.apply(Transformer.scala:22)
+org.scalatest.Transformer.apply(Transformer.scala:20)
+org.scalatest.funsuite.AnyFunSuiteLike$$anon$1.apply(AnyFunSuiteLike.scala:226)
+org.scalatest.TestSuite.withFixture(TestSuite.scala:196)
+org.scalatest.TestSuite.withFixture$(TestSuite.scala:195)
+org.scalatest.funsuite.AnyFunSuite.withFixture(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.invokeWithFixture$1(AnyFunSuiteLike.scala:224)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTest$1(AnyFunSuiteLike.scala:236)
+org.scalatest.SuperEngine.runTestImpl(Engine.scala:306)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest(AnyFunSuiteLike.scala:236)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest$(AnyFunSuiteLike.scala:218)
+org.scalatest.funsuite.AnyFunSuite.runTest(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTests$1(AnyFunSuiteLike.scala:269)
+org.scalatest.SuperEngine.$anonfun$runTestsInBranch$1(Engine.scala:413)
+scala.collection.immutable.List.foreach(List.scala:333)
+org.scalatest.SuperEngine.traverseSubNodes$1(Engine.scala:401)
+org.scalatest.SuperEngine.runTestsInBranch(Engine.scala:396)
+org.scalatest.SuperEngine.runTestsImpl(Engine.scala:475)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests(AnyFunSuiteLike.scala:269)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests$(AnyFunSuiteLike.scala:268)
+org.scalatest.funsuite.AnyFunSuite.runTests(AnyFunSuite.scala:1564)
+org.scalatest.Suite.run(Suite.scala:1114)
+org.scalatest.Suite.run$(Suite.scala:1096)
+org.scalatest.funsuite.AnyFunSuite.org$scalatest$funsuite$AnyFunSuiteLike$$super$run(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$run$1(AnyFunSuiteLike.scala:273)
+org.scalatest.SuperEngine.runImpl(Engine.scala:535)
+org.scalatest.funsuite.AnyFunSuiteLike.run(AnyFunSuiteLike.scala:273)
+org.scalatest.funsuite.AnyFunSuiteLike.run$(AnyFunSuiteLike.scala:272)
+org.scalatest.funsuite.AnyFunSuite.run(AnyFunSuite.scala:1564)
+org.scalatest.tools.Framework.org$scalatest$tools$Framework$$runSuite(Framework.scala:321)
+org.scalatest.tools.Framework$ScalaTestTask.execute(Framework.scala:517)
+sbt.ForkMain$Run.lambda$runTest$1(ForkMain.java:414)
+java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:829)
+
+**********************************************************************************************
+[Warning] Elaboration failed (2 errors).
+          Spinal will restart with scala trace to help you to find the problem.
+**********************************************************************************************
+
+[Progress] at 1.657 : Elaborate components
+[Progress] at 1.660 : Checks and transforms
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.662 : Elaborate components
+[Progress] at 1.664 : Checks and transforms
+spinal.core.SpinalExit$.apply(Misc.scala:469)
+spinal.core.SpinalError$.apply(Misc.scala:524)
+spinal.core.log2Up$.apply(Misc.scala:46)
+spinal.core.log2Up$.apply(Misc.scala:49)
+spinal.core.Mem.addressWidth(Mem.scala:210)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42(Phase.scala:751)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42$adapted(Phase.scala:749)
+scala.collection.mutable.LinkedHashSet.foreach(LinkedHashSet.scala:128)
+spinal.core.internals.PhaseMemBlackboxing.impl(Phase.scala:749)
+spinal.core.internals.PhaseMemBlackboxing.impl$(Phase.scala:734)
+spinal.core.internals.PhaseMemBlackBoxingWithPolicy.impl(Phase.scala:908)
+spinal.core.internals.PhaseContext.doPhase(Phase.scala:190)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12(Phase.scala:3623)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12$adapted(Phase.scala:3621)
+scala.collection.IterableOnceOps.foreach(IterableOnce.scala:576)
+scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:574)
+scala.collection.AbstractIterable.foreach(Iterable.scala:933)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$7(Phase.scala:3621)
+spinal.core.ScopeProperty$.sandbox(ScopeProperty.scala:71)
+spinal.core.internals.SpinalVerilogBoot$.singleShot(Phase.scala:3552)
+spinal.core.internals.SpinalVerilogBoot$.apply(Phase.scala:3519)
+spinal.core.Spinal$.apply(Spinal.scala:473)
+spinal.core.SpinalVerilog$.apply(Spinal.scala:507)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$withSpinalElaboration$1(TypedPrimitiveClosureTests.scala:2137)
+spinal.core.TypedPrimitiveClosureTests.withTemporaryDirectory(TypedPrimitiveClosureTests.scala:2314)
+spinal.core.TypedPrimitiveClosureTests.withSpinalElaboration(TypedPrimitiveClosureTests.scala:2135)
+spinal.core.TypedPrimitiveClosureTests.depthOutcome$1(TypedPrimitiveClosureTests.scala:619)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54(TypedPrimitiveClosureTests.scala:632)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54$adapted(TypedPrimitiveClosureTests.scala:630)
+scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$44(TypedPrimitiveClosureTests.scala:630)
+org.scalatest.OutcomeOf.outcomeOf(OutcomeOf.scala:85)
+org.scalatest.OutcomeOf.outcomeOf$(OutcomeOf.scala:83)
+org.scalatest.OutcomeOf$.outcomeOf(OutcomeOf.scala:104)
+org.scalatest.Transformer.apply(Transformer.scala:22)
+org.scalatest.Transformer.apply(Transformer.scala:20)
+org.scalatest.funsuite.AnyFunSuiteLike$$anon$1.apply(AnyFunSuiteLike.scala:226)
+org.scalatest.TestSuite.withFixture(TestSuite.scala:196)
+org.scalatest.TestSuite.withFixture$(TestSuite.scala:195)
+org.scalatest.funsuite.AnyFunSuite.withFixture(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.invokeWithFixture$1(AnyFunSuiteLike.scala:224)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTest$1(AnyFunSuiteLike.scala:236)
+org.scalatest.SuperEngine.runTestImpl(Engine.scala:306)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest(AnyFunSuiteLike.scala:236)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest$(AnyFunSuiteLike.scala:218)
+org.scalatest.funsuite.AnyFunSuite.runTest(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTests$1(AnyFunSuiteLike.scala:269)
+org.scalatest.SuperEngine.$anonfun$runTestsInBranch$1(Engine.scala:413)
+scala.collection.immutable.List.foreach(List.scala:333)
+org.scalatest.SuperEngine.traverseSubNodes$1(Engine.scala:401)
+org.scalatest.SuperEngine.runTestsInBranch(Engine.scala:396)
+org.scalatest.SuperEngine.runTestsImpl(Engine.scala:475)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests(AnyFunSuiteLike.scala:269)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests$(AnyFunSuiteLike.scala:268)
+org.scalatest.funsuite.AnyFunSuite.runTests(AnyFunSuite.scala:1564)
+org.scalatest.Suite.run(Suite.scala:1114)
+org.scalatest.Suite.run$(Suite.scala:1096)
+org.scalatest.funsuite.AnyFunSuite.org$scalatest$funsuite$AnyFunSuiteLike$$super$run(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$run$1(AnyFunSuiteLike.scala:273)
+org.scalatest.SuperEngine.runImpl(Engine.scala:535)
+org.scalatest.funsuite.AnyFunSuiteLike.run(AnyFunSuiteLike.scala:273)
+org.scalatest.funsuite.AnyFunSuiteLike.run$(AnyFunSuiteLike.scala:272)
+org.scalatest.funsuite.AnyFunSuite.run(AnyFunSuite.scala:1564)
+org.scalatest.tools.Framework.org$scalatest$tools$Framework$$runSuite(Framework.scala:321)
+org.scalatest.tools.Framework$ScalaTestTask.execute(Framework.scala:517)
+sbt.ForkMain$Run.lambda$runTest$1(ForkMain.java:414)
+java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:829)
+
+**********************************************************************************************
+[Warning] Elaboration failed (2 errors).
+          Spinal will restart with scala trace to help you to find the problem.
+**********************************************************************************************
+
+[Progress] at 1.664 : Elaborate components
+[Progress] at 1.666 : Checks and transforms
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.667 : Elaborate components
+[Progress] at 1.669 : Checks and transforms
+spinal.core.SpinalExit$.apply(Misc.scala:469)
+spinal.core.SpinalError$.apply(Misc.scala:524)
+spinal.core.log2Up$.apply(Misc.scala:46)
+spinal.core.log2Up$.apply(Misc.scala:49)
+spinal.core.Mem.addressWidth(Mem.scala:210)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42(Phase.scala:751)
+spinal.core.internals.PhaseMemBlackboxing.$anonfun$impl$42$adapted(Phase.scala:749)
+scala.collection.mutable.LinkedHashSet.foreach(LinkedHashSet.scala:128)
+spinal.core.internals.PhaseMemBlackboxing.impl(Phase.scala:749)
+spinal.core.internals.PhaseMemBlackboxing.impl$(Phase.scala:734)
+spinal.core.internals.PhaseMemBlackBoxingWithPolicy.impl(Phase.scala:908)
+spinal.core.internals.PhaseContext.doPhase(Phase.scala:190)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12(Phase.scala:3623)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$12$adapted(Phase.scala:3621)
+scala.collection.IterableOnceOps.foreach(IterableOnce.scala:576)
+scala.collection.IterableOnceOps.foreach$(IterableOnce.scala:574)
+scala.collection.AbstractIterable.foreach(Iterable.scala:933)
+spinal.core.internals.SpinalVerilogBoot$.$anonfun$singleShot$7(Phase.scala:3621)
+spinal.core.ScopeProperty$.sandbox(ScopeProperty.scala:71)
+spinal.core.internals.SpinalVerilogBoot$.singleShot(Phase.scala:3552)
+spinal.core.internals.SpinalVerilogBoot$.apply(Phase.scala:3519)
+spinal.core.Spinal$.apply(Spinal.scala:473)
+spinal.core.SpinalVerilog$.apply(Spinal.scala:507)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$withSpinalElaboration$1(TypedPrimitiveClosureTests.scala:2137)
+spinal.core.TypedPrimitiveClosureTests.withTemporaryDirectory(TypedPrimitiveClosureTests.scala:2314)
+spinal.core.TypedPrimitiveClosureTests.withSpinalElaboration(TypedPrimitiveClosureTests.scala:2135)
+spinal.core.TypedPrimitiveClosureTests.depthOutcome$1(TypedPrimitiveClosureTests.scala:619)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54(TypedPrimitiveClosureTests.scala:633)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$54$adapted(TypedPrimitiveClosureTests.scala:630)
+scala.collection.immutable.Vector.foreach(Vector.scala:2124)
+spinal.core.TypedPrimitiveClosureTests.$anonfun$new$44(TypedPrimitiveClosureTests.scala:630)
+org.scalatest.OutcomeOf.outcomeOf(OutcomeOf.scala:85)
+org.scalatest.OutcomeOf.outcomeOf$(OutcomeOf.scala:83)
+org.scalatest.OutcomeOf$.outcomeOf(OutcomeOf.scala:104)
+org.scalatest.Transformer.apply(Transformer.scala:22)
+org.scalatest.Transformer.apply(Transformer.scala:20)
+org.scalatest.funsuite.AnyFunSuiteLike$$anon$1.apply(AnyFunSuiteLike.scala:226)
+org.scalatest.TestSuite.withFixture(TestSuite.scala:196)
+org.scalatest.TestSuite.withFixture$(TestSuite.scala:195)
+org.scalatest.funsuite.AnyFunSuite.withFixture(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.invokeWithFixture$1(AnyFunSuiteLike.scala:224)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTest$1(AnyFunSuiteLike.scala:236)
+org.scalatest.SuperEngine.runTestImpl(Engine.scala:306)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest(AnyFunSuiteLike.scala:236)
+org.scalatest.funsuite.AnyFunSuiteLike.runTest$(AnyFunSuiteLike.scala:218)
+org.scalatest.funsuite.AnyFunSuite.runTest(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$runTests$1(AnyFunSuiteLike.scala:269)
+org.scalatest.SuperEngine.$anonfun$runTestsInBranch$1(Engine.scala:413)
+scala.collection.immutable.List.foreach(List.scala:333)
+org.scalatest.SuperEngine.traverseSubNodes$1(Engine.scala:401)
+org.scalatest.SuperEngine.runTestsInBranch(Engine.scala:396)
+org.scalatest.SuperEngine.runTestsImpl(Engine.scala:475)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests(AnyFunSuiteLike.scala:269)
+org.scalatest.funsuite.AnyFunSuiteLike.runTests$(AnyFunSuiteLike.scala:268)
+org.scalatest.funsuite.AnyFunSuite.runTests(AnyFunSuite.scala:1564)
+org.scalatest.Suite.run(Suite.scala:1114)
+org.scalatest.Suite.run$(Suite.scala:1096)
+org.scalatest.funsuite.AnyFunSuite.org$scalatest$funsuite$AnyFunSuiteLike$$super$run(AnyFunSuite.scala:1564)
+org.scalatest.funsuite.AnyFunSuiteLike.$anonfun$run$1(AnyFunSuiteLike.scala:273)
+org.scalatest.SuperEngine.runImpl(Engine.scala:535)
+org.scalatest.funsuite.AnyFunSuiteLike.run(AnyFunSuiteLike.scala:273)
+org.scalatest.funsuite.AnyFunSuiteLike.run$(AnyFunSuiteLike.scala:272)
+org.scalatest.funsuite.AnyFunSuite.run(AnyFunSuite.scala:1564)
+org.scalatest.tools.Framework.org$scalatest$tools$Framework$$runSuite(Framework.scala:321)
+org.scalatest.tools.Framework$ScalaTestTask.execute(Framework.scala:517)
+sbt.ForkMain$Run.lambda$runTest$1(ForkMain.java:414)
+java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128)
+java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628)
+java.base/java.lang.Thread.run(Thread.java:829)
+
+**********************************************************************************************
+[Warning] Elaboration failed (2 errors).
+          Spinal will restart with scala trace to help you to find the problem.
+**********************************************************************************************
+
+[Progress] at 1.670 : Elaborate components
+[Progress] at 1.677 : Checks and transforms
+[info] - typed literal Mem preserves native HardType evaluation and Int depth acceptance
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.681 : Elaborate components
+[Progress] at 1.686 : Checks and transforms
+[Progress] at 1.699 : Generate Verilog to /tmp/morphhdl-single-source-16056251831228823761
+[Done] at 1.712
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.714 : Elaborate components
+[Progress] at 1.731 : Checks and transforms
+[Progress] at 1.744 : Generate Verilog to /tmp/morphhdl-single-source-15558030103543096507
+[Done] at 1.755
+[info] - typed literal Mem with symbolic elements preserves native graph and RTL
+[info] - Counter retains the public five-argument stepOne ABI
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.766 : Elaborate components
+[Progress] at 1.771 : Checks and transforms
+[Progress] at 1.774 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-997154116509380556/independent
+[Warning] toplevel/mem : Mem[5*8 bits].readAsync can only be write first into Verilog
+[Done] at 1.777
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.778 : Elaborate components
+[Progress] at 1.788 : Checks and transforms
+[Progress] at 1.789 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-997154116509380556/native
+[Warning] toplevel/mem : Mem[5*8 bits].readAsync can only be write first into Verilog
+[Done] at 1.793
+[info] - ordinary Mem keeps eager addressType ordering and concrete RTL parity
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.796 : Elaborate components
+[Progress] at 1.802 : Checks and transforms
+[Progress] at 1.803 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-2299960109398387156
+[Done] at 1.806
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.808 : Elaborate components
+[Progress] at 1.813 : Checks and transforms
+[Progress] at 1.814 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-15893179679780178306
+[Done] at 1.817
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.820 : Elaborate components
+[Progress] at 1.826 : Checks and transforms
+[Progress] at 1.828 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-4948119586040472162
+[Done] at 1.831
+[info] - Mem port geometry preserves concrete formulas and typed products
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.834 : Elaborate components
+[Progress] at 1.851 : Checks and transforms
+[Progress] at 1.858 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-3416775007140662138/ordinary
+[Done] at 1.863
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.864 : Elaborate components
+[Progress] at 1.881 : Checks and transforms
+[Progress] at 1.886 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-3416775007140662138/typed
+[Done] at 1.892
+[info] - typed literal Stream and Flow pipes preserve byte-identical concrete RTL
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 1.895 : Elaborate components
+[Progress] at 1.913 : Checks and transforms
+[Progress] at 2.044 : Generate Verilog to /tmp/morphhdl-single-source-17188862851044901693
+[Done] at 2.071
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[info] - fixed slices, typed resize, Stream and Flow retain their native shapes *** FAILED ***
+[info]   "moduleTypedPrimitiveDataPaths#(parameterintegerWIDTH=8)(inputwire[WIDTH-1:0]resize_in,outputwire[(WIDTH+1)-1:0]resize_out,inputwire[7:0]fixed_in,outputwire[1:0]fixed_slice,inputwirestream_in_valid,outputregstream_in_ready,inputwire[WIDTH-1:0]stream_in_payload,outputwirestream_out_valid,inputwirestream_out_ready,outputwire[WIDTH-1:0]stream_out_payload,inputwireflow_in_valid,inputwire[WIDTH-1:0]flow_in_payload,outputwireflow_out_valid,outputwire[WIDTH-1:0]flow_out_payload,inputwireclk,inputwirereset);wire[(WIDTH+1)-1:0]resized;wirestream_m2s_valid;wirestream_m2s_ready;wire[WIDTH-1:0]stream_m2s_payload;regstream_in_rValid;reg[WIDTH-1:0]stream_in_rData;wirewhen_Stream_l682;wirestream_s2m_valid;wirestream_s2m_ready;regstream_m2s_rValidN;reg[WIDTH-1:0]stream_m2s_rData;wirestream_half_ready;wire[WIDTH-1:0]stream_half_payload;regstream_s2m_rValid;wirestream_half_fire;reg[WIDTH-1:0]stream_s2m_rData;regflow_m2s_valid;reg[WIDTH-1:0]flow_m2s_payload;assignresized={{((((WIDTH+1))>(WIDTH))?(((WIDTH+1))-(WIDTH)):0){1'b0}},resize_in[((((WIDTH+1))<(WIDTH))?((WIDTH+1)):(WIDTH))-1:0]};assignresize_out=resized;assignfixed_slice=fixed_in[1:0];always@(*)beginstream_in_ready=stream_m2s_ready;if(when_Stream_l682)beginstream_in_ready=1'b1;endendassignwhen_Stream_l682=(!stream_m2s_valid);assignstream_m2s_valid=stream_in_rValid;assignstream_m2s_payload=stream_in_rData;assignstream_m2s_ready=stream_m2s_rValidN;assignstream_s2m_valid=(stream_m2s_valid||(!stream_m2s_rValidN));assignstream_half_fire=(stream_s2m_rValid&&stream_half_ready);assignstream_s2m_ready=(!stream_s2m_rValid);assignstream_half_payload=stream_s2m_rData;assignstream_out_valid=stream_s2m_rValid;assignstream_half_ready=stream_out_ready;assignstream_out_payload=stream_half_payload;assignflow_out_valid=flow_m2s_valid;assignflow_out_payload=flow_m2s_payload;always@(posedgeclkorposedgereset)beginif(reset)beginstream_in_rValid<=1'b0;stream_m2s_rValidN<=1'b1;stream_s2m_rValid<=1'b0;flow_m2s_valid<=1'b0;endelsebeginif(stream_in_ready)beginstream_in_rValid<=stream_in_valid;endif(stream_m2s_valid)beginstream_m2s_rValidN<=1'b0;endif(stream_s2m_ready)beginstream_m2s_rValidN<=1'b1;endif(stream_s2m_valid)beginstream_s2m_rValid<=1'b1;endif(stream_half_fire)beginstream_s2m_rValid<=1'b0;endflow_m2s_valid<=flow_in_valid;endendalways@(posedgeclk)beginif(stream_in_ready)beginstream_in_rData<=stream_in_payload;endif(stream_m2s_ready)beginstream_m2s_rData<=stream_m2s_payload;endif(stream_s2m_ready)beginstream_s2m_rData<=(stream_m2s_rValidN?stream_m2s_payload:stream_m2s_rData);endflow_m2s_payload<=flow_in_payload;endendmodule" did not contain "[WIDTH-1:0]stream_s2m_payload" module TypedPrimitiveDataPaths #(
+[info]     parameter integer WIDTH = 8
+[info]   ) (
+[info]     input  wire [WIDTH-1:0]    resize_in,
+[info]     output wire [(WIDTH + 1)-1:0]    resize_out,
+[info]     input  wire [7:0]    fixed_in,
+[info]     output wire [1:0]    fixed_slice,
+[info]     input  wire          stream_in_valid,
+[info]     output reg           stream_in_ready,
+[info]     input  wire [WIDTH-1:0]    stream_in_payload,
+[info]     output wire          stream_out_valid,
+[info]     input  wire          stream_out_ready,
+[info]     output wire [WIDTH-1:0]    stream_out_payload,
+[info]     input  wire          flow_in_valid,
+[info]     input  wire [WIDTH-1:0]    flow_in_payload,
+[info]     output wire          flow_out_valid,
+[info]     output wire [WIDTH-1:0]    flow_out_payload,
+[info]     input  wire          clk,
+[info]     input  wire          reset
+[info]   );
+[info]
+[info]     wire       [(WIDTH + 1)-1:0]    resized;
+[info]     wire                stream_m2s_valid;
+[info]     wire                stream_m2s_ready;
+[info]     wire       [WIDTH-1:0]    stream_m2s_payload;
+[info]     reg                 stream_in_rValid;
+[info]     reg        [WIDTH-1:0]    stream_in_rData;
+[info]     wire                when_Stream_l682;
+[info]     wire                stream_s2m_valid;
+[info]     wire                stream_s2m_ready;
+[info]     reg                 stream_m2s_rValidN;
+[info]     reg        [WIDTH-1:0]    stream_m2s_rData;
+[info]     wire                stream_half_ready;
+[info]     wire       [WIDTH-1:0]    stream_half_payload;
+[info]     reg                 stream_s2m_rValid;
+[info]     wire                stream_half_fire;
+[info]     reg        [WIDTH-1:0]    stream_s2m_rData;
+[info]     reg                 flow_m2s_valid;
+[info]     reg        [WIDTH-1:0]    flow_m2s_payload;
+[info]
+[info]     assign resized = {{((((WIDTH + 1)) > (WIDTH)) ? (((WIDTH + 1)) - (WIDTH)) : 0){1'b0}}, resize_in[((((WIDTH + 1)) < (WIDTH)) ? ((WIDTH + 1)) : (WIDTH))-1:0]};
+[info]     assign resize_out = resized;
+[info]     assign fixed_slice = fixed_in[1 : 0];
+[info]     always @(*) begin
+[info]       stream_in_ready = stream_m2s_ready;
+[info]       if(when_Stream_l682) begin
+[info]         stream_in_ready = 1'b1;
+[info]       end
+[info]     end
+[info]
+[info]     assign when_Stream_l682 = (! stream_m2s_valid);
+[info]     assign stream_m2s_valid = stream_in_rValid;
+[info]     assign stream_m2s_payload = stream_in_rData;
+[info]     assign stream_m2s_ready = stream_m2s_rValidN;
+[info]     assign stream_s2m_valid = (stream_m2s_valid || (! stream_m2s_rValidN));
+[info]     assign stream_half_fire = (stream_s2m_rValid && stream_half_ready);
+[info]     assign stream_s2m_ready = (! stream_s2m_rValid);
+[info]     assign stream_half_payload = stream_s2m_rData;
+[info]     assign stream_out_valid = stream_s2m_rValid;
+[info]     assign stream_half_ready = stream_out_ready;
+[info]     assign stream_out_payload = stream_half_payload;
+[info]     assign flow_out_valid = flow_m2s_valid;
+[info]     assign flow_out_payload = flow_m2s_payload;
+[info]     always @(posedge clk or posedge reset) begin
+[info]       if(reset) begin
+[info]         stream_in_rValid <= 1'b0;
+[info]         stream_m2s_rValidN <= 1'b1;
+[info]         stream_s2m_rValid <= 1'b0;
+[info]         flow_m2s_valid <= 1'b0;
+[info]       end else begin
+[info]         if(stream_in_ready) begin
+[info]           stream_in_rValid <= stream_in_valid;
+[info]         end
+[info]         if(stream_m2s_valid) begin
+[info]           stream_m2s_rValidN <= 1'b0;
+[info]         end
+[info]         if(stream_s2m_ready) begin
+[info]           stream_m2s_rValidN <= 1'b1;
+[info]         end
+[info]         if(stream_s2m_valid) begin
+[info]           stream_s2m_rValid <= 1'b1;
+[info]         end
+[info]         if(stream_half_fire) begin
+[info]           stream_s2m_rValid <= 1'b0;
+[info]         end
+[info]         flow_m2s_valid <= flow_in_valid;
+[info]       end
+[info]     end
+[info]
+[info]     always @(posedge clk) begin
+[info]       if(stream_in_ready) begin
+[info]         stream_in_rData <= stream_in_payload;
+[info]       end
+[info]       if(stream_m2s_ready) begin
+[info]         stream_m2s_rData <= stream_m2s_payload;
+[info]       end
+[info]       if(stream_s2m_ready) begin
+[info]         stream_s2m_rData <= (stream_m2s_rValidN ? stream_m2s_payload : stream_m2s_rData);
+[info]       end
+[info]       flow_m2s_payload <= flow_in_payload;
+[info]     end
+[info]
+[info]
+[info]   endmodule (TypedPrimitiveClosureTests.scala:818)
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 2.092 : Elaborate components
+[Progress] at 2.098 : Checks and transforms
+[Progress] at 2.099 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-12525509762875462778
+[Done] at 2.104
+[info] - public symbolic widths and typed resize reject missing exact evidence before attachment
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 2.110 : Elaborate components
+[Progress] at 2.119 : Checks and transforms
+[Progress] at 2.123 : Generate Verilog to /tmp/morphhdl-single-source-791139333218895019
+[Done] at 2.164
+[info] - one direct typed child formal binds its parent expression
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:31
+[Progress] at 2.168 : Elaborate components
+[Progress] at 2.193 : Checks and transforms
+[Progress] at 2.195 : Generate Verilog to /tmp/morphhdl-single-source-4369322126004569794
+[Warning] 1 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.227
+[info] - finite structural and procedural ranges keep distinct Verilog forms
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.595 : Elaborate components
+[Progress] at 2.621 : Checks and transforms
+[Progress] at 2.627 : Generate Verilog to /tmp/morphhdl-single-source-12041595669682553825
+[Warning] toplevel/finite_mem : Mem[3*8 bits].readAsync can only be write first into Verilog
+[Warning] toplevel/finite_mem : Mem[3*8 bits].readAsync can only be write first into Verilog
+[Done] at 2.742
+[info] - typed finite Mem selection rewrites only its exact retained read port
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.749 : Elaborate components
+[Progress] at 2.767 : Checks and transforms
+[Progress] at 2.772 : Generate Verilog to /tmp/morphhdl-single-source-17566552247996389012
+[Warning] toplevel/finite_composite_mem : Mem[3*8 bits].readAsync can only be write first into Verilog
+[Done] at 2.823
+[info] - typed finite composite Mem retains one complete packed read lineage
+[info] - symbolic finite ranges fail closed outside structural capture
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.828 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.843 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.848 : Elaborate components
+[info] - finite Vec Mem and fold geometry mismatches fail by exact expression
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.856 : Elaborate components
+[Progress] at 2.862 : Checks and transforms
+[Progress] at 2.864 : Generate Verilog to /tmp/morphhdl-single-source-2912215748878423281
+[info] - finite population count rejects an overridden retained anchor
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.878 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.884 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.888 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.897 : Elaborate components
+[info] - structural owners reject wrong roots overlap incomplete domains and siblings
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.902 : Elaborate components
+[info] - structural owner cannot borrow an active capture id from a foreign root
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.907 : Elaborate components
+[info] - nested exact roots cannot lend the inner capture id to the outer owner
+[info] - symbolic slice counts fail closed while literal slices stay concrete
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.914 : Elaborate components
+[Progress] at 2.924 : Checks and transforms
+[Progress] at 2.925 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-8119452867660942222
+[info] - non-positive address, Mem and Counter domains fail before construction
+[Done] at 2.929
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.931 : Elaborate components
+[Progress] at 2.936 : Checks and transforms
+[Progress] at 2.936 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-16671019642351464299
+[Done] at 2.944
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.945 : Elaborate components
+[Progress] at 2.947 : Checks and transforms
+[Progress] at 2.948 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-2989828656636434446
+[Done] at 2.950
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.951 : Elaborate components
+[Progress] at 2.954 : Checks and transforms
+[Progress] at 2.955 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-13739522003984602118
+[Done] at 2.957
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.958 : Elaborate components
+[Progress] at 2.962 : Checks and transforms
+[Progress] at 2.962 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-6252338939895137817
+[Done] at 2.965
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.966 : Elaborate components
+[Progress] at 2.973 : Checks and transforms
+[Progress] at 2.973 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-6317084492512293932
+[Done] at 2.976
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.977 : Elaborate components
+[Progress] at 2.984 : Checks and transforms
+[Progress] at 2.985 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-6475667781986584865
+[Done] at 2.987
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 2.988 : Elaborate components
+[Progress] at 2.999 : Checks and transforms
+[Progress] at 3.001 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-4173713337521163870
+[Done] at 3.003
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.005 : Elaborate components
+[Progress] at 3.012 : Checks and transforms
+[Progress] at 3.014 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-12871374317311323494
+[Done] at 3.017
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.018 : Elaborate components
+[Progress] at 3.024 : Checks and transforms
+[Progress] at 3.025 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-14512227446227522906
+[Done] at 3.029
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.030 : Elaborate components
+[Progress] at 3.039 : Checks and transforms
+[Progress] at 3.040 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-627013710618436275
+[Done] at 3.044
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.046 : Elaborate components
+[Progress] at 3.051 : Checks and transforms
+[Progress] at 3.052 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-17504697970432828236
+[Done] at 3.055
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.056 : Elaborate components
+[Progress] at 3.064 : Checks and transforms
+[Progress] at 3.065 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-16573482930439169742
+[Done] at 3.067
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.069 : Elaborate components
+[Progress] at 3.080 : Checks and transforms
+[Progress] at 3.081 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-4739318045821503953
+[Done] at 3.084
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.085 : Elaborate components
+[Progress] at 3.092 : Checks and transforms
+[Progress] at 3.094 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-8205704837055722474
+[Done] at 3.096
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.097 : Elaborate components
+[Progress] at 3.101 : Checks and transforms
+[Progress] at 3.102 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-4324063905827195003
+[Done] at 3.104
+[info] - typed Counter inclusive bounds reject negative and independent domains
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.106 : Elaborate components
+[Progress] at 3.112 : Checks and transforms
+[Progress] at 3.112 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-1497962672549134745
+[Done] at 3.114
+[info] - uintLike rejects negative and minimum-width-insufficient typed constants
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.116 : Elaborate components
+[Progress] at 3.118 : Checks and transforms
+[Progress] at 3.118 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-16845746516027431151
+[Done] at 3.120
+[info] - uintLike rejects malformed raw exact evidence before projection normalization
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 12:25:32
+[Progress] at 3.122 : Elaborate components
+[Progress] at 3.128 : Checks and transforms
+[Progress] at 3.130 : Generate Verilog to /tmp/morphhdl-typed-primitive-closure-16603339444344460181
+[Warning] 8 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.133
+[info] - retained UInt attach rejects malformed summaries before registration
+[info] Run completed in 3 seconds, 989 milliseconds.
+[info] Total number of tests run: 28
+[info] Suites: completed 1, aborted 0
+[info] Tests: succeeded 27, failed 1, canceled 0, ignored 0, pending 0
+[info] *** 1 TEST FAILED ***
+[error] Failed tests:
+[error] 	spinal.core.TypedPrimitiveClosureTests
+[error] (morph / Test / testOnly) sbt.TestsFailedException: Tests unsuccessful
+[error] Total time: 9 s, completed Sep 12, 2026, 12:25:32 PM
