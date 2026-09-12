@@ -812,11 +812,22 @@ WA-04 or WA-05 can remove an alias.
   flag is enabled. Do not add a generated-Verilog parser, file postprocessor,
   signal-renaming pass, formatting pass or broader optimization pass.
 
-- [ ] **WA-09 — Named expression-wire elimination and provenance-first alias preference**
+- [x] **WA-09 — Named expression-wire elimination and provenance-first alias preference**
 
   **Dependencies:** WA-08 and PV-62 implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
+
+  The implementation candidate `d48687d0cca4d5f8437b877e480ca4fe09ad20c4`
+  passed all 39 applicable workflows; the 15 pre-existing retired workflows
+  remained skipped. Both production Scala lanes and cross-Scala comparison
+  passed 31 deterministic artifacts, 51 equivalence cases, 6,672 four-state
+  cases and four mutation controls per lane. The 16-shard full-domain proof
+  passed all 11 pass identities over 512 bindings in two identical runs, with
+  11,264 equivalence and 11,264 reachability proofs. Both full-suite lanes
+  contained exactly 1,982 non-skipped tests in 194 suites with no failure,
+  error, cancellation or skip. The final completion-only commit must repeat
+  the same complete gate set before merge.
 
   Add `NamedWireExpressionEliminationPass` as the fourth stage, after unnamed
   expression inlining and before the two simplification stages. Reuse the

@@ -817,14 +817,18 @@ def self_test(root: Path) -> None:
     ):
         assert vector_failures(mutation), "historical/order mutation escaped"
 
-    assert status_failures(
-        sources[ROADMAP].replace("- [ ] **WA-09", "- [x] **WA-09"),
-        sources[PV_ROADMAP],
+    toggled_wa = (
+        sources[ROADMAP].replace("- [x] **WA-09", "- [ ] **WA-09")
+        if "- [x] **WA-09" in sources[ROADMAP]
+        else sources[ROADMAP].replace("- [ ] **WA-09", "- [x] **WA-09")
     )
-    assert status_failures(
-        sources[ROADMAP],
-        sources[PV_ROADMAP].replace("- [ ] **Increment 63", "- [x] **Increment 63"),
+    toggled_pv = (
+        sources[PV_ROADMAP].replace("- [x] **Increment 63", "- [ ] **Increment 63")
+        if "- [x] **Increment 63" in sources[PV_ROADMAP]
+        else sources[PV_ROADMAP].replace("- [ ] **Increment 63", "- [x] **Increment 63")
     )
+    assert status_failures(toggled_wa, sources[PV_ROADMAP])
+    assert status_failures(sources[ROADMAP], toggled_pv)
     completed_wa = sources[ROADMAP].replace(
         "- [ ] **WA-09", "- [x] **WA-09"
     ).replace("**Status:** `IN PROGRESS`.", "**Status:** `COMPLETED`.", 1)

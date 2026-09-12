@@ -1185,7 +1185,15 @@ dependency chain is unchanged and may proceed independently.
 
 ### WA-09 named-expression optimization track (Increment 63)
 
-- [ ] **Increment 63 — Named expression-wire elimination and provenance-first alias preference**
+- [x] **Increment 63 — Named expression-wire elimination and provenance-first alias preference**
+
+  **Status:** `COMPLETED`. The implementation candidate
+  `d48687d0cca4d5f8437b877e480ca4fe09ad20c4` passed every applicable workflow
+  with both Scala production lanes, cross-Scala byte identity, the exact
+  1,982-test/194-suite full inventory per lane, and the two-run 16-shard proof
+  over all 512 bindings for each of 11 pass identities (11,264 equivalence and
+  11,264 reachability proofs). The final completion-only commit remains subject
+  to the identical complete gate set before merge.
 
   **Dependencies:** Increment 62 and WA-08 implemented and merged. This
   successor is independent of unfinished Increments 59i and 61.

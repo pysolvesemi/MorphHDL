@@ -240,3 +240,39 @@ The complete 60g source-audit job has a 60-minute budget. Its former 20-minute
 job limit cancelled C18 after the inherited 59h controls passed and before the
 remaining inventory/source checks completed. Every audit command, per-command
 limit, mutation control and downstream dependency remains required.
+
+## Final qualification
+
+The exact implementation candidate
+`d48687d0cca4d5f8437b877e480ca4fe09ad20c4` (tree
+`32ee7c64cff57e876e9d7e5d6b73459b9525ae70`) completed all 54 registered
+workflows. All 39 applicable workflows succeeded; the 15 exact pre-existing
+retired workflows remained skipped. The 223 latest-attempt jobs/check-runs were
+terminal with 110 successes and 113 expected retired or unchanged-route skips,
+and no failure, cancellation, timeout, action-required or pending job.
+
+Production run `34641532464` passed both Scala 2.12.18 and 2.13.12 lanes and
+their cross-Scala comparison. All 31 RTL artifacts repeated identically,
+default equalled explicit-on, and disabled retained the legacy structure. Each
+lane passed 51 equivalence cases, 6,672 four-state cases and four functional
+mutants, including the fixed-width overflow/max-case control, strict
+Verilog-2001, lint and synthesis gates. The ordinary public topology emitted
+`assign clonedResult = (a ^ b);`; the fixed nested-sum topology emitted the
+single direct `hTotal` expression shown above, while disabled generation kept
+all six historical wrappers.
+
+Core run `34641532487` passed the boundary and native-generation jobs, both
+159-test/18-suite Scala jobs, all 16 proof shards and the aggregate. The
+aggregate artifact is bound to the exact source commit and records 11 pass
+identities, 512 `WIDTH=1..64` by `DEPTH=1..8` bindings per identity, two
+identical repetitions, 11,264 equivalence proofs, 11,264 comparison
+reachability proofs, exact disjoint coverage and all mutations detected.
+
+Full-suite run `34641532286` contained exactly 1,982 non-skipped tests in 194
+suites in each Scala lane, with zero failures, errors, cancellations or skips.
+The exact project inventory was MorphHDL 1,115/104, isolated passes 159/18,
+core 21/2, parameterized RTL 234/23, frontend 257/22, Verilog backend 148/21,
+MorphIR 32/2 and MorphPlugin 16/2 (tests/suites). Inherited 59c, 59g, 60a-60g,
+baseline, Mill, FIFO/CDC, native-memory and library-boundary workflows also
+passed on the same candidate. A following completion-only documentation commit
+must repeat this complete gate set before merge.
