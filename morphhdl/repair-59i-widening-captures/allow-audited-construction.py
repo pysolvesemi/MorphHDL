@@ -31,7 +31,7 @@ EXPECTED_BLOBS = {
     CERTIFIED: "a9b37e7cf52df372a989fef5af76810dc012988a",
     COMPOSITE: "29560d97f12bf3537151e55d65dae5816841db87",
     WIDENING_TEST: "e4007803503cc22b03c2ca1314ff57f49b524e7c",
-    SATURATION_TEST: "fc36e1e7c15bc059b25f9dbf1d55caa6dc627b00",
+    SATURATION_TEST: "6e21b307f95be582176064a2f25ff31753a00dea",
 }
 
 
@@ -248,12 +248,14 @@ def patch_tests() -> None:
     WIDENING_TEST.write_text(widening)
 
     saturation = load_exact(SATURATION_TEST)
-    saturation = replace_once(saturation,
-        '''    val result = SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 8192)
-''', '''    val result = SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false, bitVectorWidthMax = 8192)
-''', "supported saturation publication config")
+    saturation = replace_once(saturation, '''/** Fixed-width unsigned saturation combined with other whole-record fields.
+  * The unchanged native callback remains the sole datapath description.
+  */
+''', '''/** Fixed-width unsigned saturation combined with other whole-record fields.
+  * The unchanged native callback remains the sole datapath description.
+  * This also proves exact callback admission for the native UInt `+|` surface.
+  */
+''', "saturation callback-policy qualification note")
     SATURATION_TEST.write_text(saturation)
 
 
