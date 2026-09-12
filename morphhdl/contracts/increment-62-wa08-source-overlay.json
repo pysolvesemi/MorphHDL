@@ -308,7 +308,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "71fb4d0b65e09bb6427fcfe45c11e4c7daae067f0b963c17471f46ca2dc5cce0",
+      "after_sha256": "7cd4830ffff2ffc80337af11816eac4b607bfc6a97cd4577d70bb08093264c36",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -338,7 +338,7 @@
       "path": "morphhdl/contracts/native-source-preservation.json"
     },
     {
-      "after_sha256": "f37e4cc6a4923b2a0626c0d62da2b7410e19fbf9fa3fa50c383e64d93d9ce211",
+      "after_sha256": "dee8928e86867cc3a90a46ce34eb77a6ed1caeb78eda2d566de73cfc694c5f05",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/wa10-source-scope.json"
@@ -584,6 +584,12 @@
       "path": "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala"
     },
     {
+      "after_sha256": "3cf9890f8f19b92eaaed9915469cb2fb844b507b6ee1042b76b9316f32c274ec",
+      "before_sha256": "8ebff91e83f3e3f1ba112e52764f1b66428212cbf29810d993b8ef9ae9314908",
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala"
+    },
+    {
       "after_sha256": "9b1422616115e7adcfc88e1e183975463f88f78a9f1997bb1a80fac4c6a8db5c",
       "before_sha256": null,
       "mode": "100644",
@@ -602,7 +608,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "1163ad3a8f6af4243a029f49dbd19f8f6aa7d66c",
+  "final_source_commit": "847f2e01f2337ed70cf7311779cb551b230151f9",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
