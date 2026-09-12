@@ -205,7 +205,8 @@ private[examples] final class ConstantOperandPipelineNativePhase(all: Boolean) e
       var executed = Vector.empty[PassId]
       if (all) {
         val unnamed = new UnnamedWireAliasNativePhase
-        val named = new NamedWireAliasNativePhase
+        val named =
+          new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
         val expression = new UnnamedWireExpressionNativePhase
         unnamed.impl(pc)
         executed :+= PassId.UnnamedWireAliasElimination

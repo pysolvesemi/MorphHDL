@@ -47,7 +47,8 @@ import spinal.core.internals._
   */
 private[examples] final class OrderedWireAliasNativePhase extends Phase {
   private val unnamedPhase = new UnnamedWireAliasNativePhase
-  private val namedPhase = new NamedWireAliasNativePhase
+  private val namedPhase =
+    new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
   private var completed = false
   private var executedPasses = Vector.empty[String]
 

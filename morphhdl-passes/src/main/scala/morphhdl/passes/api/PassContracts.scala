@@ -29,6 +29,8 @@ object PassId {
   val NamedWireAliasElimination: PassId = unsafe("wire-alias-named")
   val UnnamedWireExpressionElimination: PassId =
     unsafe("wire-expression-unnamed")
+  val NamedWireExpressionElimination: PassId =
+    unsafe("wire-expression-named")
   val ConstantOperandSimplification: PassId =
     unsafe("constant-operand-simplification")
   val BooleanTernarySimplification: PassId =
@@ -45,9 +47,19 @@ object PassId {
   val historicalConstantOperandPasses: Vector[PassId] =
     historicalWireAssignmentPasses :+ ConstantOperandSimplification
 
-  /** The only production order when the common pass flag is enabled. */
-  val allWireAssignmentPasses: Vector[PassId] =
+  /** Historical WA-07b five-pass order retained independently of production. */
+  val historicalBooleanTernaryPasses: Vector[PassId] =
     historicalConstantOperandPasses :+ BooleanTernarySimplification
+
+  /** The only production order when the common pass flag is enabled. */
+  val allWireAssignmentPasses: Vector[PassId] = Vector(
+    UnnamedWireAliasElimination,
+    NamedWireAliasElimination,
+    UnnamedWireExpressionElimination,
+    NamedWireExpressionElimination,
+    ConstantOperandSimplification,
+    BooleanTernarySimplification
+  )
 }
 
 /** Opaque identity supplied by the canonical MorphHDL IR adapter in WA-02. */
@@ -165,6 +177,15 @@ object AliasNameOrigin {
   final case class Explicit(value: String) extends AliasNameOrigin {
     require(Option(value).exists(_.trim.nonEmpty), "explicit alias name must be non-empty")
     override val explicitName: Option[String] = Some(value)
+  }
+
+  final case class Reflected(value: String) extends AliasNameOrigin {
+    require(Option(value).exists(_.trim.nonEmpty), "reflected alias name must be non-empty")
+    override val explicitName: Option[String] = Some(value)
+  }
+
+  case object Generated extends AliasNameOrigin {
+    override val explicitName: Option[String] = None
   }
 }
 

@@ -15,6 +15,8 @@ private[examples] abstract class OrdinaryNamedAliasTopology(width: HdlInt) exten
   val choose, softResetIn = in Bool()
   val bitResult, clonedResult, keptResult, guardedResult, registeredResult, branchResult, softRegisterResult = out Bits(width bits)
   val flagResult, removableResult, timingResult, timingRegisterResult, rootBranchResult = out Bool()
+  val abc, unnamedTemporaryResult, shortestNameResult, lexicalTieResult,
+      protectedPreferenceResult = out Bool()
   val signedResult, signedCloneResult = out SInt(8 bits)
   val unsignedResult, unsignedCloneResult = out UInt(8 bits)
   val hierarchyResult, hierarchyInputResult = out Bits(8 bits)
@@ -104,6 +106,52 @@ private[examples] abstract class OrdinaryNamedAliasTopology(width: HdlInt) exten
   timingRegister.addTag(crossClockFalsePath(Some(timingAlias)))
   timingRegisterResult := timingRegister
 
+  // Name preference is determined from pre-allocation provenance, never from
+  // generated-looking spelling. The meaningful output must outlive this short
+  // compiler-generated temporary and receive its complete expression.
+  abc := {
+    @dontName val generated = Bool().setName("_zz", Nameable.REMOVABLE)
+    generated := choose ^ softResetIn
+    generated
+  }
+
+  // This is genuinely unnamed, rather than explicitly assigned a spelling
+  // that resembles backend output. The meaningful output port must survive and
+  // receive the complete expression through the ordinary public pipeline.
+  unnamedTemporaryResult := {
+    @dontName val temporary = Bool()
+    temporary := choose =/= softResetIn
+    temporary
+  }
+
+  // Both internal names are meaningful. The direct-alias stage prefers the
+  // shorter one first; the following named-expression stage can then remove
+  // that remaining temporary as well because the receiver is an output port.
+  val substantiallyLongerMeaningfulSource = Bool()
+  substantiallyLongerMeaningfulSource := choose & softResetIn
+  val q = Bool()
+  q := substantiallyLongerMeaningfulSource
+  shortestNameResult := q
+
+  // For equally ranked, equally short meaningful names, canonical lexical
+  // order is the deterministic tie-breaker. The alias stage therefore keeps
+  // `aaa` over `bbb`; the expression stage can subsequently inline it to the
+  // non-removable output port.
+  val bbb = Bool()
+  bbb := choose === softResetIn
+  val aaa = Bool()
+  aaa := bbb
+  lexicalTieResult := aaa
+
+  // Non-removability outranks name length. The long protected source remains
+  // the anchor even though its ordinary direct alias is much shorter.
+  val extraordinarilyLongProtectedName = Bool()
+  extraordinarilyLongProtectedName.addAttribute("keep")
+  extraordinarilyLongProtectedName := choose | softResetIn
+  val p = Bool()
+  p := extraordinarilyLongProtectedName
+  protectedPreferenceResult := p
+
   val child = new Component {
     val input = in Bits(8 bits)
     val output = out Bits(8 bits)
@@ -144,6 +192,19 @@ object WireAssignmentProductionArtifactWriter {
     val width = HdlInt.param("WIDTH", default = BigInt(8), min = BigInt(1), max = BigInt(64))
     val depth = HdlInt.param("DEPTH", default = BigInt(5), min = BigInt(1), max = BigInt(8))
     MorphVerilog(selected) { new ParameterizedStreamFifo(width, depth) }
+  }
+
+  /** Independent six-pass candidate for exact production/FIFO identity. */
+  private def fifoCanonicalSix(output: Path): Unit = {
+    val original = config(output)
+    val phase = new NamedWireExpressionPipelineNativePhase(all = true)
+    NamedWireExpressionWitnessPhasePlan.install(original, Some(phase))
+    val width = HdlInt.param("WIDTH", default = BigInt(8), min = BigInt(1), max = BigInt(64))
+    val depth = HdlInt.param("DEPTH", default = BigInt(5), min = BigInt(1), max = BigInt(8))
+    MorphVerilog(MorphWireAssignmentPasses(original, enabled = false)) {
+      new ParameterizedStreamFifo(width, depth)
+    }
+    Files.write(output.resolve("report.json"), phase.toJson.getBytes(StandardCharsets.UTF_8))
   }
 
   private def generic(output: Path, mode: String): Unit = {
@@ -269,6 +330,7 @@ object WireAssignmentProductionArtifactWriter {
       val expected = directory.resolve("fifo-historical-all")
       ParameterizedStreamFifoBooleanTernaryWitness.main(Array(
         "all", expected.toString, "generated.v", expected.resolve("report.json").toString))
+      fifoCanonicalSix(directory.resolve("fifo-canonical-six"))
       for (mode <- Vector("reference", "enabled", "default", "disabled", "plain"))
         generic(directory.resolve("generic-" + mode), mode)
       for (mode <- Vector("default", "enabled", "disabled")) {
@@ -279,6 +341,7 @@ object WireAssignmentProductionArtifactWriter {
       debugNamed(directory.resolve("named-debug-disabled"), enabled = false)
       for (mode <- Vector("default", "enabled", "disabled"))
         opaqueNamed(directory.resolve("named-opaque-" + mode), mode)
+      NestedUnsignedExtendedSumProductionArtifactWriter.writeRound(directory)
     }
     Files.write(output.resolve("configuration.txt"),
       "default-on selection, explicit opt-out and configuration isolation PASS\n".getBytes(StandardCharsets.UTF_8))

@@ -80,7 +80,8 @@ private[examples] final class BooleanTernaryPipelineNativePhase(all: Boolean) ex
       var executed = Vector.empty[PassId]
       if (all) {
         val unnamed = new UnnamedWireAliasNativePhase
-        val named = new NamedWireAliasNativePhase
+        val named =
+          new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
         val expression = new UnnamedWireExpressionNativePhase
         unnamed.impl(pc)
         executed :+= PassId.UnnamedWireAliasElimination
@@ -100,7 +101,10 @@ private[examples] final class BooleanTernaryPipelineNativePhase(all: Boolean) ex
       val ternary = new BooleanTernaryNativePhase
       ternary.impl(pc)
       executed :+= PassId.BooleanTernarySimplification
-      val expected = if (all) WireAliasPassConfiguration(enabled = true).enabledPasses
+      // This remains the immutable five-stage WA-07b regression runner. The
+      // public production flag now includes the WA-09 named-expression stage.
+      val expected = if (all) WireAliasPassConfiguration.selectedForTesting(
+        PassId.historicalBooleanTernaryPasses: _*).enabledPasses
         else Vector(PassId.BooleanTernarySimplification)
       require(executed == expected, "WA-07b native order differs from the canonical pipeline")
       executionRounds :+= executed

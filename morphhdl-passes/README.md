@@ -11,7 +11,10 @@ WA-07b's integrated implementation is qualified. Its exact-source results,
 actual emitted demonstration and separate completion-head CI/merge gate are
 recorded in [WA-07b evidence](wa07b-completion-evidence.md). Implementation and
 proof layers are described in [WA-07b notes](wa07b-implementation-notes.md).
-WA-08 is the successor only after the completion is merged.
+WA-08 completed the five-stage production handoff. WA-09 is the explicit
+successor for named-expression inlining and provenance-first alias preference;
+its bounded contract is in
+[WA-09 notes](wa09-named-expression-and-name-preference.md).
 
 ## Implemented boundary
 
@@ -29,15 +32,16 @@ implements `UnnamedWireAliasEliminationPass`; WA-05 implements
 Booleans with one product-facing `enabled` flag. WA-07a adds bounded
 `ConstantOperandSimplificationPass` and closes the four-stage fixed point.
 WA-07b adds `BooleanTernarySimplificationPass` as the fifth stage and extends
-fixed-point closure across both simplification passes. The original two-,
-three- and four-stage selections remain internal regression oracles. No signal
-renaming, generated-Verilog parsing, formatting or broader optimization pass is
+fixed-point closure across both simplification passes. WA-09 adds
+`NamedWireExpressionEliminationPass` as the fourth production stage and moves
+the two simplification stages after it. The exact historical three-, four- and
+five-stage selections remain internal regression oracles. No signal renaming,
+generated-Verilog parsing, formatting or broader optimization pass is
 implemented here.
 
-The final production handoff remains WA-08. Until then the production
-`CanonicalIrHandoff` is read-only; test-only native bridges demonstrate the
-same canonical decisions against generated RTL without making the standalone
-workspace a root build dependency.
+WA-08 supplied the production `CanonicalIrHandoff` and validated writeback.
+WA-09 extends that same boundary; test-only native witnesses remain independent
+proof legs and do not make the standalone workspace a root build dependency.
 
 ## WA-03 safety contract
 
@@ -78,18 +82,27 @@ or a component-specific implementation.
 
 ## WA-05 named direct-alias pass
 
-`NamedWireAliasEliminationPass` discovers candidates only from
-`NameOrigin.Explicit`, which retains the explicit source name. It applies the
-same bounded direct-reference contract
+`NamedWireAliasEliminationPass` discovers candidates from retained
+`NameOrigin.Explicit`, `NameOrigin.Reflected` and `NameOrigin.Generated`
+provenance. It applies the same bounded direct-reference contract
 with the stricter named observability checks. An eligible named internal alias
 and its assignment are removed without transferring the removed name to its
 source or inventing a replacement name. Every removed name and available
 source location is recorded deterministically.
+An `Explicit` origin retains its explicit source name; reflected origins retain
+their reflected source name, while generated origins are classified only by
+provenance and never by their eventual backend spelling.
 
 Public/hierarchical names, preservation/probe contracts, black-box boundaries,
 comments, attributes, unknown naming provenance, opaque metadata and all
 non-direct expressions remain unchanged. The transformation does not recognize
 source filenames, emitted identifiers, component names or library classes.
+
+WA-09 adds deterministic survivor preference only where either side is already
+proven removable. Non-removable identities win; meaningful explicit/reflected
+provenance beats unnamed/generated provenance; shorter spelling breaks ties
+only between meaningful names. An explicitly named `_zz` remains meaningful,
+so no emitted-name pattern participates in the decision.
 
 `NamedWireAliasNativePhase` is a test-only bridge over real pre-emission native
 graph identities. It executes the canonical named pass, verifies complete
@@ -111,8 +124,9 @@ fourth stage and WA-07b adds the fifth:
 WireAliasPassConfiguration()                  // no pass
 WireAliasPassConfiguration(enabled = false)   // no pass
 WireAliasPassConfiguration(enabled = true)    // unnamed aliases, named aliases,
-                                             // unnamed expressions, constants,
-                                             // Boolean ternaries, to a fixed point
+                                             // unnamed and named expressions,
+                                             // constants and Boolean ternaries,
+                                             // to a fixed point
 ```
 
 The historical direct-alias stages remain supported as internal proof oracles:
@@ -179,8 +193,10 @@ use only when the temporary is proven one bit wide. The complete selected-use
 contract is documented in
 [`WA07_SELECTED_USE_CONTRACT.md`](WA07_SELECTED_USE_CONTRACT.md).
 
-The public `WireAliasPassConfiguration(enabled = true)` now executes all five
-passes in the fixed order. `enabled = false` executes none. Tests cover literal,
+WA-07b's historical public `WireAliasPassConfiguration(enabled = true)` executed
+all five then-current passes in fixed order; WA-09 preserves that exact vector
+as an internal regression oracle while production executes six. `enabled =
+false` executes none. Tests cover literal,
 nested and fanout expressions, exact identity, type fences, cycles, scopes,
 metadata, procedural source and receiver exclusions, selection composition and
 rejection, determinism, atomic failure, fixed points and idempotence on both
@@ -313,6 +329,55 @@ Scala lanes, all 16 formal shards and full-domain aggregation in workflow
 artifacts, actual RTL and proof limits. The documentation completion head
 requires its own CI before merge; WA-08 cannot start from an open PR.
 Test code alone is not successful proof evidence.
+
+## WA-09 — named expressions and alias survivor preference
+
+`NamedWireExpressionEliminationPass` shares the WA-07 canonical eligibility and
+rewrite engine for explicit, reflected and generated internal expression wires.
+It runs after unnamed-expression inlining and before the constant and ternary
+stages. Unsupported native expressions, unknown provenance and every existing
+scope, type, procedural, observability, metadata and identity exclusion fail
+closed. The native bridge captures the exact RHS; it never invents a
+representative expression.
+
+The direct-alias planner first honors non-removable identities, then meaningful
+name provenance, then shorter meaningful names with deterministic tie breakers.
+Generated or unnamed provenance loses to a meaningful name regardless of
+spelling. No surviving signal is renamed and no removed name is transferred.
+The production topology documented in
+[WA-09 notes](wa09-named-expression-and-name-preference.md) must reduce to
+`assign clonedResult = (a ^ b);`, retaining the output port while removing both
+eligible internal intermediates.
+
+The native bridge captures the actual source and receiver RHS with
+`NativeWireExpressionCodec` and rewrites only whole-RHS continuous receivers;
+it never fabricates a representative expression, and treats `TypeBool` as width
+one. Reverse direct-source removal requires the canonical decision over the
+actual two-edge chain. Expression deferral remains provenance-owned: true
+unnamed sources use `UnnamedWireExpressionNativePhase`, while
+explicit/reflected/generated sources use `NamedWireExpressionNativePhase`.
+
+The same work reproduces wrappers created later by Verilog
+`fillExpressionToWrap`, after all six stages. A separate bounded emitter policy
+may keep only an exact homogeneous fixed-width unsigned `UInt` add tree inline
+under a whole-object fixed-width unsigned receiver. Leaves may be same-width
+fixed `UInt` declarations or exact fixed unsigned widening resizes; synthetic
+expression nodes must be unannotated and uniquely used. Fixed native 16-to-18
+`ResizeUInt` wrappers inline completely. Tagged parameterized resize carriers
+remain declared and may serve as fixed 18-bit leaves while only surrounding
+`Add` wrappers inline. Mixed or signed widths, narrowing, selections and direct
+symbolic-width expression nodes retain wrappers. A same-width 18-bit companion
+proves unchanged modular-overflow tree semantics; this is not a seventh pass or
+generated-text rewrite. The committed reproduction is
+`morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala`;
+run `sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"`.
+
+The common flag runs six stages. `PassId.historicalWireAssignmentPasses`,
+`historicalConstantOperandPasses` and `historicalBooleanTernaryPasses` preserve
+the exact earlier three-, four- and five-stage orders. WA-09 remains unchecked
+until both Scala lanes, native production generation, strict tools, four-state
+and mutation checks, formal equivalence and every inherited final-head gate
+pass.
 
 ## Common witness and formal-equivalence baseline
 

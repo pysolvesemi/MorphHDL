@@ -19,6 +19,7 @@ import morphhdl.passes.safety.AliasSafetyConfiguration
 import morphhdl.passes.transform.BooleanTernarySimplificationPass
 import morphhdl.passes.transform.ConstantOperandSimplificationPass
 import morphhdl.passes.transform.NamedWireAliasEliminationPass
+import morphhdl.passes.transform.NamedWireExpressionEliminationPass
 import morphhdl.passes.transform.UnnamedWireAliasEliminationPass
 import morphhdl.passes.transform.UnnamedWireExpressionEliminationPass
 
@@ -76,7 +77,8 @@ final case class WireAliasPipelineResult(
   *
   * Product callers have one flag. Each fixed-point round executes unnamed
   * direct aliases, named direct aliases, unnamed continuous expressions,
-  * constant-operand simplification, then Boolean ternary simplification.
+  * meaningful named continuous expressions, constant-operand simplification,
+  * then Boolean ternary simplification.
   * Historical regression selections without either simplification stage retain
   * their original single-round behavior. No stage inspects generated HDL,
   * identifiers, filenames or component names.
@@ -95,6 +97,10 @@ object WireAliasPassPipeline {
   /** Historical WA-07a four-pass identifier for its unchanged proof legs. */
   val historicalConstantPassId: String =
     PassId.historicalConstantOperandPasses.map(_.value).mkString("+")
+
+  /** Historical WA-07b five-pass identifier retained for regression evidence. */
+  val historicalBooleanPassId: String =
+    PassId.historicalBooleanTernaryPasses.map(_.value).mkString("+")
 
   val allPassId: String = PassId.allWireAssignmentPasses.map(_.value).mkString("+")
 
@@ -124,6 +130,8 @@ object WireAliasPassPipeline {
       NamedWireAliasEliminationPass.run(design, stageConfiguration(passId), safetyConfiguration)
     case PassId.UnnamedWireExpressionElimination =>
       UnnamedWireExpressionEliminationPass.run(design, stageConfiguration(passId))
+    case PassId.NamedWireExpressionElimination =>
+      NamedWireExpressionEliminationPass.run(design, stageConfiguration(passId))
     case PassId.ConstantOperandSimplification =>
       val result = ConstantOperandSimplificationPass.run(design)
       val report = EliminationReport(passId, simplifiedExpressions = result.rewrites.map { rewrite =>

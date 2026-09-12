@@ -1607,7 +1607,103 @@ end
 
   def fillExpressionToWrap(): Unit = {
 
-    def applyTo(that: Expression) = expressionToWrap += that
+    /**
+      * The normal Verilog policy materializes nested UInt arithmetic after all
+      * netlist passes have completed. Under MorphHDL's explicit production
+      * marker, admit only the one case for which removing those emitter-created
+      * carriers cannot alter a Verilog sizing boundary:
+      *
+      *   - an unconditional whole-object assignment to a combinational UInt;
+      *   - one exact, fixed output width throughout an unsigned addition tree;
+      *   - fixed UInt leaves of that width, or fixed unsigned widening resizes
+      *     from UInt leaves;
+      *   - no shared expression node.
+      *
+      * Symbolic widths, annotated targets, signed/mixed-width nodes, slices,
+      * truncation, procedural assignments and all unknown forms fail closed.
+      * Leaf annotations are preserved on their real declarations; the policy
+      * removes only emitter-created expression wrappers, never a leaf carrier.
+      */
+    def redundantUnsignedAddWrappers(): java.util.IdentityHashMap[Expression, java.lang.Boolean] = {
+      val result = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+      if (!VerilogEmitterExpressionInlining.isEnabled(spinalConfig)) return result
+
+      val occurrences = new java.util.IdentityHashMap[Expression, java.lang.Integer]()
+      component.dslBody.walkStatements { statement =>
+        statement.walkDrivingExpressions { expression =>
+          val previous = occurrences.get(expression)
+          occurrences.put(expression, if (previous == null) 1 else previous.intValue + 1)
+        }
+      }
+
+      def fixedUIntLeaf(value: spinal.core.UInt, width: Int): Boolean =
+        value.getWidth == width &&
+          value.component == component &&
+          ParameterizedWidth.expressionOf(value).isEmpty
+
+      def collect(
+          expression: Expression,
+          width: Int,
+          wrappers: ArrayBuffer[Expression]
+      ): Boolean = expression match {
+        case add: Operator.UInt.Add
+            if add.getWidth == width &&
+              VerilogEmitterExpressionInlining.isUnannotated(add) =>
+          wrappers += add
+          collect(add.left, width, wrappers) && collect(add.right, width, wrappers)
+
+        case resize: ResizeUInt
+            if resize.size == width &&
+              ParameterizedWidth.resizeExpressionOf(resize).isEmpty &&
+              VerilogEmitterExpressionInlining.isUnannotated(resize) =>
+          resize.input match {
+            case source: spinal.core.UInt
+                if source.getWidth > 0 && source.getWidth < width &&
+                  fixedUIntLeaf(source, source.getWidth) =>
+              wrappers += resize
+              true
+            case _ => false
+          }
+
+        case source: spinal.core.UInt => fixedUIntLeaf(source, width)
+        case _                        => false
+      }
+
+      component.dslBody.walkStatements {
+        case assignment: DataAssignmentStatement =>
+          assignment.target match {
+            case target: spinal.core.UInt
+                if (assignment.target eq target) &&
+                  assignment.parentScope == component.dslBody &&
+                  target.isComb &&
+                  target.hasOnlyOneStatement &&
+                  (target.head eq assignment) &&
+                  target.getWidth > 0 &&
+                  target.isEmptyOfTag &&
+                  ParameterizedWidth.expressionOf(target).isEmpty =>
+              assignment.source match {
+                case root: Operator.UInt.Add if root.getWidth == target.getWidth =>
+                  val wrappers = ArrayBuffer[Expression]()
+                  if (collect(root, target.getWidth, wrappers) &&
+                      wrappers.forall(node => {
+                        val count = occurrences.get(node)
+                        count != null && count.intValue == 1
+                      })) {
+                    wrappers.foreach(node => result.put(node, java.lang.Boolean.TRUE))
+                  }
+                case _ =>
+              }
+            case _ =>
+          }
+        case _ =>
+      }
+      result
+    }
+
+    val wrappersProvenRedundant = redundantUnsignedAddWrappers()
+
+    def applyTo(that: Expression) =
+      if (!wrappersProvenRedundant.containsKey(that)) expressionToWrap += that
 
     def onEachExpression(e: Expression): Unit = {
       e match {

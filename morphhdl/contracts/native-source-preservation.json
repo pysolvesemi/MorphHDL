@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "20dbb0a9a93fb860e1405bc0844d3b20872f52e0"
+      "approved_tree": "0e4b2ccf12b69929dd3f2deca6e7f1e60138bb8d"
     },
     {
       "path": "idslpayload/src/main",
@@ -2382,9 +2382,10 @@
       "introduced_by": [
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
-        "Increment 60e: signedness boundaries, aggregates and hierarchy closure"
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-09 uses the existing Morph wire-assignment enable state to suppress only proven redundant emitter wrappers for unique-use, unannotated, fixed-width unsigned addition trees assigned wholly and unconditionally to one combinational UInt. Signedness, symbolic width, truncation, slices, shared expressions and unknown forms retain the existing wrapper policy; ordinary SpinalVerilog and explicitly disabled Morph generation retain legacy behavior.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -2394,8 +2395,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "7dbfdb6964e0e88ecdf359abe1ccbb47bd3d7745",
-        "sha256": "8dfe14204b6a18337ba883aa9928aaa8334ee27ef807ca45034ab8a0c596f28d"
+        "blob": "10337dd25ca0e33015d1cf8a2b475db8d503a88a",
+        "sha256": "95f24fd292f45029f4372f94d16750691924ec1c770ad0188e89e019c36ce21e"
       },
       "edits": [
         {
@@ -2468,6 +2469,34 @@
           ]
         },
         {
+          "id": "wa09-componentemitterverilog-unsigned-add-wrapper-proof",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "WA-09 uses the existing Morph wire-assignment enable state to suppress only proven redundant emitter wrappers for unique-use, unannotated, fixed-width unsigned addition trees assigned wholly and unconditionally to one combinational UInt. Signedness, symbolic width, truncation, slices, shared expressions and unknown forms retain the existing wrapper policy; ordinary SpinalVerilog and explicitly disabled Morph generation retain legacy behavior.",
+          "baseline_span": {
+            "start": 71379,
+            "end": 71410,
+            "sha256": "8cbddab6f6ece10999cdde94a48a18ebf9b69918b8b6df087d028c5707a6233d"
+          },
+          "approved_span": {
+            "start": 71823,
+            "end": 76048,
+            "sha256": "335589ccab41ad7f1f09ab3e6d039f93bc6b0037683d9c40176c60a867123272"
+          },
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "def applyTo(that: Expression) =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "/**\n      * The normal Verilog policy materializes nested UInt arithmetic after all\n      * netlist passes have completed. Under MorphHDL's explicit production\n      * marker, admit only the one case for which removing those emitter-created\n      * carriers cannot alter a Verilog sizing boundary:\n      *\n      *   - an unconditional whole-object assignment to a combinational UInt;\n      *   - one exact, fixed output width throughout an unsigned addition tree;\n      *   - fixed UInt leaves of that width, or fixed unsigned widening resizes\n      *     from UInt leaves;\n      *   - no shared expression node.\n      *\n      * Symbolic widths, annotated targets, signed/mixed-width nodes, slices,\n      * truncation, procedural assignments and all unknown forms fail closed.\n      * Leaf annotations are preserved on their real declarations; the policy\n      * removes only emitter-created expression wrappers, never a leaf carrier.\n      */\n    def redundantUnsignedAddWrappers(): java.util.IdentityHashMap[Expression, java.lang.Boolean] = {\n      val result = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n      if (!VerilogEmitterExpressionInlining.isEnabled(spinalConfig)) return result\n\n      val occurrences = new java.util.IdentityHashMap[Expression, java.lang.Integer]()\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          val previous = occurrences.get(expression)\n          occurrences.put(expression, if (previous == null) 1 else previous.intValue + 1)\n        }\n      }\n\n      def fixedUIntLeaf(value: spinal.core.UInt, width: Int): Boolean =\n        value.getWidth == width &&\n          value.component == component &&\n          ParameterizedWidth.expressionOf(value).isEmpty\n\n      def collect(\n          expression: Expression,\n          width: Int,\n          wrappers: ArrayBuffer[Expression]\n      ): Boolean = expression match {\n        case add: Operator.UInt.Add\n            if add.getWidth == width &&\n              VerilogEmitterExpressionInlining.isUnannotated(add) =>\n          wrappers += add\n          collect(add.left, width, wrappers) && collect(add.right, width, wrappers)\n\n        case resize: ResizeUInt\n            if resize.size == width &&\n              ParameterizedWidth.resizeExpressionOf(resize).isEmpty &&\n              VerilogEmitterExpressionInlining.isUnannotated(resize) =>\n          resize.input match {\n            case source: spinal.core.UInt\n                if source.getWidth > 0 && source.getWidth < width &&\n                  fixedUIntLeaf(source, source.getWidth) =>\n              wrappers += resize\n              true\n            case _ => false\n          }\n\n        case source: spinal.core.UInt => fixedUIntLeaf(source, width)\n        case _                        => false\n      }\n\n      component.dslBody.walkStatements {\n        case assignment: DataAssignmentStatement =>\n          assignment.target match {\n            case target: spinal.core.UInt\n                if (assignment.target eq target) &&\n                  assignment.parentScope == component.dslBody &&\n                  target.isComb &&\n                  target.hasOnlyOneStatement &&\n                  (target.head eq assignment) &&\n                  target.getWidth > 0 &&\n                  target.isEmptyOfTag &&\n                  ParameterizedWidth.expressionOf(target).isEmpty =>\n              assignment.source match {\n                case root: Operator.UInt.Add if root.getWidth == target.getWidth =>\n                  val wrappers = ArrayBuffer[Expression]()\n                  if (collect(root, target.getWidth, wrappers) &&\n                      wrappers.forall(node => {\n                        val count = occurrences.get(node)\n                        count != null && count.intValue == 1\n                      })) {\n                    wrappers.foreach(node => result.put(node, java.lang.Boolean.TRUE))\n                  }\n                case _ =>\n              }\n            case _ =>\n          }\n        case _ =>\n      }\n      result\n    }\n\n    val wrappersProvenRedundant = redundantUnsignedAddWrappers()\n\n    def applyTo(that: Expression) =\n      if (!wrappersProvenRedundant.containsKey(that))",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "signed-boundary-60e-componentemitterverilog-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -2478,8 +2507,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 73504,
-            "end": 73844,
+            "start": 77698,
+            "end": 78038,
             "sha256": "03cdcd84ab2b2dcf5638cbe56746a634cc3ae101f8825d7b0198a6a6efd079e8"
           },
           "required_exact_text": [
@@ -2501,8 +2530,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 73938,
-            "end": 74016,
+            "start": 78132,
+            "end": 78210,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -2524,8 +2553,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 74122,
-            "end": 74157,
+            "start": 78316,
+            "end": 78351,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -2547,8 +2576,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 74685,
-            "end": 74720,
+            "start": 78879,
+            "end": 78914,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -2570,8 +2599,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 75340,
-            "end": 75391,
+            "start": 79534,
+            "end": 79585,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -2593,8 +2622,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 76827,
-            "end": 76890,
+            "start": 81021,
+            "end": 81084,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -2616,8 +2645,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 76954,
-            "end": 76961,
+            "start": 81148,
+            "end": 81155,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -2639,8 +2668,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 77031,
-            "end": 77038,
+            "start": 81225,
+            "end": 81232,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -2930,6 +2959,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+      "change": "added",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination"
+      ],
+      "reason": "Private generation-scoped opt-in for the proven emitter wrapper policy. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. MorphVerilog derives this marker from the existing wire-assignment optimization configuration.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+        "mode": "100644",
+        "blob": "287b90341ddbd3a0487c19a62b46ac3f6d797a6d",
+        "sha256": "cbd6861ada0ba3c17d05792722066daccc73ea7ad6d598c3e2792bb887c8ee16"
+      },
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",

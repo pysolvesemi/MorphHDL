@@ -351,6 +351,259 @@ WA08_SUITES = {
 }
 WA08_SUITE_SOURCE = "morphhdl/src/test/scala/spinal/core/internals/HierarchyResizeSourceWidthTests.scala"
 
+# Exact inherited suite counts observed in both complete Scala 2.12.18/2.13.12
+# 60f report sets on final WA-08 head ddbfa0219fd8671ef0143984d37810eba3167707:
+# 1,941 non-skipped tests in 191 suites; Morph contributes 1,105 in 103 suites.
+# This WA-09-only baseline does not change historical minimum-count catalogs.
+# It is selected only after the complete successor source overlay verifies.
+# Canonical sorted JSON count-catalog SHA-256: c661f6902c251c7cebca9c2d124c1955df7a0e7172da3790cee1748831aad042
+WA09_INHERITED_FEATURES = frozenset({
+    "wa07a", "wa07b", "59c", "59d", "59e", "59f", "59g", "59h", "60g",
+})
+WA09_INHERITED_SUITE_COUNTS = {
+    'paramrtl': {
+        'morphhdl.paramrtl.AddressWidthExpressionTests': 11,
+        'morphhdl.paramrtl.AsynchronousEnabledRegisterValidatorTests': 11,
+        'morphhdl.paramrtl.AsynchronousRegisterValidatorTests': 12,
+        'morphhdl.paramrtl.BoolExpressionAnalysisTests': 9,
+        'morphhdl.paramrtl.BooleanLocalParameterTests': 14,
+        'morphhdl.paramrtl.BooleanParameterBindingTests': 7,
+        'morphhdl.paramrtl.CeilLog2ExpressionTests': 6,
+        'morphhdl.paramrtl.CombinationalIfValidatorTests': 14,
+        'morphhdl.paramrtl.GenerateCaseValidatorTests': 11,
+        'morphhdl.paramrtl.GenerateForValidatorTests': 14,
+        'morphhdl.paramrtl.GenerateIfValidatorTests': 15,
+        'morphhdl.paramrtl.HierarchyValidatorTests': 18,
+        'morphhdl.paramrtl.IntExpressionAnalysisTests': 5,
+        'morphhdl.paramrtl.MinMaxExpressionTests': 6,
+        'morphhdl.paramrtl.ParamExpressionValidatorTests': 12,
+        'morphhdl.paramrtl.ParamRtlValidatorTests': 20,
+        'morphhdl.paramrtl.SynchronousCounterValidatorTests': 6,
+        'morphhdl.paramrtl.SynchronousEnabledRegisterValidatorTests': 11,
+        'morphhdl.paramrtl.SynchronousReadFirstSimpleDualPortMemoryValidatorTests': 4,
+        'morphhdl.paramrtl.SynchronousReadFirstSinglePortMemoryValidatorTests': 8,
+        'morphhdl.paramrtl.SynchronousRegisterValidatorTests': 13,
+        'morphhdl.paramrtl.SynchronousStreamFifoValidatorTests': 4,
+        'morphhdl.paramrtl.SynchronousStreamM2sPipeValidatorTests': 3,
+    },
+    'frontend': {
+        'morphhdl.frontend.AddressWidthFrontendTests': 10,
+        'morphhdl.frontend.AsynchronousEnabledRegisterFrontendTests': 14,
+        'morphhdl.frontend.AsynchronousRegisterFrontendTests': 13,
+        'morphhdl.frontend.BooleanLocalParameterFrontendTests': 8,
+        'morphhdl.frontend.BooleanParameterBindingFrontendTests': 9,
+        'morphhdl.frontend.CeilLog2FrontendTests': 5,
+        'morphhdl.frontend.CombinationalIfFrontendTests': 16,
+        'morphhdl.frontend.FrontendProvenanceTests': 11,
+        'morphhdl.frontend.GenerateCaseFrontendTests': 13,
+        'morphhdl.frontend.GenerateForFrontendTests': 20,
+        'morphhdl.frontend.GenerateIfFrontendTests': 15,
+        'morphhdl.frontend.HdlBoolTests': 18,
+        'morphhdl.frontend.HdlIntTests': 32,
+        'morphhdl.frontend.LocalParameterFrontendTests': 14,
+        'morphhdl.frontend.SynchronousCounterFrontendTests': 5,
+        'morphhdl.frontend.SynchronousEnabledRegisterFrontendTests': 13,
+        'morphhdl.frontend.SynchronousReadFirstSimpleDualPortMemoryFrontendTests': 5,
+        'morphhdl.frontend.SynchronousReadFirstSinglePortMemoryFrontendTests': 11,
+        'morphhdl.frontend.SynchronousRegisterFrontendTests': 14,
+        'morphhdl.frontend.SynchronousStreamFifoFrontendTests': 5,
+        'morphhdl.frontend.SynchronousStreamM2sPipeFrontendTests': 4,
+        'morphhdl.frontend.compatibility.SpinalImportCompatibilityTests': 2,
+    },
+    'backends/verilog': {
+        'morphhdl.backend.verilog2001.AddressWidthEmitterTests': 7,
+        'morphhdl.backend.verilog2001.AsynchronousEnabledRegisterEmitterTests': 7,
+        'morphhdl.backend.verilog2001.AsynchronousRegisterEmitterTests': 8,
+        'morphhdl.backend.verilog2001.BooleanLocalParameterEmitterTests': 3,
+        'morphhdl.backend.verilog2001.BooleanParameterBindingEmitterTests': 4,
+        'morphhdl.backend.verilog2001.CeilLog2EmitterTests': 11,
+        'morphhdl.backend.verilog2001.CombinationalIfEmitterTests': 6,
+        'morphhdl.backend.verilog2001.DerivedWidthEmitterTests': 6,
+        'morphhdl.backend.verilog2001.GenerateCaseEmitterTests': 6,
+        'morphhdl.backend.verilog2001.GenerateIfEmitterTests': 8,
+        'morphhdl.backend.verilog2001.LaneArrayEmitterTests': 10,
+        'morphhdl.backend.verilog2001.MinMaxEmitterTests': 8,
+        'morphhdl.backend.verilog2001.ParameterForwardingEmitterTests': 7,
+        'morphhdl.backend.verilog2001.SynchronousCounterEmitterTests': 5,
+        'morphhdl.backend.verilog2001.SynchronousEnabledRegisterEmitterTests': 7,
+        'morphhdl.backend.verilog2001.SynchronousReadFirstSimpleDualPortMemoryEmitterTests': 6,
+        'morphhdl.backend.verilog2001.SynchronousReadFirstSinglePortMemoryEmitterTests': 6,
+        'morphhdl.backend.verilog2001.SynchronousRegisterEmitterTests': 8,
+        'morphhdl.backend.verilog2001.SynchronousStreamFifoEmitterTests': 5,
+        'morphhdl.backend.verilog2001.SynchronousStreamM2sPipeEmitterTests': 3,
+        'morphhdl.backend.verilog2001.Verilog2001EmitterTests': 17,
+    },
+    'morphhdl': {
+        'morphhdl.BackendSyncMergeIsolationTests': 2,
+        'morphhdl.BoundedRecursivePowerTests': 4,
+        'morphhdl.BoundedRecursiveSafetyTests': 17,
+        'morphhdl.CapturedAssignmentNormalizationTests': 19,
+        'morphhdl.CapturedDomainWidthEquivalenceTests': 20,
+        'morphhdl.CounterSingleAuthorityParityTests': 1,
+        'morphhdl.ExternalHierarchyBoolLiteralBindingTests': 1,
+        'morphhdl.FormalParameterClonePropagationTests': 6,
+        'morphhdl.FormalParameterIdentityTests': 9,
+        'morphhdl.GenericExpressionAndStreamTests': 9,
+        'morphhdl.GenericProcessLoweringTests': 7,
+        'morphhdl.HierarchyParameterBindingTests': 8,
+        'morphhdl.MorphCanonicalIrHandoffTests': 14,
+        'morphhdl.MorphSingleSourceVerilogTests': 14,
+        'morphhdl.MorphVerilogTests': 77,
+        'morphhdl.NamedFieldVecCollisionTests': 7,
+        'morphhdl.NamedFieldVecHierarchyTests': 6,
+        'morphhdl.NamedFieldVecNestedWriteTests': 20,
+        'morphhdl.NamedFieldVecTests': 11,
+        'morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests': 2,
+        'morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests': 9,
+        'morphhdl.NativeLibraryMigrationFormalEquivalenceTests': 2,
+        'morphhdl.NativeLibraryMigrationTests': 4,
+        'morphhdl.NativeLibraryReuseTests': 3,
+        'morphhdl.NativeStreamFifoCCCdcProofTests': 3,
+        'morphhdl.NativeStreamFifoCCFormalEquivalenceTests': 6,
+        'morphhdl.NativeStreamFifoCCParameterizedTests': 19,
+        'morphhdl.NativeStreamFifoFormalEquivalenceTests': 4,
+        'morphhdl.NativeSymbolicMemoryTests': 14,
+        'morphhdl.NativeTypedLibraryCallSurfaceTests': 5,
+        'morphhdl.NaturalSymbolicConditionalTests': 5,
+        'morphhdl.ParameterizedStreamFifoDepthTests': 8,
+        'morphhdl.ParameterizedStreamWidthAdapterTests': 2,
+        'morphhdl.ReduceBalancedTreeNativeContractTests': 8,
+        'morphhdl.SpinalEnumLocalParameterTests': 6,
+        'morphhdl.StreamFifoCompatibilityTests': 5,
+        'morphhdl.StructuralGenerateControlTests': 12,
+        'morphhdl.TypedBlackBoxGenericBindingTests': 4,
+        'morphhdl.TypedCounterAllOnesTests': 1,
+        'morphhdl.TypedElaborationControlTests': 7,
+        'morphhdl.TypedElaborationValueTests': 20,
+        'morphhdl.TypedParameterizedFactoryDirectionTests': 1,
+        'morphhdl.TypedParameterizedVecFormalEquivalenceTests': 2,
+        'morphhdl.TypedParameterizedVecTests': 35,
+        'morphhdl.TypedPrimitiveClosureFormalEquivalenceTests': 2,
+        'morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests': 2,
+        'morphhdl.integration.ExternalSpinalVerilogBaselineTests': 4,
+        'spinal.core.CentralTypedAuthorityAdversarialTests': 2,
+        'spinal.core.ElaborationWidthAuthorityTests': 7,
+        'spinal.core.FiniteAffineVecReadTests': 8,
+        'spinal.core.FiniteBitsIndexTests': 4,
+        'spinal.core.FiniteFormalBoundaryTests': 11,
+        'spinal.core.FiniteMemIdentityAdversarialTests': 9,
+        'spinal.core.NamedFieldPackedAliasTests': 3,
+        'spinal.core.NativeCloneShapeContractTests': 4,
+        'spinal.core.NativeSymbolicWidthProvenanceTests': 5,
+        'spinal.core.PackedVecIdentityAdversarialTests': 12,
+        'spinal.core.ParameterizedStructuralLexicalOwnerTests': 18,
+        'spinal.core.ProceduralIdentityAdversarialTests': 3,
+        'spinal.core.ScalarStructuralIdentityAdversarialTests': 3,
+        'spinal.core.StructuralIdentityAdversarialTests': 52,
+        'spinal.core.TypedElaborationPrimitiveTests': 10,
+        'spinal.core.TypedExactDomainControlTests': 4,
+        'spinal.core.TypedExactDomainSafetyTests': 20,
+        'spinal.core.TypedPrimitiveClosureTests': 28,
+        'spinal.core.TypedProjectionOwnershipTests': 4,
+        'spinal.core.TypedVecShapeTests': 38,
+        'spinal.core.VecEmittedIdentityAdversarialTests': 7,
+        'spinal.core.internals.HierarchyResizeSourceWidthTests': 3,
+        'spinal.core.internals.NativePublicationWidthTests': 1,
+        'spinal.core.internals.NativeWidthPublicationSafetyTests': 6,
+        'spinal.core.internals.ParameterizedDataShapeTests': 14,
+        'spinal.core.internals.ParameterizedVerilogFieldLayoutTests': 5,
+        'spinal.core.internals.ParameterizedVerilogStructuralLexicalTests': 2,
+        'spinal.core.internals.ParameterizedVerilogTests': 24,
+        'spinal.core.internals.PureSIntCastTests': 13,
+        'spinal.core.internals.RetainedWidthExpressionEquivalenceTests': 5,
+        'spinal.core.internals.SignedDeclarationPublicationTests': 13,
+        'spinal.core.internals.SignednessBoundaryTests': 15,
+        'spinal.core.internals.SignednessCompatibilityTests': 22,
+        'spinal.core.internals.TypedBalancedReductionBridgePublicationTests': 3,
+        'spinal.core.internals.TypedBalancedReductionBridgeReplayTests': 12,
+        'spinal.core.internals.TypedBalancedReductionCallbackPolicyTests': 16,
+        'spinal.core.internals.TypedBalancedReductionCallbackPublicationTests': 1,
+        'spinal.core.internals.TypedBalancedReductionCaptureSafetyTests': 12,
+        'spinal.core.internals.TypedBalancedReductionCaptureTests': 10,
+        'spinal.core.internals.TypedBalancedReductionCertifiedCallbackPolicyTests': 14,
+        'spinal.core.internals.TypedBalancedReductionClosedGraphTests': 20,
+        'spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests': 12,
+        'spinal.core.internals.TypedBalancedReductionCompositeTests': 24,
+        'spinal.core.internals.TypedBalancedReductionMuxWidthTests': 4,
+        'spinal.core.internals.TypedBalancedReductionNestedOwnerTests': 18,
+        'spinal.core.internals.TypedBalancedReductionOperatorReplayTests': 24,
+        'spinal.core.internals.TypedBalancedReductionPlanTests': 8,
+        'spinal.core.internals.TypedBalancedReductionPublicationSafetyTests': 8,
+        'spinal.core.internals.TypedBalancedReductionPublicationTests': 4,
+        'spinal.core.internals.TypedBalancedReductionScalarGraphReplayTests': 19,
+        'spinal.core.internals.TypedBalancedReductionStageReplayTests': 23,
+        'spinal.core.internals.TypedBalancedReductionStaticRedirectPolicyTests': 3,
+        'spinal.core.internals.TypedBalancedReductionWideningPublicationTests': 6,
+        'spinal.core.internals.TypedBalancedReductionWidthTransferTests': 11,
+        'spinal.core.internals.TypedSignednessAuthorityTests': 26,
+        'spinal.core.internals.TypedSignednessResumeTests': 5,
+    },
+    'morphir': {
+        'morphhdl.ir.v1.CanonicalIrHandoffSpec': 10,
+        'morphhdl.ir.v1.CanonicalIrV1Spec': 22,
+    },
+    'morphplugin': {
+        'morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests': 3,
+        'morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests': 13,
+    },
+    'core': {
+        'spinal.core.internals.SpinalVerilogPhasePlanTests': 5,
+    },
+    'morphhdl-passes': {
+        'morphhdl.passes.adapter.CanonicalIrPassAdapterSpec': 9,
+        'morphhdl.passes.api.AllPassConfigurationSpec': 5,
+        'morphhdl.passes.api.NativeRunnerSourceClosureSpec': 3,
+        'morphhdl.passes.api.PassContractsSpec': 8,
+        'morphhdl.passes.pipeline.WireAliasPassPipelineSpec': 9,
+        'morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec': 6,
+        'morphhdl.passes.safety.WireAliasSafetyGateSpec': 20,
+        'morphhdl.passes.transform.BooleanTernaryFourStateSpec': 4,
+        'morphhdl.passes.transform.BooleanTernarySimplificationPassSpec': 14,
+        'morphhdl.passes.transform.ConstantOperandFixedPointSpec': 2,
+        'morphhdl.passes.transform.ConstantOperandFourStateSpec': 3,
+        'morphhdl.passes.transform.ConstantOperandSimplificationPassSpec': 14,
+        'morphhdl.passes.transform.NamedWireAliasEliminationPassSpec': 13,
+        'morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec': 12,
+        'morphhdl.passes.transform.UnnamedWireExpressionAlgebraSpec': 1,
+        'morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec': 12,
+        'morphhdl.passes.transform.UnnamedWireExpressionSelectionSafetySpec': 9,
+    },
+}
+
+# WA-09 changes two already reviewed pass suites and adds one pass, one core,
+# and one public MorphVerilog suite.  Exact per-suite counts make it impossible
+# to trade a removed inherited test for a new case elsewhere.
+WA09_SUITES = {
+    "morphhdl-passes": {
+        "morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec": 7,
+        "morphhdl.passes.transform.NamedWireAliasEliminationPassSpec": 20,
+        "morphhdl.passes.transform.NamedWireExpressionEliminationPassSpec": 7,
+    },
+    "core": {
+        "spinal.core.internals.VerilogEmitterExpressionInliningTests": 16,
+    },
+    "morphhdl": {
+        "spinal.core.MorphVerilogExpressionInliningTests": 10,
+    },
+}
+WA09_EXISTING_SUITES = frozenset({
+    "morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec",
+    "morphhdl.passes.transform.NamedWireAliasEliminationPassSpec",
+})
+
+# The outer overlay already proves that *every* governed HEAD delta is enrolled.
+# Requiring this complete suite-source cluster additionally prevents XML alone,
+# or a partial successor source set, from selecting the WA-09 report catalog.
+# The Boolean records whether the file is an addition relative to the immutable
+# overlay baseline (before_sha256 must be null) rather than a reviewed edit.
+WA09_SUITE_SOURCES = {
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala": False,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": False,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireExpressionEliminationPassSpec.scala": True,
+    "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala": True,
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": True,
+}
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -433,7 +686,8 @@ def compare(left: Path, right: Path) -> None:
     print(f"60f cross-Scala byte identity: {len(ai)} files at {a['head']}")
 
 
-def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False) -> tuple[dict, dict, dict]:
+def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
+                        wa09: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -523,21 +777,78 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False)
             tests, total_suites = counts[project]
             counts[project] = (tests + sum(additions.values()), total_suites + len(additions))
             extension.setdefault(project, {}).update(additions)
+    if wa09:
+        require(wa08, "WA-09 suite obligations require the reviewed WA-08 profile")
+        require(features == WA09_INHERITED_FEATURES and packing,
+                "WA-09 exact catalog requires its complete inherited source and packing profile")
+        require(set(WA09_INHERITED_SUITE_COUNTS) == set(counts),
+                "WA-09 exact catalog changed the inherited project inventory")
+        for project, exact in WA09_INHERITED_SUITE_COUNTS.items():
+            require(set(exact) == suites[project],
+                    "WA-09 exact catalog changed inherited suite identities: " + project)
+            require(all(exact[name] == count
+                        for name, count in extension.get(project, {}).items()),
+                    "WA-09 exact catalog changed an inherited exact suite count: " + project)
+            require(sum(exact.values()) >= counts[project][0],
+                    "WA-09 exact catalog weakened an inherited minimum: " + project)
+            counts[project] = (sum(exact.values()), len(exact))
+            extension[project] = dict(exact)
+        for project, exact in WA09_SUITES.items():
+            tests, total_suites = counts[project]
+            reviewed_counts = extension.setdefault(project, {})
+            for name, expected_count in exact.items():
+                inherited = name in suites[project]
+                expected_inherited = name in WA09_EXISTING_SUITES
+                require(inherited == expected_inherited,
+                        "WA-09 suite identity changed inherited/new classification: " + name)
+                if inherited:
+                    require(name in reviewed_counts,
+                            "WA-09 changed suite lacks an inherited exact count: " + name)
+                    previous_count = reviewed_counts[name]
+                    require(expected_count >= previous_count,
+                            "WA-09 exact suite count removed inherited tests: " + name)
+                    tests += expected_count - previous_count
+                else:
+                    suites[project] |= frozenset((name,))
+                    tests += expected_count
+                    total_suites += 1
+                reviewed_counts[name] = expected_count
+            counts[project] = (tests, total_suites)
     return counts, suites, extension
 
 
-def reviewed_wa08_suites(root: Path) -> bool:
+def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool]:
+    wa08 = entries.get(WA08_SUITE_SOURCE)
+    require(wa08 is not None and wa08["before_sha256"] is None,
+            "WA-08 hierarchy suite is absent from the verified added-source inventory")
+    selected = set(entries).intersection(WA09_SUITE_SOURCES)
+    if not selected:
+        return True, False
+    require(selected == set(WA09_SUITE_SOURCES),
+            "partial WA-09 suite-source enrollment: " +
+            repr(sorted(set(WA09_SUITE_SOURCES) - selected)))
+    for path, added in WA09_SUITE_SOURCES.items():
+        before = entries[path]["before_sha256"]
+        require((before is None) == added,
+                "WA-09 suite source has changed baseline identity: " + path)
+    return True, True
+
+
+def reviewed_successor_suites(root: Path) -> tuple[bool, bool]:
     ternary = closure_module().boolean_ternary_review(root)
     adapter = getattr(ternary, "wa08_overlay", None)
     overlay = adapter(root) if adapter is not None else None
     if overlay is None:
-        return False
+        return False, False
     # Presence or XML cannot authorize a new suite: verify immutable source
     # bytes, full governed inventory, Git index/worktree and source ancestry.
     entries = {entry["path"]: entry for entry in overlay.verify(root)["files"]}
-    require(WA08_SUITE_SOURCE in entries and entries[WA08_SUITE_SOURCE]["before_sha256"] is None,
-            "WA-08 hierarchy suite is absent from the verified added-source inventory")
-    return True
+    return successor_suite_flags(entries)
+
+
+def reviewed_wa08_suites(root: Path) -> bool:
+    """Compatibility helper retained for callers that need only WA-08."""
+    return reviewed_successor_suites(root)[0]
 
 
 def descendant_extensions(root: Path) -> tuple[str, ...]:
@@ -584,7 +895,8 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
         reviewed = publisher.reviewed_59d59e_packing(root)
         require(set(reviewed) == closure.PACKING_59D59E_PATHS,
                 "reviewed packing inventory escaped its exact source paths")
-    counts, suite_inventory, extension = catalog_for_profile(profile, packing, reviewed_wa08_suites(root))
+    wa08, wa09 = reviewed_successor_suites(root)
+    counts, suite_inventory, extension = catalog_for_profile(profile, packing, wa08, wa09)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -610,8 +922,10 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
             require(all(case_names) and len(set(case_names)) == count,
                     f"missing or duplicated testcase identities: {path}")
             tests += count
-        require(tests >= minimum_tests and len(names) >= minimum_suites,
-                f"missing {project} regressions: tests={tests}, suites={len(names)}")
+        complete_tests = tests == minimum_tests if wa09 else tests >= minimum_tests
+        require(complete_tests and len(names) >= minimum_suites,
+                f"missing/changed {project} regressions: tests={tests}, "
+                f"expected={'exactly ' if wa09 else 'at least '}{minimum_tests}, suites={len(names)}")
         expected = suite_inventory[project]
         require(len(expected) == minimum_suites, f"inconsistent frozen suite inventory: {project}")
         exact_names(names, expected, project + " suite identities")
@@ -1356,25 +1670,57 @@ def self_test() -> None:
             "WA-08 changed an inherited suite or exact test obligation")
     rejected(lambda: catalog_for_profile("60f-baseline", wa08=True),
              "WA-08 inventory without its inherited source profile")
+    wa09_profile = "60f-with-wa07a-and-59d-and-59e-and-59f-and-59c-and-59g-and-59h-and-wa07b-and-60g"
+    wa09_previous = catalog_for_profile(wa09_profile, packing=True, wa08=True)
+    successor = catalog_for_profile(wa09_profile, packing=True, wa08=True, wa09=True)
+    expected_totals = {
+        "paramrtl": (234, 23), "frontend": (257, 22), "backends/verilog": (148, 21),
+        "morphhdl": (1115, 104), "morphir": (32, 2), "morphplugin": (16, 2),
+        "core": (21, 2), "morphhdl-passes": (159, 18),
+    }
+    require(successor[0] == expected_totals and
+            sum(tests for tests, _ in successor[0].values()) == 1982 and
+            sum(sum(exact.values()) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 1941 and
+            sum(len(exact) for exact in WA09_INHERITED_SUITE_COUNTS.values()) == 191,
+            "WA-09 exact per-project inherited or successor totals changed")
+    for project, inherited in WA09_INHERITED_SUITE_COUNTS.items():
+        exact = WA09_SUITES.get(project, {})
+        expected_names = wa09_previous[1][project] | (set(exact) - WA09_EXISTING_SUITES)
+        expected_counts = {**inherited, **exact}
+        require(successor[1][project] == expected_names and
+                successor[2][project] == expected_counts,
+                "WA-09 changed an inherited exact suite obligation: " + project)
+    rejected(lambda: catalog_for_profile(wa09_profile, packing=True, wa09=True),
+             "WA-09 inventory without its reviewed WA-08 predecessor")
+    rejected(lambda: catalog_for_profile(wa09_profile, wa08=True, wa09=True),
+             "WA-09 exact catalog without the verified packing profile")
+    rejected(lambda: catalog_for_profile(wa08_profile, wa08=True, wa09=True),
+             "WA-09 exact catalog without the complete inherited source profile")
     with tempfile.TemporaryDirectory(prefix="increment-60f-wa08-inventory-") as temporary:
         root = Path(temporary)
         subprocess.run(["git", "init", "-q", str(root)], check=True)
         subprocess.run(["git", "-c", "user.name=Synthetic Test", "-c",
                         "user.email=synthetic@example.invalid", "commit", "--allow-empty",
                         "-qm", "synthetic inventory fixture"], cwd=root, check=True)
-        for project, (minimum, _) in current[0].items():
-            exact = current[2].get(project, {})
-            counts = {name: exact.get(name, 1) for name in current[1][project]}
-            inherited = current[1][project] - exact.keys()
-            if inherited:
-                counts[min(inherited)] += minimum - sum(counts.values())
-            directory = root / project / "target/test-reports"
-            directory.mkdir(parents=True)
-            for name, count in counts.items():
-                suite = ET.Element("testsuite", name=name, tests=str(count), failures="0", errors="0", skipped="0")
-                for case in range(count):
-                    ET.SubElement(suite, "testcase", name=f"synthetic-case-{case}")
-                ET.ElementTree(suite).write(directory / (name + ".xml"))
+        def write_reports(catalog: tuple[dict, dict, dict]) -> None:
+            for project, (minimum, _) in catalog[0].items():
+                exact = catalog[2].get(project, {})
+                counts = {name: exact.get(name, 1) for name in catalog[1][project]}
+                inherited = catalog[1][project] - exact.keys()
+                if inherited:
+                    counts[min(inherited)] += minimum - sum(counts.values())
+                directory = root / project / "target/test-reports"
+                directory.mkdir(parents=True, exist_ok=True)
+                for old in directory.glob("*.xml"):
+                    old.unlink()
+                for name, count in counts.items():
+                    suite = ET.Element("testsuite", name=name, tests=str(count),
+                                       failures="0", errors="0", skipped="0")
+                    for case in range(count):
+                        ET.SubElement(suite, "testcase", name=f"synthetic-case-{case}")
+                    ET.ElementTree(suite).write(directory / (name + ".xml"))
+
+        write_reports(current)
         # Only the source verifier's result is synthetic here. Its real Git and
         # byte-integrity attacks run in the separate WA-08 overlay self-test;
         # these controls exercise the unchanged report parser and exact catalog.
@@ -1434,7 +1780,116 @@ def self_test() -> None:
             overlay.verify.side_effect = None
             overlay.verify.return_value = reviewed
             validate_wa08_reports()
+            # Exact successor reports require the complete inherited source
+            # profile. These placeholder sources only exercise real Git/source
+            # inventory; production byte-integrity is independently sealed.
+            for descendant in SUITE_EXTENSIONS.values():
+                for source in descendant["sources"]:
+                    source_path = root / source
+                    source_path.parent.mkdir(parents=True, exist_ok=True)
+                    source_path.write_text("synthetic reviewed suite source\n")
+            subprocess.run(["git", "add", "."], cwd=root, check=True)
+            subprocess.run(["git", "-c", "user.name=Synthetic Test", "-c",
+                            "user.email=synthetic@example.invalid", "commit", "-qm",
+                            "synthetic complete inherited sources"], cwd=root, check=True)
+            packing_path = root / closure_module().PACKING_59D59E_CONTRACT
+            packing_path.parent.mkdir(parents=True, exist_ok=True)
+            packing_path.write_text("synthetic packing review\n")
+            publisher = mock.Mock()
+            publisher.reviewed_59d59e_packing.return_value = {
+                path: "synthetic digest" for path in closure_module().PACKING_59D59E_PATHS}
+
+            def validate_wa09_reports() -> None:
+                output.unlink(missing_ok=True)
+                with mock.patch.object(closure_module(), "load", return_value=publisher), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    _regression_inventory(root, output, wa09_profile)
+
+            wa09_entries = [
+                {"path": path, "before_sha256": None if added else "a" * 64}
+                for path, added in WA09_SUITE_SOURCES.items()
+            ]
+            reviewed_wa09 = {"files": [*reviewed["files"], *wa09_entries]}
+            overlay.verify.return_value = reviewed_wa09
+            write_reports(successor)
+            validate_wa09_reports()
+            for project, exact in successor[2].items():
+                for name, count in exact.items():
+                    path = root / project / "target/test-reports" / (name + ".xml")
+                    original = path.read_bytes()
+                    for delta in (-1, 1):
+                        tree = ET.parse(path)
+                        suite = tree.getroot()
+                        suite.set("tests", str(count + delta))
+                        if delta == -1:
+                            suite.remove(suite.find("testcase"))
+                        else:
+                            ET.SubElement(suite, "testcase", name="synthetic-unreviewed-extra-case")
+                        tree.write(path)
+                        rejected(validate_wa09_reports, "WA-09 changed exact test count " + name)
+                        require(not output.exists(), "failed WA-09 inventory retained stale success")
+                        path.write_bytes(original)
+                    for attribute, value in (("name", "synthetic.SubstituteSuite"), ("skipped", "1")):
+                        tree = ET.parse(path)
+                        tree.getroot().set(attribute, value)
+                        tree.write(path)
+                        rejected(validate_wa09_reports, "WA-09 changed exact suite " + attribute + " " + name)
+                        path.write_bytes(original)
+                    path.unlink()
+                    rejected(validate_wa09_reports, "missing WA-09 exact suite " + name)
+                    path.write_bytes(original)
+            inherited_path = next((root / "paramrtl/target/test-reports").glob("*.xml"))
+            inherited_original = inherited_path.read_bytes()
+            tree = ET.parse(inherited_path)
+            suite = tree.getroot()
+            suite.set("tests", str(int(suite.get("tests")) + 1))
+            ET.SubElement(suite, "testcase", name="synthetic-unreviewed-inherited-case")
+            tree.write(inherited_path)
+            rejected(validate_wa09_reports,
+                     "WA-09 exact complete inventory cannot absorb an inherited extra case")
+            inherited_path.write_bytes(inherited_original)
+            # A count-only project total would accept this loss masked by an
+            # extra testcase in another suite. Every suite count stays exact.
+            other_path = next(path for path in
+                              (root / "paramrtl/target/test-reports").glob("*.xml")
+                              if path != inherited_path)
+            other_original = other_path.read_bytes()
+            for path, delta in ((inherited_path, -1), (other_path, 1)):
+                tree = ET.parse(path)
+                suite = tree.getroot()
+                suite.set("tests", str(int(suite.get("tests")) + delta))
+                if delta == -1:
+                    suite.remove(suite.find("testcase"))
+                else:
+                    ET.SubElement(suite, "testcase", name="synthetic-compensating-extra-case")
+                tree.write(path)
+            rejected(validate_wa09_reports, "WA-09 removed inherited case compensated in another suite")
+            inherited_path.write_bytes(inherited_original)
+            other_path.write_bytes(other_original)
+            extra_path = inherited_path.with_name("unknown.xml")
+            tree = ET.parse(inherited_path)
+            tree.getroot().set("name", "synthetic.UnknownSuite")
+            tree.write(extra_path)
+            rejected(validate_wa09_reports, "WA-09 unexpected suite alongside all inherited suites")
+            extra_path.unlink()
+            overlay.verify.return_value = reviewed
+            rejected(validate_wa09_reports, "WA-09 reports without WA-09 source enrollment")
+            for omitted in WA09_SUITE_SOURCES:
+                overlay.verify.return_value = {
+                    "files": [entry for entry in reviewed_wa09["files"]
+                              if entry["path"] != omitted]
+                }
+                rejected(validate_wa09_reports, "partial WA-09 suite-source enrollment " + omitted)
+            for path, added in WA09_SUITE_SOURCES.items():
+                mutated = [dict(entry) for entry in reviewed_wa09["files"]]
+                entry = next(entry for entry in mutated if entry["path"] == path)
+                entry["before_sha256"] = "b" * 64 if added else None
+                overlay.verify.return_value = {"files": mutated}
+                rejected(validate_wa09_reports, "changed WA-09 source baseline identity " + path)
+            overlay.verify.return_value = reviewed_wa09
+            validate_wa09_reports()
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
+    print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")
     print(f"60f inventory self-test: inherited exact source profiles, named/register/nested suite extensions and {rejections} rejection controls PASS")
 
 

@@ -128,7 +128,9 @@ def main() -> None:
             if mutation == "suffix" and relative in overlay_paths:
                 expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
             elif (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
-                    relative.endswith("/TypedBalancedReductionCompositeReplay.scala")):
+                    relative.endswith("/TypedBalancedReductionCompositeReplay.scala") or
+                    (mutation == "suffix" and relative ==
+                     "core/src/main/scala/spinal/core/internals/VerilogBase.scala")):
                 expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([relative])
             adapted.append((label, relative, mutation, expected))
         cases = adapted

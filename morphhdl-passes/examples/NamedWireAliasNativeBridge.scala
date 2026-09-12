@@ -51,11 +51,17 @@ import spinal.core.internals._
   * It never parses generated HDL and never recognizes a component or signal
   * name. Candidate names come from retained source/elaboration Nameable metadata.
   */
-private[examples] final class NamedWireAliasNativePhase extends Phase {
+private[examples] final class NamedWireAliasNativePhase(
+    // Historical pipelines end after this pass and therefore cannot defer an
+    // expression source for a later named-expression stage.  WA-09's six-stage
+    // and production pipelines opt in explicitly once that stage is present.
+    deferPreferredExpressionSource: Boolean = false
+) extends Phase {
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
   private var eliminatedNames = Vector.empty[String]
+  private var deferredSourceOrigins = Vector.empty[String]
   private var rejected = Map.empty[String, Int]
   private var rewrittenReferences = 0
 
@@ -73,9 +79,31 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
 
   override def hasNetlistImpact: Boolean = true
 
+  /** Stable provenance evidence for successor preference witnesses. */
+  private[examples] def deferredPreferenceSourceOrigins: Vector[String] = {
+    if (!completed)
+      throw new IllegalStateException("WA-05 native witness phase did not execute")
+    deferredSourceOrigins
+  }
+
+  private sealed trait NativeRewritePlan
+  private final case class ForwardRewrite(
+      relation: NativeCandidate,
+      proof: NativeProof
+  ) extends NativeRewritePlan
+  private final case class PreferredSourceRewrite(
+      relation: NativeCandidate,
+      relationProof: NativeProof,
+      removed: NativeCandidate,
+      removedProof: NativeProof
+  ) extends NativeRewritePlan
+  private case object DeferredExpressionRewrite extends NativeRewritePlan
+
   override def impl(pc: PhaseContext): Unit = {
     val eliminatedBuilder = Vector.newBuilder[Int]
     val eliminatedNameBuilder = Vector.newBuilder[String]
+    val deferredOriginBuilder = Vector.newBuilder[String]
+    val deferredSources = new java.util.IdentityHashMap[BaseType, java.lang.Boolean]()
     var nextOrdinal = 0
     var progress = true
 
@@ -92,28 +120,60 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
         proveCandidate(pc, candidate) match {
           case Left(reason) =>
             rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
-          case Right(proof) =>
-            applyCanonicalDecision(candidate, proof) match {
-              case Left(reason) =>
-                rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
-              case Right(_) =>
-                val replacements = rewriteNativeIdentity(
-                  candidate.component,
-                  candidate.alias,
-                  candidate.source,
-                  candidate.assignment
-                )
-                rewrittenReferences += replacements
-                eliminatedBuilder += ordinal
-                eliminatedNameBuilder += candidate.explicitName
-                progress = true
-            }
+          case Right(proof) => selectRewrite(pc, candidate, proof) match {
+            case Left(reason) =>
+              rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
+            case Right(DeferredExpressionRewrite) =>
+              if (
+                deferredSources.put(candidate.source, java.lang.Boolean.TRUE) == null
+              ) {
+                deferredOriginBuilder += NativeWireNameProvenance.origin(candidate.source)
+                  .map(originLabel).getOrElse("unknown")
+              }
+              rejected = rejected.updated(
+                "WA05-NATIVE-DEFERRED-PREFERRED-ALIAS",
+                rejected.getOrElse("WA05-NATIVE-DEFERRED-PREFERRED-ALIAS", 0) + 1
+              )
+            case Right(plan: ForwardRewrite) =>
+              applyCanonicalDecision(plan.relation, plan.proof) match {
+                case Left(reason) =>
+                  rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
+                case Right(_) =>
+                  val replacements = rewriteNativeIdentity(
+                    plan.relation.component,
+                    plan.relation.alias,
+                    plan.relation.source,
+                    plan.relation.assignment
+                  )
+                  rewrittenReferences += replacements
+                  eliminatedBuilder += ordinal
+                  eliminatedNameBuilder += plan.relation.displayName
+                  progress = true
+              }
+            case Right(plan: PreferredSourceRewrite) =>
+              applyCanonicalPreferenceDecision(plan) match {
+                case Left(reason) =>
+                  rejected = rejected.updated(reason, rejected.getOrElse(reason, 0) + 1)
+                case Right(_) =>
+                  val replacements = rewriteNativeIdentity(
+                    plan.removed.component,
+                    plan.removed.alias,
+                    plan.removed.source,
+                    plan.removed.assignment
+                  )
+                  rewrittenReferences += replacements
+                  eliminatedBuilder += ordinal
+                  eliminatedNameBuilder += plan.removed.displayName
+                  progress = true
+              }
+          }
         }
       }
     }
 
     eliminated = eliminatedBuilder.result()
     eliminatedNames = eliminatedNameBuilder.result()
+    deferredSourceOrigins = deferredOriginBuilder.result().sorted
     completed = true
   }
 
@@ -121,7 +181,8 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       component: Component,
       alias: BaseType,
       source: BaseType,
-      explicitName: String,
+      nameOrigin: NameOrigin,
+      displayName: String,
       assignment: DataAssignmentStatement,
       useStatements: Vector[Statement]
   )
@@ -131,6 +192,27 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       parameters: Vector[IntegerParameter]
   )
 
+  /** Shared fail-closed identity/metadata proof for a native expression phase. */
+  private[examples] def expressionRemovalBlocker(
+      pc: PhaseContext,
+      component: Component,
+      alias: BaseType,
+      assignment: DataAssignmentStatement,
+      useStatements: Vector[Statement]
+  ): Option[String] = {
+    if (!preservationMetadataAllows(pc, alias, assignment))
+      Some("PRESERVATION")
+    else if (hasClockDomainUse(pc, alias))
+      Some("CLOCK-DOMAIN")
+    else if (hasReferencedMetadata(pc, alias))
+      Some("REFERENCED-METADATA")
+    else if (NativeWireAssignmentMetadata.retains(alias))
+      Some("REGISTERED-IDENTITY")
+    else if (!useStatements.forall(allowedUse(component, alias, _)))
+      Some("USE-CONTEXT")
+    else None
+  }
+
   private def candidateSnapshot(pc: PhaseContext): Vector[NativeCandidate] = {
     val values = Vector.newBuilder[NativeCandidate]
     // Include reads owned by other components so hierarchy uses fail the same
@@ -138,39 +220,61 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
     val statements = pc.components().toVector.flatMap(statementsOf)
     pc.components().foreach { component =>
       component.dslBody.walkDeclarations {
-        case alias: BaseType
-            if alias.isNamed && alias.isComb && alias.isDirectionLess &&
-              !alias.isAnalog && !alias.isTypeNode && alias.parentScope != null &&
-              (alias.parentScope eq alias.rootScopeStatement) &&
-              alias.hasOnlyOneStatement =>
-          explicitSourceName(alias).foreach { explicitName =>
-            alias.head match {
-              case assignment: DataAssignmentStatement
-                  if (assignment.parentScope eq alias.rootScopeStatement) &&
-                    (assignment.target eq alias) &&
-                    (assignment.finalTarget eq alias) =>
-                assignment.source match {
-                  case source: BaseType if (source ne alias) =>
-                    val uses = statements.filter(statement =>
-                      (statement ne assignment) && references(statement, alias) > 0
-                    )
-                    values += NativeCandidate(
-                      component,
-                      alias,
-                      source,
-                      explicitName,
-                      assignment,
-                      uses
-                    )
-                  case _ =>
-                }
-              case _ =>
-            }
+        case alias: BaseType =>
+          NativeWireNameProvenance.successorExpressionOrigin(alias).foreach { nameOrigin =>
+            candidateForValue(alias, nameOrigin, statements).foreach(values += _)
           }
         case _ =>
       }
     }
     values.result()
+  }
+
+  private def candidateForValue(
+      alias: BaseType,
+      nameOrigin: NameOrigin,
+      statements: Vector[Statement]
+  ): Option[NativeCandidate] = {
+    val provenanceMatches = nameOrigin match {
+      case NameOrigin.Unnamed => alias.isUnnamed
+      case NameOrigin.Explicit(_) | NameOrigin.Reflected(_) | NameOrigin.Generated =>
+        alias.isNamed
+      case NameOrigin.Unknown => false
+    }
+    if (
+      !provenanceMatches || !alias.isComb || !alias.isDirectionLess ||
+      alias.isAnalog || alias.isTypeNode || alias.parentScope == null ||
+      !(alias.parentScope eq alias.rootScopeStatement) ||
+      !alias.hasOnlyOneStatement
+    ) return None
+
+    alias.head match {
+      case assignment: DataAssignmentStatement
+          if assignment.parentScope != null &&
+            (assignment.parentScope eq alias.rootScopeStatement) &&
+            (assignment.target eq alias) &&
+            (assignment.finalTarget eq alias) =>
+        assignment.source match {
+          case source: BaseType if (source ne alias) =>
+            val uses = statements.filter(statement =>
+              (statement ne assignment) && references(statement, alias) > 0
+            )
+            Some(
+              NativeCandidate(
+                alias.component,
+                alias,
+                source,
+                nameOrigin,
+                nameOrigin.explicitName
+                  .orElse(Option(alias.getName(""))).getOrElse(""),
+                assignment,
+                uses
+              )
+            )
+          case _ => None
+        }
+      case _ => None
+    }
   }
 
   private def explicitSourceName(alias: BaseType): Option[String] = {
@@ -188,6 +292,98 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
     else None
   }
 
+  private def selectRewrite(
+      pc: PhaseContext,
+      candidate: NativeCandidate,
+      proof: NativeProof
+  ): Either[String, NativeRewritePlan] = {
+    val sourceOrigin = NativeWireNameProvenance.origin(candidate.source)
+      .getOrElse(NameOrigin.Unknown)
+    if (
+      !candidate.source.isComb || !candidate.source.isDirectionLess ||
+      !aliasIsPreferred(candidate, sourceOrigin)
+    ) Right(ForwardRewrite(candidate, proof))
+    else {
+      val statements = pc.components().toVector.flatMap(statementsOf)
+      val direct = candidateForValue(candidate.source, sourceOrigin, statements)
+      direct.flatMap(value => proveCandidate(pc, value) match {
+        case Right(valueProof) => Some(value -> valueProof)
+        case Left(_)           => None
+      }) match {
+        case Some((sourceCandidate, sourceProof)) =>
+          // Reverse orientation is deliberately bounded to exact whole-RHS
+          // edges. Those assignment boundaries remain the native type fences;
+          // the bridge never substitutes through a nested receiver expression.
+          val wholeRelation = candidate.useStatements.forall(
+            wholeRhsUse(_, candidate.alias)
+          )
+          val wholeSource = sourceCandidate.useStatements.forall(
+            wholeRhsUse(_, sourceCandidate.alias)
+          )
+          if (!wholeRelation || !wholeSource)
+            Left("WA05-NATIVE-PREFERENCE-NON-DIRECT-RECEIVER")
+          else
+            Right(
+              PreferredSourceRewrite(candidate, proof, sourceCandidate, sourceProof)
+            )
+        case None if deferPreferredExpressionSource && expressionSourceIsIndependentlyRemovable(
+              pc,
+              candidate.source,
+              sourceOrigin
+            ) =>
+          Right(DeferredExpressionRewrite)
+        case None => Right(ForwardRewrite(candidate, proof))
+      }
+    }
+  }
+
+  private def aliasIsPreferred(
+      candidate: NativeCandidate,
+      sourceOrigin: NameOrigin
+  ): Boolean =
+    (meaningfulName(candidate.nameOrigin), meaningfulName(sourceOrigin)) match {
+      case (Some(aliasName), Some(sourceName)) =>
+        implicitly[Ordering[(Int, String, String)]].lt(
+          (aliasName.length, aliasName, candidate.displayName),
+          (sourceName.length, sourceName, Option(candidate.source.getName("")).getOrElse(""))
+        )
+      case (Some(_), None) =>
+        sourceOrigin == NameOrigin.Unnamed || sourceOrigin == NameOrigin.Generated
+      case _ => false
+    }
+
+  private def meaningfulName(origin: NameOrigin): Option[String] = origin match {
+    case NameOrigin.Explicit(name)  => Some(name)
+    case NameOrigin.Reflected(name) => Some(name)
+    case _                          => None
+  }
+
+  private def originLabel(origin: NameOrigin): String = origin match {
+    case _: NameOrigin.Explicit  => "explicit"
+    case _: NameOrigin.Reflected => "reflected"
+    case NameOrigin.Generated    => "generated"
+    case NameOrigin.Unnamed      => "unnamed"
+    case NameOrigin.Unknown      => "unknown"
+  }
+
+  private def expressionSourceIsIndependentlyRemovable(
+      pc: PhaseContext,
+      source: BaseType,
+      sourceOrigin: NameOrigin
+  ): Boolean = sourceOrigin match {
+    case NameOrigin.Unnamed =>
+      new UnnamedWireExpressionNativePhase().isIndependentlyRemovable(pc, source)
+    case NameOrigin.Explicit(_) | NameOrigin.Reflected(_) | NameOrigin.Generated =>
+      new NamedWireExpressionNativePhase().isIndependentlyRemovable(pc, source)
+    case NameOrigin.Unknown => false
+  }
+
+  private def wholeRhsUse(statement: Statement, value: BaseType): Boolean =
+    statement match {
+      case assignment: DataAssignmentStatement => assignment.source eq value
+      case _                                   => false
+    }
+
   private def proveCandidate(
       pc: PhaseContext,
       candidate: NativeCandidate
@@ -202,7 +398,7 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       Left("WA05-NATIVE-SOURCE-SCOPE")
     else if (source.isAnalog || source.isInOut)
       Left("WA05-NATIVE-SOURCE-KIND")
-    else if (!preservationMetadataAllows(alias, assignment))
+    else if (!preservationMetadataAllows(pc, alias, assignment))
       Left("WA05-NATIVE-PRESERVATION")
     else if (hasClockDomainUse(pc, alias))
       Left("WA05-NATIVE-CLOCK-DOMAIN")
@@ -222,13 +418,16 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
   }
 
   private def preservationMetadataAllows(
+      pc: PhaseContext,
       alias: BaseType,
       assignment: DataAssignmentStatement
   ): Boolean =
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
-      Option(assignment.locationString).forall(_.isEmpty) &&
-      explicitSourceName(alias).nonEmpty &&
+      // Source locations are ubiquitous compiler metadata. They are observable
+      // preservation material only when the selected backend configuration
+      // will actually emit line comments.
+      (!pc.config.genLineComments || Option(assignment.locationString).forall(_.isEmpty)) &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def hasClockDomainUse(pc: PhaseContext, alias: BaseType): Boolean =
@@ -454,7 +653,8 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       owner = scopeId,
       kind = sourceKind(candidate.source),
       packedType = Some(proof.packedType),
-      nameOrigin = NameOrigin.Explicit("nativeSource"),
+      nameOrigin = NativeWireNameProvenance.origin(candidate.source)
+        .getOrElse(NameOrigin.Unknown),
       sourceLocation = None,
       observability = sourceObservability(candidate.source)
     )
@@ -463,7 +663,7 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       owner = scopeId,
       kind = DeclarationKind.InternalCombinational,
       packedType = Some(proof.packedType),
-      nameOrigin = NameOrigin.Explicit(candidate.explicitName),
+      nameOrigin = candidate.nameOrigin,
       sourceLocation = None,
       observability = Observability.Unobserved
     )
@@ -543,10 +743,155 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
         Vector(IrSymbolId.unsafe(aliasId.value)) &&
       result.eliminationReport.eliminated.head.sourceSymbol ==
         IrSymbolId.unsafe(sourceId.value) &&
-      result.eliminationReport.eliminated.head.nameOrigin ==
-        AliasNameOrigin.Explicit(candidate.explicitName)
+      result.eliminationReport.eliminated.head.nameOrigin == reportOrigin(candidate.nameOrigin)
     ) Right(())
     else Left("WA05-NATIVE-CANONICAL-DECISION")
+  }
+
+  /**
+    * Validate reverse name-preference orientation with the actual two direct
+    * native edges: `source := sourceSource; alias := source`. No representative
+    * expression is synthesized. Whole-RHS receiver identities are reflected as
+    * direct canonical sinks, so the canonical pass sees the same removable
+    * source, provenance ordering, receiver cardinality and packed type.
+    */
+  private def applyCanonicalPreferenceDecision(
+      plan: PreferredSourceRewrite
+  ): Either[String, Unit] = {
+    if (
+      (plan.relation.source ne plan.removed.alias) ||
+      plan.relationProof.packedType != plan.removedProof.packedType ||
+      plan.relationProof.parameters != plan.removedProof.parameters
+    ) return Left("WA05-NATIVE-PREFERENCE-CHAIN-TYPE")
+
+    val moduleId = ModuleId.unsafe("module.native-preference-witness")
+    val scopeId = ScopeId.unsafe("scope.native-preference-root")
+    val terminalId = SymbolId.unsafe("symbol.native-preference-terminal")
+    val sourceId = SymbolId.unsafe("symbol.native-preference-source")
+    val aliasId = SymbolId.unsafe("symbol.native-preference-alias")
+    val declarations = Vector.newBuilder[Declaration]
+    val drivers = Vector.newBuilder[Driver]
+
+    declarations += Declaration(
+      terminalId,
+      scopeId,
+      sourceKind(plan.removed.source),
+      Some(plan.relationProof.packedType),
+      NativeWireNameProvenance.origin(plan.removed.source)
+        .getOrElse(NameOrigin.Unknown),
+      None,
+      sourceObservability(plan.removed.source)
+    )
+    declarations += Declaration(
+      sourceId,
+      scopeId,
+      DeclarationKind.InternalCombinational,
+      Some(plan.relationProof.packedType),
+      plan.removed.nameOrigin,
+      None,
+      Observability.Unobserved
+    )
+    declarations += Declaration(
+      aliasId,
+      scopeId,
+      DeclarationKind.InternalCombinational,
+      Some(plan.relationProof.packedType),
+      plan.relation.nameOrigin,
+      None,
+      Observability.Unobserved
+    )
+    drivers += Driver(
+      DriverId.unsafe("driver.native-preference-source"),
+      scopeId,
+      sourceId,
+      DriverKind.Continuous,
+      DriverCoverage.FullObject,
+      RtlExpr.Ref(
+        ReferenceId.unsafe("reference.native-preference-source-terminal"),
+        terminalId,
+        scopeId
+      )
+    )
+    drivers += Driver(
+      DriverId.unsafe("driver.native-preference-alias"),
+      scopeId,
+      aliasId,
+      DriverKind.Continuous,
+      DriverCoverage.FullObject,
+      RtlExpr.Ref(
+        ReferenceId.unsafe("reference.native-preference-alias-source"),
+        sourceId,
+        scopeId
+      )
+    )
+
+    def addSinks(prefix: String, count: Int, target: SymbolId): Unit =
+      (0 until count).foreach { index =>
+        val sinkId = SymbolId.unsafe(s"symbol.native-preference-$prefix-sink-$index")
+        declarations += Declaration(
+          sinkId,
+          scopeId,
+          DeclarationKind.Port(PortDirection.Output),
+          Some(plan.relationProof.packedType),
+          NameOrigin.Explicit(s"nativePreference${prefix.capitalize}Sink$index"),
+          None,
+          Observability(complete = true, externallyVisible = true)
+        )
+        drivers += Driver(
+          DriverId.unsafe(s"driver.native-preference-$prefix-sink-$index"),
+          scopeId,
+          sinkId,
+          DriverKind.Continuous,
+          DriverCoverage.FullObject,
+          RtlExpr.Ref(
+            ReferenceId.unsafe(
+              s"reference.native-preference-$prefix-sink-$index-value"
+            ),
+            target,
+            scopeId
+          )
+        )
+      }
+
+    addSinks("alias", plan.relation.useStatements.size, aliasId)
+    addSinks(
+      "source",
+      plan.removed.useStatements.count(_ ne plan.relation.assignment),
+      sourceId
+    )
+
+    val canonical = Design(
+      CanonicalIrSchema.schemaVersion,
+      CanonicalIrSchema.stage,
+      moduleId,
+      Vector(
+        Module(
+          moduleId,
+          "NativePreferenceWitnessModule",
+          plan.relationProof.parameters,
+          Vector(Scope(scopeId, None, ScopeKind.Module)),
+          Vector.empty,
+          declarations.result(),
+          drivers.result()
+        )
+      )
+    )
+    val result = NamedWireAliasEliminationPass.run(
+      canonical,
+      WireAliasPassConfiguration.selectedForTesting(
+        morphhdl.passes.api.PassId.NamedWireAliasElimination
+      )
+    )
+    val expectedOrigin = reportOrigin(plan.removed.nameOrigin)
+    val selected = result.eliminationReport.eliminated.find { value =>
+      value.aliasSymbol == IrSymbolId.unsafe(sourceId.value) &&
+      value.sourceSymbol == IrSymbolId.unsafe(terminalId.value)
+    }
+    if (
+      result.status == PassExecutionStatus.Changed &&
+      selected.exists(_.nameOrigin == expectedOrigin)
+    ) Right(())
+    else Left("WA05-NATIVE-PREFERENCE-CANONICAL-DECISION")
   }
 
   private def sourceKind(value: BaseType): DeclarationKind =
@@ -560,6 +905,16 @@ private[examples] final class NamedWireAliasNativePhase extends Phase {
       complete = true,
       externallyVisible = value.isInput || value.isOutput
     )
+
+  private def reportOrigin(value: NameOrigin): AliasNameOrigin = value match {
+    case NameOrigin.Explicit(name)  => AliasNameOrigin.Explicit(name)
+    case NameOrigin.Reflected(name) => AliasNameOrigin.Reflected(name)
+    case NameOrigin.Generated       => AliasNameOrigin.Generated
+    case NameOrigin.Unnamed         => AliasNameOrigin.Unnamed
+    case other => throw new IllegalStateException(
+      s"unsupported native named-alias report origin $other"
+    )
+  }
 
   private def rewriteNativeIdentity(
       component: Component,
@@ -767,7 +1122,9 @@ object ParameterizedStreamFifoNamedPassWitness {
     val reportFile = Paths.get(args(3)).toAbsolutePath.normalize
     val phase = mode match {
       case "reference" => None
-      case "candidate" => Some(new NamedWireAliasNativePhase)
+      case "candidate" => Some(
+        new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
+      )
       case other        => throw new IllegalArgumentException(s"unsupported witness mode '$other'")
     }
 

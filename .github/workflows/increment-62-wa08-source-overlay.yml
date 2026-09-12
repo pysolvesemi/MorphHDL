@@ -32,7 +32,7 @@ jobs:
           # The current Increment 61 delta is sealed above. Keep the historical
           # WA-08 contract and its mutation tests unchanged at the merged target.
           integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
-          test "$integrated" = "010644bbf1704c38013749ed40638e297ed87b2b"
+          test "$integrated" = "086cb4c642d0182e33bd86fd391f46fc7c0eb2a8"
           historical=$(mktemp -d "${RUNNER_TEMP:-/tmp}/wa08-inherited-source.XXXXXX")
           git worktree add --detach "$historical" "$integrated"
           trap 'git worktree remove --force "$historical"' EXIT
@@ -95,9 +95,9 @@ jobs:
           left = Path('artifacts/wa08-production-2.12.18/target/wa08-production/first')
           right = Path('artifacts/wa08-production-2.13.12/target/wa08-production/first')
           paths = sorted(path.relative_to(left) for path in left.glob('*/generated.v'))
-          assert len(paths) == 21
+          assert len(paths) == 31
           assert paths == sorted(path.relative_to(right) for path in right.glob('*/generated.v'))
           for path in paths:
               assert (left / path).read_bytes() == (right / path).read_bytes(), path
-          print('WA08_CROSS_SCALA_PASS files=21')
+          print('WA08_CROSS_SCALA_PASS files=31')
           PY
