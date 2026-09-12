@@ -1,0 +1,156 @@
+name: Increment 59 typed BlackBox generic gates
+
+on:
+  pull_request:
+    branches:
+      - parameterized-verilog
+  push:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59-blackbox-generics-v3-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Source, native audit, and sealed scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Select immutable comparison base
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            base="$PR_BASE"
+          else
+            base="$BEFORE"
+          fi
+          test -n "$base"
+          test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
+          printf 'INC59_BASE_SHA=%s\n' "$base" >> "$GITHUB_ENV"
+
+      - name: Run final source gate
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh source
+
+  dual-scala:
+    name: Dual-Scala complete suites ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Run compile, focused, simulation, and affected suites
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh scala ${{ matrix.scala_version }}
+
+  strict-formal:
+    name: Strict Verilog-2001 and formal closure ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Run strict Verilog-2001 gate
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh strict ${{ matrix.scala_version }}
+
+      - name: Run focused and inherited formal proofs
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh formal ${{ matrix.scala_version }}
+
+      - name: Retain strict and formal artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-v3-formal-scala-${{ matrix.scala_version }}
+          path: |
+            formal-artifacts/scala-${{ matrix.scala_version }}
+            target/morphhdl/typed-blackbox-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism:
+    name: Typed and concrete determinism ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - 2.12.18
+          - 2.13.12
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Prove deterministic publication and concrete preservation
+        run: bash morphhdl/scripts/check-increment-59-final-gates.sh determinism ${{ matrix.scala_version }}
+
+  closure:
+    name: Increment 59 canonical closure
+    if: always()
+    needs:
+      - source-contract
+      - dual-scala
+      - strict-formal
+      - determinism
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every final gate
+        shell: bash
+        env:
+          SOURCE: ${{ needs.source-contract.result }}
+          DUAL: ${{ needs.dual-scala.result }}
+          STRICT_FORMAL: ${{ needs.strict-formal.result }}
+          DETERMINISM: ${{ needs.determinism.result }}
+        run: |
+          test "$SOURCE" = success
+          test "$DUAL" = success
+          test "$STRICT_FORMAL" = success
+          test "$DETERMINISM" = success

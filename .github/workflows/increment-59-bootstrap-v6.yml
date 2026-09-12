@@ -1,0 +1,45 @@
+name: Increment 59 completion bootstrap v6
+
+on:
+  push:
+    branches:
+      - agent/inc59-final
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: increment-59-completion-bootstrap-v6
+  cancel-in-progress: false
+
+jobs:
+  complete:
+    name: Repair, prove, and publish final Increment 59 branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out exact target branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/inc59-final
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Complete Increment 59
+        run: bash .github/scripts/inc59-complete-v6.sh
+
+      - name: Retain proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59-bootstrap-v6-proof
+          path: |
+            formal-artifacts
+            target/morphhdl/typed-blackbox-*
+          if-no-files-found: warn
+          retention-days: 14
