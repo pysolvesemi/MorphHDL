@@ -20,7 +20,7 @@
       "path": ".github/workflows/increment-62-wa08-source-overlay.yml"
     },
     {
-      "after_sha256": "61cc6fdb6d4f5e74aa5ddb42bc91d9a474080fccd81409207652088efa2a1637",
+      "after_sha256": "a7d53a2e236fe1e8ce257b9c5f633164cc2755e31e56105883e7859b0d98b740",
       "before_sha256": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
       "mode": "100644",
       "path": ".github/workflows/morphhdl-passes.yml"
@@ -350,7 +350,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "3cdf425e41d42cc25206fbc3f3ea506dbef6c799c9f7e2ccd4d875646c50e25e",
+      "after_sha256": "9d10125290da98b4005a8b6bfeed7b8f24d762b822eb695e7960bf063f8eef53",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -668,7 +668,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "d851c66eb4584d46bd9b4e93b506a60d5c6ce02a",
+  "final_source_commit": "675eccc35fee5b51ae24df1c0d485b5f1b4d7750",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
