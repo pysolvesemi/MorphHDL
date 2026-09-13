@@ -35,10 +35,11 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def checked(root: Path, label: str, expected: str | None = None) -> dict:
+def checked(root: Path, label: str, expected: str | None = None,
+            timeout_seconds: int = 120) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass:\n" + result.stdout)
@@ -64,7 +65,10 @@ def main() -> None:
         spec.loader.exec_module(module)
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py", "target/increment-59d-inherited-60f-scope",
-            lambda: [checked(ROOT, "current descendant through complete 59c and inherited source audits")], "exact negative inherited 60f source-scope cases")
+            # This is the same complete current audit as 59b/60f, not a
+            # historical or mutation case; only this positive gets 600s.
+            lambda: [checked(ROOT, "current descendant through complete 59c and inherited source audits",
+                             timeout_seconds=600)], "exact negative inherited 60f source-scope cases")
         return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked(ROOT, "working reviewed descendant")]

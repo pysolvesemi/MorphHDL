@@ -79,11 +79,12 @@ def checked(root: Path, label: str, expected: str | None = None,
     return {"case": label, "expected_rejection": expected, "checks": evidence}
 
 
-def checked_current(root: Path, label: str, expected: str | None = None) -> dict:
+def checked_current(root: Path, label: str, expected: str | None = None,
+                    timeout_seconds: int = 120) -> dict:
     """Current native changes use the audited descendant contract, not old Vec spans."""
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CURRENT_CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     marker = "inherited native audits PASS"
     if expected is None:
         if result.returncode or marker not in result.stdout:
@@ -114,7 +115,10 @@ def main() -> None:
         spec.loader.exec_module(module)
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59b-inherited-source-scope.py", "target/increment-59b-source-scope",
-            lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits")], "exact negative inherited source-scope cases")
+            # Match the existing 60f full-positive budget: merged WA-10 audits
+            # take 136-140s in CI. Historical/mutation calls retain 120s.
+            lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits",
+                                     timeout_seconds=600)], "exact negative inherited source-scope cases")
         return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked_current(ROOT, "current descendant with qualified history and approved native source")]
