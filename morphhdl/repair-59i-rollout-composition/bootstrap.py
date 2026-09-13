@@ -19,6 +19,31 @@ def replace_once(text: str, before: str, after: str, label: str) -> str:
 def main() -> None:
     text = SOURCE.read_text()
 
+    # An exact aggregate-anchor successor does not change native production
+    # bytes. Compose its already-approved one-line reversal before the merged
+    # source view, while still checking the real HEAD/index/worktree below.
+    # Arbitrary manifest edits cannot use this path: the immutable reviewer
+    # recognizes only its pinned predecessor and one exact successor blob.
+    text = replace_once(text,
+        "def successor_view(root: Path, path: str, source: str) -> str:\n"
+        "    review = local_enable_review(root)\n",
+        "def successor_view(root: Path, path: str, source: str) -> str:\n"
+        "    if path == 'morphhdl/contracts/native-source-preservation.json':\n"
+        "        checker = root / 'morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py'\n"
+        "        require(checker.is_file() and not checker.is_symlink() and not checker.stat().st_mode & 0o111,\n"
+        "                'missing regular native-anchor successor reviewer')\n"
+        "        raw = checker.read_bytes()\n"
+        "        actual = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\\0' + raw).hexdigest()\n"
+        "        require(actual == 'b936a111af4cb09c8475cf63ba0c199a4290137b',\n"
+        "                'native-anchor successor reviewer changed')\n"
+        "        spec = importlib.util.spec_from_file_location('native_anchor_composition', checker)\n"
+        "        require(spec is not None and spec.loader is not None, 'cannot load native-anchor successor review')\n"
+        "        anchor = importlib.util.module_from_spec(spec)\n"
+        "        spec.loader.exec_module(anchor)\n"
+        "        source = anchor.restore_source(root, path, source)\n"
+        "    review = local_enable_review(root)\n",
+        "exact native-anchor successor projection")
+
     # Normalize the previously staged nested source templates before adding the
     # latest exact successor composition. These transformations modify the
     # generator copy in the workflow worktree only; apply.py then emits and
