@@ -881,9 +881,19 @@ other parameter expressions reach their consumers. It is canonical
 normalization, independent of the optional six hardware wire passes and their
 all-or-none flag. It does not add a seventh hardware wire-assignment pass.
 
-- [ ] **WA-11 — Redundant symbolic Boolean/integer conversion normalization**
+- [x] **WA-11 — Redundant symbolic Boolean/integer conversion normalization**
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
+
+  Implementation candidate `d997cdb8a93ad7c5b3ca60835ff36c81328584d4`
+  passed every applicable workflow. Both Scala versions passed exactly 1,998
+  tests in 196 suites without failures or skips. Dedicated production checks
+  passed 62 artifact compilations, 156 parameter overrides and 2,496 data
+  patterns per lane; all 131 generated Verilog files matched across Scala.
+  The inherited 16-shard proof covered all 11 pass identities and 512 bindings
+  twice, including equivalence, reachability, mutation and determinism gates.
+  Historical scoped skips and routing-only jobs provide no proof credit.
+  The completion-only commit must repeat the applicable checks before merge.
 
   Reproduce the public `MorphVerilog` width expression
   `HdlBool.param("PPC4", false).asElabBool.toElabInt * 3 + 1`. Remove redundant
