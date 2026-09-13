@@ -15,6 +15,9 @@ concurrency:
   group: increment-60f-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: Signedness closure Scala ${{ matrix.scala }}

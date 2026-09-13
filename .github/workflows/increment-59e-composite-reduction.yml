@@ -34,6 +34,9 @@ concurrency:
   group: increment-59e-composite-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: Composite reductions Scala ${{ matrix.scala }}

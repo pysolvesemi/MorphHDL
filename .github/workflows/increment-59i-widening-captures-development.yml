@@ -215,9 +215,55 @@ jobs:
               > "$out/saturation-hardware-$scala.log" 2>&1
           done
           sha256sum --check "$out/source-sha256.txt"
-          diff -r "$out/saturation-2.12.18-a/packed" "$out/saturation-2.13.12-a/packed"
-          diff -r "$out/saturation-2.12.18-a/fields" "$out/saturation-2.13.12-a/fields"
-          diff -r "$out/saturation-2.12.18-a/native" "$out/saturation-2.13.12-a/native"
+          python3 - "$out" <<'PY'
+          import json
+          from pathlib import Path, PurePosixPath
+          import sys
+
+          output = Path(sys.argv[1])
+          roots = [output / f"saturation-{scala}-{repeat}"
+              for scala in ("2.12.18", "2.13.12") for repeat in ("a", "b")]
+          baseline_manifest = None
+          baseline_files = None
+          for root in roots:
+              manifest_bytes = (root / "manifest.json").read_bytes()
+              manifest = json.loads(manifest_bytes)
+              artifacts = manifest["candidates"] + manifest["cases"]
+              names = [artifact["file"] for artifact in artifacts]
+              if not names or len(names) != len(set(names)):
+                  raise RuntimeError(f"empty or duplicate artifact inventory: {root}")
+              for name in names:
+                  relative = PurePosixPath(name)
+                  if (relative.is_absolute() or ".." in relative.parts or
+                      relative.as_posix() != name or
+                      relative.parts[0] not in ("candidate", "native")):
+                      raise RuntimeError(f"invalid artifact path: {root}/{name}")
+              inventory = set()
+              for namespace in ("candidate", "native"):
+                  directory = root / namespace
+                  if directory.is_symlink() or not directory.is_dir():
+                      raise RuntimeError(f"missing or linked artifact directory: {directory}")
+                  for path in directory.rglob("*"):
+                      if path.is_symlink():
+                          raise RuntimeError(f"linked artifact path: {path}")
+                      if path.is_file():
+                          inventory.add(path.relative_to(root).as_posix())
+              if inventory != set(names):
+                  raise RuntimeError(f"artifact inventory mismatch: {root}; "
+                      f"missing={sorted(set(names) - inventory)}, "
+                      f"extra={sorted(inventory - set(names))}")
+              files = {name: (root / name).read_bytes() for name in sorted(names)}
+              if baseline_manifest is None:
+                  baseline_manifest, baseline_files = manifest_bytes, files
+              else:
+                  if manifest_bytes != baseline_manifest:
+                      raise RuntimeError(f"manifest differs from {roots[0]}: {root}")
+                  for name, content in files.items():
+                      if content != baseline_files[name]:
+                          raise RuntimeError(f"artifact differs from {roots[0]}: {root}/{name}")
+          print(f"Identical manifest and {len(baseline_files)} candidate/native artifacts "
+              f"across all {len(roots)} Scala/repeat emissions")
+          PY
 
       - name: Print exact failing test diagnostics
         if: failure()

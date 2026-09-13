@@ -182,6 +182,24 @@ def main() -> None:
                 expected = "59i target integration: HEAD/index/worktree identity differs: " + relative
             adapted.append((label, relative, mutation, expected))
         cases = adapted
+        successor = getattr(integration, "successor_review", lambda root: None)(ROOT)
+        if successor is not None:
+            # This branch is reached only after a successful complete current
+            # source audit and authentication of the exact successor manifest.
+            # Preserve every mutation and require its first owning guard.
+            successor_paths = {entry["path"] for entry in successor.contract(ROOT)["files"]}
+            adapted = []
+            for label, relative, mutation, expected in cases:
+                if mutation in ("suffix", "paired", "inside") and relative in successor_paths and relative not in (CONTRACT, JOIN_CONTRACT):
+                    expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
+                elif mutation == "hidden-index":
+                    expected = "59i production successor: HEAD/index identity differs"
+                elif relative.startswith("foreign/src/main/"):
+                    expected = "59i production successor: staged, unstaged or untracked content: " + repr([relative])
+                elif mutation == "suffix" and relative == "core/src/main/scala/spinal/core/internals/VerilogBase.scala":
+                    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+                adapted.append((label, relative, mutation, expected))
+            cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
             fixture = Path(directory) / ("negative-" + str(index))

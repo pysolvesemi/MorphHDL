@@ -4,6 +4,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -12,6 +13,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('capture_review', ROOT / 'morphhdl/scripts/check-increment-59i-source-review.py')
 R = importlib.util.module_from_spec(SPEC); SPEC.loader.exec_module(R)
+
+
+def frozen_capture_source(entry, previous):
+    """Reconstruct only the exact historical snapshot owned by this contract."""
+    parts = []
+    position = 0
+    for edit in entry['edits']:
+        start, end = edit['before_start'], edit['before_end']
+        if previous[start:end] != edit['before'].encode():
+            raise RuntimeError('capture fixture before span differs: ' + edit['id'])
+        parts.extend((previous[position:start], edit['after'].encode()))
+        position = end
+    parts.append(previous[position:])
+    return b''.join(parts)
 
 
 class CaptureSourceReviewTests(unittest.TestCase):
@@ -27,14 +42,25 @@ class CaptureSourceReviewTests(unittest.TestCase):
         for path, entry in entries.items():
             current = (ROOT / path).read_bytes()
             previous = R.capture_baseline_source(ROOT, path)
-            self.assertEqual(R.restore_reviewed(entry, previous, current), previous)
+            # Current publication can contain independently reviewed successor
+            # spans. Use their existing authenticated projections before the
+            # capture-only reversal, then check the complete public reversal.
+            projected = R.load_anchor_review(ROOT).restore_source(ROOT, path, current.decode())
+            projected = R.load_composition_review(ROOT).feature_view(ROOT, path, projected)
+            projected = R.load_widening_review(ROOT).restore_source(ROOT, path, projected).encode()
+            self.assertEqual(projected, frozen_capture_source(entry, previous))
+            self.assertEqual(R.restore_reviewed(entry, previous, projected), previous)
             self.assertEqual(R.restore_source(ROOT, path, current.decode()).encode(), R.baseline_source(ROOT, path))
 
     def test_each_changed_span_and_unreviewed_suffix_reject(self):
         count = 0
         for path, entry in R.load_capture_contract(ROOT).items():
             previous = R.capture_baseline_source(ROOT, path)
-            current = (ROOT / path).read_bytes()
+            # Preserve every original capture-span mutation against its exact
+            # reviewed snapshot; later source cannot make a stale fixture pass
+            # merely because it already differs before applying the attack.
+            current = frozen_capture_source(entry, previous)
+            self.assertEqual(R.restore_reviewed(entry, previous, current), previous)
             for edit in entry['edits']:
                 a, b = edit['after_start'], edit['after_end']
                 if a == b:
@@ -48,6 +74,12 @@ class CaptureSourceReviewTests(unittest.TestCase):
                 count += 1
         self.assertGreater(count, 30)
         print('Capture source mutation controls:', count)
+
+    def test_current_source_suffix_rejects_before_historical_reversal(self):
+        for path in R.CAPTURE_PATHS:
+            changed = (ROOT / path).read_text() + '\n// unauthorized current-source suffix\n'
+            with self.assertRaisesRegex(RuntimeError, re.escape(path)):
+                R.restore_source(ROOT, path, changed)
 
     def test_disjoint_callback_paths_restore_before_old_owner_inventory(self):
         spec = importlib.util.spec_from_file_location('owner_capture_view', ROOT / 'morphhdl/scripts/check-increment-59h-source-review.py')

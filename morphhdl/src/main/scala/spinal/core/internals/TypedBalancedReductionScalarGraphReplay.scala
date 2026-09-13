@@ -609,17 +609,31 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           }
         case native: BitVectorRangedAccessFixed if ranges.contains(native.getClass) =>
           val hi = native.hi; val lo = native.lo
-          freeze(native, () => Vector(native.hi, native.lo))
+          val geometry = NativeWidthProvenance.rangeOf(native)
+          freeze(native, () => Vector(native.hi, native.lo,
+            NativeWidthProvenance.rangeOf(native).map(new Identity(_))))
           val source = child(native.source)
           if (source.kind ne selectInputKinds(native.getClass)) fail("TYPE", "part access source kind mismatch")
           val transfer: Vector[Width] => Width = widths => {
-            if (lo < 0 || hi < lo || BigInt(hi) >= widths.head.minimum)
-              fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire substituted domain")
-            lit(hi - lo + 1)
+            geometry match {
+              case Some(proof) =>
+                if (!proof.validFor(widths.head))
+                  fail("SELECT-DOMAIN", "native source-relative part selection must remain nonempty and in range throughout the substituted domain")
+                proof.resultWidth(widths.head)
+              case None =>
+                if (lo < 0 || hi < lo || BigInt(hi) >= widths.head.minimum)
+                  fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire substituted domain")
+                lit(hi - lo + 1)
+            }
           }
           val factory = ranges(native.getClass)
-          make(kind, transfer, native.getClass, Vector(hi, lo), Vector(source)) { (values, _) =>
-            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]; out.hi = hi; out.lo = lo; out
+          val properties = geometry.map(value => Vector[Any]("source-relative", value.key)).getOrElse(Vector[Any](hi, lo))
+          make(kind, transfer, native.getClass, properties, Vector(source)) { (values, _) =>
+            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]
+            out.hi = geometry.map(_.high(widthOf(values.head)).default.toInt).getOrElse(hi)
+            out.lo = geometry.map(_.low(widthOf(values.head)).default.toInt).getOrElse(lo)
+            geometry.foreach(NativeWidthProvenance.retainRange(out, _))
+            out
           }
         case native: BitVectorLiteral if native.getClass == classOf[BitsLiteral] ||
             native.getClass == classOf[UIntLiteral] || native.getClass == classOf[SIntLiteral] =>
@@ -627,15 +641,38 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
           val value = native.value
           val bits = native.bitCount
           val specified = native.hasSpecifiedBitCount
-          freeze(native, () => Vector(native.value, native.poisonMask, native.bitCount, native.hasSpecifiedBitCount))
-          val width = literalWidth.getOrElse(lit(bits))
-          val needed = value.bitLength + (if ((kind eq TypeSInt) && value != 0) 1 else 0)
-          if ((value < 0 && (kind ne TypeSInt)) || width.minimum < needed)
-            fail("LITERAL-DOMAIN", "constant value must fit its exact native kind and width for every allowed parameter")
-          make(kind, _ => width, native.getClass, Vector(value, specified, new WidthKey(width)), Vector.empty) { (_, target) =>
-            if (kind eq TypeBits) BitsLiteral(value, null, target.default.toInt, true)
-            else if (kind eq TypeUInt) UIntLiteral(value, null, target.default.toInt, true)
-            else SIntLiteral(value, null, target.default.toInt, true)
+          val fill = NativeWidthProvenance.fillOf(native)
+          freeze(native, () => Vector(native.value, native.poisonMask, native.bitCount, native.hasSpecifiedBitCount,
+            NativeWidthProvenance.fillOf(native).map(new Identity(_))))
+          def literal(at: BigInt, target: Width): BitVectorLiteral = {
+            if (kind eq TypeBits) BitsLiteral(at, null, target.default.toInt, true)
+            else if (kind eq TypeUInt) UIntLiteral(at, null, target.default.toInt, true)
+            else SIntLiteral(at, null, target.default.toInt, true)
+          }
+          fill match {
+            case Some(proof) =>
+              if (kind ne TypeUInt) fail("LITERAL-DOMAIN", "native all-ones fill is certified only for unsigned literals")
+              val dependency = proof.source.map(child).toVector
+              val transfer: Vector[Width] => Width = widths => {
+                val width = if (widths.nonEmpty) proof.resultWidth(widths.head) else proof.width
+                if (width.minimum < 1) fail("LITERAL-DOMAIN", "native fill requires positive width throughout the substituted domain")
+                width
+              }
+              val properties = if (dependency.nonEmpty) Vector[Any]("all-ones", proof.amount)
+                else Vector[Any]("all-ones", new WidthKey(proof.width))
+              make(kind, transfer, native.getClass, properties, dependency) { (values, target) =>
+                val out = literal((BigInt(1) << target.default.toInt) - 1, target)
+                NativeWidthProvenance.retainFill(out, target, values.headOption.map(_.asInstanceOf[BitVector]), proof.amount)
+                out
+              }
+            case None =>
+              val width = literalWidth.getOrElse(lit(bits))
+              val needed = value.bitLength + (if ((kind eq TypeSInt) && value != 0) 1 else 0)
+              if ((value < 0 && (kind ne TypeSInt)) || width.minimum < needed)
+                fail("LITERAL-DOMAIN", "constant value must fit its exact native kind and width for every allowed parameter")
+              make(kind, _ => width, native.getClass, Vector(value, specified, new WidthKey(width)), Vector.empty) { (_, target) =>
+                literal(value, target)
+              }
           }
         case native: BoolLiteral if native.getClass == classOf[BoolLiteral] =>
           val value = native.value

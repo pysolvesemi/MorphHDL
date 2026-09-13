@@ -53,11 +53,33 @@ def main() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     head = git(ROOT, "rev-parse", "HEAD")
-    # The exact 83-file overlay plus inherited source traversal took 127-154s
-    # locally. Only this full positive audit gets a larger finite wall budget;
-    # every historical/mutation check and Git command retains its 120s limit.
+    # The later 427-file parent-union traversal exceeded the old 600s CI
+    # budget. Match the existing 59h current-positive budget only for that
+    # integration; historical/mutation checks and Git retain their 120s limit.
+    timeout = 900 if (ROOT / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
     records = [check(ROOT, "current descendant with separately owned production changes",
-                     timeout_seconds=600)]
+                     timeout_seconds=timeout)]
+    ternary = module.boolean_ternary_review(ROOT)
+    adapter = getattr(ternary, "wa08_overlay", None)
+    overlay = adapter(ROOT) if adapter is not None else None
+    integration = overlay.integration_review(ROOT) if overlay is not None else None
+    integration_paths = ({entry["path"] for entry in integration.contract(ROOT)["files"]}
+                         if integration is not None else set())
+    successor = (getattr(integration, "successor_review", lambda root: None)(ROOT)
+                 if integration is not None else None)
+    successor_paths = ({entry["path"] for entry in successor.contract(ROOT)["files"]}
+                       if successor is not None else set())
+
+    def changed_successor(path: str) -> str:
+        # The positive audit authenticates the enclosing parent-union review.
+        # Keep the original attacks and require its exact path rejection only
+        # for source owned by that review. Index-only attacks remain unchanged.
+        if path in successor_paths:
+            return "59i production successor: unreviewed bytes cannot enter predecessor projection: " + path
+        if path in integration_paths:
+            return "59i target integration: unreviewed bytes cannot enter parent projection: " + path
+        return "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: " + path
+
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     cases = (
@@ -89,20 +111,17 @@ def main() -> None:
          "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed-committed-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         changed_successor("core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala")),
         ("changed-uncommitted-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", False,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         changed_successor("core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala")),
         ("changed-staged-successor-emitter-restored-worktree", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
          "WA-08 source overlay: HEAD/index/worktree identity differs: "
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
         ("changed-committed-successor-pass-contracts", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", True,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+         changed_successor("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala")),
         ("changed-staged-successor-pass-contracts-restored-worktree", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged",
          "WA-08 source overlay: HEAD/index/worktree identity differs: "

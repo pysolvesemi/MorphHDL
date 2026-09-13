@@ -20,11 +20,11 @@ def git(root, *args):
         stderr=subprocess.PIPE)
 
 
-def rejected(label, action):
+def rejected(label, action, expected="WA-08"):
     try:
         action()
     except RuntimeError as error:
-        assert "WA-08" in str(error), (label, error)
+        assert expected in str(error), (label, error)
     else:
         raise AssertionError("accepted attack: " + label)
 
@@ -32,6 +32,23 @@ def rejected(label, action):
 def main():
     value = overlay.verify(ROOT)
     entries = value["files"]
+    integration = overlay.integration_review(ROOT)
+    integration_paths = ({entry["path"] for entry in integration.contract(ROOT)["files"]}
+                         if integration is not None else set())
+    successor = (getattr(integration, "successor_review", lambda root: None)(ROOT)
+                 if integration is not None else None)
+    successor_paths = ({entry["path"] for entry in successor.contract(ROOT)["files"]}
+                       if successor is not None else set())
+
+    def restoration_rejection(path):
+        # Current verification above authenticates this outer review. Keep
+        # every payload and require the exact owning guard and affected path.
+        if path in successor_paths:
+            return "59i production successor: unreviewed bytes cannot enter predecessor projection: " + path
+        if path in integration_paths:
+            return "59i target integration: unreviewed bytes cannot enter parent projection: " + path
+        return "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + path
+
     count = 0
     for entry in entries:
         path = entry["path"]
@@ -39,7 +56,8 @@ def main():
         before = overlay.frozen(ROOT, overlay.BASE, path) or b""
         assert overlay.restore_source(ROOT, path, raw) == before
         rejected("changed restoration " + path,
-                 lambda: overlay.restore_source(ROOT, path, raw + b"\nchanged\n"))
+                 lambda: overlay.restore_source(ROOT, path, raw + b"\nchanged\n"),
+                 restoration_rejection(path))
         count += 1
     unrelated = "core/src/main/scala/spinal/core/Bits.scala"
     assert unrelated not in {entry["path"] for entry in entries}
@@ -82,7 +100,8 @@ def main():
     assert rollout.restore_60g_source(ROOT, overlap, restored_publication.decode()).encode() == restored_publication
     rejected("changed already-restored publication source",
              lambda: rollout.restore_60g_source(
-                 ROOT, overlap, restored_publication.decode() + "\n// historical mutation\n"))
+                 ROOT, overlap, restored_publication.decode() + "\n// historical mutation\n"),
+             restoration_rejection(overlap))
     count += 1
     ternary = register.boolean_ternary_review(ROOT)
     assert overlap not in ternary.load_contract(ROOT)["production_delta"]
@@ -96,6 +115,39 @@ def main():
         git(ROOT, "worktree", "add", "--quiet", "--detach", str(fixture), "HEAD")
         head = git(fixture, "rev-parse", "HEAD").decode().strip()
         victim = "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala"
+        # The integrated parent union rejects some unchanged Git/disk attacks
+        # before the WA-08 layer. Name each attack's precise first diagnostic;
+        # all other cases still require their original WA-08 rejection.
+        attack_rejections = {}
+        if integration is not None:
+            submodule = next(path for path, entry in overlay.tree(fixture, head).items()
+                             if entry[0] == "160000")
+            attack_rejections = {
+                "changed bytes": restoration_rejection(victim),
+                "committed source mutation": restoration_rejection(victim),
+                "committed unknown production": "59i target integration: current tree path inventory differs",
+                "historical source mutation remains visible":
+                    "59i target integration: current tree differs from reviewed source: " + unrelated,
+                "untracked source": "59i target integration: staged, unstaged or untracked content: " +
+                    repr(["morphhdl/src/main/scala/morphhdl/Unknown.scala"]),
+                "ignored source": "59i target integration: staged, unstaged or untracked content: ['.gitignore']",
+                "partial profile rollout": restoration_rejection("morphir/src/main/scala/morphhdl/ir/v1/Handoff.scala"),
+                "helper mutation": restoration_rejection(HELPER),
+                "uninitialized submodule source":
+                    "59i target integration: uninitialized submodule contains content: " + submodule,
+            }
+            if successor is not None:
+                attack_rejections.update({
+                    "committed unknown production":
+                        "59i production successor: sealed route tree differs from immutable source plus exact seal",
+                    "historical source mutation remains visible":
+                        "59i production successor: sealed route tree differs from immutable source plus exact seal",
+                    "untracked source": "59i production successor: staged, unstaged or untracked content: " +
+                        repr(["morphhdl/src/main/scala/morphhdl/Unknown.scala"]),
+                    "ignored source": "59i production successor: HEAD/index/worktree identity differs: .gitignore",
+                    "uninitialized submodule source":
+                        "59i production successor: uninitialized submodule contains content: " + submodule,
+                })
         try:
             def reset():
                 # A linked parent can cause Git to restore a tracked child into
@@ -118,7 +170,7 @@ def main():
                 if committed:
                     git(fixture, "add", "-A")
                     git(fixture, "commit", "-qm", "source attack fixture")
-                rejected(label, lambda: overlay.verify(fixture))
+                rejected(label, lambda: overlay.verify(fixture), attack_rejections.get(label, "WA-08"))
                 count += 1
 
             def append(path):
