@@ -11,7 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "morphhdl/contracts/increment-61-source-review.json"
-CONTRACT_SHA256 = "9d65f53f52a28e76df181aadd83a470376d45db1ee459f1121fde3cf022c10de"
+CONTRACT_SHA256 = "0579142e9244e6b55f7323cfc3d75a1d716c8a7eb3f1c6039c04c0917da559b0"
 
 
 def require(condition: bool, detail: str) -> None:

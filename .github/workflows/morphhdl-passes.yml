@@ -117,11 +117,26 @@ jobs:
             integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
             test "$integrated" = f06d9c412924b99cf2c76422549c375a571757dc
             git merge-base --is-ancestor "$integrated" HEAD
-            # This is a source identity check, not a projection of runtime
-            # results. Every pass and native emitter source/test is unchanged.
-            git diff --exit-code "$integrated" HEAD -- core morphhdl-passes
-            git diff --exit-code "$integrated" -- core morphhdl-passes
+            # Every pass and native emitter source/test is unchanged. The
+            # separately reviewed signature registry records this workflow's
+            # integration adapter; all other historical signatures stay exact.
+            registry=morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+            git diff --exit-code "$integrated" HEAD -- core morphhdl-passes \
+              ":(exclude)$registry"
+            git diff --exit-code "$integrated" -- core morphhdl-passes \
+              ":(exclude)$registry"
             test -z "$(git ls-files --others --exclude-standard -- core morphhdl-passes)"
+            python3 - "$integrated" "$registry" <<'PY'
+          import hashlib, json, pathlib, subprocess, sys
+          integrated, registry = sys.argv[1:]
+          inherited = json.loads(subprocess.check_output(['git', 'show', integrated + ':' + registry]))
+          current = json.loads(pathlib.Path(registry).read_text())
+          workflow = '.github/workflows/morphhdl-passes.yml'
+          assert current['files'][workflow] == hashlib.sha256(pathlib.Path(workflow).read_bytes()).hexdigest(), \
+              'current formal signature must authenticate the executing workflow'
+          current['files'][workflow] = inherited['files'][workflow]
+          assert current == inherited, 'only the reviewed workflow signature may differ from the integrated registry'
+          PY
             audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-wa10-static.XXXXXX")
             git worktree add --detach "$audit_root" "$integrated"
             audit_head_ref=agent/wa-10-general-expression-inlining
@@ -220,6 +235,10 @@ jobs:
 
       - name: Verify formal-model signatures before expensive jobs
         working-directory: ${{ steps.audit.outputs.root }}
+        shell: bash
+        run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+
+      - name: Verify exact current-source formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 

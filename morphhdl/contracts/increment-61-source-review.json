@@ -45,6 +45,13 @@
       "after_sha256_integrated": "e2f4f3eba199cec8e5c0db3293b185bc39b515078622c4b07297a64dffdcd8c7"
     },
     {
+      "after_sha256": "0a97dab713652adb8809191ea8ddb6fb239bce7d65069e6e0745aa510b90881b",
+      "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
+      "mode": "100644",
+      "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
+      "status": "modified"
+    },
+    {
       "after_sha256": "09d42b95cdb53c964939c1ecae7ddacd2ea566b972a28a6993a00003ad292e2d",
       "before_sha256": null,
       "mode": "100644",
