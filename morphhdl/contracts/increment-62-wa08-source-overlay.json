@@ -212,7 +212,7 @@
       "path": "morphhdl-passes/scripts/check-wa09-named-expression.py"
     },
     {
-      "after_sha256": "2b1fea68e7ca1252fe77b2191b4875dfe0725f8c182cae7adeef7f25c3563bc9",
+      "after_sha256": "acb8457577cad13626f6a92e420e49a59cf9fa6020deadb7656fe6c6a5a349bf",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl-passes/scripts/check-wa10-general-expression.py"
@@ -350,7 +350,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "9d10125290da98b4005a8b6bfeed7b8f24d762b822eb695e7960bf063f8eef53",
+      "after_sha256": "e66f93e0c49a0d61ffb10d1169ec8ee272f5b3535f2fb41da3268e07a2a3d059",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -668,7 +668,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "675eccc35fee5b51ae24df1c0d485b5f1b4d7750",
+  "final_source_commit": "fcdcbde5a796fc88c35f42872f5a1e9314e0c1d0",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
