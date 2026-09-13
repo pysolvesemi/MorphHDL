@@ -1,0 +1,116 @@
+{
+  "audit_paths": [
+    ".github/workflows/increment-59c-named-field-vectors.yml",
+    ".github/workflows/increment-59g-register-bridges.yml",
+    ".github/workflows/increment-60c-signed-declarations.yml",
+    ".github/workflows/increment-60d-pure-sint-casts.yml",
+    ".github/workflows/increment-60e-signedness-boundaries.yml",
+    ".github/workflows/increment-60f-equivalence-closure.yml",
+    ".github/workflows/increment-60g-default-signed-verilog.yml",
+    ".github/workflows/increment-61-compatibility-matrix.yml",
+    ".github/workflows/increment-61-one-file-per-component.yml",
+    ".github/workflows/increment-62-wa08-source-overlay.yml",
+    ".github/workflows/morphhdl-passes.yml",
+    "morphhdl/contracts/increment-61-source-review.json",
+    "morphhdl/scripts/check-increment-60g-default-rollout.py",
+    "morphhdl/scripts/check-increment-61-source-review.py"
+  ],
+  "base_commit": "5a9294363c7b74ae584f1702160fe1f7e468f58a",
+  "increment": "61",
+  "production_paths": [
+    "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala",
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+    "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala"
+  ],
+  "production_prefixes": [
+    "morphhdl/src/main/scala/"
+  ],
+  "reviewed_files": [
+    {
+      "after_sha256": "8f344063a328802fc8521c55ac14fab7deb5903c4ad1f968109315bddd1e1ac6",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "docs/morphhdl/increment-61-one-file-per-component.md",
+      "status": "added"
+    },
+    {
+      "after_sha256": "a4322637e44592e94099ecd9eedd84d6a9b394df9a5f68212ad18c38d073385a",
+      "before_sha256": "1a1fb4c7832c06e47cad3229d161068a38c81068833687e584e9cccde9351d52",
+      "mode": "100644",
+      "path": "docs/morphhdl/parameterized-verilog-todo.md",
+      "status": "modified",
+      "after_sha256_integrated": "e2f4f3eba199cec8e5c0db3293b185bc39b515078622c4b07297a64dffdcd8c7"
+    },
+    {
+      "after_sha256": "09d42b95cdb53c964939c1ecae7ddacd2ea566b972a28a6993a00003ad292e2d",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala",
+      "status": "added"
+    },
+    {
+      "after_sha256": "ede54e7d2217f995cd10a220210f9f5558f5cd6cefaf21aecca1523cbaa7cb87",
+      "before_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+      "status": "modified",
+      "after_sha256_integrated": "8d1f013fccaa81cfa6f7021292210db988a0d55c59d71dd731ba8b724a3ab33b"
+    },
+    {
+      "after_sha256": "77133794259d597e19784639cc4b19a7595e6a9e3cf74e32f3d3abc888a2d038",
+      "before_sha256": "c86ff4cb1dde2889f2b1c76df6fa00ed3c0f2208eef60245b86b7d64249a37b6",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+      "status": "modified"
+    },
+    {
+      "after_sha256": "827f4aad7411023735c7bf22f5c518b754de4e5cf8a67006c73a4ba325b2b9ff",
+      "before_sha256": "3c1e9becfc9013f5f51b938846bbf57b347521cb5cceb4c2c581efe51035c6ab",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala",
+      "status": "modified"
+    },
+    {
+      "after_sha256": "9e31943e2ab04b7b8dee527b707715708a02901ed249f608d0ed5f602ce44c72",
+      "before_sha256": "82b95d538c187dc0d34c551ce017e560b9c6633ddcef66683fa80721de3399b2",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+      "status": "modified",
+      "after_sha256_integrated": "742d5c29788237eab80855c1aa26eaa601b403e07fcca17413ce6e803d0770d4"
+    },
+    {
+      "after_sha256": "3103284c4d5a8d442b3baa59cc49841c1261ebfcd9e53e94a9bc20d78f9aaf0f",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala",
+      "status": "added"
+    },
+    {
+      "after_sha256": "d2fa00802748f60310ee155bcec0856129c140d83b4f1baf758dc851cbd3ce7c",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala",
+      "status": "added",
+      "after_sha256_integrated": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910"
+    },
+    {
+      "after_sha256": "23182c8d50be2c24d58204c74a714a0957895ff779525655fd20279c6728fb4f",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala",
+      "status": "added"
+    },
+    {
+      "after_sha256": "eb09010fc270bda48bb1090a8087bda967638b81d05a3198c03e51b464780280",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala",
+      "status": "added"
+    }
+  ],
+  "schema": 1,
+  "integrated_target_commit": "f06d9c412924b99cf2c76422549c375a571757dc"
+}

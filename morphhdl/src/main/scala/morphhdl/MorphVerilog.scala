@@ -14,6 +14,7 @@ import spinal.core.internals.{
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog,
+  MorphHdlRecursivePerComponentPublication,
   TypedBalancedReductionBackend
 }
 
@@ -45,7 +46,7 @@ object MorphVerilog {
       top: String,
       parameters: Vector[spinal.core.ElaborationIntegerParameter],
       inheritedValidationPhaseIds: Vector[String],
-      verilog: String
+      files: Vector[MorphPreparedPublicationFile]
   )
 
   private final case class PortShape(
@@ -249,13 +250,13 @@ object MorphVerilog {
             prepared match {
               case Left(failure) => Left(failure)
               case Right(value) =>
-                writeOutput(config, value.top, value.verilog) match {
+                publishSingleSource(config, value.top, value.files) match {
                   case Left(failure) => Left(failure)
-                  case Right(output) =>
+                  case Right(outputs) =>
                     Right(
                       MorphSingleSourceVerilogReport.fromTyped(
                         toplevelName = value.top,
-                        generatedSourcesPaths = Vector(output.toString),
+                        generatedSourcesPaths = outputs.map(_.toString),
                         elaborationParameters = value.parameters,
                         inheritedValidationPhaseIds = value.inheritedValidationPhaseIds
                       )
@@ -274,12 +275,16 @@ object MorphVerilog {
       external <- runSingleSourceNative(config, component, workspace)
       phaseIds <- checkPhasePlan(external)
       parameters <- readSingleSourceParameters(external.nativeReport)
-      verilog <- readSingleSourceModule(external.nativeReport)
+      files <- readSingleSourcePublication(
+        config,
+        external.nativeReport,
+        workspace
+      )
     } yield PreparedSingleSourceGeneration(
       external.nativeReport.toplevelName,
       parameters,
       phaseIds,
-      verilog
+      files
     )
 
   private def runSingleSourceNative[T <: Component](
@@ -520,8 +525,11 @@ object MorphVerilog {
         Option(config.netlistFileName).foreach { filename =>
           validateNetlistFilename(filename).foreach(errors += _)
         }
-        if (config.oneFilePerComponent) {
-          errors += "oneFilePerComponent is incompatible with the single parameterized hierarchy"
+        if (config.oneFilePerComponent && !allowSingleSourceFormal) {
+          errors += "oneFilePerComponent is supported only by the typed single-source MorphVerilog path"
+        }
+        if (config.oneFilePerComponent && config.netlistFileName != null) {
+          errors += "netlistFileName cannot be combined with oneFilePerComponent"
         }
         if (config.svInterface) {
           errors += "svInterface is a SystemVerilog-only option"
@@ -623,6 +631,32 @@ object MorphVerilog {
     }
   }
 
+  private def publishSingleSource(
+      config: SpinalConfig,
+      top: String,
+      files: Vector[MorphPreparedPublicationFile]
+  ): Either[MorphVerilogFailure, Vector[Path]] = {
+    if (config.oneFilePerComponent) {
+      MorphPerComponentPublication.publish(config, top, files)
+    } else {
+      files match {
+        case Vector(file) =>
+          writeOutput(
+            config,
+            top,
+            new String(file.content, StandardCharsets.UTF_8)
+          ).map(path => Vector(path))
+        case _ =>
+          Left(
+            MorphVerilogFailure(
+              SingleSourceGeneration,
+              s"consolidated parameterized generation captured ${files.size} files; expected exactly one"
+            )
+          )
+      }
+    }
+  }
+
   private def writeOutput(
       config: SpinalConfig,
       top: String,
@@ -719,6 +753,12 @@ object MorphVerilog {
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
+    // The recursive adapter brackets PhaseVerilog. Install it before every
+    // caller-owned inserter so a pre-existing strict signedness observation can
+    // still claim the exact phase immediately before the emitter. Consolidated
+    // publication must not acquire these otherwise inactive lifecycle phases.
+    if (config.oneFilePerComponent)
+      phaseInserters.insert(0, MorphHdlRecursivePerComponentPublication.install _)
     phaseInserters += ExternalParameterizedNativeResize.install _
     phaseInserters += ExternalParameterizedAutoResize.install _
     phaseInserters += ExternalParameterizedHighBit.install _
@@ -781,6 +821,28 @@ object MorphVerilog {
           )
         )
     }
+
+  private def readSingleSourcePublication[T <: Component](
+      config: SpinalConfig,
+      report: SpinalReport[T],
+      workspace: Path
+  ): Either[MorphVerilogFailure, Vector[MorphPreparedPublicationFile]] = {
+    if (config.oneFilePerComponent) {
+      MorphPerComponentPublication.capture(workspace, report.toplevelName)
+    } else {
+      readSingleSourceModule(report).map { verilog =>
+        val filename = Option(config.netlistFileName)
+          .getOrElse(report.toplevelName + ".v")
+        Vector(
+          MorphPreparedPublicationFile(
+            filename,
+            verilog.getBytes(StandardCharsets.UTF_8),
+            reportAsSource = true
+          )
+        )
+      }
+    }
+  }
 
   private def readSingleSourceModule[T <: Component](
       report: SpinalReport[T]

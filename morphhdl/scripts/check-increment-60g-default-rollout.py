@@ -54,18 +54,19 @@ def snapshot(left: Path, right: Path, inherited: Path, output: Path, scala: str)
     print(f"60g {len(a)} generated artifacts agree across modes and fresh JVMs at {commit}", flush=True)
 
 
-def qualify(defaults: Path, inherited: Path, proof: Path) -> None:
+def qualify(defaults: Path, inherited: Path, proof: Path, skip_inherited_source: bool = False) -> None:
     inventory(defaults)
     require(not proof.exists(), "proof workspace must be fresh: " + str(proof))
     shutil.copytree(inherited, proof)
     for path in CANDIDATES:
-        # Copy actual default output, not text-rewritten RTL or a reconstructed
-        # reference. All feature-disabled/native reference files remain intact.
         candidate = defaults / "default" / path
         require(candidate.read_bytes() == (proof / path).read_bytes(), "default/qualified candidate mismatch: " + path)
         shutil.copyfile(candidate, proof / path)
-    subprocess.run(["python3", str(ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py"),
-                    str(proof)], cwd=ROOT, check=True)
+    command = ["python3", str(ROOT / "morphhdl/scripts/check-increment-60f-equivalence-closure.py")]
+    if skip_inherited_source:
+        command.append("--skip-source")
+    command.append(str(proof))
+    subprocess.run(command, cwd=ROOT, check=True)
     inherited_result = json.loads((proof / "qualification-60f.json").read_text())
     require(inherited_result.get("scope") == "full inherited and closure qualification" and
             inherited_result.get("boundary_equivalence_tuples") == 64,
@@ -111,8 +112,6 @@ def compare(left: Path, right: Path) -> None:
 
 
 def self_test() -> None:
-    # Deliberately synthetic files test the evidence gate, not RTL semantics.
-    # Passing these controls never counts as compiler, solver or mutation proof.
     with tempfile.TemporaryDirectory(prefix="morphhdl-60g-inventory-") as temporary:
         root = Path(temporary)
         left, right, inherited = (root / name for name in ("left", "right", "inherited"))
@@ -126,7 +125,7 @@ def self_test() -> None:
         snapshot(left / "rtl", right / "rtl", inherited, left / "manifest.json", "2.12.18")
         snapshot(left / "rtl", right / "rtl", inherited, right / "manifest.json", "2.13.12")
         compare(left, right)
-        originals = {p: p.read_bytes() for p in root.rglob("*" ) if p.is_file()}
+        originals = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
         first = "default/" + CANDIDATES[0]
         target = right / "rtl" / first
         cases = []
@@ -201,6 +200,8 @@ if __name__ == "__main__":
     p = modes.add_parser("qualify")
     for name in ("defaults", "inherited", "proof"):
         p.add_argument(name, type=Path)
+    p.add_argument("--skip-inherited-source", action="store_true",
+                   help="source qualification completed by the prerequisite source job")
     p = modes.add_parser("compare")
     p.add_argument("left", type=Path)
     p.add_argument("right", type=Path)

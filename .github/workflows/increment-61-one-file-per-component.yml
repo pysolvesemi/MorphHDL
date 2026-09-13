@@ -1,0 +1,268 @@
+name: Increment 61 one-file-per-component publication
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - agent/increment-61-one-file-per-component
+    paths:
+      - '.github/workflows/increment-59c-named-field-vectors.yml'
+      - '.github/workflows/increment-59g-register-bridges.yml'
+      - '.github/workflows/increment-60c-signed-declarations.yml'
+      - '.github/workflows/increment-60d-pure-sint-casts.yml'
+      - '.github/workflows/increment-60e-signedness-boundaries.yml'
+      - '.github/workflows/increment-60f-equivalence-closure.yml'
+      - '.github/workflows/increment-60g-default-signed-verilog.yml'
+      - '.github/workflows/increment-61-one-file-per-component.yml'
+      - 'docs/morphhdl/increment-61-one-file-per-component.md'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+      - 'morphhdl/contracts/increment-61-source-review.json'
+      - 'morphhdl/scripts/check-increment-60g-default-rollout.py'
+      - 'morphhdl/scripts/check-increment-61-source-review.py'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-59c-named-field-vectors.yml'
+      - '.github/workflows/increment-59g-register-bridges.yml'
+      - '.github/workflows/increment-60c-signed-declarations.yml'
+      - '.github/workflows/increment-60d-pure-sint-casts.yml'
+      - '.github/workflows/increment-60e-signedness-boundaries.yml'
+      - '.github/workflows/increment-60f-equivalence-closure.yml'
+      - '.github/workflows/increment-60g-default-signed-verilog.yml'
+      - '.github/workflows/increment-61-one-file-per-component.yml'
+      - 'docs/morphhdl/increment-61-one-file-per-component.md'
+      - 'docs/morphhdl/parameterized-verilog-todo.md'
+      - 'morphhdl/contracts/increment-61-source-review.json'
+      - 'morphhdl/scripts/check-increment-60g-default-rollout.py'
+      - 'morphhdl/scripts/check-increment-61-source-review.py'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    name: Exact source and inherited audit composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify Increment 61 and the unchanged predecessor source contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-source"
+          predecessor="$output/predecessor"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/review.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/review.log"
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          ) | tee "$output/inherited.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$output/native.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$output/overlay.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-source
+          path: target/increment-61-source
+          if-no-files-found: error
+          retention-days: 14
+
+  publication:
+    needs: source
+    name: Publication, tools and equivalence Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          mkdir -p "$output"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+      - name: Run focused tests and generate independent deterministic artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/testOnly morphhdl.Increment61PerComponentPublicationTests' \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/generated-a" \
+            "morph/Test/runMain morphhdl.Increment61PerComponentPublicationArtifacts $output/generated-b" \
+            > "$output/sbt.log" 2>&1 || { tail -n 300 "$output/sbt.log"; exit 1; }
+          diff -ru "$output/generated-a" "$output/generated-b" > "$output/fresh-generation.diff"
+      - name: Strict Verilog-2001 compile, lint, synthesis and split equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          split="$output/generated-a/split"
+          combined="$output/generated-a/consolidated/Increment61Top.v"
+          files=("$split/Increment61Leaf.v" "$split/Increment61Top.v")
+          test "$(cat "$split/Increment61Top.lst")" = $'Increment61Leaf.v\nIncrement61Top.v'
+          iverilog -g2001 -s Increment61Top -o "$output/split.vvp" "${files[@]}"
+          iverilog -g2001 -s Increment61Top -o "$output/combined.vvp" "$combined"
+          verilator --lint-only --language 1364-2001 --top-module Increment61Top "${files[@]}"
+          verilator --lint-only --language 1364-2001 --top-module Increment61Top "$combined"
+          yosys -q -p "read_verilog -noautowire ${files[*]}; hierarchy -check -top Increment61Top; proc; memory; flatten; opt; check -assert; stat" \
+            > "$output/split-yosys.log"
+          yosys -q -p "read_verilog -noautowire $combined; hierarchy -check -top Increment61Top; proc; memory; flatten; opt; check -assert; stat" \
+            > "$output/combined-yosys.log"
+          for widths in '1 1' '5 5' '7 13' '32 3'; do
+            read -r left right <<<"$widths"
+            work="$output/equiv-${left}-${right}"
+            cat > "$work.ys" <<YOSYS
+          read_verilog -noautowire ${files[*]}
+          chparam -set LEFT_WIDTH $left -set RIGHT_WIDTH $right Increment61Top
+          hierarchy -check -top Increment61Top
+          proc
+          memory
+          flatten
+          opt
+          rename Increment61Top gold
+          design -stash gold
+          design -reset
+          read_verilog -noautowire $combined
+          chparam -set LEFT_WIDTH $left -set RIGHT_WIDTH $right Increment61Top
+          hierarchy -check -top Increment61Top
+          proc
+          memory
+          flatten
+          opt
+          rename Increment61Top gate
+          design -stash gate
+          design -reset
+          design -copy-from gold -as gold gold
+          design -copy-from gate -as gate gate
+          equiv_make gold gate equiv
+          prep -top equiv
+          equiv_simple
+          equiv_status -assert
+          YOSYS
+            yosys -q -s "$work.ys" > "$work.log"
+          done
+      - name: Exercise missing, duplicate and wrong-file publication controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          split="$output/generated-a/split"
+          if iverilog -g2001 -s Increment61Top -o /dev/null "$split/Increment61Top.v" > "$output/missing.log" 2>&1; then
+            echo 'missing child definition unexpectedly compiled' >&2; exit 1
+          fi
+          cat "$split/Increment61Leaf.v" "$split/Increment61Leaf.v" > "$output/duplicate-leaf.v"
+          if iverilog -g2001 -s Increment61Top -o /dev/null "$output/duplicate-leaf.v" "$split/Increment61Top.v" > "$output/duplicate.log" 2>&1; then
+            echo 'duplicate child definition unexpectedly compiled' >&2; exit 1
+          fi
+          python3 - "$split" "$output" <<'PY'
+          from pathlib import Path
+          import re, shutil, sys
+          split, output = map(Path, sys.argv[1:])
+          expected = {"Increment61Leaf.v": "Increment61Leaf", "Increment61Top.v": "Increment61Top"}
+          pattern = re.compile(r"(?m)^\s*module\s+([A-Za-z_][A-Za-z0-9_$]*)\b")
+          def check(root):
+              for name, module in expected.items():
+                  found = pattern.findall((root / name).read_text())
+                  if found != [module]:
+                      raise RuntimeError((name, module, found))
+          check(split)
+          wrong = output / "wrong-file"
+          wrong.mkdir()
+          shutil.copyfile(split / "Increment61Leaf.v", wrong / "Increment61Top.v")
+          shutil.copyfile(split / "Increment61Top.v", wrong / "Increment61Leaf.v")
+          try:
+              check(wrong)
+          except RuntimeError as error:
+              (output / "wrong-file.log").write_text(str(error) + "\n")
+          else:
+              raise RuntimeError("wrong-file publication mutation was not detected")
+          PY
+      - name: Record exact source inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61"
+          git rev-parse HEAD > "$output/head.txt"
+          find "$output/generated-a" -type f -print0 | sort -z | xargs -0 sha256sum > "$output/generated.sha256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-${{ matrix.scala }}
+          path: target/increment-61
+          if-no-files-found: error
+          retention-days: 14
+
+  cross-scala:
+    needs: publication
+    name: Cross-Scala generated-byte determinism
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-61-2.*
+          path: target/increment-61-cross
+      - name: Compare complete generated publication sets
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=target/increment-61-cross
+          left="$root/increment-61-2.12.18/generated-a"
+          right="$root/increment-61-2.13.12/generated-a"
+          test -d "$left" && test -d "$right"
+          diff -ru "$left" "$right" | tee "$root/cross-scala.diff"
