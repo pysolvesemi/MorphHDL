@@ -1,0 +1,11 @@
+[
+  "iverilog",
+  "-g2001",
+  "-s",
+  "GeneralExpressionInliningTb",
+  "-PGeneralExpressionInliningTb.PPC4=1",
+  "-o",
+  "/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/checks/general/PPC4-1/default/simulation.vvp",
+  "/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/default/GeneralExpressionInlining.v",
+  "/workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/tests/wa10/general_expression_tb.v"
+]

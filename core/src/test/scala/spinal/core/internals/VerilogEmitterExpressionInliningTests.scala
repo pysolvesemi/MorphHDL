@@ -114,7 +114,7 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     assert(wrapperAssignments(verilog).nonEmpty)
   }
 
-  test("mixed-width intermediate addition retains its explicit resize boundary") {
+  test("widening concatenation preserves narrower modular arithmetic without a carrier") {
     val verilog = generate("MixedWidthBoundary", enabled = true) {
       new Component {
         setDefinitionName("MixedWidthBoundary")
@@ -125,7 +125,8 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
       }
     }
 
-    assert(wrapperAssignments(verilog).nonEmpty)
+    assert(wrapperAssignments(verilog).isEmpty)
+    assert(verilog.contains("assign total = ({2'd0, (a + b)} + c);"))
   }
 
   test("a retained symbolic resize target cannot be treated as its fixed witness") {
@@ -297,6 +298,213 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     }
 
     assert(wrapperAssignments(verilog).nonEmpty)
+  }
+
+  test("literal and widening resize operands inline inside nested comparisons") {
+    val verilog = generate("NestedComparisonInline", enabled = true) {
+      new Component {
+        setDefinitionName("NestedComparisonInline")
+        val a = in UInt (16 bits)
+        val limit = in UInt (18 bits)
+        val legal = out Bool()
+        legal := (a >= 1) && (a <= 1920) && (a.resize(18) <= limit)
+      }
+    }
+
+    assert(wrapperAssignments(verilog).isEmpty, verilog)
+    assert(verilog.contains("{2'd0, a}"), verilog)
+    assert(verilog.contains("16'h0001"), verilog)
+  }
+
+  test("same-width subtraction inlines into equality and ternary arms") {
+    val verilog = generate("NestedSubtractionInline", enabled = true) {
+      new Component {
+        setDefinitionName("NestedSubtractionInline")
+        val a, b, lane = in UInt (13 bits)
+        val select = in Bool()
+        val last = out Bool()
+        val chosen = out UInt (13 bits)
+        last := lane === (a - 1)
+        chosen := Mux(select, a - b, a + b)
+      }
+    }
+
+    assert(wrapperAssignments(verilog).isEmpty, verilog)
+    assert(verilog.contains("assign last = (lane == (a - 13'h0001));"), verilog)
+    assert(verilog.contains("assign chosen = (select_1 ? (a - b) : (a + b));"), verilog)
+  }
+
+  test("conditional register update preserves its final select carrier and state") {
+    val verilog = generate("RegisterExpressionInline", enabled = true) {
+      new Component {
+        setDefinitionName("RegisterExpressionInline")
+        val load = in Bool()
+        val a, b, c = in UInt (16 bits)
+        val value = out UInt (12 bits)
+        val state = Reg(UInt(12 bits)) init(0)
+        when(load) {
+          state := ((a.resize(18) + b.resize(18)) + c.resize(18)).resize(12)
+        }
+        value := state
+      }
+    }
+
+    val wrappers = wrapperAssignments(verilog)
+    assert(wrappers.size == 1, verilog)
+    assert(wrappers.head.contains("(({2'd0, a} + {2'd0, b}) + {2'd0, c})"), verilog)
+    assert(verilog.contains("reg        [11:0]   state;"), verilog)
+    assert(verilog.contains("always @(posedge clk or posedge reset)"), verilog)
+    assert(verilog.contains("if(load) begin"), verilog)
+    assert(verilog.contains("[11:0];"), verilog)
+  }
+
+  test("a subtraction used as a procedural condition keeps the original comparison width") {
+    val verilog = generate("ConditionalExpressionInline", enabled = true) {
+      new Component {
+        setDefinitionName("ConditionalExpressionInline")
+        val total, lane = in UInt (13 bits)
+        val pulse = out Bool()
+        val state = Reg(Bool()) init(False)
+        when(lane === (total - 1)) {
+          state := !state
+        }
+        pulse := state
+      }
+    }
+
+    assert(wrapperAssignments(verilog).isEmpty, verilog)
+    assert(verilog.contains("(lane == (total - 13'h0001))"), verilog)
+    assert(verilog.contains("always @(posedge clk or posedge reset)"), verilog)
+  }
+
+  test("an exact expression identity may inline only when its receiver width is proven") {
+    var narrow: UInt = null
+    var wide: UInt = null
+    var result: Bool = null
+    val verilog = generate(
+      "WidenedReceiverFence",
+      enabled = true,
+      configureBase = config => config.phasesInserters += { phases =>
+        phases.insert(phases.indexWhere(_.isInstanceOf[PhaseVerilog]), new PhaseNetlist {
+          override def impl(pc: PhaseContext): Unit = {
+            // Model native post-normalization writeback. The equal-width
+            // Resize represents the removed 13-bit assignment boundary.
+            val subtraction = new Operator.UInt.Sub
+            subtraction.left = narrow
+            subtraction.right = UIntLiteral(BigInt(1), 13)
+            subtraction.inferredWidth = 13
+            val fence = new ResizeUInt
+            fence.size = 13
+            fence.input = subtraction
+            val comparison = new Operator.UInt.Equal
+            comparison.left = wide
+            comparison.right = fence
+            val assignment = result.head.asInstanceOf[DataAssignmentStatement]
+            assignment.source = comparison
+
+            val enabled = VerilogEmitterExpressionInlining.configure(pc.config, enabled = true)
+            val rejected = VerilogEmitterExpressionInlining.redundantWrappers(pc.topLevel, enabled)
+            assert(!rejected.containsKey(fence))
+            assert(!rejected.containsKey(subtraction))
+
+            comparison.left = narrow
+            val admitted = VerilogEmitterExpressionInlining.redundantWrappers(pc.topLevel, enabled)
+            assert(admitted.containsKey(fence))
+            assert(admitted.containsKey(subtraction))
+            comparison.left = wide
+          }
+        })
+      }
+    ) {
+      new Component {
+        setDefinitionName("WidenedReceiverFence")
+        narrow = in UInt (13 bits)
+        wide = in UInt (18 bits)
+        result = out Bool()
+        narrow.setName("narrow")
+        wide.setName("wide")
+        result.setName("result")
+        result := narrow.resize(18) === wide
+      }
+    }
+
+    assert(wrapperAssignments(verilog).size == 2, verilog)
+    assert(verilog.contains("- 13'h0001"), verilog)
+  }
+
+  test("an unsupported Boolean sibling does not veto independently sized comparison operands") {
+    val verilog = generate("IndependentBooleanContexts", enabled = true) {
+      new Component {
+        setDefinitionName("IndependentBooleanContexts")
+        val a, b = in UInt (13 bits)
+        val wide = in UInt (18 bits)
+        val signed = in SInt (13 bits)
+        val first, second = out Bool()
+        first := ((signed + 1) < 0) && (a === (b - 1))
+        second := ((a === (b + 1)) && ((signed - 1) > 0)) || (a.resize(18) <= wide)
+      }
+    }
+
+    val wrappers = wrapperAssignments(verilog)
+    assert(wrappers.nonEmpty, verilog)
+    assert(!wrappers.exists(line => line.contains("b -") || line.contains("b +")), verilog)
+    assert(verilog.contains("(a == (b - 13'h0001))"), verilog)
+    assert(verilog.contains("(a == (b + 13'h0001))"), verilog)
+    assert(verilog.contains("({5'd0, a} <= wide)"), verilog)
+  }
+
+  test("static disjoint bit receivers inline pure comparison RHS expressions") {
+    val verilog = generate("SelectedComparisonContexts", enabled = true) {
+      new Component {
+        setDefinitionName("SelectedComparisonContexts")
+        val lanes = in Vec(UInt(13 bits), 4)
+        val active = in UInt (16 bits)
+        val running = in Bool()
+        val flags = out Bits (4 bits)
+        for (index <- 0 until 4)
+          flags(index) := running && (lanes(index).resize(16) === (active - 1))
+      }
+    }
+
+    assert(wrapperAssignments(verilog).isEmpty, verilog)
+    for (index <- 0 until 4)
+      assert(verilog.contains(s"flags[$index] = (running && ({3'd0, lanes_$index} == (active - 16'h0001)));"), verilog)
+  }
+
+  test("static disjoint ranges use each selected receiver width") {
+    val verilog = generate("SelectedArithmeticContexts", enabled = true) {
+      new Component {
+        setDefinitionName("SelectedArithmeticContexts")
+        val a, b, c = in UInt (18 bits)
+        val packedValue = out UInt (36 bits)
+        packedValue(17 downto 0) := (a + b) + c
+        packedValue(35 downto 18) := (a - b) - c
+      }
+    }
+
+    assert(wrapperAssignments(verilog).isEmpty, verilog)
+    assert(verilog.contains("packedValue[17 : 0] = ((a + b) + c);"), verilog)
+    assert(verilog.contains("packedValue[35 : 18] = ((a - b) - c);"), verilog)
+  }
+
+  test("depth cutting does not recreate eligible leaf literal carriers") {
+    def fixture: Component = new Component {
+      setDefinitionName("LongBooleanLiteralContexts")
+      val a, b, syncA, syncB = in UInt (16 bits)
+      val totalA, totalB = in UInt (18 bits)
+      val aligned = in Bool()
+      val legal = out Bool()
+      legal := (a >= 1) && (a <= 1920) && (b >= 1) && (b <= 1080) &&
+        (syncA =/= 0) && (syncB =/= 0) && (totalA <= 4096) &&
+        (totalB <= 2048) && aligned
+    }
+    val enabled = generate("LongBooleanLiteralContexts", enabled = true)(fixture)
+    val disabled = generate("LongBooleanLiteralContexts", enabled = false)(fixture)
+
+    assert(wrapperAssignments(enabled).isEmpty, enabled)
+    assert(wrapperAssignments(disabled).size == 2, disabled)
+    assert(disabled.contains("assign _zz_legal = 16'h0001;"), disabled)
+    assert(enabled.contains("(16'h0001 <= a)"), enabled)
   }
 
 }

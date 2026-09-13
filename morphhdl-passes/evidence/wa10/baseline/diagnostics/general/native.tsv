@@ -1,0 +1,40 @@
+round-1-before		Some(Unnamed)	width=16	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	U"xxx"	constantOK:UInt <= UInt:register=false:occurrences=1;:Bool ? UInt | UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=16	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	Bool ? UInt | UInt	constantMux:UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	resize(UInt,18 bits)	extensionSum:UInt + UInt:register=false:occurrences=1;extensionOK:UInt <= UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=13	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	subtractionOK:UInt === UInt:register=false:occurrences=1;:Bool ? UInt | UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=13	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	Bool ? UInt | UInt	subtractionMux:UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	wrappedAdd:UInt:register=false:occurrences=1;widenedAdd:resize(UInt,9 bits):register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	wrappedSub:UInt:register=false:occurrences=1;widenedSub:resize(UInt,9 bits):register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	SInt - SInt	signedOK:SInt < SInt:register=false:occurrences=1;signedExtended:resize(SInt,12 bits):register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	Bool ? UInt | UInt	muxResult:UInt + UInt:register=false:occurrences=1
+round-1-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	state:resize(UInt,12 bits):register=true:occurrences=1
+round-1-before	protectedDifference	Some(Reflected(protectedDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	keptResult:UInt:register=false:occurrences=1
+round-1-before	vitalDifference	Some(Reflected(vitalDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	guardedResult:UInt:register=false:occurrences=1
+round-1-unnamed-expression	UnnamedWireExpressionNativeReport(14,Vector(1, 5),Map(WA07-NATIVE-NON-DIRECT-RECEIVER -> 12),2,Vector(Bool ? UInt | UInt, Bool ? UInt | UInt))
+round-1-named-expression	NamedWireExpressionNativeReport(2,Vector(),Vector(),Vector(),Map(WA09-NATIVE-PRESERVATION -> 2),0,Vector())
+round-1-constant	0
+round-1-ternary	0
+round-2-before		Some(Unnamed)	width=16	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	U"xxx"	constantOK:UInt <= UInt:register=false:occurrences=1;constantMux:Bool ? UInt | UInt:register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	resize(UInt,18 bits)	extensionSum:UInt + UInt:register=false:occurrences=1;extensionOK:UInt <= UInt:register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=13	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	subtractionOK:UInt === UInt:register=false:occurrences=1;subtractionMux:Bool ? UInt | UInt:register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	wrappedAdd:UInt:register=false:occurrences=1;widenedAdd:resize(UInt,9 bits):register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	wrappedSub:UInt:register=false:occurrences=1;widenedSub:resize(UInt,9 bits):register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	SInt - SInt	signedOK:SInt < SInt:register=false:occurrences=1;signedExtended:resize(SInt,12 bits):register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	Bool ? UInt | UInt	muxResult:UInt + UInt:register=false:occurrences=1
+round-2-before		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	state:resize(UInt,12 bits):register=true:occurrences=1
+round-2-before	protectedDifference	Some(Reflected(protectedDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	keptResult:UInt:register=false:occurrences=1
+round-2-before	vitalDifference	Some(Reflected(vitalDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	guardedResult:UInt:register=false:occurrences=1
+round-2-unnamed-expression	UnnamedWireExpressionNativeReport(8,Vector(),Map(WA07-NATIVE-NON-DIRECT-RECEIVER -> 8),0,Vector())
+round-2-named-expression	NamedWireExpressionNativeReport(2,Vector(),Vector(),Vector(),Map(WA09-NATIVE-PRESERVATION -> 2),0,Vector())
+round-2-constant	0
+round-2-ternary	0
+pre-emission		Some(Unnamed)	width=16	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	U"xxx"	constantOK:UInt <= UInt:register=false:occurrences=1;constantMux:Bool ? UInt | UInt:register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	resize(UInt,18 bits)	extensionSum:UInt + UInt:register=false:occurrences=1;extensionOK:UInt <= UInt:register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=13	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	subtractionOK:UInt === UInt:register=false:occurrences=1;subtractionMux:Bool ? UInt | UInt:register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	wrappedAdd:UInt:register=false:occurrences=1;widenedAdd:resize(UInt,9 bits):register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt - UInt	wrappedSub:UInt:register=false:occurrences=1;widenedSub:resize(UInt,9 bits):register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=8	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	SInt - SInt	signedOK:SInt < SInt:register=false:occurrences=1;signedExtended:resize(SInt,12 bits):register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	Bool ? UInt | UInt	muxResult:UInt + UInt:register=false:occurrences=1
+pre-emission		Some(Unnamed)	width=18	typeNode=false,nativeNamed=false,rootDeclaration=true,rootDriver=true	UInt + UInt	state:resize(UInt,12 bits):register=true:occurrences=1
+pre-emission	protectedDifference	Some(Reflected(protectedDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	keptResult:UInt:register=false:occurrences=1
+pre-emission	vitalDifference	Some(Reflected(vitalDifference))	width=13	typeNode=false,nativeNamed=true,rootDeclaration=true,rootDriver=true	UInt - UInt	guardedResult:UInt:register=false:occurrences=1

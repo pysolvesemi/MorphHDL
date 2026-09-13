@@ -177,6 +177,15 @@ object NamedWireExpressionEliminationPass {
   def run(handoff: CanonicalIrHandoff): PassResult[Design] =
     run(handoff, WireAliasPassConfiguration())
 
+  private[morphhdl] def runWithNativeNonblockingReceivers(
+      design: Design,
+      configuration: WireAliasPassConfiguration,
+      receivers: Vector[(ModuleId, Driver)]
+  ): PassResult[Design] =
+    UnnamedWireExpressionEliminationPass.runWithMode(design, configuration,
+      WireExpressionEliminationMode.Named,
+      UnnamedWireExpressionEliminationPass.validateNativeNonblockingReceivers(design, receivers))
+
   def run(
       design: Design,
       configuration: WireAliasPassConfiguration = WireAliasPassConfiguration()
@@ -198,9 +207,11 @@ object NamedWireExpressionEliminationPass {
   * an explicit resize fence, then removes the exact temporary declaration and
   * its sole assignment. It never recognizes backend-generated temporary identifier text.
   *
-  * A candidate is retained when either its own assignment or any receiver is
-  * procedural. Canonical `DriverKind.Procedural` represents assignments inside
-  * `always` blocks, so this pass never rewrites an `always` assignment. A
+  * A candidate's own assignment must remain continuous. A pure expression can
+  * also be substituted into an authenticated native nonblocking register RHS
+  * without changing its driver kind, procedural scope, clocking or update timing.
+  * Generic procedural receivers (including Register targets) stay
+  * fail-closed because their blocking scheduling is not modeled here. A
   * receiver selection is accepted only when it is the complete temporary or a
   * literal in-range subrange that can be composed with a direct source
   * part-select. General-expression, nested and dynamic selected uses fail closed.
@@ -244,10 +255,40 @@ object UnnamedWireExpressionEliminationPass {
   ): PassResult[Design] =
     runWithMode(design, configuration, WireExpressionEliminationMode.Unnamed)
 
+  /** Trusted native-adapter entry, deliberately absent from public config.
+    * Native Spinal register updates emit nonblocking assignments. Evidence
+    * names exact Driver objects from this immutable snapshot, qualified by
+    * ModuleId; a stale object or a same-named driver in another module cannot
+    * authorize a receiver. Generic canonical Procedural carries no timing
+    * evidence and remains fail-closed.
+    */
+  private[morphhdl] def runWithNativeNonblockingReceivers(
+      design: Design,
+      configuration: WireAliasPassConfiguration,
+      receivers: Vector[(ModuleId, Driver)]
+  ): PassResult[Design] =
+    runWithMode(design, configuration, WireExpressionEliminationMode.Unnamed,
+      validateNativeNonblockingReceivers(design, receivers))
+
+  private[transform] def validateNativeNonblockingReceivers(
+      design: Design,
+      receivers: Vector[(ModuleId, Driver)]
+  ): Set[(ModuleId, DriverId)] = receivers.map { case (moduleId, driver) =>
+    val module = design.modules.find(_.id == moduleId).getOrElse(
+      throw new IllegalArgumentException("native scheduling evidence has no owning module"))
+    require(module.drivers.exists(_ eq driver),
+      "native scheduling evidence does not belong to this exact snapshot")
+    require(driver.kind == DriverKind.Procedural && module.declarations.exists(value =>
+      value.id == driver.target && value.kind == DeclarationKind.Register),
+      "native nonblocking evidence requires an existing procedural register RHS")
+    moduleId -> driver.id
+  }.toSet
+
   private[transform] def runWithMode(
       design: Design,
       configuration: WireAliasPassConfiguration,
-      mode: WireExpressionEliminationMode
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)] = Set.empty
   ): PassResult[Design] = {
     require(design != null, "canonical IR design must not be null")
     require(configuration != null, "wire-assignment pass configuration must not be null")
@@ -268,7 +309,7 @@ object UnnamedWireExpressionEliminationPass {
             )
           ).normalized
         case Right(initialView) =>
-          transformToFixedPoint(initialView.design, mode) match {
+          transformToFixedPoint(initialView.design, mode, nonblockingReceivers) match {
             case Left(diagnostics) =>
               PassResult.failed(
                 output = initialView.design,
@@ -290,7 +331,7 @@ object UnnamedWireExpressionEliminationPass {
                       )
                     ).normalized
                 }
-              val finalAssessments = assessments(finalView, mode)
+              val finalAssessments = assessments(finalView, mode, nonblockingReceivers)
               val rejected = finalAssessments
                 .filterNot(_.isEligible)
                 .flatMap(value => rejectedExpression(value, mode))
@@ -354,7 +395,8 @@ object UnnamedWireExpressionEliminationPass {
 
   private def transformToFixedPoint(
       initial: Design,
-      mode: WireExpressionEliminationMode
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)]
   ): Either[Vector[PassDiagnostic], SuccessfulTransformation] = {
     var current = initial
     val eliminated = ArrayBuffer.empty[EliminatedWireExpression]
@@ -372,7 +414,7 @@ object UnnamedWireExpressionEliminationPass {
             )
           )
       }
-      val eligible = assessments(view, mode)
+      val eligible = assessments(view, mode, nonblockingReceivers)
         .filter(_.isEligible)
         .sortBy(value => (value.moduleId.value, value.alias.id.value))
 
@@ -472,13 +514,14 @@ object UnnamedWireExpressionEliminationPass {
 
   private def assessments(
       view: CanonicalIrPassView,
-      mode: WireExpressionEliminationMode
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)] = Set.empty
   ): Vector[Assessment] =
     view.modules.flatMap { module =>
       module.declarations
         .filter(mode.consider)
         .filter(value => isExpressionShapedCandidate(module, value.id))
-        .map(value => assess(module, value, mode))
+        .map(value => assess(module, value, mode, nonblockingReceivers))
     }.sortBy(value => (value.moduleId.value, value.alias.id.value))
 
   private def isExpressionShapedCandidate(
@@ -492,7 +535,8 @@ object UnnamedWireExpressionEliminationPass {
   private def assess(
       module: CanonicalModuleView,
       alias: Declaration,
-      mode: WireExpressionEliminationMode
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)]
   ): Assessment = {
     val violations = ArrayBuffer.empty[Violation]
 
@@ -596,6 +640,10 @@ object UnnamedWireExpressionEliminationPass {
     receiverDrivers.foreach { receiver =>
       receiver.kind match {
         case DriverKind.Continuous =>
+        case DriverKind.Procedural if nonblockingReceivers.contains(module.id -> receiver.id) &&
+            module.declaration(receiver.target).exists(_.kind == DeclarationKind.Register) =>
+          // Only substitute a pure continuous expression into the existing
+          // register RHS. The driver and its procedural owner are untouched.
         case DriverKind.Procedural =>
           violations += violation(
             mode.safetyReason("RECEIVER-PROCEDURAL"),
@@ -613,7 +661,7 @@ object UnnamedWireExpressionEliminationPass {
             mode.safetyReason("RECEIVER-TARGET"),
             s"receiver target '${receiver.target.value}' is unresolved"
           )
-        case Some(target) if !allowedReceiverTarget(target) =>
+        case Some(target) if !allowedReceiverTarget(target, receiver.kind) =>
           violations += violation(
             mode.safetyReason("RECEIVER-TARGET"),
             s"receiver target '${target.id.value}' has excluded kind '${target.kind.label}'"
@@ -1052,7 +1100,8 @@ private def inlineReferences(
     case _                                          => false
   }
 
-  private def allowedReceiverTarget(value: Declaration): Boolean = value.kind match {
+  private def allowedReceiverTarget(value: Declaration, driverKind: DriverKind): Boolean = value.kind match {
+    case DeclarationKind.Register if driverKind == DriverKind.Procedural => true
     case DeclarationKind.Port(PortDirection.Output) => true
     case DeclarationKind.InternalCombinational      => true
     case _                                          => false
@@ -1178,7 +1227,7 @@ private def inlineReferences(
         code = mode.diagnosticCode("ELIMINATED"),
         severity = DiagnosticSeverity.Info,
         message =
-          s"inlined ${mode.candidateDescription} ${value.rootOperator} expression '${value.aliasSymbol.value}' into ${value.receiverCount} continuous receiver(s) and removed the temporary",
+          s"inlined ${mode.candidateDescription} ${value.rootOperator} expression '${value.aliasSymbol.value}' into ${value.receiverCount} receiver RHS expression(s) and removed the temporary",
         passId = Some(mode.passId),
         location = value.location
       )

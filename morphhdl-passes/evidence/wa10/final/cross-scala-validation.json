@@ -1,0 +1,15 @@
+{
+  "status": "pass",
+  "scala_versions": [
+    "2.12.18",
+    "2.13.12"
+  ],
+  "byte_identical_artifacts": [
+    "timing/first/default/TimingExpressionExample.v",
+    "timing/first/enabled/TimingExpressionExample.v",
+    "timing/first/disabled/TimingExpressionExample.v",
+    "general/first/default/GeneralExpressionInlining.v",
+    "general/first/enabled/GeneralExpressionInlining.v",
+    "general/first/disabled/GeneralExpressionInlining.v"
+  ]
+}
