@@ -2,7 +2,8 @@
 """Test audit caller budgets and fail-closed results without sleeping or Git writes.
 
 These caller tests supplement, never replace, the real current/historical source
-audits in the 59d and 59h workflows. Subprocess execution alone is mocked.
+audits in the 59d and 59h workflows. External execution and fixture orchestration
+are mocked; the actual audit wrappers and entry-point budget choices execute.
 """
 from __future__ import annotations
 
@@ -139,6 +140,63 @@ class AuditTimeoutTests(unittest.TestCase):
             module.checked(ROOT, "historical signedness gates")
             self.assertEqual(run.call_count, 3)
             self.assertTrue(all(call.kwargs["timeout"] == 120 for call in run.call_args_list))
+
+    def test_59h_historical_and_mutation_defaults_keep_180_seconds(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        for expected, code, output in ((None, 0, PASS), ("exact rejection", 1, "exact rejection")):
+            with self.subTest(expected=expected), contextlib.redirect_stdout(io.StringIO()), \
+                    patch.object(module.subprocess, "run", side_effect=(
+                        types.SimpleNamespace(returncode=code, stdout=output),
+                        types.SimpleNamespace(returncode=0, stdout="source-head"))) as run:
+                record = module.checked(ROOT, "historical or mutation", expected)
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(run.call_args_list[0].kwargs["timeout"], 180)
+                self.assertEqual(run.call_args_list[1].kwargs["timeout"], 120)
+                self.assertEqual(record["exit_code"], code)
+                self.assertEqual(record["expected_rejection"], expected)
+                self.assertEqual(record["source_head"], "source-head")
+
+    def test_59h_main_selects_600_seconds_only_for_complete_positive(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        class StopBeforeFixtureOrchestration(Exception):
+            pass
+        with contextlib.redirect_stdout(io.StringIO()), \
+                patch.object(module, "git", return_value="source-head") as git, \
+                patch.object(module.importlib.util, "spec_from_file_location",
+                             side_effect=StopBeforeFixtureOrchestration) as load_review, \
+                patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(
+                    returncode=0, stdout=PASS)) as run:
+            with self.assertRaises(StopBeforeFixtureOrchestration):
+                module.main()
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.kwargs["timeout"], 600)
+            self.assertEqual(run.call_args.args[0][:2], [sys.executable, "-c"])
+            self.assertEqual(run.call_args.args[0][3], str(ROOT))
+            self.assertEqual(run.call_args.args[0][4], str(ROOT / module.CHECKER))
+            self.assertEqual(git.call_count, 2)
+            self.assertTrue(all(call.args == (ROOT, "rev-parse", "HEAD")
+                                for call in git.call_args_list))
+            load_review.assert_called_once()
+
+    def test_59h_pass_and_rejection_require_exact_outcomes(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        for expected, budget, results in (
+                (None, 600, ((1, PASS), (0, "no marker"), (1, "no marker"))),
+                ("exact rejection", 180,
+                 ((0, "exact rejection"), (1, "unrelated error"), (0, PASS)))):
+            for code, output in results:
+                with self.subTest(expected=expected, code=code, output=output), \
+                        patch.object(module.subprocess, "run", return_value=types.SimpleNamespace(
+                            returncode=code, stdout=output)), self.assertRaises(RuntimeError):
+                    module.checked(ROOT, "invalid outcome", expected, timeout_seconds=budget)
+
+    def test_59h_timeout_is_never_a_pass_or_expected_rejection(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        for expected, budget in ((None, 600), ("exact rejection", 180)):
+            with self.subTest(expected=expected), \
+                    patch.object(module.subprocess, "run", side_effect=subprocess.TimeoutExpired(
+                        "source audit", budget)), self.assertRaises(subprocess.TimeoutExpired):
+                module.checked(ROOT, "timed-out audit", expected, timeout_seconds=budget)
 
 
 if __name__ == "__main__":

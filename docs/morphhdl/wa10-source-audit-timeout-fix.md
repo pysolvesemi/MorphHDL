@@ -27,15 +27,22 @@ The widening workflow calls `test-increment-59d-inherited-60f-scope.py` next.
 Inspection found the same complete current-source positive restricted to 120
 seconds there. Both callers therefore need the same bounded correction.
 
+Local follow-up on sealed source `731e44d514b4206b007ef76b0ee8c94b3e614388`
+also reproduced `TimeoutExpired` in the nested-owner wrapper's complete current
+positive at 180 seconds. That command did not pass, and its subsequent commands
+were not executed. The same narrow positive-only budget correction is therefore
+applied to this third caller; its historical/mutation default remains 180 seconds.
+
 ## Exact correction and preserved controls
 
-- Add an optional timeout argument defaulting to 120 seconds to the two wrappers.
+- Add an optional timeout argument preserving each wrapper's original default:
+  120 seconds for 59b/59d and 180 seconds for 59h.
 - Pass 600 only at their full current-descendant positive entry points, matching
   the existing 59c/59f/60f policy. Historical positives, mutation cases, Git
   operations and historical orchestration retain their prior budgets.
 - Retain required exit codes, exact PASS/rejection diagnostics and propagation
   of `TimeoutExpired`. No timeout is converted into a successful result.
-- Add ten executable caller regression tests, including both entry points,
+- Add executable caller regression tests, including the current entry points,
   short historical/mutation budgets, positive and negative failure handling,
   timeout propagation, Git budgets, legacy signedness checks and workflow routing.
 - Both workflows run those tests and include the shared audit/regression files
@@ -74,5 +81,5 @@ supplement, not replace, the actual complete current/historical source audits.
 Fresh exact-head CI must execute both Scala lanes and all downstream simulation,
 synthesis, equivalence and mutation work before this repair is merged.
 
-Qualification status: nine caller regression tests pass locally. Authoritative
+Qualification status: fourteen caller regression tests pass locally. Authoritative
 sealed-source replay and fresh GitHub qualification are pending publication.

@@ -35,10 +35,11 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def checked(root: Path, label: str, expected: str | None = None) -> dict:
+def checked(root: Path, label: str, expected: str | None = None,
+            timeout_seconds: int = 180) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=180, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass complete source audits:\n" + result.stdout)
@@ -83,7 +84,10 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "current exact 59h delta and all inherited audits")]
+    # The complete current traversal can exceed 180s under audit contention.
+    # Match the bounded full-positive budget; historical/mutation calls stay 180s.
+    records = [checked(ROOT, "current exact 59h delta and all inherited audits",
+                       timeout_seconds=600)]
     prod = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     runtime = "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
     spec = importlib.util.spec_from_file_location(

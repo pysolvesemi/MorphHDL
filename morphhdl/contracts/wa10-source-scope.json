@@ -185,6 +185,7 @@
     "morphhdl/scripts/check-wa10-source-scope.py",
     "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
     "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
     "morphhdl/scripts/test-inherited-source-audit-timeouts.py",
     "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala",
     "morphhdl/src/test/scala/nativeapplication/GeneralExpressionInliningArtifactWriter.scala",
