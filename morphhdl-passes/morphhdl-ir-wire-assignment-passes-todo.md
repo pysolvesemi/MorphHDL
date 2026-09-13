@@ -873,11 +873,23 @@ WA-04 or WA-05 can remove an alias.
   All inherited gates and complete proof domains remain mandatory before this
   checkbox may be marked complete.
 
-- [ ] **WA-10 — General typed expression inlining through final emission**
+- [x] **WA-10 — General typed expression inlining through final emission**
 
   **Dependencies:** WA-09 implemented and merged.
 
-  **Status:** `IN PROGRESS`.
+  **Status:** `COMPLETED`.
+
+  Implementation candidate `548a67131c929cb2e050b0c62447bc72ed4bf0fd`
+  passed all 39 applicable workflows; the 15 explicitly historical,
+  branch-limited workflows remained skipped. The 54 exact-head workflow runs
+  materialized 226 jobs: 113 passed and 113 were justified skips, with no
+  failure, cancellation, pending job or run-ID mismatch. Both WA-10 production
+  Scala lanes, cross-Scala byte identity, source-review gates, full inherited
+  1,996-test/195-suite catalog and the 16-shard aggregate passed. The inherited
+  proof retained all 11 pass identities over all 512 `WIDTH`/`DEPTH` bindings
+  in two runs, including 11,264 equivalence and 11,264 reachability results and
+  the existing mutation controls. The completion-only source revision remains
+  subject to the same complete final-head gate set before merge.
 
   This user-authorized successor extends the existing expression-elimination
   stages and their structured-emitter policy. It supersedes the historical
@@ -914,13 +926,17 @@ WA-04 or WA-05 can remove an alias.
   - [x] Verify deterministic generation and documented legacy disabled behavior;
     regenerate the production timing source when accessible without making the
     standalone regression depend on the application repository.
-  - [ ] Record exact commands, actual before/after Verilog, validation outcomes,
+  - [x] Record exact commands, actual before/after Verilog, validation outcomes,
     per-pattern root causes and remaining limitations. Complete the repository's
     applicable workflow and exact-source review gates before merge/completion.
 
   Executed reproductions, corrected root causes, output evidence, exact commands
   and conservative remaining boundaries are recorded in
   [`wa10-general-expression-inlining.md`](wa10-general-expression-inlining.md).
+
+  No successor WA increment is defined by this roadmap. Symbolic Boolean/integer
+  parameter normalization remains explicitly separate and is not inferred as a
+  new increment.
 
 ## Completion target
 

@@ -143,4 +143,32 @@ commit `650f75f0217340fead8a04107fd9170fcfea1c8b`: 101 reviewed files,
 audits. The additional WA-10 checks passed its 184-path scope, all 12 scope
 mutations and 116 safety controls. The exact 60f report replay also passed.
 `qualification.json` records these results and hashes the full local audit
-log. Final-head GitHub CI remains required before completion and merge.
+log.
+
+## Qualified implementation head
+
+Implementation candidate
+[`548a67131c929cb2e050b0c62447bc72ed4bf0fd`](https://github.com/pysolvesemi/MorphHDL/commit/548a67131c929cb2e050b0c62447bc72ed4bf0fd)
+completed its exact-head GitHub Actions inventory on 2026-09-13 UTC. All 54
+workflow pages and their latest-attempt job pages were enumerated. The 39
+applicable workflows passed; 15 explicitly historical branch-limited workflows
+were skipped. Across 226 jobs, 113 passed and 113 were justified skips. No job
+was queued, in progress, failed, canceled or associated with a different run ID.
+
+The [MorphHDL IR pass workspace](https://github.com/pysolvesemi/MorphHDL/actions/runs/34697709439)
+passed all 24 jobs: both production Scala lanes, cross-Scala byte identity, all
+16 full-domain proof shards and the final aggregate. The aggregate retained all
+11 inherited pass identities over all 512 `WIDTH=1..64` by `DEPTH=1..8`
+bindings in two runs, including equivalence, reachability and mutation controls.
+The exact 1,996-test/195-suite successor catalog passed in
+[the inherited 60f workflow](https://github.com/pysolvesemi/MorphHDL/actions/runs/34697709487).
+The Scala 2.12 dependency-download failure in
+[workflow 34697709555](https://github.com/pysolvesemi/MorphHDL/actions/runs/34697709555)
+was superseded by successful retry job `103584794370`; no test or source
+assertion failed in the original attempt.
+
+The target `parameterized-verilog` head remained
+`086cb4c642d0182e33bd86fd391f46fc7c0eb2a8` and was already an ancestor of the
+candidate, so no target merge commit was required before the completion update.
+The completion-only roadmap/evidence head must pass the identical applicable
+workflow inventory before PR #185 is merged.

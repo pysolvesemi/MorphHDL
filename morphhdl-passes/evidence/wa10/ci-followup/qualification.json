@@ -1,5 +1,5 @@
 {
-  "status": "inherited 60f catalog correction validated locally; successor CI pending",
+  "status": "implementation candidate qualified; completion-only head CI pending",
   "targeted": {
     "Scala 2.13.12": {
       "passed": 28,
@@ -70,7 +70,63 @@
     "log_sha256": "83b501dd2cbb32c5099975c59fb26e8ceb146e5a444e8b7b8803bdf51ccc90b1",
     "json_sha256": "0c552c5d4efac711cc76f2154fe87552295918e7e095fa529dae751a70fb8d79"
   },
-  "final_head_ci": "pending",
+  "final_head_ci": {
+    "implementation_candidate": {
+      "head": "548a67131c929cb2e050b0c62447bc72ed4bf0fd",
+      "target_head": "086cb4c642d0182e33bd86fd391f46fc7c0eb2a8",
+      "target_already_ancestor": true,
+      "verified_at_utc": "2026-09-13T01:10:58Z",
+      "workflow_runs": 54,
+      "applicable_workflows_passed": 39,
+      "historical_workflows_skipped": 15,
+      "jobs": 226,
+      "jobs_passed": 113,
+      "jobs_skipped": 113,
+      "run_id_mismatches": 0,
+      "applicable_run_ids": [
+        34697709587, 34697709616, 34697709473, 34697709606,
+        34697709485, 34697709641, 34697709542, 34697709475,
+        34697709507, 34697709564, 34697709520, 34697709519,
+        34697709532, 34697709523, 34697709550, 34697709486,
+        34697709496, 34697709466, 34697709541, 34697709474,
+        34697709571, 34697709556, 34697709517, 34697709623,
+        34697709663, 34697709477, 34697709487, 34697709643,
+        34697709476, 34697709653, 34697709555, 34697709389,
+        34697709408, 34697709425, 34697709407, 34697709428,
+        34697709424, 34697709411, 34697709439
+      ],
+      "historical_run_ids": [
+        34697709530, 34697709560, 34697709502, 34697709582,
+        34697709604, 34697709568, 34697709670, 34697709553,
+        34697709534, 34697709636, 34697709593, 34697709627,
+        34697709500, 34697709422, 34697709430
+      ],
+      "ir_pass_workspace": {
+        "workflow_run": 34697709439,
+        "jobs_passed": 24,
+        "production_scala_2_12_job": 103579200675,
+        "production_scala_2_13_job": 103579200696,
+        "cross_scala_job": 103613358724,
+        "proof_shards_passed": 16,
+        "aggregate_job": 103638946754,
+        "pass_identities": 11,
+        "width_depth_bindings": 512,
+        "runs_per_binding": 2,
+        "equivalence_results": 11264,
+        "reachability_results": 11264,
+        "mutation_controls_preserved": true
+      },
+      "inherited_60f_workflow_run": 34697709487,
+      "transient_retry": {
+        "workflow_run": 34697709555,
+        "failed_job": 103573282651,
+        "retry_job": 103584794370,
+        "retry_passed": true,
+        "classification": "dependency download connection reset before tests; no source or test assertion failure"
+      }
+    },
+    "completion_only_head": "pending publication and the identical applicable gate set"
+  },
   "reviewed_source_commit": "dab690bf94920d18ab8e47dedda69d3984519778",
   "source_seal_commit": "650f75f0217340fead8a04107fd9170fcfea1c8b",
   "source_gates": {

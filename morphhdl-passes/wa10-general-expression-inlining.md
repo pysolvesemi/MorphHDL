@@ -179,8 +179,11 @@ not all as mathematically unavoidable. The public-safe
 identities, exact commands, hashes and every retained class. The standalone
 regression has no dependency on the private application source.
 
-Exact-source workflow gates are pending at this source revision. WA-10 remains
-open until those gates pass.
+Exact-source workflow gates passed on implementation candidate
+`548a67131c929cb2e050b0c62447bc72ed4bf0fd`: all 39 applicable workflows
+succeeded, while 15 explicitly historical branch-limited workflows remained
+skipped. The completion-only roadmap/evidence revision must repeat the same
+complete gate set before merge.
 
 ## CI follow-up: inherited symbolic Stream shape
 
