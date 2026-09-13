@@ -30,10 +30,11 @@ final class HdlBool private[frontend] (
     * value to Scala `Boolean`.
     *
     * The integer select is analyzed from the frontend AST and authenticated by
-    * the same exact single-root evidence used for [[HdlInt.asElabInt]]. The
-    * final typed comparison is a native derivation; no rendered expression,
-    * concrete witness, or runtime call-site identity is used to recover
-    * provenance.
+    * the same exact single-root evidence used for [[HdlInt.asElabInt]]. One
+    * sealed analysis pairs that select with the original predicate so the
+    * native Boolean keeps its direct rendering after the normal domain and
+    * projection checks. No rendered expression, concrete witness, or runtime
+    * call-site identity is used to recover provenance.
     */
   def asElabBool: spinal.core.ElabBool = {
     val symbolic =
@@ -42,15 +43,13 @@ final class HdlBool private[frontend] (
         booleanLocalParameters.nonEmpty
 
     if (!symbolic) spinal.core.ElabBool.literal(witness)
-    else {
-      val encoded = HdlInt.select(
-        this,
-        HdlInt.literalAt(BigInt(1), origin),
-        HdlInt.literalAt(BigInt(0), origin),
-        origin
+    else
+      spinal.core.ExternalAnalyzedFrontendPermitIssuer.boolean(
+        StructuralExpressionBridge.analyzedBoolean(
+          this,
+          "typed elaboration Boolean"
+        )
       )
-      encoded.asElabInt.elabEq(1)
-    }
   }
 
   def unary_!(implicit file: sourcecode.File, line: sourcecode.Line): HdlBool =

@@ -128,6 +128,43 @@ expect_failure \
   'WA-09 does not authorize an unenumerated upstream source' \
   run_checker agent/wa-09-named-expression-name-preference "${wa09_unreviewed_manifest}"
 
+wa11_manifest="${tmp_dir}/wa11.txt"
+printf '%s\n' \
+  '.github/workflows/wa11-symbolic-boolean-width.yml' \
+  'core/src/main/scala/spinal/core/ElabInt.scala' \
+  'frontend/src/main/scala/morphhdl/frontend/HdlBool.scala' \
+  'frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala' \
+  'frontend/src/main/scala/spinal/core/ExternalAnalyzedFrontendPermitIssuer.scala' \
+  'frontend/src/test/scala/morphhdl/frontend/AnalyzedFrontendBooleanTests.scala' \
+  'morphhdl/contracts/increment-62-wa08-source-overlay.json' \
+  'morphhdl/contracts/increment-55-native-change-review.json' \
+  'morphhdl/contracts/native-source-preservation.json' \
+  'morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
+  'morphhdl/scripts/check-increment-60f-artifacts.py' \
+  'morphhdl/src/test/scala/nativeapplication/BooleanWidthNormalizationArtifactWriter.scala' \
+  'morphhdl/src/test/scala/nativeapplication/ReproduceBooleanWidth.scala' \
+  'morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala' \
+  >"${wa11_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/increment-62-wa08-source-overlay.json" ]]; then
+  expect_success \
+    'WA-11 exact typed-support and frontend sources require the verified overlay' \
+    run_checker agent/wa-11-symbolic-boolean-width-normalization "${wa11_manifest}"
+  for unrelated_branch in agent/wa-01-isolated-pass-workspace agent/wa-09-named-expression-name-preference; do
+    expect_failure \
+      'WA-11 sources do not extend an unrelated branch authorization' \
+      run_checker "${unrelated_branch}" "${wa11_manifest}"
+  done
+fi
+for unreviewed_path in \
+  'core/src/main/scala/spinal/core/Bits.scala' \
+  'frontend/src/main/scala/morphhdl/frontend/HdlInt.scala' \
+  'frontend/src/main/scala/morphhdl/frontend/Unexpected.scala'; do
+  printf '%s\n' "${unreviewed_path}" >"${tmp_dir}/wa11-unreviewed.txt"
+  expect_failure \
+    'WA-11 does not authorize unenumerated core or frontend source' \
+    run_checker agent/wa-11-symbolic-boolean-width-normalization "${tmp_dir}/wa11-unreviewed.txt"
+done
+
 wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"
 if grep -Eq '^- \[[xX]\] \*\*WA-07[[:space:]]+—' \
@@ -227,6 +264,22 @@ expect_failure \
   env \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-08-final-handoff \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+cat > "${tmp_repo}/morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md" <<'WA11_PREDECESSORS'
+- [x] **WA-08 — Handoff**
+- [x] **WA-09 — Named expressions**
+WA11_PREDECESSORS
+cat > "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md" <<'WA11_PV62'
+- [x] **Increment 62 — Handoff**
+WA11_PV62
+printf '%s\n' 'frontend/src/main/scala/morphhdl/frontend/HdlBool.scala' > "${tmp_repo}/changed.txt"
+expect_failure \
+  'WA-11 requires the exact overlay even when completed predecessors are present' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-11-symbolic-boolean-width-normalization \
     MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
     "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
