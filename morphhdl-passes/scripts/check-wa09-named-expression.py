@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
@@ -47,6 +48,23 @@ README = BASE + "README.md"
 PV_ROADMAP = "docs/morphhdl/parameterized-verilog-todo.md"
 WORKFLOW = ".github/workflows/morphhdl-passes.yml"
 CHECKER = BASE + "scripts/check-wa09-named-expression.py"
+
+
+def audited_sources(root: Path) -> dict[str, str]:
+    successor = root / "morphhdl/contracts/wa10-source-scope.json"
+    if successor.exists():
+        # WA-09's direct-only/resize-rejection/addition-only assertions describe
+        # the immutable predecessor. WA-10 authenticates the complete current
+        # source delta before permitting this historical evidence projection;
+        # its current-source contract and executable regressions remain gates.
+        helper = root / "morphhdl/scripts/check-wa10-source-scope.py"
+        spec = importlib.util.spec_from_file_location("wa09_successor_scope", helper)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("WA09-HISTORY: cannot load WA-10 source scope")
+        scope = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(scope)
+        return scope.historical_sources(root, MARKERS)
+    return {path: (root / path).read_text(encoding="utf-8") for path in MARKERS}
 
 
 @dataclass(frozen=True)
@@ -691,13 +709,11 @@ def record_source_signatures(root: Path) -> None:
 
 def check(root: Path) -> list[str]:
     errors: list[str] = []
-    sources: dict[str, str] = {}
+    try:
+        sources = audited_sources(root)
+    except (OSError, RuntimeError) as error:
+        return [f"WA09-SOURCE-EVIDENCE: {error}"]
     for path in MARKERS:
-        try:
-            sources[path] = (root / path).read_text(encoding="utf-8")
-        except OSError as error:
-            errors.append(f"WA09-MISSING: {path}: {error}")
-            continue
         errors.extend(marker_failures(path, sources[path]))
     for path in (EXPRESSION, ALIAS, CODEC, NATIVE, EMITTER):
         if path in sources:
@@ -724,7 +740,7 @@ def check(root: Path) -> list[str]:
 
 
 def self_test(root: Path) -> None:
-    sources = {path: (root / path).read_text(encoding="utf-8") for path in MARKERS}
+    sources = audited_sources(root)
     baseline = check(root)
     assert not baseline, "\n".join(baseline)
 

@@ -873,15 +873,83 @@ WA-04 or WA-05 can remove an alias.
   All inherited gates and complete proof domains remain mandatory before this
   checkbox may be marked complete.
 
+- [x] **WA-10 — General typed expression inlining through final emission**
+
+  **Dependencies:** WA-09 implemented and merged.
+
+  **Status:** `COMPLETED`.
+
+  Implementation candidate `548a67131c929cb2e050b0c62447bc72ed4bf0fd`
+  passed all 39 applicable workflows; the 15 explicitly historical,
+  branch-limited workflows remained skipped. The 54 exact-head workflow runs
+  materialized 226 jobs: 113 passed and 113 were justified skips, with no
+  failure, cancellation, pending job or run-ID mismatch. Both WA-10 production
+  Scala lanes, cross-Scala byte identity, source-review gates, full inherited
+  1,996-test/195-suite catalog and the 16-shard aggregate passed. The inherited
+  proof retained all 11 pass identities over all 512 `WIDTH`/`DEPTH` bindings
+  in two runs, including 11,264 equivalence and 11,264 reachability results and
+  the existing mutation controls. The completion-only source revision remains
+  subject to the same complete final-head gate set before merge.
+
+  This user-authorized successor extends the existing expression-elimination
+  stages and their structured-emitter policy. It supersedes the historical
+  direct-receiver, continuous-receiver-only and addition-only restrictions for
+  cases proved safe below; it does not revise earlier qualification evidence.
+  The existing default-enabled, all-or-none production flag remains the only
+  switch. Symbolic Boolean/integer parameter normalization is a separate issue.
+
+  - [x] Execute the supplied reduced timing fixture through production
+    `MorphVerilog`, retaining baseline, enabled, disabled and repeat artifacts.
+    Classify native candidates by retained provenance and actual rejection
+    reasons; distinguish wrappers first introduced during emission.
+  - [x] Extend identity-based canonical/native substitution to eligible nested
+    receivers, including literals, proven resize/extension cases and subtraction.
+    Preserve each node's authoritative packed width and signedness, complete
+    capture, assignment fences and validated writeback. Unsupported symbolic or
+    otherwise unprovable cases fail closed.
+  - [x] Admit safe procedural RHS reads of continuously driven combinational
+    expressions while preserving assignment kind, timing, conditional scope,
+    register state, clocks and reset behavior. Never inline a register driver.
+  - [x] Generalize typed emitter planning across comparison, arithmetic, mux and
+    procedural RHS contexts. Keep any carrier required for legal Verilog-2001
+    selection, truncation, extension, signedness or modular arithmetic.
+  - [x] Preserve ports, hierarchy, protected/debug/vital identities, driver
+    restrictions, cycles, metadata and parameter identities. Bound duplication
+    and shared-expression growth; delete a driver/declaration only after every
+    reference has been safely replaced.
+  - [x] Add dedicated production regressions for all three reported patterns and
+    controls for mixed widths/signedness, overflow/underflow, truncation, slices,
+    nested and multiple uses, conditional register updates and protected signals.
+  - [x] Compile the same native parameterized artifact with `PPC4=0` and `PPC4=1`;
+    execute equivalence and four-state simulation checks, including zero/max and
+    boundary arithmetic, and demonstrate that the oracle detects mutations.
+  - [x] Verify deterministic generation and documented legacy disabled behavior;
+    regenerate the production timing source when accessible without making the
+    standalone regression depend on the application repository.
+  - [x] Record exact commands, actual before/after Verilog, validation outcomes,
+    per-pattern root causes and remaining limitations. Complete the repository's
+    applicable workflow and exact-source review gates before merge/completion.
+
+  Executed reproductions, corrected root causes, output evidence, exact commands
+  and conservative remaining boundaries are recorded in
+  [`wa10-general-expression-inlining.md`](wa10-general-expression-inlining.md).
+
+  No additional hardware wire-assignment pass is defined here. Symbolic
+  Boolean/integer parameter normalization remains a separate compiler concern.
+
 ## Symbolic elaboration normalization
 
 WA-11 is an authorized compiler follow-up to this roadmap. It operates on
-elaboration-time Boolean/integer construction, before symbolic widths and
-other parameter expressions reach their consumers. It is canonical
-normalization, independent of the optional six hardware wire passes and their
-all-or-none flag. It does not add a seventh hardware wire-assignment pass.
+elaboration-time Boolean/integer construction, before symbolic widths and other
+parameter expressions reach their consumers. It is canonical normalization,
+independent of the optional six hardware wire passes and their all-or-none flag.
+It does not add a seventh hardware wire-assignment pass.
 
 - [x] **WA-11 — Redundant symbolic Boolean/integer conversion normalization**
+
+  **Dependencies:** WA-09 implemented and merged. WA-10 is independent, but its
+  subsequently merged source and proof contracts are preserved by the WA-11
+  integration qualification.
 
   **Status:** `COMPLETED`.
 
@@ -893,17 +961,18 @@ all-or-none flag. It does not add a seventh hardware wire-assignment pass.
   The inherited 16-shard proof covered all 11 pass identities and 512 bindings
   twice, including equivalence, reachability, mutation and determinism gates.
   Historical scoped skips and routing-only jobs provide no proof credit.
-  The completion-only commit must repeat the applicable checks before merge.
+  The combined WA-10/WA-11 integration head must repeat every applicable check
+  before merge.
 
   Reproduce the public `MorphVerilog` width expression
   `HdlBool.param("PPC4", false).asElabBool.toElabInt * 3 + 1`. Remove redundant
-  frontend/native conversion round trips at their typed construction
-  boundaries. Retain authenticated parameter root/schema identity, defaults,
-  legal domains, exact evaluations, source provenance, branch projection and
-  child bindings. Use a direct signed integer parameter only when full-domain
-  evidence proves equivalence over its declared `{0,1}` domain. General
-  predicates retain a signed integer conversion fence; a one-bit Boolean is
-  not an integer replacement.
+  frontend/native conversion round trips at their typed construction boundaries.
+  Retain authenticated parameter root/schema identity, defaults, legal domains,
+  exact evaluations, source provenance, branch projection and child bindings.
+  Use a direct signed integer parameter only when full-domain evidence proves
+  equivalence over its declared `{0,1}` domain. General predicates retain a
+  signed integer conversion fence; a one-bit Boolean is not an integer
+  replacement.
 
   Qualify compound predicates, negation, repeated conversion, arithmetic and
   signedness/sizing boundaries, child bindings, non-Boolean integer domains,
@@ -918,8 +987,12 @@ all-or-none flag. It does not add a seventh hardware wire-assignment pass.
 ## Completion target
 
 The original roadmap completed at WA-08 with five production transformations.
-Its authorized successor completes at WA-09 when MorphHDL runs all six from one
+WA-09 established that MorphHDL runs all six from one
 flag on canonical post-parameterization IR, writes the validated result back
 into structured Verilog-2001, and applies provenance-first alias survivor
-selection without renaming any surviving identifier. General signal renaming
-remains future work.
+selection without renaming any surviving identifier. The authorized WA-10
+successor completes when eligible general expressions inline through final
+emission under the same flag, with the above semantic and qualification gates
+satisfied. WA-11 separately completes typed symbolic Boolean/integer width
+normalization before those expressions reach hardware consumers. General signal
+renaming remains future work.

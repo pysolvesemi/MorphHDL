@@ -35,7 +35,7 @@ def qualify_ordinary_named(output, first):
                             "softResetSource", "timingSource", "fixedSource",
                             "substantiallyLongerMeaningfulSource", "q")
     lexical_tie_names = ("aaa", "bbb")
-    protected_aliases = ("keptAlias", "guardedAlias", "sampledAlias", "conditionalAlias",
+    protected_aliases = ("keptAlias", "guardedAlias", "conditionalAlias",
                          "toChildAlias", "fromChildAlias", "softResetAlias", "timingAlias",
                          "rootProceduralAlias", "extraordinarilyLongProtectedName")
     ineligible_direct_port_aliases = ("signedAlias", "unsignedAlias")
@@ -105,6 +105,22 @@ def qualify_ordinary_named(output, first):
         for name in protected_aliases + ineligible_direct_port_aliases:
             assert declares_wire(reference, name) and declares_wire(enabled, name), (
                 kind, "protected/ineligible alias identity changed", name)
+        # WA-10 first substitutes bitSource into this ordinary wire, then
+        # proves its expression is safe in the register's nonblocking RHS.
+        # Preserve the disabled legacy wire and the real register/timing
+        # boundary; no metadata, control, or hierarchy guard is relaxed.
+        assert declares_wire(reference, "sampledAlias"), (kind, "missing disabled sampled alias")
+        assert re.search(r"\bsampledAlias\b", enabled) is None, (
+            kind, "eligible sampled expression did not inline")
+        for source in (reference, enabled):
+            assert re.search(r"(?m)^\s*reg\s+\[WIDTH-1:0\]\s+sampled\s*;", source), (
+                kind, "sampled register or symbolic width was not preserved")
+            assert "assign registeredResult = sampled;" in source, (
+                kind, "registered output no longer observes the sampled register")
+        assert "sampled <= sampledAlias;" in reference, (
+            kind, "disabled legacy nonblocking driver changed")
+        assert "sampled <= (a ^ b);" in enabled, (
+            kind, "sampled register did not retain its nonblocking expression update")
         generated_names = re.findall(
             r"(?m)^\s*wire\s+(?:\[[^\n]*?\]\s+)?(_zz(?:_[0-9]+)?)\s*;", reference)
         assert len(generated_names) == 1, (kind, "generated fixture identity changed", generated_names)

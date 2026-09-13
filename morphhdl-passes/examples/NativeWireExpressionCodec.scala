@@ -26,6 +26,7 @@ private[examples] final class NativeWireExpressionCodec(
   private val sources = ArrayBuffer.empty[(BaseType, SymbolId)]
   private val active = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
   private var nextReference = 0
+  private var referenceOwner = scopeId
 
   predefinedSources.foreach { case (source, id) =>
     sourceIds.put(source, id.value)
@@ -36,9 +37,32 @@ private[examples] final class NativeWireExpressionCodec(
 
   def capture(value: Expression): Option[RtlExpr] = capture(value, "rhs")
 
+  def captureInScope(value: Expression, owner: ScopeId): Option[RtlExpr] = {
+    val previous = referenceOwner
+    referenceOwner = owner
+    try capture(value)
+    finally referenceOwner = previous
+  }
+
   private def capture(value: Expression, path: String): Option[RtlExpr] = {
     if (value == null || active.put(value, java.lang.Boolean.TRUE) != null) return None
-    try captureNode(value, path)
+    try captureNode(value, path).map { captured =>
+      // Native arithmetic nodes have an authoritative result width, unlike
+      // Verilog context-determined arithmetic. Preserve each fixed node's
+      // modular boundary in canonical capture, including nested multiply,
+      // subtraction, mux and signed operators. Boolean results are inherently
+      // self-determined; symbolic trees are only admitted at an exact native
+      // packed receiver boundary by the bridge.
+      value match {
+        case _: BaseType | _: Literal | _: Resize => captured
+        case _ if value.getTypeObject == TypeBool => captured
+        case sized: WidthProvider if NativeWireExpressionCodec.fixedWidthTree(value) =>
+          RtlExpr.Resize(captured, morphhdl.ir.v1.IntExpr.Literal(BigInt(sized.getWidth)),
+            if (value.getTypeObject == TypeSInt) morphhdl.ir.v1.Signedness.Signed
+            else morphhdl.ir.v1.Signedness.Unsigned)
+        case _ => captured
+      }
+    }
     finally active.remove(value)
   }
 
@@ -90,7 +114,7 @@ private[examples] final class NativeWireExpressionCodec(
           s"reference.$identifierPrefix.${nextReference}.${sanitize(path)}"
         )
         nextReference += 1
-        Some(RtlExpr.Ref(reference, id, scopeId))
+        Some(RtlExpr.Ref(reference, id, referenceOwner))
 
       case node: Operator.Bool.And => binary(node, RtlBinaryOperator.LogicalAnd)
       case node: Operator.Bool.Or => binary(node, RtlBinaryOperator.LogicalOr)
@@ -108,6 +132,13 @@ private[examples] final class NativeWireExpressionCodec(
       case node: Operator.UInt.Not => unary(node, RtlUnaryOperator.BitwiseNot)
       case node: Operator.SInt.Not => unary(node, RtlUnaryOperator.BitwiseNot)
       case node: Operator.SInt.Minus => unary(node, RtlUnaryOperator.Negate)
+
+      // Canonical ShiftRight currently means logical >>. Native SInt right
+      // shifts are arithmetic; case-equality likewise has distinct four-state
+      // semantics. Keep these nodes until the IR represents those operators.
+      case _: Operator.SInt.ShiftRightByInt | _: Operator.SInt.ShiftRightByUInt => None
+      case _: Operator.Bits.EqualSim | _: Operator.UInt.EqualSim |
+          _: Operator.SInt.EqualSim => None
 
       case node: Operator.BitVector.And => binary(node, RtlBinaryOperator.BitwiseAnd)
       case node: Operator.BitVector.Or => binary(node, RtlBinaryOperator.BitwiseOr)
@@ -172,9 +203,17 @@ private[examples] final class NativeWireExpressionCodec(
       case node: CastUIntToSInt => cast(node, signed = true, path)
       case node: CastBoolToBits => cast(node, signed = false, path)
 
-      // A native Resize stores only its elaborated integer width. A retained
-      // symbolic resize cannot be reconstructed here without its typed width
-      // identity, so every Resize is conservatively ineligible.
+      // The exact native Resize identity may retain a symbolic target. Admit
+      // only positive fixed targets with entirely fixed source trees here;
+      // never turn a parameter's current witness into a canonical literal.
+      case node: Resize if node.size > 0 &&
+          NativeWireExpressionCodec.fixedWidthTree(node) &&
+          (node.getTypeObject == TypeBits || node.getTypeObject == TypeUInt ||
+            node.getTypeObject == TypeSInt) =>
+        capture(node.input, path + ".value").map(RtlExpr.Resize(_,
+          morphhdl.ir.v1.IntExpr.Literal(BigInt(node.size)),
+          if (node.getTypeObject == TypeSInt) morphhdl.ir.v1.Signedness.Signed
+          else morphhdl.ir.v1.Signedness.Unsigned))
       case _: Resize => None
       case _         => None
     }
@@ -196,6 +235,43 @@ private[examples] final class NativeWireExpressionCodec(
       case character if character.isLetterOrDigit => character
       case _                                      => '-'
     }
+}
+
+
+private[examples] object NativeWireExpressionCodec {
+  /** Parameter evidence is queried by object identity, never by emitted text. */
+  def fixedWidthTree(value: Expression): Boolean = {
+    val active = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    def fixed(node: Expression): Boolean = {
+      if (node == null || active.put(node, java.lang.Boolean.TRUE) != null) return false
+      try {
+        val own = node match {
+          case base: BaseType => ParameterizedWidth.expressionOf(base).isEmpty
+          case resize: Resize => ParameterizedWidth.resizeExpressionOf(resize).isEmpty
+          case _ => true
+        }
+        var children = true
+        node.foreachDrivingExpression(child => if (!fixed(child)) children = false)
+        own && children
+      } finally active.remove(node)
+    }
+    fixed(value)
+  }
+
+  /** Recreate the removed wire's native packed boundary before writeback. */
+  def fenced(value: Expression, alias: BaseType): Expression = alias match {
+    case _: Bool => value
+    case _ =>
+      val resize: Resize = alias match {
+        case _: Bits => new ResizeBits
+        case _: UInt => new ResizeUInt
+        case _: SInt => new ResizeSInt
+        case _ => throw new IllegalArgumentException("unsupported packed wire kind")
+      }
+      resize.size = alias.getBitsWidth
+      resize.input = value.asInstanceOf[Expression with WidthProvider]
+      resize
+  }
 }
 
 /** Exact pre-allocation native name provenance; spelling never classifies a name. */

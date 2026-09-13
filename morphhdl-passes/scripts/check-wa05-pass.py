@@ -209,7 +209,10 @@ CONTINUOUS_RECEIVER_MARKERS = (
 REGISTERED_IDENTITY_HOOKS = {
     "NamedWireAliasNativeBridge.scala": "else if (NativeWireAssignmentMetadata.retains(alias))",
     "UnnamedWireAliasNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(alias) &&",
-    "UnnamedWireExpressionNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(alias) &&",
+    # WA-10 routes the unnamed slot through the shared named-expression
+    # engine, which must still invoke the independently guarded metadata proof.
+    "UnnamedWireExpressionNativeBridge.scala": "new NamedWireExpressionNativePhase(unnamedOnly = true)",
+    "NamedWireExpressionNativeBridge.scala": "sharedSafety.expressionRemovalBlocker(",
     "ConstantOperandNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(target) &&",
     "BooleanTernaryNativeBridge.scala": "if bridge.eligible(assignment)",
 }

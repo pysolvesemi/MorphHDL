@@ -30,7 +30,7 @@ import spinal.core.internals._
   * receiver RHS must be representable by [[NativeWireExpressionCodec]] or the
   * candidate is retained.
   */
-private[examples] final class NamedWireExpressionNativePhase extends Phase {
+private[examples] final class NamedWireExpressionNativePhase(unnamedOnly: Boolean = false) extends Phase {
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
@@ -38,6 +38,7 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
   private var eliminatedNames = Vector.empty[String]
   private var rejected = Map.empty[String, Int]
   private var rewrittenReferences = 0
+  private var proceduralReceiverRewrites = 0
   private var operators = Vector.empty[String]
 
   def report: NamedWireExpressionNativeReport = {
@@ -50,7 +51,8 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
       eliminatedNames = eliminatedNames,
       rejectedByReason = rejected,
       rewrittenReferences = rewrittenReferences,
-      expressionOperators = operators
+      expressionOperators = operators,
+      proceduralReceiverRewrites = proceduralReceiverRewrites
     )
   }
 
@@ -160,9 +162,10 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
     pc.components().foreach { component =>
       component.dslBody.walkDeclarations {
         case alias: BaseType =>
-          NativeWireNameProvenance.successorExpressionOrigin(alias).foreach { origin =>
-            candidateForValue(alias, origin, statements).foreach(values += _)
-          }
+          val origin = if (unnamedOnly)
+            NativeWireNameProvenance.origin(alias).filter(_ == NameOrigin.Unnamed)
+          else NativeWireNameProvenance.successorExpressionOrigin(alias)
+          origin.foreach(value => candidateForValue(alias, value, statements).foreach(values += _))
         case _ =>
       }
     }
@@ -227,31 +230,46 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
       Left("WA09-NATIVE-NO-RECEIVER")
     else if (candidate.useStatements.exists(selectedAliasUse(_, alias)))
       Left("WA09-NATIVE-SELECTED-RECEIVER")
-    else if (!candidate.useStatements.forall {
-          case assignment: DataAssignmentStatement => assignment.source eq alias
-          case _                                   => false
-        })
-      // Native writeback deliberately reuses the assignment boundary as the
-      // exact packed-type fence. Nested receiver expressions would require a
-      // complete canonical-output decoder, so retain them here.
-      Left("WA09-NATIVE-NON-DIRECT-RECEIVER")
-    else if (!candidate.useStatements.forall {
+    else if ((!NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression) ||
+        ParameterizedWidth.expressionOf(alias).nonEmpty) &&
+        !candidate.useStatements.forall {
           case assignment: DataAssignmentStatement =>
-            samePackedBoundary(assignment.finalTarget, alias)
+            (assignment.source eq alias) && samePackedBoundary(assignment.finalTarget, alias)
           case _ => false
         })
-      // Whole-RHS shape alone does not preserve the removed assignment's
-      // fence: equal elaborated widths can represent different symbolic
-      // widths. Native writeback is valid only when each receiver supplies
-      // the exact removed packed kind, signedness and width identity.
-      Left("WA09-NATIVE-RECEIVER-PACKED-BOUNDARY")
+      // The existing exact symbolic boundary proof remains deliberately
+      // narrower than the fixed-width nested-expression path.
+      Left("WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY")
+    else if (alias.isInstanceOf[SInt] &&
+        !candidate.sourceExpression.isInstanceOf[Literal] &&
+        !candidate.useStatements.forall {
+          case assignment: DataAssignmentStatement =>
+            (assignment.source eq alias) && samePackedBoundary(assignment.finalTarget, alias)
+          case _ => false
+        })
+      // The Verilog-2001 emitter currently needs declared signed arithmetic
+      // boundaries in nested/mixed receivers. Retain this identity instead of
+      // replacing one fence with several emitter-created fences.
+      Left("WA10-NATIVE-SIGNED-RECEIVER-BOUNDARY")
+    else if (candidate.receiverOccurrenceCount > 32 ||
+        expressionNodeCount(candidate.sourceExpression) > 64 ||
+        candidate.receiverOccurrenceCount * expressionNodeCount(candidate.sourceExpression) > 256)
+      Left("WA10-NATIVE-EXPRESSION-EXPANSION-BUDGET")
+    else if (NativePureExpressionCopy(candidate.sourceExpression).isEmpty ||
+        !candidate.useStatements.forall {
+          case assignment: DataAssignmentStatement =>
+            NativePureExpressionCopy(assignment.source).nonEmpty
+          case _ => false
+        })
+      Left("WA10-NATIVE-EXPRESSION-COPY-UNREPRESENTED")
     else
       sharedSafety.expressionRemovalBlocker(
         pc,
         candidate.component,
         alias,
         candidate.assignment,
-        candidate.useStatements
+        candidate.useStatements,
+        allowRegisterRhs = true
       ) match {
         case Some(reason) => Left("WA09-NATIVE-" + reason)
         case None if candidate.receiverOccurrenceCount < 1 =>
@@ -376,7 +394,8 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
 
   private final case class CanonicalSnapshot(
       design: Design,
-      aliasId: SymbolId
+      aliasId: SymbolId,
+      nonblockingReceivers: Vector[(ModuleId, Driver)]
   )
 
   private def canonicalSnapshot(
@@ -389,8 +408,6 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
     val receiverTargets = candidate.useStatements.collect {
       case assignment: DataAssignmentStatement => assignment.finalTarget
     }.distinct
-    if (receiverTargets.size != candidate.useStatements.size) return None
-
     val targetPairs = receiverTargets.zipWithIndex.map { case (target, index) =>
       target -> SymbolId.unsafe(s"symbol.native-named-expression.receiver.$index")
     }
@@ -400,9 +417,26 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
       (Vector(candidate.alias -> aliasId) ++ targetPairs).distinct
     )
     val sourceExpression = codec.capture(candidate.sourceExpression).getOrElse(return None)
+    val nativeScopes = new java.util.IdentityHashMap[ScopeStatement, String]()
+    nativeScopes.put(candidate.alias.rootScopeStatement, scopeId.value)
+    val snapshotScopes = ArrayBuffer(Scope(scopeId, None, ScopeKind.Module))
+    def captureScope(scope: ScopeStatement): ScopeId = {
+      val existing = nativeScopes.get(scope)
+      if (existing != null) ScopeId.unsafe(existing)
+      else {
+        require(scope != null && scope.parentStatement != null,
+          "WA-10 receiver scope is not owned by the candidate component")
+        val parent = captureScope(scope.parentStatement.parentScope)
+        val id = ScopeId.unsafe(s"scope.native-named-expression.receiver.${snapshotScopes.size}")
+        nativeScopes.put(scope, id.value)
+        snapshotScopes += Scope(id, Some(parent), ScopeKind.Block)
+        id
+      }
+    }
     val receiverValues = candidate.useStatements.map {
       case assignment: DataAssignmentStatement =>
-        codec.capture(assignment.source).getOrElse(return None)
+        codec.captureInScope(assignment.source, captureScope(assignment.parentScope))
+          .getOrElse(return None)
       case _ => return None
     }
     if (codec.capturedSources.exists { case (native, _) => packedSemantics(native).isEmpty })
@@ -462,9 +496,9 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
         val targetId = targetPairs.find(_._1 eq assignment.finalTarget).get._2
         Driver(
           DriverId.unsafe(s"driver.native-named-expression.receiver.$index"),
-          scopeId,
+          captureScope(assignment.parentScope),
           targetId,
-          DriverKind.Continuous,
+          if (assignment.finalTarget.isReg) DriverKind.Procedural else DriverKind.Continuous,
           DriverCoverage.FullObject,
           value
         )
@@ -487,14 +521,17 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
           moduleId,
           "NativeNamedExpression",
           snapshotParameters.toVector,
-          Vector(Scope(scopeId, None, ScopeKind.Module)),
+          snapshotScopes.toVector,
           Vector.empty,
           declarations,
           aliasDriver +: receiverDrivers
         )
       )
     )
-    Some(CanonicalSnapshot(design, aliasId))
+    Some(CanonicalSnapshot(design, aliasId,
+      receiverDrivers.filter(driver => driver.kind == DriverKind.Procedural &&
+        declarations.exists(value => value.id == driver.target &&
+          value.kind == DeclarationKind.Register)).map(moduleId -> _)))
   }
 
   private def applyCanonicalDecision(
@@ -506,18 +543,18 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
     )
     val result = candidate.nameOrigin match {
       case NameOrigin.Unnamed =>
-        UnnamedWireExpressionEliminationPass.run(
+        UnnamedWireExpressionEliminationPass.runWithNativeNonblockingReceivers(
           snapshot.design,
           WireAliasPassConfiguration.selectedForTesting(
             morphhdl.passes.api.PassId.UnnamedWireExpressionElimination
-          )
+          ), snapshot.nonblockingReceivers
         )
       case NameOrigin.Explicit(_) | NameOrigin.Reflected(_) | NameOrigin.Generated =>
-        NamedWireExpressionEliminationPass.run(
+        NamedWireExpressionEliminationPass.runWithNativeNonblockingReceivers(
           snapshot.design,
           WireAliasPassConfiguration.selectedForTesting(
             morphhdl.passes.api.PassId.NamedWireExpressionElimination
-          )
+          ), snapshot.nonblockingReceivers
         )
       case NameOrigin.Unknown =>
         return Left("WA09-NATIVE-UNKNOWN-PROVENANCE")
@@ -528,7 +565,8 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
       eliminated.map(_.aliasSymbol) == Vector(IrSymbolId.unsafe(snapshot.aliasId.value)) &&
       eliminated.head.receiverCount == candidate.receiverOccurrenceCount
     ) Right(())
-    else Left("WA09-NATIVE-CANONICAL-DECISION")
+    else Left(result.eliminationReport.rejected.headOption.map(_.reasonCode)
+      .getOrElse("WA09-NATIVE-CANONICAL-DECISION"))
   }
 
   private def packedTypeFor(
@@ -563,23 +601,44 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
     )
 
   private def rewriteNativeIdentity(candidate: NativeCandidate): Int = {
+    // Clone receiver trees first: two statements may share native operator
+    // objects. Mutating a shared subtree in place can silently rewrite a use
+    // outside this receiver or make occurrence accounting depend on order.
+    val receivers = candidate.useStatements.map {
+      case assignment: DataAssignmentStatement =>
+        assignment -> NativePureExpressionCopy(assignment.source).getOrElse(
+          throw new IllegalStateException("WA-10 proven receiver copy became unsupported"))
+      case _ => throw new IllegalStateException("WA-10 unsupported native receiver")
+    }
     var replacements = 0
-    candidate.useStatements.foreach { statement =>
-      statement.walkRemapDrivingExpressions {
+    receivers.foreach { case (assignment, copiedSource) =>
+      // An exact whole-RHS assignment already supplies the removed wire's
+      // packed fence, including retained width identity. An additional Resize
+      // there needlessly recreates a wrapper with the legacy emitter. Nested
+      // or differently typed receivers still require an explicit native fence.
+      val receiverSuppliesFence = (copiedSource eq candidate.alias) &&
+        samePackedBoundary(assignment.finalTarget, candidate.alias)
+      assignment.source = copiedSource
+      assignment.walkRemapDrivingExpressions {
         case reference: BaseType if reference eq candidate.alias =>
           replacements += 1
-          candidate.sourceExpression
+          if (assignment.finalTarget.isReg) proceduralReceiverRewrites += 1
+          val copied = NativePureExpressionCopy(candidate.sourceExpression).getOrElse(
+            throw new IllegalStateException("WA-10 proven source copy became unsupported"))
+          if (!receiverSuppliesFence && ParameterizedWidth.expressionOf(candidate.alias).isEmpty &&
+              NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression))
+            NativeWireExpressionCodec.fenced(copied, candidate.alias)
+          else copied
         case other => other
       }
     }
-    candidate.assignment.removeStatement()
-    candidate.alias.removeStatement()
-
     val remaining = statementsOf(candidate.component).map(references(_, candidate.alias)).sum
     if (remaining != 0)
       throw new IllegalStateException(
-        s"WA-09 native expression rewrite left $remaining reference(s) to a removed identity"
+        s"WA-10 native expression rewrite left $remaining reference(s) to an inlined identity"
       )
+    candidate.assignment.removeStatement()
+    candidate.alias.removeStatement()
     replacements
   }
 
@@ -638,6 +697,12 @@ private[examples] final class NamedWireExpressionNativePhase extends Phase {
     }
   }
 
+  private def expressionNodeCount(expression: Expression): Int = {
+    var count = 1
+    expression.walkDrivingExpressions(_ => count += 1)
+    count
+  }
+
   private def statementsOf(component: Component): Vector[Statement] = {
     val values = Vector.newBuilder[Statement]
     component.dslBody.walkStatements(values += _)
@@ -682,7 +747,8 @@ private[examples] final case class NamedWireExpressionNativeReport(
     eliminatedNames: Vector[String],
     rejectedByReason: Map[String, Int],
     rewrittenReferences: Int,
-    expressionOperators: Vector[String]
+    expressionOperators: Vector[String],
+    proceduralReceiverRewrites: Int = 0
 ) {
   def eliminatedCount: Int = eliminatedOrdinals.size
 }

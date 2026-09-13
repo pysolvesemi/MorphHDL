@@ -133,6 +133,32 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
     assert(generated.contains("assign hTotal = (_zz_hTotal + morphhdl_resize_3);"))
   }
 
+  test("an output-register receiver retains its port and unsupported canonical timing context") {
+    for (enabled <- Vector(false, true)) withDirectory { directory =>
+      val witnessWidth = HdlInt.param("WITNESS_WIDTH", default = 2, min = 1, max = 4)
+      MorphVerilog(MorphWireAssignmentPasses(config(directory, "output-register.v"), enabled)) {
+        new Component {
+          setDefinitionName("OutputRegisterReceiverBoundary")
+          val a = in UInt(8 bits)
+          val load = in Bool()
+          val visible = out(Reg(UInt(8 bits)) init(0))
+          val mirror = out UInt(8 bits)
+          val witnessIn = in Bits(witnessWidth bits)
+          val witnessOut = out Bits(witnessWidth bits)
+          @dontName val carrier = UInt(8 bits)
+          carrier := a - U(1, 8 bits)
+          when(load) { visible := carrier }
+          mirror := carrier
+          witnessOut := witnessIn
+        }
+      }
+      val generated = read(directory, "output-register.v")
+      assert("output\\s+reg\\s+\\[7:0\\]\\s+visible".r.findFirstIn(generated).nonEmpty, generated)
+      assert(generated.contains("visible <= "), generated)
+      assert(generated.contains("assign mirror = "), generated)
+    }
+  }
+
   test("repeated public generation is byte deterministic") {
     assert(fixedMorph(enabled = true) == fixedMorph(enabled = true))
     assert(fixedMorph(enabled = false) == fixedMorph(enabled = false))

@@ -198,7 +198,8 @@ private[examples] final class NamedWireAliasNativePhase(
       component: Component,
       alias: BaseType,
       assignment: DataAssignmentStatement,
-      useStatements: Vector[Statement]
+      useStatements: Vector[Statement],
+      allowRegisterRhs: Boolean = false
   ): Option[String] = {
     if (!preservationMetadataAllows(pc, alias, assignment))
       Some("PRESERVATION")
@@ -208,7 +209,9 @@ private[examples] final class NamedWireAliasNativePhase(
       Some("REFERENCED-METADATA")
     else if (NativeWireAssignmentMetadata.retains(alias))
       Some("REGISTERED-IDENTITY")
-    else if (!useStatements.forall(allowedUse(component, alias, _)))
+    else if (!useStatements.forall(statement =>
+        allowedUse(component, alias, statement) ||
+          (allowRegisterRhs && allowedRegisterRhs(component, alias, statement))))
       Some("USE-CONTEXT")
     else None
   }
@@ -547,6 +550,21 @@ private[examples] final class NamedWireAliasNativePhase(
       }
       found
     }
+
+  /** Only the RHS is replaced; clock, reset, enable and scopes stay native. */
+  private def allowedRegisterRhs(
+      component: Component,
+      alias: BaseType,
+      statement: Statement
+  ): Boolean = statement match {
+    case assignment: DataAssignmentStatement =>
+      val target = assignment.finalTarget
+      assignment.parentScope != null && (assignment.target eq target) &&
+        (target ne alias) && (target.component eq component) && target.isReg &&
+        !target.isAnalog && !target.isInputOrInOut &&
+        (target.parentScope eq target.rootScopeStatement)
+    case _ => false
+  }
 
   private def allowedUse(
       component: Component,

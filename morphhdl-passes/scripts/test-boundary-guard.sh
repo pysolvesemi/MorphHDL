@@ -128,6 +128,24 @@ expect_failure \
   'WA-09 does not authorize an unenumerated upstream source' \
   run_checker agent/wa-09-named-expression-name-preference "${wa09_unreviewed_manifest}"
 
+wa10_manifest="${tmp_dir}/wa10.txt"
+printf '%s\n' \
+  'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala' \
+  'morphhdl/src/test/scala/nativeapplication/GenerateTimingExpressionExample.scala' \
+  'morphhdl/contracts/wa10-source-scope.json' \
+  >"${wa10_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/wa10-source-scope.json" ]]; then
+  expect_success \
+    'WA-10 exact general-expression scope is admitted after its predecessor and source seal' \
+    run_checker agent/wa-10-general-expression-inlining "${wa10_manifest}"
+  expect_failure \
+    'WA-10 cross-workspace scope is not admitted on an unrelated branch' \
+    run_checker agent/wa-01-isolated-pass-workspace "${wa10_manifest}"
+fi
+expect_failure \
+  'WA-10 branch spelling does not authorize an unenumerated upstream source' \
+  run_checker agent/wa-10-general-expression-inlining "${wa09_unreviewed_manifest}"
+
 wa11_manifest="${tmp_dir}/wa11.txt"
 printf '%s\n' \
   '.github/workflows/wa11-symbolic-boolean-width.yml' \
@@ -141,6 +159,7 @@ printf '%s\n' \
   'morphhdl/contracts/native-source-preservation.json' \
   'morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
   'morphhdl/scripts/check-increment-60f-artifacts.py' \
+  'morphhdl/scripts/check-wa10-source-scope.py' \
   'morphhdl/src/test/scala/nativeapplication/BooleanWidthNormalizationArtifactWriter.scala' \
   'morphhdl/src/test/scala/nativeapplication/ReproduceBooleanWidth.scala' \
   'morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala' \
@@ -149,7 +168,7 @@ if [[ -f "${repo_root}/morphhdl/contracts/increment-62-wa08-source-overlay.json"
   expect_success \
     'WA-11 exact typed-support and frontend sources require the verified overlay' \
     run_checker agent/wa-11-symbolic-boolean-width-normalization "${wa11_manifest}"
-  for unrelated_branch in agent/wa-01-isolated-pass-workspace agent/wa-09-named-expression-name-preference; do
+  for unrelated_branch in agent/wa-01-isolated-pass-workspace agent/wa-09-named-expression-name-preference agent/wa-10-general-expression-inlining; do
     expect_failure \
       'WA-11 sources do not extend an unrelated branch authorization' \
       run_checker "${unrelated_branch}" "${wa11_manifest}"

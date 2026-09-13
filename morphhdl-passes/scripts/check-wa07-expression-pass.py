@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -417,6 +418,19 @@ def check_repository(root: Path) -> list[str]:
         for key, path in paths.items()
         if path.suffix != ".json"
     }
+    if (root / "morphhdl/contracts/wa10-source-scope.json").exists():
+        # The direct-receiver-only WA-07 bridge is immutable historical
+        # evidence after WA-10 replaces it with the bounded shared engine.
+        # Authenticate every current byte before reading that predecessor;
+        # current canonical invariants and executable proofs still run below.
+        spec = importlib.util.spec_from_file_location(
+            "wa07_successor_scope", root / "morphhdl/scripts/check-wa10-source-scope.py")
+        if spec is None or spec.loader is None:
+            return ["WA07-HISTORY: cannot load WA-10 source scope"]
+        scope = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(scope)
+        bridge_path = paths["expression_bridge"].relative_to(root).as_posix()
+        texts["expression_bridge"] = scope.historical_sources(root, (bridge_path,))[bridge_path]
 
     for key in ("source", "pipeline"):
         failures.extend(
