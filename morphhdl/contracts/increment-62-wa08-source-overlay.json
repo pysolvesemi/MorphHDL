@@ -164,7 +164,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "a3720882c7b3809c90cb864ccb0e30e18189b72914679476ad7c41dc28431b32",
+      "after_sha256": "08c5fa6e021068f7b8b4105fde25951bf45e2d24555b370b2f9bbfda35857976",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -236,7 +236,7 @@
       "path": "morphhdl-passes/scripts/run-wa10-regression.sh"
     },
     {
-      "after_sha256": "a80f8c7e227336bd61712ec50249549b8c1462e2c13ac15de6962125c26b8168",
+      "after_sha256": "d5f55f8131e11a1bbecc577c579f0b116c2793e810fec0dbefbdb84687ab11c9",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -350,7 +350,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "26ff1873d99781c118ed5353b6b6a73371d6f31631b3ad86d3f20bc669a8a2a6",
+      "after_sha256": "3cdf425e41d42cc25206fbc3f3ea506dbef6c799c9f7e2ccd4d875646c50e25e",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -668,7 +668,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "e22f4c9fa86c872055dd8e64a68818f9f359573e",
+  "final_source_commit": "d851c66eb4584d46bd9b4e93b506a60d5c6ce02a",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
