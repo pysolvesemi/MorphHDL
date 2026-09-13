@@ -26,9 +26,11 @@ fi
 
 is_wa08=false
 is_wa09=false
+is_wa10=false
 case "${head_ref}" in
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
+  agent/wa-10-*|wa-10-*) is_wa10=true ;;
 esac
 
 collect_changed_files() {
@@ -78,6 +80,20 @@ wa09_dependencies_satisfied() {
     grep -Eq '^- \[x\] \*\*Increment 62[[:space:]]+—' "${pv_roadmap}"
 }
 
+wa10_dependencies_satisfied() {
+  [[ -f "${pv_roadmap}" ]] || return 1
+  grep -Eq '^- \[x\] \*\*WA-09[[:space:]]+—' "${roadmap}" && \
+    grep -Eq '^- \[x\] \*\*Increment 63[[:space:]]+—' "${pv_roadmap}"
+}
+
+wa10_cross_workspace_path() {
+  local reviewed
+  for reviewed in "${wa10_reviewed_paths[@]}"; do
+    [[ "$1" != "${reviewed}" ]] || return 0
+  done
+  return 1
+}
+
 # WA-09 is the one reviewed successor that must coordinate the isolated pass
 # workspace with MorphHDL's native writeback and the upstream Verilog emitter.
 # Admit only its enumerated cross-workspace sources, only on its branch family,
@@ -120,6 +136,14 @@ wa09_cross_workspace_path() {
 
 allowed_path() {
   local path="$1"
+  # The explicit WA-10 request extends expression safety in native capture and
+  # emission. Admission remains exact, predecessor-bound and byte-sealed; no
+  # source root is opened by the successor branch name alone.
+  if [[ "${is_wa10}" == true ]] && \
+     [[ "${wa10_scope_verified:-false}" == true ]] && \
+     wa10_dependencies_satisfied && wa10_cross_workspace_path "${path}"; then
+    return 0
+  fi
   case "${path}" in
     morphhdl-passes/*|"${workflow}")
       return 0
@@ -165,6 +189,18 @@ if [[ -e "${overlay}" || -e "${contract}" ]]; then
   wa08_overlay_verified=true
 fi
 
+wa10_scope_verified=false
+wa10_reviewed_paths=()
+wa10_scope="morphhdl/scripts/check-wa10-source-scope.py"
+wa10_contract="morphhdl/contracts/wa10-source-scope.json"
+if [[ -e "${wa10_scope}" || -e "${wa10_contract}" ]]; then
+  # Capture status separately: process-substitution mapfile would otherwise
+  # discard a failing checker exit and could accept an empty inventory.
+  wa10_paths="$(python3 "${wa10_scope}" --print-paths)"
+  mapfile -t wa10_reviewed_paths <<< "${wa10_paths}"
+  wa10_scope_verified=true
+fi
+
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   printf 'MorphHDL pass boundary: no changed files detected.\n'
   exit 0
@@ -184,8 +220,10 @@ if [[ ${#violations[@]} -ne 0 ]]; then
     printf 'WA-08 MorphHDL and canonical-IR handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
   elif [[ "${is_wa09}" == true ]]; then
     printf 'WA-09 cross-workspace paths require completed WA-08/PV-62 dependencies, an exact source overlay, and the enumerated successor inventory.\n' >&2
+  elif [[ "${is_wa10}" == true ]]; then
+    printf 'WA-10 cross-workspace paths require completed WA-09/PV-63 dependencies and the exact predecessor-bound successor source inventory.\n' >&2
   else
-    printf 'Allowed paths are morphhdl-passes/** and %s. Cross-workspace paths require an eligible WA-08 or WA-09 branch and its exact authorization.\n' "${workflow}" >&2
+    printf 'Allowed paths are morphhdl-passes/** and %s. Cross-workspace paths require an eligible WA-08, WA-09 or WA-10 branch and its exact authorization.\n' "${workflow}" >&2
   fi
   exit 1
 fi

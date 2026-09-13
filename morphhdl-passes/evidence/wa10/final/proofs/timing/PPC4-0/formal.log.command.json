@@ -1,0 +1,6 @@
+[
+  "yosys",
+  "-Q",
+  "-s",
+  "/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/checks/timing/PPC4-0/equivalence.ys"
+]

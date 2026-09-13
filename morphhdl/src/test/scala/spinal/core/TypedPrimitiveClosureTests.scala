@@ -8,7 +8,7 @@ import scala.sys.process.{Process, ProcessLogger}
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import morphhdl.MorphVerilog
+import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
 import morphhdl.frontend.{HdlInt, HdlIntRangeStart}
 import spinal.lib.{CountOne, Counter, Flow, Stream, master, slave}
 
@@ -797,30 +797,55 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
 
   test("fixed slices, typed resize, Stream and Flow retain their native shapes") {
     withTemporaryDirectory { directory =>
-      val width = parameter("WIDTH", default = 8, minimum = 1, maximum = 16)
+      def width = parameter("WIDTH", default = 8, minimum = 1, maximum = 16)
       val (_, verilog, _) = emitMorph(
-        directory,
+        directory.resolve("enabled"),
         "typed_data_paths.v",
         new TypedDataPaths(width)
       )
       val compact = compactWhitespace(verilog)
+      val disabledDirectory = directory.resolve("disabled")
+      MorphVerilog(MorphWireAssignmentPasses(
+        config(disabledDirectory, "typed_data_paths.v"), enabled = false
+      ))(new TypedDataPaths(width))
+      val disabled = compactWhitespace(read(disabledDirectory.resolve("typed_data_paths.v")))
 
-      Vector(
+      val retainedPayloads = Vector(
         "resize_in",
         "stream_in_payload",
         "stream_out_payload",
         "stream_m2s_payload",
-        "stream_s2m_payload",
         "stream_half_payload",
         "flow_in_payload",
         "flow_out_payload",
         "flow_m2s_payload"
-      ).foreach(name => assert(compact.contains(s"[WIDTH-1:0]$name"), verilog))
-      assert(compact.contains("[(WIDTH+1)-1:0]resize_out"), verilog)
-      assert(compact.contains("[1:0]fixed_slice"), verilog)
-      assert(compact.contains("stream_in_valid"))
-      assert(compact.contains("stream_in_ready"))
-      assert(compact.contains("flow_in_valid"))
+      )
+      Vector(compact, disabled).foreach { source =>
+        retainedPayloads.foreach(name => assert(source.contains(s"[WIDTH-1:0]$name"), source))
+        Vector("stream_in_rData", "stream_m2s_rData", "stream_s2m_rData", "flow_m2s_payload")
+          .foreach(name => assert(source.contains(s"reg[WIDTH-1:0]$name;"), source))
+        assert(source.contains("parameterintegerWIDTH=8"), source)
+        assert(source.contains("wire[(WIDTH+1)-1:0]resized;"), source)
+        assert(source.contains("assignresize_out=resized;"), source)
+        assert(source.contains("[(WIDTH+1)-1:0]resize_out"), source)
+        assert(source.contains("[1:0]fixed_slice"), source)
+        assert(source.contains("assignfixed_slice=fixed_in[1:0];"), source)
+        assert(source.contains("stream_in_valid"), source)
+        assert(source.contains("stream_in_ready"), source)
+        assert(source.contains("flow_in_valid"), source)
+        assert(source.contains("always@(posedgeclkorposedgereset)"), source)
+        assert(source.contains("stream_s2m_rValid<=1'b0;"), source)
+        assert(source.contains("assignstream_s2m_ready=(!stream_s2m_rValid);"), source)
+        assert(source.contains("assignstream_half_payload=stream_s2m_rData;"), source)
+      }
+      // WA-10 inlines this unprotected mux into its exact WIDTH-wide register
+      // receiver. The payload state and conditional NBA remain native shapes.
+      val payloadMux = "(stream_m2s_rValidN?stream_m2s_payload:stream_m2s_rData)"
+      assert(disabled.contains("wire[WIDTH-1:0]stream_s2m_payload;"), disabled)
+      assert(disabled.contains(s"assignstream_s2m_payload=$payloadMux;"), disabled)
+      assert(disabled.contains("if(stream_s2m_ready)beginstream_s2m_rData<=stream_s2m_payload;end"), disabled)
+      assert(!compact.contains("stream_s2m_payload"), verilog)
+      assert(compact.contains(s"if(stream_s2m_ready)beginstream_s2m_rData<=$payloadMux;end"), verilog)
     }
   }
 

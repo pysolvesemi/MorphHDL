@@ -10,6 +10,7 @@
     ".github/workflows/increment-61-compatibility-matrix.yml",
     ".github/workflows/increment-61-one-file-per-component.yml",
     ".github/workflows/increment-62-wa08-source-overlay.yml",
+    ".github/workflows/morphhdl-passes.yml",
     "morphhdl/contracts/increment-61-source-review.json",
     "morphhdl/scripts/check-increment-60g-default-rollout.py",
     "morphhdl/scripts/check-increment-61-source-review.py"
@@ -111,5 +112,5 @@
     }
   ],
   "schema": 1,
-  "integrated_target_commit": "086cb4c642d0182e33bd86fd391f46fc7c0eb2a8"
+  "integrated_target_commit": "f06d9c412924b99cf2c76422549c375a571757dc"
 }

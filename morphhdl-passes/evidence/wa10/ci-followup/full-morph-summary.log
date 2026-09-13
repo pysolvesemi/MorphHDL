@@ -1,0 +1,18 @@
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] - typed primitive closure is formally equivalent with a genuine mutation control !!! CANCELED !!!
+[info] - typed CDC specializations pass lint synthesis asynchronous stress and a simultaneous witness !!! CANCELED !!!
+[info] - typed Stream and Flow pipeline controls are formally equivalent with a live mutation control !!! CANCELED !!!
+[info] - typed StreamFifoCC is formally equivalent for both asynchronous clock ratios with a live mutation control !!! CANCELED !!!
+[info] - one typed Vec definition is formally equivalent at depths 1 3 5 and 8 !!! CANCELED !!!
+[info] - one Morph Axi4SlaveFactory definition is formally equivalent to all concrete native-Int witnesses !!! CANCELED !!!
+[info] - typed StreamWidthAdapter mutation produces a genuine counterexample *** FAILED ***
+[info]   127 did not equal 0 required formal tool 'sby' is unavailable (TypedStreamWidthAdapterFormalEquivalenceTests.scala:371)
+[info] - one Morph StreamFifo is formally equivalent to all concrete native-Int witnesses !!! CANCELED !!!
+[info] - typed-specialized formal helpers match native-Int Mem and Vec witnesses at depths 1 3 5 and 8 !!! CANCELED !!!
+[info] Total number of tests run: 1111
+[info] Suites: completed 105, aborted 0
+[info] Tests: succeeded 1110, failed 1, canceled 8, ignored 0, pending 0
+[info] *** 1 TEST FAILED ***
+[error] Failed tests:
+[error] 	morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests
+[error] Total time: 874 s (14:34), completed Sep 12, 2026, 12:43:37 PM

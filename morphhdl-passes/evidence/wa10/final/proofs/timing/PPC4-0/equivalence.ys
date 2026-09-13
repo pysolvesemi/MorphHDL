@@ -1,0 +1,23 @@
+read_verilog /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v
+chparam -set PPC4 0 TimingExpressionExample
+rename TimingExpressionExample gold
+proc
+memory
+opt_clean
+async2sync
+rename -hide
+design -stash reference
+read_verilog /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v
+chparam -set PPC4 0 TimingExpressionExample
+rename TimingExpressionExample gate
+proc
+memory
+opt_clean
+async2sync
+rename -hide
+design -copy-from reference -as gold gold
+equiv_make gold gate equiv
+hierarchy -check -top equiv
+equiv_simple -seq 5
+equiv_induct -undef -seq 5
+equiv_status -assert

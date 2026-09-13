@@ -30,7 +30,7 @@ concurrency:
 jobs:
   boundary:
     name: Pass workspace boundary and static contracts
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -94,88 +94,158 @@ jobs:
           printf 'head_ref=%s\n' "${head_ref}" >> "${GITHUB_OUTPUT}"
           printf 'MorphHDL pass boundary source branch: %s\n' "${head_ref}"
 
-      - name: Enforce isolated pass paths
+      - name: Authenticate the Increment 61 integration and resolve historical static audit sources
+        id: audit
         shell: bash
         env:
-          MORPHDL_PASSES_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MORPHDL_PASSES_HEAD_REF: ${{ steps.source.outputs.head_ref }}
+          SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}
+          SOURCE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          audit_root="$GITHUB_WORKSPACE"
+          audit_head_ref="$SOURCE_HEAD_REF"
+          audit_base_sha="$SOURCE_BASE_SHA"
+          if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then
+            # The complete current publication delta is sealed before applying
+            # the unchanged WA-10 static contracts at their merged target.
+            # All Scala, native generation, simulation and formal jobs below
+            # still check out and execute the exact current feature head.
+            python3 morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+            integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+            test "$integrated" = f06d9c412924b99cf2c76422549c375a571757dc
+            git merge-base --is-ancestor "$integrated" HEAD
+            # This is a source identity check, not a projection of runtime
+            # results. Every pass and native emitter source/test is unchanged.
+            git diff --exit-code "$integrated" HEAD -- core morphhdl-passes
+            git diff --exit-code "$integrated" -- core morphhdl-passes
+            test -z "$(git ls-files --others --exclude-standard -- core morphhdl-passes)"
+            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-wa10-static.XXXXXX")
+            git worktree add --detach "$audit_root" "$integrated"
+            audit_head_ref=agent/wa-10-general-expression-inlining
+            audit_base_sha=086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+            printf 'Current Increment 61 source: %s\nHistorical WA-10 static source: %s\n' \
+              "$(git rev-parse HEAD)" "$integrated"
+          fi
+          printf 'root=%s\nhead_ref=%s\nbase_sha=%s\n' \
+            "$audit_root" "$audit_head_ref" "$audit_base_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce isolated pass paths
+        working-directory: ${{ steps.audit.outputs.root }}
+        shell: bash
+        env:
+          MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}
+          MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
         run: bash morphhdl-passes/scripts/check-boundary.sh
 
       - name: Test the boundary guard
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: bash morphhdl-passes/scripts/test-boundary-guard.sh
 
       - name: Enforce canonical adapter and component-generic pass source
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
           python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
 
       - name: Enforce WA-03 safety, proof and no-transform contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
           python3 morphhdl-passes/scripts/check-wa03-gates.py
 
       - name: Enforce WA-04 unnamed direct-alias contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa04-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa04-pass.py
 
       - name: Enforce WA-05 named direct-alias contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa05-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa05-pass.py
 
       - name: Enforce WA-06 historical ordered-pipeline contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py --self-test
           python3 morphhdl-passes/scripts/check-wa06-pipeline.py
 
       - name: Enforce WA-07 expression pass and one-flag pipeline contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07-expression-pass.py
 
       - name: Enforce WA-07a constant-operand and actual native writeback contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07a-constant-pass.py
 
       - name: Enforce WA-07b recursive ternary and common-reference proof contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py
 
       - name: Enforce WA-09 named-expression and alias-preference contracts
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/check-wa09-named-expression.py --self-test
           python3 morphhdl-passes/scripts/check-wa09-named-expression.py
 
+      - name: Authenticate WA-10 scope and current general-expression safety contracts
+        working-directory: ${{ steps.audit.outputs.root }}
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/check-wa10-source-scope.py
+          python3 morphhdl/scripts/check-wa10-source-scope.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py
+
       - name: Verify formal-model signatures before expensive jobs
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
 
       - name: Test pending-proof activation and bounded deterministic scheduling
+        working-directory: ${{ steps.audit.outputs.root }}
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/test_wire_assignment_equivalence.py -v
           python3 morphhdl-passes/scripts/test_wire_assignment_shards.py -v
           python3 morphhdl-passes/scripts/test_wire_assignment_cones.py -v
 
+      - name: Remove the historical static audit worktree
+        if: always()
+        shell: bash
+        env:
+          AUDIT_ROOT: ${{ steps.audit.outputs.root }}
+        run: |
+          if [[ -n "$AUDIT_ROOT" && "$AUDIT_ROOT" != "$GITHUB_WORKSPACE" ]]; then
+            git worktree remove --force "$AUDIT_ROOT"
+          fi
+
   contracts:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
     # Independent compilation gives useful feedback while static contracts are
     # being updated. Equivalence still requires BOTH jobs to pass.
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -243,10 +313,103 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  wa10_production:
+    name: WA-10 general-expression production Scala ${{ matrix.scala }}
+    needs: [boundary, contracts]
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Generate enabled disabled and repeated production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} \
+            "core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests" \
+            "morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests" \
+            "morph/Test/runMain TimingExpressionArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/timing" \
+            "morph/Test/runMain morphhdl.examples.GeneralExpressionInliningArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/general" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter timing $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/timing" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter general $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/general"
+      - name: Compare disabled output to the executed WA-09 legacy artifact
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          baseline = Path('morphhdl-passes/evidence/wa10/baseline')
+          recorded = json.loads((baseline / 'manifest.json').read_text())
+          assert recorded['compiler_commit'] == '086cb4c642d0182e33bd86fd391f46fc7c0eb2a8'
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              path = Path(fixture) / 'disabled' / name
+              original = (baseline / path).read_bytes()
+              assert hashlib.sha256(original).hexdigest() == recorded['files'][path.as_posix()], path
+              current = Path('morphhdl-passes/build/wa10') / fixture / 'first/disabled' / name
+              assert current.read_bytes() == original, path
+          print('WA10_DISABLED_LEGACY_BYTES_PASS files=2')
+          PY
+      - name: Validate actual emitted expressions and arithmetic equivalence
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa10-regression.sh --artifacts morphhdl-passes/build/wa10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-production-${{ matrix.scala }}
+          path: morphhdl-passes/build/wa10
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-test-reports-${{ matrix.scala }}
+          path: |
+            core/target/test-reports
+            morphhdl/target/test-reports
+          if-no-files-found: error
+
+  wa10_cross_scala:
+    name: WA-10 production byte identity across Scala versions
+    needs: wa10_production
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wa10-production-*
+          path: artifacts
+      - name: Compare every fixture and optimization mode
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          left = Path('artifacts/wa10-production-2.12.18')
+          right = Path('artifacts/wa10-production-2.13.12')
+          count = 0
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              for mode in ('default', 'enabled', 'disabled'):
+                  path = Path(fixture) / 'first' / mode / name
+                  assert (left / path).read_bytes() == (right / path).read_bytes(), path
+                  count += 1
+          assert count == 6
+          print('WA10_CROSS_SCALA_PASS files=6')
+          PY
+
   native_generation:
     name: WA-04 through WA-09 native generation, legality and four-state checks
     needs: [boundary, contracts]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     container:
@@ -350,7 +513,7 @@ jobs:
   formal_shards:
     name: WA-07a through WA-09 full-domain proof shard ${{ matrix.shard }} / 16
     needs: [native_generation]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     container:
@@ -422,7 +585,7 @@ jobs:
   equivalence:
     name: WA-04 through WA-09 legality, equivalence, mutation and determinism proof
     needs: [native_generation, formal_shards]
-    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
+    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/increment-61-one-file-per-component') }}
     runs-on: ubuntu-latest
     # Revalidate all retained proofs; this is not an individual solver budget.
     timeout-minutes: 60
