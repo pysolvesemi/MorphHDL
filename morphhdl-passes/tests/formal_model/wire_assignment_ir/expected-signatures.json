@@ -30,7 +30,7 @@
     "morphhdl-passes/scripts/check-wa07a-constant-pass.py": "7d1598d5ea904c05e500bfa6b91187ad998db0803b22d240c7f0c99789022677",
     "morphhdl-passes/scripts/check-wa07b-ternary-pass.py": "909a2459c42d1546b6d0bc0bee23d2a1f310c59daddc443842fd1654fea03216",
     "morphhdl-passes/scripts/check-wa09-named-expression.py": "319ce9a0750ef0e43fa7f1c59ddd45e40c33f1ebeb32590e9162075865ed6798",
-    "morphhdl-passes/scripts/check-wa10-general-expression.py": "2b1fea68e7ca1252fe77b2191b4875dfe0725f8c182cae7adeef7f25c3563bc9",
+    "morphhdl-passes/scripts/check-wa10-general-expression.py": "acb8457577cad13626f6a92e420e49a59cf9fa6020deadb7656fe6c6a5a349bf",
     "morphhdl-passes/scripts/prove_wire_assignment_cones.py": "72082dd0db67d22389f403a31e07832e44a6ac3f8ae280bd4c9547e0a2f5882c",
     "morphhdl-passes/scripts/run-wa06-regression.sh": "1972ed29432786cec283d7382d3366de72ba8f00cb6418eff16ee8d63be96321",
     "morphhdl-passes/scripts/run-wa07-regression.sh": "06290cda0736934daccc1acd9c572865e49901048e6179b00eea42acefa17f92",
