@@ -280,7 +280,7 @@ jobs:
             "morph/Test/runMain morphhdl.examples.GeneralExpressionInliningArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/general" \
             "morph/Test/runMain NativeExpressionDiagnosticsWriter timing $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/timing" \
             "morph/Test/runMain NativeExpressionDiagnosticsWriter general $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/general"
-      - name: Compare disabled output to the executed WA-09 legacy artifact
+      - name: Compare WA-10-disabled output to WA-09 plus the exact WA-11 width delta
         shell: bash
         run: |
           python3 - <<'PY'
@@ -290,14 +290,21 @@ jobs:
           baseline = Path('morphhdl-passes/evidence/wa10/baseline')
           recorded = json.loads((baseline / 'manifest.json').read_text())
           assert recorded['compiler_commit'] == '086cb4c642d0182e33bd86fd391f46fc7c0eb2a8'
+          old_width = b'[(((((((((PPC4 == 1)) ? (1) : (0))) == (1))) ? 1 : 0) * 3) + 1)-1:0]'
+          new_width = b'[((PPC4 * 3) + 1)-1:0]'
+          rewrites = 0
           for fixture, name in (('timing', 'TimingExpressionExample.v'),
                                 ('general', 'GeneralExpressionInlining.v')):
               path = Path(fixture) / 'disabled' / name
               original = (baseline / path).read_bytes()
               assert hashlib.sha256(original).hexdigest() == recorded['files'][path.as_posix()], path
+              assert original.count(old_width) == 2, path
+              expected = original.replace(old_width, new_width)
+              rewrites += 2
               current = Path('morphhdl-passes/build/wa10') / fixture / 'first/disabled' / name
-              assert current.read_bytes() == original, path
-          print('WA10_DISABLED_LEGACY_BYTES_PASS files=2')
+              assert current.read_bytes() == expected, path
+          assert rewrites == 4
+          print('WA10_DISABLED_SUCCESSOR_BYTES_PASS files=2 width_rewrites=4')
           PY
       - name: Validate actual emitted expressions and arithmetic equivalence
         shell: bash

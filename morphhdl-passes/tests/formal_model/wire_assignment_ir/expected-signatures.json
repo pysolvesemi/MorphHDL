@@ -2,7 +2,7 @@
   "schema_version": 1,
   "algorithm": "SHA-256",
   "files": {
-    ".github/workflows/morphhdl-passes.yml": "61cc6fdb6d4f5e74aa5ddb42bc91d9a474080fccd81409207652088efa2a1637",
+    ".github/workflows/morphhdl-passes.yml": "a7d53a2e236fe1e8ce257b9c5f633164cc2755e31e56105883e7859b0d98b740",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
     "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "a6452b7a34194cb6d3583f435a70515495a3434f5d74bb514d9b4c57ae700de4",
