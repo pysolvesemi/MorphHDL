@@ -22,7 +22,7 @@ TARGET_PARENT = "f06d9c412924b99cf2c76422549c375a571757dc"
 HELPER = "morphhdl/scripts/check-increment-59i-target-integration.py"
 TEST = "morphhdl/scripts/test-increment-59i-target-integration.py"
 CONTRACT = "morphhdl/contracts/increment-59i-target-integration.json"
-CONTRACT_SHA256 = "UNSEALED"
+CONTRACT_SHA256 = "9ec750ceffa71d79e2fc78dc91b0c033ebe3ae4035116ed1495ba0012d9cd4b4"
 
 
 def require(ok: bool, detail: str) -> None:
