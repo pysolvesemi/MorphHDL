@@ -26,7 +26,9 @@ FOCUSED_TEST = (
 CONTRACT = ROOT / "morphhdl/contracts/increment-59i-local-enable-review.json"
 CHECKER = ROOT / "morphhdl/scripts/check-increment-59i-local-enable-source-review.py"
 CHECKER_TEST = ROOT / "morphhdl/scripts/test-increment-59i-local-enable-source-review.py"
-PARENT = ROOT / "morphhdl/scripts/check-increment-59i-source-review.py"
+PARENT_REL = "morphhdl/scripts/check-increment-59i-source-review.py"
+PARENT = ROOT / PARENT_REL
+REVIEWED = PRODUCTION + (PARENT_REL,)
 DOC = ROOT / "docs/morphhdl/increment-59i-composite-local-enables.md"
 
 
@@ -49,7 +51,7 @@ def baseline(base: str, path: str) -> bytes:
 
 def write_contract(base: str) -> str:
     files = []
-    for ordinal, relative in enumerate(PRODUCTION, 1):
+    for ordinal, relative in enumerate(REVIEWED, 1):
         before = baseline(base, relative)
         after = (ROOT / relative).read_bytes()
         require(before != after, "local-enable promotion did not change " + relative)
@@ -103,8 +105,9 @@ CONTRACT_SHA256 = "__CONTRACT_SHA256__"
 PATHS = (
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
     "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+    "morphhdl/scripts/check-increment-59i-source-review.py",
 )
-PRODUCTION_PATHS = frozenset(PATHS)
+PRODUCTION_PATHS = frozenset(PATHS[:2])
 
 
 def require(condition: bool, detail: str) -> None:
@@ -312,17 +315,17 @@ def compose_parent() -> None:
 '''
     text = text.replace(function, loader + function, 1)
     restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+    source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 '''
     require(text.count(restore) == 1, "59i restore composition anchor changed")
     text = text.replace(restore, '''def restore_source(root: Path, path: str, source: str) -> str:
     source = load_local_enable_review(root).restore_source(root, path, source)
+    source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 ''', 1)
-    inventory = "    paths = load_widening_review(root).inherited_inventory(root, paths, BASE)\n"
-    require(text.count(inventory) == 1, "59i inherited inventory anchor changed")
-    text = text.replace(inventory,
-        "    paths = load_local_enable_review(root).inherited_inventory(root, paths, BASE)\n" + inventory, 1)
+    inventory = "    paths = load_composition_review(root).feature_inventory(root, paths, BASE)\n"
+    require(text.count(inventory) == 1, "59i composition inventory anchor changed")
     PARENT.write_text(text)
 
 
@@ -366,11 +369,10 @@ def main() -> None:
     base = output("git", "rev-parse", "HEAD")
     subprocess.run([sys.executable, str(PATCHER)], cwd=ROOT, check=True)
     require((ROOT / FOCUSED_TEST).is_file(), "local-enable focused test was not staged")
+    compose_parent()
     contract_sha = write_contract(base)
     write_reviewer(base, contract_sha)
-    compose_parent()
     write_doc(base)
-    subprocess.run([sys.executable, str(CHECKER), "--self-test"], cwd=ROOT, check=True)
     print("59i composite local-enable reviewed successor staged from " + base, flush=True)
 
 

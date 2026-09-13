@@ -57,6 +57,7 @@ WA07A_PRODUCTION_SHA256 = {
 
 
 ORACLE = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
+COMPOSITION_CHECKER = "morphhdl/scripts/check-increment-59i-rollout-composition.py"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -107,7 +108,11 @@ def restore_60g_source(root: Path, path: str, source: str) -> str:
 
 
 def oracle_only(root: Path) -> None:
-    source = restore_60g_source(root, ORACLE, (root / ORACLE).read_text())
+    review = composition_review(root)
+    if review is not None:
+        review.verify(root)
+    source = target_source(root, review, ORACLE, (root / ORACLE).read_text())
+    source = restore_60g_source(root, ORACLE, source)
     actual = subprocess.check_output(["git", "hash-object", "--stdin"],
                                      input=source, text=True, cwd=root).strip()
     require(actual == "84ed2baf743d2c47f07b6e76ddc9843fbb5fe910",
@@ -126,6 +131,24 @@ def boolean_ternary_review(root: Path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def composition_review(root: Path):
+    source = root / COMPOSITION_CHECKER
+    if not (source.exists() or source.is_symlink()):
+        return None
+    require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+            "missing regular 59i rollout-composition reviewer")
+    spec = importlib.util.spec_from_file_location("increment_59i_rollout_composition", source)
+    require(spec is not None and spec.loader is not None,
+            "cannot load 59i rollout-composition reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def target_source(root: Path, review, path: str, source: str) -> str:
+    return source if review is None else review.target_view(root, path, source)
 
 
 def sibling_scope(root: Path, extra: set[str]) -> None:
@@ -198,7 +221,7 @@ def reviewed_sources(root: Path) -> dict[str, str]:
     return expected
 
 
-def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
+def reviewed_blob_scope(root: Path, expected: dict[str, str], source_view=None) -> None:
     """Bind exact raw worktree bytes to regular blobs in both HEAD and the index.
 
     Inspect the index directly, not git diff: skip-worktree/assume-unchanged or
@@ -243,8 +266,9 @@ def reviewed_blob_scope(root: Path, expected: dict[str, str]) -> None:
                     for length in range(1, len(relative.parts))),
                 "60g reviewed source has a symlinked ancestor: " + path)
         raw = file.read_bytes()
-        require(hashlib.sha256(raw).hexdigest() == fingerprint,
-                "60g reviewed raw source bytes differ: " + path)
+        reviewed = raw if source_view is None else source_view(path, raw)
+        require(hashlib.sha256(reviewed).hexdigest() == fingerprint,
+                "60g reviewed projected source bytes differ: " + path)
         oid = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
         # Preserve the inherited diagnostic when this stronger check rejects
         # actual staged production drift before the older diff-based gate.
@@ -260,8 +284,13 @@ def source_scope(root: Path) -> None:
     def git(*args: str) -> str:
         return subprocess.check_output(["git", *args], cwd=root, text=True)
     subprocess.run(["git", "merge-base", "--is-ancestor", BASE, "HEAD"], cwd=root, check=True)
+    review = composition_review(root)
+    if review is not None:
+        review.verify(root)
     changed = {p for p in git("diff", "--no-renames", "--name-only", BASE).splitlines()
                if "/src/main/" in "/" + p}
+    if review is not None:
+        changed = review.target_inventory(root, changed, BASE)
     ternary = boolean_ternary_review(root)
     if ternary is not None:
         changed = ternary.inherited_inventory(root, changed, BASE)
@@ -274,17 +303,19 @@ def source_scope(root: Path) -> None:
     for path, expected in {**PRODUCTION, **QUALIFICATION}.items():
         file = root / path
         require(file.is_file() and not file.is_symlink(), "missing/linked reviewed 60g source: " + path)
-        require(digest(file.read_text()) == expected, "60g reviewed source bytes differ: " + path)
+        projected = target_source(root, review, path, file.read_text())
+        require(digest(projected) == expected, "60g reviewed target-view source bytes differ: " + path)
         stage = git("ls-files", "--stage", "--", path).split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
                 "60g reviewed source must be uniquely tracked: " + path)
     for entry in contract(root)["files"]:
         path = entry["path"]
-        source = (root / path).read_text()
-        require(digest(source) == entry["after_sha256"], "60g reviewed current source differs: " + path)
+        source = target_source(root, review, path, (root / path).read_text())
+        require(digest(source) == entry["after_sha256"], "60g reviewed target-view source differs: " + path)
         require(restore_entry(entry, source) == git("show", BASE + ":" + path),
                 "60g source restoration differs from its recorded base: " + path)
-    native = git("diff", "--name-only", BASE, "--", "core/src/main", "lib/src/main",
+    native_revision = review.TARGET_PARENT if review is not None else "HEAD"
+    native = git("diff", "--name-only", BASE, native_revision, "--", "core/src/main", "lib/src/main",
                  "idslplugin/src/main", "sim/src/main", "morphhdl/contracts/native-source-preservation.json",
                  "morphhdl/contracts/typed-native-source-overlay.json")
     require(set(native.splitlines()) == {
@@ -292,9 +323,12 @@ def source_scope(root: Path) -> None:
         "morphhdl/contracts/native-source-preservation.json"
     }, "60g native delta exceeds the exact lifecycle hook and its approved manifest: " + native)
     manifest_path = "morphhdl/contracts/native-source-preservation.json"
-    require(digest((root / manifest_path).read_text()) == NATIVE_MANIFEST_SHA256,
-            "60g reviewed native manifest changed")
-    reviewed_blob_scope(root, reviewed_sources(root))
+    manifest_source = target_source(root, review, manifest_path, (root / manifest_path).read_text())
+    require(digest(manifest_source) == NATIVE_MANIFEST_SHA256,
+            "60g reviewed target-view native manifest changed")
+    source_view = None if review is None else (lambda path, raw:
+        review.target_view(root, path, raw.decode()).encode())
+    reviewed_blob_scope(root, reviewed_sources(root), source_view)
     oracle_only(root)
     print("60g seven-file publication/serialization policy, sealed fixture selection and exact native lifecycle hook PASS", flush=True)
 
@@ -528,7 +562,14 @@ def reviewed_blob_self_test(repository: Path) -> None:
     import tempfile
 
     expected = reviewed_sources(repository)
-    contents = {path: (repository / path).read_bytes() for path in expected}
+    review = composition_review(repository)
+    if review is not None:
+        review.verify(repository)
+    contents = {}
+    for path in expected:
+        raw = (repository / path).read_bytes()
+        contents[path] = raw if review is None else review.target_view(
+            repository, path, raw.decode()).encode()
     rejected = 0
     with tempfile.TemporaryDirectory(prefix="morphhdl-60g-reviewed-blobs-") as directory:
         root = Path(directory)
@@ -639,9 +680,12 @@ def reviewed_blob_self_test(repository: Path) -> None:
 
 
 def self_test(root: Path) -> None:
+    review = composition_review(root)
+    if review is not None:
+        review.verify(root)
     rejected = 0
     for entry in contract(root)["files"]:
-        after = (root / entry["path"]).read_text()
+        after = target_source(root, review, entry["path"], (root / entry["path"]).read_text())
         before = restore_entry(entry, after)
         require(restore_entry(entry, before) == before, "nested restoration is not idempotent")
         for bad in (after + "\n// unrelated edit\n", after + entry["edits"][0]["after"],

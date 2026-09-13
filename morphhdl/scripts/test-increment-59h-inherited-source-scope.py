@@ -104,6 +104,12 @@ def main() -> None:
     # older inventory check. Preserve every mutation and require its exact
     # successor diagnostic rather than accepting an arbitrary rejection.
     joined_paths = set(getattr(join, "ALL_PATHS", join.PATHS)) if join is not None else set()
+    composition = (join.load_composition_review(ROOT)
+                   if join is not None and hasattr(join, "load_composition_review") else None)
+    if composition is not None:
+        # The exact composed bytes reject before older field-span reviewers.
+        # Retain the original mutations and independently replay frozen tests.
+        joined_paths |= set(composition.load_contract(ROOT)["entries"])
     cases = [("unreviewed suffix " + path, path, "suffix",
               "unreviewed source change outside 59i spans" if path in joined_paths else
               "unreviewed source change outside reviewed 59g spans"
@@ -117,8 +123,9 @@ def main() -> None:
         ("paired production and review mutation", prod, "paired",
          "unreviewed source change outside 59i spans" if join is not None else "59h reviewed source manifest changed"),
         ("unreviewed production root", "foreign/src/main/Unreviewed.scala", "suffix",
-         "untracked production sources"),
-        ("staged hidden owner change", prod, "hidden-index", "staged production sources"),
+         "merged 59i/60g production inventory changed" if composition is not None else "untracked production sources"),
+        ("staged hidden owner change", prod, "hidden-index",
+         "composition HEAD/index/worktree identity changed" if composition is not None else "staged production sources"),
         ("changed native printer", "core/src/main/scala/spinal/core/internals/VerilogBase.scala", "suffix",
          "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",

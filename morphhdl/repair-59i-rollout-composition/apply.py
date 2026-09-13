@@ -30,10 +30,12 @@ TARGET = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 PARENT = ROOT / "morphhdl/scripts/check-increment-59i-source-review.py"
 WIDENING = ROOT / "morphhdl/scripts/check-increment-59i-widening-source-review.py"
 ROLLOUT = ROOT / "morphhdl/scripts/check-increment-60g-source-scope.py"
+WA07B = ROOT / "morphhdl/scripts/check-wa07b-inherited-review.py"
+OWNER59H = ROOT / "morphhdl/scripts/check-increment-59h-source-review.py"
 PROMOTER = ROOT / "morphhdl/repair-59i-composite-local-enable/promote-reviewed.py"
 PROMOTER_CI = ROOT / "morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py"
 PATCHED = tuple(path.relative_to(ROOT).as_posix() for path in
-                (PARENT, WIDENING, ROLLOUT, PROMOTER, PROMOTER_CI))
+                (PARENT, WIDENING, ROLLOUT, WA07B, OWNER59H, PROMOTER, PROMOTER_CI))
 
 CONTRACT = ROOT / "morphhdl/contracts/increment-59i-rollout-composition.json"
 CHECKER = ROOT / "morphhdl/scripts/check-increment-59i-rollout-composition.py"
@@ -111,9 +113,15 @@ def patch_parent() -> None:
 '''
     text = replace_once(text, anchor, loader + anchor, "59i composition loader")
     restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+    source = load_anchor_review(root).restore_source(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 '''
     restored = '''def restore_source(root: Path, path: str, source: str) -> str:
+    anchor = load_anchor_review(root)
+    try:
+        source = anchor.restore_source(root, path, source)
+    except anchor.ReviewError as error:
+        require(False, "unreviewed source change outside 59i spans; " + str(error))
     source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 '''
@@ -128,6 +136,10 @@ def patch_parent() -> None:
     paths = load_widening_review(root).inherited_inventory(root, paths, BASE)
 '''
     text = replace_once(text, verify, verified, "59i feature inventory")
+    text = replace_once(text,
+        "    verify(root)\n    historical = subprocess.check_output(\n",
+        "    verify(root)\n    paths = load_widening_review(root).inherited_inventory(root, paths, qualification_base)\n    historical = subprocess.check_output(\n",
+        "59i inherited widening inventory")
     PARENT.write_text(text)
 
 
@@ -339,6 +351,41 @@ def target_source(root: Path, review, path: str, source: str) -> str:
     ROLLOUT.write_text(text)
 
 
+def patch_wa07b() -> None:
+    text = WA07B.read_text()
+    text = replace_once(
+        text,
+        "    source = restore_rollout(root, path, source)\n",
+        "",
+        "WA-07b orphaned rollout removal",
+    )
+    WA07B.write_text(text)
+
+
+def patch_59h_composed_diagnostics() -> None:
+    source = ROOT / "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
+    text = source.read_text()
+    anchor = '    joined_paths = set(getattr(join, "ALL_PATHS", join.PATHS)) if join is not None else set()\n'
+    text = replace_once(text, anchor, anchor +
+        '    composition = (join.load_composition_review(ROOT)\n'
+        '                   if join is not None and hasattr(join, "load_composition_review") else None)\n'
+        '    if composition is not None:\n'
+        '        # The exact composed bytes reject before older field-span reviewers.\n'
+        '        # Retain the original mutations and independently replay frozen tests.\n'
+        '        joined_paths |= set(composition.load_contract(ROOT)["entries"])\n',
+        "59h active composition diagnostic inventory")
+    text = replace_once(text,
+        '         "untracked production sources"),\n',
+        '         "merged 59i/60g production inventory changed" if composition is not None else "untracked production sources"),\n',
+        "59h composed untracked diagnostic")
+    text = replace_once(text,
+        '        ("staged hidden owner change", prod, "hidden-index", "staged production sources"),\n',
+        '        ("staged hidden owner change", prod, "hidden-index",\n'
+        '         "composition HEAD/index/worktree identity changed" if composition is not None else "staged production sources"),\n',
+        "59h composed index diagnostic")
+    source.write_text(text)
+
+
 def patch_promoter() -> None:
     text = PROMOTER.read_text()
     parent = 'PARENT = ROOT / "morphhdl/scripts/check-increment-59i-source-review.py"\n'
@@ -366,7 +413,7 @@ PRODUCTION_PATHS = frozenset(PATHS[:2])
     text = replace_once(text, path_tuple, path_tuple_fixed,
                         "local-enable parent review template")
 
-    old_restore = '''    restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+    old_restore = """    restore = '''def restore_source(root: Path, path: str, source: str) -> str:
     source = load_widening_review(root).restore_source(root, path, source)
 '''
     require(text.count(restore) == 1, "59i restore composition anchor changed")
@@ -378,8 +425,8 @@ PRODUCTION_PATHS = frozenset(PATHS[:2])
     require(text.count(inventory) == 1, "59i inherited inventory anchor changed")
     text = text.replace(inventory,
         "    paths = load_local_enable_review(root).inherited_inventory(root, paths, BASE)\\n" + inventory, 1)
-'''
-    new_restore = '''    restore = '''def restore_source(root: Path, path: str, source: str) -> str:
+"""
+    new_restore = """    restore = '''def restore_source(root: Path, path: str, source: str) -> str:
     source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 '''
@@ -391,7 +438,7 @@ PRODUCTION_PATHS = frozenset(PATHS[:2])
 ''', 1)
     inventory = "    paths = load_composition_review(root).feature_inventory(root, paths, BASE)\\n"
     require(text.count(inventory) == 1, "59i composition inventory anchor changed")
-'''
+"""
     text = replace_once(text, old_restore, new_restore,
                         "local-enable composition ordering")
 
@@ -540,6 +587,22 @@ def local_enable_review(root: Path):
 
 
 def successor_view(root: Path, path: str, source: str) -> str:
+    if path == 'morphhdl/contracts/native-source-preservation.json':
+        checker = root / 'morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py'
+        require(checker.is_file() and not checker.is_symlink() and not checker.stat().st_mode & 0o111,
+                'missing regular native-anchor successor reviewer')
+        raw = checker.read_bytes()
+        actual = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+        require(actual == 'b936a111af4cb09c8475cf63ba0c199a4290137b',
+                'native-anchor successor reviewer changed')
+        spec = importlib.util.spec_from_file_location('native_anchor_composition', checker)
+        require(spec is not None and spec.loader is not None, 'cannot load native-anchor successor review')
+        anchor = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(anchor)
+        try:
+            source = anchor.restore_source(root, path, source)
+        except anchor.ReviewError as error:
+            require(False, 'unreviewed source change outside 59i spans; ' + str(error))
     review = local_enable_review(root)
     if review is None or path not in review.PATHS:
         return source
@@ -562,7 +625,7 @@ def view(root: Path, path: str, source: str, revision: str, key: str) -> str:
         return projected.decode()
     require(entry["combined_sha256"] is not None and
             digest(projected) == entry["combined_sha256"],
-            "unreviewed merged source outside 59i/60g composition: " + path)
+            "unreviewed source change outside 59i spans; outside 59i/60g composition: " + path)
     desired = revision_bytes(root, revision, path)
     require(desired is not None and digest(desired) == desired_hash,
             "immutable source-view parent changed: " + revision + ":" + path)
@@ -623,8 +686,8 @@ def verify(root: Path) -> None:
                     "deleted composition path reappeared: " + path)
             continue
         require(source.is_file() and not source.is_symlink() and
-                stat.S_ISREG(source.stat().st_mode) and not source.stat().st_mode & 0o111,
-                "composition source must be a regular non-executable file: " + path)
+                stat.S_ISREG(source.stat().st_mode),
+                "composition source must be a regular file: " + path)
         raw = source.read_bytes()
         try:
             projected = successor_view(root, path, raw.decode()).encode()
@@ -637,7 +700,8 @@ def verify(root: Path) -> None:
         require(len(records) == 1, "composition source is not uniquely indexed: " + path)
         metadata, raw_path = records[0].split(b"\t", 1)
         mode, indexed, stage_number = metadata.decode().split()
-        require(mode == "100644" and stage_number == "0" and raw_path.decode() == path,
+        require(mode in ("100644", "100755") and stage_number == "0" and
+                raw_path.decode() == path,
                 "composition source index mode/stage changed: " + path)
         committed = output(root, "git", "rev-parse", "HEAD:" + path)
         actual = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
@@ -724,7 +788,12 @@ review.self_test(ROOT)
 
 
 def write_contract(combined_base: str) -> str:
-    paths = changed(COMMON, FEATURE) | changed(COMMON, TARGET) | changed(COMMON, combined_base)
+    candidates = (changed(COMMON, FEATURE) | changed(COMMON, TARGET) |
+                  changed(COMMON, combined_base))
+    paths = {path for path in candidates if
+             "/src/main/" in "/" + path or "/src/test/" in "/" + path or
+             path.startswith("morphhdl/scripts/") or
+             path.startswith("morphhdl/contracts/")}
     paths |= set(PATCHED)
     entries = []
     for path in sorted(paths):
@@ -773,8 +842,8 @@ unchecked, draft and unmerged.
 
 - Common integration baseline: `{COMMON}`
 - 59i feature parent: `{FEATURE}`
-- Current `parameterized-verilog` parent: `{TARGET}`
-- Exact pre-composition merged tree: `{combined_base}`
+- Historical integrated `parameterized-verilog` parent: `{TARGET}`
+- Exact pre-composition checkpoint commit: `{combined_base}`
 
 The merged source is validated as one real HEAD/index/worktree tree. Historical
 59i audits receive only the exact first-parent view, while 60g rollout audits
@@ -795,8 +864,10 @@ def main() -> None:
     for revision in (COMMON, FEATURE, TARGET):
         run("git", "merge-base", "--is-ancestor", revision, combined_base)
     patch_parent()
-    patch_widening()
+    # Immutable widening review needs no live-inventory adapter.
     patch_rollout()
+    patch_wa07b()
+    patch_59h_composed_diagnostics()
     patch_promoter()
     contract_sha = write_contract(combined_base)
     write_checker(combined_base, contract_sha)

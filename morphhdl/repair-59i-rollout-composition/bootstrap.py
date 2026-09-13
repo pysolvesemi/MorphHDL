@@ -40,7 +40,10 @@ def main() -> None:
         "        require(spec is not None and spec.loader is not None, 'cannot load native-anchor successor review')\n"
         "        anchor = importlib.util.module_from_spec(spec)\n"
         "        spec.loader.exec_module(anchor)\n"
-        "        source = anchor.restore_source(root, path, source)\n"
+        "        try:\n"
+        "            source = anchor.restore_source(root, path, source)\n"
+        "        except anchor.ReviewError as error:\n"
+        "            require(False, 'unreviewed source change outside 59i spans; ' + str(error))\n"
         "    review = local_enable_review(root)\n",
         "exact native-anchor successor projection")
 
@@ -85,7 +88,11 @@ def main() -> None:
     source = load_widening_review(root).restore_source(root, path, source)
 '''
     restored = '''def restore_source(root: Path, path: str, source: str) -> str:
-    source = load_anchor_review(root).restore_source(root, path, source)
+    anchor = load_anchor_review(root)
+    try:
+        source = anchor.restore_source(root, path, source)
+    except anchor.ReviewError as error:
+        require(False, "unreviewed source change outside 59i spans; " + str(error))
     source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
 '''

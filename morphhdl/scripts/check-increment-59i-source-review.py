@@ -44,6 +44,7 @@ CAPTURE_BASE = '80a3b0977ccabcd83ce06ef97a446edbee8f723a'
 CAPTURE_CONTRACT = 'morphhdl/contracts/increment-59i-capture-review.json'
 CAPTURE_SHA256 = 'dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537'
 CAPTURE_PATHS = ('morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala', 'morphhdl/scripts/check-increment-59h-source-review.py', 'morphhdl/scripts/test-increment-59h-inherited-source-scope.py')
+COMPOSITION_CHECKER = "morphhdl/scripts/check-increment-59i-rollout-composition.py"
 WIDENING_CHECKER = "morphhdl/scripts/check-increment-59i-widening-source-review.py"
 ANCHOR_CHECKER = "morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py"
 ANCHOR_CHECKER_BLOB = "b936a111af4cb09c8475cf63ba0c199a4290137b"
@@ -73,6 +74,18 @@ def load_anchor_review(root: Path):
     spec = importlib.util.spec_from_file_location("increment_59i_native_tree_anchor_review", source)
     require(spec is not None and spec.loader is not None,
             "cannot load 59i native-tree-anchor successor reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_composition_review(root: Path):
+    source = root / COMPOSITION_CHECKER
+    require(source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111,
+            "missing regular 59i rollout-composition reviewer")
+    spec = importlib.util.spec_from_file_location("increment_59i_rollout_composition", source)
+    require(spec is not None and spec.loader is not None,
+            "cannot load 59i rollout-composition reviewer")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -227,7 +240,12 @@ def baseline_source(root: Path, path: str) -> bytes:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
-    source = load_anchor_review(root).restore_source(root, path, source)
+    anchor = load_anchor_review(root)
+    try:
+        source = anchor.restore_source(root, path, source)
+    except anchor.ReviewError as error:
+        require(False, "unreviewed source change outside 59i spans; " + str(error))
+    source = load_composition_review(root).feature_view(root, path, source)
     source = load_widening_review(root).restore_source(root, path, source)
     entries = load_contract(root)
     captures = load_capture_contract(root)
@@ -273,6 +291,7 @@ def verify_spans(root: Path) -> None:
 
 def verify(root: Path) -> None:
     paths = production_changes(root, BASE)
+    paths = load_composition_review(root).feature_inventory(root, paths, BASE)
     paths = load_widening_review(root).inherited_inventory(root, paths, BASE)
     # A later independently qualified WA-07b pass implementation remains a
     # disjoint successor, not an unreviewed addition to this join's inventory.
@@ -292,6 +311,7 @@ def verify(root: Path) -> None:
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
     """Remove only the verified join delta, not older overlapping source edits."""
     verify(root)
+    paths = load_widening_review(root).inherited_inventory(root, paths, qualification_base)
     historical = subprocess.check_output(
         ["git", "diff", "--no-renames", "--name-only", qualification_base, BASE],
         cwd=root, text=True).splitlines()

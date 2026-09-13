@@ -35,6 +35,7 @@ jobs:
           persist-credentials: true
 
       - name: Verify exact two-parent ancestry
+        id: checkpoint
         shell: bash
         run: |
           set -euo pipefail
@@ -45,8 +46,23 @@ jobs:
           git merge-base --is-ancestor "$TARGET_PARENT" HEAD
           git rev-parse HEAD > "$out/staging-head.txt"
           git rev-parse 'HEAD^{tree}' > "$out/staging-tree.txt"
+          checker=morphhdl/scripts/check-increment-59i-rollout-composition.py
+          contract=morphhdl/contracts/increment-59i-rollout-composition.json
+          if test -e "$checker" || test -L "$checker" || test -e "$contract" || test -L "$contract"; then
+            # Published composition is qualified on this actual committed head.
+            # Do not rerun the one-time constructor over its reviewed output.
+            test -f "$checker" && test ! -L "$checker"
+            test -f "$contract" && test ! -L "$contract"
+            python3 "$checker" | tee "$out/existing-composition.log"
+            cp "$out/staging-head.txt" "$out/composition-head.txt"
+            cp "$out/staging-tree.txt" "$out/composition-tree.txt"
+            echo 'composed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'composed=false' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Prepare and commit exact bidirectional review
+        if: steps.checkpoint.outputs.composed != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -170,6 +186,7 @@ jobs:
           trap - EXIT
 
       - name: Publish only from unchanged draft head
+        if: steps.checkpoint.outputs.composed != 'true'
         shell: bash
         run: |
           set -euo pipefail

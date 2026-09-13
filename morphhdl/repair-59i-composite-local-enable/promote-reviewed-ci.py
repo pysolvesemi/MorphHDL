@@ -58,8 +58,8 @@ for patcher in PATCHERS:
     subprocess.run([sys.executable, str(patcher)], cwd=ROOT, check=True)
 promote.require((ROOT / promote.FOCUSED_TEST).is_file(),
                 "local-enable focused test was not staged")
+promote.compose_parent()
 contract_sha = promote.write_contract(base)
 promote.write_reviewer(base, contract_sha)
-promote.compose_parent()
 promote.write_doc(base)
 print("59i complete local-enable reviewed successor prepared from " + base, flush=True)
