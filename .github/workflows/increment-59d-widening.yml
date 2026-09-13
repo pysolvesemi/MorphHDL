@@ -50,6 +50,7 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||

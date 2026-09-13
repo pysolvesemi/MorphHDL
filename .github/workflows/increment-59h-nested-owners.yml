@@ -46,6 +46,7 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59h-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||

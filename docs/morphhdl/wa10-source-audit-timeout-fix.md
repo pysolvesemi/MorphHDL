@@ -35,12 +35,14 @@ seconds there. Both callers therefore need the same bounded correction.
   operations and historical orchestration retain their prior budgets.
 - Retain required exit codes, exact PASS/rejection diagnostics and propagation
   of `TimeoutExpired`. No timeout is converted into a successful result.
-- Add nine executable caller regression tests, including both entry points,
+- Add ten executable caller regression tests, including both entry points,
   short historical/mutation budgets, positive and negative failure handling,
   timeout propagation, Git budgets, legacy signedness checks and workflow routing.
 - Both workflows run those tests and include the shared audit/regression files
-  in push and PR path filters. The fix branch uses their existing `59g` routing
-  so the full widening and nested-owner lanes run before merge.
+  in push and PR path filters. Both workflow job conditions explicitly include
+  only `agent/wa-10-inherited-audit-timeout`, so all four widening/nested-owner
+  Scala lanes run on the repair PR. The existing pass-workspace WA-10 boundary
+  and branch policy remain unchanged, preserving its full-domain proof lanes.
 - Refresh only the current WA-10 exact path inventory and outer byte seal;
   preserve original historical review bytes, source ancestry and all production
   source identities. The source anchor must be an authoritative fetched GitHub

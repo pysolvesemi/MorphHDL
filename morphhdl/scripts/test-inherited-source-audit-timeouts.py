@@ -122,6 +122,14 @@ class AuditTimeoutTests(unittest.TestCase):
                     self.assertEqual(source.count("      - '" + relative + "'"), 2)
             self.assertIn("python3 morphhdl/scripts/test-inherited-source-audit-timeouts.py", source)
 
+    def test_exact_wa10_repair_branch_runs_both_inherited_workflows(self):
+        for filename in ("increment-59d-widening.yml", "increment-59h-nested-owners.yml"):
+            source = (ROOT / ".github/workflows" / filename).read_text()
+            condition = source.split("    if: >-\n", 1)[1].split("    name:", 1)[0]
+            self.assertIn("(github.head_ref || github.ref_name) == "
+                          "'agent/wa-10-inherited-audit-timeout' ||", condition)
+            self.assertNotIn("startsWith(github.head_ref || github.ref_name, 'agent/wa-')", condition)
+
     def test_legacy_59b_checks_keep_120_seconds(self):
         module = load(CASES[0][0])
         output = "immutable oracle PASS independent oracle scope PASS generic boundaries PASS"
