@@ -25,8 +25,12 @@ if [[ -z "${head_ref}" ]]; then
 fi
 
 is_wa08=false
+is_wa09=false
+is_wa10=false
 case "${head_ref}" in
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
+  agent/wa-09-*|wa-09-*) is_wa09=true ;;
+  agent/wa-10-*|wa-10-*) is_wa10=true ;;
 esac
 
 collect_changed_files() {
@@ -70,17 +74,104 @@ wa08_dependencies_satisfied() {
     grep -Eq '^- \[x\] \*\*Increment 58[[:space:]]+—' "${pv_roadmap}"
 }
 
+wa09_dependencies_satisfied() {
+  [[ -f "${pv_roadmap}" ]] || return 1
+  grep -Eq '^- \[x\] \*\*WA-08[[:space:]]+—' "${roadmap}" && \
+    grep -Eq '^- \[x\] \*\*Increment 62[[:space:]]+—' "${pv_roadmap}"
+}
+
+wa10_dependencies_satisfied() {
+  [[ -f "${pv_roadmap}" ]] || return 1
+  grep -Eq '^- \[x\] \*\*WA-09[[:space:]]+—' "${roadmap}" && \
+    grep -Eq '^- \[x\] \*\*Increment 63[[:space:]]+—' "${pv_roadmap}"
+}
+
+wa10_cross_workspace_path() {
+  local reviewed
+  for reviewed in "${wa10_reviewed_paths[@]}"; do
+    [[ "$1" != "${reviewed}" ]] || return 0
+  done
+  return 1
+}
+
+# WA-09 is the one reviewed successor that must coordinate the isolated pass
+# workspace with MorphHDL's native writeback and the upstream Verilog emitter.
+# Admit only its enumerated cross-workspace sources, only on its branch family,
+# and only after the exact outer source overlay has authenticated the full delta.
+wa09_cross_workspace_path() {
+  local path="$1"
+  case "${path}" in
+    .github/workflows/increment-60f-equivalence-closure.yml|\
+    .github/workflows/increment-60g-default-signed-verilog.yml|\
+    core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala|\
+    core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala|\
+    core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala|\
+    morphhdl/contracts/increment-62-wa08-source-overlay.json|\
+    morphhdl/contracts/increment-55-native-change-review.json|\
+    morphhdl/contracts/native-source-preservation.json|\
+    morphhdl/scripts/check-increment-62-wa08-source-overlay.py|\
+    morphhdl/scripts/check-increment-60f-artifacts.py|\
+    morphhdl/scripts/check-increment-60f-equivalence-closure.py|\
+    morphhdl/scripts/test-increment-60f-inherited-source-scope.py|\
+    morphhdl/scripts/test-increment-59h-inherited-source-scope.py|\
+    morphhdl/scripts/test-increment-59c-inherited-source-scope.py|\
+    morphhdl/scripts/test-increment-59f-source-scope.py|\
+    morphhdl/scripts/check-increment-60g-source-scope.py|\
+    morphhdl/scripts/check-wa07b-inherited-review.py|\
+    morphhdl/scripts/check-wa08-production-artifacts.py|\
+    morphhdl/scripts/test-wa07b-inherited-review.py|\
+    morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala|\
+    morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala|\
+    morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala|\
+    morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala|\
+    morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala|\
+    morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 allowed_path() {
   local path="$1"
+  # The explicit WA-10 request extends expression safety in native capture and
+  # emission. Admission remains exact, predecessor-bound and byte-sealed; no
+  # source root is opened by the successor branch name alone.
+  if [[ "${is_wa10}" == true ]] && \
+     [[ "${wa10_scope_verified:-false}" == true ]] && \
+     wa10_dependencies_satisfied && wa10_cross_workspace_path "${path}"; then
+    return 0
+  fi
   case "${path}" in
     morphhdl-passes/*|"${workflow}")
       return 0
       ;;
-    morphhdl/*)
+    morphhdl/*|morphir/*)
       if [[ "${is_wa08}" == true ]] && wa08_dependencies_satisfied; then
         return 0
       fi
+      if [[ "${is_wa09}" == true ]] && \
+         [[ "${wa08_overlay_verified:-false}" == true ]] && \
+         wa09_dependencies_satisfied && wa09_cross_workspace_path "${path}"; then
+        return 0
+      fi
       return 1
+      ;;
+    core/*|.github/workflows/increment-60f-equivalence-closure.yml|.github/workflows/increment-60g-default-signed-verilog.yml)
+      if [[ "${is_wa09}" == true ]] && \
+         [[ "${wa08_overlay_verified:-false}" == true ]] && \
+         wa09_dependencies_satisfied && wa09_cross_workspace_path "${path}"; then
+        return 0
+      fi
+      return 1
+      ;;
+    build.sbt|build.mill|.github/workflows/increment-62-wa08-source-overlay.yml|docs/morphhdl/parameterized-verilog-todo.md)
+      # Production build inputs and the compatibility gate are accepted only
+      # through the exact reviewed overlay, independent of branch spelling.
+      [[ "${wa08_overlay_verified:-false}" == true ]]
+      return
       ;;
     *)
       return 1
@@ -89,6 +180,26 @@ allowed_path() {
 }
 
 mapfile -t changed_files < <(collect_changed_files | sed '/^[[:space:]]*$/d' | LC_ALL=C sort -u)
+
+wa08_overlay_verified=false
+overlay="morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+contract="morphhdl/contracts/increment-62-wa08-source-overlay.json"
+if [[ -e "${overlay}" || -e "${contract}" ]]; then
+  python3 "${overlay}"
+  wa08_overlay_verified=true
+fi
+
+wa10_scope_verified=false
+wa10_reviewed_paths=()
+wa10_scope="morphhdl/scripts/check-wa10-source-scope.py"
+wa10_contract="morphhdl/contracts/wa10-source-scope.json"
+if [[ -e "${wa10_scope}" || -e "${wa10_contract}" ]]; then
+  # Capture status separately: process-substitution mapfile would otherwise
+  # discard a failing checker exit and could accept an empty inventory.
+  wa10_paths="$(python3 "${wa10_scope}" --print-paths)"
+  mapfile -t wa10_reviewed_paths <<< "${wa10_paths}"
+  wa10_scope_verified=true
+fi
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then
   printf 'MorphHDL pass boundary: no changed files detected.\n'
@@ -106,9 +217,13 @@ if [[ ${#violations[@]} -ne 0 ]]; then
   printf 'MorphHDL pass boundary rejected the following path(s):\n' >&2
   printf '  - %s\n' "${violations[@]}" >&2
   if [[ "${is_wa08}" == true ]]; then
-    printf 'WA-08 MorphHDL-owned handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
+    printf 'WA-08 MorphHDL and canonical-IR handoff paths are allowed only after WA-07, WA-07a, WA-07b and PV-58 are checked on the target branch.\n' >&2
+  elif [[ "${is_wa09}" == true ]]; then
+    printf 'WA-09 cross-workspace paths require completed WA-08/PV-62 dependencies, an exact source overlay, and the enumerated successor inventory.\n' >&2
+  elif [[ "${is_wa10}" == true ]]; then
+    printf 'WA-10 cross-workspace paths require completed WA-09/PV-63 dependencies and the exact predecessor-bound successor source inventory.\n' >&2
   else
-    printf 'Allowed paths are morphhdl-passes/** and %s. MorphHDL-owned handoff paths are reserved for an eligible agent/wa-08-* branch.\n' "${workflow}" >&2
+    printf 'Allowed paths are morphhdl-passes/** and %s. Cross-workspace paths require an eligible WA-08, WA-09 or WA-10 branch and its exact authorization.\n' "${workflow}" >&2
   fi
   exit 1
 fi

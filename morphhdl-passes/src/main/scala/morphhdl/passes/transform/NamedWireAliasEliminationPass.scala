@@ -3,6 +3,7 @@ package morphhdl.passes.transform
 import scala.collection.mutable.ArrayBuffer
 
 import morphhdl.ir.v1.CanonicalIrHandoff
+import morphhdl.ir.v1.DeclarationKind
 import morphhdl.ir.v1.Design
 import morphhdl.ir.v1.DriverId
 import morphhdl.ir.v1.IrDiagnostic
@@ -28,7 +29,7 @@ import morphhdl.passes.safety.AliasSafetyAssessment
 import morphhdl.passes.safety.AliasSafetyConfiguration
 import morphhdl.passes.safety.WireAliasSafetyGate
 
-/** Stable diagnostics produced by the explicitly named simple-wire pass. */
+/** Stable diagnostics produced by the named-or-generated simple-wire pass. */
 object NamedWireAliasDiagnosticCode {
   val RewriteInvariant = "WA05-REWRITE-INVARIANT"
   val Eliminated = "WA05-ELIMINATED"
@@ -36,14 +37,18 @@ object NamedWireAliasDiagnosticCode {
 }
 
 /**
-  * Component-generic elimination of proven explicitly named direct wire aliases.
+  * Component-generic elimination of proven named-or-generated direct wire aliases.
   *
-  * Candidate classification is taken only from canonical [[NameOrigin.Explicit]]
-  * metadata. The pass never inspects logical module names, source paths, or
-  * emitted identifier conventions. Rewrites use exact [[SymbolId]] identity,
-  * never transfer the removed name, and retain every surviving declaration,
-  * driver, reference identity, name, source location, attribute, comment,
-  * parameter, scope, and generate index.
+  * Candidate classification is taken only from canonical [[NameOrigin.Explicit]],
+  * [[NameOrigin.Reflected]], and [[NameOrigin.Generated]] metadata. Generated
+  * aliases can be removed, but never outrank a meaningful name. For two safely
+  * removable meaningful aliases, the shorter captured name survives;
+  * meaningful provenance always outranks [[NameOrigin.Unnamed]] and
+  * [[NameOrigin.Generated]], irrespective of spelling. Non-removable
+  * declarations remain anchors. The pass never inspects logical module names,
+  * source paths, or emitted identifier conventions.
+  * Rewrites use exact [[SymbolId]] identity, never transfer the removed name,
+  * and retain every surviving name and metadata record unchanged.
   */
 object NamedWireAliasEliminationPass {
   val passId: PassId = PassId.NamedWireAliasElimination
@@ -51,6 +56,26 @@ object NamedWireAliasEliminationPass {
   private final case class SuccessfulTransformation(
       output: Design,
       eliminated: Vector[EliminatedWireAlias]
+  )
+
+  private sealed trait RewriteDirection {
+    def rank: Int
+  }
+
+  private case object EliminatePreferredSource extends RewriteDirection {
+    override val rank: Int = 0
+  }
+
+  private case object ForwardIntoSource extends RewriteDirection {
+    override val rank: Int = 1
+  }
+
+  private final case class PlannedRewrite(
+      relation: AliasSafetyAssessment,
+      removed: AliasSafetyAssessment,
+      survivor: SymbolId,
+      direction: RewriteDirection,
+      output: Design
   )
 
   /** Consume the validated production envelope without discarding its profile. */
@@ -118,7 +143,7 @@ object NamedWireAliasEliminationPass {
                 .analyze(finalView, safetyConfiguration)
                 .normalized
                 .assessments
-                .filter(value => explicitName(value.nameOrigin).nonEmpty)
+                .filter(isDirectPassReportCandidate)
               val rejected: Vector[RejectedWireAlias] = finalAssessments
                 .filterNot(_.isEligible)
                 .flatMap(rejectedAlias)
@@ -169,79 +194,62 @@ object NamedWireAliasEliminationPass {
             )
           )
       }
-      val eligible: Vector[AliasSafetyAssessment] = WireAliasSafetyGate
+      val safetyReport = WireAliasSafetyGate
         .analyze(view, safetyConfiguration)
-        .eligible
-        .filter(value => explicitName(value.nameOrigin).nonEmpty)
+        .normalized
+      val assessmentsBySymbol = safetyReport.assessments.map { value =>
+        (value.moduleId, value.aliasSymbol) -> value
+      }.toMap
+      val eligible = safetyReport.eligible
+        .filter(value => candidateOrigin(value.nameOrigin).nonEmpty)
         .sortBy(value => (value.moduleId.value, value.aliasSymbol.value))
+      val planned = ArrayBuffer.empty[PlannedRewrite]
+      eligible.foreach { assessment =>
+        planRewrite(current, view, assessment, assessmentsBySymbol) match {
+          case Left(diagnostic) => return Left(Vector(diagnostic))
+          case Right(Some(value)) => planned += value
+          case Right(None) =>
+        }
+      }
 
-      eligible.headOption match {
-        case None => complete = true
-        case Some(assessment) =>
-          val module = view.module(assessment.moduleId).getOrElse {
-            return Left(
-              Vector(
-                invariantDiagnostic(
-                  assessment,
-                  s"owning module '${assessment.moduleId.value}' is unavailable"
-                )
-              )
-            )
-          }
-          val sourceSymbol = assessment.sourceSymbol.getOrElse {
-            return Left(
-              Vector(
-                invariantDiagnostic(
-                  assessment,
-                  "eligible alias published no source symbol"
-                )
-              )
-            )
-          }
-          val explicit = explicitOrigin(assessment.nameOrigin).getOrElse {
-            return Left(
-              Vector(
-                invariantDiagnostic(
-                  assessment,
-                  "eligible alias published no explicit source name"
-                )
-              )
-            )
-          }
-          val aliasDrivers = module.driversTargeting(assessment.aliasSymbol)
-          if (aliasDrivers.size != 1) {
-            return Left(
-              Vector(
-                invariantDiagnostic(
-                  assessment,
-                  s"eligible alias published ${aliasDrivers.size} drivers"
-                )
-              )
-            )
-          }
-
-          val rewritten = rewriteOneAlias(
-            current,
-            assessment.moduleId,
-            assessment.aliasSymbol,
-            sourceSymbol,
-            aliasDrivers.head.id
+      planned.toVector
+        .sortBy { value =>
+          (
+            value.direction.rank,
+            value.relation.moduleId.value,
+            value.relation.aliasSymbol.value,
+            value.removed.aliasSymbol.value,
+            value.survivor.value
           )
-          CanonicalIrPassAdapter.bindFixture(rewritten) match {
+        }
+        .headOption match {
+        case None => complete = true
+        case Some(plan) =>
+          val removedOrigin = reportOrigin(plan.removed.nameOrigin).getOrElse {
+            return Left(
+              Vector(
+                invariantDiagnostic(
+                  plan.relation,
+                  "selected removal published no proven naming provenance"
+                )
+              )
+            )
+          }
+          CanonicalIrPassAdapter.bindFixture(plan.output) match {
             case Left(failure) =>
               return Left(
                 canonicalDiagnostics(
                   failure,
-                  s"canonical IR validation failed after eliminating '${explicit.value}'"
+                  s"canonical IR validation failed after eliminating '${renderedName(plan.removed)}'"
                 )
               )
             case Right(rebound) =>
               current = rebound.design
               eliminated += EliminatedWireAlias(
-                aliasSymbol = passSymbol(assessment.aliasSymbol),
-                sourceSymbol = passSymbol(sourceSymbol),
-                nameOrigin = explicit,
-                location = assessment.sourceLocation.flatMap(passLocation)
+                aliasSymbol = passSymbol(plan.removed.aliasSymbol),
+                sourceSymbol = passSymbol(plan.survivor),
+                nameOrigin = removedOrigin,
+                location = plan.removed.sourceLocation.flatMap(passLocation)
               )
           }
       }
@@ -249,6 +257,147 @@ object NamedWireAliasEliminationPass {
 
     Right(SuccessfulTransformation(current, eliminated.toVector))
   }
+
+  /**
+    * Select a survivor without interpreting generated identifier spelling.
+    *
+    * A direct source which cannot itself be removed is an anchor. When the
+    * preferred alias points at an independently eligible expression temporary,
+    * defer the decision so the expression-elimination pass can remove that
+    * temporary without first destroying the meaningful alias.
+    */
+  private def planRewrite(
+      design: Design,
+      view: CanonicalIrPassView,
+      assessment: AliasSafetyAssessment,
+      assessmentsBySymbol: Map[(ModuleId, SymbolId), AliasSafetyAssessment]
+  ): Either[PassDiagnostic, Option[PlannedRewrite]] = {
+    val module = view.module(assessment.moduleId).getOrElse {
+      return Left(
+        invariantDiagnostic(
+          assessment,
+          s"owning module '${assessment.moduleId.value}' is unavailable"
+        )
+      )
+    }
+    val sourceSymbol = assessment.sourceSymbol.getOrElse {
+      return Left(
+        invariantDiagnostic(
+          assessment,
+          "eligible alias published no source symbol"
+        )
+      )
+    }
+    val source = module.declaration(sourceSymbol).getOrElse {
+      return Left(
+        invariantDiagnostic(
+          assessment,
+          s"eligible alias source '${sourceSymbol.value}' is unavailable"
+        )
+      )
+    }
+    val aliasDrivers = module.driversTargeting(assessment.aliasSymbol)
+    if (aliasDrivers.size != 1) {
+      return Left(
+        invariantDiagnostic(
+          assessment,
+          s"eligible alias published ${aliasDrivers.size} drivers"
+        )
+      )
+    }
+
+    def forward: PlannedRewrite =
+      PlannedRewrite(
+        relation = assessment,
+        removed = assessment,
+        survivor = sourceSymbol,
+        direction = ForwardIntoSource,
+        output = rewriteOneAlias(
+          design,
+          assessment.moduleId,
+          assessment.aliasSymbol,
+          sourceSymbol,
+          aliasDrivers.head.id
+        )
+      )
+
+    if (source.kind != DeclarationKind.InternalCombinational) {
+      Right(Some(forward))
+    } else if (!aliasIsPreferred(assessment, source.id, source.nameOrigin)) {
+      Right(Some(forward))
+    } else {
+      assessmentsBySymbol.get((assessment.moduleId, sourceSymbol)) match {
+        case Some(sourceAssessment) if sourceAssessment.isEligible =>
+          val sourceDrivers = module.driversTargeting(sourceSymbol)
+          val sourceSource = sourceAssessment.sourceSymbol
+          if (sourceDrivers.size != 1 || sourceSource.isEmpty) {
+            Left(
+              invariantDiagnostic(
+                assessment,
+                s"eligible preferred source '${sourceSymbol.value}' published an incomplete direct-alias proof"
+              )
+            )
+          } else {
+            Right(
+              Some(
+                PlannedRewrite(
+                  relation = assessment,
+                  removed = sourceAssessment,
+                  survivor = sourceSource.get,
+                  direction = EliminatePreferredSource,
+                  output = rewriteOneAlias(
+                    design,
+                    assessment.moduleId,
+                    sourceSymbol,
+                    sourceSource.get,
+                    sourceDrivers.head.id
+                  )
+                )
+              )
+            )
+          }
+        case _
+            if expressionSourceIsIndependentlyEligible(
+              design,
+              sourceSymbol,
+              source.nameOrigin
+            ) =>
+          Right(None)
+        case _ => Right(Some(forward))
+      }
+    }
+  }
+
+  private def aliasIsPreferred(
+      alias: AliasSafetyAssessment,
+      sourceSymbol: SymbolId,
+      sourceOrigin: NameOrigin
+  ): Boolean =
+    (meaningfulName(alias.nameOrigin), meaningfulName(sourceOrigin)) match {
+      case (Some(aliasName), Some(sourceName)) =>
+        implicitly[Ordering[(Int, String, String)]].lt(
+          (aliasName.length, aliasName, alias.aliasSymbol.value),
+          (sourceName.length, sourceName, sourceSymbol.value)
+        )
+      case (Some(_), None) =>
+        sourceOrigin == NameOrigin.Unnamed || sourceOrigin == NameOrigin.Generated
+      case _ => false
+    }
+
+  private def expressionSourceIsIndependentlyEligible(
+      design: Design,
+      source: SymbolId,
+      origin: NameOrigin
+  ): Boolean =
+    origin match {
+      case NameOrigin.Unnamed =>
+        UnnamedWireExpressionEliminationPass
+          .isEligibleUnnamedCandidate(design, source)
+      case NameOrigin.Explicit(_) | NameOrigin.Reflected(_) | NameOrigin.Generated =>
+        UnnamedWireExpressionEliminationPass
+          .isEligibleNamedCandidate(design, source)
+      case NameOrigin.Unknown => false
+    }
 
   private def rewriteOneAlias(
       design: Design,
@@ -336,10 +485,10 @@ object NamedWireAliasEliminationPass {
   ): Option[RejectedWireAlias] =
     for {
       violation <- assessment.violations.headOption
-      explicit <- explicitOrigin(assessment.nameOrigin)
+      origin <- reportOrigin(assessment.nameOrigin)
     } yield RejectedWireAlias(
       aliasSymbol = passSymbol(assessment.aliasSymbol),
-      nameOrigin = explicit,
+      nameOrigin = origin,
       reasonCode = violation.code,
       message = violation.message,
       location = assessment.sourceLocation.flatMap(passLocation)
@@ -354,7 +503,7 @@ object NamedWireAliasEliminationPass {
         code = NamedWireAliasDiagnosticCode.Eliminated,
         severity = DiagnosticSeverity.Info,
         message =
-          s"eliminated explicitly named alias '$name' in favor of '${value.sourceSymbol.value}' without transferring the removed name",
+          s"eliminated named alias '$name' in favor of '${value.sourceSymbol.value}' without transferring the removed name",
         passId = Some(passId),
         location = value.location
       )
@@ -366,13 +515,14 @@ object NamedWireAliasEliminationPass {
     assessments
       .filterNot(_.isEligible)
       .flatMap { assessment =>
-        explicitName(assessment.nameOrigin).toVector.flatMap { name =>
+        candidateOrigin(assessment.nameOrigin).toVector.flatMap { _ =>
+          val name = renderedName(assessment)
           assessment.violations.map { violation =>
             PassDiagnostic(
               code = NamedWireAliasDiagnosticCode.Rejected,
               severity = DiagnosticSeverity.Warning,
               message =
-                s"retained explicitly named alias '$name': ${violation.code}: ${violation.message}",
+                s"retained named alias '$name': ${violation.code}: ${violation.message}",
               passId = Some(passId),
               location = assessment.sourceLocation.flatMap(passLocation)
             )
@@ -380,17 +530,37 @@ object NamedWireAliasEliminationPass {
         }
       }
 
-  private def explicitOrigin(value: NameOrigin): Option[AliasNameOrigin.Explicit] =
+  private def candidateOrigin(value: NameOrigin): Option[AliasNameOrigin] =
     value match {
-      case NameOrigin.Explicit(name) => Some(AliasNameOrigin.Explicit(name))
-      case _                         => None
+      case NameOrigin.Explicit(name)  => Some(AliasNameOrigin.Explicit(name))
+      case NameOrigin.Reflected(name) => Some(AliasNameOrigin.Reflected(name))
+      case NameOrigin.Generated       => Some(AliasNameOrigin.Generated)
+      case NameOrigin.Unnamed         => None
+      case NameOrigin.Unknown         => None
     }
 
-  private def explicitName(value: NameOrigin): Option[String] =
+  /** WA-09, rather than this direct-alias pass, owns generated expressions. */
+  private def isDirectPassReportCandidate(
+      value: AliasSafetyAssessment
+  ): Boolean =
+    candidateOrigin(value.nameOrigin).nonEmpty &&
+      (value.nameOrigin != NameOrigin.Generated || value.sourceSymbol.nonEmpty)
+
+  private def reportOrigin(value: NameOrigin): Option[AliasNameOrigin] =
+    value match {
+      case NameOrigin.Unnamed => Some(AliasNameOrigin.Unnamed)
+      case other              => candidateOrigin(other)
+    }
+
+  private def meaningfulName(value: NameOrigin): Option[String] =
     value match {
       case NameOrigin.Explicit(name) => Some(name)
-      case _                         => None
+      case NameOrigin.Reflected(name) => Some(name)
+      case _                          => None
     }
+
+  private def renderedName(value: AliasSafetyAssessment): String =
+    meaningfulName(value.nameOrigin).getOrElse(value.aliasSymbol.value)
 
   private def canonicalDiagnostics(
       failure: CanonicalIrAdapterFailure,
@@ -416,11 +586,11 @@ object NamedWireAliasEliminationPass {
       assessment: AliasSafetyAssessment,
       message: String
   ): PassDiagnostic = {
-    val name = explicitName(assessment.nameOrigin).getOrElse(assessment.aliasSymbol.value)
+    val name = meaningfulName(assessment.nameOrigin).getOrElse(assessment.aliasSymbol.value)
     PassDiagnostic(
       code = NamedWireAliasDiagnosticCode.RewriteInvariant,
       severity = DiagnosticSeverity.Error,
-      message = s"cannot eliminate explicitly named alias '$name': $message",
+      message = s"cannot eliminate named alias '$name': $message",
       passId = Some(passId),
       location = assessment.sourceLocation.flatMap(passLocation)
     )

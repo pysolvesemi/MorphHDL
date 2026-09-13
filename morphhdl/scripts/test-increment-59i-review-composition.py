@@ -86,7 +86,10 @@ class ReviewCompositionTests(unittest.TestCase):
         source = (self.root / REGISTER).read_bytes() + b'\n# unreviewed change\n'
         for action in (lambda: self.join.restore_source(self.root, REGISTER, source.decode()),
                        lambda: self.wa.restore_adapter(self.root, REGISTER, source.decode())):
-            with self.assertRaisesRegex(RuntimeError, 'outside 59i spans'):
+            expected = ('59i target integration: unreviewed bytes cannot enter parent projection: ' + REGISTER
+                        if (self.root / 'morphhdl/contracts/increment-59i-target-integration.json').is_file()
+                        else 'outside 59i spans')
+            with self.assertRaisesRegex(RuntimeError, expected):
                 action()
 
     def test_old_join_checker_cannot_replace_composed_checker(self):
@@ -97,7 +100,10 @@ class ReviewCompositionTests(unittest.TestCase):
     def test_changed_helper_is_not_hidden_by_composition(self):
         p = self.root / WA
         p.write_bytes(p.read_bytes() + b'\n# unreviewed helper\n')
-        with self.assertRaisesRegex(RuntimeError, 'outside 59i spans'):
+        expected = ('59i target integration: unreviewed bytes cannot enter parent projection: ' + WA
+                    if (self.root / 'morphhdl/contracts/increment-59i-target-integration.json').is_file()
+                    else 'outside 59i spans')
+        with self.assertRaisesRegex(RuntimeError, expected):
             self.join.verify_spans(self.root)
 
     def test_missing_sidecar_rejects(self):
@@ -144,7 +150,9 @@ class ReviewCompositionTests(unittest.TestCase):
     def test_missing_all_join_evidence_rejects_combined_bytes(self):
         (self.root / JOIN).unlink()
         (self.root / self.join.CONTRACT).unlink()
-        with self.assertRaisesRegex(RuntimeError, 'WA-07b adapter'):
+        expected = ('outside 59f spans or 60g publication spans: ' + REGISTER
+                    if hasattr(self.wa, 'restore_rollout') else 'WA-07b adapter')
+        with self.assertRaisesRegex(RuntimeError, expected):
             self.wa.restore_adapter(self.root, REGISTER, (self.root / REGISTER).read_text())
 
     def test_unreviewed_production_path_is_not_accepted(self):

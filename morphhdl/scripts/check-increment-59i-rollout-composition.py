@@ -9,6 +9,7 @@ import json
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 COMMON_BASE = "64e8fddc432e859b6b532540bee96c5608d46efa"
@@ -18,6 +19,40 @@ COMBINED_BASE = "71efa81bf56e8483f7837519b2e44cdeba908439"
 CONTRACT = "morphhdl/contracts/increment-59i-rollout-composition.json"
 CONTRACT_SHA256 = "3eda911201658d435d98c1f957fa1554ed8626f6e70473eb3a0698327021d7a8"
 LOCAL_ENABLE_CHECKER = "morphhdl/scripts/check-increment-59i-local-enable-source-review.py"
+
+
+def integration_review(root: Path):
+    checker = root / "morphhdl/scripts/check-increment-59i-target-integration.py"
+    manifest = root / "morphhdl/contracts/increment-59i-target-integration.json"
+    if not any(path.exists() or path.is_symlink() for path in (checker, manifest)):
+        return None
+    for path in (checker, manifest):
+        require(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111,
+                "59i target integration requires a regular reviewer and manifest")
+        relative = path.relative_to(root)
+        require(all(not (root / Path(*relative.parts[:i])).is_symlink()
+                    for i in range(1, len(relative.parts))),
+                "59i target integration reviewer ancestry is linked")
+    raw = checker.read_bytes()
+    pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
+    require(len(re.findall(pattern, raw, re.M)) == 1,
+            "59i target integration reviewer seal is ambiguous")
+    normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(hashlib.sha256(normalized).hexdigest() == "7b5486413e8b9091a169f532e8ab1f8e88aa0dcd8b3656ef189822d308945a8a",
+            "59i target integration reviewer changed")
+    # Share only authenticated code and its immutable-object caches. Every
+    # caller still reads the current manifest and verifies live checkout bytes.
+    name = "increment_59i_target_integration_" + hashlib.sha256(raw).hexdigest()
+    module = sys.modules.get(name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(name, checker)
+        require(spec is not None and spec.loader is not None,
+                "cannot load exact 59i target integration reviewer")
+        module = importlib.util.module_from_spec(spec)
+        exec(compile(raw, str(checker), "exec"), module.__dict__)
+        sys.modules[name] = module
+    module.contract(root)
+    return module
 
 
 def require(condition: bool, detail: str) -> None:
@@ -113,6 +148,9 @@ def local_enable_review(root: Path):
 
 
 def successor_view(root: Path, path: str, source: str) -> str:
+    integration = integration_review(root)
+    if integration is not None:
+        source = integration.feature_source(root, path, source.encode()).decode()
     if path == 'morphhdl/contracts/native-source-preservation.json':
         checker = root / 'morphhdl/scripts/check-increment-59i-native-tree-anchor-review.py'
         require(checker.is_file() and not checker.is_symlink() and not checker.stat().st_mode & 0o111,
@@ -139,6 +177,9 @@ def view(root: Path, path: str, source: str, revision: str, key: str) -> str:
     contract = load_contract(root)
     entry = contract["entries"].get(path)
     if entry is None:
+        integration = integration_review(root)
+        if integration is not None:
+            return integration.feature_source(root, path, source.encode()).decode()
         return source
     desired_hash = entry[key]
     require(desired_hash is not None,
@@ -146,7 +187,9 @@ def view(root: Path, path: str, source: str, revision: str, key: str) -> str:
     raw = source.encode()
     if digest(raw) == desired_hash:
         return source
-    projected = successor_view(root, path, source).encode()
+    # Repeated inherited restoration may already expose this exact frozen
+    # combined preimage. Only the sealed digest bypasses the outer successor.
+    projected = raw if digest(raw) == entry["combined_sha256"] else successor_view(root, path, source).encode()
     if digest(projected) == desired_hash:
         return projected.decode()
     require(entry["combined_sha256"] is not None and
@@ -172,6 +215,9 @@ def target_view(root: Path, path: str, source: str) -> str:
 def project_inventory(root: Path, paths: set[str], qualification_base: str,
                       revision: str) -> set[str]:
     verify(root)
+    integration = integration_review(root)
+    if integration is not None:
+        paths = integration.feature_inventory(root, paths, qualification_base)
     review = local_enable_review(root)
     if review is not None:
         paths = review.inherited_inventory(root, paths, qualification_base)
@@ -189,6 +235,9 @@ def target_inventory(root: Path, paths: set[str], qualification_base: str) -> se
 
 
 def verify(root: Path) -> None:
+    integration = integration_review(root)
+    # The inventory projection below runs the complete current integration
+    # verifier once; no cached verification result authorizes this checkout.
     contract = load_contract(root)
     for revision in (COMMON_BASE, FEATURE_PARENT, TARGET_PARENT, COMBINED_BASE):
         run(root, "git", "merge-base", "--is-ancestor", revision, "HEAD")
@@ -196,6 +245,8 @@ def verify(root: Path) -> None:
     untracked = production({item for item in run(
         root, "git", "ls-files", "--others", "--exclude-standard").stdout.decode().splitlines()})
     current |= untracked
+    if integration is not None:
+        current = integration.feature_inventory(root, current, COMMON_BASE)
     review = local_enable_review(root)
     if review is not None:
         current = review.inherited_inventory(root, current, COMMON_BASE)
@@ -204,6 +255,21 @@ def verify(root: Path) -> None:
             repr(sorted(set(contract["combined_production"]) - current)) +
             "; unreviewed=" + repr(sorted(current - set(contract["combined_production"]))))
 
+    # Batch immutable HEAD and live index inventory reads. Every reviewed
+    # file still independently binds its mode and raw worktree blob to both.
+    head = output(root, "git", "rev-parse", "HEAD")
+    committed = {}
+    for record in run(root, "git", "ls-tree", "-r", "-z", head).stdout.split(b"\0"):
+        if record:
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, kind, oid = metadata.decode().split()
+            committed[raw_path.decode()] = (mode, kind, oid)
+    indexed = {}
+    for record in run(root, "git", "ls-files", "--stage", "-z").stdout.split(b"\0"):
+        if record:
+            metadata, raw_path = record.split(b"\t", 1)
+            mode, oid, stage = metadata.decode().split()
+            indexed.setdefault(raw_path.decode(), []).append((mode, oid, stage))
     for path, entry in contract["entries"].items():
         source = root / path
         expected = entry["combined_sha256"]
@@ -221,18 +287,19 @@ def verify(root: Path) -> None:
             raise RuntimeError("reviewed composition source is not UTF-8: " + path) from error
         require(digest(projected) == expected,
                 "59i/60g combined source bytes changed: " + path)
-        stage = run(root, "git", "ls-files", "--stage", "-z", "--", path).stdout
-        records = [record for record in stage.split(b"\0") if record]
+        records = indexed.get(path, [])
         require(len(records) == 1, "composition source is not uniquely indexed: " + path)
-        metadata, raw_path = records[0].split(b"\t", 1)
-        mode, indexed, stage_number = metadata.decode().split()
-        require(mode in ("100644", "100755") and stage_number == "0" and
-                raw_path.decode() == path,
+        mode, indexed_oid, stage_number = records[0]
+        require(mode in ("100644", "100755") and stage_number == "0",
                 "composition source index mode/stage changed: " + path)
-        committed = output(root, "git", "rev-parse", "HEAD:" + path)
+        current = committed.get(path)
+        require(current is not None and current[:2] == (mode, "blob"),
+                "composition source HEAD mode/type changed: " + path)
         actual = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
-        require(indexed == actual == committed,
+        require(indexed_oid == actual == current[2],
                 "composition HEAD/index/worktree identity changed: " + path)
+    require(output(root, "git", "rev-parse", "HEAD") == head,
+            "composition HEAD changed while checking source identity")
     print("59i/60g exact bidirectional source composition PASS", flush=True)
 
 

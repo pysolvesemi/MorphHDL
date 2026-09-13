@@ -44,7 +44,8 @@ object ExternalParameterizedAutoResize {
       typedResize: Option[ResizeUInt],
       typedInput: Option[UInt],
       witnessInactive: Boolean,
-      inactiveTargetWidth: Option[ElaborationIntegerExpression]
+      inactiveTargetWidth: Option[ElaborationIntegerExpression],
+      originalSource: Expression
   )
 
   /** Exact capture-time lineage for one explicit typed UInt resize whose
@@ -490,7 +491,8 @@ object ExternalParameterizedAutoResize {
           candidate.typedResize,
           candidate.typedInput,
           candidate.witnessInactive,
-          candidate.inactiveTargetWidth
+          candidate.inactiveTargetWidth,
+          candidate.sourceDriver.source
         )
         provisional += record
       }
@@ -918,6 +920,54 @@ object ExternalParameterizedAutoResize {
           }
         }
     }
+  }
+
+  /** Recover the original direct-child output only while both root-scope
+    * edges and the clone's single current use remain exact. This capability
+    * contextualizes the pre-resize width; it never licenses alias removal.
+    */
+  private[internals] def directChildOutputOfResizeSource(
+      component: Component,
+      source: BaseType
+  ): Option[UInt] = {
+    if (component == null || !source.isInstanceOf[UInt]) return None
+    storageOf(component)
+      .flatMap(storage => Option(storage.byResizeSource.get(source.asInstanceOf[UInt])))
+      .filter(record => !record.witnessInactive && record.typedTarget.isEmpty &&
+        record.resizeSource.isComb && record.resizeSource.isDirectionLess &&
+        record.resizeSource.hasOnlyOneStatement &&
+        (record.sourceDriver.source eq record.originalSource) &&
+        (record.resizeSource.parentScope eq component.dslBody) &&
+        (record.sourceDriver.parentScope eq component.dslBody) &&
+        (record.outer.parentScope eq component.dslBody))
+      .filter(record => validCurrentRecord(component, record))
+      .filter(record => exactCurrentOwner(component, record) &&
+        exactCurrentResizeSourceUse(component, record.resizeSource))
+      .filter(record => proves(component, record.sourceDriver, record.resizeSource))
+      .filter { record =>
+        record.outer.source match {
+          case direct if direct eq record.resizeSource =>
+            proves(component, record.outer, record.target)
+          case resize: ResizeUInt =>
+            materializedResizeBoundary(component, resize).exists {
+              case (assignment, target) =>
+                (assignment eq record.outer) && (target eq record.target)
+            }
+          case _ => false
+        }
+      }
+      .flatMap { record =>
+        record.sourceDriver.source match {
+          case port: UInt if port.isOutput && !port.isInput && !port.isInOut &&
+              port.component != null && (port.component.parent eq component) &&
+              component.children.exists(_ eq port.component) &&
+              port.component.getOrdredNodeIo.exists(_ eq port) &&
+              ParameterizedWidth.expressionOf(port).exists { width =>
+                ParameterizedWidth.expressionOf(source).exists(_ eq width)
+              } => Some(port)
+          case _ => None
+        }
+      }
   }
 
   /** Return the exact source-driver statement for one captured resize clone. */

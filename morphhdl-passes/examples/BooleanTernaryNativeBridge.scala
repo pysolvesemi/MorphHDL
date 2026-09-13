@@ -80,7 +80,8 @@ private[examples] final class BooleanTernaryPipelineNativePhase(all: Boolean) ex
       var executed = Vector.empty[PassId]
       if (all) {
         val unnamed = new UnnamedWireAliasNativePhase
-        val named = new NamedWireAliasNativePhase
+        val named =
+          new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
         val expression = new UnnamedWireExpressionNativePhase
         unnamed.impl(pc)
         executed :+= PassId.UnnamedWireAliasElimination
@@ -100,7 +101,10 @@ private[examples] final class BooleanTernaryPipelineNativePhase(all: Boolean) ex
       val ternary = new BooleanTernaryNativePhase
       ternary.impl(pc)
       executed :+= PassId.BooleanTernarySimplification
-      val expected = if (all) WireAliasPassConfiguration(enabled = true).enabledPasses
+      // This remains the immutable five-stage WA-07b regression runner. The
+      // public production flag now includes the WA-09 named-expression stage.
+      val expected = if (all) WireAliasPassConfiguration.selectedForTesting(
+        PassId.historicalBooleanTernaryPasses: _*).enabledPasses
         else Vector(PassId.BooleanTernarySimplification)
       require(executed == expected, "WA-07b native order differs from the canonical pipeline")
       executionRounds :+= executed
@@ -165,7 +169,9 @@ object ParameterizedStreamFifoBooleanTernaryWitness {
     ConstantOperandWitnessPhasePlan.install(config, phase)
     val width = HdlInt.param("WIDTH", default = BigInt(8), min = BigInt(1), max = BigInt(64))
     val depth = HdlInt.param("DEPTH", default = BigInt(5), min = BigInt(1), max = BigInt(8))
-    val generated = MorphVerilog(config) { new ParameterizedStreamFifo(width, depth) }
+    val generated = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
+      new ParameterizedStreamFifo(width, depth)
+    }
     Files.write(report, phase.map(_.toJson).getOrElse(
       "{\"schema_version\":1,\"mode\":\"common-pre-pass-reference\"}\n").getBytes(StandardCharsets.UTF_8))
     println(generated.generatedSourcesPaths.head)

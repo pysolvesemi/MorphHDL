@@ -201,8 +201,20 @@ class ComponentEmitterVerilog(
     ))
 
     //Wrap expression which need it
-    if(spinalConfig.cutLongExpressions)
+    if(spinalConfig.cutLongExpressions) {
+      val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+      expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))
       cutLongExpressions()
+      // The depth planner visits a whole breadth frontier, including leaves.
+      // A carrier for an eligible sized literal cannot shorten a computation;
+      // avoid recreating it after the typed expression plan has accepted it.
+      // Keep all non-literal depth fences and all pre-existing mandatory wraps.
+      expressionToWrap.retain {
+        case literal: Literal =>
+          requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)
+        case _ => true
+      }
+    }
     // A declaration policy may require a real unsigned carrier at an exact
     // typed conversion. Keep the inherited expression/cast printers unchanged.
     if (verilogBase.hasDeclarationPolicy) {
@@ -1605,9 +1617,13 @@ end
     logics ++= tmpBuilder
   }
 
+  private lazy val wrappersProvenRedundant =
+    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
+
   def fillExpressionToWrap(): Unit = {
 
-    def applyTo(that: Expression) = expressionToWrap += that
+    def applyTo(that: Expression) =
+      if (!wrappersProvenRedundant.containsKey(that)) expressionToWrap += that
 
     def onEachExpression(e: Expression): Unit = {
       e match {

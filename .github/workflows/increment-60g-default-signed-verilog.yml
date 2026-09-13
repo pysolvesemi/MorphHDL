@@ -18,7 +18,9 @@ jobs:
   source:
     name: Exact rollout source and inherited source gates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The complete inherited audit chain exceeds 20 minutes with WA-09 enrolled.
+    # Keep every audit and its own timeout; allow the whole chain to finish.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:

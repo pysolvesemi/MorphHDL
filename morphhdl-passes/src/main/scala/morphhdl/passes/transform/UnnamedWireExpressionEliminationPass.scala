@@ -71,6 +71,132 @@ object UnnamedWireExpressionSafetyReason {
   val PackedTypeMissing = "WA07-PACKED-TYPE-MISSING"
 }
 
+/** Stable diagnostics produced by the meaningful named-expression pass. */
+object NamedWireExpressionDiagnosticCode {
+  val RewriteInvariant = "WA09-REWRITE-INVARIANT"
+  val Eliminated = "WA09-ELIMINATED"
+  val Rejected = "WA09-REJECTED"
+}
+
+/** Stable fail-closed reasons for retaining a named or generated expression wire. */
+object NamedWireExpressionSafetyReason {
+  val AliasKind = "WA09-ALIAS-NOT-INTERNAL-COMBINATIONAL"
+  val NameOrigin = "WA09-NAME-ORIGIN-UNPROVEN"
+  val Observability = "WA09-OBSERVABILITY-PREVENTS-ELIMINATION"
+  val DeclarationAttributes = "WA09-DECLARATION-ATTRIBUTES"
+  val DeclarationComments = "WA09-DECLARATION-COMMENTS"
+  val DriverCardinality = "WA09-DRIVER-CARDINALITY"
+  val DriverNotContinuous = "WA09-DRIVER-NOT-CONTINUOUS"
+  val DriverNotFullObject = "WA09-DRIVER-NOT-FULL-OBJECT"
+  val DriverAttributes = "WA09-DRIVER-ATTRIBUTES"
+  val DriverComments = "WA09-DRIVER-COMMENTS"
+  val DirectReferenceHandledElsewhere = "WA09-DIRECT-REFERENCE-HANDLED-ELSEWHERE"
+  val NoReceiver = "WA09-NO-RECEIVER"
+  val ReceiverProcedural = "WA09-RECEIVER-PROCEDURAL"
+  val ReceiverContext = "WA09-RECEIVER-CONTEXT"
+  val ReceiverTarget = "WA09-RECEIVER-TARGET"
+  val ReceiverPartialSelect = "WA09-RECEIVER-PARTIAL-SELECT"
+  val SourceSelfReference = "WA09-SOURCE-SELF-REFERENCE"
+  val SourceUnresolved = "WA09-SOURCE-UNRESOLVED"
+  val SourceKind = "WA09-SOURCE-KIND"
+  val IllegalScopeReplacement = "WA09-ILLEGAL-SCOPE-REPLACEMENT"
+  val CombinationalCycle = "WA09-COMBINATIONAL-CYCLE"
+  val PackedTypeMissing = "WA09-PACKED-TYPE-MISSING"
+}
+
+private[transform] sealed trait WireExpressionEliminationMode {
+  def passId: PassId
+  def inlineMarker: String
+  def candidateDescription: String
+  def directAliasOwner: String
+  def origin(value: NameOrigin): Option[AliasNameOrigin]
+  def consider(value: Declaration): Boolean
+  def diagnosticCode(suffix: String): String
+  def safetyReason(suffix: String): String
+}
+
+private[transform] object WireExpressionEliminationMode {
+  case object Unnamed extends WireExpressionEliminationMode {
+    override val passId: PassId = PassId.UnnamedWireExpressionElimination
+    override val inlineMarker: String = "wa07-inline"
+    override val candidateDescription: String = "unnamed"
+    override val directAliasOwner: String = "WA-04"
+    override def origin(value: NameOrigin): Option[AliasNameOrigin] = value match {
+      case NameOrigin.Unnamed => Some(AliasNameOrigin.Unnamed)
+      case _                  => None
+    }
+    override def consider(value: Declaration): Boolean =
+      origin(value.nameOrigin).nonEmpty
+    override def diagnosticCode(suffix: String): String = s"WA07-$suffix"
+    override def safetyReason(suffix: String): String = s"WA07-$suffix"
+  }
+
+  case object Named extends WireExpressionEliminationMode {
+    override val passId: PassId = PassId.NamedWireExpressionElimination
+    override val inlineMarker: String = "wa09-inline"
+    override val candidateDescription: String = "named or generated"
+    override val directAliasOwner: String = "the direct wire-alias passes"
+    override def origin(value: NameOrigin): Option[AliasNameOrigin] = value match {
+      case NameOrigin.Explicit(name)  => Some(AliasNameOrigin.Explicit(name))
+      case NameOrigin.Reflected(name) => Some(AliasNameOrigin.Reflected(name))
+      case NameOrigin.Generated       => Some(AliasNameOrigin.Generated)
+      case _                          => None
+    }
+    override def consider(value: Declaration): Boolean =
+      value.kind == DeclarationKind.InternalCombinational &&
+        origin(value.nameOrigin).nonEmpty
+    override def diagnosticCode(suffix: String): String = s"WA09-$suffix"
+    override def safetyReason(suffix: String): String = s"WA09-$suffix"
+  }
+}
+
+/**
+  * Component-generic inlining of proven named or generated continuous expressions.
+  *
+  * Explicit, reflected, and generated source/elaboration origins are candidates.
+  * Unnamed stays owned by the historical unnamed pass, while unknown provenance
+  * fails closed. No classification is inferred from emitted identifier text.
+  * All structural, observability, scope, four-state, and procedural safeguards are
+  * shared with [[UnnamedWireExpressionEliminationPass]].
+  */
+object NamedWireExpressionEliminationPass {
+  val passId: PassId = PassId.NamedWireExpressionElimination
+
+  def run(
+      handoff: CanonicalIrHandoff,
+      configuration: WireAliasPassConfiguration
+  ): PassResult[Design] = {
+    require(handoff != null, "canonical IR handoff must not be null")
+    UnnamedWireExpressionEliminationPass.runWithMode(
+      CanonicalIrPassAdapter.bind(handoff).design,
+      configuration,
+      WireExpressionEliminationMode.Named
+    )
+  }
+
+  def run(handoff: CanonicalIrHandoff): PassResult[Design] =
+    run(handoff, WireAliasPassConfiguration())
+
+  private[morphhdl] def runWithNativeNonblockingReceivers(
+      design: Design,
+      configuration: WireAliasPassConfiguration,
+      receivers: Vector[(ModuleId, Driver)]
+  ): PassResult[Design] =
+    UnnamedWireExpressionEliminationPass.runWithMode(design, configuration,
+      WireExpressionEliminationMode.Named,
+      UnnamedWireExpressionEliminationPass.validateNativeNonblockingReceivers(design, receivers))
+
+  def run(
+      design: Design,
+      configuration: WireAliasPassConfiguration = WireAliasPassConfiguration()
+  ): PassResult[Design] =
+    UnnamedWireExpressionEliminationPass.runWithMode(
+      design,
+      configuration,
+      WireExpressionEliminationMode.Named
+    )
+}
+
 /**
   * Component-generic inlining of proven unnamed continuous wire expressions.
   *
@@ -81,9 +207,11 @@ object UnnamedWireExpressionSafetyReason {
   * an explicit resize fence, then removes the exact temporary declaration and
   * its sole assignment. It never recognizes backend-generated temporary identifier text.
   *
-  * A candidate is retained when either its own assignment or any receiver is
-  * procedural. Canonical `DriverKind.Procedural` represents assignments inside
-  * `always` blocks, so this pass never rewrites an `always` assignment. A
+  * A candidate's own assignment must remain continuous. A pure expression can
+  * also be substituted into an authenticated native nonblocking register RHS
+  * without changing its driver kind, procedural scope, clocking or update timing.
+  * Generic procedural receivers (including Register targets) stay
+  * fail-closed because their blocking scheduling is not modeled here. A
   * receiver selection is accepted only when it is the complete temporary or a
   * literal in-range subrange that can be composed with a direct source
   * part-select. General-expression, nested and dynamic selected uses fail closed.
@@ -124,29 +252,68 @@ object UnnamedWireExpressionEliminationPass {
   def run(
       design: Design,
       configuration: WireAliasPassConfiguration = WireAliasPassConfiguration()
+  ): PassResult[Design] =
+    runWithMode(design, configuration, WireExpressionEliminationMode.Unnamed)
+
+  /** Trusted native-adapter entry, deliberately absent from public config.
+    * Native Spinal register updates emit nonblocking assignments. Evidence
+    * names exact Driver objects from this immutable snapshot, qualified by
+    * ModuleId; a stale object or a same-named driver in another module cannot
+    * authorize a receiver. Generic canonical Procedural carries no timing
+    * evidence and remains fail-closed.
+    */
+  private[morphhdl] def runWithNativeNonblockingReceivers(
+      design: Design,
+      configuration: WireAliasPassConfiguration,
+      receivers: Vector[(ModuleId, Driver)]
+  ): PassResult[Design] =
+    runWithMode(design, configuration, WireExpressionEliminationMode.Unnamed,
+      validateNativeNonblockingReceivers(design, receivers))
+
+  private[transform] def validateNativeNonblockingReceivers(
+      design: Design,
+      receivers: Vector[(ModuleId, Driver)]
+  ): Set[(ModuleId, DriverId)] = receivers.map { case (moduleId, driver) =>
+    val module = design.modules.find(_.id == moduleId).getOrElse(
+      throw new IllegalArgumentException("native scheduling evidence has no owning module"))
+    require(module.drivers.exists(_ eq driver),
+      "native scheduling evidence does not belong to this exact snapshot")
+    require(driver.kind == DriverKind.Procedural && module.declarations.exists(value =>
+      value.id == driver.target && value.kind == DeclarationKind.Register),
+      "native nonblocking evidence requires an existing procedural register RHS")
+    moduleId -> driver.id
+  }.toSet
+
+  private[transform] def runWithMode(
+      design: Design,
+      configuration: WireAliasPassConfiguration,
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)] = Set.empty
   ): PassResult[Design] = {
     require(design != null, "canonical IR design must not be null")
     require(configuration != null, "wire-assignment pass configuration must not be null")
+    require(mode != null, "wire-expression elimination mode must not be null")
 
-    if (!configuration.isEnabled(passId)) {
-      PassResult.skipped(design, passId)
+    if (!configuration.isEnabled(mode.passId)) {
+      PassResult.skipped(design, mode.passId)
     } else {
       CanonicalIrPassAdapter.bindFixture(design) match {
         case Left(failure) =>
           PassResult.failed(
             output = design,
-            report = EliminationReport(passId),
+            report = EliminationReport(mode.passId),
             diagnostics = canonicalDiagnostics(
               failure,
-              "input canonical IR validation failed"
+              "input canonical IR validation failed",
+              mode
             )
           ).normalized
         case Right(initialView) =>
-          transformToFixedPoint(initialView.design) match {
+          transformToFixedPoint(initialView.design, mode, nonblockingReceivers) match {
             case Left(diagnostics) =>
               PassResult.failed(
                 output = initialView.design,
-                report = EliminationReport(passId),
+                report = EliminationReport(mode.passId),
                 diagnostics = diagnostics
               ).normalized
             case Right(transformation) =>
@@ -156,25 +323,26 @@ object UnnamedWireExpressionEliminationPass {
                   case Left(failure) =>
                     return PassResult.failed(
                       output = initialView.design,
-                      report = EliminationReport(passId),
+                      report = EliminationReport(mode.passId),
                       diagnostics = canonicalDiagnostics(
                         failure,
-                        "final canonical IR validation failed"
+                        "final canonical IR validation failed",
+                        mode
                       )
                     ).normalized
                 }
-              val finalAssessments = assessments(finalView)
+              val finalAssessments = assessments(finalView, mode, nonblockingReceivers)
               val rejected = finalAssessments
                 .filterNot(_.isEligible)
-                .flatMap(rejectedExpression)
+                .flatMap(value => rejectedExpression(value, mode))
               val report = EliminationReport(
-                passId = passId,
+                passId = mode.passId,
                 eliminatedExpressions = transformation.eliminated,
                 rejected = rejected
               ).normalized
               val diagnostics = (
-                eliminationDiagnostics(report.eliminatedExpressions) ++
-                  rejectionDiagnostics(finalAssessments)
+                eliminationDiagnostics(report.eliminatedExpressions, mode) ++
+                  rejectionDiagnostics(finalAssessments, mode)
               ).sortBy(diagnosticKey)
 
               if (report.eliminatedCount > 0) {
@@ -195,8 +363,40 @@ object UnnamedWireExpressionEliminationPass {
     }
   }
 
+  /** Fail-closed read-only eligibility query used by direct-alias planning. */
+  private[transform] def isEligibleUnnamedCandidate(
+      design: Design,
+      symbol: SymbolId
+  ): Boolean =
+    isEligibleCandidate(design, symbol, WireExpressionEliminationMode.Unnamed)
+
+  /** Fail-closed read-only eligibility query used by direct-alias planning. */
+  private[transform] def isEligibleNamedCandidate(
+      design: Design,
+      symbol: SymbolId
+  ): Boolean =
+    isEligibleCandidate(design, symbol, WireExpressionEliminationMode.Named)
+
+  private def isEligibleCandidate(
+      design: Design,
+      symbol: SymbolId,
+      mode: WireExpressionEliminationMode
+  ): Boolean = {
+    require(design != null, "canonical IR design must not be null")
+    require(symbol != null, "candidate symbol must not be null")
+    CanonicalIrPassAdapter.bindFixture(design) match {
+      case Left(_) => false
+      case Right(view) =>
+        assessments(view, mode)
+          .find(_.alias.id == symbol)
+          .exists(_.isEligible)
+    }
+  }
+
   private def transformToFixedPoint(
-      initial: Design
+      initial: Design,
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)]
   ): Either[Vector[PassDiagnostic], SuccessfulTransformation] = {
     var current = initial
     val eliminated = ArrayBuffer.empty[EliminatedWireExpression]
@@ -209,11 +409,12 @@ object UnnamedWireExpressionEliminationPass {
           return Left(
             canonicalDiagnostics(
               failure,
-              "intermediate canonical IR validation failed"
+              "intermediate canonical IR validation failed",
+              mode
             )
           )
       }
-      val eligible = assessments(view)
+      val eligible = assessments(view, mode, nonblockingReceivers)
         .filter(_.isEligible)
         .sortBy(value => (value.moduleId.value, value.alias.id.value))
 
@@ -225,14 +426,15 @@ object UnnamedWireExpressionEliminationPass {
               Vector(
                 invariantDiagnostic(
                   assessment,
-                  s"owning module '${assessment.moduleId.value}' is unavailable"
+                  s"owning module '${assessment.moduleId.value}' is unavailable",
+                  mode
                 )
               )
             )
           }
           val driver = assessment.driver.getOrElse {
             return Left(
-              Vector(invariantDiagnostic(assessment, "eligible expression has no driver"))
+              Vector(invariantDiagnostic(assessment, "eligible expression has no driver", mode))
             )
           }
           val packedType = assessment.alias.packedType.getOrElse {
@@ -240,7 +442,8 @@ object UnnamedWireExpressionEliminationPass {
               Vector(
                 invariantDiagnostic(
                   assessment,
-                  "eligible expression has no packed type"
+                  "eligible expression has no packed type",
+                  mode
                 )
               )
             )
@@ -253,7 +456,8 @@ object UnnamedWireExpressionEliminationPass {
               Vector(
                 invariantDiagnostic(
                   assessment,
-                  "eligible expression has no receiver occurrence"
+                  "eligible expression has no receiver occurrence",
+                  mode
                 )
               )
             )
@@ -264,21 +468,34 @@ object UnnamedWireExpressionEliminationPass {
             assessment.moduleId,
             assessment.alias.id,
             driver,
-            packedType
+            packedType,
+            mode
           )
           CanonicalIrPassAdapter.bindFixture(rewritten) match {
             case Left(failure) =>
               return Left(
                 canonicalDiagnostics(
                   failure,
-                  s"canonical IR validation failed after eliminating '${assessment.alias.id.value}'"
+                  s"canonical IR validation failed after eliminating '${assessment.alias.id.value}'",
+                  mode
                 )
               )
             case Right(rebound) =>
               current = rebound.design
+              val reportOrigin = mode.origin(assessment.alias.nameOrigin).getOrElse {
+                return Left(
+                  Vector(
+                    invariantDiagnostic(
+                      assessment,
+                      "eligible expression published no accepted name provenance",
+                      mode
+                    )
+                  )
+                )
+              }
               eliminated += EliminatedWireExpression(
                 aliasSymbol = passSymbol(assessment.alias.id),
-                nameOrigin = AliasNameOrigin.Unnamed,
+                nameOrigin = reportOrigin,
                 rootOperator = rootOperator(driver.value),
                 expressionNodeCount = expressionNodeCount(driver.value),
                 receiverCount = receiverCount,
@@ -295,12 +512,16 @@ object UnnamedWireExpressionEliminationPass {
     Right(SuccessfulTransformation(current, eliminated.toVector))
   }
 
-  private def assessments(view: CanonicalIrPassView): Vector[Assessment] =
+  private def assessments(
+      view: CanonicalIrPassView,
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)] = Set.empty
+  ): Vector[Assessment] =
     view.modules.flatMap { module =>
       module.declarations
-        .filter(_.nameOrigin == NameOrigin.Unnamed)
+        .filter(mode.consider)
         .filter(value => isExpressionShapedCandidate(module, value.id))
-        .map(value => assess(module, value))
+        .map(value => assess(module, value, mode, nonblockingReceivers))
     }.sortBy(value => (value.moduleId.value, value.alias.id.value))
 
   private def isExpressionShapedCandidate(
@@ -313,43 +534,45 @@ object UnnamedWireExpressionEliminationPass {
 
   private def assess(
       module: CanonicalModuleView,
-      alias: Declaration
+      alias: Declaration,
+      mode: WireExpressionEliminationMode,
+      nonblockingReceivers: Set[(ModuleId, DriverId)]
   ): Assessment = {
     val violations = ArrayBuffer.empty[Violation]
 
     if (alias.kind != DeclarationKind.InternalCombinational) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.AliasKind,
+        mode.safetyReason("ALIAS-NOT-INTERNAL-COMBINATIONAL"),
         s"candidate kind '${alias.kind.label}' is not an internal combinational wire"
       )
     }
-    if (alias.nameOrigin != NameOrigin.Unnamed) {
+    if (mode.origin(alias.nameOrigin).isEmpty) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.NameOrigin,
-        "candidate is not proven unnamed by source/elaboration metadata"
+        mode.safetyReason("NAME-ORIGIN-UNPROVEN"),
+        s"candidate is not proven ${mode.candidateDescription} by source/elaboration metadata"
       )
     }
     if (!alias.observability.complete || alias.observability.preventsElimination) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.Observability,
+        mode.safetyReason("OBSERVABILITY-PREVENTS-ELIMINATION"),
         "candidate observability is incomplete or requires preservation"
       )
     }
     if (alias.attributes.nonEmpty) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.DeclarationAttributes,
+        mode.safetyReason("DECLARATION-ATTRIBUTES"),
         s"removing the candidate would discard ${alias.attributes.size} declaration attribute(s)"
       )
     }
     if (alias.comments.nonEmpty) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.DeclarationComments,
+        mode.safetyReason("DECLARATION-COMMENTS"),
         s"removing the candidate would discard ${alias.comments.size} declaration comment(s)"
       )
     }
     if (alias.packedType.isEmpty) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.PackedTypeMissing,
+        mode.safetyReason("PACKED-TYPE-MISSING"),
         "candidate requires complete packed type metadata"
       )
     }
@@ -357,7 +580,7 @@ object UnnamedWireExpressionEliminationPass {
     val drivers = module.driversTargeting(alias.id)
     if (drivers.size != 1) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.DriverCardinality,
+        mode.safetyReason("DRIVER-CARDINALITY"),
         s"candidate requires exactly one driver, observed ${drivers.size}"
       )
     }
@@ -365,37 +588,37 @@ object UnnamedWireExpressionEliminationPass {
     driver.foreach { value =>
       if (value.kind != DriverKind.Continuous) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.DriverNotContinuous,
+          mode.safetyReason("DRIVER-NOT-CONTINUOUS"),
           s"candidate driver '${value.id.value}' is '${value.kind.label}', so an always-block assignment is retained"
         )
       }
       if (value.coverage != DriverCoverage.FullObject) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.DriverNotFullObject,
+          mode.safetyReason("DRIVER-NOT-FULL-OBJECT"),
           s"candidate driver coverage '${value.coverage.label}' is not full-object"
         )
       }
       if (value.attributes.nonEmpty) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.DriverAttributes,
+          mode.safetyReason("DRIVER-ATTRIBUTES"),
           s"removing the assignment would discard ${value.attributes.size} driver attribute(s)"
         )
       }
       if (value.comments.nonEmpty) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.DriverComments,
+          mode.safetyReason("DRIVER-COMMENTS"),
           s"removing the assignment would discard ${value.comments.size} driver comment(s)"
         )
       }
       if (value.value.directReference.nonEmpty) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.DirectReferenceHandledElsewhere,
-          "direct symbol aliases remain the responsibility of WA-04"
+          mode.safetyReason("DIRECT-REFERENCE-HANDLED-ELSEWHERE"),
+          s"direct symbol aliases remain the responsibility of ${mode.directAliasOwner}"
         )
       }
       if (value.value.referencedSymbols.contains(alias.id)) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.SourceSelfReference,
+          mode.safetyReason("SOURCE-SELF-REFERENCE"),
           "candidate expression directly references its own temporary"
         )
       }
@@ -409,7 +632,7 @@ object UnnamedWireExpressionEliminationPass {
 
     if (driver.nonEmpty && receiverDrivers.isEmpty) {
       violations += violation(
-        UnnamedWireExpressionSafetyReason.NoReceiver,
+        mode.safetyReason("NO-RECEIVER"),
         "candidate has no receiver; dead-code removal is outside this pass"
       )
     }
@@ -417,26 +640,30 @@ object UnnamedWireExpressionEliminationPass {
     receiverDrivers.foreach { receiver =>
       receiver.kind match {
         case DriverKind.Continuous =>
+        case DriverKind.Procedural if nonblockingReceivers.contains(module.id -> receiver.id) &&
+            module.declaration(receiver.target).exists(_.kind == DeclarationKind.Register) =>
+          // Only substitute a pure continuous expression into the existing
+          // register RHS. The driver and its procedural owner are untouched.
         case DriverKind.Procedural =>
           violations += violation(
-            UnnamedWireExpressionSafetyReason.ReceiverProcedural,
+            mode.safetyReason("RECEIVER-PROCEDURAL"),
             s"receiver '${receiver.id.value}' is procedural, so assignments in always blocks are not rewritten"
           )
         case _ =>
           violations += violation(
-            UnnamedWireExpressionSafetyReason.ReceiverContext,
+            mode.safetyReason("RECEIVER-CONTEXT"),
             s"receiver '${receiver.id.value}' has excluded kind '${receiver.kind.label}'"
           )
       }
       module.declaration(receiver.target) match {
         case None =>
           violations += violation(
-            UnnamedWireExpressionSafetyReason.ReceiverTarget,
+            mode.safetyReason("RECEIVER-TARGET"),
             s"receiver target '${receiver.target.value}' is unresolved"
           )
-        case Some(target) if !allowedReceiverTarget(target) =>
+        case Some(target) if !allowedReceiverTarget(target, receiver.kind) =>
           violations += violation(
-            UnnamedWireExpressionSafetyReason.ReceiverTarget,
+            mode.safetyReason("RECEIVER-TARGET"),
             s"receiver target '${target.id.value}' has excluded kind '${target.kind.label}'"
           )
         case _ =>
@@ -452,7 +679,8 @@ driver.foreach { sourceDriver =>
         alias.id,
         sourceDriver.value,
         packedType,
-        receiver.id
+        receiver.id,
+        mode
       )
     }
   }
@@ -464,13 +692,13 @@ driver.foreach { sourceDriver =>
         module.declaration(reference.target) match {
           case None =>
             violations += violation(
-              UnnamedWireExpressionSafetyReason.SourceUnresolved,
+              mode.safetyReason("SOURCE-UNRESOLVED"),
               s"expression source '${reference.target.value}' is unresolved"
             )
           case Some(source) =>
             if (!allowedSource(source)) {
               violations += violation(
-                UnnamedWireExpressionSafetyReason.SourceKind,
+                mode.safetyReason("SOURCE-KIND"),
                 s"expression source '${source.id.value}' has excluded kind '${source.kind.label}'"
               )
             }
@@ -480,7 +708,7 @@ driver.foreach { sourceDriver =>
                 .foreach { receiverReference =>
                   if (!scopeIsAncestor(module, source.owner, receiverReference.owner)) {
                     violations += violation(
-                      UnnamedWireExpressionSafetyReason.IllegalScopeReplacement,
+                      mode.safetyReason("ILLEGAL-SCOPE-REPLACEMENT"),
                       s"expression source '${source.id.value}' is not visible from receiver '${receiverReference.id.value}'"
                     )
                   }
@@ -491,7 +719,7 @@ driver.foreach { sourceDriver =>
       val dependencies = value.value.referencedSymbols.distinct
       if (dependencies.exists(source => createsCombinationalCycle(module, alias.id, source))) {
         violations += violation(
-          UnnamedWireExpressionSafetyReason.CombinationalCycle,
+          mode.safetyReason("COMBINATIONAL-CYCLE"),
           s"inlining expression temporary '${alias.id.value}' is not cycle-free"
         )
       }
@@ -512,13 +740,14 @@ private def receiverSelectionViolations(
     aliasSymbol: SymbolId,
     replacement: RtlExpr,
     packedType: PackedType,
-    receiverId: DriverId
+    receiverId: DriverId,
+    mode: WireExpressionEliminationMode
 ): Vector[Violation] = {
   val failures = ArrayBuffer.empty[Violation]
 
   def reject(detail: String): Unit =
     failures += violation(
-      UnnamedWireExpressionSafetyReason.ReceiverPartialSelect,
+      mode.safetyReason("RECEIVER-PARTIAL-SELECT"),
       s"receiver '${receiverId.value}' $detail; retaining temporary '${aliasSymbol.value}' avoids an illegal nested or general-expression select in Verilog-2001"
     )
 
@@ -643,10 +872,11 @@ private def fencedReplacement(
     receiver: RtlExpr.Ref,
     aliasSymbol: SymbolId,
     width: IntExpr,
-    signedness: morphhdl.ir.v1.Signedness
+    signedness: morphhdl.ir.v1.Signedness,
+    inlineMarker: String
 ): RtlExpr =
   RtlExpr.Resize(
-    cloneForReceiver(replacement, receiver, aliasSymbol),
+    cloneForReceiver(replacement, receiver, aliasSymbol, inlineMarker),
     width,
     signedness
   )
@@ -657,7 +887,8 @@ private def composedPartSelect(
     aliasSymbol: SymbolId,
     receiverOffset: IntExpr,
     receiverWidth: IntExpr,
-    packedType: PackedType
+    packedType: PackedType,
+    inlineMarker: String
 ): Option[RtlExpr] = replacement match {
   case RtlExpr.PartSelect(source: RtlExpr.Ref, sourceOffset, sourceWidth)
       if sourceWidth == packedType.width &&
@@ -669,7 +900,7 @@ private def composedPartSelect(
     Some(
       RtlExpr.Resize(
         RtlExpr.PartSelect(
-          cloneForReceiver(source, receiver, aliasSymbol),
+          cloneForReceiver(source, receiver, aliasSymbol, inlineMarker),
           addOffsets(sourceOffset, receiverOffset),
           receiverWidth
         ),
@@ -685,7 +916,8 @@ private def composedPartSelect(
       moduleId: ModuleId,
       aliasSymbol: SymbolId,
       aliasDriver: Driver,
-      aliasPackedType: PackedType
+      aliasPackedType: PackedType,
+      mode: WireExpressionEliminationMode
   ): Design =
     design
       .copy(
@@ -702,7 +934,8 @@ private def composedPartSelect(
                       driver.value,
                       aliasSymbol,
                       aliasDriver.value,
-                      aliasPackedType
+                      aliasPackedType,
+                      mode.inlineMarker
                     )
                   )
                 }
@@ -717,7 +950,8 @@ private def inlineReferences(
     expression: RtlExpr,
     aliasSymbol: SymbolId,
     replacement: RtlExpr,
-    packedType: PackedType
+    packedType: PackedType,
+    inlineMarker: String
 ): RtlExpr = expression match {
   case RtlExpr.PartSelect(
         receiver @ RtlExpr.Ref(_, target, _, _),
@@ -730,7 +964,8 @@ private def inlineReferences(
         receiver,
         aliasSymbol,
         packedType.width,
-        morphhdl.ir.v1.Signedness.Unsigned
+        morphhdl.ir.v1.Signedness.Unsigned,
+        inlineMarker
       )
     } else {
       composedPartSelect(
@@ -739,7 +974,8 @@ private def inlineReferences(
         aliasSymbol,
         offset,
         width,
-        packedType
+        packedType,
+        inlineMarker
       ).getOrElse(expression)
     }
   case RtlExpr.BitSelect(
@@ -750,9 +986,10 @@ private def inlineReferences(
       fencedReplacement(
         replacement,
         receiver,
-        aliasSymbol,
-        packedType.width,
-        morphhdl.ir.v1.Signedness.Unsigned
+      aliasSymbol,
+      packedType.width,
+      morphhdl.ir.v1.Signedness.Unsigned,
+      inlineMarker
       )
     } else expression
   case receiver @ RtlExpr.Ref(_, target, _, _) if target == aliasSymbol =>
@@ -761,55 +998,56 @@ private def inlineReferences(
       receiver,
       aliasSymbol,
       packedType.width,
-      packedType.signedness
+      packedType.signedness,
+      inlineMarker
     )
   case value: RtlExpr.Ref => value
   case value: RtlExpr.Literal => value
   case RtlExpr.Unary(operator, value) =>
     RtlExpr.Unary(
       operator,
-      inlineReferences(value, aliasSymbol, replacement, packedType)
+      inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker)
     )
   case RtlExpr.Binary(operator, left, right) =>
     RtlExpr.Binary(
       operator,
-      inlineReferences(left, aliasSymbol, replacement, packedType),
-      inlineReferences(right, aliasSymbol, replacement, packedType)
+      inlineReferences(left, aliasSymbol, replacement, packedType, inlineMarker),
+      inlineReferences(right, aliasSymbol, replacement, packedType, inlineMarker)
     )
   case RtlExpr.Mux(condition, whenTrue, whenFalse) =>
     RtlExpr.Mux(
-      inlineReferences(condition, aliasSymbol, replacement, packedType),
-      inlineReferences(whenTrue, aliasSymbol, replacement, packedType),
-      inlineReferences(whenFalse, aliasSymbol, replacement, packedType)
+      inlineReferences(condition, aliasSymbol, replacement, packedType, inlineMarker),
+      inlineReferences(whenTrue, aliasSymbol, replacement, packedType, inlineMarker),
+      inlineReferences(whenFalse, aliasSymbol, replacement, packedType, inlineMarker)
     )
   case RtlExpr.Concat(values) =>
     RtlExpr.Concat(
       values.map(value =>
-        inlineReferences(value, aliasSymbol, replacement, packedType)
+        inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker)
       )
     )
   case RtlExpr.BitSelect(value, index) =>
     val rewrittenValue =
       if (referencesAlias(value, aliasSymbol)) value
-      else inlineReferences(value, aliasSymbol, replacement, packedType)
+      else inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker)
     RtlExpr.BitSelect(
       rewrittenValue,
-      inlineReferences(index, aliasSymbol, replacement, packedType)
+      inlineReferences(index, aliasSymbol, replacement, packedType, inlineMarker)
     )
   case RtlExpr.PartSelect(value, offset, width) =>
     val rewrittenValue =
       if (referencesAlias(value, aliasSymbol)) value
-      else inlineReferences(value, aliasSymbol, replacement, packedType)
+      else inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker)
     RtlExpr.PartSelect(rewrittenValue, offset, width)
   case RtlExpr.Resize(value, width, signedness) =>
     RtlExpr.Resize(
-      inlineReferences(value, aliasSymbol, replacement, packedType),
+      inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker),
       width,
       signedness
     )
   case RtlExpr.Cast(value, signedness) =>
     RtlExpr.Cast(
-      inlineReferences(value, aliasSymbol, replacement, packedType),
+      inlineReferences(value, aliasSymbol, replacement, packedType, inlineMarker),
       signedness
     )
 }
@@ -817,7 +1055,8 @@ private def inlineReferences(
   private def cloneForReceiver(
       expression: RtlExpr,
       receiver: RtlExpr.Ref,
-      aliasSymbol: SymbolId
+      aliasSymbol: SymbolId,
+      inlineMarker: String
   ): RtlExpr = {
     var referenceOrdinal = 0
 
@@ -827,7 +1066,7 @@ private def inlineReferences(
         referenceOrdinal += 1
         value.copy(
           id = ReferenceId.unsafe(
-            s"${receiver.id.value}.wa07-inline.${aliasSymbol.value}.$ordinal.${value.id.value}"
+            s"${receiver.id.value}.$inlineMarker.${aliasSymbol.value}.$ordinal.${value.id.value}"
           ),
           owner = receiver.owner
         )
@@ -861,7 +1100,8 @@ private def inlineReferences(
     case _                                          => false
   }
 
-  private def allowedReceiverTarget(value: Declaration): Boolean = value.kind match {
+  private def allowedReceiverTarget(value: Declaration, driverKind: DriverKind): Boolean = value.kind match {
+    case DeclarationKind.Register if driverKind == DriverKind.Procedural => true
     case DeclarationKind.Port(PortDirection.Output) => true
     case DeclarationKind.InternalCombinational      => true
     case _                                          => false
@@ -962,12 +1202,16 @@ private def inlineReferences(
   }
 
   private def rejectedExpression(
-      assessment: Assessment
+      assessment: Assessment,
+      mode: WireExpressionEliminationMode
   ): Option[RejectedWireAlias] =
-    assessment.violations.headOption.map { value =>
+    for {
+      value <- assessment.violations.headOption
+      reportOrigin <- mode.origin(assessment.alias.nameOrigin)
+    } yield {
       RejectedWireAlias(
         aliasSymbol = passSymbol(assessment.alias.id),
-        nameOrigin = AliasNameOrigin.Unnamed,
+        nameOrigin = reportOrigin,
         reasonCode = value.code,
         message = value.message,
         location = assessment.alias.sourceLocation.flatMap(passLocation)
@@ -975,30 +1219,32 @@ private def inlineReferences(
     }
 
   private def eliminationDiagnostics(
-      eliminated: Vector[EliminatedWireExpression]
+      eliminated: Vector[EliminatedWireExpression],
+      mode: WireExpressionEliminationMode
   ): Vector[PassDiagnostic] =
     eliminated.map { value =>
       PassDiagnostic(
-        code = UnnamedWireExpressionDiagnosticCode.Eliminated,
+        code = mode.diagnosticCode("ELIMINATED"),
         severity = DiagnosticSeverity.Info,
         message =
-          s"inlined unnamed ${value.rootOperator} expression '${value.aliasSymbol.value}' into ${value.receiverCount} continuous receiver(s) and removed the temporary",
-        passId = Some(passId),
+          s"inlined ${mode.candidateDescription} ${value.rootOperator} expression '${value.aliasSymbol.value}' into ${value.receiverCount} receiver RHS expression(s) and removed the temporary",
+        passId = Some(mode.passId),
         location = value.location
       )
     }
 
   private def rejectionDiagnostics(
-      assessments: Vector[Assessment]
+      assessments: Vector[Assessment],
+      mode: WireExpressionEliminationMode
   ): Vector[PassDiagnostic] =
     assessments.filterNot(_.isEligible).flatMap { assessment =>
       assessment.violations.map { value =>
         PassDiagnostic(
-          code = UnnamedWireExpressionDiagnosticCode.Rejected,
+          code = mode.diagnosticCode("REJECTED"),
           severity = DiagnosticSeverity.Warning,
           message =
-            s"retained unnamed expression temporary '${assessment.alias.id.value}': ${value.code}: ${value.message}",
-          passId = Some(passId),
+            s"retained ${mode.candidateDescription} expression temporary '${assessment.alias.id.value}': ${value.code}: ${value.message}",
+          passId = Some(mode.passId),
           location = assessment.alias.sourceLocation.flatMap(passLocation)
         )
       }
@@ -1006,14 +1252,15 @@ private def inlineReferences(
 
   private def canonicalDiagnostics(
       failure: CanonicalIrAdapterFailure,
-      prefix: String
+      prefix: String,
+      mode: WireExpressionEliminationMode
   ): Vector[PassDiagnostic] =
     failure.diagnostics.values.map { diagnostic =>
       PassDiagnostic(
         code = diagnostic.code,
         severity = DiagnosticSeverity.Error,
         message = canonicalMessage(prefix, diagnostic),
-        passId = Some(passId),
+        passId = Some(mode.passId),
         location = diagnostic.location.flatMap(passLocation)
       )
     }
@@ -1026,14 +1273,15 @@ private def inlineReferences(
 
   private def invariantDiagnostic(
       assessment: Assessment,
-      message: String
+      message: String,
+      mode: WireExpressionEliminationMode
   ): PassDiagnostic =
     PassDiagnostic(
-      code = UnnamedWireExpressionDiagnosticCode.RewriteInvariant,
+      code = mode.diagnosticCode("REWRITE-INVARIANT"),
       severity = DiagnosticSeverity.Error,
       message =
-        s"cannot eliminate unnamed expression temporary '${assessment.alias.id.value}': $message",
-      passId = Some(passId),
+        s"cannot eliminate ${mode.candidateDescription} expression temporary '${assessment.alias.id.value}': $message",
+      passId = Some(mode.passId),
       location = assessment.alias.sourceLocation.flatMap(passLocation)
     )
 

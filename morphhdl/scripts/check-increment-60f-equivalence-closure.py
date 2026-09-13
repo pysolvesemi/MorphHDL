@@ -517,10 +517,13 @@ def inherited_production_profile(root: Path, rollout=None) -> str:
         source_bytes = source.read_bytes()
         if rollout is not None and path in rollout.PRODUCTION:
             source_bytes = rollout.restore_60g_source(root, path, source_bytes.decode()).encode()
-        if ternary_enabled:
-            source_bytes = ternary.restore_pass_source(root, path, source_bytes)
+        # The named/publication reviewers first restore the authenticated
+        # outer successor. The ternary pass layer then restores its older
+        # WA-07a bytes; those must never re-enter the later WA-08 projection.
         if named is not None:
             source_bytes = named.restore_source(root, path, source_bytes.decode()).encode()
+        if ternary_enabled:
+            source_bytes = ternary.restore_pass_source(root, path, source_bytes)
         require(hashlib.sha256(source_bytes).hexdigest() == digest, diagnostic + path)
         stage = git("ls-files", "--stage", "--", path).decode("utf-8").split()
         require(len(stage) == 4 and stage[0] == "100644" and stage[2] == "0" and stage[3] == path,
@@ -621,11 +624,12 @@ def rollout_composition(root: Path):
 
 
 def verify_native_source_scope(root: Path) -> None:
+    # The current merged native tree must pass its own canonical audit; frozen
+    # parent checks below additionally preserve the historical certificates.
+    subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                   cwd=root, check=True)
     composition = rollout_composition(root)
     if composition is None:
-        # Preserve the exact historical standalone 60f behavior.
-        subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
-                       cwd=root, check=True)
         return
 
     for label, revision in (("feature", composition.FEATURE_PARENT),
@@ -646,6 +650,25 @@ def verify_native_source_scope(root: Path) -> None:
                 subprocess.run(["git", "worktree", "remove", "--force", str(worktree)],
                                cwd=root, check=True)
     print("60f joined native source audits PASS at exact 59i feature and target parents", flush=True)
+
+
+def verify_native_hooks(root: Path) -> None:
+    """Authenticate successor bytes before comparing the exact frozen hooks."""
+    ternary = boolean_ternary_review(root)
+    adapter = getattr(ternary, "wa08_overlay", None)
+    overlay = adapter(root) if adapter is not None else None
+    if overlay is not None:
+        # restore_source alone checks enrolled bytes but is not a substitute
+        # for source-anchor ancestry and complete HEAD/index/worktree identity.
+        overlay.verify(root)
+    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
+        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
+        current = (root / path).read_bytes()
+        if overlay is not None:
+            current = overlay.restore_source(root, path, current)
+        require(current == old,
+                "native signed declaration/cast hooks changed after their frozen qualification")
 
 
 def source_scope(root: Path) -> None:
@@ -695,11 +718,7 @@ def source_scope(root: Path) -> None:
             require(current == old, "sealed writer/checker changed: " + path)
     # Current native printers and signedness policies remain sealed while 59e
     # legitimately evolves the independently reviewed Vec publication path.
-    for path in ("core/src/main/scala/spinal/core/internals/VerilogBase.scala",
-                 "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"):
-        old = subprocess.check_output(["git", "show", COMPLETED_60F + ":" + path], cwd=root)
-        require((root / path).read_bytes() == old,
-                "native signed declaration/cast hooks changed after their frozen qualification")
+    verify_native_hooks(root)
     publisher = root / "morphhdl/scripts/check-increment-59f-source-scope.py"
     if publisher.exists():
         load(root, "59f-source-scope").source_scope(root)

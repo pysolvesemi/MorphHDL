@@ -1,0 +1,390 @@
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13791 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] compiling 1 Scala source to /workspace/scratch/6b630b856865/MorphHdl/core/target/scala-2.12/test-classes ...
+[info] done compiling
+[info] NativePureExpressionCopyTests:
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:31
+[Runtime] Current date : 2026.09.12 10:31:31
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.176 : Checks and transforms
+[Progress] at 0.208 : Checks and transforms
+[Progress] at 0.260 : Generate Verilog to /tmp/verilog-emitter-inline-2062212343024000573
+[Progress] at 0.260 : Generate Verilog to /tmp/native-pure-expression-copy-4632108688397708705
+[Done] at 0.298
+[Done] at 0.298
+[info] - shared operator edges clone independently while signal identity and widths survive
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:31
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:31
+[Progress] at 0.313 : Elaborate components
+[Progress] at 0.313 : Elaborate components
+[Progress] at 0.320 : Checks and transforms
+[Progress] at 0.322 : Generate Verilog to /tmp/native-pure-expression-copy-1473666302369005442
+[info] - metadata, unrepresented subclasses, expression cycles and expansion fail closed
+[Done] at 0.333
+[Progress] at 0.340 : Checks and transforms
+[Progress] at 0.344 : Generate Verilog to /tmp/verilog-emitter-inline-1100283019017862932
+[Done] at 0.354
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.363 : Elaborate components
+[Progress] at 0.369 : Checks and transforms
+[info] VerilogEmitterExpressionInliningTests:
+[info] - the opt-in policy inlines an exact fixed unsigned widening-add tree
+[info] - ordinary Verilog emission retains the historical wrappers
+[Progress] at 0.372 : Generate Verilog to /tmp/verilog-emitter-inline-4336569665447862260
+[Done] at 0.378
+[info] - a truncating root retains its sizing boundary
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.383 : Elaborate components
+[Progress] at 0.389 : Checks and transforms
+[Progress] at 0.392 : Generate Verilog to /tmp/verilog-emitter-inline-16995182214367803593
+[Done] at 0.397
+[info] - same-width modular overflow keeps the original tree while wrappers inline
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.401 : Elaborate components
+[Progress] at 0.411 : Checks and transforms
+[Progress] at 0.413 : Generate Verilog to /tmp/verilog-emitter-inline-16630199831400173404
+[Done] at 0.418
+[info] - signed addition retains emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.423 : Elaborate components
+[Progress] at 0.428 : Checks and transforms
+[Progress] at 0.431 : Generate Verilog to /tmp/verilog-emitter-inline-13633890748944286570
+[Done] at 0.436
+[info] - widening concatenation preserves narrower modular arithmetic without a carrier
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.441 : Elaborate components
+[Progress] at 0.477 : Checks and transforms
+[Progress] at 0.480 : Generate Verilog to /tmp/verilog-emitter-inline-708350630571113406
+[Done] at 0.485
+[info] - a retained symbolic resize target cannot be treated as its fixed witness
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.489 : Elaborate components
+[Progress] at 0.496 : Checks and transforms
+[Progress] at 0.498 : Generate Verilog to /tmp/verilog-emitter-inline-10237849195514777721
+[Done] at 0.505
+[info] - slice operands retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.509 : Elaborate components
+[Progress] at 0.514 : Checks and transforms
+[Progress] at 0.517 : Generate Verilog to /tmp/verilog-emitter-inline-16412514661054132038
+[Done] at 0.520
+[info] - annotated leaf declarations remain while redundant expression wrappers inline
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[info] - annotated expression wrapper nodes fail the policy closed
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.524 : Elaborate components
+[Progress] at 0.527 : Checks and transforms
+[Progress] at 0.530 : Generate Verilog to /tmp/verilog-emitter-inline-8431227675790741561
+[Warning] 1 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 0.534
+[info] - a shared expression node retains one emitter-created carrier
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.542 : Elaborate components
+[Progress] at 0.556 : Checks and transforms
+[Progress] at 0.559 : Generate Verilog to /tmp/verilog-emitter-inline-8079937015069048425
+[Done] at 0.563
+[info] - an annotated target retains emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.567 : Elaborate components
+[Progress] at 0.574 : Checks and transforms
+[Progress] at 0.576 : Generate Verilog to /tmp/verilog-emitter-inline-3841756564990356180
+[Done] at 0.582
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] - partial assignments retain emitter-created boundaries
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.585 : Elaborate components
+[Progress] at 0.592 : Checks and transforms
+[Progress] at 0.598 : Generate Verilog to /tmp/verilog-emitter-inline-2710537281700172987
+[Done] at 0.603
+[info] - procedural assignments retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.607 : Elaborate components
+[Progress] at 0.612 : Checks and transforms
+[Progress] at 0.614 : Generate Verilog to /tmp/verilog-emitter-inline-6005316148401339195
+[Done] at 0.618
+[info] - initial assignments retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.621 : Elaborate components
+[Progress] at 0.628 : Checks and transforms
+[Progress] at 0.630 : Generate Verilog to /tmp/verilog-emitter-inline-828060820650991881
+[Done] at 0.634
+[info] - multiply-driven targets retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.637 : Elaborate components
+[Progress] at 0.640 : Checks and transforms
+[Progress] at 0.644 : Generate Verilog to /tmp/verilog-emitter-inline-18268767672465129141
+[Done] at 0.647
+[info] - literal and widening resize operands inline inside nested comparisons
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.650 : Elaborate components
+[Progress] at 0.660 : Checks and transforms
+[Progress] at 0.664 : Generate Verilog to /tmp/verilog-emitter-inline-887734169389538340
+[Done] at 0.669
+[info] - same-width subtraction inlines into equality and ternary arms
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.672 : Elaborate components
+[Progress] at 0.680 : Checks and transforms
+[Progress] at 0.688 : Generate Verilog to /tmp/verilog-emitter-inline-18285431980835287995
+[Done] at 0.695
+[info] - conditional register update preserves its final select carrier and state
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.698 : Elaborate components
+[Progress] at 0.703 : Checks and transforms
+[Progress] at 0.706 : Generate Verilog to /tmp/verilog-emitter-inline-3535245537532795467
+[Done] at 0.711
+[info] - a subtraction used as a procedural condition keeps the original comparison width
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.715 : Elaborate components
+[Progress] at 0.721 : Checks and transforms
+[Progress] at 0.722 : Generate Verilog to /tmp/verilog-emitter-inline-15431751380530291050
+[Done] at 0.727
+[info] - an exact expression identity may inline only when its receiver width is proven
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.729 : Elaborate components
+[Progress] at 0.734 : Checks and transforms
+[Progress] at 0.738 : Generate Verilog to /tmp/verilog-emitter-inline-1040542740474887940
+[info] - an unsupported Boolean sibling does not veto independently sized comparison operands
+[Done] at 0.742
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.745 : Elaborate components
+[Progress] at 0.774 : Checks and transforms
+[Progress] at 0.778 : Generate Verilog to /tmp/verilog-emitter-inline-7240689524129118626
+[Done] at 0.783
+[info] - static disjoint bit receivers inline pure comparison RHS expressions
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.786 : Elaborate components
+[Progress] at 0.792 : Checks and transforms
+[Progress] at 0.797 : Generate Verilog to /tmp/verilog-emitter-inline-4915891467490054078
+[Done] at 0.801
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.803 : Elaborate components
+[info] - static disjoint ranges use each selected receiver width
+[Progress] at 0.808 : Checks and transforms
+[Progress] at 0.811 : Generate Verilog to /tmp/verilog-emitter-inline-8397406655074267210
+[Done] at 0.822
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:32
+[Progress] at 0.824 : Elaborate components
+[Progress] at 0.832 : Checks and transforms
+[Progress] at 0.835 : Generate Verilog to /tmp/verilog-emitter-inline-17758099283895128101
+[Done] at 0.839
+[info] - depth cutting does not recreate eligible leaf literal carriers
+[info] Run completed in 1 second, 611 milliseconds.
+[info] Total number of tests run: 27
+[info] Suites: completed 2, aborted 0
+[info] Tests: succeeded 27, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 7 s, completed Sep 12, 2026, 10:31:32 AM
+[info] compiling 1 Scala source to /workspace/scratch/6b630b856865/MorphHdl/morphhdl/target/scala-2.12/classes ...
+[info] done compiling
+[info] compiling 1 Scala source to /workspace/scratch/6b630b856865/MorphHdl/morphhdl/target/scala-2.12/test-classes ...
+[info] done compiling
+[info] NativeWireExpressionCodecTests:
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:36
+[Runtime] Current date : 2026.09.12 10:31:36
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.293 : Checks and transforms
+[Progress] at 0.294 : Checks and transforms
+[Progress] at 0.390 : Generate Verilog to /tmp/morphhdl-single-source-13135125961475186943
+[Progress] at 0.391 : Generate Verilog to /tmp/morphhdl-single-source-16119565567310674044
+[Done] at 0.616
+[Done] at 0.616
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.637 : Elaborate components
+[info] - fixed resize and subtraction preserve authoritative native widths in capture
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.643 : Elaborate components
+[Progress] at 0.660 : Checks and transforms
+[Progress] at 0.668 : Checks and transforms
+[Progress] at 0.669 : Generate Verilog to /tmp/morphhdl-single-source-18321571572444489601
+[Progress] at 0.670 : Generate Verilog to /tmp/morphhdl-single-source-16499191968574591133
+[Done] at 0.684
+[Done] at 0.686
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[info] - arithmetic right shift and case equality are not mislabeled as logical operators
+[Progress] at 0.688 : Elaborate components
+[Progress] at 0.703 : Checks and transforms
+[Progress] at 0.709 : Generate Verilog to /tmp/morphhdl-single-source-2015575743498576811
+[Done] at 0.727
+[info] MorphVerilogExpressionInliningTests:
+[info] - public MorphVerilog inlines the fixed unsigned extended addition tree
+[info] - explicitly disabled optimization preserves the legacy wrapper structure
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.732 : Elaborate components
+[Progress] at 0.746 : Checks and transforms
+[Progress] at 0.750 : Generate Verilog to /tmp/morph-verilog-expression-inline-7663897362712334828
+[Done] at 0.756
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[info] - ordinary SpinalVerilog remains unchanged
+[Progress] at 0.760 : Elaborate components
+[Progress] at 0.787 : Checks and transforms
+[Progress] at 0.800 : Generate Verilog to /tmp/morphhdl-single-source-10704840181544399690
+[Done] at 0.822
+[info] - parameter-dependent resize carriers remain while redundant arithmetic wrappers inline
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.826 : Elaborate components
+[Progress] at 0.841 : Checks and transforms
+[Progress] at 0.849 : Generate Verilog to /tmp/morphhdl-single-source-3425802352438012406
+[Done] at 0.867
+[info] - disabled parameter-dependent generation preserves both resize and add wrappers
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.874 : Elaborate components
+[Progress] at 0.886 : Checks and transforms
+[Progress] at 0.898 : Generate Verilog to /tmp/morphhdl-single-source-10652141797944718915
+[Done] at 0.916
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 0.920 : Elaborate components
+[Progress] at 0.936 : Checks and transforms
+[Progress] at 1.014 : Generate Verilog to /tmp/morphhdl-single-source-7025606876833540547
+[info] - an output-register receiver retains its port and unsupported canonical timing context
+[Done] at 1.028
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.031 : Elaborate components
+[Progress] at 1.040 : Checks and transforms
+[Progress] at 1.043 : Generate Verilog to /tmp/morphhdl-single-source-13295220378455112715
+[Done] at 1.055
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.057 : Elaborate components
+[Progress] at 1.064 : Checks and transforms
+[Progress] at 1.068 : Generate Verilog to /tmp/morphhdl-single-source-4338852365037572449
+[Done] at 1.082
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.085 : Elaborate components
+[Progress] at 1.097 : Checks and transforms
+[Progress] at 1.101 : Generate Verilog to /tmp/morphhdl-single-source-11208537198179011393
+[Done] at 1.116
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.118 : Elaborate components
+[Progress] at 1.124 : Checks and transforms
+[Progress] at 1.127 : Generate Verilog to /tmp/morphhdl-single-source-9919537971738220586
+[Done] at 1.137
+[info] - repeated public generation is byte deterministic
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.142 : Elaborate components
+[Progress] at 1.153 : Checks and transforms
+[Progress] at 1.157 : Generate Verilog to /tmp/morphhdl-single-source-16705916157690205399
+[Done] at 1.170
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] - a fixed native receiver cannot replace a distinct symbolic expression fence
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.175 : Elaborate components
+[Progress] at 1.182 : Checks and transforms
+[Progress] at 1.185 : Generate Verilog to /tmp/morphhdl-single-source-8684135145148895129
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.202 : Elaborate components
+[Progress] at 1.212 : Checks and transforms
+[Progress] at 1.215 : Generate Verilog to /tmp/morphhdl-single-source-13260117021220905529
+[info] - optimization cannot erase a rejected symbolic assignment at an equal default width
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:37
+[Progress] at 1.230 : Elaborate components
+[Progress] at 1.260 : Checks and transforms
+[Progress] at 1.379 : Generate Verilog to /tmp/morphhdl-single-source-13220366775448185448
+[Done] at 1.391
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:31:38
+[Progress] at 1.394 : Elaborate components
+[Progress] at 1.402 : Checks and transforms
+[Progress] at 1.416 : Generate Verilog to /tmp/morphhdl-single-source-17103883739417118182
+[Done] at 1.433
+[info] - symbolic source widths preserve retained roots and permit valid shared-width inlining
+[info] - the private emitter marker does not admit unrelated generation flags
+[info] Run completed in 2 seconds, 196 milliseconds.
+[info] Total number of tests run: 13
+[info] Suites: completed 2, aborted 0
+[info] Tests: succeeded 13, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 6 s, completed Sep 12, 2026, 10:31:38 AM

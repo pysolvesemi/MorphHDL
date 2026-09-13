@@ -58,10 +58,11 @@ def commit(root: Path, *paths: str) -> None:
         "-m", "isolated 59c source-scope control")
 
 
-def checked(root: Path, label: str, expected: str | None = None) -> dict:
+def checked(root: Path, label: str, expected: str | None = None,
+            timeout_seconds: int = 120) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass its complete source checks:\n" + result.stdout)
@@ -120,7 +121,11 @@ def main() -> None:
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
             "target/increment-59c-source-scope",
-            lambda: [checked(ROOT, "current descendant through complete 59h and inherited source audits")],
+            # The current full overlay/inherited traversal measured 127-154s
+            # locally and exceeded 120s in CI. Only this positive audit gets
+            # 600s; historical/mutation controls and Git retain their limits.
+            lambda: [checked(ROOT, "current descendant through complete 59h and inherited source audits",
+                             timeout_seconds=600)],
             "59c current-source controls PASS")
         return
     head = git(ROOT, "rev-parse", "HEAD")

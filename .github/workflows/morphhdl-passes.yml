@@ -154,6 +154,20 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py --self-test
           python3 morphhdl-passes/scripts/check-wa07b-ternary-pass.py
 
+      - name: Enforce WA-09 named-expression and alias-preference contracts
+        shell: bash
+        run: |
+          python3 morphhdl-passes/scripts/check-wa09-named-expression.py --self-test
+          python3 morphhdl-passes/scripts/check-wa09-named-expression.py
+
+      - name: Authenticate WA-10 scope and current general-expression safety contracts
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/check-wa10-source-scope.py
+          python3 morphhdl/scripts/check-wa10-source-scope.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py --self-test
+          python3 morphhdl-passes/scripts/check-wa10-general-expression.py
+
       - name: Verify formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
@@ -237,8 +251,101 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  wa10_production:
+    name: WA-10 general-expression production Scala ${{ matrix.scala }}
+    needs: [boundary, contracts]
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ["2.12.18", "2.13.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Generate enabled disabled and repeated production artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} \
+            "core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests" \
+            "morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests" \
+            "morph/Test/runMain TimingExpressionArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/timing" \
+            "morph/Test/runMain morphhdl.examples.GeneralExpressionInliningArtifactWriter $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/general" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter timing $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/timing" \
+            "morph/Test/runMain NativeExpressionDiagnosticsWriter general $GITHUB_WORKSPACE/morphhdl-passes/build/wa10/diagnostics/general"
+      - name: Compare disabled output to the executed WA-09 legacy artifact
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          baseline = Path('morphhdl-passes/evidence/wa10/baseline')
+          recorded = json.loads((baseline / 'manifest.json').read_text())
+          assert recorded['compiler_commit'] == '086cb4c642d0182e33bd86fd391f46fc7c0eb2a8'
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              path = Path(fixture) / 'disabled' / name
+              original = (baseline / path).read_bytes()
+              assert hashlib.sha256(original).hexdigest() == recorded['files'][path.as_posix()], path
+              current = Path('morphhdl-passes/build/wa10') / fixture / 'first/disabled' / name
+              assert current.read_bytes() == original, path
+          print('WA10_DISABLED_LEGACY_BYTES_PASS files=2')
+          PY
+      - name: Validate actual emitted expressions and arithmetic equivalence
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa10-regression.sh --artifacts morphhdl-passes/build/wa10
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-production-${{ matrix.scala }}
+          path: morphhdl-passes/build/wa10
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa10-test-reports-${{ matrix.scala }}
+          path: |
+            core/target/test-reports
+            morphhdl/target/test-reports
+          if-no-files-found: error
+
+  wa10_cross_scala:
+    name: WA-10 production byte identity across Scala versions
+    needs: wa10_production
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wa10-production-*
+          path: artifacts
+      - name: Compare every fixture and optimization mode
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          left = Path('artifacts/wa10-production-2.12.18')
+          right = Path('artifacts/wa10-production-2.13.12')
+          count = 0
+          for fixture, name in (('timing', 'TimingExpressionExample.v'),
+                                ('general', 'GeneralExpressionInlining.v')):
+              for mode in ('default', 'enabled', 'disabled'):
+                  path = Path(fixture) / 'first' / mode / name
+                  assert (left / path).read_bytes() == (right / path).read_bytes(), path
+                  count += 1
+          assert count == 6
+          print('WA10_CROSS_SCALA_PASS files=6')
+          PY
+
   native_generation:
-    name: WA-04 through WA-07b native generation, legality and four-state checks
+    name: WA-04 through WA-09 native generation, legality and four-state checks
     needs: [boundary, contracts]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -319,11 +426,15 @@ jobs:
         shell: bash
         run: bash morphhdl-passes/scripts/run-wa07b-regression.sh --after-wa07a
 
+      - name: Generate named-expression and six-stage candidates against the same reference
+        shell: bash
+        run: bash morphhdl-passes/scripts/run-wa09-regression.sh --after-wa07b
+
       - name: Bind native inputs to this exact source revision
         shell: bash
         run: |
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --capture-native-inputs --prove-pending WA-07a --prove-pending WA-07b
+            --capture-native-inputs --prove-pending WA-07a --prove-pending WA-07b --prove-pending WA-09
           git diff --exit-code -- .
 
       - name: Retain common reference, proof statuses and mutation counterexample
@@ -338,7 +449,7 @@ jobs:
 
 
   formal_shards:
-    name: WA-07a and WA-07b full-domain proof shard ${{ matrix.shard }} / 16
+    name: WA-07a through WA-09 full-domain proof shard ${{ matrix.shard }} / 16
     needs: [native_generation]
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
     runs-on: ubuntu-latest
@@ -368,7 +479,7 @@ jobs:
           set -euo pipefail
           yosys -V | grep -Eq '^Yosys 0\.41([ +]|$)'
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
-            --verify-native-inputs --prove-pending WA-07a --prove-pending WA-07b
+            --verify-native-inputs --prove-pending WA-07a --prove-pending WA-07b --prove-pending WA-09
 
       - name: Prove every owned binding twice without reducing the admitted domain
         shell: bash
@@ -377,7 +488,7 @@ jobs:
           python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py \
             --shared-witness morphhdl-passes/build/formal/wire_assignment_ir/generated/parameterized_stream_fifo.v \
             --output morphhdl-passes/build/formal/wire_assignment_ir/evidence \
-            --prove-pending WA-07a --prove-pending WA-07b \
+            --prove-pending WA-07a --prove-pending WA-07b --prove-pending WA-09 \
             --formal-jobs 4 \
             --formal-shard-index ${{ matrix.shard }} --formal-shard-count 16 \
             --check-determinism
@@ -410,7 +521,7 @@ jobs:
           retention-days: 14
 
   equivalence:
-    name: WA-04 through WA-07b legality, equivalence, mutation and determinism proof
+    name: WA-04 through WA-09 legality, equivalence, mutation and determinism proof
     needs: [native_generation, formal_shards]
     if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
     runs-on: ubuntu-latest
@@ -451,7 +562,7 @@ jobs:
           set -euo pipefail
           python3 morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py \
             --shards morphhdl-passes/build/formal-shards --shard-count 16 \
-            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a --prove-pending WA-07b
+            --output morphhdl-passes/build/formal-aggregate --prove-pending WA-07a --prove-pending WA-07b --prove-pending WA-09
           git diff --exit-code -- .
 
       - name: Retain full-domain qualification summary

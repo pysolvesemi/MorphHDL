@@ -51,18 +51,28 @@ final class NamedWireAliasEliminationPassSpec
   private val depthParameterId = ParameterId.unsafe("parameter.depth")
   private val sourceId = SymbolId.unsafe("symbol.source")
   private val otherSourceId = SymbolId.unsafe("symbol.other-source")
+  private val expressionId = SymbolId.unsafe("symbol.expression")
+  private val expressionInputId = SymbolId.unsafe("symbol.expression-input")
   private val aliasId = SymbolId.unsafe("symbol.alias")
   private val secondAliasId = SymbolId.unsafe("symbol.alias-second")
   private val sinkId = SymbolId.unsafe("symbol.sink")
   private val aliasDriverId = DriverId.unsafe("driver.alias")
+  private val sourceDriverId = DriverId.unsafe("driver.source")
+  private val expressionDriverId = DriverId.unsafe("driver.expression")
   private val secondAliasDriverId = DriverId.unsafe("driver.alias-second")
   private val sinkDriverId = DriverId.unsafe("driver.sink")
   private val sourceReferenceId = ReferenceId.unsafe("reference.alias.source")
+  private val expressionReferenceId = ReferenceId.unsafe("reference.source.expression")
+  private val expressionInputReferenceId =
+    ReferenceId.unsafe("reference.expression.input")
   private val aliasReferenceId = ReferenceId.unsafe("reference.sink.alias")
   private val secondAliasReferenceId = ReferenceId.unsafe("reference.sink.alias-second")
 
   private val enabled = WireAliasPassConfiguration.selectedForTesting(
       morphhdl.passes.api.PassId.NamedWireAliasElimination
+    )
+  private val unnamedExpressionEnabled = WireAliasPassConfiguration.selectedForTesting(
+      morphhdl.passes.api.PassId.UnnamedWireExpressionElimination
     )
 
   private val widthDomain = IntegerParameterDomain(
@@ -196,6 +206,111 @@ final class NamedWireAliasEliminationPassSpec
       top = moduleId,
       modules = Vector(module)
     )
+  }
+
+  /**
+    * Build `expression := input ^ 1; source := expression; alias := source`.
+    * The generated expression remains independently eligible, which lets the
+    * direct pass prove a name preference without moving either assignment.
+    */
+  private def preferenceDesign(
+      sourceOrigin: NameOrigin,
+      aliasOrigin: NameOrigin,
+      sourceObservability: Observability = Observability.Unobserved
+  ): Design = {
+    val sourcePath = "src/NamePreferenceFixture.scala"
+    val expressionInput = Declaration(
+      id = expressionInputId,
+      owner = rootScopeId,
+      kind = DeclarationKind.Port(PortDirection.Input),
+      packedType = Some(packedType),
+      nameOrigin = NameOrigin.Explicit("inputValue"),
+      sourceLocation = Some(location(sourcePath, 9)),
+      observability = Observability(complete = true, externallyVisible = true)
+    )
+    val expression = Declaration(
+      id = expressionId,
+      owner = rootScopeId,
+      kind = DeclarationKind.InternalCombinational,
+      packedType = Some(packedType),
+      nameOrigin = NameOrigin.Generated,
+      sourceLocation = Some(location(sourcePath, 10)),
+      observability = Observability.Unobserved
+    )
+    val expressionDriver = Driver(
+      id = expressionDriverId,
+      owner = rootScopeId,
+      target = expressionId,
+      kind = DriverKind.Continuous,
+      coverage = DriverCoverage.FullObject,
+      value = RtlExpr.Binary(
+        RtlBinaryOperator.BitwiseXor,
+        RtlExpr.Ref(
+          expressionInputReferenceId,
+          expressionInputId,
+          rootScopeId,
+          Some(location(sourcePath, 14))
+        ),
+        RtlExpr.Literal(BigInt(1), width = 1)
+      ),
+      sourceLocation = Some(location(sourcePath, 14))
+    )
+    val sourceDriver = Driver(
+      id = sourceDriverId,
+      owner = rootScopeId,
+      target = sourceId,
+      kind = DriverKind.Continuous,
+      coverage = DriverCoverage.FullObject,
+      value = RtlExpr.Ref(
+        expressionReferenceId,
+        expressionId,
+        rootScopeId,
+        Some(location(sourcePath, 15))
+      ),
+      sourceLocation = Some(location(sourcePath, 15))
+    )
+
+    updateModule(
+      updateDeclaration(
+        baseDesign(aliasOrigin = aliasOrigin, sourcePath = sourcePath),
+        sourceId
+      )(
+        _.copy(
+          kind = DeclarationKind.InternalCombinational,
+          packedType = Some(packedType),
+          nameOrigin = sourceOrigin,
+          observability = sourceObservability
+        )
+      )
+    ) { module =>
+      module.copy(
+        declarations = module.declarations ++ Vector(expressionInput, expression),
+        drivers = module.drivers ++ Vector(sourceDriver, expressionDriver)
+      )
+    }
+  }
+
+  /** Build `source := input ^ 1; alias := source` without a generated middle wire. */
+  private def expressionSourceDesign(
+      sourceOrigin: NameOrigin,
+      aliasOrigin: NameOrigin
+  ): Design = {
+    val direct = preferenceDesign(sourceOrigin, aliasOrigin)
+    val expressionValue = moduleOf(direct).drivers
+      .find(_.id == expressionDriverId)
+      .get
+      .value
+    updateModule(direct) { module =>
+      module.copy(
+        declarations = module.declarations.filterNot(_.id == expressionId),
+        drivers = module.drivers
+          .filterNot(_.id == expressionDriverId)
+          .map { driver =>
+            if (driver.id == sourceDriverId) driver.copy(value = expressionValue)
+            else driver
+          }
+      )
+    }
   }
 
   private def updateModule(design: Design)(operation: Module => Module): Design =
@@ -356,17 +471,23 @@ final class NamedWireAliasEliminationPassSpec
     targets shouldBe Vector(sourceId, otherSourceId)
   }
 
-  test("only explicit source names are candidates and emitted-name text is not classification") {
+  test("source provenance rather than emitted-name spelling selects candidates") {
     val explicit = run(baseDesign(aliasOrigin = NameOrigin.Explicit("_zz_7")))
     explicit.status shouldBe PassExecutionStatus.Changed
     explicit.eliminationReport.eliminated.head.nameOrigin shouldBe
       AliasNameOrigin.Explicit("_zz_7")
 
-    val retainedOrigins = Vector[NameOrigin](
-      NameOrigin.Unnamed,
-      NameOrigin.Reflected("keptAlias"),
-      NameOrigin.Generated
-    )
+    val reflected = run(baseDesign(aliasOrigin = NameOrigin.Reflected("reflectedAlias")))
+    reflected.status shouldBe PassExecutionStatus.Changed
+    reflected.eliminationReport.eliminated.head.nameOrigin shouldBe
+      AliasNameOrigin.Reflected("reflectedAlias")
+
+    val generated = run(baseDesign(aliasOrigin = NameOrigin.Generated))
+    generated.status shouldBe PassExecutionStatus.Changed
+    generated.eliminationReport.eliminated.head.nameOrigin shouldBe
+      AliasNameOrigin.Generated
+
+    val retainedOrigins = Vector[NameOrigin](NameOrigin.Unnamed)
     retainedOrigins.foreach { origin =>
       val result = run(baseDesign(aliasOrigin = origin))
       val outputModule = moduleOf(result.output)
@@ -376,6 +497,163 @@ final class NamedWireAliasEliminationPassSpec
       outputModule.declarations.map(_.id) should contain(aliasId)
       outputModule.drivers.map(_.id) should contain(aliasDriverId)
     }
+
+    val unknownDesign = baseDesign(aliasOrigin = NameOrigin.Unknown)
+    val unknown = run(unknownDesign)
+    unknown.status shouldBe PassExecutionStatus.Failed
+    unknown.output shouldBe unknownDesign
+    unknown.eliminationReport.isEmpty shouldBe true
+  }
+
+  test("shorter meaningful direct alias wins by eliminating its removable source first") {
+    val result = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Explicit("substantiallyLongerSource"),
+        aliasOrigin = NameOrigin.Explicit("abc")
+      )
+    )
+    val outputModule = moduleOf(result.output)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(aliasId)
+    outputModule.declarations.map(_.id) should not contain sourceId
+    outputModule.declarations.find(_.id == aliasId).get.nameOrigin shouldBe
+      NameOrigin.Explicit("abc")
+    outputModule.drivers.find(_.id == aliasDriverId).get.value.directReference shouldBe
+      Some(expressionId)
+    result.eliminationReport.eliminated.map(_.aliasSymbol) should contain(
+      IrSymbolId.unsafe(sourceId.value)
+    )
+    result.eliminationReport.eliminated.find(
+      _.aliasSymbol == IrSymbolId.unsafe(sourceId.value)
+    ).get.sourceSymbol shouldBe IrSymbolId.unsafe(expressionId.value)
+    result.eliminationReport.rejected.map(_.aliasSymbol) should not contain (
+      IrSymbolId.unsafe(expressionId.value)
+    )
+  }
+
+  test("shorter meaningful source wins and the longer alias is removed") {
+    val result = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Reflected("abc"),
+        aliasOrigin = NameOrigin.Explicit("substantiallyLongerAlias")
+      )
+    )
+    val outputModule = moduleOf(result.output)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(sourceId)
+    outputModule.declarations.map(_.id) should not contain aliasId
+    outputModule.declarations.find(_.id == sourceId).get.nameOrigin shouldBe
+      NameOrigin.Reflected("abc")
+    outputModule.drivers.find(_.id == sinkDriverId).get.value.directReference shouldBe
+      Some(sourceId)
+    result.eliminationReport.eliminated.map(_.aliasSymbol) should contain(
+      IrSymbolId.unsafe(aliasId.value)
+    )
+  }
+
+  test("equal-length meaningful names use a deterministic lexical identity tie-break") {
+    val aliasWins = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Explicit("bbb"),
+        aliasOrigin = NameOrigin.Reflected("aaa")
+      )
+    )
+    val sourceWins = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Reflected("aaa"),
+        aliasOrigin = NameOrigin.Explicit("bbb")
+      )
+    )
+
+    moduleOf(aliasWins.output).declarations.map(_.id) should contain(aliasId)
+    moduleOf(aliasWins.output).declarations.map(_.id) should not contain sourceId
+    moduleOf(sourceWins.output).declarations.map(_.id) should contain(sourceId)
+    moduleOf(sourceWins.output).declarations.map(_.id) should not contain aliasId
+  }
+
+  test("meaningful underscore name beats generated provenance regardless of length") {
+    val result = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Generated,
+        aliasOrigin = NameOrigin.Explicit("_zz")
+      )
+    )
+    val outputModule = moduleOf(result.output)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(aliasId)
+    outputModule.declarations.map(_.id) should not contain sourceId
+    outputModule.declarations.find(_.id == aliasId).get.nameOrigin shouldBe
+      NameOrigin.Explicit("_zz")
+    result.eliminationReport.eliminated.find(
+      _.aliasSymbol == IrSymbolId.unsafe(sourceId.value)
+    ).get.nameOrigin shouldBe AliasNameOrigin.Generated
+  }
+
+  test("meaningful name beats unnamed provenance through a removable direct chain") {
+    val result = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Unnamed,
+        aliasOrigin = NameOrigin.Explicit("abc")
+      )
+    )
+    val outputModule = moduleOf(result.output)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(aliasId)
+    outputModule.declarations.map(_.id) should not contain sourceId
+    outputModule.declarations.find(_.id == aliasId).get.nameOrigin shouldBe
+      NameOrigin.Explicit("abc")
+    result.eliminationReport.eliminated.find(
+      _.aliasSymbol == IrSymbolId.unsafe(sourceId.value)
+    ).get.nameOrigin shouldBe AliasNameOrigin.Unnamed
+  }
+
+  test("meaningful name survives independently eligible unnamed expression removal") {
+    val design = expressionSourceDesign(
+      sourceOrigin = NameOrigin.Unnamed,
+      aliasOrigin = NameOrigin.Reflected("abc")
+    )
+    val direct = run(design)
+    val expression = UnnamedWireExpressionEliminationPass.run(
+      direct.output,
+      unnamedExpressionEnabled
+    )
+    val outputModule = moduleOf(expression.output)
+
+    direct.status shouldBe PassExecutionStatus.Unchanged
+    direct.output shouldBe design.normalized
+    expression.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(aliasId)
+    outputModule.declarations.map(_.id) should not contain sourceId
+    outputModule.declarations.find(_.id == aliasId).get.nameOrigin shouldBe
+      NameOrigin.Reflected("abc")
+    outputModule.drivers.find(_.id == aliasDriverId).get.value.directReference shouldBe None
+  }
+
+  test("protected direct source remains the anchor even when its name is generated") {
+    val result = run(
+      preferenceDesign(
+        sourceOrigin = NameOrigin.Generated,
+        aliasOrigin = NameOrigin.Explicit("abc"),
+        sourceObservability = Observability(complete = true, keep = true)
+      )
+    )
+    val outputModule = moduleOf(result.output)
+
+    result.status shouldBe PassExecutionStatus.Changed
+    outputModule.declarations.map(_.id) should contain(sourceId)
+    outputModule.declarations.map(_.id) should not contain aliasId
+    outputModule.declarations.find(_.id == sourceId).get.nameOrigin shouldBe
+      NameOrigin.Generated
+    result.eliminationReport.eliminated.map(_.aliasSymbol) should contain(
+      IrSymbolId.unsafe(aliasId.value)
+    )
+    result.eliminationReport.rejected.map(_.reasonCode) should contain(
+      AliasSafetyReason.Keep
+    )
   }
 
   test("unsafe explicitly named alias is retained with deterministic rejection evidence") {

@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: increment-59i-widening-captures-development
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   qualify:
@@ -53,7 +53,9 @@ jobs:
             morphhdl/repair-59i-composite-widening-publication/apply.py \
             morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py \
             morphhdl/repair-59i-widening-captures/apply.py \
-            morphhdl/repair-59i-widening-captures/finish-composition.py
+            morphhdl/repair-59i-widening-captures/finish-composition.py \
+            morphhdl/repair-59i-widening-captures/apply-symbolic-geometry.py \
+            morphhdl/repair-59i-widening-captures/check-saturation.py
 
           python3 morphhdl/repair-59i-composite-widening-publication/apply.py \
             | tee "$out/application.log"
@@ -114,14 +116,22 @@ jobs:
             | tee -a "$out/application.log"
 
           git add -N -- \
+            morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeGeometry.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           git diff --check
 
           cat > "$out/expected-files.txt" <<'EOF'
+          core/src/main/scala/spinal/core/Bits.scala
           core/src/main/scala/spinal/core/ElabInt.scala
+          core/src/main/scala/spinal/core/NativeWidthProvenance.scala
+          core/src/main/scala/spinal/core/UInt.scala
           morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala
+          morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+          morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeGeometry.scala
+          morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
@@ -129,12 +139,16 @@ jobs:
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeLeafReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
           morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionOperatorReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningCaptureTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningConstructionPolicyTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningPublicationTests.scala
           morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala
           EOF
           {
             git diff --name-only
@@ -144,6 +158,7 @@ jobs:
           diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
           git diff --stat | tee "$out/diff-stat.txt"
           git diff --binary > "$out/candidate.diff"
+          sha256sum $(cat "$out/expected-files.txt") > "$out/source-sha256.txt"
 
       - name: Bootstrap pinned SBT
         shell: bash
@@ -175,7 +190,7 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-widening-captures"
-          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningConstructionPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests'
+          suites='spinal.core.internals.TypedBalancedReductionCompositeWideningCaptureTests spinal.core.internals.TypedBalancedReductionCompositeWideningPublicationTests spinal.core.internals.TypedBalancedReductionCompositeWideningConstructionPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeSaturationTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedResultTests spinal.core.internals.TypedBalancedReductionOperatorReplayTests spinal.core.internals.TypedBalancedReductionClosedGraphTests spinal.core.internals.TypedBalancedReductionNativeGeometryTests'
           for scala in 2.12.18 2.13.12; do
             log="$out/tests-$scala.log"
             status=0
@@ -183,13 +198,26 @@ jobs:
               'morph/Test/compile' \
               "morph/Test/testOnly $suites" > "$log" 2>&1 || status=$?
             tail -n 500 "$log"
+            mkdir -p "$out/test-reports/$scala"
+            find morphhdl/target/test-reports -maxdepth 1 -type f -name '*.xml' \
+              -exec cp {} "$out/test-reports/$scala/" \;
             test "$status" -eq 0
             grep -q 'All tests passed' "$log"
+            grep -q 'Total number of tests run: 152' "$log"
             ! grep -q '\*\*\* FAILED \*\*\*' "$log"
+
+            "$out/sbt.sh" "$scala" \
+              "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeSaturationArtifacts $out/saturation-$scala-a" \
+              "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeSaturationArtifacts $out/saturation-$scala-b" \
+              > "$out/saturation-generation-$scala.log" 2>&1
+            python3 morphhdl/repair-59i-widening-captures/check-saturation.py \
+              "$out/saturation-$scala-a" "$out/saturation-$scala-b" --jobs 2 \
+              > "$out/saturation-hardware-$scala.log" 2>&1
           done
-          mkdir -p "$out/test-reports"
-          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
-          sha256sum $(cat "$out/expected-files.txt") > "$out/source-sha256.txt"
+          sha256sum --check "$out/source-sha256.txt"
+          diff -r "$out/saturation-2.12.18-a/packed" "$out/saturation-2.13.12-a/packed"
+          diff -r "$out/saturation-2.12.18-a/fields" "$out/saturation-2.13.12-a/fields"
+          diff -r "$out/saturation-2.12.18-a/native" "$out/saturation-2.13.12-a/native"
 
       - name: Print exact failing test diagnostics
         if: failure()

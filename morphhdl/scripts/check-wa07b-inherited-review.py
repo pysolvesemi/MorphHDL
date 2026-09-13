@@ -31,6 +31,26 @@ ADAPTER_PATHS = (
     "morphhdl/scripts/check-increment-60f-artifacts.py",
 )
 
+WA08_OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
+
+
+def wa08_overlay(root: Path):
+    path = root / WA08_OVERLAY
+    if not (path.exists() or path.is_symlink()):
+        return None
+    require(path.is_file() and not path.is_symlink(), "missing regular WA-08 overlay")
+    spec = importlib.util.spec_from_file_location("wa08_overlay", path)
+    require(spec is not None and spec.loader is not None, "cannot load WA-08 overlay")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def restore_wa08(root: Path, path: str, source: bytes) -> bytes:
+    overlay = wa08_overlay(root)
+    return source if overlay is None else overlay.restore_source(root, path, source)
+
+
 
 def require(condition: bool, detail: str) -> None:
     if not condition:
@@ -138,13 +158,36 @@ def joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:
     return join.restore_source(root, path, source.decode()).encode()
 
 
+def restore_rollout(root: Path, path: str, source: str) -> str:
+    """Reverse only the separately pinned outer publication layer, if present.
+
+    This is byte restoration, not a validation shortcut: verify() still checks
+    the complete current pass tree and index, and restore_bytes() still binds
+    all original WA-07b adapter spans to their immutable baseline.
+    """
+    helper = root / "morphhdl/scripts/check-increment-60g-source-scope.py"
+    if not (helper.exists() or helper.is_symlink()):
+        return source
+    require(helper.is_file() and not helper.is_symlink(), "missing regular 60g reviewer")
+    spec = importlib.util.spec_from_file_location("rollout_60g_scope", helper)
+    require(spec is not None and spec.loader is not None, "cannot import 60g reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.restore_60g_source(root, path, source)
+
+
 def restore_adapter(root: Path, path: str, source: str) -> str:
     if path not in ADAPTER_PATHS:
         return source
     value = load_contract(root)
     entry = next(x for x in value["checker_adapters"] if x["path"] == path)
-    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path),
-                         joined_adapter_source(root, path, source.encode())).decode()
+    join_inputs = (root / "morphhdl/scripts/check-increment-59i-source-review.py",
+                   root / "morphhdl/contracts/increment-59i-source-review.json")
+    if any(path.exists() or path.is_symlink() for path in join_inputs):
+        reviewed = joined_adapter_source(root, path, source.encode())
+    else:
+        reviewed = restore_rollout(root, path, source).encode()
+    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), reviewed).decode()
 
 
 def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str, tuple[str, str]]:
@@ -163,6 +206,8 @@ def tree_entries(root: Path, revision: str, paths: tuple[str, ...]) -> dict[str,
 
 def verify(root: Path) -> bool:
     """Validate real checkout bytes, HEAD and index before choosing a profile."""
+    overlay = wa08_overlay(root)
+    reviewed_overlay = overlay.verify(root) if overlay is not None else None
     value = load_contract(root)
     git(root, "merge-base", "--is-ancestor", BASE, "HEAD")
     entries = tree_entries(root, "HEAD", ROOTS)
@@ -182,23 +227,40 @@ def verify(root: Path) -> bool:
             require(not path.is_symlink(), "symlink in pass source inventory: " + path.relative_to(root).as_posix())
             if path.is_file():
                 physical.add(path.relative_to(root).as_posix())
-    # Older source-audit controls require this diagnostic category. The new
-    # exact inventory check can reject a changed sibling before those audits
-    # run; preserve the category without permitting any different source bytes.
+    # These are complete inventories, not revision-to-HEAD change sets. Remove
+    # only authenticated successor additions; an edited inherited declaration
+    # must remain present even when its restored bytes match an older revision.
+    # The outer verification above binds every addition and edit to actual
+    # source/index/HEAD bytes. Raw index/tree equality and frozen source hashes
+    # remain independently mandatory below.
+    projected_entries = set(entries)
+    projected_physical = set(physical)
+    if reviewed_overlay is not None:
+        successor_additions = {entry["path"] for entry in reviewed_overlay["files"]
+                               if entry["before_sha256"] is None}
+        projected_entries -= successor_additions
+        projected_physical -= successor_additions
+
+    # Older source-audit controls require this diagnostic category. The exact
+    # projected inventory check can reject a changed sibling before those
+    # audits run; preserve the category without permitting different bytes.
     main = lambda paths: {path for path in paths if path.startswith(ROOTS[0] + "/")}
-    require(main(entries) == main(expected) and main(physical) == main(expected),
+    require(main(projected_entries) == main(expected) and
+            main(projected_physical) == main(expected),
             "unreviewed production delta: incomplete or extra pass main source inventory; " +
-            "missing=" + repr(sorted(main(expected) - main(physical))) +
-            "; extra=" + repr(sorted(main(physical) - main(expected))))
+            "missing=" + repr(sorted(main(expected) - main(projected_physical))) +
+            "; extra=" + repr(sorted(main(projected_physical) - main(expected))))
     # Removing only the ternary marker selects the old inventory. Verify the
     # remaining main bytes before reporting extra tests from a partial upgrade.
     for path in sorted(main(expected)):
-        require(digest(regular(root, path)) == expected[path],
+        inherited = restore_wa08(root, path, regular(root, path))
+        require(digest(inherited) == expected[path],
                 "unreviewed production delta: unreviewed pass main/test bytes: " + path)
-    require(set(entries) == set(expected) and physical == set(expected),
+    require(projected_entries == set(expected) and
+            projected_physical == set(expected),
             "incomplete or extra pass main/test source inventory; " +
-            "missing=" + repr(sorted(set(expected) - physical)) +
-            "; extra=" + repr(sorted(physical - set(expected))))
+            "missing=" + repr(sorted(set(expected) - projected_physical)) +
+            "; extra=" + repr(sorted(projected_physical - set(expected))))
     indexed = {}
     for record in git(root, "ls-files", "--stage", "-z", "--", *ROOTS).split(b"\0"):
         if not record:
@@ -210,11 +272,12 @@ def verify(root: Path) -> bool:
         indexed[path] = (mode, oid)
     require(indexed == entries, "staged or missing pass source differs from HEAD")
     for path, fingerprint in expected.items():
-        data = regular(root, path)
+        actual = regular(root, path)
+        data = restore_wa08(root, path, actual)
         category = ("unreviewed production delta" if path.startswith(ROOTS[0] + "/")
                     else "unreviewed pass test source")
         require(digest(data) == fingerprint, category + ": unreviewed pass main/test bytes: " + path)
-        oid = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        oid = hashlib.sha1(b"blob " + str(len(actual)).encode() + b"\0" + actual).hexdigest()
         require(oid == entries[path][1], "uncommitted pass source differs from HEAD: " + path)
     adapters = tree_entries(root, "HEAD", (*ADAPTER_PATHS, CONTRACT))
     require(set(adapters) == set(ADAPTER_PATHS) | {CONTRACT}, "uncommitted compatibility adapters or manifest")
@@ -232,9 +295,19 @@ def verify(root: Path) -> bool:
 
 
 def inherited_inventory(root: Path, paths: set[str], qualification_base: str) -> set[str]:
-    """Strip only the complete verified B delta; retain every unrelated path."""
+    """Strip only complete verified successor deltas; retain every unrelated path."""
     if not verify(root):
         return paths
+    overlay = wa08_overlay(root)
+    if overlay is not None:
+        integration = getattr(overlay, "integration_review", lambda _: None)(root)
+        if integration is not None:
+            # This inherited chain owns the feature parent's WA-07b layer.
+            # Keep feature deltas already projected by 59i; target-only WA-08
+            # changes are authenticated by the outer seal before removal.
+            paths = integration.feature_inventory(root, paths, qualification_base)
+        else:
+            paths = overlay.inherited_inventory(root, paths, qualification_base)
     delta = set(load_contract(root)["production_delta"])
     previous = set(git(root, "diff", "--no-renames", "--name-only", qualification_base, BASE,
                        "--", *sorted(delta)).decode().splitlines())
@@ -245,6 +318,19 @@ def restore_pass_source(root: Path, path: str, source: bytes) -> bytes:
     value = load_contract(root)
     if path not in value["production_delta"]:
         return source
+    # The exact joined feature view can already expose the immutable WA-07a
+    # preimage. Idempotence accepts only that complete frozen blob (or a path
+    # proven absent there), before applying a newer WA-08 byte projection.
+    if path in value["baseline_sources"] and digest(source) == value["baseline_sources"][path]:
+        require(source == frozen_source(root.resolve(), BASE, path), "old pass source changed: " + path)
+        return source
+    if path not in value["baseline_sources"] and source == b"":
+        require(not git(root, "ls-tree", BASE, "--", path), "new B source exists in the old baseline")
+        return source
+    # Non-pass sources may already be restored by the independently verified
+    # publication layer. Only reverse the WA-08 overlay on this layer's owned
+    # pass sources; their exact signatures remain mandatory below.
+    source = restore_wa08(root, path, source)
     require(digest(source) == value["ternary_sources"][path], "unreviewed B source in inherited byte view: " + path)
     if path not in value["baseline_sources"]:
         require(not git(root, "ls-tree", BASE, "--", path), "new B source exists in the old baseline")

@@ -48,7 +48,8 @@ import spinal.core.internals._
   */
 private[examples] final class AllWireAssignmentNativePhase extends Phase {
   private val unnamed = new UnnamedWireAliasNativePhase
-  private val named = new NamedWireAliasNativePhase
+  private val named =
+    new NamedWireAliasNativePhase(deferPreferredExpressionSource = false)
   private val expression = new UnnamedWireExpressionNativePhase
   private var completed = false
 
@@ -350,7 +351,7 @@ object ParameterizedStreamFifoAllPassWitness {
       max = BigInt(8)
     )
 
-    val generated = MorphVerilog(config) {
+    val generated = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
       new ParameterizedStreamFifo(width, depth)
     }
     val generatedPath = Paths

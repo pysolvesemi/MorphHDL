@@ -1,0 +1,4 @@
+TRACE 0 0 1 1 0 0001 00000 00001 1fff 01 ff 001 0ff 07f 380 00 7f 000 1fff 1fff 0
+WA10_FAIL sample=1 reason=mutation detected word=0000 other=0000 total=0000 narrow=00 signedA=80
+FATAL: /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/tests/wa10/general_expression_tb.v:53:
+       Time: 4000  Scope: GeneralExpressionInliningTb.fail

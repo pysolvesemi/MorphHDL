@@ -191,7 +191,7 @@ object CanonicalIrPassAdapter {
   def bind(handoff: CanonicalIrHandoff): CanonicalIrPassView = {
     require(handoff != null, "canonical IR handoff must not be null")
     require(
-      handoff.profile == CanonicalIrProfile.SimpleWireAssignmentsV1,
+      handoff.profile == CanonicalIrHandoff.productionProfile,
       s"unsupported canonical IR producer profile '${handoff.profile.id}'"
     )
     require(

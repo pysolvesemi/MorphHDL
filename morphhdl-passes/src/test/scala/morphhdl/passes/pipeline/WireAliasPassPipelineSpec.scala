@@ -356,10 +356,10 @@ final class WireAliasPassPipelineSpec extends AnyFunSuite with Matchers {
     val named = WireAliasPassPipeline.run(design, namedOnly)
     named.status shouldBe PassExecutionStatus.Changed
     named.executedPasses shouldBe Vector(PassId.NamedWireAliasElimination)
-    declarationIds(named.output) should contain(unnamedAliasId)
+    declarationIds(named.output) should not contain unnamedAliasId
     declarationIds(named.output) should not contain namedAliasId
     targets(driverOf(named.output, directSinkDriverId).value) shouldBe Vector(
-      unnamedAliasId
+      sourceId
     )
   }
 

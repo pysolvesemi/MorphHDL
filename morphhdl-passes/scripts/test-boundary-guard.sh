@@ -76,15 +76,75 @@ expect_success \
 
 root_manifest="${tmp_dir}/root.txt"
 printf '%s\n' 'build.sbt' >"${root_manifest}"
-expect_failure \
-  'repository root build changes are rejected' \
-  run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/increment-62-wa08-source-overlay.json" ]]; then
+  expect_success \
+    'exact reviewed shared build inputs are accepted through the WA-08 overlay' \
+    run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+else
+  expect_failure \
+    'repository root build changes are rejected without a reviewed overlay' \
+    run_checker agent/wa-01-isolated-pass-workspace "${root_manifest}"
+fi
 
 upstream_manifest="${tmp_dir}/upstream.txt"
 printf '%s\n' 'core/src/main/scala/spinal/core/Phase.scala' >"${upstream_manifest}"
 expect_failure \
   'upstream-owned SpinalHDL source changes are rejected' \
   run_checker agent/wa-01-isolated-pass-workspace "${upstream_manifest}"
+
+wa09_manifest="${tmp_dir}/wa09.txt"
+printf '%s\n' \
+  '.github/workflows/increment-60f-equivalence-closure.yml' \
+  '.github/workflows/increment-60g-default-signed-verilog.yml' \
+  'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala' \
+  'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala' \
+  'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala' \
+  'morphhdl/contracts/increment-62-wa08-source-overlay.json' \
+  'morphhdl/contracts/increment-55-native-change-review.json' \
+  'morphhdl/contracts/native-source-preservation.json' \
+  'morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
+  'morphhdl/scripts/check-increment-60f-equivalence-closure.py' \
+  'morphhdl/scripts/test-increment-60f-inherited-source-scope.py' \
+  'morphhdl/scripts/test-increment-59h-inherited-source-scope.py' \
+  'morphhdl/scripts/test-increment-59c-inherited-source-scope.py' \
+  'morphhdl/scripts/test-increment-59f-source-scope.py' \
+  'morphhdl/scripts/check-increment-60g-source-scope.py' \
+  'morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala' \
+  'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala' \
+  'morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala' \
+  >"${wa09_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/increment-62-wa08-source-overlay.json" ]]; then
+  expect_success \
+    'WA-09 exact cross-workspace sources are admitted through the verified overlay' \
+    run_checker agent/wa-09-named-expression-name-preference "${wa09_manifest}"
+  expect_failure \
+    'WA-09 cross-workspace sources are not admitted on an unrelated branch' \
+    run_checker agent/wa-01-isolated-pass-workspace "${wa09_manifest}"
+fi
+
+wa09_unreviewed_manifest="${tmp_dir}/wa09-unreviewed.txt"
+printf '%s\n' 'core/src/main/scala/spinal/core/Phase.scala' >"${wa09_unreviewed_manifest}"
+expect_failure \
+  'WA-09 does not authorize an unenumerated upstream source' \
+  run_checker agent/wa-09-named-expression-name-preference "${wa09_unreviewed_manifest}"
+
+wa10_manifest="${tmp_dir}/wa10.txt"
+printf '%s\n' \
+  'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala' \
+  'morphhdl/src/test/scala/nativeapplication/GenerateTimingExpressionExample.scala' \
+  'morphhdl/contracts/wa10-source-scope.json' \
+  >"${wa10_manifest}"
+if [[ -f "${repo_root}/morphhdl/contracts/wa10-source-scope.json" ]]; then
+  expect_success \
+    'WA-10 exact general-expression scope is admitted after its predecessor and source seal' \
+    run_checker agent/wa-10-general-expression-inlining "${wa10_manifest}"
+  expect_failure \
+    'WA-10 cross-workspace scope is not admitted on an unrelated branch' \
+    run_checker agent/wa-01-isolated-pass-workspace "${wa10_manifest}"
+fi
+expect_failure \
+  'WA-10 branch spelling does not authorize an unenumerated upstream source' \
+  run_checker agent/wa-10-general-expression-inlining "${wa09_unreviewed_manifest}"
 
 wa08_manifest="${tmp_dir}/wa08.txt"
 printf '%s\n' 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala' >"${wa08_manifest}"

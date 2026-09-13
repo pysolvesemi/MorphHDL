@@ -36,10 +36,10 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def checked(root: Path, label: str, expected: str | None = None) -> dict:
+def checked(root: Path, label: str, expected: str | None = None, timeout_seconds: int = 180) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=180, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass complete source audits:\n" + result.stdout)
@@ -84,7 +84,12 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [checked(ROOT, "current exact 59h delta and all inherited audits")]
+    # The complete 427-file parent-union audit took 487.055s on the sealed
+    # integrated tree after batching reads and caching immutable schema checks.
+    # Only this full current positive gets 900s; every negative keeps 180s,
+    # and unchanged frozen historical tests retain their own original limits.
+    timeout = 900 if (ROOT / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 180
+    records = [checked(ROOT, "current exact 59h delta and all inherited audits", timeout_seconds=timeout)]
     prod = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     runtime = "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
     spec = importlib.util.spec_from_file_location(
@@ -142,6 +147,41 @@ def main() -> None:
             ("changed combined successor review", JOIN_CONTRACT, "suffix", "59i reviewed source manifest changed"),
             ("paired production and combined review mutation", prod, "paired-join", "59i reviewed source manifest changed"),
         ]
+    if (ROOT / "morphhdl/scripts/check-increment-62-wa08-source-overlay.py").is_file():
+        # These worktree/index mutations now meet the verified outer inventory
+        # first. Preserve the mutations and require that exact path diagnostic.
+        overlay_paths = {entry["path"] for entry in json.loads((ROOT /
+            "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
+        adapted = []
+        for label, relative, mutation, expected in cases:
+            if mutation == "suffix" and relative in overlay_paths:
+                expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
+            elif (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
+                    relative.endswith("/TypedBalancedReductionCompositeReplay.scala") or
+                    (mutation == "suffix" and relative ==
+                     "core/src/main/scala/spinal/core/internals/VerilogBase.scala")):
+                expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([relative])
+            adapted.append((label, relative, mutation, expected))
+        cases = adapted
+    integration = (composition.integration_review(ROOT)
+                   if composition is not None and hasattr(composition, "integration_review") else None)
+    if integration is not None:
+        # Preserve every current mutation and every frozen historical replay.
+        # The reviewed parent union owns these exact first-rejection paths;
+        # older contracts outside that inventory retain their diagnostics.
+        integration_paths = {entry["path"] for entry in integration.contract(ROOT)["files"]}
+        adapted = []
+        for label, relative, mutation, expected in cases:
+            if mutation in ("suffix", "paired") and relative in integration_paths and relative not in (CONTRACT, JOIN_CONTRACT):
+                expected = "59i target integration: unreviewed bytes cannot enter parent projection: " + relative
+            elif mutation == "hidden-index":
+                expected = "59i target integration: HEAD/index identity differs"
+            elif relative.startswith("foreign/src/main/"):
+                expected = "59i target integration: staged, unstaged or untracked content: " + repr([relative])
+            elif mutation == "suffix" and relative == "core/src/main/scala/spinal/core/internals/VerilogBase.scala":
+                expected = "59i target integration: HEAD/index/worktree identity differs: " + relative
+            adapted.append((label, relative, mutation, expected))
+        cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
             fixture = Path(directory) / ("negative-" + str(index))

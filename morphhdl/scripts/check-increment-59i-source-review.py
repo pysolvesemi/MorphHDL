@@ -240,6 +240,10 @@ def baseline_source(root: Path, path: str) -> bytes:
 
 
 def restore_source(root: Path, path: str, source: str) -> str:
+    composition = load_composition_review(root)
+    integration = composition.integration_review(root)
+    if integration is not None and path == "morphhdl/contracts/native-source-preservation.json":
+        source = integration.feature_source(root, path, source.encode()).decode()
     anchor = load_anchor_review(root)
     try:
         source = anchor.restore_source(root, path, source)

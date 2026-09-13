@@ -1408,19 +1408,34 @@
       "introduced_by": [
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
-        "Increment 60e: signedness boundaries, aggregates and hierarchy closure"
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
+        "WA-10: general typed expression inlining through native capture and structured emission"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
       "edits": [
         {
-          "id": "signed-boundary-60e-componentemitterverilog-1",
+          "id": "componentemitterverilog-wa10-depthcut-snapshot",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Record the exact mandatory wrapper identities before unchanged depth cutting, so eligible literal removal can never discard a pre-existing wrapper.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
+              "text": " {\n      val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n      expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-depthcut-and-signed-transport",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "After depth cutting remove only newly added typed-proven literal carriers; retain every nonliteral depth fence and preserve the exact inherited signed declaration unsigned-transport callback.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      // The depth planner visits a whole breadth frontier, including leaves.\n      // A carrier for an eligible sized literal cannot shorten a computation;\n      // avoid recreating it after the typed expression plan has accepted it.\n      // Keep all non-literal depth fences and all pre-existing mandatory wraps.\n      expressionToWrap.retain {\n        case literal: Literal =>\n          requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)\n        case _ => true\n      }\n    }\n    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
               "count": 1
             }
           ]
@@ -1447,6 +1462,32 @@
             {
               "side": "approved",
               "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-expression-planning",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private lazy val wrappersProvenRedundant =\n    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-required-wrapper-filter",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Apply the generation-local typed proof to the existing expression wrapper planning hook; unproven expression identities retain the original materialization path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n      if (!wrappersProvenRedundant.containsKey(that))",
               "count": 1
             }
           ]
@@ -1556,6 +1597,17 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "WA-10: general typed expression inlining through native capture and structured emission"
+      ],
+      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions.",
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
@@ -1716,6 +1768,18 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
+        "WA-10: general typed expression inlining through native capture and structured emission"
+      ],
+      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",

@@ -725,7 +725,7 @@ object MorphVerilog {
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
-    MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
+    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -734,7 +734,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    )))
+    ))))
   }
 
   private def readSingleSourceParameters[T <: Component](
@@ -752,7 +752,8 @@ object MorphVerilog {
             .flatMap(_.actual.parameters)
         }
       val retained =
-        spinal.core.ParameterizedWidth.parametersOf(report.toplevel) ++
+        spinal.core.internals.MorphHdlExternalParameterizedVerilog
+          .publishedWidthParametersOf(report.toplevel) ++
           spinal.core.ParameterizedMemory.parametersOf(report.toplevel) ++
           spinal.core.ParameterizedVec.parametersOf(report.toplevel) ++
           spinal.core.ExternalParameterizedValueRegistry.parametersOf(report.toplevel) ++

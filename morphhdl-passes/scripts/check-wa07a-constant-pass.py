@@ -221,10 +221,15 @@ def roadmap_failures(roadmap):
             errors.append('WA07A-SUCCESSOR: WA-07b status or dependency disagree')
         handoff_ready = done and ternary_done
     successor = 'READY' if handoff_ready else 'BLOCKED'
-    if f'**Status:** `{successor}`' not in items.get('WA-08', (False, ''))[1]:
+    handoff_done, handoff_body = items.get('WA-08', (False, ''))
+    if handoff_done:
+        if (not all(name in items and items[name][0] and
+                    '**Status:** `COMPLETED`' in items[name][1]
+                    for name in ('WA-07', 'WA-07a', 'WA-07b')) or
+                '**Status:** `COMPLETED`' not in handoff_body):
+            errors.append('WA07A-STATUS: completed handoff requires every prerequisite and COMPLETED status')
+    elif f'**Status:** `{successor}`' not in handoff_body:
         errors.append('WA07A-STATUS: WA-08 dependency disagree')
-    if items.get('WA-08', (False,))[0]:
-        errors.append('WA07A-SCOPE: this increment must not complete WA-08')
     return errors
 
 
@@ -278,6 +283,11 @@ def self_test(root):
     finished = inserted.replace('- [ ] **WA-07b', '- [x] **WA-07b').replace('**Status:** `IN PROGRESS`', '**Status:** `COMPLETED`')
     assert not roadmap_failures(finished)
     assert roadmap_failures(finished.replace('**Status:** `READY`', '**Status:** `BLOCKED`'))
+    handoff = finished.replace('- [ ] **WA-08', '- [x] **WA-08').replace('**Status:** `READY`', '**Status:** `COMPLETED`')
+    assert not roadmap_failures(handoff)
+    for dependency in ('WA-07', 'WA-07a', 'WA-07b', 'WA-08'):
+        assert roadmap_failures(handoff.replace('- [x] **' + dependency + ' —', '- [ ] **' + dependency + ' —')), dependency
+    assert roadmap_failures(finished.replace('- [ ] **WA-08', '- [x] **WA-08'))
     print('WA-07a constant-pass contract self-tests passed.')
 
 

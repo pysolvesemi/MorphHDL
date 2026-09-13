@@ -1,0 +1,455 @@
+REMOVING_VALIDATED_TRUNCATED_GENERATED_JAR lib/target/scala-2.12/spinalhdl-lib_2.12-dev.jar bytes=16249183
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13791 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] Setting Scala version to 2.12.18 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[warn] multiple main classes detected: run 'show discoveredMainClasses' to see the list
+[success] Total time: 3 s, completed Sep 12, 2026, 11:00:09 AM
+[info] running (fork) morphhdl.examples.WireAssignmentProductionArtifactWriter /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:10
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.734 : Checks and transforms
+[info] [Progress] at 1.318 : Generate Verilog to /tmp/morphhdl-single-source-12708228712500315051
+[info] [Done] at 3.075
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:14
+[info] [Progress] at 3.093 : Elaborate components
+[info] [Progress] at 3.139 : Checks and transforms
+[info] [Progress] at 3.160 : Generate Verilog to /tmp/morphhdl-single-source-10606144950077143410
+[info] [Done] at 4.296
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:15
+[info] [Progress] at 4.299 : Elaborate components
+[info] [Progress] at 4.333 : Checks and transforms
+[info] [Progress] at 4.419 : Generate Verilog to /tmp/morphhdl-single-source-15404125488528877292
+[info] [Done] at 5.469
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:16
+[info] [Progress] at 5.474 : Elaborate components
+[info] [Progress] at 5.505 : Checks and transforms
+[info] [Progress] at 5.520 : Generate Verilog to /tmp/morphhdl-single-source-14445079286202641097
+[info] [Done] at 6.519
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/fifo-legacy/generated.v
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:17
+[info] [Progress] at 6.525 : Elaborate components
+[info] [Progress] at 6.557 : Checks and transforms
+[info] [Progress] at 6.631 : Generate Verilog to /tmp/morphhdl-single-source-11077305641337116746
+[info] [Done] at 7.655
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/fifo-historical-all/generated.v
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:18
+[info] [Progress] at 7.661 : Elaborate components
+[info] [Progress] at 7.690 : Checks and transforms
+[info] [Progress] at 7.759 : Generate Verilog to /tmp/morphhdl-single-source-3111692912953657247
+[info] [Done] at 8.779
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.783 : Elaborate components
+[info] [Progress] at 8.789 : Checks and transforms
+[info] [Progress] at 8.792 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/generic-reference
+[info] [Done] at 8.797
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.797 : Elaborate components
+[info] [Progress] at 8.802 : Checks and transforms
+[info] [Progress] at 8.852 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/generic-enabled
+[info] [Done] at 8.859
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.860 : Elaborate components
+[info] [Progress] at 8.863 : Checks and transforms
+[info] [Progress] at 8.890 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/generic-default
+[info] [Done] at 8.894
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.895 : Elaborate components
+[info] [Progress] at 8.911 : Checks and transforms
+[info] [Progress] at 8.919 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/generic-disabled
+[info] [Done] at 8.922
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.923 : Elaborate components
+[info] [Progress] at 8.926 : Checks and transforms
+[info] [Progress] at 8.928 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/generic-plain
+[info] [Done] at 8.934
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:19
+[info] [Progress] at 8.936 : Elaborate components
+[info] [Progress] at 8.957 : Checks and transforms
+[info] [Progress] at 9.120 : Generate Verilog to /tmp/morphhdl-single-source-8449016329346501996
+[info] [Done] at 9.151
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.154 : Elaborate components
+[info] [Progress] at 9.163 : Checks and transforms
+[info] [Progress] at 9.282 : Generate Verilog to /tmp/morphhdl-single-source-5486965510756236327
+[info] [Done] at 9.301
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.303 : Elaborate components
+[info] [Progress] at 9.310 : Checks and transforms
+[info] [Progress] at 9.412 : Generate Verilog to /tmp/morphhdl-single-source-18032499824415561073
+[info] [Done] at 9.428
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.430 : Elaborate components
+[info] [Progress] at 9.441 : Checks and transforms
+[info] [Progress] at 9.559 : Generate Verilog to /tmp/morphhdl-single-source-6579677889765175085
+[info] [Done] at 9.574
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.576 : Elaborate components
+[info] [Progress] at 9.586 : Checks and transforms
+[info] [Progress] at 9.590 : Generate Verilog to /tmp/morphhdl-single-source-10505969261056409646
+[info] [Done] at 9.611
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.614 : Elaborate components
+[info] [Progress] at 9.623 : Checks and transforms
+[info] [Progress] at 9.627 : Generate Verilog to /tmp/morphhdl-single-source-11354304982546233760
+[info] [Done] at 9.651
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.655 : Elaborate components
+[info] [Progress] at 9.659 : Checks and transforms
+[info] [Progress] at 9.663 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/named-debug-enabled
+[info] [Done] at 9.666
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.668 : Elaborate components
+[info] [Progress] at 9.671 : Checks and transforms
+[info] [Progress] at 9.672 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/first/named-debug-disabled
+[info] [Done] at 9.675
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.677 : Elaborate components
+[info] [Progress] at 9.685 : Checks and transforms
+[info] [Progress] at 9.688 : Generate Verilog to /tmp/morphhdl-single-source-9458565570628685609
+[info] [Done] at 9.695
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.697 : Elaborate components
+[info] [Progress] at 9.700 : Checks and transforms
+[info] [Progress] at 9.703 : Generate Verilog to /tmp/morphhdl-single-source-12229446903631877856
+[info] [Done] at 9.709
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.711 : Elaborate components
+[info] [Progress] at 9.715 : Checks and transforms
+[info] [Progress] at 9.716 : Generate Verilog to /tmp/morphhdl-single-source-6934933340693900032
+[info] [Done] at 9.722
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.726 : Elaborate components
+[info] [Progress] at 9.730 : Checks and transforms
+[info] [Progress] at 9.731 : Generate Verilog to /tmp/morphhdl-single-source-4151855997777399764
+[info] [Done] at 9.737
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.740 : Elaborate components
+[info] [Progress] at 9.748 : Checks and transforms
+[info] [Progress] at 9.752 : Generate Verilog to /tmp/morphhdl-single-source-2935016374168964843
+[info] [Done] at 9.761
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.763 : Elaborate components
+[info] [Progress] at 9.767 : Checks and transforms
+[info] [Progress] at 9.768 : Generate Verilog to /tmp/morphhdl-single-source-6082869937573796568
+[info] [Done] at 9.774
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.775 : Elaborate components
+[info] [Progress] at 9.780 : Checks and transforms
+[info] [Progress] at 9.782 : Generate Verilog to /tmp/morphhdl-single-source-9656710121745074666
+[info] [Done] at 9.788
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.790 : Elaborate components
+[info] [Progress] at 9.794 : Checks and transforms
+[info] [Progress] at 9.797 : Generate Verilog to /tmp/morphhdl-single-source-16184587354966385808
+[info] [Done] at 9.804
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.806 : Elaborate components
+[info] [Progress] at 9.809 : Checks and transforms
+[info] [Progress] at 9.810 : Generate Verilog to /tmp/morphhdl-single-source-8017383282825023967
+[info] [Done] at 9.816
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.817 : Elaborate components
+[info] [Progress] at 9.822 : Checks and transforms
+[info] [Progress] at 9.823 : Generate Verilog to /tmp/morphhdl-single-source-9451967483408519484
+[info] [Done] at 9.832
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.834 : Elaborate components
+[info] [Progress] at 9.841 : Checks and transforms
+[info] [Progress] at 9.843 : Generate Verilog to /tmp/morphhdl-single-source-9652733877988866547
+[info] [Done] at 9.851
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.852 : Elaborate components
+[info] [Progress] at 9.864 : Checks and transforms
+[info] [Progress] at 9.865 : Generate Verilog to /tmp/morphhdl-single-source-15071475738970545965
+[info] [Done] at 9.874
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:20
+[info] [Progress] at 9.876 : Elaborate components
+[info] [Progress] at 9.906 : Checks and transforms
+[info] [Progress] at 9.959 : Generate Verilog to /tmp/morphhdl-single-source-7054942043836857718
+[info] [Done] at 10.970
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:21
+[info] [Progress] at 10.973 : Elaborate components
+[info] [Progress] at 10.994 : Checks and transforms
+[info] [Progress] at 11.002 : Generate Verilog to /tmp/morphhdl-single-source-3364267202756059058
+[info] [Done] at 11.983
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:22
+[info] [Progress] at 11.986 : Elaborate components
+[info] [Progress] at 12.011 : Checks and transforms
+[info] [Progress] at 12.084 : Generate Verilog to /tmp/morphhdl-single-source-653789744160328792
+[info] [Done] at 13.101
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:24
+[info] [Progress] at 13.103 : Elaborate components
+[info] [Progress] at 13.123 : Checks and transforms
+[info] [Progress] at 13.130 : Generate Verilog to /tmp/morphhdl-single-source-6091125647482610334
+[info] [Done] at 14.130
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/fifo-legacy/generated.v
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:25
+[info] [Progress] at 14.132 : Elaborate components
+[info] [Progress] at 14.166 : Checks and transforms
+[info] [Progress] at 14.200 : Generate Verilog to /tmp/morphhdl-single-source-3440100124392235419
+[info] [Done] at 15.253
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/fifo-historical-all/generated.v
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:26
+[info] [Progress] at 15.255 : Elaborate components
+[info] [Progress] at 15.279 : Checks and transforms
+[info] [Progress] at 15.340 : Generate Verilog to /tmp/morphhdl-single-source-15869185716453717987
+[info] [Done] at 16.408
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.411 : Elaborate components
+[info] [Progress] at 16.414 : Checks and transforms
+[info] [Progress] at 16.415 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/generic-reference
+[info] [Done] at 16.418
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.419 : Elaborate components
+[info] [Progress] at 16.422 : Checks and transforms
+[info] [Progress] at 16.439 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/generic-enabled
+[info] [Done] at 16.442
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.442 : Elaborate components
+[info] [Progress] at 16.444 : Checks and transforms
+[info] [Progress] at 16.463 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/generic-default
+[info] [Done] at 16.467
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.468 : Elaborate components
+[info] [Progress] at 16.477 : Checks and transforms
+[info] [Progress] at 16.478 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/generic-disabled
+[info] [Done] at 16.481
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.482 : Elaborate components
+[info] [Progress] at 16.485 : Checks and transforms
+[info] [Progress] at 16.486 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/generic-plain
+[info] [Done] at 16.490
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.491 : Elaborate components
+[info] [Progress] at 16.497 : Checks and transforms
+[info] [Progress] at 16.599 : Generate Verilog to /tmp/morphhdl-single-source-11282049282668889422
+[info] [Done] at 16.626
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.629 : Elaborate components
+[info] [Progress] at 16.634 : Checks and transforms
+[info] [Progress] at 16.720 : Generate Verilog to /tmp/morphhdl-single-source-9360058660873098984
+[info] [Done] at 16.734
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.736 : Elaborate components
+[info] [Progress] at 16.745 : Checks and transforms
+[info] [Progress] at 16.842 : Generate Verilog to /tmp/morphhdl-single-source-17602071270750659996
+[info] [Done] at 16.857
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.859 : Elaborate components
+[info] [Progress] at 16.865 : Checks and transforms
+[info] [Progress] at 16.964 : Generate Verilog to /tmp/morphhdl-single-source-12764021920370608510
+[info] [Done] at 16.980
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 16.982 : Elaborate components
+[info] [Progress] at 16.988 : Checks and transforms
+[info] [Progress] at 16.992 : Generate Verilog to /tmp/morphhdl-single-source-6152788074642215213
+[info] [Done] at 17.009
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:27
+[info] [Progress] at 17.011 : Elaborate components
+[info] [Progress] at 17.018 : Checks and transforms
+[info] [Progress] at 17.021 : Generate Verilog to /tmp/morphhdl-single-source-16096610639516503311
+[info] [Done] at 17.038
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.040 : Elaborate components
+[info] [Progress] at 17.042 : Checks and transforms
+[info] [Progress] at 17.045 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/named-debug-enabled
+[info] [Done] at 17.047
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.048 : Elaborate components
+[info] [Progress] at 17.049 : Checks and transforms
+[info] [Progress] at 17.050 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/inherited-sbt/wa08-production/repeat/named-debug-disabled
+[info] [Done] at 17.052
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.053 : Elaborate components
+[info] [Progress] at 17.055 : Checks and transforms
+[info] [Progress] at 17.058 : Generate Verilog to /tmp/morphhdl-single-source-13285666968033510618
+[info] [Done] at 17.062
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.064 : Elaborate components
+[info] [Progress] at 17.067 : Checks and transforms
+[info] [Progress] at 17.070 : Generate Verilog to /tmp/morphhdl-single-source-10080429759235073978
+[info] [Done] at 17.075
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.076 : Elaborate components
+[info] [Progress] at 17.078 : Checks and transforms
+[info] [Progress] at 17.079 : Generate Verilog to /tmp/morphhdl-single-source-14498241540621986192
+[info] [Done] at 17.084
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.085 : Elaborate components
+[info] [Progress] at 17.088 : Checks and transforms
+[info] [Progress] at 17.089 : Generate Verilog to /tmp/morphhdl-single-source-16213389163198775206
+[info] [Done] at 17.094
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.095 : Elaborate components
+[info] [Progress] at 17.099 : Checks and transforms
+[info] [Progress] at 17.101 : Generate Verilog to /tmp/morphhdl-single-source-5344910117931260528
+[info] [Done] at 17.109
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.111 : Elaborate components
+[info] [Progress] at 17.118 : Checks and transforms
+[info] [Progress] at 17.120 : Generate Verilog to /tmp/morphhdl-single-source-9502091224047726715
+[info] [Done] at 17.126
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.127 : Elaborate components
+[info] [Progress] at 17.133 : Checks and transforms
+[info] [Progress] at 17.134 : Generate Verilog to /tmp/morphhdl-single-source-11251673895054431515
+[info] [Done] at 17.141
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.143 : Elaborate components
+[info] [Progress] at 17.147 : Checks and transforms
+[info] [Progress] at 17.148 : Generate Verilog to /tmp/morphhdl-single-source-18294192252474583863
+[info] [Done] at 17.154
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.156 : Elaborate components
+[info] [Progress] at 17.167 : Checks and transforms
+[info] [Progress] at 17.168 : Generate Verilog to /tmp/morphhdl-single-source-13067792103491345568
+[info] [Done] at 17.173
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.175 : Elaborate components
+[info] [Progress] at 17.185 : Checks and transforms
+[info] [Progress] at 17.187 : Generate Verilog to /tmp/morphhdl-single-source-2523730632352529811
+[info] [Done] at 17.193
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.195 : Elaborate components
+[info] [Progress] at 17.198 : Checks and transforms
+[info] [Progress] at 17.200 : Generate Verilog to /tmp/morphhdl-single-source-11937888920048227540
+[info] [Done] at 17.206
+[info] [Runtime] SpinalHDL dev    git head : 42216b6871bcd58762bb0466ad775a9a22451fab
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 11:00:28
+[info] [Progress] at 17.208 : Elaborate components
+[info] [Progress] at 17.210 : Checks and transforms
+[info] [Progress] at 17.211 : Generate Verilog to /tmp/morphhdl-single-source-6156368848860565873
+[info] [Done] at 17.216
+[success] Total time: 19 s, completed Sep 12, 2026, 11:00:28 AM
+WA08_PRODUCTION_QUALIFICATION_PASS {"default_on_matches_enabled": true, "deterministic_files": 31, "explicit_opt_out_byte_identity": true, "fifo_matches_full_domain_proof_candidate": true, "fifo_sha256": "e51099e4545ff88a223bcc7aecfbd25628b747e16fae8111b3c9a2cfa4147805", "formal_mutation_rejected": true, "four_state_cases": 16, "nested_unsigned_extended_sum": {"default_matches_enabled": true, "explicit_opt_out_retains_legacy_wrappers": true, "fixed_disabled_wrapper_wires": 6, "fixed_enabled_wrapper_wires": 0, "formal_equivalence_cases": 18, "four_state_cases": 4608, "functional_mutations_rejected": 1, "overflow_disabled_add_wrapper_wires": 2, "overflow_enabled_add_wrapper_wires": 0, "overflow_max_value_cases": 1, "parameter_width_bindings": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "parameterized_disabled_add_wrapper_wires": 2, "parameterized_enabled_add_wrapper_wires": 0, "parameterized_resize_carriers_retained": 4}, "ordinary_named_aliases": {"all_direct_aliases_removed_per_fixture": 7, "assignment_debug_metadata_preserved": true, "component_rename_invariant": true, "equal_length_lexical_chain_names_removed_per_fixture": 2, "equal_length_lexical_tie_is_deterministic": true, "explicit_opt_out_retains_aliases": true, "final_named_expression_inlined_to_output": true, "four_state_cases": 2048, "functional_mutations_rejected": 2, "genuinely_unnamed_expression_temporaries_not_emitted_per_fixture": 1, "ineligible_direct_port_aliases_retained_per_fixture": 2, "meaningful_name_beats_generated_spelling": true, "meaningful_name_beats_genuinely_unnamed_temporary": true, "named_or_generated_expressions_removed_per_fixture": 10, "opaque_metadata_retained_without_source_tags": true, "ordinary_untagged_aliases_removed_per_fixture": 4, "output_port_identity_overrides_name_length": true, "parameter_width_bindings": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "protected_aliases_retained_per_fixture": 9, "protected_long_name_overrides_shorter_alias": true, "public_default_matches_enabled": true, "sequential_equivalence_cases": 32, "short_meaningful_chain_fully_inlined": true}, "total_formal_equivalence_cases": 51, "total_four_state_cases": 6672, "total_functional_mutations_rejected": 4}
+DIRECT_JAVA_VS_ORIGINAL_SBT_BYTE_IDENTITY_PASS files=31

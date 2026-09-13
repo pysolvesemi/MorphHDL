@@ -194,6 +194,7 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
   ): Boolean =
     !alias.isFrozen() &&
       alias.isEmptyOfTag &&
+      !NativeWireAssignmentMetadata.retains(alias) &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
   private def allowedUse(
@@ -621,7 +622,7 @@ object ParameterizedStreamFifoUnnamedPassWitness {
       max = BigInt(8)
     )
 
-    val generated = MorphVerilog(config) {
+    val generated = MorphVerilog(morphhdl.MorphWireAssignmentPasses(config, enabled = false)) {
       new ParameterizedStreamFifo(width, depth)
     }
     val generatedPath = Paths

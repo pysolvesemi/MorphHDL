@@ -343,6 +343,63 @@ final class UnnamedWireExpressionEliminationPassSpec
     )
   }
 
+  test("continuous literal resize and subtraction inline into existing register RHS scopes") {
+    val path = "src/RegisterReceiver.scala"
+    val nestedScope = ScopeId.unsafe("scope.expression-register-when")
+    val width = IntExpr.Literal(BigInt(13))
+    val unsigned = PackedType(width, Signedness.Unsigned,
+      PackedValueSemantics.UnsignedInteger)
+    val expressions = Vector[RtlExpr](
+      RtlExpr.Literal(BigInt(1), 13),
+      RtlExpr.Resize(reference("reference.expression.resize-source", sourceId, path, 20),
+        width, Signedness.Unsigned),
+      RtlExpr.Binary(RtlBinaryOperator.Subtract,
+        reference("reference.expression.subtract-source", sourceId, path, 20),
+        RtlExpr.Literal(BigInt(1), 13))
+    )
+    expressions.foreach { expression =>
+      val initial = design(path = path, expression = expression,
+        receiverDriverKind = DriverKind.Procedural, includeSecondReceiver = false)
+      val originalModule = moduleOf(initial)
+      val receiver = originalModule.drivers.find(_.id == sinkDriverId).get.copy(
+        owner = nestedScope,
+        value = RtlExpr.Binary(RtlBinaryOperator.Add,
+          reference("reference.expression.register-rhs", aliasId, path, 24)
+            .copy(owner = nestedScope),
+          RtlExpr.Literal(BigInt(1), 13)))
+      val input = initial.copy(modules = Vector(originalModule.copy(
+        scopes = originalModule.scopes :+ Scope(nestedScope, Some(rootScopeId), ScopeKind.Block),
+        declarations = originalModule.declarations.map { value =>
+          value.copy(packedType = Some(unsigned),
+            kind = if (value.id == sinkId) DeclarationKind.Register else value.kind)
+        },
+        drivers = originalModule.drivers.map(value => if (value.id == sinkDriverId) receiver else value))))
+      // DriverKind.Procedural alone carries no blocking/NBA proof.
+      val unknownTiming = UnnamedWireExpressionEliminationPass.run(input, enabled)
+      unknownTiming.status shouldBe PassExecutionStatus.Unchanged
+      unknownTiming.eliminationReport.rejected.map(_.reasonCode) should contain(
+        UnnamedWireExpressionSafetyReason.ReceiverProcedural)
+      val result = UnnamedWireExpressionEliminationPass.runWithNativeNonblockingReceivers(
+        input, enabled, Vector(moduleId -> receiver))
+      result.status shouldBe PassExecutionStatus.Changed
+      val output = moduleOf(result.output)
+      output.declarations.map(_.id) should not contain aliasId
+      val rewritten = output.drivers.find(_.id == sinkDriverId).get
+      rewritten.copy(value = receiver.value) shouldBe receiver
+      rewritten.kind shouldBe DriverKind.Procedural
+      rewritten.owner shouldBe nestedScope
+      rewritten.value should matchPattern {
+        case RtlExpr.Binary(RtlBinaryOperator.Add,
+            RtlExpr.Resize(_, `width`, Signedness.Unsigned), _: RtlExpr.Literal) =>
+      }
+      rewritten.value.referenceOccurrences.foreach(_.owner shouldBe nestedScope)
+      an[IllegalArgumentException] should be thrownBy {
+        UnnamedWireExpressionEliminationPass.runWithNativeNonblockingReceivers(
+          input, enabled, Vector(moduleId -> receiver.copy()))
+      }
+    }
+  }
+
   test("named and observable expression temporaries are outside the pass") {
     val named = UnnamedWireExpressionEliminationPass.run(
       design(aliasOrigin = NameOrigin.Explicit("debugExpression")),

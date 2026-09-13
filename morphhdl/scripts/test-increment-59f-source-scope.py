@@ -51,10 +51,10 @@ def git(root: Path, *arguments: str) -> str:
 
 
 def check(root: Path, checker: str, label: str, rejection: str | None = None,
-          entrypoint: str = "source_scope") -> dict:
+          entrypoint: str = "source_scope", timeout_seconds: int = 120) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), checker, entrypoint],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=120, check=False)
+                            timeout=timeout_seconds, check=False)
     if rejection is None:
         if result.returncode or "PASS" not in result.stdout:
             raise RuntimeError(label + " did not pass:\n" + result.stdout)
@@ -194,7 +194,13 @@ def main() -> None:
         spec.loader.exec_module(module)
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59f-source-scope.py", "target/increment-59f/source-scope",
-            lambda: [check(ROOT, HELPER, "current restored publisher delta"), check(ROOT, CLOSURE, "current complete 59c and inherited source audits")], "exact negative 59f source-scope controls")
+            # The complete current overlay/inherited traversal exceeds 120s on
+            # CI. Only this positive audit gets 600s; historical/mutation
+            # checks and Git retain their existing limits.
+            lambda: [check(ROOT, HELPER, "current restored publisher delta"),
+                     check(ROOT, CLOSURE, "current complete 59c and inherited source audits",
+                           timeout_seconds=600)],
+            "exact negative 59f source-scope controls")
         return
     head = git(ROOT, "rev-parse", "HEAD")
     rollout_helper = "morphhdl/scripts/check-increment-60g-source-scope.py"

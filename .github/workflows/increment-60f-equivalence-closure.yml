@@ -144,7 +144,7 @@ jobs:
           sbt -batch "++${{ matrix.scala }}" \
             idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
             frontend/test verilogBackend/test morph/test \
-            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests' \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests' \
             > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
       - name: Run the inherited isolated pass workspace suites
         shell: bash

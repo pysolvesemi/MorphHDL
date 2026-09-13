@@ -139,6 +139,10 @@ jobs:
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
           {
+            python3 morphhdl/scripts/check-increment-59i-target-integration.py
+            python3 morphhdl/scripts/test-increment-59i-target-integration.py
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/check-wa10-source-scope.py
             python3 morphhdl/scripts/check-increment-59i-rollout-composition.py --self-test
             python3 morphhdl/scripts/test-increment-59i-rollout-composition.py
             python3 morphhdl/scripts/check-increment-59i-widening-source-review.py

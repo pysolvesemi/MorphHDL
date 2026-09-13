@@ -191,7 +191,10 @@ object SIntSignedVerilogBaselineArtifactWriter {
   }
 
   private def emitParameterized(output: Path): Unit = {
-    MorphVerilog(morphhdl.MorphSignedDeclarations.disable(generationConfig(output)))(
+    // This writer regenerates the independently frozen pre-optimization oracle.
+    // Current signedness candidates instantiate the shared component separately.
+    MorphVerilog(morphhdl.MorphWireAssignmentPasses(
+      morphhdl.MorphSignedDeclarations.disable(generationConfig(output)), enabled = false))(
       SIntSignedVerilogBaselineFixture.parameterized())
     require(Files.isRegularFile(output), s"missing parameterized baseline artifact $output")
   }

@@ -226,6 +226,8 @@ def main() -> None:
     PUBLICATION_TEST.write_text(publication)
 
     apply_scoped_conditional_replay()
+    subprocess.run(["python3", str(ROOT / "morphhdl/repair-59i-widening-captures/apply-symbolic-geometry.py")],
+                   cwd=ROOT, check=True)
 
     print("59i widening/capture composition with recursive native clone factories applied")
 

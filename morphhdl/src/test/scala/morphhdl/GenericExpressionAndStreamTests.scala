@@ -214,14 +214,33 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         "native_generic_expressions.v",
         new GenericExpressions(width)
       )
+      // The byte-for-byte native-emitter contract has an explicit legacy witness.
+      val legacy = emitMorph(
+        parameterizedDirectory, "legacy_native_generic_expressions.v", new GenericExpressions(width),
+        legacy = true
+      )
       val concrete = emitConcrete(
         concreteDirectory,
         "native_generic_expressions.v",
         new GenericExpressions(width)
       )
 
+      NativeWireCompatibility.check(directory, parameterized, concrete, "NativeGenericExpressions",
+        Vector("WIDTH" -> 8), "NativeGenericExpressions_native")
+      Vector(4, 8, 32).foreach { value =>
+        NativeWireCompatibility.check(directory, parameterized, legacy, "NativeGenericExpressions",
+          Vector("WIDTH" -> value), "NativeGenericExpressions_legacy_" + value)
+      }
+      val wrongConnection = parameterized.replace("assign connected = left;", "assign connected = right;")
+      assert(wrongConnection != parameterized)
+      val failedProof = intercept[IllegalArgumentException] {
+        NativeWireCompatibility.check(directory, wrongConnection, concrete, "NativeGenericExpressions",
+          Vector("WIDTH" -> 8), "NativeGenericExpressions_live_mutation")
+      }
+      assert(failedProof.getMessage.contains("equiv_status -assert"), failedProof.getMessage)
+
       assert(
-        nativeModule(concretize(parameterized, "NativeGenericExpressions", width = 8)) ==
+        nativeModule(concretize(legacy, "NativeGenericExpressions", width = 8)) ==
           nativeModule(concrete)
       )
       assert(parameterized.contains("parameter integer WIDTH = 8"))
@@ -262,6 +281,12 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         new NativeStreamM2sPipe(width),
         synchronousResetConfig(parameterizedDirectory)
       )
+      // The byte-for-byte native-emitter contract has an explicit legacy witness.
+      val legacy = emitMorph(
+        parameterizedDirectory, "legacy_native_stream_m2s_pipe.v", new NativeStreamM2sPipe(width),
+        config = synchronousResetConfig(parameterizedDirectory),
+        legacy = true
+      )
       val concrete = emitConcrete(
         concreteDirectory,
         "native_stream_m2s_pipe.v",
@@ -269,8 +294,15 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         synchronousResetConfig(concreteDirectory)
       )
 
+      NativeWireCompatibility.check(directory, parameterized, concrete, "NativeStreamM2sPipe",
+        Vector("WIDTH" -> 8), "NativeStreamM2sPipe_native")
+      Vector(1, 8, 32).foreach { value =>
+        NativeWireCompatibility.check(directory, parameterized, legacy, "NativeStreamM2sPipe",
+          Vector("WIDTH" -> value), "NativeStreamM2sPipe_legacy_" + value)
+      }
+
       assert(
-        nativeModule(concretize(parameterized, "NativeStreamM2sPipe", width = 8)) ==
+        nativeModule(concretize(legacy, "NativeStreamM2sPipe", width = 8)) ==
           nativeModule(concrete)
       )
       assert(parameterized.contains("module NativeStreamM2sPipe #("))
@@ -315,17 +347,29 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
         "native_auto_resized_increment.v",
         new NativeAutoResizedIncrement(width)
       )
+      // The byte-for-byte native-emitter contract has an explicit legacy witness.
+      val legacy = emitMorph(
+        parameterizedDirectory, "legacy_native_auto_resized_increment.v", new NativeAutoResizedIncrement(width),
+        legacy = true
+      )
       val concrete = emitConcrete(
         concreteDirectory,
         "native_auto_resized_increment.v",
         new NativeAutoResizedIncrement(width)
       )
 
+      NativeWireCompatibility.check(directory, parameterized, concrete, "NativeAutoResizedIncrement",
+        Vector("WIDTH" -> 3), "NativeAutoResizedIncrement_native")
+      Vector(1, 3, 8).foreach { value =>
+        NativeWireCompatibility.check(directory, parameterized, legacy, "NativeAutoResizedIncrement",
+          Vector("WIDTH" -> value), "NativeAutoResizedIncrement_legacy_" + value)
+      }
+
       assert(parameterized.contains("parameter integer WIDTH = 3"))
       assert(hasDeclarationWidth(parameterized, "value", "[WIDTH-1:0]"))
       assert(
         nativeModule(
-          concretize(parameterized, "NativeAutoResizedIncrement", width = 3)
+          concretize(legacy, "NativeAutoResizedIncrement", width = 3)
         ) == nativeModule(concrete)
       )
 
@@ -608,13 +652,15 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       directory: Path,
       filename: String,
       component: => Component,
-      config: SpinalConfig = null
+      config: SpinalConfig = null,
+      legacy: Boolean = false
   ): String = {
     val useConfig =
       if (config == null) SpinalConfig(targetDirectory = directory.toString)
       else config
     useConfig.netlistFileName = filename
-    MorphVerilog(useConfig)(component)
+    val selected = if (legacy) MorphWireAssignmentPasses(useConfig, enabled = false) else useConfig
+    MorphVerilog(selected)(component)
     read(directory.resolve(filename))
   }
 

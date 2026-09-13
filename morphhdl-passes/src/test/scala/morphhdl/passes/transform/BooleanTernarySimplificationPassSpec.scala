@@ -245,7 +245,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     rhsValue(first.output) shouldBe p
     first.executedPasses shouldBe PassId.allWireAssignmentPasses
     first.executedPasses.last shouldBe PassId.BooleanTernarySimplification
-    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 1, 1)
+    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 0, 1, 1)
     first.eliminated shouldBe empty
     first.eliminatedExpressions shouldBe empty
     first.simplifiedExpressions.map(_.rule) should contain("boolean-ternary-positive")
@@ -268,7 +268,7 @@ final class BooleanTernarySimplificationPassSpec extends AnyFunSuite with Matche
     val first = WireAliasPassPipeline.run(input, WireAliasPassConfiguration(enabled = true))
     withClue(first.diagnostics.mkString("; ")) { first.isSuccess shouldBe true }
     rhsValue(first.output) shouldBe logicalNot(p)
-    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 2, 1)
+    first.eliminationReports.map(_.simplifiedCount) shouldBe Vector(0, 0, 0, 0, 2, 1)
     WireAliasPassPipeline.run(first.output, WireAliasPassConfiguration(enabled = true)).status shouldBe PassExecutionStatus.Unchanged
   }
 
