@@ -1,0 +1,39 @@
+name: Independent parameter verification tools
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/independent-parameter-verification-tools.yml']
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Install verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys verilator
+      - name: Package verification tools and runtime data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/tools/lib
+          yosys -V | tee evidence/versions.txt
+          verilator --version | tee -a evidence/versions.txt
+          cp /usr/bin/yosys* /usr/bin/berkeley-abc /usr/bin/verilator* evidence/tools/
+          cp -a /usr/share/yosys /usr/share/verilator evidence/tools/
+          for exe in /usr/bin/yosys /usr/bin/berkeley-abc /usr/bin/verilator_bin; do
+            ldd "$exe" | awk '/=> \/.* \(/{print $3}' | while read -r lib; do
+              case "$(basename "$lib")" in libc.so.*|libm.so.*|libstdc++*|libgcc_s*|libpthread*|libdl*|librt*) ;;
+                *) cp -L "$lib" evidence/tools/lib/;;
+              esac
+            done
+          done
+          tar -C evidence -czf evidence/verification-tools.tar.gz tools
+          rm -rf evidence/tools
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-parameter-verification-tools
+          path: evidence/
+          if-no-files-found: error
