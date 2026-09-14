@@ -11,6 +11,8 @@ on:
       - 'morphhdl/scripts/check-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-inherited-60f-scope.py'
+      - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/scripts/test-inherited-source-audit-timeouts.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'build.sbt'
       - 'build.mill'
@@ -27,6 +29,8 @@ on:
       - 'morphhdl/scripts/check-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-synthesis.py'
       - 'morphhdl/scripts/test-increment-59d-inherited-60f-scope.py'
+      - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/scripts/test-inherited-source-audit-timeouts.py'
       - 'morphhdl/scripts/check-increment-59b-operator-replay.py'
       - 'build.sbt'
       - 'build.mill'
@@ -42,15 +46,20 @@ concurrency:
   group: increment-59d-widening-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
       github.ref_name == 'parameterized-verilog'
+      || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Symbolic widening Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
@@ -77,6 +86,7 @@ jobs:
           mkdir -p target/increment-59d-widening/bootstrap
           git rev-parse HEAD > target/increment-59d-widening/head.txt
           git archive HEAD | gzip > target/increment-59d-widening/source.tar.gz
+          python3 morphhdl/scripts/test-inherited-source-audit-timeouts.py
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/test-increment-59b-inherited-source-scope.py

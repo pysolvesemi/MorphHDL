@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-streamfifocc-proof-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   proof:
     name: StreamFifoCC CDC and formal Scala ${{ matrix.scala_version }}

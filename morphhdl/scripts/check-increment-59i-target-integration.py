@@ -9,11 +9,13 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
+import importlib.util
 import json
 import os
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 COMMON_BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
@@ -23,6 +25,9 @@ HELPER = "morphhdl/scripts/check-increment-59i-target-integration.py"
 TEST = "morphhdl/scripts/test-increment-59i-target-integration.py"
 CONTRACT = "morphhdl/contracts/increment-59i-target-integration.json"
 CONTRACT_SHA256 = "9ec750ceffa71d79e2fc78dc91b0c033ebe3ae4035116ed1495ba0012d9cd4b4"
+SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
+SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
+SUCCESSOR_HELPER_SHA256 = "d18d47a49cbb363077b266e47f10ea8b8604542dec8ff1955b3f4d29de7634c4"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -42,6 +47,29 @@ def normalized_helper(raw: bytes) -> bytes:
 
 def source_digest(path: str, raw: bytes) -> str:
     return digest(normalized_helper(raw) if path == HELPER else raw)
+
+
+def successor_review(root: Path):
+    paths = (root / SUCCESSOR_HELPER, root / SUCCESSOR_CONTRACT)
+    if not any(path.exists() or path.is_symlink() for path in paths):
+        return None
+    raw = regular(root, SUCCESSOR_HELPER)
+    pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
+    require(len(re.findall(pattern, raw, re.M)) == 1, "successor helper seal is ambiguous")
+    normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(digest(normalized) == SUCCESSOR_HELPER_SHA256, "production successor reviewer changed")
+    name = "increment_59i_production_successor_" + digest(raw)
+    module = sys.modules.get(name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(name, paths[0])
+        require(spec is not None and spec.loader is not None, "cannot load production successor reviewer")
+        module = importlib.util.module_from_spec(spec)
+        exec(compile(raw, str(paths[0]), "exec"), module.__dict__)
+        sys.modules[name] = module
+    # Only authenticated code and immutable Git objects are shared. Never
+    # cache authorization for live files, the index, or a moving HEAD.
+    module.contract(root)
+    return module
 
 
 def git(root: Path, *args: str) -> bytes:
@@ -172,7 +200,11 @@ def contract(root: Path) -> dict:
     require(re.fullmatch(r"[0-9a-f]{64}", CONTRACT_SHA256) is not None and
             digest(raw) == CONTRACT_SHA256, "sealed integration manifest changed")
     expected_helper = validated_manifest(raw, COMMON_BASE, FEATURE_PARENT, TARGET_PARENT)
-    require(digest(normalized_helper(regular(root, HELPER))) == expected_helper,
+    helper = regular(root, HELPER)
+    successor = successor_review(root)
+    if successor is not None:
+        helper = successor.restore_source(root, HELPER, helper)
+    require(digest(normalized_helper(helper)) == expected_helper,
             "sealed integration helper changed")
     # A fresh parsed object prevents callers from mutating cached authority.
     # Every invocation still re-reads and authenticates the manifest and helper.
@@ -205,7 +237,13 @@ def python_cache(path: str, committed: dict[str, tuple[str, str]]) -> bool:
 def verify(root: Path) -> dict:
     root = root.resolve()
     value = contract(root)
-    head = git(root, "rev-parse", "HEAD^{commit}").decode().strip()
+    live_head = git(root, "rev-parse", "HEAD^{commit}").decode().strip()
+    successor = successor_review(root)
+    if successor is not None:
+        successor.verify(root)
+    # Authenticate the complete live successor first, then retain every
+    # original immutable merge/source check at its exact sealed predecessor.
+    head = live_head if successor is None else successor.BASE
     for revision in (COMMON_BASE, FEATURE_PARENT, TARGET_PARENT, value["source_commit"]):
         require(git(root, "rev-parse", revision + "^{commit}").decode().strip() == revision,
                 "anchor is not its exact commit object")
@@ -229,15 +267,16 @@ def verify(root: Path) -> dict:
     for path, entry in source_tree.items():
         if path != HELPER:
             require(committed.get(path) == entry, "current tree differs from reviewed source: " + path)
-    indexed = {}
-    for row in git(root, "ls-files", "--stage", "-z").split(b"\0"):
-        if row:
-            metadata, path = row.split(b"\t", 1)
-            mode, oid, stage = metadata.decode().split()
-            name = path.decode()
-            require(stage == "0" and name not in indexed, "unmerged or duplicate index")
-            indexed[name] = (mode, oid)
-    require(indexed == committed, "HEAD/index identity differs")
+    if successor is None:
+        indexed = {}
+        for row in git(root, "ls-files", "--stage", "-z").split(b"\0"):
+            if row:
+                metadata, path = row.split(b"\t", 1)
+                mode, oid, stage = metadata.decode().split()
+                name = path.decode()
+                require(stage == "0" and name not in indexed, "unmerged or duplicate index")
+                indexed[name] = (mode, oid)
+        require(indexed == committed, "HEAD/index identity differs")
     for path, entry in records.items():
         for name, revision, key in (("merged", value["source_commit"], "merged_sha256"),
                                     ("feature", FEATURE_PARENT, "feature_sha256"),
@@ -246,12 +285,22 @@ def verify(root: Path) -> dict:
             actual = None if raw is None else (source_digest(path, raw) if name == "merged" else digest(raw))
             require(actual == entry[key], "immutable " + name + " source differs: " + path)
         if entry["mode"] is None:
-            require(path not in committed and not (root / path).exists() and not (root / path).is_symlink(),
+            require(path not in committed and (successor is not None or
+                    (not (root / path).exists() and not (root / path).is_symlink())),
                     "deleted source reappeared: " + path)
         else:
             require(source_tree.get(path, (None,))[0] == entry["mode"], "immutable source mode differs")
-            raw = regular(root, path, entry["mode"])
+            raw = (regular(root, path, entry["mode"]) if successor is None else frozen(root, head, path))
             require(source_digest(path, raw) == entry["merged_sha256"], "reviewed merged bytes changed: " + path)
+    if successor is not None:
+        # The historical manifest was excluded from the original source
+        # commit. Prove that its exact seal addition is still the live one.
+        raw = regular(root, CONTRACT)
+        oid = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+        require(committed.get(CONTRACT) == ("100644", oid), "immutable predecessor seal changed")
+        require(git(root, "rev-parse", "HEAD^{commit}").decode().strip() == live_head,
+                "HEAD changed while validating integration")
+        return value
     for path, (mode, oid) in committed.items():
         if mode == "160000":
             directory = root / path
@@ -301,14 +350,18 @@ def verify(root: Path) -> dict:
 def parent_source(root: Path, path: str, source: bytes, revision: str, key: str) -> bytes:
     value = contract(root)
     entry = next((entry for entry in value["files"] if entry["path"] == path), None)
+    if entry is not None:
+        before = frozen(root.resolve(), revision, path)
+        require((digest(before) if before is not None else None) == entry[key],
+                "immutable parent projection differs: " + path)
+        desired = before if before is not None else b""
+        if source == desired:
+            return desired
+    successor = successor_review(root)
+    if successor is not None:
+        source = successor.restore_source(root, path, source)
     if entry is None:
         return source
-    before = frozen(root.resolve(), revision, path)
-    require((digest(before) if before is not None else None) == entry[key],
-            "immutable parent projection differs: " + path)
-    desired = before if before is not None else b""
-    if source == desired:
-        return desired
     require((entry["merged_sha256"] is None and source == b"") or
             (entry["merged_sha256"] is not None and source_digest(path, source) == entry["merged_sha256"]),
             "unreviewed bytes cannot enter parent projection: " + path)
@@ -320,6 +373,12 @@ def feature_source(root: Path, path: str, source: bytes) -> bytes:
 
 
 def target_source(root: Path, path: str, source: bytes) -> bytes:
+    successor = successor_review(root)
+    if successor is not None and successor.target_anchor(root) is not None:
+        # Keep the original path-scoped historical authentication and its
+        # precise rejection before exposing the additional refreshed view.
+        parent_source(root, path, source, TARGET_PARENT, "target_sha256")
+        return successor.target_source(root, path, source)
     return parent_source(root, path, source, TARGET_PARENT, "target_sha256")
 
 
@@ -328,7 +387,10 @@ def project_inventory(root: Path, paths: set[str], qualification_base: str,
     # The manifest is an authenticated seal addition, absent from both parent
     # views. It cannot enroll itself in the pre-seal source file inventory.
     entries = {entry["path"] for entry in verify(root)["files"]} | {CONTRACT}
-    current = changed(root, qualification_base, "HEAD")
+    successor = successor_review(root)
+    if successor is not None:
+        paths = successor.predecessor_inventory(root, paths, qualification_base, full)
+    current = changed(root, qualification_base, "HEAD" if successor is None else successor.BASE)
     previous = changed(root, qualification_base, revision)
     domain = entries if full else {path for path in entries if re.search(r"(?:^|/)src/main/", path)}
     visible = (entries & set(paths)) | (domain - current)
@@ -340,6 +402,12 @@ def feature_inventory(root: Path, paths: set[str], qualification_base: str, full
 
 
 def target_inventory(root: Path, paths: set[str], qualification_base: str, full: bool = False) -> set[str]:
+    successor = successor_review(root)
+    if successor is not None and successor.target_anchor(root) is not None:
+        # Preserve the original parent-union certificate as well as the new
+        # source/target certificate before exposing the refreshed inventory.
+        verify(root)
+        return successor.target_inventory(root, paths, qualification_base, full)
     return project_inventory(root, paths, qualification_base, TARGET_PARENT, full)
 
 

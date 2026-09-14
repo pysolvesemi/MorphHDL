@@ -1,0 +1,129 @@
+name: Increment 59i inherited exact-source qualification
+'on':
+  push:
+    branches:
+    - agent/increment-59i-combined-reduction-closure
+    paths:
+    - .github/workflows/increment-59i-inherited-source-qualification.yml
+    - '**/src/**'
+    - morphhdl/scripts/**
+    - morphhdl/contracts/**
+  pull_request:
+    branches:
+    - parameterized-verilog
+    paths:
+    - .github/workflows/increment-59i-inherited-source-qualification.yml
+    - '**/src/**'
+    - morphhdl/scripts/**
+    - morphhdl/contracts/**
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: 59i-inherited-source-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source:
+    if: github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure'
+    runs-on: ubuntu-latest
+    # Includes both full 60f traversals and every existing inherited audit.
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      FEATURE_PARENT: ee2e7f2613e54f23158ce1eacae6028409a91ed6
+      TARGET_PARENT: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
+        submodules: recursive
+        persist-credentials: false
+    - name: Require committed source and existing immutable reviews
+      shell: bash
+      run: |
+        set -euo pipefail
+        out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+        mkdir -p "$out"
+        git rev-parse HEAD > "$out/head.txt"
+        git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+        test -z "$(git status --porcelain)"
+        git merge-base --is-ancestor "$FEATURE_PARENT" HEAD
+        git merge-base --is-ancestor "$TARGET_PARENT" HEAD
+        for path in morphhdl/scripts/check-increment-59i-rollout-composition.py morphhdl/contracts/increment-59i-rollout-composition.json morphhdl/contracts/increment-59i-production-successor.json; do
+          test -f "$path" && test ! -L "$path"
+        done
+        python3 morphhdl/scripts/check-increment-59i-production-successor.py
+        python3 morphhdl/scripts/test-increment-59i-production-successor.py -v
+        python3 morphhdl/scripts/test-increment-59i-target-refresh.py -v
+        python3 morphhdl/scripts/test-increment-60f-source-scheduling.py -v
+    - name: Run exact composition and inherited source audits
+      shell: bash
+      run: |
+        set -euo pipefail
+        out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+        {
+          python3 morphhdl/scripts/check-increment-59i-target-integration.py
+          python3 morphhdl/scripts/test-increment-59i-target-integration.py
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          python3 morphhdl/scripts/check-wa10-source-scope.py
+          python3 morphhdl/scripts/check-increment-59i-rollout-composition.py --self-test
+          python3 morphhdl/scripts/test-increment-59i-rollout-composition.py
+          python3 morphhdl/scripts/check-increment-59i-widening-source-review.py
+          python3 morphhdl/scripts/test-increment-59i-widening-source-review.py
+          python3 morphhdl/scripts/test-increment-59i-widening-successor.py
+          python3 morphhdl/scripts/check-increment-59i-source-review.py
+          python3 morphhdl/scripts/test-increment-59i-review-composition.py
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py
+          python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+          python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+          python3 morphhdl/scripts/check-increment-59g-source-review.py
+          python3 morphhdl/scripts/check-increment-59h-source-review.py
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+          python3 morphhdl/scripts/check-wa07b-inherited-review.py
+          python3 morphhdl/scripts/test-wa07b-inherited-review.py
+          python3 morphhdl/scripts/test-increment-60f-source-budget.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/test-increment-60f-integration-reader.py -v
+          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+          python3 morphhdl/scripts/test-increment-59f-source-scope.py
+          python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+        } 2>&1 | tee "$out/source-audits.log"
+    - name: Validate immutable native source reviews at both exact parents
+      shell: bash
+      run: |
+        set -euo pipefail
+        out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+        feature_native=/tmp/59i-rollout-native-feature
+        target_native=/tmp/59i-rollout-native-target
+        rm -rf "$feature_native" "$target_native"
+        cleanup_native_worktrees() {
+          git worktree remove --force "$feature_native" >/dev/null 2>&1 || true
+          git worktree remove --force "$target_native" >/dev/null 2>&1 || true
+        }
+        trap cleanup_native_worktrees EXIT
+        git worktree add --detach "$feature_native" "$FEATURE_PARENT"
+        git worktree add --detach "$target_native" "$TARGET_PARENT"
+        (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+          | tee "$out/native-feature-parent.log"
+        (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+          | tee "$out/overlay-feature-parent.log"
+        (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+          | tee "$out/native-target-parent.log"
+        (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+          | tee "$out/overlay-target-parent.log"
+        cleanup_native_worktrees
+        trap - EXIT
+    - name: Upload exact composition evidence
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: increment-59i-inherited-source-qualification
+        path: target/increment-59i-rollout-composition
+        if-no-files-found: error
+        retention-days: 21

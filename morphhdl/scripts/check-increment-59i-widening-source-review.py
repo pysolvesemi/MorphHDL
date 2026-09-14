@@ -4,16 +4,20 @@
 The widening implementation is one immutable layer in the larger 59i join.
 Later, independently reviewed target-branch and pass changes may add unrelated
 ``src/main`` paths.  This checker therefore proves the exact BASE -> SUCCESSOR
-production delta, then requires every reviewed widening source and its contract
-to remain byte-identical at the current descendant.  The parent 59i reviewer
-continues to own the complete current production inventory.
+production delta, then compares the current source's authenticated predecessor
+view with that immutable layer. A production successor must pass its complete
+existing seal verifier before any projection; historical trees without that
+successor retain the original direct read. The parent 59i reviewer continues to
+own the complete current production inventory.
 """
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 BASE = "3c959a44e251df51d5a1faa6b17e5d88d7984081"
@@ -27,6 +31,10 @@ PATHS = (
 )
 ADDED_PATHS = frozenset(PATHS[:2])
 PRODUCTION_PATHS = frozenset(PATHS)
+SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
+SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
+# Same normalized immutable code identity used by the existing target adapter.
+SUCCESSOR_HELPER_SHA256 = "d18d47a49cbb363077b266e47f10ea8b8604542dec8ff1955b3f4d29de7634c4"
 
 
 def require(condition: bool, detail: str) -> None:
@@ -178,10 +186,56 @@ def production_changes(root: Path, revision: str) -> set[str]:
     return {path for path in tracked + untracked if re.search(r"(?:^|/)src/main/", path)}
 
 
+def successor_review(root: Path):
+    """Authenticate the existing successor without importing inherited reviewers."""
+    relatives = (SUCCESSOR_HELPER, SUCCESSOR_CONTRACT)
+    paths = tuple(root / relative for relative in relatives)
+    if not any(path.exists() or path.is_symlink() for path in paths):
+        # Absence on disk is not proof of a legacy tree. A removal commit or
+        # a staged/uncommitted deletion must not hide an earlier source seal.
+        history = git_bytes(root, "log", "--full-history", "-1", "--format=%H", "HEAD", "--", *relatives)
+        require(not history.strip(), "59i widening production successor files were removed")
+        return None
+    for relative, path in zip(relatives, paths):
+        parts = Path(relative).parts
+        require(all(not (root / Path(*parts[:index])).is_symlink()
+                    for index in range(1, len(parts) + 1)),
+                "59i widening linked production successor file: " + relative)
+        require(path.is_file() and not path.stat().st_mode & 0o111,
+                "59i widening missing regular non-executable successor file: " + relative)
+    raw = paths[0].read_bytes()
+    pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
+    require(len(re.findall(pattern, raw, re.M)) == 1,
+            "59i widening production successor seal is ambiguous")
+    normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(digest(normalized) == SUCCESSOR_HELPER_SHA256,
+            "59i widening production successor reviewer changed")
+    name = "increment_59i_widening_successor_" + digest(raw)
+    module = sys.modules.get(name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(name, paths[0])
+        require(spec is not None and spec.loader is not None,
+                "59i widening cannot load production successor reviewer")
+        module = importlib.util.module_from_spec(spec)
+        # Execute the authenticated bytes, never a cached .pyc. Only code and
+        # immutable Git-object caches are shared; live authorization is not.
+        exec(compile(raw, str(paths[0]), "exec"), module.__dict__)
+        sys.modules[name] = module
+    module.verify(root)
+    return module
+
+
+def current_reviewed_source(root: Path, path: str, successor) -> bytes:
+    raw = (root / path).read_bytes()
+    return raw if successor is None else successor.restore_source(root, path, raw)
+
+
 def verify(root: Path) -> None:
     # The exact reviewed layer is immutable and must remain in the ancestry.
     git_bytes(root, "merge-base", "--is-ancestor", BASE, SUCCESSOR)
     git_bytes(root, "merge-base", "--is-ancestor", SUCCESSOR, "HEAD")
+    head = git_bytes(root, "rev-parse", "HEAD")
+    successor = successor_review(root)
     entries = load_contract(root)
     require(revision_production_changes(root, BASE, SUCCESSOR) == PRODUCTION_PATHS,
             "59i widening successor delta differs from its reviewed three-file inventory")
@@ -197,11 +251,13 @@ def verify(root: Path) -> None:
         require(revision_mode(root, SUCCESSOR, relative) == "100644",
                 "59i widening successor source mode changed: " + relative)
         reviewed = revision_source(root, SUCCESSOR, relative)
-        require(source.read_bytes() == reviewed,
+        require(current_reviewed_source(root, relative, successor) == reviewed,
                 "59i widening production source differs from its immutable reviewed successor: " + relative)
         baseline = baseline_source(root, relative)
         require(restore_reviewed(entries[relative], baseline, reviewed) == baseline,
                 "59i widening exact successor reversal failed: " + relative)
+    require(git_bytes(root, "rev-parse", "HEAD") == head,
+            "59i widening HEAD changed during verification")
     print("59i widening immutable successor and exact reviewed spans PASS", flush=True)
 
 

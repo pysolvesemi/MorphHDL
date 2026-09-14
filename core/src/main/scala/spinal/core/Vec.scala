@@ -635,8 +635,7 @@ class Vec[T <: Data](var _dataType : HardType[T], val vec: Vector[T]) extends Mu
   }
 
   override def getZero: this.type = {
-    ParameterizedVec.rejectUnsupported(this, "Vec zero construction")
-    super.getZero
+    NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]
   }
 
   override def toString() = {

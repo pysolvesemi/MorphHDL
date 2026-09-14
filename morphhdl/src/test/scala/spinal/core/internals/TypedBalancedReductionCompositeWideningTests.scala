@@ -22,8 +22,7 @@ class TypedBalancedReductionCompositeWideningTests extends AnyFunSuite {
     (values, op, bridge) => new TraversableOnceAnyPimped[T](values).reduceBalancedTree(op, bridge)
 
   private def typedWidth(value: BaseType): ElabInt =
-    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)
-      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))
+    ElabInt.widthOf(value)
 
   private def combine(a: BalancedCompositeWideningValue,
       b: BalancedCompositeWideningValue): BalancedCompositeWideningValue = {

@@ -18,6 +18,9 @@ concurrency:
   group: morphhdl-external-symbolic-width-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   proof:
     name: External width proof Scala ${{ matrix.scala_version }}
@@ -36,6 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Validate the native-source boundary

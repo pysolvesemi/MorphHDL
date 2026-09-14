@@ -26,9 +26,10 @@ class WideningSourceReviewTests(unittest.TestCase):
 
     def test_every_reviewed_span_rejects_a_changed_byte(self):
         entries = W.load_contract(ROOT)
+        successor = W.successor_review(ROOT)
         rejected = 0
         for path, entry in entries.items():
-            source = (ROOT / path).read_bytes()
+            source = W.current_reviewed_source(ROOT, path, successor)
             baseline = W.baseline_source(ROOT, path)
             self.assertEqual(W.restore_source(ROOT, path, source.decode()).encode(), baseline)
             for edit in entry["edits"]:

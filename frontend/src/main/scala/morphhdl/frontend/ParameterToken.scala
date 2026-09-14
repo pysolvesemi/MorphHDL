@@ -7,12 +7,21 @@ import spinal.core.{ElaborationIntegerParameter, ElaborationIntegerParameterRoot
 private[frontend] final class ParameterToken(
     val declaration: IntegerParameter,
     val origin: SourceOrigin,
-    initialSchema: Option[ElaborationIntegerParameter] = None
+    initialSchema: Option[ElaborationIntegerParameter] = None,
+    initialRoot: Option[ElaborationIntegerParameterRoot] = None
 ) {
   if (initialSchema == null || initialSchema.exists(_ == null)) {
     FrontendException.failAt(
       "MORPH-FRONTEND-STRUCTURAL-PARAMETER-SCHEMA-NULL",
       s"parameter '${declaration.name}' requires a non-null canonical-schema option",
+      origin
+    )
+  }
+  if (initialRoot == null || initialRoot.exists(root =>
+      root == null || root.name != declaration.name)) {
+    FrontendException.failAt(
+      "MORPH-FRONTEND-STRUCTURAL-PARAMETER-ROOT-INVALID",
+      s"parameter '${declaration.name}' requires an exact matching declaration root",
       origin
     )
   }
@@ -50,8 +59,8 @@ private[frontend] final class ParameterToken(
   }
 
   lazy val elaborationRoot: ElaborationIntegerParameterRoot =
-    ElaborationIntegerParameterRoot.fresh(
+    initialRoot.getOrElse(ElaborationIntegerParameterRoot.fresh(
       declaration.name,
       Some(origin.rendered)
-    )
+    ))
 }
