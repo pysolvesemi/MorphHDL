@@ -775,3 +775,26 @@ The documentation-only publication commit following this seal records these
 results without changing source anchors or governed bytes. Its new exact-head
 CI must pass all applicable workflow and job gates before ordinary merge.
 Do not reuse the successful old-head `53513dce` results as new-head passes.
+
+### Final target advance incorporated without source changes
+
+Immediately before publication, the target advanced again to
+`3b547ae5622ae212c17f6e67cc96924127a46a41`. Its source commit
+`23ce1f0d56bb8f3505fcca14068a23914a45f6ca` independently applied the same
+59b/59d current-positive 600-second budgets and shared workflow path triggers.
+Python AST comparison proves both target caller implementations are identical
+to this repair; workflow byte comparison after removing only this repair's
+additional regression-test lines and exact repair-branch clause matches both
+target workflows. No target source behavior or workflow trigger is discarded.
+
+Merge `a852bbabb97d6f3c270fc0a957fe77e119b8632a` incorporates that target with
+the **identical full Git tree** as documentation head `7a16ec51`:
+`2433e64f10bb439ec755ecbf8400d2bd7f201d1e`. Therefore the reviewed source
+`2be698ca` and seal `dfd654df` remain unchanged, valid ancestors; all governed
+bytes are exactly those exercised by the complete local replays above. The
+latest target and both of its new commits are preserved in HEAD ancestry.
+This final documentation-only record does not alter the source seal.
+
+The publication diff against latest target `3b547ae5` still contains exactly
+12 repair paths; the expected 51-workflow inventory above is unchanged. Fresh
+CI must qualify the actual final publication SHA before ordinary merge.
