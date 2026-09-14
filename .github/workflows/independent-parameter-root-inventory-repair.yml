@@ -1,0 +1,74 @@
+name: Apply reviewed standalone source-inventory correction
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/independent-parameter-root-inventory-repair.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply exact reviewed correction, verify it and remove this one-shot importer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, gzip, hashlib, os, subprocess
+          from pathlib import Path
+          branch = 'agent/independent-parameter-domain-composition'
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          start = git('rev-parse', 'HEAD')
+          assert start == os.environ['GITHUB_SHA']
+          assert not git('status', '--porcelain')
+          assert git('rev-parse', 'HEAD^') == '2ff1418e0a73bb9fb461ef0637a3e4b5c95ec0f8'
+          encoded = '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'
+          # The expected digest is of the reviewed uncompressed source diff.
+          patch = gzip.decompress(base64.b64decode(encoded))
+          assert len(patch) == 6026
+          assert hashlib.sha256(patch).hexdigest() == 'f0551525436d839a3798d64b420ecd11e76848f19b83aa325df403c07a498251'
+          evidence = Path(os.environ['RUNNER_TEMP']) / 'root-inventory-evidence'
+          evidence.mkdir()
+          patch_path = evidence / 'reviewed.patch'
+          patch_path.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--index', '--check', str(patch_path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(patch_path)], check=True)
+          subprocess.run(['git', 'rm', '.github/workflows/independent-parameter-root-inventory-repair.yml'], check=True)
+          assert git('write-tree') == '3655d1777b7d958a02129f1102378a597c62e352'
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          commands = [
+              ['python3', 'morphhdl/scripts/check-native-source-preservation.py'],
+              ['python3', 'morphhdl/scripts/check-production-retirement.py'],
+              ['python3', 'morphhdl/scripts/check-typed-layering-ir.py'],
+              ['python3', 'morphhdl/scripts/check-typed-layering-ir.py', '--self-test'],
+              ['python3', '-m', 'unittest', 'discover', '-s', 'repro/independent-parameters', '-p', 'test_*.py', '-v'],
+          ]
+          with (evidence / 'verification.log').open('w') as log:
+              for command in commands:
+                  log.write(repr(command) + '\n'); log.flush()
+                  subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
+          assert git('write-tree') == '3655d1777b7d958a02129f1102378a597c62e352'
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'commit', '-m', 'fix(ci): include standalone reproducer in live typed-layering audit', '-m', 'Register the exact high-level application source root in the closed inventory and all applicable rules. Checker logic is unchanged. Add four adversarial root-coverage tests and invoke live source guards as well as their self-tests. The exact reviewed tree passed all live checks and 24 Python tests. Final source-overlay resealing and final-head CI remain required.'], check=True)
+          (evidence / 'head.txt').write_text(git('rev-parse', 'HEAD') + '\n')
+          subprocess.run(['git', 'bundle', 'create', str(evidence / 'source.bundle'), 'HEAD', '^2ff1418e0a73bb9fb461ef0637a3e4b5c95ec0f8'], check=True)
+          remote = git('ls-remote', '--exit-code', 'origin', 'refs/heads/' + branch).split()[0]
+          assert remote == start, 'branch moved; refusing to overwrite concurrent work'
+          subprocess.run(['git', 'push', 'origin', 'HEAD:refs/heads/' + branch], check=True)
+          print('PUBLISHED_ROOT_INVENTORY_FIX ' + git('rev-parse', 'HEAD'))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-root-inventory-${{ github.sha }}
+          path: ${{ runner.temp }}/root-inventory-evidence/
+          if-no-files-found: warn
