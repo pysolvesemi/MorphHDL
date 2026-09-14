@@ -1,0 +1,64 @@
+name: Independent parameter domains
+
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - 'core/src/main/scala/spinal/core/ElabInt.scala'
+      - 'core/src/main/scala/spinal/core/Elaboration*.scala'
+      - 'repro/independent-parameters/**'
+      - '.github/workflows/independent-parameter-domains.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-reproducer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      SBT_OPTS: '-Xmx4G -XX:ActiveProcessorCount=2'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Tool versions and exact source revision
+        run: |
+          git rev-parse HEAD
+          java -version
+          cat repro/independent-parameters/project/build.properties
+      - name: Execute unchanged independent-width reproducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p independent-parameter-evidence
+          cd repro/independent-parameters
+          sbt -batch 'runMain repro.IndependentParameterRepro out' 2>&1 | tee ../../independent-parameter-evidence/generation.log
+      - name: Repeat native publication and compare bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd repro/independent-parameters
+          sbt -batch 'runMain repro.IndependentParameterRepro out-repeat' 2>&1 | tee ../../independent-parameter-evidence/repeat.log
+          cmp out/RecordWidth.v out-repeat/RecordWidth.v
+          sha256sum out/RecordWidth.v out-repeat/RecordWidth.v | tee ../../independent-parameter-evidence/publication-sha256.txt
+      - name: Preserve actual evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: independent-parameter-evidence-${{ github.sha }}
+          path: |
+            independent-parameter-evidence/
+            repro/independent-parameters/out/
+            repro/independent-parameters/out-repeat/
+          if-no-files-found: error
