@@ -38,6 +38,9 @@ concurrency:
   group: increment-59f-callback-graphs-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   validate:
     if: >-
@@ -49,6 +52,7 @@ jobs:
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f'))
+      || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Safe callback graphs Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 180

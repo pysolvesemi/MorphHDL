@@ -187,13 +187,14 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     }
     value
   }
-  private def cloneShape(template: Data, widths: Vector[ElaborationIntegerExpression]): Data = {
+  private[internals] def cloneShape(template: Data, widths: Vector[ElaborationIntegerExpression]): Data = {
     if (template == null || widths == null || template.flatten.size != widths.size)
       fail("CLONE-SHAPE", "fresh replay clone requires one substituted width for every native leaf")
     val result = ParameterizedWidth.cloneOf(template)
     result.setAsDirectionLess()
     val sources = template.flatten.toVector
     val targets = result.flatten.toVector
+    ParameterizedVec.withFreshCloneWidths(template, result) {
     sources.zip(targets).zip(widths).foreach { case ((source, target), width) =>
       ElaborationWidthAuthority.requireAuthoritative(width, "fresh composite replay width",
         "MORPH-REDUCE-BALANCED-COMPOSITE-CLONE-WIDTH")
@@ -227,6 +228,39 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
         case _ => fail("CLONE-TYPE", "composite replay supports only Bool/Bits/UInt/SInt leaves")
       }
     }
+    }
+    def preserveClone(source: Data, target: Data,
+        substituted: Vector[ElaborationIntegerExpression]): Unit = {
+      if ((source eq target) || source.flatten.size != substituted.size ||
+          target.flatten.size != substituted.size)
+        fail("CLONE-FACTORY", "clone factory requires distinct native shapes and exact leaf widths")
+      (source, target) match {
+        case (a: MultiData, b: MultiData) =>
+          val from = a.elements.toVector
+          val to = b.elements.toVector
+          if (a.getClass != b.getClass || from.map(_._1) != to.map(_._1))
+            fail("CLONE-FACTORY", "clone factory changed recursive native field paths")
+          var offset = 0
+          from.zip(to).foreach { case ((_, childSource), (_, childTarget)) =>
+            val size = childSource.flatten.size
+            preserveClone(childSource, childTarget, substituted.slice(offset, offset + size))
+            offset += size
+          }
+          if (offset != substituted.size)
+            fail("CLONE-FACTORY", "clone factory lost recursive leaf coverage")
+        case (_: BaseType, _: BaseType) =>
+        case _ => fail("CLONE-FACTORY", "clone factory changed native container kinds")
+      }
+      target match {
+        case bundle: Bundle =>
+          // A later ordinary cloneOf/HardType must construct the already-proved
+          // shape before copyCloneMetadata checks it. Never overwrite metadata
+          // on the source or relax the registry's conflict rejection.
+          bundle.hardtype = new HardType[Data](cloneShape(source, substituted))
+        case _ =>
+      }
+    }
+    preserveClone(template, result, widths)
     result
   }
 
@@ -325,7 +359,8 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
   ) {
     private[TypedBalancedReductionCompositeReplay] def operationKey: Any =
       leafTransfer.map(_.operationKey).getOrElse(recipes.map(_.key))
-    val hasWidening: Boolean = leafTransfer.nonEmpty
+    val hasWidening: Boolean = leafTransfer.nonEmpty &&
+      resultWidths.zip(inputShapes.head.widths).exists { case (a, b) => !sameWidth(a, b) }
     def validateFreshness(): Unit = freshOnce(this) {
       inputShapes.foreach(_.requireFreshness())
       observation.requireUnchanged()
@@ -384,7 +419,10 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       fail("RESULT-SHAPE", "operator result must preserve the input recursive layout")
     schema.foreach(_.validateBindings())
     val captures = schema.toVector.flatMap(_.hardwareInputs)
-    val observation = TypedBalancedReductionClosedGraph.observe(callback.copy(operands = callback.operands ++ captures))
+    // Scope closure does not authorize replay: every conditional value must
+    // still pass the independent native type/width and driver proof below.
+    val observation = TypedBalancedReductionClosedGraph.observeCombinational(
+      callback.copy(operands = callback.operands ++ captures))
     val owner = inputs.head.evidence.head.owner
     val inputLeaves = new IdentityHashMap[BaseType, (Int, Int)]()
     inputs.zipWithIndex.foreach { case (shape, side) => shape.evidence.zipWithIndex.foreach {
@@ -409,11 +447,10 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     val originalWidths = inputs.head.widths
     val shapeChanging = nativeResultWidths.size != originalWidths.size ||
       nativeResultWidths.zip(originalWidths).exists { case (a, b) => !sameWidth(a, b) }
-    if (shapeChanging) {
-      if (schema.nonEmpty)
-        fail("WIDENING-CAPTURE", "shape-changing composite leaves require a separate capture-composition proof")
+    val conditionalGraph = callback.statements.exists(_.isInstanceOf[WhenStatement])
+    if (shapeChanging || conditionalGraph) {
       val leafProof = TypedBalancedReductionCompositeLeafReplay.certify(
-        callback, inputs(0).evidence, inputs(1).evidence)
+        callback, inputs(0).evidence, inputs(1).evidence, capturedEvidence, conditionalGraph)
       if (leafProof.resultWidths.size != nativeResultWidths.size ||
           leafProof.resultWidths.zip(nativeResultWidths).exists { case (a, b) => !sameWidth(a, b) })
         fail("WIDENING-WIDTH", "independent leaf proof disagrees with the exact native result width")
@@ -714,7 +751,8 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
 
   def capture[T <: Data](vector: Vec[T], op: (T, T) => T,
       bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
-      schema: Option[TypedBalancedReductionCaptureSchema]): Certificate[T] = {
+      schema: Option[TypedBalancedReductionCaptureSchema],
+      bridgeUsesNativeVecZero: Boolean = false): Certificate[T] = {
     if (vector == null || op == null || bridge == null || native == null)
       fail("NULL", "receiver and native callbacks are required")
     schema.foreach { value =>
@@ -759,7 +797,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       }
       val beforeSet = inventory(previousStatements)
       val nowSet = inventory(current)
-      val callbackSet = inventory(callback.declarations ++ callback.assignments)
+      val callbackSet = inventory(callback.declarations ++ callback.assignments ++ callback.statements)
       if (previousStatements.exists(old => !nowSet.containsKey(old)) ||
           current.exists(value => !beforeSet.containsKey(value) && !callbackSet.containsKey(value)))
         fail("STATEMENT-EFFECT", "callback changed statements outside its closed native data graph")
@@ -778,10 +816,11 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       }
       val shape = new Shape(callback.result, layout(callback.result), callback.result.flattenLocalName.toVector, evidence)
       values.put(callback.result, shape)
-      observations += TypedBalancedReductionClosedGraph.observe(
-        if (callback.operands.size == 2) callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs))
-        else callback)
-    })
+      observations += (if (callback.operands.size == 2)
+        TypedBalancedReductionClosedGraph.observeCombinational(
+          callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs)))
+        else TypedBalancedReductionClosedGraph.observe(callback))
+    }, bridgeUsesNativeVecZero)
     freshnessRead {
     val stages = captured.plan.stages.map { geometry =>
       val rows = captured.rows.filter(_.level == geometry.level)

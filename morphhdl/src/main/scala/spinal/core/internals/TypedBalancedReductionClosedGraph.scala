@@ -79,7 +79,8 @@ private[spinal] object TypedBalancedReductionClosedGraph {
 
   final class Observation private[TypedBalancedReductionClosedGraph] (
       private val callback: UnvalidatedBalancedCallback,
-      private val frozen: Snapshot
+      private val frozen: Snapshot,
+      private val combinationalScopes: Boolean
   ) {
     val ordinal: Int = callback.ordinal
     val nodeCount: Int = frozen.nodes.size
@@ -89,9 +90,22 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       * top-level assignment source pointer. Must run before normalization.
       */
     def requireUnchanged(): Unit = {
-      val current = inspect(callback)
-      if (current != frozen)
-        fail("CHANGED", "a captured callback's exact graph changed after observation")
+      val current = inspect(callback, combinationalScopes)
+      if (current != frozen) {
+        val changed = frozen.nodes.zip(current.nodes).collectFirst {
+          case (before, after) if before != after =>
+            val retained = before.native.value match {
+              case leaf: BaseType =>
+                val sources = ArrayBuffer.empty[String]
+                leaf.foreachStatements(assignment => sources += assignment.source.getClass.getName)
+                s"; retained ${ParameterizedWidth.expressionOf(leaf).map(_.verilog)}, drivers ${sources.mkString(",")}, name ${leaf.getName()}"
+              case _ => ""
+            }
+            s"; first changed node ${before.kind.getName}: width ${before.width} -> ${after.width}, " +
+              s"properties ${before.properties} -> ${after.properties}" + retained
+        }.getOrElse("")
+        fail("CHANGED", "a captured callback's exact graph changed after observation" + changed)
+      }
     }
   }
 
@@ -104,7 +118,14 @@ private[spinal] object TypedBalancedReductionClosedGraph {
   }
 
   def observe(callback: UnvalidatedBalancedCallback): Observation =
-    new Observation(callback, inspect(callback))
+    new Observation(callback, inspect(callback, false), false)
+
+  /** Observe a closed, exhaustive single-level native combinational when.
+    * This is still only closure/freshness evidence, never a replay permit.
+    * The default observer and its unconditional negative contract stay strict.
+    */
+  private[internals] def observeCombinational(callback: UnvalidatedBalancedCallback): Observation =
+    new Observation(callback, inspect(callback, true), true)
 
   /** Invoke the native helper once and observe callbacks as they complete. */
   def capture[T <: Data](
@@ -121,7 +142,7 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     new ReductionObservation(record, observed.toVector)
   }
 
-  private def inspect(callback: UnvalidatedBalancedCallback): Snapshot = {
+  private def inspect(callback: UnvalidatedBalancedCallback, combinationalScopes: Boolean): Snapshot = {
     if (callback == null || callback.result == null || callback.operands == null ||
         callback.declarations == null || callback.assignments == null ||
         callback.operands.isEmpty || callback.operands.exists(_ == null))
@@ -144,9 +165,31 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       scope.foreachStatements(values += _)
       values.toVector
     }
+    val combinationalWhens = ArrayBuffer.empty[WhenStatement]
+    def conditionalOf(scope: ScopeStatement): Option[WhenStatement] = {
+      if (!combinationalScopes || (scope eq owner.dslBody)) return None
+      val statement = Option(scope).map(_.parentStatement).collect { case value: WhenStatement => value }
+        .getOrElse(fail("SCOPE", "a local combinational scope must be a captured native when arm"))
+      if ((statement.parentScope ne owner.dslBody) ||
+          ((scope ne statement.whenTrue) && (scope ne statement.whenFalse)) ||
+          statement.whenTrue.isEmpty || statement.whenFalse.isEmpty ||
+          !callback.statements.exists(_ eq statement))
+        fail("SCOPE", "only one-level exhaustive captured combinational when scopes are closed")
+      val children = directStatements(statement.whenTrue) ++ directStatements(statement.whenFalse)
+      if (children.exists {
+          case leaf: BaseType => !declarations.containsKey(leaf) || leaf.isReg || leaf.isIo || leaf.isAnalog
+          case data: DataAssignmentStatement => !recorded.containsKey(data) ||
+            !declarations.containsKey(data.finalTarget) || data.finalTarget.isReg || (data.target ne data.finalTarget)
+          case _ => true
+        }) fail("SCOPE-EFFECT", "conditional arms may contain only captured internal combinational data and full writes")
+      if (!combinationalWhens.exists(_ eq statement)) combinationalWhens += statement
+      if (!enables.exists(_ eq statement)) enables += statement
+      Some(statement)
+    }
     def enableOf(value: AssignmentStatement): Option[WhenStatement] = {
       if (value.parentScope eq owner.dslBody) return None
       val scope = value.parentScope
+      if (combinationalScopes && !value.finalTarget.isReg) return conditionalOf(scope)
       val statement = Option(scope).map(_.parentStatement).collect { case when: WhenStatement => when }
         .getOrElse(fail("ASSIGNMENT-SHAPE", "only one native register-enable scope is admitted"))
       if (!value.isInstanceOf[DataAssignmentStatement] || !value.finalTarget.isReg ||
@@ -175,8 +218,9 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     }
     callback.declarations.foreach { value =>
       if (!liveDeclarations.containsKey(value) || (value.component ne owner) ||
-          (value.parentScope ne owner.dslBody) || value.isAnalog || value.isIo)
-        fail("DECLARATION", "callback-local data must be live, root-scoped, digital and internal")
+          ((value.parentScope ne owner.dslBody) && (value.isReg || conditionalOf(value.parentScope).isEmpty)) ||
+          value.isAnalog || value.isIo)
+        fail("DECLARATION", "callback-local data must be live, in a proved scope, digital and internal")
     }
     assignments.foreach { value =>
       if (!liveAssignments.containsKey(value) || !declarations.containsKey(value.finalTarget))
@@ -199,12 +243,48 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       val owned = assignments.filter(_.finalTarget eq value)
       val data = owned.count(_.isInstanceOf[DataAssignmentStatement])
       val init = owned.count(_.isInstanceOf[InitAssignmentStatement])
-      if (data != 1 || init > 1 || (!value.isReg && init != 0))
+      val exhaustive = if (combinationalScopes && !value.isReg && data == 2 &&
+          (value.parentScope eq owner.dslBody) && init == 0) {
+        val arms = owned.map(driver => conditionalOf(driver.parentScope))
+        arms.forall(_.isDefined) && (arms(0).get eq arms(1).get) &&
+          owned.map(_.parentScope).exists(_ eq arms(0).get.whenTrue) &&
+          owned.map(_.parentScope).exists(_ eq arms(0).get.whenFalse)
+      } else false
+      if ((data != 1 && !exhaustive) || init > 1 || (!value.isReg && init != 0))
         fail("DRIVERS", "each callback-local value needs one data driver and at most one register initializer")
       if (value.isReg && value.clockDomain == null)
         fail("CLOCK", "a callback register lost its native clock-domain identity")
+      if (!value.isReg && (value.parentScope ne owner.dslBody) &&
+          owned.exists(_.parentScope ne value.parentScope))
+        fail("SCOPE-ESCAPE", "branch-local data must be driven in its own exact lexical arm")
+      if (!value.isReg && (value.parentScope eq owner.dslBody) && data == 1 &&
+          (owned.head.parentScope ne owner.dslBody))
+        fail("DRIVERS", "a root combinational result requires both exhaustive arms, not an implicit latch")
       drivers.put(value, owned)
     }
+    if (resultLeaves.exists(value => declarations.containsKey(value) && (value.parentScope ne owner.dslBody)))
+      fail("SCOPE-ESCAPE", "a branch-local declaration cannot escape as the callback result")
+
+    // Check lexical visibility at every source use without following drivers:
+    // a root result may leave a when, but an arm-local temporary may not.
+    def checkVisible(expression: Expression, scope: ScopeStatement): Unit = {
+      val checked = new IdentityHashMap[Expression, java.lang.Boolean]()
+      def loop(value: Expression, depth: Int): Unit = {
+        if (value == null) fail("NULL", "native expression contains a null child")
+        if (depth > MaximumDepth || checked.size >= MaximumNodes)
+          fail("LIMIT", "lexical visibility traversal exceeds the reviewed graph bound")
+        if (checked.put(value, java.lang.Boolean.TRUE) == null) value match {
+          case leaf: BaseType =>
+            if (declarations.containsKey(leaf) && (leaf.parentScope ne owner.dslBody) &&
+                (leaf.parentScope ne scope))
+              fail("SCOPE-ESCAPE", "a branch-local declaration was read outside its exact lexical arm")
+          case _ => value.foreachExpression(child => loop(child, depth + 1))
+        }
+      }
+      loop(expression, 0)
+    }
+    assignments.foreach(value => checkVisible(value.source, value.parentScope))
+    combinationalWhens.foreach(value => checkVisible(value.cond, value.parentScope))
 
     val state = new IdentityHashMap[Expression, java.lang.Integer]()
     val expressions = ArrayBuffer.empty[Expression]
@@ -231,7 +311,11 @@ private[spinal] object TypedBalancedReductionClosedGraph {
           }
           else fail("EXTERNAL-READ", "callback expression reads data other than its operands or local declarations")
         case _ =>
-          if (!expressionClasses.contains(value.getClass))
+          val conditionalPrimitive = combinationalScopes && Set[Class[_]](
+            classOf[Operator.BitVector.orR], classOf[Operator.BitVector.andR], classOf[Operator.BitVector.xorR],
+            classOf[BitsRangedAccessFixed], classOf[UIntRangedAccessFixed], classOf[SIntRangedAccessFixed]
+          ).contains(value.getClass)
+          if (!expressionClasses.contains(value.getClass) && !conditionalPrimitive)
             fail("EXPRESSION", s"native expression class '${value.getClass.getName}' is not in the reviewed closed-graph subset")
           val children = ArrayBuffer.empty[Expression]
           value.foreachExpression(children += _)
@@ -273,9 +357,12 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       case literal: BitVectorLiteral =>
         if (literal.value == null || literal.hasPoison)
           fail("LITERAL", "poison or uninitialized literal is not closed replay input")
-        Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount)
+        Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount,
+          NativeWidthProvenance.fillOf(literal).map(identity))
       case literal: BoolLiteral => Vector(literal.value)
       case resize: Resize => Vector(resize.size, ParameterizedWidth.resizeExpressionOf(resize).map(identity))
+      case access: BitVectorRangedAccessFixed => Vector(access.hi, access.lo,
+        NativeWidthProvenance.rangeOf(access).map(identity))
       case access: BitVectorBitAccessFixed => Vector(access.bitId, NativeWidthProvenance.isHighBit(access))
       case _: Expression => Vector.empty
     }

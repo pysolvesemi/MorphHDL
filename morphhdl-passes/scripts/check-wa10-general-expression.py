@@ -84,7 +84,7 @@ MARKERS = {
         "core/testOnly *NativePureExpressionCopyTests *VerilogEmitterExpressionInliningTests",
         "morph/testOnly *NativeWireExpressionCodecTests *MorphVerilogExpressionInliningTests",
         "NativeExpressionDiagnosticsWriter timing", "NativeExpressionDiagnosticsWriter general",
-        "WA10_DISABLED_LEGACY_BYTES_PASS files=2",
+        "WA10_DISABLED_SUCCESSOR_BYTES_PASS files=2 width_rewrites=4",
     ),
     PRODUCTION_CHECKER: (
         'assert declares_wire(reference, "sampledAlias")',

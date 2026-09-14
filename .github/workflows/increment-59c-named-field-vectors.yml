@@ -36,6 +36,9 @@ concurrency:
   group: increment-59c-named-field-vectors-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: Named field vectors Scala ${{ matrix.scala }}
