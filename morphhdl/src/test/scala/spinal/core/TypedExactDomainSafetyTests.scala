@@ -267,55 +267,46 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
     assert(error.detail.contains("VALUE=2"))
   }
 
-  test("branch-partial evidence cannot be downgraded across independent roots") {
+  test("branch-partial independent composition retains every authorized root") {
     val left = typedParameter("LEFT", default = 1, minimum = 1, maximum = 3)
     val right = typedParameter("RIGHT", default = 1, minimum = 1, maximum = 3)
     val leftRoot = exact(left.expression).root
-
+    var combined: ElabInt = null
     ElaborationDomainContext.withAdmitted(
-      leftRoot,
-      Set(BigInt(2), BigInt(3)),
-      sourceLocation = None
+      leftRoot, Set(BigInt(2), BigInt(3)), sourceLocation = None
     ) {
-      val partial = left + 1
-      val error = intercept[ParameterizedVerilogException] {
-        partial + right
-      }
-      assert(
-        error.code ==
-          "SPINAL-ELAB-DOMAIN-PARTIAL-CORRELATION-UNSUPPORTED"
-      )
+      combined = (left + 1) + right
+      assert(combined.minimum == 4)
+      assert(combined.maximum == 7)
+      assert(combined.witness == 4)
+      assert(combined.parameters.size == 2)
+      assert(ElaborationWidthAuthority.isAuthoritative(combined.expression))
     }
+    val error = intercept[ParameterizedVerilogException](combined.minimum)
+    assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH")
   }
 
-  test("full exact evidence cannot be downgraded across independent roots") {
+  test("full exact independent evidence composes without admitting raw metadata") {
     val left = typedParameter("LEFT", default = 1, minimum = 1, maximum = 3)
     val right = typedParameter("RIGHT", default = 1, minimum = 1, maximum = 3)
-    val expected = "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
-
-    assert(intercept[ParameterizedVerilogException](left + right).code == expected)
-    assert(intercept[ParameterizedVerilogException](left < right).code == expected)
-    assert(
-      intercept[ParameterizedVerilogException] {
-        (left > 1) && (right > 1)
-      }.code == expected
-    )
+    val sum = left + right
+    assert(sum.minimum == 2 && sum.maximum == 6)
+    assert((left < right).isSymbolic)
+    assert(((left > 1) && (right > 1)).isSymbolic)
+    assert(((left > 0) && (right > 0)).isAlwaysTrue)
+    assert(sum.parameters.size == 2)
+    assert(ElaborationWidthAuthority.isAuthoritative(sum.expression))
 
     val rawParameter = ElaborationIntegerParameter("RAW", 1, 1, 3)
     val raw = ElabInt.fromExpression(
       ElaborationIntegerExpression(
-        verilog = "RAW",
-        default = 1,
-        minimum = 1,
-        maximum = 3,
+        verilog = "RAW", default = 1, minimum = 1, maximum = 3,
         parameters = Vector(rawParameter),
         parameterRoots = Vector(rawParameter.declarationRoot)
       )
     )
-    assert(
-      intercept[ParameterizedVerilogException](left + raw).code ==
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING"
-    )
+    assert(intercept[ParameterizedVerilogException](left + raw).code ==
+      "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
   }
 
   test("partial Boolean evidence cannot escape into an independent root") {

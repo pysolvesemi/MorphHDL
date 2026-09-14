@@ -301,6 +301,8 @@ object ElabBool {
       expression: ElaborationBooleanExpression,
       role: String
   ): ElaborationBooleanExpression = {
+    if (ElaborationProductDomain.isRetained(expression))
+      return ElaborationProductDomain.project(expression, role)
     ElabInt.requireAuthoritativeBooleanDomain(
       expression,
       role,
@@ -367,6 +369,8 @@ object ElabBool {
   }
 
   private[core] def projectedTruth(value: ElabBool): Truth = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return ElaborationProductDomain.projectedTruth(value.expression)
     ElabInt.requireAuthoritativeBooleanDomain(
       value.expression,
       "typed Boolean truth projection",
@@ -413,6 +417,8 @@ object ElabBool {
   }
 
   private def not(value: ElabBool): ElabBool = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return ElaborationProductDomain.not(value.expression)
     val truth = value.truth match {
       case AlwaysTrue  => AlwaysFalse
       case AlwaysFalse => AlwaysTrue
@@ -433,6 +439,8 @@ object ElabBool {
   }
 
   private def and(left: ElabBool, right: ElabBool): ElabBool = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return ElaborationProductDomain.logical("&&", left.expression, right.expression)
     val truth = (left.truth, right.truth) match {
       case (AlwaysFalse, _) | (_, AlwaysFalse) => AlwaysFalse
       case (AlwaysTrue, AlwaysTrue)            => AlwaysTrue
@@ -460,6 +468,8 @@ object ElabBool {
   }
 
   private def or(left: ElabBool, right: ElabBool): ElabBool = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return ElaborationProductDomain.logical("||", left.expression, right.expression)
     val truth = (left.truth, right.truth) match {
       case (AlwaysTrue, _) | (_, AlwaysTrue) => AlwaysTrue
       case (AlwaysFalse, AlwaysFalse)        => AlwaysFalse
@@ -487,6 +497,10 @@ object ElabBool {
   }
 
   private def toElabInt(value: ElabBool): ElabInt = {
+    if (ElaborationProductDomain.isRetained(value.expression)) {
+      val result = ElabInt.fromExpression(ElaborationProductDomain.toInteger(value.expression))
+      return new ElabInt(result.expression, Some(value))
+    }
     requireAuthoritativeSource(value.expression, "Boolean-to-integer expression")
     val bounds = value.truth match {
       case AlwaysTrue  => BigInt(1) -> BigInt(1)
@@ -774,6 +788,43 @@ object ElabInt {
       role: String,
       failureCode: String,
       requireExactExtrema: Boolean
+  ): Option[ElaborationExactDomain[BigInt]] =
+    validateAuthoritativeIntegerDomain(expression, role, failureCode, requireExactExtrema,
+      domain => ElaborationDomainContext.admitted(domain))
+
+  /** The same carrier checks at a finished native owner, whose exact identity
+    * must resolve the requested root scope. This does not reopen a construction
+    * branch. General single-root consumers still use the live-scope entrypoint.
+    */
+  private[core] def authoritativeIntegerOwnerDomain(
+      expression: ElaborationIntegerExpression,
+      role: String,
+      failureCode: String
+  )(
+      ownerValues: (ElaborationIntegerParameterRoot, Set[BigInt]) => Set[BigInt]
+  ): Option[(ElaborationExactDomain[BigInt], Set[BigInt])] = {
+    var requested = Set.empty[BigInt]
+    validateAuthoritativeIntegerDomain(expression, role, failureCode, false, domain => {
+      requested = ownerValues(domain.root, domain.universe)
+      if (requested.isEmpty || !requested.subsetOf(domain.evidenceValues))
+        fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
+          s"$role exceeds its retained exact declaration scope", expression.sourceLocation)
+      requested
+    }).map { domain =>
+      val representative = if (requested.contains(domain.parameter.default)) domain.parameter.default else requested.min
+      if (!domain.evaluate(representative).contains(expression.default))
+        fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH",
+          s"$role default does not match its exact owner's representative", expression.sourceLocation)
+      domain -> requested
+    }
+  }
+
+  private def validateAuthoritativeIntegerDomain(
+      expression: ElaborationIntegerExpression,
+      role: String,
+      failureCode: String,
+      requireExactExtrema: Boolean,
+      requestedValues: ElaborationExactDomain[BigInt] => Set[BigInt]
   ): Option[ElaborationExactDomain[BigInt]] = {
     validateExpression(expression, role)
     val source = expression.sourceLocation
@@ -825,7 +876,7 @@ object ElabInt {
     requireProjectionSubset(
       expression.projectionProvenance,
       domain,
-      ElaborationDomainContext.admitted(domain),
+      requestedValues(domain),
       role,
       source
     )
@@ -1270,6 +1321,8 @@ object ElabInt {
       expression: ElaborationIntegerExpression,
       role: String
   ): ElaborationIntegerExpression = {
+    if (ElaborationProductDomain.isRetained(expression))
+      return ElaborationProductDomain.project(expression, role)
     if (ElaborationWidthAuthority.isRetained(expression))
       return ElaborationWidthAuthority.project(expression, role)
     // Projection is the common authority boundary for witness, extrema,
@@ -1506,6 +1559,8 @@ object ElabInt {
   }
 
   private def log2UpValue(value: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return fromExpression(ElaborationProductDomain.unary("log2Up", value.expression))
     if (value.minimum < 0) {
       fail(
         "SPINAL-ELAB-INT-LOG2-DOMAIN-NEGATIVE",
@@ -1531,6 +1586,8 @@ object ElabInt {
   }
 
   private def addressWidthValue(value: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return fromExpression(ElaborationProductDomain.unary("addressWidth", value.expression))
     if (value.minimum < 1) {
       fail(
         "SPINAL-ELAB-INT-ADDRESS-WIDTH-DOMAIN-NONPOSITIVE",
@@ -1556,6 +1613,8 @@ object ElabInt {
   }
 
   private def isPow2Value(value: ElabInt): ElabBool = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return ElaborationProductDomain.isPow2(value.expression)
     if (value.expression.parameters.nonEmpty)
       value.requireAuthoritativeIntegerDomain(
         role = "typed power-of-two predicate",
@@ -1603,6 +1662,8 @@ object ElabInt {
   }
 
   private def pow2Value(value: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.isRetained(value.expression))
+      return fromExpression(ElaborationProductDomain.unary("pow2", value.expression))
     if (value.minimum < 0 || value.maximum > 30) {
       fail(
         "SPINAL-ELAB-INT-POW2-DOMAIN-UNSUPPORTED",
@@ -1634,6 +1695,8 @@ object ElabInt {
       maximum: BigInt,
       default: BigInt
   ): ElabInt = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return fromExpression(ElaborationProductDomain.integer(operation, left.expression, right.expression))
     val location = left.sourceLocation.orElse(right.sourceLocation)
     if (minimum > maximum || default < minimum || default > maximum) {
       fail(
@@ -1675,6 +1738,8 @@ object ElabInt {
   }
 
   private def equal(left: ElabInt, right: ElabInt): ElabBool = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return ElaborationProductDomain.compare("==", left.expression, right.expression)
     val equivalent = equivalentExpression(left.expression, right.expression)
     val disjoint = left.maximum < right.minimum || right.maximum < left.minimum
     val truth =
@@ -1728,6 +1793,8 @@ object ElabInt {
       left: ElabInt,
       right: ElabInt
   ): ElabBool = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return ElaborationProductDomain.compare(operation, left.expression, right.expression)
     val witness = operation match {
       case "<"   => projectedDefault(left) < projectedDefault(right)
       case "<="  => projectedDefault(left) <= projectedDefault(right)

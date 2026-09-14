@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "ae1fe0e4861036034d124933a26d7804d51fd561"
+      "approved_tree": "b306c001d9776ab64ce853064ba70307863657ff"
     },
     {
       "path": "idslpayload/src/main",
@@ -468,15 +468,16 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "WA-11: authenticated symbolic Boolean/integer conversion normalization"
+        "WA-11: authenticated symbolic Boolean/integer conversion normalization",
+        "Independent-parameter domain composition corrective repair (2026-09-14)"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabInt.scala",
         "mode": "100644",
-        "blob": "78a8b8863f550ec3ad146d6cef153262d4f29cd4",
-        "sha256": "44f321bf043f64a7f4acde77bc245b761b5eab20a83b80d4f338f4dd6de84a6c"
+        "blob": "e9c0e611e7b248e71d71a7d2b99bde3cf6442289",
+        "sha256": "7a6ab7850ddcdb40816c3d105cd6ea804cbf6d8910029135bac1cc2cfdcf8660"
       },
       "edits": []
     },
@@ -495,6 +496,23 @@
         "mode": "100644",
         "blob": "b4ce850d2a1f6af160ee06eca95b23c9c0d564b4",
         "sha256": "aa188e63b789f056a2f5f04c4dacca20c762cafe6b23857b218acede7c1da1cf"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Independent-parameter domain composition corrective repair (2026-09-14)"
+      ],
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+        "mode": "100644",
+        "blob": "8ac5984d5cccb8bf9056d2a37369a44766fc8ae2",
+        "sha256": "356403db226e0b55dbe299986779177d10aedf0f210044abb8c425d7f9af42a4"
       },
       "edits": []
     },
@@ -520,15 +538,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Independent-parameter domain composition corrective repair (2026-09-14)"
       ],
-      "reason": "Certify finite width-specific expression composition across independent root identities, preserve exact private-object provenance and guarded projection, and reject forged/copy-derived authority or illegal geometry without broadening general elaboration control domains. Conditional extrema and redundant choose arms use exact admitted bindings, including guarded full-group geometry, without granting authority from rendered expressions.",
+      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
         "mode": "100644",
-        "blob": "30a837a24ab72b3e1972eb273dfd95f88cb4db38",
-        "sha256": "27d67d51b5727f085c1de63016486318d5c18cc1e5a17593f53a91dc1e856cac"
+        "blob": "3f2ba3cb729d22784a25a53b45f569bac56141ab",
+        "sha256": "dae0bf93bdb2176976e546ba012c44e6867fe0bc0bfa3b9267135de3b98cfd79"
       },
       "edits": []
     },
