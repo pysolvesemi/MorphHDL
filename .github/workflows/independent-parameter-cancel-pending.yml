@@ -1,0 +1,101 @@
+name: PR188 requested cancellation and failure inventory
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/independent-parameter-cancel-pending.yml']
+permissions:
+  contents: read
+  actions: write
+jobs:
+  cancel-and-inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Cancel only outstanding runs for the requested repair branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cancellation-evidence
+          python3 - <<'PY'
+          import json, os, re, time, urllib.request, urllib.parse, urllib.error
+          from pathlib import Path
+          repo = 'pysolvesemi/MorphHDL'
+          branch = 'agent/independent-parameter-domain-composition'
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
+          own = int(os.environ['GITHUB_RUN_ID'])
+          base = 'https://api.github.com/repos/' + repo
+          out = Path('cancellation-evidence')
+          def api(path, method='GET', raw=False):
+              req = urllib.request.Request(base + path, method=method,
+                  headers={'Authorization':'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept':'application/vnd.github+json', 'X-GitHub-Api-Version':'2022-11-28'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  data = response.read()
+              return data if raw else (json.loads(data) if data else {})
+          cutoff = api('/actions/runs/' + str(own))['created_at']
+          runs = []
+          for page in range(1, 11):
+              batch = api('/actions/runs?' + urllib.parse.urlencode({'branch':branch,'per_page':100,'page':page}))['workflow_runs']
+              runs.extend(batch)
+              if len(batch) < 100: break
+          else: raise RuntimeError('run inventory exceeds reviewed pagination bound')
+          (out/'before.json').write_text(json.dumps(runs, indent=2))
+          cancelled = []
+          for run in runs:
+              if run['id'] == own or run['head_branch'] != branch or run['created_at'] > cutoff or run['status'] == 'completed': continue
+              record = {key:run[key] for key in ('id','name','head_sha','status','created_at')}
+              try:
+                  api('/actions/runs/' + str(run['id']) + '/cancel', 'POST')
+                  record['request'] = 'accepted'
+              except urllib.error.HTTPError as error:
+                  if error.code != 409: raise
+                  record['request'] = 'state changed before cancellation'
+              cancelled.append(record)
+          (out/'cancellation.json').write_text(json.dumps(cancelled, indent=2))
+          time.sleep(5)
+          states = [api('/actions/runs/' + str(entry['id'])) for entry in cancelled]
+          (out/'after.json').write_text(json.dumps(states, indent=2))
+          print('CANCEL_REQUESTED', len(cancelled))
+          for run in states: print(run['id'], run['status'], run['conclusion'])
+          failures = []
+          for run in runs:
+              if run['head_branch'] != branch or run['conclusion'] not in ('failure','timed_out'): continue
+              for job in api('/actions/runs/' + str(run['id']) + '/jobs?per_page=100')['jobs']:
+                  if job['conclusion'] not in ('failure','timed_out'): continue
+                  entry = {'run':run['id'],'head_sha':run['head_sha'],'workflow':run['name'],'job':job['id'],'name':job['name'],'failed_steps':[step['name'] for step in job.get('steps',[]) if step['conclusion'] == 'failure']}
+                  try:
+                      text = api('/actions/jobs/' + str(job['id']) + '/logs', raw=True).decode('utf-8-sig', errors='replace')
+                      # Retain error/context lines only, never environment/authentication setup.
+                      lines = text.splitlines()
+                      selected = set()
+                      for i,line in enumerate(lines):
+                          if re.search(r'##\[error\]|Traceback|RuntimeError|AssertionError|guard failed|FAILED|Error:|\[error\]', line):
+                              selected.update(range(max(0,i-3), min(len(lines),i+9)))
+                      entry['errors'] = '\n'.join(lines[i] for i in sorted(selected))
+                  except urllib.error.HTTPError as error:
+                      entry['log_http_status'] = error.code
+                  failures.append(entry)
+          (out/'failures.json').write_text(json.dumps(failures, indent=2))
+          print('FAILED_JOB_INVENTORY', len(failures))
+          PY
+      - name: Retain current source objects for local reproduction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > cancellation-evidence/source-head.txt
+          git rev-list --objects HEAD ^946e32652b13548a210691747493044d7146c8ea | cut -d ' ' -f 1 | git pack-objects --stdout > cancellation-evidence/source.pack
+          sha256sum cancellation-evidence/source.pack > cancellation-evidence/source.sha256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr188-cancellation-${{ github.sha }}
+          path: cancellation-evidence/
+          if-no-files-found: error
