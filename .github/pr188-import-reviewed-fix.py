@@ -1,160 +1,220 @@
-"""One-shot, exact-tree transport of the reviewed PR188 workflow correction."""
+"""One-shot checksum-bound source staging. Never writes a remote Git ref.
+The authorized connector, not the Actions token, publishes the final ref.
+"""
 from pathlib import Path
-import argparse
+import base64
+import datetime
 import gzip
 import hashlib
 import json
 import os
 import re
 import subprocess
-import urllib.parse
 import urllib.request
-import urllib.error
 
 REPO = 'pysolvesemi/MorphHDL'
 BRANCH = 'agent/independent-parameter-domain-composition'
-PARENT = '46a2ceb5dc56a6fd039ee3c4e303c6bbe4e03ff6'
-SOURCE_TREE = '5a9c2b112f96ef495124a10934e318f16dde9455'
-PATCH = '.github/pr188-reviewed-fix.patch.gz'
-SCRIPT = '.github/pr188-import-reviewed-fix.py'
-WORKFLOW = '.github/workflows/pr188-import-reviewed-fix.yml'
-MANIFEST = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
-HELPER = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
-REVIEW = {
- '.github/workflows/independent-parameter-domains.yml': '5af52172ca0541c24421e3394f9ae9bf3945285ced39b755177297f4aa4c2010',
- 'frontend/src/test/scala/morphhdl/frontend/AnalyzedFrontendBooleanTests.scala': 'e0aab5013dae6af8c52423d6fee1f2c1fd55208a264ac0990b63be66c0254d0e',
- 'frontend/src/test/scala/morphhdl/frontend/HdlBoolTests.scala': '5d04d8379a5b58d4a68834885b92734e94f6a841164bb2ed537caebddf6678f1',
- 'morphhdl/contracts/increment-54-typed-layering-ir.contract': '7494dc0371f75a24fbf00d09024af132e9d20d440a1eb35bd1a0dc3009478d81',
- 'morphhdl/scripts/check-typed-layering-ir.py': 'f7361e79b8f5b5bcfbc4c476e6fe0f27aa96ea7a928ba908ab6728c5b7578aa8',
- 'repro/independent-parameters/frontend-regression-suites.json': '149e816083334d57b54d02380f460d8fb2901903c8d4420b5109a3fd267e47d6',
- 'repro/independent-parameters/qualify.py': '49224afa94154a27429b39c435fe5d00653df81d5d4a9b76bd4f91893b286887',
- 'repro/independent-parameters/test_layering.py': 'a60ad381b634ed12910251a437c68733fc458713f4fcad54d3d73d1936c6323d',
- 'repro/independent-parameters/test_qualify.py': '9b64bed3eb1dfba7218069709f580f89be31f7a0308f8e710907e5e58b4f1fed',
-}
+BASE = '91f6c2b347cc480118fc5ea3a2dd577482f54c7e'
+EXPECTED_TREE = '86a5fc20deba3b1d5fcbd7b642f70b7e19ad2e78'
+TRANSFER = Path('.github/symbolic-transfer')
+TRANSIENTS = [
+    '.github/independent-root-inventory.patch',
+    '.github/pr188-import-reviewed-fix.py',
+    '.github/pr188-reviewed-fix.patch.gz',
+    '.github/workflows/independent-parameter-cancel-pending.yml',
+    '.github/workflows/independent-parameter-root-inventory-repair.yml',
+    '.github/workflows/pr188-import-reviewed-fix.yml',
+]
+PARTS = [
+    '88f4e30dd822537fccbe14504994dc63040d1449',
+    '2378832c0a1bceb07671b564f417d237ff147b52',
+    'e97fbbc78beb5b3c0b392c0809f8ce7aad20e09a',
+    'ab8363dede5897d13c2da46dc541d37850f21b4e',
+    '45e6793b4aff4d4a1ce2e40320a0550ee61de04c',
+    '4f9ec5388101dd917b0ff3bf0e5699bc8a7fdbb0',
+    '2745ae12376a8a4fa67d95eba82a385dda303cae',
+    '9018ba7f4f941c3afe3397510a6d61450b2f561e',
+    'ec80b7c9adc64dfd61a7ee146bb48cc932740d9f',
+    'c05e7015656f00b37446b29ed14a62f26dae112b',
+]
 
-def require(ok, detail):
-    if not ok: raise RuntimeError(detail)
 
-def run(*args):
-    subprocess.run(args, check=True)
+def git(*args, raw=False):
+    data = subprocess.check_output(['git', *args])
+    return data if raw else data.decode().strip()
 
-def git(*args):
-    return subprocess.check_output(['git', *args]).decode().strip()
 
-def raw_git(*args):
-    return subprocess.check_output(['git', *args])
+def checked(ok, message):
+    if not ok:
+        raise RuntimeError(message)
 
-def digest(raw):
-    return hashlib.sha256(raw).hexdigest()
 
-def normalized(raw):
-    return re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$', b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, count=1, flags=re.M)
+def blob_sha(data):
+    return hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+
+
+def api(path, data=None):
+    url = 'https://api.github.com/repos/' + REPO + '/' + path
+    request = urllib.request.Request(url, data=None if data is None else json.dumps(data).encode(),
+        method='GET' if data is None else 'POST', headers={
+            'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+            'Accept': 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'Content-Type': 'application/json',
+        })
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.load(response)
+
+
+def commit_identity(line):
+    match = re.fullmatch(r'(.+) <([^>]+)> ([0-9]+) \+0000', line)
+    checked(match is not None, 'non-UTC or unsupported Git identity')
+    name, email, timestamp = match.groups()
+    date = datetime.datetime.fromtimestamp(int(timestamp), datetime.timezone.utc).isoformat()
+    return dict(name=name, email=email, date=date)
+
+
+def upload_commit(commit):
+    """Upload exact Git objects only; no push, branch, ref or workflow dispatch API."""
+    parent = git('rev-parse', commit + '^')
+    changes = git('diff', '--no-renames', '--name-only', '-z', parent, commit, raw=True)
+    entries = []
+    for path in sorted(p.decode() for p in changes.split(b'\0') if p):
+        metadata = git('ls-tree', commit, '--', path).split()
+        if not metadata:
+            entries.append(dict(path=path, mode='100644', type='blob', sha=None))
+            continue
+        mode, kind, sha = metadata[:3]
+        checked(kind == 'blob', 'unexpected changed gitlink/tree: ' + path)
+        raw = git('cat-file', 'blob', sha, raw=True)
+        reply = api('git/blobs', dict(content=base64.b64encode(raw).decode(), encoding='base64'))
+        checked(reply['sha'] == sha == blob_sha(raw), 'uploaded blob differs: ' + path)
+        entries.append(dict(path=path, mode=mode, type='blob', sha=sha))
+    tree = api('git/trees', dict(base_tree=git('rev-parse', parent + '^{tree}'), tree=entries))
+    checked(tree['sha'] == git('rev-parse', commit + '^{tree}'), 'uploaded tree differs')
+    headers, message = git('cat-file', 'commit', commit, raw=True).decode().split('\n\n', 1)
+    lines = headers.splitlines()
+    checked(len([x for x in lines if x.startswith('parent ')]) == 1, 'unexpected merge commit')
+    author = commit_identity(next(x[7:] for x in lines if x.startswith('author ')))
+    committer = commit_identity(next(x[10:] for x in lines if x.startswith('committer ')))
+    reply = api('git/commits', dict(tree=tree['sha'], parents=[parent], message=message,
+                                  author=author, committer=committer))
+    checked(reply['sha'] == commit, 'API/local commit identity differs: ' + reply['sha'] + ' / ' + commit)
+    print('STAGED_IMMUTABLE_OBJECT ' + commit, flush=True)
+    return commit
+
+
+def seal_reviewed_source():
+    helper = Path('morphhdl/scripts/check-increment-62-wa08-source-overlay.py')
+    manifest = Path('morphhdl/contracts/increment-62-wa08-source-overlay.json')
+    old = json.loads(manifest.read_text())
+    ns = {'__name__': 'reviewed_overlay'}
+    exec(compile(helper.read_text(), str(helper), 'exec'), ns)
+    head = git('rev-parse', 'HEAD')
+    paths = sorted(p for p in git('diff', '--name-only', '--no-renames', old['base'], head).splitlines()
+                   if ns['governed'](p) and p not in [str(helper), str(manifest)])
+    records = []
+    digest = lambda b: hashlib.sha256(b).hexdigest()
+    for path in paths:
+        mode, kind, sha = git('ls-tree', head, '--', path).split()[:3]
+        checked(kind == 'blob', 'unreviewed non-file source')
+        before = git('ls-tree', old['base'], '--', path)
+        records.append(dict(path=path, mode=mode,
+            before_sha256=digest(git('show', old['base'] + ':' + path, raw=True)) if before else None,
+            after_sha256=digest(git('show', head + ':' + path, raw=True))))
+    index = {entry['path']: entry for entry in records}
+    checked(len(records) == 156, 'reviewed source inventory differs')
+    for entry in old['files']:
+        checked(entry['path'] in index and index[entry['path']]['before_sha256'] == entry['before_sha256'],
+                'predecessor baseline record removed/modified: ' + entry['path'])
+    content = helper.read_bytes()
+    normalized = ns['normalized_helper'](content)
+    value = dict(old, files=records, final_source_commit=head, helper_normalized_sha256=digest(normalized))
+    raw = (json.dumps(value, indent=2) + '\n').encode()
+    manifest.write_bytes(raw)
+    updated = re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',
+                     ('CONTRACT_SHA256 = "' + digest(raw) + '"').encode(), content, count=1, flags=re.M)
+    checked(ns['normalized_helper'](updated) == normalized, 'source audit implementation changed')
+    helper.write_bytes(updated)
+    subprocess.run(['git', 'add', str(helper), str(manifest)], check=True)
+    checked(set(git('diff', '--cached', '--name-only').splitlines()) == {str(helper), str(manifest)},
+            'unexpected seal source changes')
+
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--local-only', action='store_true', help='exercise import/checks without API calls or push')
-    args = parser.parse_args()
-    require(os.environ['GITHUB_REPOSITORY'] == REPO and os.environ['GITHUB_REF'] == 'refs/heads/' + BRANCH, 'wrong repository/ref')
+    checked(os.environ['GITHUB_REPOSITORY'] == REPO and os.environ['GITHUB_REF'] == 'refs/heads/' + BRANCH,
+            'unexpected repository/branch')
     start = git('rev-parse', 'HEAD')
-    require(start == os.environ['GITHUB_SHA'] and git('rev-parse', 'HEAD^') == PARENT, 'source moved')
-    require(not git('status', '--porcelain'), 'dirty source checkout')
+    checked(start == os.environ['GITHUB_SHA'] and not git('status', '--porcelain'), 'wrong or dirty checkout')
+    subprocess.run(['git', 'merge-base', '--is-ancestor', BASE, start], check=True)
+    for path in git('diff', '--name-only', BASE, start).splitlines():
+        checked(path in TRANSIENTS or path.startswith(str(TRANSFER) + '/'), 'unreviewed source moved: ' + path)
     evidence = Path(os.environ['RUNNER_TEMP']) / 'pr188-reviewed-fix-evidence'
-    evidence.mkdir()
-    data = Path(PATCH).read_bytes()
-    require(hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == 'ec13beb2fc1c051cb5858841dc471d6eebaabc0c', 'transfer blob differs')
-    patch = gzip.decompress(data)
-    require(len(patch) == 20802 and digest(patch) == 'b3c2ac838c1f1a71987e7fc6b6a2fa657294a07e766459d38792c7052e8ece98', 'source patch differs')
-    patch_path = evidence / 'reviewed.patch'
+    evidence.mkdir(exist_ok=True)
+    parts = []
+    for number, expected in enumerate(PARTS):
+        raw = (TRANSFER / ('part-' + str(number) + '.gz.part')).read_bytes()
+        # Correct the one independently identified transport-bit error, not source.
+        # Both original and corrected blob hashes, then whole payload hash, are checked.
+        if number == 6 and blob_sha(raw) == '8b5da3b81d8f2aafb7ba7682207b432b746e548f':
+            checked(len(raw) == 5000 and raw[4916] == 205, 'transport correction preimage differs')
+            raw = raw[:4916] + bytes([197]) + raw[4917:]
+        checked(blob_sha(raw) == expected, 'transport checksum differs: ' + str(number))
+        parts.append(raw)
+    compressed = b''.join(parts)
+    checked(hashlib.sha256(compressed).hexdigest() == 'eaf608b4903cdad5d0748f6111711d50388290e276517333fd8a8dcf2cc2b8b8',
+            'compressed payload checksum differs')
+    patch = gzip.decompress(compressed)
+    checked(len(patch) == 177158 and hashlib.sha256(patch).hexdigest() ==
+            'c763f641d4530d7263ebb772ae7caec4dd2229a06b86e7b320f603fb51d50b7e', 'source patch checksum differs')
+    patch_path = evidence / 'reviewed-source.patch'
     patch_path.write_bytes(patch)
-    run('git', 'apply', '--index', '--check', str(patch_path))
-    run('git', 'apply', '--index', str(patch_path))
-    run('git', 'rm', PATCH, SCRIPT, WORKFLOW,
-        '.github/independent-root-inventory.patch',
-        '.github/workflows/independent-parameter-root-inventory-repair.yml',
-        '.github/workflows/independent-parameter-cancel-pending.yml')
-    require(git('write-tree') == SOURCE_TREE, 'reviewed source tree differs')
-    run('git', 'diff', '--cached', '--check')
-    run('git', 'config', 'user.name', 'github-actions[bot]')
-    run('git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
-    run('git', 'commit', '-m', 'fix(ci): close standalone audit coverage and qualify frontend ingress',
-        '-m', 'Apply the exact reviewed workflow/root-inventory and frontend diagnostic correction. Add positive native composition tests and complete frontend JUnit coverage without weakening compiler safety. Remove temporary transport and cancellation facilities. Audit resealing and final-head CI remain required.')
+    subprocess.run(['git', 'apply', '--index', '--check', str(patch_path)], check=True)
+    subprocess.run(['git', 'apply', '--index', str(patch_path)], check=True)
+    Path('.github/workflows/independent-parameter-domains.yml').write_bytes(
+        (TRANSFER / 'production-workflow.yml').read_bytes())
+    subprocess.run(['git', 'add', '.github/workflows/independent-parameter-domains.yml'], check=True)
+    subprocess.run(['git', 'rm', '-r', '--ignore-unmatch', *TRANSIENTS, str(TRANSFER)], check=True)
+    checked(git('write-tree') == EXPECTED_TREE, 'full reviewed source tree differs')
+    subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+    subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+    subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+    os.environ['TZ'] = 'UTC'
+    subprocess.run(['git', 'commit', '-m', 'fix: separate symbolic HDL publication from structural domain proof',
+        '-m', 'Apply the exact reviewed 86a5fc20 source tree. Retain authenticated symbolic identities and branch restrictions without eager Cartesian publication proof. Add guarded legality, signed safe widths, scalar child actuals and the three-tool regression matrix. Remove completed transport files. This source commit is not final-head qualification.'], check=True)
     source = git('rev-parse', 'HEAD')
-    old_raw = Path(MANIFEST).read_bytes()
-    require(digest(old_raw) == 'e2388d03c0d57124fb74bb0b65c9a51f08b504a8b0f8e14d13f7ec41c35bb0d1', 'previous manifest differs')
-    old = json.loads(old_raw)
-    require(old['base'] == '2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6' and len(old['files']) == 132, 'previous scope differs')
-    previous_helper = Path(HELPER).read_bytes()
-    require(digest(normalized(previous_helper)) == old['helper_normalized_sha256'] == '58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b', 'checker logic differs')
-    updated = json.loads(json.dumps(old))
-    entries = {entry['path']: entry for entry in updated['files']}
-    for path, expected in REVIEW.items():
-        raw = raw_git('show', source + ':' + path)
-        require(digest(raw) == expected, 'unreviewed successor bytes: ' + path)
-        before = digest(raw_git('show', old['base'] + ':' + path)) if git('ls-tree', old['base'], '--', path) else None
-        if path in entries:
-            require(entries[path]['before_sha256'] == before, 'baseline identity changed')
-        else:
-            entries[path] = {'path': path, 'mode': '100644', 'before_sha256': before}
-        entries[path]['after_sha256'] = expected
-    for entry in old['files']:
-        if entry['path'] not in REVIEW: require(entries[entry['path']] == entry, 'predecessor record changed')
-    require(len(entries) == 139, 'reviewed inventory differs')
-    updated['files'] = [entries[path] for path in sorted(entries)]
-    updated['final_source_commit'] = source
-    new_raw = (json.dumps(updated, indent=2) + '\n').encode()
-    Path(MANIFEST).write_bytes(new_raw)
-    new_helper = re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$', ('CONTRACT_SHA256 = "' + digest(new_raw) + '"').encode(), previous_helper, count=1, flags=re.M)
-    require(normalized(new_helper) == normalized(previous_helper), 'checker logic must remain unchanged')
-    Path(HELPER).write_bytes(new_helper)
-    run('git', 'add', MANIFEST, HELPER)
-    run('git', 'diff', '--cached', '--check')
-    run('git', 'commit', '-m', 'chore(ci): seal reviewed PR188 workflow and ingress corrections',
-        '-m', 'Preserve all 132 predecessor records and all immutable baseline identities. Bind the nine reviewed successor files to the actual committed source anchor; retain 139 records and unchanged verifier logic. Final-head build, simulation and inherited CI remain required.')
-    checks = [
-        ['python3', 'morphhdl/scripts/check-native-source-preservation.py'],
-        ['python3', 'morphhdl/scripts/check-production-retirement.py'],
-        ['python3', 'morphhdl/scripts/check-typed-layering-ir.py'],
-        ['python3', 'morphhdl/scripts/check-typed-layering-ir.py', '--self-test'],
-        ['python3', HELPER],
-        ['python3', HELPER, '--self-test'],
-        ['python3', '-m', 'unittest', 'discover', '-s', 'repro/independent-parameters', '-p', 'test_*.py', '-v'],
-    ]
-    with (evidence / 'verification.log').open('w') as log:
-        for command in checks:
-            log.write(repr(command) + '\n'); log.flush()
-            subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
-    require(not git('status', '--porcelain'), 'post-verification source changed')
-    (evidence / 'publication.json').write_text(json.dumps({'source_anchor': source, 'source_tree': SOURCE_TREE, 'head': git('rev-parse', 'HEAD'), 'tree': git('rev-parse', 'HEAD^{tree}'), 'reviewed_successors': REVIEW, 'local_only': args.local_only}, indent=2) + '\n')
-    run('git', 'bundle', 'create', str(evidence / 'repair.bundle'), 'HEAD', '^' + PARENT)
-    if args.local_only:
-        print('LOCAL_IMPORT_AND_SOURCE_CHECKS_PASS ' + git('rev-parse', 'HEAD'))
-        return
-    # Do not leave CI queued on this obsolete transport-only commit. The user
-    # explicitly requested pending-run cancellation; final-head checks are NOT
-    # canceled and will be triggered separately after publication.
-    api_base = 'https://api.github.com/repos/' + REPO
-    def api(path, method='GET'):
-        request = urllib.request.Request(api_base + path, method=method, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
-        with urllib.request.urlopen(request, timeout=60) as response: content = response.read()
-        return json.loads(content) if content else {}
-    own = int(os.environ['GITHUB_RUN_ID'])
-    runs = []
-    for page in range(1, 11):
-        batch = api('/actions/runs?' + urllib.parse.urlencode({'head_sha':start,'per_page':100,'page':page}))['workflow_runs']
-        runs.extend(batch)
-        if len(batch) < 100: break
-    else: raise RuntimeError('unexpected pagination overflow')
-    cancelled = []
-    for job in runs:
-        if job['id'] == own or job['head_sha'] != start or job['head_branch'] != BRANCH or job['status'] == 'completed': continue
-        try: api('/actions/runs/' + str(job['id']) + '/cancel', 'POST')
-        except urllib.error.HTTPError as error:
-            if error.code != 409: raise
-        cancelled.append(job['id'])
-    (evidence / 'obsolete-transport-cancellation.json').write_text(json.dumps(cancelled) + '\n')
-    remote = git('ls-remote', '--exit-code', 'origin', 'refs/heads/' + BRANCH).split()[0]
-    require(remote == start, 'branch moved; refusing to overwrite concurrent work')
-    run('git', 'push', 'origin', 'HEAD:refs/heads/' + BRANCH)
-    print('PUBLISHED_REVIEWED_SOURCE_AND_SEAL ' + git('rev-parse', 'HEAD'))
+    upload_commit(source)
+    seal_reviewed_source()
+    subprocess.run(['git', 'commit', '-m', 'audit: seal the published symbolic-provenance source checkpoint',
+        '-m', 'Retain all predecessor baselines and verify 156 exact source, workflow and reproducer paths. Only the reviewed audit manifest and its hash change. Clean exact-final-head CI remains required.'], check=True)
+    final = git('rev-parse', 'HEAD')
+    with (evidence / 'source-verification.log').open('w') as output:
+        commands = [
+            ['python3', 'morphhdl/scripts/check-native-source-preservation.py'],
+            ['python3', 'morphhdl/scripts/check-native-source-preservation.py', '--self-test'],
+            ['python3', 'morphhdl/scripts/check-production-retirement.py'],
+            ['python3', 'morphhdl/scripts/check-production-retirement.py', '--self-test'],
+            ['python3', 'morphhdl/scripts/check-typed-layering-ir.py'],
+            ['python3', 'morphhdl/scripts/check-typed-layering-ir.py', '--self-test'],
+            ['python3', 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'],
+            ['python3', 'morphhdl/scripts/test-increment-62-wa08-source-overlay.py'],
+            ['python3', '-m', 'unittest', 'discover', '-s', 'repro/independent-parameters', '-p', 'test_*.py', '-v'],
+        ]
+        for command in commands:
+            output.write(repr(command) + '\n'); output.flush()
+            subprocess.run(command, stdout=output, stderr=subprocess.STDOUT, check=True)
+    checked(not git('status', '--porcelain'), 'source checks modified checkout')
+    upload_commit(final)
+    remote = api('git/ref/heads/' + BRANCH)['object']['sha']
+    checked(remote == start, 'branch moved during staging; refuse publication claim')
+    value = dict(status='objects_staged_NOT_branch_published_NOT_final_CI', repository=REPO, branch=BRANCH,
+                 starting_head=start, source_head=source, source_tree=EXPECTED_TREE,
+                 final_head=final, final_tree=git('rev-parse', 'HEAD^{tree}'),
+                 reviewed_paths=156, expected_overlay_mutation_controls=172)
+    (evidence / 'publication.json').write_text(json.dumps(value, indent=2) + '\n')
+    subprocess.run(['git', 'bundle', 'create', str(evidence / 'source.bundle'), 'HEAD', '^' + BASE], check=True)
+    print(json.dumps(value), flush=True)
 
-if __name__ == '__main__': main()
+
+if __name__ == '__main__':
+    main()
