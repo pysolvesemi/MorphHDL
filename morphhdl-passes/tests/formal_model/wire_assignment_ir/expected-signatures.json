@@ -2,7 +2,7 @@
   "schema_version": 1,
   "algorithm": "SHA-256",
   "files": {
-    ".github/workflows/morphhdl-passes.yml": "6c96aa0153b7ce1d539191cda4c27d52028db80a58ba1351c74aa067633d4258",
+    ".github/workflows/morphhdl-passes.yml": "20059acac59b2bf069d7678cf049b7b1a9afb55af8f6ba9e11f49703863bbd9a",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
     "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f",
@@ -24,7 +24,7 @@
     "morphhdl-passes/scripts/check-boundary.sh": "cb87b57c70e02b3c586c99143cdbada0cf83610e795c2099ae0f237f81b44b79",
     "morphhdl-passes/scripts/check-wa03-gates.py": "dfd3c62caea1769a4d4b06203dd8b284f1138d2c6f97f68effcec760a576fcfd",
     "morphhdl-passes/scripts/check-wa04-pass.py": "53de6668aa9d0646a37b12c68c215ca6efe7b078a79ccf953b7d681352a84a4f",
-    "morphhdl-passes/scripts/check-wa05-pass.py": "6644d9422b6c3c6c82bd64d0ab7f1eb057acbf13f617bd5423968428449a3ef3",
+    "morphhdl-passes/scripts/check-wa05-pass.py": "3c4be30defb2c290b39f53cb6cee68067710c9d6de7e203c552035d41599bba3",
     "morphhdl-passes/scripts/check-wa06-pipeline.py": "7936c10c7da8c4f9e73b079621d9d32e7a43b762517f935406e06ab3ea93683e",
     "morphhdl-passes/scripts/check-wa07-expression-pass.py": "08cc321a9bee7922a3d2274252cd9ff84a84edc81ccbfae730dfbe1a94ef76b0",
     "morphhdl-passes/scripts/check-wa07a-constant-pass.py": "7d1598d5ea904c05e500bfa6b91187ad998db0803b22d240c7f0c99789022677",

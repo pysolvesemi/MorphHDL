@@ -23,6 +23,7 @@ REVIEW_PATHS = frozenset((
     "docs/morphhdl/lane-when-inlining-repair.md",
     "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md",
     "morphhdl-passes/scripts/check-boundary.sh",
+    "morphhdl-passes/scripts/check-wa05-pass.py",
     "morphhdl-passes/scripts/check-wa10-general-expression.py",
     "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
     "morphhdl/contracts/increment-55-native-change-review.json",
