@@ -1,0 +1,117 @@
+name: Publish lane-condition source review
+on:
+  push:
+    branches: [agent/lane-when-expression-inlining]
+    paths: ['.github/workflows/lane-when-publish-review.yml']
+permissions:
+  contents: read
+jobs:
+  publish:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/lane-when-expression-inlining'
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Recover and verify the exact nineteen-path review commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/agent/lane-when-expression-inlining | cut -f1)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, subprocess, urllib.request
+          parts = [
+              ('46eb8378088e8d6f02a450e7a66a04de96eb6f42', 6225),
+              ('bca1273a2c7cd485ac973e6b925377b08446bba3', 6225),
+              ('e9a472c29a96b1ee2c3ecd26b0daa76739a300d1', 1500),
+              ('6042043d40cf273d21da8ca8ff93b4ae58d68ead', 1500),
+              ('06f9cfee0fd445afb382a4e69aa43fde96e11aa9', 1500),
+              ('619d90c0611d97172e1223396fbd16c216accb9c', 1500),
+              ('2e52171d291184651bdaf9571b75024d582f160e', 1500),
+              ('d6ad177a8a8b74611a26822aa1bf2d78eec79608', 1500),
+              ('f6ac8fc33cb1754cbe452a8b42536a96d557b747', 1500),
+              ('a8c2abe4c4268d3b3f00cefb1edd9f0369aea16a', 1500),
+              ('be18fbc877c2427718c319f803d70266adad7bae', 446),
+          ]
+          data = bytearray()
+          for sha, size in parts:
+              request = urllib.request.Request(
+                  'https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/' + sha,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'User-Agent': 'lane-review-publication'})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  blob = json.load(response)
+              assert blob['sha'] == sha and blob['encoding'] == 'base64'
+              part = base64.b64decode(''.join(blob['content'].split()), validate=True)
+              assert len(part) == size
+              assert hashlib.sha1(b'blob ' + str(size).encode() + b'\0' + part).hexdigest() == sha
+              data.extend(part)
+          assert len(data) == 24896
+          assert hashlib.sha256(data).hexdigest() == 'eaf992625f2dd0a3bef16517f97ffb2ab472f205530a68f48a70bb122b537dd3'
+          bundle = pathlib.Path('/tmp/lane-review-publication.bundle')
+          bundle.write_bytes(data)
+          subprocess.run(['git', 'bundle', 'verify', str(bundle)], check=True)
+          subprocess.run(['git', 'fetch', str(bundle), 'refs/resume-checkpoints/review-transport'], check=True)
+          source = '8c548afe5d693bcfa91b2a0dface87baa40fe63b'
+          base = '1670d24b1f0d767359338490b4d40ad11d1b70e9'
+          def git(*args):
+              return subprocess.check_output(['git', *args]).decode().strip()
+          assert git('rev-parse', 'FETCH_HEAD') == source
+          assert git('rev-parse', source + '^') == base
+          expected = {
+              'docs/morphhdl/evidence/lane-when-inlining/SHA256SUMS',
+              'docs/morphhdl/evidence/lane-when-inlining/after/conditions.v',
+              'docs/morphhdl/evidence/lane-when-inlining/after/lane.v',
+              'docs/morphhdl/evidence/lane-when-inlining/after/receivers.v',
+              'docs/morphhdl/evidence/lane-when-inlining/before/conditions.v',
+              'docs/morphhdl/evidence/lane-when-inlining/before/lane.v',
+              'docs/morphhdl/evidence/lane-when-inlining/before/receivers.v',
+              'docs/morphhdl/lane-when-inlining-repair.md',
+              'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md',
+              'morphhdl-passes/scripts/check-boundary.sh',
+              'morphhdl-passes/scripts/check-wa10-general-expression.py',
+              'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json',
+              'morphhdl/contracts/increment-55-native-change-review.json',
+              'morphhdl/contracts/lane-when-source-scope.json',
+              'morphhdl/contracts/native-source-preservation.json',
+              'morphhdl/scripts/check-increment-60f-artifacts.py',
+              'morphhdl/scripts/check-lane-when-inlining.py',
+              'morphhdl/scripts/check-lane-when-source-scope.py',
+              'morphhdl/scripts/test-lane-when-source-scope.py',
+          }
+          assert set(git('diff', '--name-only', base, source).splitlines()) == expected
+          subprocess.run(['git', 'diff', '--check', base, source], check=True)
+          evidence = pathlib.Path('/tmp/lane-review-publication')
+          evidence.mkdir()
+          (evidence / 'STATUS.txt').write_text('Exact reviewed source recovery only. Final workflow routing, actual-source seal, complete final-head CI and merge remain pending. This is not qualification.\n')
+          (evidence / 'review-paths.json').write_text(json.dumps(sorted(expected), indent=2) + '\n')
+          PY
+      - name: Publish a normal merge into the existing repair branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-ff 8c548afe5d693bcfa91b2a0dface87baa40fe63b -m 'wip: recover exact lane-condition successor source review' -m 'Nineteen non-workflow review and evidence paths are checksum-bound to the recovered review commit. Compiler production blobs remain unchanged. Final source seal and complete exact-head qualification still block merge.'
+          git diff --exit-code "$GITHUB_SHA" HEAD -- .github/workflows core/src/main morphhdl/src/main morphhdl-passes/examples
+          test "$(git ls-remote origin refs/heads/agent/lane-when-expression-inlining | cut -f1)" = "$GITHUB_SHA"
+          git push origin HEAD:refs/heads/agent/lane-when-expression-inlining
+          git rev-parse HEAD 'HEAD^{tree}' > /tmp/lane-review-publication/identity.txt
+          git diff 1670d24b1f0d767359338490b4d40ad11d1b70e9 HEAD > /tmp/lane-review-publication/publication.patch
+          git bundle create /tmp/lane-review-publication/publication.bundle HEAD ^1670d24b1f0d767359338490b4d40ad11d1b70e9
+          cd /tmp/lane-review-publication
+          sha256sum STATUS.txt review-paths.json identity.txt publication.patch publication.bundle > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lane-reviewed-source-publication
+          path: /tmp/lane-review-publication/
+          if-no-files-found: warn
+          retention-days: 14
