@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/lane-when-expression-diagnostic.yml'
       - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
   workflow_dispatch:
 
 permissions:
@@ -15,13 +16,17 @@ jobs:
   reproduce:
     runs-on: ubuntu-slim
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
     env:
       SBT_TEST_PARALLEL: '0'
       JVM_OPTS: '-Xmx3G -Xss4M -XX:ActiveProcessorCount=2'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 26f315eb6ce83cc8dc59b40494797bc0fb72db48
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@v4
@@ -29,26 +34,43 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: sbt/setup-sbt@v1
-      - name: Run the pinned reproduction without compiler changes
+      - name: Confirm the compiler is still the reported baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code 3b547ae5622ae212c17f6e67cc96924127a46a41 -- core/src lib/src idslplugin/src morphplugin/src morphhdl/src/main morphir/src/main morphruntime/src/main frontend/src/main backends/verilog/src/main paramrtl/src/main morphhdl-passes/src morphhdl-passes/examples
+      - name: Run unchanged reproduction and read-only trace
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/lane-repro
           git rev-parse HEAD HEAD^{tree} > /tmp/lane-repro/identity.txt
-          sbt '++2.12.18' 'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/rtl' 2>&1 | tee /tmp/lane-repro/sbt.log
-          cat /tmp/lane-repro/rtl/LaneExpressionExample.v
+          sbt '++${{ matrix.scala }}' \
+            'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/plain' \
+            'morph/Test/runMain spinal.core.internals.LaneExpressionTraceWriter /tmp/lane-repro/trace' \
+            'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/repeat' \
+            2>&1 | tee /tmp/lane-repro/sbt.log
+          cmp /tmp/lane-repro/plain/LaneExpressionExample.v /tmp/lane-repro/trace/rtl/LaneExpressionExample.v
+          cmp /tmp/lane-repro/plain/LaneExpressionExample.v /tmp/lane-repro/repeat/LaneExpressionExample.v
+          echo 'PASS: tracing leaves generated RTL byte-identical; repeat generation is deterministic'
+          cat /tmp/lane-repro/plain/LaneExpressionExample.v
+          for trace in /tmp/lane-repro/trace/*.tsv; do
+            echo "TRACE FILE: $trace"
+            cat "$trace"
+          done
       - name: Compile the same artifact for both PPC4 bindings
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y iverilog
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
+          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
+          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
+          find /tmp/lane-repro -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > /tmp/lane-repro/SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lane-when-baseline-reproduction
+          name: lane-when-baseline-trace-${{ matrix.scala }}
           path: /tmp/lane-repro/
           if-no-files-found: error
           retention-days: 14
