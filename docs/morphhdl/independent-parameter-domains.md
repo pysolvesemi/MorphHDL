@@ -9,9 +9,16 @@ and merge require the applicable final-head checks; an offline test result is
 not a substitute for those checks.
 
 The baseline `3b547ae5622ae212c17f6e67cc96924127a46a41` compiler rejects the unchanged
-`repro/independent-parameters/IndependentParameterRepro` fixture at addition with
-`SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED`. The fixture is actually located
-at `repro/independent-parameters/src/main/scala/repro/IndependentParameterRepro.scala`.
+fixture at
+`repro/independent-parameters/src/main/scala/repro/IndependentParameterRepro.scala`
+at addition with `SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED`.
+
+The unchanged compiler also failed in the exact standalone SBT layout in
+GitHub Actions run `34827208111` at fixture-only commit
+`0c3628467db669e7b398208357e73fbf50ae64f6`. Its retained artifact
+`10342090830` records SBT 1.10.0, successful Scala compilation and the same
+`requireNoLostExactCorrelation -> combineDomains -> binary -> add` failure.
+Compiler sources at that commit are unchanged from the reported baseline.
 It uses Scala 2.12.18, SBT 1.10.0 and both required compiler plugins.
 
 ```sh
@@ -161,8 +168,23 @@ The native matrix passed 65 instances and 18,576 one-hot positions across five
 fixtures, including all seven requested independent width overrides and an
 unoverridden default instance. Each of the five published artifacts was
 identical across two separate JVM generations. Always-false, mixed-validity
-and unsupported joint structural-branch generation were rejected. The new
-11 core and 4 native-publication tests passed. In the 303-test inherited run,
-298 passed; five memory-equivalence cases reached the archived Yosys 0.9
-limitation. Their required pinned Yosys 0.41 replay and final-head CI remain
-qualification requirements, not waived gates.
+and unsupported joint structural-branch generation were rejected. A consolidated
+run with the repository's pinned Yosys 0.41 passed **318 tests in 32 suites**:
+303 existing tests, 11 new core tests and 4 new native-publication tests. All
+14 memory tests passed with that toolchain; the five earlier Yosys 0.9 failures
+were not ignored. All 13 Python driver tests, 7 JUnit gate negative/positive controls, and the
+source-preservation, typed-layering and retirement adversarial self-tests
+also passed. Clean final-head CI remains a separate
+qualification requirement.
+
+The reproducible clean-build gate is:
+
+```sh
+python3 repro/independent-parameters/qualify.py --scala 2.12.18
+python3 repro/independent-parameters/qualify.py --scala 2.13.12
+```
+
+It starts SBT from the checkout without offline classpath overlays, cleans all
+build products, and requires complete zero-failure, zero-skipped JUnit reports
+for every suite in `regression-suites.json`. The native standalone fixture
+retains its exact Scala 2.12.18/SBT 1.10.0 dual-plugin build.
