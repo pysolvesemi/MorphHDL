@@ -2,13 +2,13 @@
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
   "files": [
     {
-      "after_sha256": "8f553a81ccc05d479da4623c353a188fa33c11fc6d298100015137ce5178c0da",
+      "after_sha256": "d0e8c8d3faf98e27948f5eaf70b2cf3f6aed11a9e9f2ad2b239cf379d8fc929c",
       "before_sha256": "2094f8544efd0664681b914746ac7a79f90af7cd1c607c632396facef7095715",
       "mode": "100644",
       "path": ".github/workflows/increment-59d-widening.yml"
     },
     {
-      "after_sha256": "44abbf7749970860eaad5a9c272aa5e9ffd42c4b4d41e6a237d9e0b50e2f84a6",
+      "after_sha256": "b2f7d7e6a8f08ffa112521cc43b220c689efd1317a44b1c5d50349e3c2b87102",
       "before_sha256": "6062ad05143a61fcbb617402322cbcc3ad2e7e5c0adee91dc144d293b6d88a6a",
       "mode": "100644",
       "path": ".github/workflows/increment-59h-nested-owners.yml"
@@ -188,7 +188,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "cb87b57c70e02b3c586c99143cdbada0cf83610e795c2099ae0f237f81b44b79",
+      "after_sha256": "b144aa59d62677930296dd834fdbe324303fa1af724b55bc7fc1b7e3cfdcdfec",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -260,7 +260,7 @@
       "path": "morphhdl-passes/scripts/run-wa10-regression.sh"
     },
     {
-      "after_sha256": "d5f55f8131e11a1bbecc577c579f0b116c2793e810fec0dbefbdb84687ab11c9",
+      "after_sha256": "ab24aeabae2ef3144946eeb479a94118a0a6ca8cb578ba018c883bbcf5254f66",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -374,7 +374,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "ef781fa3393beef781555ca7bcc31e6c007f320d387a1dc03203c30822f829f7",
+      "after_sha256": "94ff42a2514ae96f8c57de1125282bf7f96387b0ef0f3ca610b7ad45105ee906",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -410,7 +410,7 @@
       "path": "morphhdl/contracts/native-source-preservation.json"
     },
     {
-      "after_sha256": "ceb8ffeb64a731b4606da2ce2dffb363de3be95836770e4d87f3128b3b8e2b97",
+      "after_sha256": "99d7d57ad732a5bd29efa3911baf20fe4ddf782a479b5d178b3a31582e8567b2",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/wa10-source-scope.json"
@@ -458,13 +458,13 @@
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py"
     },
     {
-      "after_sha256": "2a55b8127e1b312c6a156d404c44015c4255aa7e94b3e9ba4bc5b5af7ed10b86",
+      "after_sha256": "ae4a7ff509a44b0f118bbab8baac09181d5a89a593496282c562c4e993af8dfe",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-wa10-source-scope.py"
     },
     {
-      "after_sha256": "954a0073c08db14d6aeb5b6b021aaf360bc4de91c0e73b1b86b2f649dcf83fee",
+      "after_sha256": "27546905a76ee2864754f27300afdcd99b0a35c6dcf5656a63fb5ca829253327",
       "before_sha256": "a18121533dab67540f83622536e90e70829ffd2bd2b51abb748af58bf717a88f",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59b-inherited-source-scope.py"
@@ -476,7 +476,7 @@
       "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
     },
     {
-      "after_sha256": "73158f76ef16507b2dd95c1dedd87cb6dd752ea281dde8e2115576f9113d4cdb",
+      "after_sha256": "7dc3885d9efd4200c35e354236d488673f0d695480e48701e8b6dd0a55e530c1",
       "before_sha256": "54df3c90aa0c8c09c5621c66eccded8aedbbefd8f91191cf075dff67d49a6d69",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py"
@@ -494,7 +494,7 @@
       "path": "morphhdl/scripts/test-increment-59g-source-review.py"
     },
     {
-      "after_sha256": "c647a9f9b3127e073ef446f5d7b96ed194d13214a2b7cd8f2ef20f50f331e25e",
+      "after_sha256": "1d3dfad7db9c33df2812665ac746c91ec938279bcfcab13474d6deffe6a6052e",
       "before_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
@@ -510,6 +510,12 @@
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-62-wa08-source-overlay.py"
+    },
+    {
+      "after_sha256": "87487962c83b2e25d5e5a3b7789270097ca49f301d31c45a65d8e897e613e931",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-inherited-source-audit-timeouts.py"
     },
     {
       "after_sha256": "fca9bea0fe154cfbbec43f84cd5be9060ddfdf508cf90a2f8133e710397105a6",
@@ -626,7 +632,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala"
     },
     {
-      "after_sha256": "ea3729497afa0028dba6db2f7f89ee488bd6039fb3e6ff5ff6779cb03a5346af",
+      "after_sha256": "d128b620b560debbffc7facb77b9a12403fcf213a574f7198a67c73d9dbceb67",
       "before_sha256": "8d75953ea0e5ab1c6ea2fbca105b5e31b2f3537895116cf33cde4d8e303266cc",
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala"
@@ -674,7 +680,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala"
     },
     {
-      "after_sha256": "84a75b320a4a2cee107580bea213763ca1b956134fca335d07a91d58eb254a9c",
+      "after_sha256": "cffc23f6788841a3adf836919b862f1ec4f58d60dc01e96cf53cbba89f5a2e3e",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala"
@@ -788,7 +794,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "0d73036388e7ecc6d95ee328909da6b053aa54e0",
+  "final_source_commit": "3e2f6f3d4c5beca15f1d8f1c198fc177622367ed",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
