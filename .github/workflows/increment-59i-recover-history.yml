@@ -14,7 +14,6 @@ jobs:
     timeout-minutes: 30
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      RECOVERY_PAYLOAD: ${{ runner.temp }}/59i-recovery
     steps:
       - name: Recover exact archived seal with full history
         uses: actions/checkout@v4
@@ -27,6 +26,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export RECOVERY_PAYLOAD="$RUNNER_TEMP/59i-recovery"
+          echo "RECOVERY_PAYLOAD=$RECOVERY_PAYLOAD" >> "$GITHUB_ENV"
           mkdir -p "$RECOVERY_PAYLOAD"
           test "$(git rev-parse HEAD)" = 7fa6daa6f22db7b3d459130a5021b5cc905de49d
           test "$(git rev-parse HEAD^{tree})" = e501c7356ba43c194d9a1de88399f309e6253a80
