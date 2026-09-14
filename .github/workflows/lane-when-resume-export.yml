@@ -1,0 +1,33 @@
+name: Lane condition WIP recovery export
+on:
+  push:
+    branches: [agent/lane-when-expression-inlining]
+    paths: ['.github/workflows/lane-when-resume-export.yml']
+permissions:
+  contents: read
+jobs:
+  recover:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export exact current source and history, not qualification evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/lane-recovery
+          git rev-parse HEAD HEAD^{tree} > /tmp/lane-recovery/identity.txt
+          git ls-tree -r HEAD > /tmp/lane-recovery/tree.txt
+          git archive HEAD | gzip -n > /tmp/lane-recovery/source.tar.gz
+          git bundle create /tmp/lane-recovery/history.bundle HEAD
+          cd /tmp/lane-recovery
+          sha256sum identity.txt tree.txt source.tar.gz history.bundle > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lane-condition-resume-source
+          path: /tmp/lane-recovery/
+          compression-level: 0
+          retention-days: 7
