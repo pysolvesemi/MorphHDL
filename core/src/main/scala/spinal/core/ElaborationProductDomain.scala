@@ -3,20 +3,15 @@ package spinal.core
 import java.lang.ref.{ReferenceQueue, WeakReference}
 import scala.collection.mutable
 
-/** Checked composition of typed expressions over independent declaration roots.
+/** Authenticated symbolic expressions, with a separate on-demand exact proof engine.
   *
-  * This is deliberately not public expression metadata. Only authenticated
-  * single-root leaves and already certified operations can enter this algebra;
-  * the certificate belongs to the exact expression object, not its text or its
-  * copyable case-class fields. Every source axis, including algebraically
-  * cancelled dependencies, retains its schema identity and authorized scope.
-  *
-  * Sums are normalized as linear combinations of exact value functions. Terms
-  * with overlapping roots are proved together; disjoint groups compose their
-  * attainable extrema. Thus a large independent sum never constructs a product
-  * table. Non-separable correlations use a bounded joint evaluator, or fail
-  * explicitly. Bounds returned here are proved attainable extrema, not interval
-  * guesses and never evaluations of only the default tuple.
+  * A private identity-bound expression certificate authenticates the AST, original
+  * declaration objects and active restrictions. It is NOT a claim that every
+  * parameter tuple has been evaluated. Native publication uses a compositional
+  * conservative enclosure derived here from authenticated leaves; callers needing
+  * attainable extrema or structural decisions explicitly invoke the stronger
+  * bounded proof engine. Public case-class copies inherit neither authority.
+  * Cancelled dependencies remain in the certificate's scope inventory.
   */
 private[spinal] object ElaborationProductDomain {
   private val Role = "typed product-domain expression"
@@ -105,7 +100,7 @@ private[spinal] object ElaborationProductDomain {
     case _ => atom(Operation(operator, Vector(left, right)))
   }
 
-  private final case class Certificate(form: Form, axes: Vector[Axis])
+  private final case class TrustedExpressionEvidence(form: Form, axes: Vector[Axis])
   private final class Identity(value: AnyRef, queue: ReferenceQueue[AnyRef])
       extends WeakReference[AnyRef](value, queue) {
     private val hash = System.identityHashCode(value)
@@ -116,7 +111,7 @@ private[spinal] object ElaborationProductDomain {
     }
   }
   private val queue = new ReferenceQueue[AnyRef]()
-  private val retained = mutable.HashMap.empty[Identity, Certificate]
+  private val retained = mutable.HashMap.empty[Identity, TrustedExpressionEvidence]
   private def reap(): Unit = {
     var reference = queue.poll()
     while (reference != null) {
@@ -124,11 +119,11 @@ private[spinal] object ElaborationProductDomain {
       reference = queue.poll()
     }
   }
-  private def certificate(value: AnyRef): Option[Certificate] = synchronized {
+  private def certificate(value: AnyRef): Option[TrustedExpressionEvidence] = synchronized {
     reap()
     if (value == null) None else retained.get(new Identity(value, null))
   }
-  private def retain(value: AnyRef, proof: Certificate): Unit = synchronized {
+  private def retain(value: AnyRef, proof: TrustedExpressionEvidence): Unit = synchronized {
     reap()
     retained.put(new Identity(value, queue), proof)
     ()
@@ -145,7 +140,7 @@ private[spinal] object ElaborationProductDomain {
   private def fail(code: String, detail: String, location: Option[String]): Nothing =
     ParameterizedVerilogException.fail(code, s"$Role $detail", location)
 
-  private def merge(sources: Vector[Certificate], location: Option[String]): Vector[Axis] = {
+  private def merge(sources: Vector[TrustedExpressionEvidence], location: Option[String]): Vector[Axis] = {
     val axes = sources.flatMap(_.axes).foldLeft(Vector.empty[Axis]) { (known, axis) =>
       known.find(_.root.name == axis.root.name) match {
         case Some(previous) if previous.schema != axis.schema =>
@@ -166,7 +161,7 @@ private[spinal] object ElaborationProductDomain {
     axes
   }
 
-  private def active(proof: Certificate, role: String, location: Option[String]): Certificate = {
+  private def active(proof: TrustedExpressionEvidence, role: String, location: Option[String]): TrustedExpressionEvidence = {
     val axes = proof.axes.map { axis =>
       val requested = ElaborationDomainContext.admitted(axis.domain)
       if (requested.isEmpty || !requested.subsetOf(axis.values.toSet))
@@ -177,7 +172,7 @@ private[spinal] object ElaborationProductDomain {
     proof.copy(axes = axes)
   }
   private def validateInventory(parameters: Vector[ElaborationIntegerParameter], roots: Vector[Root],
-                                proof: Certificate, role: String, location: Option[String]): Unit = {
+                                proof: TrustedExpressionEvidence, role: String, location: Option[String]): Unit = {
     if (roots.size != proof.axes.size || parameters.size != proof.axes.size || proof.axes.exists { axis =>
         !roots.exists(_ eq axis.root) || !parameters.exists(_ eq axis.schema) ||
           !axis.root.isAuthoritativeSchema(axis.schema)
@@ -199,30 +194,30 @@ private[spinal] object ElaborationProductDomain {
     ()
   }
 
-  private def source(value: ElaborationIntegerExpression): Certificate = certificate(value) match {
+  private def source(value: ElaborationIntegerExpression): TrustedExpressionEvidence = certificate(value) match {
     case Some(proof) =>
       requireInteger(value, Role)
       active(proof, Role, value.sourceLocation)
     case None =>
       val exact = ElabInt.requireAuthoritativeIntegerDomain(value, Role, Missing, requireExactExtrema = false)
       exact match {
-        case None => Certificate(literal(value.default), Vector.empty)
+        case None => TrustedExpressionEvidence(literal(value.default), Vector.empty)
         case Some(domain) =>
           val values = ElaborationDomainContext.requireEvidence(domain, Role, value.sourceLocation).toVector.sorted
-          Certificate(atom(Leaf(domain.root, domain.evaluations.toMap)), Vector(Axis(domain, values)))
+          TrustedExpressionEvidence(atom(Leaf(domain.root, domain.evaluations.toMap)), Vector(Axis(domain, values)))
       }
   }
-  private def source(value: ElaborationBooleanExpression): Certificate = certificate(value) match {
+  private def source(value: ElaborationBooleanExpression): TrustedExpressionEvidence = certificate(value) match {
     case Some(proof) =>
       requireBoolean(value, Role)
       active(proof, Role, value.sourceLocation)
     case None =>
       val exact = ElabInt.requireAuthoritativeBooleanDomain(value, Role, Missing)
       exact match {
-        case None => Certificate(literal(boolean(value.default)), Vector.empty)
+        case None => TrustedExpressionEvidence(literal(boolean(value.default)), Vector.empty)
         case Some(domain) =>
           val values = ElaborationDomainContext.requireEvidence(domain, Role, value.sourceLocation).toVector.sorted
-          Certificate(atom(Leaf(domain.root, domain.evaluations.map { case (key, result) => key -> boolean(result) }.toMap)),
+          TrustedExpressionEvidence(atom(Leaf(domain.root, domain.evaluations.map { case (key, result) => key -> boolean(result) }.toMap)),
             Vector(Axis(domain, values)))
       }
   }
@@ -383,16 +378,133 @@ private[spinal] object ElaborationProductDomain {
       }
   }
 
-  private def checkedExtrema(proof: Certificate, location: Option[String]): Extrema = {
+  /** A sound enclosure, not necessarily attainable extrema. No Cartesian
+    * evaluator, image enumeration or exact `bounds` call is permitted here.
+    */
+  private final case class Enclosure(minimum: BigInt, maximum: BigInt) {
+    def constant: Boolean = minimum == maximum
+    def scale(k: BigInt): Enclosure =
+      if (k >= 0) Enclosure(minimum * k, maximum * k)
+      else Enclosure(maximum * k, minimum * k)
+  }
+  private def enclosure(proof: TrustedExpressionEvidence, location: Option[String]): Enclosure = {
+    val memo = mutable.HashMap.empty[Form, Enclosure]
+    def visit(form: Form): Enclosure = memo.getOrElseUpdate(form, {
+      val parts = form.terms.toVector.map { case (value, k) => atomEnclosure(value).scale(k) }
+      Enclosure(form.constant + parts.map(_.minimum).sum, form.constant + parts.map(_.maximum).sum)
+    })
+    def atomEnclosure(value: Atom): Enclosure = value match {
+      case leaf: Leaf =>
+        val values = proof.axes.find(_.root eq leaf.root).get.values.map(leaf.values)
+        Enclosure(values.min, values.max)
+      case Operation(operator, operands) =>
+        def b(i: Int): Enclosure = visit(operands(i))
+        operator match {
+          case "*" =>
+            val l = b(0); val r = b(1)
+            val corners = Vector(l.minimum * r.minimum, l.minimum * r.maximum,
+              l.maximum * r.minimum, l.maximum * r.maximum)
+            Enclosure(corners.min, corners.max)
+          case "/" | "%" =>
+            val l = b(0); val r = b(1)
+            if (l.minimum < 0 || r.minimum <= 0)
+              fail(if (operator == "/") "SPINAL-ELAB-INT-DIVISION-DOMAIN-UNSUPPORTED"
+                else "SPINAL-ELAB-INT-MODULO-DOMAIN-UNSUPPORTED",
+                "division/remainder needs a non-negative dividend and positive divisor", location)
+            if (operator == "/") Enclosure(l.minimum / r.maximum, l.maximum / r.minimum)
+            else if (operands(0) == operands(1) || (r.constant && r.minimum == 1)) Enclosure(0, 0)
+            else if (l.maximum < r.minimum) l
+            else Enclosure(0, l.maximum.min(r.maximum - 1))
+          case "<" | "==" =>
+            val difference = visit(operands(0) - operands(1))
+            if (operator == "<") {
+              if (difference.maximum < 0) Enclosure(1, 1)
+              else if (difference.minimum >= 0) Enclosure(0, 0)
+              else Enclosure(0, 1)
+            } else {
+              if (difference.constant && difference.minimum == 0) Enclosure(1, 1)
+              else if (difference.minimum > 0 || difference.maximum < 0) Enclosure(0, 0)
+              else Enclosure(0, 1)
+            }
+          case "&&" | "||" =>
+            val l = b(0); val r = b(1)
+            if (operator == "&&" && (l.maximum == 0 || r.maximum == 0)) Enclosure(0, 0)
+            else if (operator == "||" && (l.minimum == 1 || r.minimum == 1)) Enclosure(1, 1)
+            else if (l.constant) r
+            else if (r.constant || operands(0) == operands(1)) l
+            else if (operands(0) + operands(1) == literal(1))
+              if (operator == "&&") Enclosure(0, 0) else Enclosure(1, 1)
+            else Enclosure(0, 1)
+          case "min" | "max" =>
+            val l = b(0); val r = b(1)
+            if (operator == "max") Enclosure(l.minimum.max(r.minimum), l.maximum.max(r.maximum))
+            else Enclosure(l.minimum.min(r.minimum), l.maximum.min(r.maximum))
+          case "choose" =>
+            val c = b(0); val y = b(1); val n = b(2)
+            if (c.constant) if (c.minimum == 1) y else n
+            else Enclosure(y.minimum.min(n.minimum), y.maximum.max(n.maximum))
+          case "log2Up" | "addressWidth" =>
+            val v = b(0)
+            if (operator == "log2Up" && v.minimum < 0)
+              fail("SPINAL-ELAB-INT-LOG2-DOMAIN-NEGATIVE", "log2Up input must stay non-negative", location)
+            if (operator == "addressWidth" && v.minimum < 1)
+              fail("SPINAL-ELAB-INT-ADDRESS-WIDTH-DOMAIN-NONPOSITIVE", "addressWidth input must stay positive", location)
+            def f(n: BigInt): BigInt = if (operator == "addressWidth") BigInt(math.max(1, (n - 1).bitLength))
+              else if (n == 0) BigInt(0) else BigInt((n - 1).bitLength)
+            Enclosure(f(v.minimum), f(v.maximum))
+          case "pow2" =>
+            val v = b(0)
+            if (v.minimum < 0 || v.maximum > 30)
+              fail("SPINAL-ELAB-INT-POW2-DOMAIN-INVALID", "power-of-two exponent must be in 0..30", location)
+            Enclosure(BigInt(1) << v.minimum.toInt, BigInt(1) << v.maximum.toInt)
+          case "isPow2" => Enclosure(0, 1)
+          case other => throw new IllegalArgumentException(s"unknown authenticated operator '$other'")
+        }
+    }
+    visit(proof.form)
+  }
+  private def checkedEnclosure(proof: TrustedExpressionEvidence, location: Option[String]): Enclosure = {
+    val result = enclosure(proof, location)
+    if (!result.minimum.isValidInt || !result.maximum.isValidInt)
+      fail("SPINAL-ELAB-DOMAIN-EVIDENCE-RESULT-OUT-OF-RANGE",
+        s"cannot establish checked Int arithmetic inside [${result.minimum}, ${result.maximum}]", location)
+    result
+  }
+
+  /** Stronger observation: structural/native-library consumers may explicitly
+    * request attainable extrema. This can fail when joint proof exceeds the cap.
+    */
+  private[core] def exactLimits(value: ElaborationIntegerExpression): (BigInt, BigInt) = {
+    val result = checkedExtrema(source(value), value.sourceLocation)
+    result.minimum -> result.maximum
+  }
+  private[core] def publicationTruth(value: ElaborationBooleanExpression): ElabBool.Truth = {
+    val result = enclosure(source(value), value.sourceLocation)
+    if (result.minimum == 1) ElabBool.AlwaysTrue
+    else if (result.maximum == 0) ElabBool.AlwaysFalse
+    else ElabBool.Unknown // not a claim that both outcomes have witnesses
+  }
+
+  /** Physical publication of a potentially non-positive packed width. The
+    * clamped expression has its own authenticated AST; raw positivity is a
+    * separate legality obligation, never fabricated as exact raw-width evidence.
+    */
+  private[core] def safePackedWidth(value: ElaborationIntegerExpression): ElaborationIntegerExpression = {
+    val proof = source(value)
+    publishInteger(s"(($$signed(${value.verilog}) > 0) ? ${value.verilog} : 1)",
+      proof.copy(form = operation("max", proof.form, literal(1))), value.sourceLocation)
+  }
+
+  private def checkedExtrema(proof: TrustedExpressionEvidence, location: Option[String]): Extrema = {
     val limits = bounds(proof.form, proof.axes, location)
     if (!limits.minimum.isValidInt || !limits.maximum.isValidInt)
       fail("SPINAL-ELAB-DOMAIN-EVIDENCE-RESULT-OUT-OF-RANGE",
         s"reaches [${limits.minimum}, ${limits.maximum}] outside the Scala/Verilog Int domain", location)
     limits
   }
-  private def publishInteger(verilog: String, proof: Certificate,
+  private def publishInteger(verilog: String, proof: TrustedExpressionEvidence,
                              location: Option[String]): ElaborationIntegerExpression = {
-    val limits = checkedExtrema(proof, location)
+    val limits = checkedEnclosure(proof, location)
     val default = proof.form.evaluate(representative(proof.axes))
     if (proof.axes.isEmpty)
       return ElaborationIntegerExpression(default.toString, default, default, default, Vector.empty, sourceLocation = location)
@@ -403,14 +515,15 @@ private[spinal] object ElaborationProductDomain {
     retain(result, if (limits.constant) proof.copy(form = literal(limits.minimum)) else proof)
     result
   }
-  private def publishBoolean(verilog: String, proof: Certificate, location: Option[String]): ElabBool = {
-    val limits = bounds(proof.form, proof.axes, location)
+  private def publishBoolean(verilog: String, proof: TrustedExpressionEvidence, location: Option[String]): ElabBool = {
+    val limits = enclosure(proof, location)
     if (limits.minimum < 0 || limits.maximum > 1)
       fail(Missing, "Boolean derivation is not exactly 0/1", location)
     val result = ElaborationBooleanExpression(verilog, proof.form.evaluate(representative(proof.axes)) != 0,
       proof.axes.map(_.schema), sourceLocation = location, parameterRoots = proof.axes.map(_.root))
     retain(result, if (limits.constant) proof.copy(form = literal(limits.minimum)) else proof)
-    ElabBool(result, truth(limits))
+    ElabBool(result, if (limits.minimum == 1) ElabBool.AlwaysTrue
+      else if (limits.maximum == 0) ElabBool.AlwaysFalse else ElabBool.Unknown)
   }
   private def truth(limits: Extrema): ElabBool.Truth =
     if (limits.minimum == 1) ElabBool.AlwaysTrue
@@ -422,21 +535,21 @@ private[spinal] object ElaborationProductDomain {
     val l = source(left); val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
     publishInteger(s"(${left.verilog} $operator ${right.verilog})",
-      Certificate(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
+      TrustedExpressionEvidence(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
   }
   private[core] def compare(operator: String, left: ElaborationIntegerExpression,
                             right: ElaborationIntegerExpression): ElabBool = {
     val l = source(left); val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
-    publishBoolean(s"((${left.verilog}) $operator (${right.verilog}))",
-      Certificate(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
+    publishBoolean(s"($$signed(${left.verilog}) $operator $$signed(${right.verilog}))",
+      TrustedExpressionEvidence(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
   }
   private[core] def logical(operator: String, left: ElaborationBooleanExpression,
                             right: ElaborationBooleanExpression): ElabBool = {
     val l = source(left); val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
-    publishBoolean(s"((${left.verilog}) $operator (${right.verilog}))",
-      Certificate(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
+    publishBoolean(s"($$signed(${left.verilog}) $operator $$signed(${right.verilog}))",
+      TrustedExpressionEvidence(operation(operator, l.form, r.form), merge(Vector(l, r), location)), location)
   }
   private[core] def not(value: ElaborationBooleanExpression): ElabBool = {
     val proof = source(value)
@@ -467,19 +580,23 @@ private[spinal] object ElaborationProductDomain {
     // dominance proof. Keep all original axes and the authored selection.
     val comparison = if (operator == "max") ">" else "<"
     publishInteger(s"((${left.verilog} $comparison ${right.verilog}) ? ${left.verilog} : ${right.verilog})",
-      Certificate(operation(operator, l.form, r.form), axes), location)
+      TrustedExpressionEvidence(operation(operator, l.form, r.form), axes), location)
   }
   private[core] def choose(condition: ElaborationBooleanExpression, yes: ElaborationIntegerExpression,
                            no: ElaborationIntegerExpression): ElaborationIntegerExpression = {
     val c = source(condition); val y = source(yes); val n = source(no)
     val location = condition.sourceLocation.orElse(yes.sourceLocation).orElse(no.sourceLocation)
     publishInteger(s"(${condition.verilog} ? ${yes.verilog} : ${no.verilog})",
-      Certificate(atom(Operation("choose", Vector(c.form, y.form, n.form))), merge(Vector(c, y, n), location)), location)
+      TrustedExpressionEvidence(atom(Operation("choose", Vector(c.form, y.form, n.form))), merge(Vector(c, y, n), location)), location)
   }
 
   private[core] def projectedTruth(value: ElaborationBooleanExpression): ElabBool.Truth = {
-    val proof = source(value)
-    truth(bounds(proof.form, proof.axes, value.sourceLocation))
+    val classified = publicationTruth(value)
+    if (classified != ElabBool.Unknown) classified
+    else {
+      val proof = source(value)
+      truth(bounds(proof.form, proof.axes, value.sourceLocation))
+    }
   }
   private[core] def project(value: ElaborationIntegerExpression, role: String): ElaborationIntegerExpression =
     certificate(value) match {
@@ -565,7 +682,7 @@ private[spinal] object ElaborationProductDomain {
     val proof = source(value)
     evaluate(proof, bindings)
   }
-  private def evaluate(proof: Certificate, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
+  private def evaluate(proof: TrustedExpressionEvidence, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
     if (bindings.map(_._1).distinct.size != bindings.size) return None
     if (proof.axes.exists(axis => !bindings.find(_._1 eq axis.root).exists(entry => axis.values.contains(entry._2)))) None
     else Some(proof.form.evaluate(bindings.toMap))
@@ -574,14 +691,16 @@ private[spinal] object ElaborationProductDomain {
   /** A post-capture proof bound to the exact native owner. No construction
     * branch is reopened and no default tuple is substituted for that owner.
     */
-  private[core] final class OwnerProof private[ElaborationProductDomain] (private val proof: Certificate,
+  private[core] final class OwnerProof private[ElaborationProductDomain] (private val proof: TrustedExpressionEvidence,
                                                                          val sourceLocation: Option[String]) {
-    private val limits = checkedExtrema(proof, sourceLocation)
+    private lazy val limits = checkedExtrema(proof, sourceLocation)
+    private[ElaborationProductDomain] val publicationBounds = checkedEnclosure(proof, sourceLocation)
     val roots: Vector[Root] = proof.axes.map(_.root)
     val schemas: Vector[ElaborationIntegerParameter] = proof.axes.map(_.schema)
     val rootValues: Vector[Vector[BigInt]] = proof.axes.map(_.values)
-    val minimum: BigInt = limits.minimum
-    val maximum: BigInt = limits.maximum
+    def publicationRange: (BigInt, BigInt) = publicationBounds.minimum -> publicationBounds.maximum
+    def minimum: BigInt = limits.minimum
+    def maximum: BigInt = limits.maximum
     val default: BigInt = proof.form.evaluate(representative(proof.axes))
     def evaluate(bindings: Vector[(Root, BigInt)]): Option[BigInt] = ElaborationProductDomain.evaluate(proof, bindings)
     def sameDomain(that: OwnerProof): Boolean = sameAxes(proof.axes, that.proof.axes)
@@ -595,11 +714,11 @@ private[spinal] object ElaborationProductDomain {
     }
     def combine(operator: String, that: OwnerProof): OwnerProof = {
       val axes = merge(Vector(proof, that.proof), sourceLocation.orElse(that.sourceLocation))
-      new OwnerProof(Certificate(operation(operator, proof.form, that.proof.form), axes), sourceLocation)
+      new OwnerProof(TrustedExpressionEvidence(operation(operator, proof.form, that.proof.form), axes), sourceLocation)
     }
   }
   private[core] def literalOwner(value: BigInt): OwnerProof =
-    new OwnerProof(Certificate(literal(value), Vector.empty), None)
+    new OwnerProof(TrustedExpressionEvidence(literal(value), Vector.empty), None)
 
   private[core] def owner(value: ElaborationIntegerExpression, role: String, location: Option[String])(
       ownerValues: (Root, Set[BigInt]) => Set[BigInt]): Option[OwnerProof] = {
@@ -611,7 +730,7 @@ private[spinal] object ElaborationProductDomain {
       return Some(exact match {
         case None => literalOwner(value.default)
         case Some((domain, admitted)) =>
-          new OwnerProof(Certificate(atom(Leaf(domain.root, domain.evaluations.toMap)),
+          new OwnerProof(TrustedExpressionEvidence(atom(Leaf(domain.root, domain.evaluations.toMap)),
             Vector(Axis(domain, admitted.toVector.sorted))), location)
       })
     }
@@ -629,8 +748,8 @@ private[spinal] object ElaborationProductDomain {
     if (owned.default != value.default)
       fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH",
         s"$role witness ${value.default} does not match owner representative ${owned.default}", location)
-    if (owned.minimum < value.minimum || owned.maximum > value.maximum)
-      fail("SPINAL-ELAB-DOMAIN-PROJECTION-BOUNDS-MISMATCH", s"$role escapes its retained extrema", location)
+    if (owned.publicationBounds.minimum < value.minimum || owned.publicationBounds.maximum > value.maximum)
+      fail("SPINAL-ELAB-DOMAIN-PROJECTION-BOUNDS-MISMATCH", s"$role escapes its authenticated publication enclosure", location)
     owned
   }
   }
