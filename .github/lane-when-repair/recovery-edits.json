@@ -1,0 +1,108 @@
+{
+  "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala": {
+    "edits": [],
+    "final_sha256": "536b26374e6836fa258c17f46a1b277b2e04adac8cfa0d5ce5681138e9825d70",
+    "prepared_sha256": "536b26374e6836fa258c17f46a1b277b2e04adac8cfa0d5ce5681138e9825d70"
+  },
+  "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": {
+    "edits": [],
+    "final_sha256": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f",
+    "prepared_sha256": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f"
+  },
+  "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": {
+    "edits": [
+      [
+        "        target.isEmptyOfTag && ParameterizedWidth.expressionOf(target).isEmpty\n",
+        "        // This layout-only flag protects process separation. The planner\n        // changes neither the target nor its driver/scope, so retain the flag\n        // while proving its pure RHS. All other target metadata still fences\n        // optimization; use singleton identity, never custom tag equality.\n        target.getTags().forall(_ eq noBackendCombMerge) &&\n        ParameterizedWidth.expressionOf(target).isEmpty\n"
+      ]
+    ],
+    "final_sha256": "95d22cdcf10b9bdedae83dddf1d3c98f04398d0e237783f3f5cdb477f909fb09",
+    "prepared_sha256": "245ad031c6fe6457e4d292988cd04c6b22427c6336af54ce8eff3a472c5a1384"
+  },
+  "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala": {
+    "edits": [
+      [
+        "    case NameOrigin.Unknown      => \"unknown\"\n  }\n}\n\n",
+        "    case NameOrigin.Unknown      => \"unknown\"\n  }\n}\n\n/** Per-generation preservation intent, captured after application transforms\n  * and before native liveness propagation. Native isVital later denotes\n  * reachability, not necessarily user intent. No declaration is changed or\n  * tagged here. Unobserved identities fail closed.\n  */\nprivate[examples] final class NativeConditionSourceIntent extends Phase {\n  private val removable = new java.util.IdentityHashMap[BaseType, java.lang.Boolean]()\n  private var captured = false\n  override def hasNetlistImpact: Boolean = false\n  override def impl(pc: PhaseContext): Unit = {\n    if (captured) throw new IllegalStateException(\"condition source intent captured twice\")\n    pc.components().foreach(_.dslBody.walkDeclarations {\n      case value: BaseType if !value.isVital => removable.put(value, java.lang.Boolean.TRUE)\n      case _ =>\n    })\n    captured = true\n  }\n  def permits(value: BaseType): Boolean = captured && removable.containsKey(value)\n}\n\n"
+      ],
+      [
+        "            !(current.parentScope eq current.rootScopeStatement) || current.isAnalog || current.isInOut)\n",
+        "            !(current.parentScope eq root) || current.isAnalog || current.isInOut)\n"
+      ],
+      [
+        "      case _ => Left(\"WA10-CONDITION-CANONICAL-OBSERVATION\")\n    }\n  }\n\n",
+        "      case _ => Left(\"WA10-CONDITION-CANONICAL-OBSERVATION\")\n    }\n  }\n\n  /** Preserve lexical dominance, including predicates constructed inside a\n    * nested when/elsewhen scope. Input ports are read in this component even\n    * though their native assignment-root scope belongs to the parent.\n    */\n  private def conditionScopeWithin(scope: ScopeStatement, owner: ScopeStatement): Boolean = {\n    if (scope == null || owner == null) return false\n    var current = scope\n    var depth = 0\n    while (current ne owner) {\n      depth += 1\n      if (current == null || depth > 128) return false\n      current.parentStatement match {\n        case when: WhenStatement => current = when.parentScope\n        case _ => return false\n      }\n    }\n    true\n  }\n\n"
+      ],
+      [
+        "    if (candidate.useStatements.exists(statement =>\n        statement.parentScope == null ||\n        !(statement.rootScopeStatement eq alias.rootScopeStatement) ||\n",
+        "    if (!conditionScopeWithin(alias.parentScope, candidate.component.dslBody) ||\n        candidate.useStatements.exists(statement =>\n        !conditionScopeWithin(statement.parentScope, alias.parentScope) ||\n"
+      ],
+      [
+        "        value.parentScope == null || !(value.parentScope eq value.rootScopeStatement) ||\n",
+        "        value.parentScope == null || !(value.parentScope eq candidate.component.dslBody) ||\n"
+      ],
+      [
+        "    if (candidate.nameOrigin != NameOrigin.Generated && candidate.nameOrigin != NameOrigin.Unnamed)\n      return Left(\"WA10-CONDITION-USER-NAME\")\n    if (!alias.isInstanceOf[Bool] || alias.getBitsWidth != 1 ||\n        candidate.sourceExpression.getTypeObject != TypeBool ||\n",
+        "    if (candidate.nameOrigin != NameOrigin.Generated && candidate.nameOrigin != NameOrigin.Unnamed)\n      return Left(\"WA10-CONDITION-USER-NAME\")\n    if (!conditionSourceIntent.exists(_.permits(alias)))\n      return Left(\"WA10-CONDITION-SOURCE-INTENT\")\n    if (!alias.isInstanceOf[Bool] || alias.getBitsWidth != 1 ||\n        candidate.sourceExpression.getTypeObject != TypeBool ||\n"
+      ],
+      [
+        "            Some(\n",
+        "            // Native comparison results used by when() retain isTypeNode even\n            // after they acquire REMOVABLE source-location names. Admit only\n            // this generated Boolean-condition profile; the complete condition\n            // proof still owns source intent, every receiver and process safety.\n            val conditionCarrier = alias.isInstanceOf[Bool] &&\n              (origin == NameOrigin.Generated || origin == NameOrigin.Unnamed) &&\n              uses.exists(_.isInstanceOf[WhenStatement])\n            if (alias.isTypeNode && !conditionCarrier) None\n            else Some(\n"
+      ],
+      [
+        "      alias.isAnalog || alias.isTypeNode || alias.parentScope == null ||\n",
+        "      alias.isAnalog || alias.parentScope == null ||\n"
+      ],
+      [
+        "        case Right(proof) => applyCanonicalDecision(candidate, proof).isRight\n        case Left(_)      => false\n      }\n    }\n",
+        "        case Right(proof) => applyCanonicalDecision(candidate, proof).isRight\n        case Left(_)      => false\n      }\n    }\n  }\n\n  /** Read-only explanation using the same proof as production writeback. */\n  private[examples] def retentionReasonFor(pc: PhaseContext, value: BaseType): Option[String] = {\n    val statements = pc.components().toVector.flatMap(statementsOf)\n    NativeWireNameProvenance.origin(value).flatMap(origin =>\n      candidateForValue(value, origin, statements)) match {\n      case None => Some(\"WA10-CONDITION-NOT-A-CANDIDATE\")\n      case Some(candidate) => proveCandidate(pc, candidate) match {\n        case Left(reason) => Some(reason)\n        case Right(proof) => applyCanonicalDecision(candidate, proof).left.toOption\n      }\n    }\n"
+      ],
+      [
+        "private[examples] final class NamedWireExpressionNativePhase(unnamedOnly: Boolean = false) extends Phase {\n",
+        "private[examples] final class NamedWireExpressionNativePhase(\n    unnamedOnly: Boolean = false,\n    conditionSourceIntent: Option[NativeConditionSourceIntent] = None\n) extends Phase {\n"
+      ]
+    ],
+    "final_sha256": "ea2db47a5a8f5c03a1e5373a73b7b584d68f426b0198553a3c776363dc9a05ff",
+    "prepared_sha256": "0f23cf522863fa5f708ef0fa7cd242a5471d000c3925e0e008fe6b0a1a770e79"
+  },
+  "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala": {
+    "edits": [
+      [
+        "  private val delegate = new NamedWireExpressionNativePhase(unnamedOnly = true)\n",
+        "  private val delegate = new NamedWireExpressionNativePhase(unnamedOnly = true, conditionSourceIntent)\n"
+      ],
+      [
+        "private[examples] final class UnnamedWireExpressionNativePhase extends Phase {\n",
+        "private[examples] final class UnnamedWireExpressionNativePhase(\n    conditionSourceIntent: Option[NativeConditionSourceIntent] = None\n) extends Phase {\n"
+      ]
+    ],
+    "final_sha256": "535028a059d2ab078fe5fbade40f3c19e522e6a8c5e1ca562d56535bf3f69899",
+    "prepared_sha256": "c329ae9d5cdc676e0f23da705bb62727bfa753913623b58cc70ad9c8139e71ba"
+  },
+  "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": {
+    "edits": [
+      [
+        "      val namedExpression = new NamedWireExpressionNativePhase\n",
+        "      val namedExpression = new NamedWireExpressionNativePhase(conditionSourceIntent = Some(sourceIntent))\n"
+      ],
+      [
+        "      val expression = new UnnamedWireExpressionNativePhase\n",
+        "      val expression = new UnnamedWireExpressionNativePhase(Some(sourceIntent))\n"
+      ],
+      [
+        "private final class ProductionWireAssignmentPhase extends Phase {\n",
+        "private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionSourceIntent) extends Phase {\n"
+      ],
+      [
+        "    phases.update(cleanup(2), new ProductionWireAssignmentPhase)\n",
+        "    val sourceIntent = new NativeConditionSourceIntent\n    phases.update(cleanup(2), new ProductionWireAssignmentPhase(sourceIntent))\n    // Capture after application transformation phases but before any native\n    // liveness sweep can infer vital bits. The complete per-generation identity\n    // inventory then distinguishes explicit preservation from inferred liveness.\n    val firstLiveness = phases.indexWhere(_.isInstanceOf[PhaseRemoveUselessStuff])\n    if (firstLiveness < 0 || firstLiveness >= cleanup(2))\n      throw new IllegalStateException(\"condition source intent requires a pre-optimization liveness boundary\")\n    phases.insert(firstLiveness, sourceIntent)\n"
+      ],
+      [
+        "  Phase,\n  PhaseContext,\n  PhaseRemoveIntermediateUnnameds,\n  VerilogEmitterExpressionInlining\n",
+        "  Phase,\n  PhaseContext,\n  PhaseRemoveUselessStuff,\n  PhaseRemoveIntermediateUnnameds,\n  VerilogEmitterExpressionInlining\n"
+      ]
+    ],
+    "final_sha256": "64eb82e4ca819a7f3546c40abc3009bba30d100dc63ee0aff10a9f9362a02112",
+    "prepared_sha256": "f4216ecc708a65bea437d1a0f015bca85dbc0bd12c60099ffa8c5f9b1de051ea"
+  }
+}
