@@ -13,11 +13,15 @@ private[morphhdl] object NativeWireCompatibility {
   private def write(path: Path, value: String): Unit =
     Files.write(path, value.getBytes(StandardCharsets.UTF_8))
 
-  private def run(directory: Path, command: Seq[String]): String = {
+  private[morphhdl] def run(directory: Path, command: Seq[String]): String = {
     val output = new StringBuilder
-    val status = Process(command, directory.toFile).!(ProcessLogger(
-      line => output.append(line).append('\n'),
-      line => output.append(line).append('\n')))
+    // ProcessLogger drains stdout and stderr on different threads. Keep each
+    // complete line atomic so a real proof rejection retains its diagnostic.
+    def append(line: String): Unit = output.synchronized {
+      output.append(line).append('\n')
+      ()
+    }
+    val status = Process(command, directory.toFile).!(ProcessLogger(append _, append _))
     require(status == 0, command.mkString(" ") + "\n" + output)
     output.toString
   }
