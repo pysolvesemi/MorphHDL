@@ -176,7 +176,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
     },
     {
-      "after_sha256": "08c5fa6e021068f7b8b4105fde25951bf45e2d24555b370b2f9bbfda35857976",
+      "after_sha256": "ddf6955e4e176d848a75bc69c85193da30481312f4e31f0256c49a7468544775",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/check-boundary.sh"
@@ -248,7 +248,7 @@
       "path": "morphhdl-passes/scripts/run-wa10-regression.sh"
     },
     {
-      "after_sha256": "d5f55f8131e11a1bbecc577c579f0b116c2793e810fec0dbefbdb84687ab11c9",
+      "after_sha256": "ab24aeabae2ef3144946eeb479a94118a0a6ca8cb578ba018c883bbcf5254f66",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -362,7 +362,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "f5a06b4d15d91b26d96ce0c157f5c44df6359371a772b186293f5c47b197ac57",
+      "after_sha256": "c5096a839baa4d1270bd265a2859f59eb1c4c106b33d4078d162788cf9501e3f",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -572,7 +572,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/FormalParameterClonePropagationTests.scala"
     },
     {
-      "after_sha256": "ea3729497afa0028dba6db2f7f89ee488bd6039fb3e6ff5ff6779cb03a5346af",
+      "after_sha256": "d128b620b560debbffc7facb77b9a12403fcf213a574f7198a67c73d9dbceb67",
       "before_sha256": "8d75953ea0e5ab1c6ea2fbca105b5e31b2f3537895116cf33cde4d8e303266cc",
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala"
@@ -596,7 +596,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala"
     },
     {
-      "after_sha256": "84a75b320a4a2cee107580bea213763ca1b956134fca335d07a91d58eb254a9c",
+      "after_sha256": "cffc23f6788841a3adf836919b862f1ec4f58d60dc01e96cf53cbba89f5a2e3e",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala"
@@ -698,7 +698,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "2be698ca8a4d80c2d918b154b9bd13221195cff3",
+  "final_source_commit": "d73f78a3745f265484cc508789ac89c3a3fec994",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
