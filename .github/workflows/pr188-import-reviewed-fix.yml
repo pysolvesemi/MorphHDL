@@ -1,4 +1,4 @@
-name: Recover PR188 target history and reviewed audit blobs
+name: Seal reviewed PR188 reconciled source objects
 on:
   push:
     branches: [agent/independent-parameter-domain-composition]
@@ -7,16 +7,16 @@ permissions:
   contents: write
   actions: write
 jobs:
-  recover:
-    runs-on: ubuntu-24.04
+  seal:
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b07c35ba3513644b250d0fd072ad6f4d9444d9f8
+          ref: 7fb969e12d4bb6ef79926b6cd3add4c5a047b5d0
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain immutable history and upload reviewed audit blobs only
+      - name: Verify union inventory and upload two audit blobs without changing refs
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -25,10 +25,8 @@ jobs:
           python3 - <<'PY'
           import base64, hashlib, json, os, re, subprocess, urllib.request, urllib.parse, urllib.error
           from pathlib import Path
-          repo='pysolvesemi/MorphHDL'
-          branch='agent/independent-parameter-domain-composition'
-          source='b07c35ba3513644b250d0fd072ad6f4d9444d9f8'
-          target='61d1fe0dcac0b52856620944a2d7426fd1390a48'
+          repo='pysolvesemi/MorphHDL'; branch='agent/independent-parameter-domain-composition'
+          source='7fb969e12d4bb6ef79926b6cd3add4c5a047b5d0'; target='61d1fe0dcac0b52856620944a2d7426fd1390a48'
           assert os.environ['GITHUB_REPOSITORY']==repo and os.environ['GITHUB_REF']=='refs/heads/'+branch
           def git(*a, raw=False):
               b=subprocess.check_output(['git',*a]); return b if raw else b.decode().strip()
@@ -38,52 +36,56 @@ jobs:
                 headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
               with urllib.request.urlopen(req,timeout=120) as f:
                   b=f.read(); return json.loads(b) if b else {}
-          assert git('rev-parse','HEAD')==source and git('rev-parse','HEAD^{tree}')=='86a5fc20deba3b1d5fcbd7b642f70b7e19ad2e78'
-          assert git('rev-parse','refs/remotes/origin/parameterized-verilog')==target
-          evidence=Path(os.environ['RUNNER_TEMP'])/'pr188-object-recovery'; evidence.mkdir()
-          subprocess.run(['git','bundle','create',str(evidence/'history.bundle'),'HEAD','refs/remotes/origin/parameterized-verilog','^3b547ae5622ae212c17f6e67cc96924127a46a41'],check=True)
-          helper=Path('morphhdl/scripts/check-increment-62-wa08-source-overlay.py')
-          manifest=Path('morphhdl/contracts/increment-62-wa08-source-overlay.json')
-          old=json.loads(manifest.read_text()); ns={'__name__':'reviewed_overlay'}
-          exec(compile(helper.read_text(),str(helper),'exec'),ns)
-          digest=lambda b:hashlib.sha256(b).hexdigest()
-          paths=sorted(p for p in git('diff','--name-only','--no-renames',old['base'],source).splitlines() if ns['governed'](p) and p not in (str(helper),str(manifest)))
-          assert len(paths)==156
+          assert git('rev-parse','HEAD')==source and git('rev-parse','HEAD^{tree}')=='584b047697b14d854ddabe009507828498f30cfe'
+          subprocess.run(['git','merge-base','--is-ancestor',target,'HEAD'],check=True)
+          evidence=Path(os.environ['RUNNER_TEMP'])/'pr188-merged-seal'; evidence.mkdir()
+          subprocess.run(['git','bundle','create',str(evidence/'history.bundle'),'HEAD','^3b547ae5622ae212c17f6e67cc96924127a46a41'],check=True)
+          h='morphhdl/scripts/check-increment-62-wa08-source-overlay.py'; m='morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          old=json.loads(Path(m).read_text()); incoming=json.loads(git('show',target+':'+m)); helper=Path(h).read_bytes()
+          ns={'__name__':'reviewed_overlay'}; exec(compile(helper,h,'exec'),ns); digest=lambda b:hashlib.sha256(b).hexdigest()
+          paths=sorted(p for p in git('diff','--name-only','--no-renames',old['base'],source).splitlines() if ns['governed'](p) and p not in (h,m))
+          assert len(paths)==157
           records=[]
           for path in paths:
-              mode,kind,sha=git('ls-tree',source,'--',path).split()[:3]
-              assert kind=='blob'
+              mode,kind,sha=git('ls-tree',source,'--',path).split()[:3]; assert kind=='blob'
               before=git('ls-tree',old['base'],'--',path)
               records.append(dict(path=path,mode=mode,before_sha256=digest(git('show',old['base']+':'+path,raw=True)) if before else None,after_sha256=digest(git('show',source+':'+path,raw=True))))
           index={v['path']:v for v in records}
-          for entry in old['files']:
-              assert entry['path'] in index and index[entry['path']]['before_sha256']==entry['before_sha256']
-          content=helper.read_bytes(); normalized=ns['normalized_helper'](content)
+          for previous in (old,incoming):
+              for entry in previous['files']:
+                  assert entry['path'] in index and index[entry['path']]['before_sha256']==entry['before_sha256']
+          normalized=ns['normalized_helper'](helper)
           value=dict(old,files=records,final_source_commit=source,helper_normalized_sha256=digest(normalized))
           raw=(json.dumps(value,indent=2)+'\n').encode()
-          updated=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',('CONTRACT_SHA256 = "'+digest(raw)+'"').encode(),content,count=1,flags=re.M)
+          updated=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',('CONTRACT_SHA256 = "'+digest(raw)+'"').encode(),helper,count=1,flags=re.M)
           assert ns['normalized_helper'](updated)==normalized
           entries=[]
-          for path,data in ((manifest,raw),(helper,updated)):
+          for path,data in ((m,raw),(h,updated)):
               sha=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
-              result=api('git/blobs',dict(content=base64.b64encode(data).decode(),encoding='base64'))
-              assert result['sha']==sha
-              entries.append(dict(path=str(path),mode='100644',type='blob',sha=sha))
-              (evidence/path.name).write_bytes(data)
-          (evidence/'audit-blobs.json').write_text(json.dumps(dict(source=source,target=target,entries=entries),indent=2)+'\n')
+              result=api('git/blobs',dict(content=base64.b64encode(data).decode(),encoding='base64')); assert result['sha']==sha
+              entries.append(dict(path=path,mode='100644',type='blob',sha=sha)); Path(path).write_bytes(data)
+              (evidence/Path(path).name).write_bytes(data)
+          subprocess.run(['git','add',m,h],check=True)
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','commit','-m','Local-only source audit verification'],check=True)
+          checks=[['python3','morphhdl/scripts/check-increment-62-wa08-source-overlay.py'],['python3','morphhdl/scripts/test-increment-62-wa08-source-overlay.py'],['python3','morphhdl/scripts/check-native-source-preservation.py'],['python3','morphhdl/scripts/check-production-retirement.py'],['python3','morphhdl/scripts/check-typed-layering-ir.py'],['python3','-m','unittest','discover','-s','repro/independent-parameters','-p','test_*.py','-v']]
+          with (evidence/'checks.log').open('w') as log:
+              for command in checks:
+                  log.write(repr(command)+'\n'); log.flush(); subprocess.run(command,stdout=log,stderr=subprocess.STDOUT,check=True)
+          (evidence/'seal.json').write_text(json.dumps(dict(source=source,target=target,entries=entries,tree=git('rev-parse','HEAD^{tree}'),verified_paths=157,status='audit_blobs_only_NOT_remote_ref_NOT_final_CI'),indent=2)+'\n')
           for status in ('queued','in_progress','waiting'):
               query=urllib.parse.urlencode(dict(branch=branch,status=status,per_page=100))
               for run in api('actions/runs?'+query)['workflow_runs']:
-                  if run['head_branch']==branch and run['head_sha']=='4cd03f60360cc7329407fe033a1f9370f7b9dc26' and run['id']!=int(os.environ['GITHUB_RUN_ID']):
-                      try:
-                          api('actions/runs/'+str(run['id'])+'/cancel',{}); print('CANCELLED_OBSOLETE_TRANSPORT',run['id'])
+                  if run['head_branch']==branch and run['head_sha'] in ('4cd03f60360cc7329407fe033a1f9370f7b9dc26','81e4e94381c9567a2c06fdc66dfa665b0ad94910') and run['id']!=int(os.environ['GITHUB_RUN_ID']):
+                      try: api('actions/runs/'+str(run['id'])+'/cancel',{}); print('CANCELLED_OBSOLETE_TRANSPORT',run['id'])
                       except urllib.error.HTTPError as error:
                           if error.code!=409: raise
-          print('RECOVERED_IMMUTABLE_HISTORY_AND_AUDIT_BLOBS_ONLY')
+          print('VERIFIED_157_SOURCE_PATHS_AND_STAGED_AUDIT_BLOBS_ONLY')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr188-object-recovery-${{ github.sha }}
-          path: ${{ runner.temp }}/pr188-object-recovery/
+          name: pr188-merged-seal-${{ github.sha }}
+          path: ${{ runner.temp }}/pr188-merged-seal/
           if-no-files-found: error
