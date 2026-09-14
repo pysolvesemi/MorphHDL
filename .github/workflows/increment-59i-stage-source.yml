@@ -1,0 +1,49 @@
+name: Increment 59i reviewed source staging
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-stage-source.yml
+      - .github/recovery/59i-source/**
+
+# Only immutable, pre-reviewed Git objects in this repository are written.
+# This job has no ref-update operation; publication remains a separate action.
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Read complete repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Reconstruct and verify the fixed reviewed source and seal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-stage-evidence"
+          python3 -B .github/recovery/59i-source/stage_reviewed_source.py \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-reviewed-source" \
+            --payload-dir "$GITHUB_WORKSPACE/.github/recovery/59i-source" \
+            --output "$RUNNER_TEMP/59i-stage-evidence" \
+            --stage-github-objects \
+            2>&1 | tee "$RUNNER_TEMP/59i-stage-evidence/stage.log"
+      - name: Preserve exact object receipts and source-gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-staged-source-1541077c
+          path: ${{ runner.temp }}/59i-stage-evidence
+          if-no-files-found: error
+          retention-days: 14
