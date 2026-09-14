@@ -1090,7 +1090,16 @@ dependency chain is unchanged and may proceed independently.
 
 ### Per-component parameterized publication track (Increment 61)
 
-- [ ] **Increment 61 — Parameterized `oneFilePerComponent` publication**
+- [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**
+
+  **Implementation qualified:** commit `244616e856bfb217987884b76f694fe7ec66e0ea`
+  passed all 44 applicable workflow runs, including dual-Scala publication,
+  compatibility, inherited regression and complete pass-workspace proofs.
+  Actual Scala, generated RTL, source lists and exact run evidence are recorded
+  in [the increment document](increment-61-one-file-per-component.md).
+  The closeout integrates WA-11 target `3d582c281975732b32fbf6fafef9afb5549223d9`;
+  all applicable checks must pass on that final published closeout commit before
+  [PR #179](https://github.com/pysolvesemi/MorphHDL/pull/179) is merged.
 
   **Dependencies:** Increment 60 implemented and merged. This publication
   track is independent of Increment 59i and may be implemented and merged in

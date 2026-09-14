@@ -246,9 +246,10 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
-        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "WA-11: authenticated symbolic Boolean/integer conversion normalization"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged.",
+      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory.",
       "edits": []
     },
     {

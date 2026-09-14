@@ -27,10 +27,12 @@ fi
 is_wa08=false
 is_wa09=false
 is_wa10=false
+is_wa11=false
 case "${head_ref}" in
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
   agent/wa-10-*|wa-10-*) is_wa10=true ;;
+  agent/wa-11-*|wa-11-*) is_wa11=true ;;
 esac
 
 collect_changed_files() {
@@ -94,6 +96,38 @@ wa10_cross_workspace_path() {
   return 1
 }
 
+# WA-11 canonical elaboration normalization changes Morph-owned typed support
+# in core and the external frontend. Every admitted path is authenticated by
+# the exact cumulative overlay. WA-10 remains an independently sealed concern.
+wa11_dependencies_satisfied() {
+  wa09_dependencies_satisfied && \
+    grep -Eq '^- \[x\] \*\*WA-09[[:space:]]+—' "${roadmap}"
+}
+
+wa11_cross_workspace_path() {
+  local path="$1"
+  case "${path}" in
+    .github/workflows/wa11-symbolic-boolean-width.yml|\
+    core/src/main/scala/spinal/core/ElabInt.scala|\
+    frontend/src/main/scala/morphhdl/frontend/HdlBool.scala|\
+    frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala|\
+    frontend/src/main/scala/spinal/core/ExternalAnalyzedFrontendPermitIssuer.scala|\
+    frontend/src/test/scala/morphhdl/frontend/AnalyzedFrontendBooleanTests.scala|\
+    morphhdl/contracts/increment-62-wa08-source-overlay.json|\
+    morphhdl/contracts/increment-55-native-change-review.json|\
+    morphhdl/contracts/native-source-preservation.json|\
+    morphhdl/scripts/check-increment-62-wa08-source-overlay.py|\
+    morphhdl/scripts/check-increment-60f-artifacts.py|\
+    morphhdl/scripts/check-wa10-source-scope.py|\
+    morphhdl/src/test/scala/nativeapplication/BooleanWidthNormalizationArtifactWriter.scala|\
+    morphhdl/src/test/scala/nativeapplication/ReproduceBooleanWidth.scala|\
+    morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala)
+      return 0
+      ;;
+    *) return 1 ;;
+  esac
+}
+
 # WA-09 is the one reviewed successor that must coordinate the isolated pass
 # workspace with MorphHDL's native writeback and the upstream Verilog emitter.
 # Admit only its enumerated cross-workspace sources, only on its branch family,
@@ -136,6 +170,11 @@ wa09_cross_workspace_path() {
 
 allowed_path() {
   local path="$1"
+  if [[ "${is_wa11}" == true ]] && \
+     [[ "${wa08_overlay_verified:-false}" == true ]] && \
+     wa11_dependencies_satisfied && wa11_cross_workspace_path "${path}"; then
+    return 0
+  fi
   # The explicit WA-10 request extends expression safety in native capture and
   # emission. Admission remains exact, predecessor-bound and byte-sealed; no
   # source root is opened by the successor branch name alone.
@@ -222,8 +261,10 @@ if [[ ${#violations[@]} -ne 0 ]]; then
     printf 'WA-09 cross-workspace paths require completed WA-08/PV-62 dependencies, an exact source overlay, and the enumerated successor inventory.\n' >&2
   elif [[ "${is_wa10}" == true ]]; then
     printf 'WA-10 cross-workspace paths require completed WA-09/PV-63 dependencies and the exact predecessor-bound successor source inventory.\n' >&2
+  elif [[ "${is_wa11}" == true ]]; then
+    printf 'WA-11 cross-workspace paths require completed WA-08/PV-62/WA-09 dependencies, an exact source overlay, and the enumerated symbolic-normalization inventory.\n' >&2
   else
-    printf 'Allowed paths are morphhdl-passes/** and %s. Cross-workspace paths require an eligible WA-08, WA-09 or WA-10 branch and its exact authorization.\n' "${workflow}" >&2
+    printf 'Allowed paths are morphhdl-passes/** and %s. Cross-workspace paths require an eligible WA-08, WA-09, WA-10 or WA-11 branch and its exact authorization.\n' "${workflow}" >&2
   fi
   exit 1
 fi
