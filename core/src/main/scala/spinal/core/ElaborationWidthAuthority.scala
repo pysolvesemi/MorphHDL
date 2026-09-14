@@ -3,14 +3,14 @@ package spinal.core
 import java.lang.ref.{ReferenceQueue, WeakReference}
 import scala.collection.mutable
 
-/** Trusted, finite composition of packed-width expressions.
+/** Consumer-specific authority for packed-width expressions.
   *
-  * The public operations accept already-authoritative typed expressions, never
-  * text or a caller-provided evaluation table. Each result is certified by JVM
-  * identity; copying its public case-class fields does not copy its authority.
-  * Independent declaration roots are evaluated as a bounded Cartesian domain,
-  * while repeated roots retain their exact correlation. This deliberately does
-  * not extend the single-root contract of general elaboration integer APIs.
+  * Public operations accept authenticated expressions, never caller-authored
+  * evidence. The older finite width-table path is retained for its existing
+  * consumers. Native symbolic arithmetic uses private expression certificates;
+  * publication does not demand an attainable value table. Equality and explicit
+  * range/structural queries still use stronger proof. A public case-class copy
+  * inherits neither symbolic publication authority nor exact proof authority.
   */
 object ElaborationWidthAuthority {
   private val Role = "symbolic width composition"

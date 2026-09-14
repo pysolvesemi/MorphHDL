@@ -1,47 +1,72 @@
-# Independent typed parameter domains
+# Independent HDL parameters: publication provenance and structural proof
 
-## Status and executable contract
+## Scope and status
 
-This is the requested independent-parameter corrective repair, not a newly
-numbered roadmap increment. The target remains `parameterized-verilog` and the
-work continues on `agent/independent-parameter-domain-composition`. Completion
-and merge require the applicable final-head checks; an offline test result is
-not a substitute for those checks.
+This is the existing PR #188 corrective repair on
+`agent/independent-parameter-domain-composition`, targeting
+`parameterized-verilog`; it is not a new numbered increment. This document
+specifies the reworked architecture. Completion and merge require all applicable
+checks on the exact final source head. Local results or a staged/importer commit
+are not substitutes for that qualification.
 
-The baseline `3b547ae5622ae212c17f6e67cc96924127a46a41` compiler rejects the unchanged
-fixture at
-`repro/independent-parameters/src/main/scala/repro/IndependentParameterRepro.scala`
-at addition with `SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED`.
+The earlier product-domain implementation required attainable extrema while
+constructing a symbolic expression. It could compose large independent sums,
+but a non-separable expression still needed a bounded joint proof even when
+Verilog, rather than Scala, would choose its value. That requirement was too
+strong for ordinary packed-width publication.
 
-The unchanged compiler also failed in the exact standalone SBT layout in
-GitHub Actions run `34827208111` at fixture-only commit
-`0c3628467db669e7b398208357e73fbf50ae64f6`. Its retained artifact
-`10342090830` records SBT 1.10.0, successful Scala compilation and the same
-`requireNoLostExactCorrelation -> combineDomains -> binary -> add` failure.
-Compiler sources at that commit are unchanged from the reported baseline.
-It uses Scala 2.12.18, SBT 1.10.0 and both required compiler plugins.
+The original reported compiler `3b547ae5622ae212c17f6e67cc96924127a46a41` rejects
+`DATA_BITS + GENERATION_BITS` with
+`SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED`. The retained standalone
+baseline run `34827208111` reproduced that failure after Scala compilation.
+Later transport head `91f6c2b347cc480118fc5ea3a2dd577482f54c7e` was not the
+applied workflow correction: importer run `34866430100` failed to push workflow
+changes because its Actions token lacked workflow-write permission. Recovered
+source changes are reviewed independently of that historical job's status.
 
-```sh
-cd repro/independent-parameters
-sbt -batch 'runMain repro.IndependentParameterRepro out'
-sbt -batch 'runMain repro.IndependentParameterRepro out-repeat'
-cmp out/RecordWidth.v out-repeat/RecordWidth.v
-python3 -m unittest -v test_check
-python3 check.py
-```
+## Three levels of evidence
 
-`check.py` runs separate generator JVMs, compares published bytes without
-normalization, compiles the actual files as Verilog-2001, then simulates each
-same artifact with independent overrides. It checks actual hierarchical DUT
-port widths, parameter values, every one-hot bit and return to zero. Native
-naming such as `record_1` is read from the generated fixture interface; the DUT
-is never renamed or modified. The hierarchy fixture also checks actual child
-port widths and each child parameter. The projection fixture checks both
-branches, the highest kept bit, and the discarded highest source bit in the
-narrow branch. Failed legality/unsupported-branch fixtures must publish no
-Verilog file.
+**Symbolic publication provenance.** `ElaborationProductDomain` retains a
+private `TrustedExpressionEvidence` certificate attached to the exact expression
+object. It contains the value-function AST and its original declaration axes,
+schemas and active restrictions. Repeated references preserve root identity;
+partially overlapping sets such as `{a,b}` and `{b,c}` keep the shared `b`.
+Canceled axes remain in the provenance inventory even when their numerical
+contribution disappears. Names, equal defaults and copyable expression fields
+never grant authority.
 
-The exact Scala component remains:
+**Exact/domain proof.** The existing exact machinery remains available.
+`ElabInt.minimum`/`maximum`, exact owner extrema, width-equivalence queries and
+structural truth queries can request attainable extrema or joint evaluation.
+The old finite width-table API also remains available. An authentic expression
+need not possess a materialized table of every possible result.
+
+**Structural elaboration authority.** A decision about Scala graph creation
+still requires a fixed condition, supported native generate capture, or explicit
+rejection. A stored legality condition is not an assumption that narrows a
+structural domain. The pipeline library's hardware-construction precondition
+uses `ElabControl.requireStructuralCondition`, not deferred user legality.
+
+The old correlation guards are not deleted. Legacy frontend-composed ASTs
+without the corresponding native authority still reject; the frontend tests
+keep that negative path distinct from explicit native typed composition.
+
+## Packed widths and ordinary arithmetic
+
+Native arithmetic constructs and authenticates its AST without calling the
+Cartesian evaluator. A separate, memoized compositional **enclosure** is derived
+from authenticated leaves. It is a conservative safety result, not an invented
+exact-domain table or a claim that either endpoint is attainable. This enclosure
+checks portable checked-Int arithmetic and may establish positivity cheaply.
+
+Publication and captured-owner validation use that authenticated enclosure;
+they do not request the exact value image. For example, with A and B each in
+1..2048, `(a + b) % (a + 1) + 1` has 4,194,304 input tuples. It publishes without
+joint enumeration. An explicit exact maximum query may still reject when its
+non-separable proof exceeds the supported budget. The conservative positive
+enclosure is enough to publish this width without a clamp or diagnostic.
+
+The exact user fixture remains unchanged:
 
 ```scala
 class RecordWidth(dataBits: ElabInt, generationBits: ElabInt) extends Component {
@@ -52,139 +77,172 @@ class RecordWidth(dataBits: ElabInt, generationBits: ElabInt) extends Component 
 }
 ```
 
-Actual native output from the repaired local compiler:
+With `HdlInt.param("DATA_BITS",32,1,2048).asElabInt` and
+`HdlInt.param("GENERATION_BITS",32,2,64).asElabInt`, the native output is:
 
 ```verilog
 module RecordWidth #(
   parameter integer DATA_BITS = 32,
   parameter integer GENERATION_BITS = 32
 ) (
-  input  wire [(DATA_BITS + GENERATION_BITS)-1:0]   record_1,
-  output wire          observed
+  input wire [(DATA_BITS + GENERATION_BITS)-1:0] record_1,
+  output wire observed
 );
   assign observed = (|record_1);
 endmodule
 ```
 
-The default/minimum/maximum widths are 64/3/2112. The real record fixture retains
-three independent parameters in `dataBits + 7 + generationBits + lanes + 16 + 1`.
-No PROFILE, concrete-witness extraction, specialized module family, application
-rewrite or repair of the published Verilog is used.
+The native emitter chooses `record_1`; the DUT is never renamed or rewritten by
+the test harness. Default/minimum/maximum admitted widths are 64/3/2112. The
+realistic fixture preserves three independent parameters in
+`dataBits + 7 + generationBits + lanes + 16 + 1`.
 
-## Root cause and proof design
+Automatic derived-localparam factoring is deliberately a follow-up. It would
+add declaration naming, dependency ordering and scope ownership through native
+canonicalization and child binding. Direct expressions already satisfy this
+repair without adding a separate factoring transformation or emitter text pass.
 
-`HdlInt.asElabInt` gives each public declaration a stable frontend token, exact
-schema object and native root identity. Independently declared parameters are
-not equal roots merely because their names, defaults or schema values compare
-equal. The old native arithmetic and Boolean combination paths only composed
-one exact root (or that root with literals). Their correlation guard correctly
-rejected an operation that could not retain such evidence. Later authoritative
-width consumers also required evidence, so deleting that guard was not a fix.
-The older width-only Cartesian evaluator is additionally capped at 65,536
-combinations; the minimal fixture alone has 129,024 legal tuples.
+## Child actuals
 
-`ElaborationProductDomain` supplies a private certificate for the exact
-expression object. Only authenticated single-root leaves or existing certified
-operations enter it. Public case-class copies do not inherit the certificate.
-A certificate contains exact value functions and every source axis, including
-axes canceled from the result. Original root/schema objects, legal values and
-active branch restrictions stay attached.
+Ordinary inherited child widths preserve authenticated shared declaration axes.
+Explicit scalar formal bindings can also carry a compound actual, including a
+non-separable expression that has no exact product value table. A fresh
+single-root child formal retains the child's structural domain. The actual's
+conservative enclosure must fit that formal's declared range; no Cartesian
+proof is requested solely to produce `.WIDTH(parent_expression)`.
 
-Addition, subtraction and constant scaling normalize linear combinations of
-value functions. Terms with overlapping dependency sets form connected groups;
-independent groups compose attainable extrema. Thus partially overlapping
-`{a,b}` and `{b,c}` sets cannot be mistaken for disjoint inputs. Shared-root
-cancellation and equivalent derived sums retain correlation. Independent
-nonlinear operations use exact compositional rules where supported. The
-fallback streams every tuple of a bounded overlapping group; it never samples
-only defaults and never eagerly constructs a large Cartesian table.
+This does not infer unrelated formal identities from a default width. Existing
+full-connection and canonical/actual identity checks remain. Arbitrary
+multi-formal remapping, projected compound formal bindings and unsupported
+structural construction remain rejected.
 
-Packed-width construction, width inference, equivalence, conditional extrema,
-native graph capture and native publication consume the resulting evidence.
-Post-capture validation uses each exact declaration's retained structural owner,
-not a reopened construction branch. Resize identity checks now validate the
-source and target at their respective owners before comparing their functions.
+## Concrete and symbolic require
 
-Ordinary child constructors may inherit compound parameter widths when parent,
-actual child and canonical definition retain the same authenticated declaration
-axes and identical connected width functions over full domains. This is an
-identity binding, not solving A+B from a port's default width. Unrelated
-same-name declarations, mismatched functions, partial connections and ambiguous
-bindings remain rejected. Explicit formal-slot capability rules are unchanged.
+Concrete conditions are evaluated immediately. A known false condition fails
+without emitting HDL. A symbolic predicate proved universally false likewise
+fails with `SPINAL-ELAB-REQUIRE-ALWAYS-FALSE`.
 
-## Predicates and supported-domain limits
+A mixed or not-universally-classified symbolic condition is a legality
+**obligation**, not approval of all tuples. In native parameterized mode it is
+retained on its exact Component owner, even when the default tuple violates the
+condition. The core `ComponentEmitterVerilog` emits the diagnostic directly:
 
-Universally true predicates are proven over all admitted tuples; universally
-false predicates retain false classification. Mixed predicates retain symbolic
-classification. For example, with independently bounded positive A and B,
-`(a > 0) && (b > 0)` is always true, while `!(lanes > 1) || data >= lanes` can be
-mixed even when the defaults satisfy it. A mixed `require` fails with
-`SPINAL-ELAB-REQUIRE-DOMAIN-UNPROVEN`; it does not silently admit all overrides.
-An always-false `require` fails with `SPINAL-ELAB-REQUIRE-ALWAYS-FALSE`.
+```verilog
+`ifndef SYNTHESIS
+  generate
+    if (!($signed(A) >= $signed(B))) begin : g_morphhdl_parameter_legality_0
+      initial begin
+        $error("A must be >= B");
+        $fatal(1, "MorphHDL parameter legality failed");
+      end
+    end
+  endgenerate
+`endif
+```
 
-The limits are explicit:
+Both simulation tasks are excluded from synthesis. The arithmetic, parameters,
+ports and hardware remain outside the guard. `$fatal` accompanies `$error`
+because the tested Icarus version reports `$error` without returning a failing
+process status. The driver requires both a nonzero exit and the expected
+legality message; unrelated crashes do not count as successful rejection.
 
-* Per-root exact-domain limits remain unchanged. Product certificates support
-  at most 32 axes and 256 normalized terms. Non-separable joint fallback and
-  arbitrary callback relations are limited to 65,536 tuples; larger unproved
-  correlations fail with `SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED`.
-  Large independent sums/products do not consume this Cartesian budget.
-* Existing single-root structural branches can project every dependent product
-  width. Mixed **multi-root structural branch predicates** are not lowered by
-  this repair: their joint non-rectangular branch domains need a separate native
-  structural-owner representation and fail explicitly. Classification of those
-  predicates is supported; structural capture is not falsely flattened into
-  independent per-axis ranges.
-* The new inherited compound child binding requires full, unprojected domains
-  and full direct packed connections. Arbitrary remapping of separately
-  declared multiple formal slots is not inferred from widths.
-* Consumers that explicitly require a single-root state/capability contract,
-  such as typed Counter state domains and existing scalar formal APIs, retain
-  that restriction. Legacy frontend-composed expressions without native exact
-  product authority remain rejected. Use the native typed operations shown in
-  the reproducer; no symbolic-to-Int/Boolean erasure is introduced.
+Universally true/false classifications use compositional proofs where possible.
+`Unknown` means no universal outcome was established, not that the default was
+accepted or that two witness tuples were necessarily found. Strong structural
+queries can still ask the exact engine to distinguish a mixed domain.
 
-## Regression coverage and local qualification
+Only an active native parameterized Component can retain a deferred obligation.
+Mixed requirements under a captured structural branch currently fail with
+`SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED`. They need branch activation
+and transactional capture ownership before they can safely be deferred. The
+compiler does not incorrectly promote a branch-local requirement to a global
+one. Existing supported single-root structural branch projection remains intact.
 
-The core regression checks include a 4096^4-domain separable expression,
-same-root and partial-overlap correlation, an independent exhaustive three-root
-oracle, mixed legality, schema/root collisions, no-op and stale public copies,
-invalid/overflowing widths, non-default overflow, division by zero, excessive
-nonlinear correlation, and branch-scope escape through canceled dependencies.
-Native publication tests exercise exact owner identity and copied evidence,
-compound child inheritance, foreign child roots and equal-default but different
-width functions. Existing safety checks are not removed; obsolete blanket
-independence rejection expectations are replaced by the appropriate supported
-composition or still-required identity/consumer rejection.
+Parameter schemas are compiler admissibility contracts. This repair emits
+explicit symbolic requirements and uncertain-width positivity obligations; it
+does not automatically emit every parameter schema bound as an assertion.
+Overrides outside the declared schema remain outside the admitted contract.
 
-Local execution used the real Scala 2.12.18 compiler and both plugins against
-archived compiled dependencies, with rebuilt core/native/test class overlays.
-`check.py --java-classpath <explicit classpath>` records that offline mode and
-all exact commands. It is not reported as an SBT run or clean final-head CI.
-The source-preservation guard passed the local compiler commit with 7 roots,
-46 approved paths and 229 byte-span edits; the retirement guard also passed.
+## Potentially nonpositive symbolic widths
 
-The native matrix passed 65 instances and 18,576 one-hot positions across five
-fixtures, including all seven requested independent width overrides and an
-unoverridden default instance. Each of the five published artifacts was
-identical across two separate JVM generations. Always-false, mixed-validity
-and unsupported joint structural-branch generation were rejected. A consolidated
-run with the repository's pinned Yosys 0.41 passed **318 tests in 32 suites**:
-303 existing tests, 11 new core tests and 4 new native-publication tests. All
-14 memory tests passed with that toolchain; the five earlier Yosys 0.9 failures
-were not ignored. All 13 Python driver tests, 7 JUnit gate negative/positive controls, and the
-source-preservation, typed-layering and retirement adversarial self-tests
-also passed. Clean final-head CI remains a separate
-qualification requirement.
+A genuinely symbolic raw width with a positive elaboration witness, but no
+proven positive enclosure, uses a distinct authenticated physical-width AST:
 
-The reproducible clean-build gate is:
+```verilog
+input wire [(($signed((A - B)) > 0) ? (A - B) : 1)-1:0] din;
+```
+
+Raw positivity is retained as a separate guarded legality obligation. A zero or
+negative raw override therefore has an intentional one-bit physical range and
+a simulation failure, never an accidental `[-1:0]` range. This is not evidence
+that the raw width is positive. Widths whose schemas/enclosures already prove
+positivity do not acquire this substitution. Invalid concrete/default widths
+still fail immediately; arbitrary untrusted ASTs cannot request a clamp.
+
+The signed comparison fence is significant: a preliminary unsigned-context
+range expression behaved differently in the older local Verilator tool. The
+adopted signed form was checked using actual native DUTs. Existing native range
+replacement code now quotes its replacement string so a legitimate `$signed`
+AST is not accidentally interpreted as a regular-expression capture reference.
+
+With `SYNTHESIS` defined, diagnostics are absent and an illegal tuple retains
+the safe physical width. A passing synthesis run for that tuple does **not**
+make the tuple legal. Production configuration validation must obey the
+parameter schemas and legality requirements before synthesis.
+
+## Limits and safety
+
+Checked Int arithmetic remains mandatory. A conservative enclosure that cannot
+establish in-range arithmetic is rejected rather than fabricating exact
+metadata or permitting possible overflow. Division/remainder still need a
+nonnegative dividend and a provably positive divisor in this native path.
+
+Existing per-root exact-domain limits remain. Certificates retain the current
+32-axis and 256-normalized-term resource limits. The stronger non-separable
+exact fallback is capped at 65,536 tuples; exceeding it rejects the requested
+proof, not ordinary otherwise-safe symbolic publication. Unsupported joint
+structural conditions reject explicitly. Single-root capability contracts in
+Counter, structural Vec/memory construction and library adapters are not
+silently widened by publication provenance.
+
+Copied and stale expressions, unauthorized branch escape, conflicting schemas,
+same-name independent declarations, equal-default root substitution and
+unsupported legacy frontend authority remain negative regressions. No PROFILE,
+specialized module family, Dan RTL, unrelated wire pass or application-specific
+CDC rewrite is part of this change.
+
+## Executable validation
 
 ```sh
+cd repro/independent-parameters
+sbt -batch 'runMain repro.IndependentParameterRepro out'
+sbt -batch 'runMain repro.IndependentParameterRepro out-repeat'
+cmp out/RecordWidth.v out-repeat/RecordWidth.v
+python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy
+python3 check.py
+cd ../..
 python3 repro/independent-parameters/qualify.py --scala 2.12.18
 python3 repro/independent-parameters/qualify.py --scala 2.13.12
 ```
 
-It starts SBT from the checkout without offline classpath overlays, cleans all
-build products, and requires complete zero-failure, zero-skipped JUnit reports
-for every suite in `regression-suites.json`. The native standalone fixture
-retains its exact Scala 2.12.18/SBT 1.10.0 dual-plugin build.
+`check.py` generates each original fixture twice in separate invocations,
+compares published bytes without normalization, then uses one unchanged file
+for the requested Verilog-instantiation override matrix. It checks actual DUT
+and child widths, parameter values, every individual input bit, the highest bit,
+all-zero reduction and return to zero. It also invokes
+`check_symbolic_publication.py`, which repeats this discipline for overlapping
+arithmetic, compound children, safe subtraction widths, mixed requirements,
+symbolically invalid defaults and parameters referenced only by requirements.
+
+The policy matrix runs Icarus, Verilator with assertions enabled, and Yosys with
+`SYNTHESIS` defined. It includes legal tuples, equal A/B (zero raw subtraction),
+A below B (negative raw subtraction), both outcomes of mixed requirements, and
+an independent Yosys SAT reduction oracle. The emitted DUT hash is checked
+throughout. Guard-placement, unrelated-crash and zero-exit negative controls
+protect the verification driver itself.
+
+`qualify.py` starts a clean SBT build and requires every expected frontend and
+selected native JUnit case with zero failures/skips. Local
+`--java-classpath` driver runs are explicitly recorded as offline-classpath
+qualification using rebuilt changed modules and archived unchanged dependencies;
+they are never represented as clean SBT or exact-final-head GitHub CI.

@@ -2,7 +2,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from qualify import verify_reports
+from qualify import verify_reports, verify_qualification_reports
 
 
 class QualificationReportTests(unittest.TestCase):
@@ -49,6 +49,36 @@ class QualificationReportTests(unittest.TestCase):
         self.report()
         with self.assertRaisesRegex(RuntimeError, "expected 2 executed"):
             verify_reports(self.root, {"SelectedSuite": 2})
+
+
+class QualificationModuleCoverageTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+
+    def report(self, module, suite, result=''):
+        directory = self.root / module / 'target/test-reports'
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / 'suite.xml').write_text(
+            f'<testsuite name="{suite}" tests="1"><testcase name="executed">{result}</testcase></testsuite>')
+
+    def test_both_module_reports_are_required(self):
+        self.report('morphhdl', 'NativeSuite')
+        with self.assertRaisesRegex(RuntimeError, "missing suite reports: FrontendSuite"):
+            verify_qualification_reports(self.root, {'NativeSuite': 1}, {'FrontendSuite': 1})
+
+    def test_frontend_failure_is_not_hidden_by_native_success(self):
+        self.report('morphhdl', 'NativeSuite')
+        self.report('frontend', 'FrontendSuite', '<failure message="wrong diagnostic"/>')
+        with self.assertRaisesRegex(RuntimeError, "FrontendSuite: unsuccessful"):
+            verify_qualification_reports(self.root, {'NativeSuite': 1}, {'FrontendSuite': 1})
+
+    def test_complete_module_reports(self):
+        self.report('morphhdl', 'NativeSuite')
+        self.report('frontend', 'FrontendSuite')
+        self.assertEqual(verify_qualification_reports(self.root, {'NativeSuite': 1}, {'FrontendSuite': 1}),
+                         {'morph': {'NativeSuite': 1}, 'frontend': {'FrontendSuite': 1}})
 
 
 if __name__ == '__main__':

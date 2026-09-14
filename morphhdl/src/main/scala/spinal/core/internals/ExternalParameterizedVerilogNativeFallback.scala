@@ -42,6 +42,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
   ): Boolean =
     eligibleGateFailures.contains(failure.code) &&
       (
+        NativeSymbolicLegality.hasRequirements(component) ||
         ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -51,6 +52,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ParameterizedProcess.parametersOf(component).nonEmpty ||
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
+            NativeSymbolicLegality.hasRequirements(child) ||
             ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ParameterizedMemory.parametersOf(child).nonEmpty ||
@@ -96,7 +98,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component),
+        ParameterizedProcess.parametersOf(component) ++
+        NativeSymbolicLegality.parametersOf(component),
       hierarchy.hasParameterizedInstances
     )
     analysis.validate()
@@ -629,10 +632,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       val withRange = packedPattern.replaceAllIn(
         current,
         matched => {
-          if (replaced) matched.matched
+          if (replaced) Matcher.quoteReplacement(matched.matched)
           else {
             replaced = true
-            range + matched.group(2) + matched.group(3)
+            Matcher.quoteReplacement(range + matched.group(2) + matched.group(3))
           }
         }
       )
@@ -644,10 +647,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         scalarPattern.replaceAllIn(
           withRange,
           matched => {
-            if (inserted) matched.matched
+            if (inserted) Matcher.quoteReplacement(matched.matched)
             else {
               inserted = true
-              matched.group(1) + range + " " + matched.group(2)
+              Matcher.quoteReplacement(matched.group(1) + range + " " + matched.group(2))
             }
           }
         )
@@ -2846,7 +2849,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         }
         if (origins.isEmpty) return None
         if (origins.exists(ElaborationProductDomain.isRetained))
-          return Some(projectedProductExtremaOf(declaration, expression, origins))
+          return Some(projectedProductEnclosureOf(declaration, expression, origins))
         if (origins.exists(origin =>
             ElaborationWidthAuthority.isRetained(origin) &&
               origin.completedParameterRoots.size > 1))
@@ -2937,10 +2940,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       /** Rebuild only the supported native width AST over certificates already
-        * checked against this exact declaration's captured owners. Extrema are
-        * proved compositionally; they are not a fabricated exhaustive table.
+        * checked against this exact declaration's captured owners. Publication uses
+        * authenticated conservative enclosures, not an attainable-extrema claim.
+        * No joint-domain proof is needed to retain the native width AST.
         */
-      private def projectedProductExtremaOf(
+      private def projectedProductEnclosureOf(
           declaration: BitVector,
           expression: WidthExpr,
           origins: Vector[ElaborationIntegerExpression]
@@ -2977,10 +2981,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         if (proof.default != expression.default)
           fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-REPRESENTATIVE-MISMATCH",
             s"$role has a stale inferred witness", source)
-        if (proof.minimum < expression.minimum || proof.maximum > expression.maximum)
+        val enclosure = proof.publicationRange
+        if (enclosure._1 < expression.minimum || enclosure._2 > expression.maximum)
           fail("SPINAL-ELAB-DOMAIN-PROJECTION-BOUNDS-MISMATCH",
             s"$role exceeds its retained inferred bounds", source)
-        proof.minimum -> proof.maximum
+        enclosure
       }
 
       /** Width-specific Cartesian evidence still has to belong to the exact

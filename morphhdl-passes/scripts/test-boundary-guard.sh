@@ -146,6 +146,24 @@ expect_failure \
   'WA-10 branch spelling does not authorize an unenumerated upstream source' \
   run_checker agent/wa-10-general-expression-inlining "${wa09_unreviewed_manifest}"
 
+wa10_log_manifest="${tmp_dir}/wa10-log-repair.txt"
+printf '%s\n' \
+  'morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala' \
+  'morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala' \
+  >"${wa10_log_manifest}"
+expect_success \
+  'PR-186 exact diagnostic-capture repair paths require the verified source seal' \
+  run_checker agent/wa-10-inherited-audit-timeout "${wa10_log_manifest}"
+for unrelated_branch in agent/wa-10-general-expression-inlining agent/wa-10-inherited-audit-timeout-other agent/wa-11-symbolic-boolean-width-normalization; do
+  expect_failure \
+    'diagnostic-capture repair does not extend other branch authorizations' \
+    run_checker "${unrelated_branch}" "${wa10_log_manifest}"
+done
+printf '%s\n' 'morphhdl/src/test/scala/morphhdl/UnreviewedProof.scala' >"${tmp_dir}/wa10-log-unreviewed.txt"
+expect_failure \
+  'PR-186 repair branch does not authorize an unenumerated test source' \
+  run_checker agent/wa-10-inherited-audit-timeout "${tmp_dir}/wa10-log-unreviewed.txt"
+
 wa11_manifest="${tmp_dir}/wa11.txt"
 printf '%s\n' \
   '.github/workflows/wa11-symbolic-boolean-width.yml' \
@@ -300,6 +318,15 @@ expect_failure \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-11-symbolic-boolean-width-normalization \
     MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+printf '%s\n' '- [x] **Increment 63 — Named expressions**' >> "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md"
+expect_failure \
+  'PR-186 diagnostic repair requires its source checks even with completed predecessors' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-10-inherited-audit-timeout \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${wa10_log_manifest}" \
     "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
 printf 'MorphHDL pass boundary self-tests passed.\n'

@@ -16,8 +16,10 @@ final class ElabInt private[core] (
   ElabInt.validateExpression(expression, "ElabInt")
 
   private[spinal] def witness: Int = projectedExpression("ElabInt witness").default.toInt
-  def minimum: BigInt = projectedExpression("ElabInt minimum").minimum
-  def maximum: BigInt = projectedExpression("ElabInt maximum").maximum
+  def minimum: BigInt = if (ElaborationProductDomain.isRetained(expression))
+    ElaborationProductDomain.exactLimits(expression)._1 else projectedExpression("ElabInt minimum").minimum
+  def maximum: BigInt = if (ElaborationProductDomain.isRetained(expression))
+    ElaborationProductDomain.exactLimits(expression)._2 else projectedExpression("ElabInt maximum").maximum
   def parameters: Vector[ElaborationIntegerParameter] = expression.parameters
   def sourceLocation: Option[String] = expression.sourceLocation
   def isConcrete: Boolean = expression.parameters.isEmpty
@@ -178,7 +180,8 @@ final class ElabInt private[core] (
     ElaborationWidthAuthority.requireAuthoritative(
       expression, role, "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED"
     )
-    val projected = ElaborationWidthAuthority.project(expression, role)
+    val projected = NativeSymbolicLegality.packedWidth(
+      ElaborationWidthAuthority.project(expression, role), role)
     if (projected.minimum < 1 || projected.maximum < projected.minimum) {
       ElabInt.fail(
         "SPINAL-ELAB-INT-WIDTH-DOMAIN-INVALID",
@@ -1483,7 +1486,9 @@ object ElabInt {
   }
 
   private def add(left: ElabInt, right: ElabInt): ElabInt =
-    binary(
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      fromExpression(ElaborationProductDomain.integer("+", left.expression, right.expression))
+    else binary(
       "+",
       left,
       right,
@@ -1493,7 +1498,9 @@ object ElabInt {
     )
 
   private def subtract(left: ElabInt, right: ElabInt): ElabInt =
-    binary(
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      fromExpression(ElaborationProductDomain.integer("-", left.expression, right.expression))
+    else binary(
       "-",
       left,
       right,
@@ -1503,6 +1510,8 @@ object ElabInt {
     )
 
   private def multiply(left: ElabInt, right: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return fromExpression(ElaborationProductDomain.integer("*", left.expression, right.expression))
     val candidates = Vector(
       left.minimum * right.minimum,
       left.minimum * right.maximum,
@@ -1520,6 +1529,8 @@ object ElabInt {
   }
 
   private def divide(left: ElabInt, right: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return fromExpression(ElaborationProductDomain.integer("/", left.expression, right.expression))
     if (left.minimum < 0 || right.minimum <= 0) {
       fail(
         "SPINAL-ELAB-INT-DIVISION-DOMAIN-UNSUPPORTED",
@@ -1538,6 +1549,8 @@ object ElabInt {
   }
 
   private def modulo(left: ElabInt, right: ElabInt): ElabInt = {
+    if (ElaborationProductDomain.needs(left.expression, right.expression))
+      return fromExpression(ElaborationProductDomain.integer("%", left.expression, right.expression))
     if (left.minimum < 0 || right.minimum <= 0) {
       fail(
         "SPINAL-ELAB-INT-MODULO-DOMAIN-UNSUPPORTED",

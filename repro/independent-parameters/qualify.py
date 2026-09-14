@@ -44,6 +44,15 @@ def verify_reports(directory: Path, expected: Mapping[str, int]) -> dict[str, in
     return found
 
 
+def verify_qualification_reports(root: Path, native_expected: Mapping[str, int],
+                                 frontend_expected: Mapping[str, int]) -> dict[str, dict[str, int]]:
+    """Both module inventories are mandatory; native-only success is insufficient."""
+    return {
+        "frontend": verify_reports(root / "frontend" / "target" / "test-reports", frontend_expected),
+        "morph": verify_reports(root / "morphhdl" / "target" / "test-reports", native_expected),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scala", choices=("2.12.18", "2.13.12"), default="2.12.18")
@@ -51,8 +60,11 @@ def main() -> int:
                         help="only validate existing JUnit files; does not run or claim a clean build")
     args = parser.parse_args()
     expected = json.loads((HERE / "regression-suites.json").read_text(encoding="utf-8"))
-    if len(expected) != 32 or sum(expected.values()) != 318:
-        raise RuntimeError("the reviewed 32-suite/318-test inventory changed")
+    if len(expected) != 33 or sum(expected.values()) != 333:
+        raise RuntimeError("the reviewed 33-suite/333-test inventory changed")
+    frontend_expected = json.loads((HERE / "frontend-regression-suites.json").read_text(encoding="utf-8"))
+    if len(frontend_expected) != 23 or sum(frontend_expected.values()) != 265:
+        raise RuntimeError("the reviewed 23-suite/265-test frontend inventory changed")
     if args.verify_reports_only is not None:
         found = verify_reports(args.verify_reports_only, expected)
         print(f"EXISTING_REPORTS_ONLY_PASS suites={len(found)} tests={sum(found.values())}")
@@ -63,7 +75,7 @@ def main() -> int:
     # 'clean' below may remove target: put the running log in a root directory.
     logs = ROOT / "independent-parameter-evidence" / args.scala
     logs.mkdir(parents=True, exist_ok=True)
-    command = ["sbt", "-batch", "++" + args.scala, "clean",
+    command = ["sbt", "-batch", "++" + args.scala, "clean", "frontend/test",
                "morph/testOnly " + " ".join(expected)]
     head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     (logs / "command.json").write_text(json.dumps({"head": head, "cwd": str(ROOT), "argv": command}, indent=2) + "\n")
@@ -77,7 +89,9 @@ def main() -> int:
         result = process.wait()
     if result != 0:
         raise RuntimeError(f"clean SBT regression command failed with exit {result}")
-    found = verify_reports(ROOT / "morphhdl" / "target" / "test-reports", expected)
+    reports = verify_qualification_reports(ROOT, expected, frontend_expected)
+    found = reports["morph"]
+    frontend_found = reports["frontend"]
     if subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip() != head:
         raise RuntimeError("source revision changed during qualification")
     evidence.mkdir(parents=True, exist_ok=True)
@@ -85,7 +99,11 @@ def main() -> int:
         "status": "clean_selected_regressions_passed_NOT_all_repository_gates",
         "head": head, "scala": args.scala, "suite_tests": found,
         "total_tests": sum(found.values()), "command": command,
+        "frontend_suite_tests": frontend_found,
+        "frontend_total_tests": sum(frontend_found.values()),
+        "combined_total_tests": sum(found.values()) + sum(frontend_found.values()),
     }, indent=2) + "\n")
+    print(f"CLEAN_FRONTEND_REGRESSIONS_PASS scala={args.scala} suites={len(frontend_found)} tests={sum(frontend_found.values())} head={head}")
     print(f"CLEAN_SELECTED_REGRESSIONS_PASS scala={args.scala} suites={len(found)} tests={sum(found.values())} head={head}")
     return 0
 

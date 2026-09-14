@@ -1,6 +1,6 @@
 package morphhdl.runtime
 
-import spinal.core.{GlobalData, SpinalConfig}
+import spinal.core.{GlobalData, SpinalConfig, NativeSymbolicLegality}
 
 /** MorphHDL-owned parameterized-generation mode marker.
   *
@@ -31,6 +31,6 @@ object ParameterizedVerilogMode {
     }
     val flags = config.flags.clone()
     if (enabled) flags += Enabled else flags -= Enabled
-    config.copy(flags = flags)
+    NativeSymbolicLegality.configure(config.copy(flags = flags), enabled)
   }
 }

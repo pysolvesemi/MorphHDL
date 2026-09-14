@@ -152,7 +152,9 @@ class IndependentParameterDomainTests extends AnyFunSuite {
   test("unsupported overlapping correlations fail explicitly instead of sampling") {
     val a = param("A", 1, 512); val b = param("B", 1, 512)
     assert((a+b).maximum == 1024)
-    assert(rejects((a+b)%(a+1)).code == "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED")
+    val symbolic = (a+b)%(a+1) + 1
+    assert(symbolic.bits.value == 2) // publication authenticates the AST without joint evaluation
+    assert(rejects(symbolic.maximum).code == "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED")
     // An arbitrary host callback is not inferred to be monotone from a sample.
     assert(rejects(ElaborationWidthAuthority.provesRelation((a+b).expression, a.expression)(_ >= _)).code ==
       "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED")
