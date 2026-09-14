@@ -235,6 +235,7 @@ write_json {json.dumps(str(netlist))}
             if label != "four-state-equality":
                 top = CASES[topology][0]
                 model = self.output / ("formal-mutation-" + label + ".json")
+                model.unlink(missing_ok=True)
                 self.yosys(comparison_script(artifact(before, topology), path, top, 1, model),
                            "formal-mutation-" + label, formal_counterexample=True)
                 require(model.is_file(), "formal counterexample model missing: " + label)
@@ -259,16 +260,17 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=180)
     args = parser.parse_args()
     args.repo, args.before, args.after = args.repo.resolve(), args.before.resolve(), args.after.resolve()
+    validation = Validation(args)
+    # Invalidate the previous receipt before any input/profile preflight can fail.
+    summary = validation.output / "summary.json"
+    summary.unlink(missing_ok=True)
+    (validation.output / "commands.json").unlink(missing_ok=True)
     require(args.timeout > 0, "timeout must be positive")
     inventories = {"baseline": inventory(args.before), "candidate": inventory(args.after)}
     structural(args.before, args.after)
     if args.compare_scala:
         require(inventories["candidate"] == inventory(args.compare_scala.resolve()),
                 "cross-Scala emitted artifact mismatch")
-    validation = Validation(args)
-    # A stale summary from an earlier successful invocation must not survive failure.
-    summary = validation.output / "summary.json"
-    summary.unlink(missing_ok=True)
     validation.qualify(args.before, args.after)
     validation.mutations(args.before, args.after)
     summary.write_text(json.dumps({"status": "passed", "scope": "emitted RTL validation only",
