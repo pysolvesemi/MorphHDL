@@ -131,15 +131,14 @@ object NativeSymbolicLegality {
     val guards = values.zipWithIndex.map { case (value, index) =>
       val label = allocate(s"g_morphhdl_parameter_legality_$index")
       s"""    if (!(${value.condition.verilog})) begin : $label
-         |      initial begin
-         |        $$error("${quote(value.message)}");
-         |        $$fatal(1, "MorphHDL parameter legality failed");
-         |      end
+         |      initial $$fatal(1, "%s", "${quote("MorphHDL parameter legality failed: " + value.message)}");
          |    end
          |""".stripMargin
     }.mkString
-    // Icarus $error alone does not fail the process. $fatal makes automation
-    // fail deterministically too; both are excluded from synthesized hardware.
+    // A failed require is fatal, not a recoverable simulation report. Use one
+    // task carrying the original message, with a fixed format so user '%' text
+    // is literal. The finish_number is 1; the simulator determines its nonzero
+    // process status. This diagnostic is never synthesized hardware.
     "\n`ifndef SYNTHESIS\n  generate\n" + guards + "  endgenerate\n`endif\n"
   }
 }

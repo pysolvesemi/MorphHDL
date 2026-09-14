@@ -15,7 +15,7 @@ class SymbolicPolicyEvidenceTests(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.dut = self.root / 'dut.v'
         self.hardware = 'module DUT(input wire data, output wire observed); assign observed=data;\n'
-        self.guard = '`ifndef SYNTHESIS\ninitial begin $error("invalid"); $fatal(1,"invalid"); end\n`endif\n'
+        self.guard = '`ifndef SYNTHESIS\ninitial $fatal(1,"%s","invalid");\n`endif\n'
 
     def test_guarded_diagnostics_leave_hardware_visible(self):
         self.dut.write_text(self.hardware + self.guard + 'endmodule\n')
@@ -32,7 +32,7 @@ class SymbolicPolicyEvidenceTests(unittest.TestCase):
             check_guard(self.dut, True)
 
     def test_hardware_inside_simulation_guard_fails(self):
-        self.dut.write_text('`ifndef SYNTHESIS\n' + self.hardware + '$error("invalid"); $fatal(1);\n`endif\n')
+        self.dut.write_text('`ifndef SYNTHESIS\n' + self.hardware + '$fatal(1,"invalid");\n`endif\n')
         with self.assertRaisesRegex(RuntimeError, 'removed hardware'):
             check_guard(self.dut, True)
 
@@ -40,6 +40,29 @@ class SymbolicPolicyEvidenceTests(unittest.TestCase):
         self.dut.write_text(self.hardware + self.guard + 'endmodule\n')
         with self.assertRaisesRegex(RuntimeError, 'unnecessary'):
             check_guard(self.dut, False)
+
+    def test_error_without_fatal_is_rejected(self):
+        self.dut.write_text(self.hardware + '`ifndef SYNTHESIS\ninitial $error("invalid");\n`endif\nendmodule\n')
+        with self.assertRaisesRegex(RuntimeError, 'not protected'):
+            check_guard(self.dut, True)
+
+    def test_duplicate_error_then_fatal_is_rejected(self):
+        self.dut.write_text(self.hardware + self.guard.replace('initial ', 'initial $error("invalid"); initial ') + 'endmodule\n')
+        with self.assertRaisesRegex(RuntimeError, 'fatal only'):
+            check_guard(self.dut, True)
+
+    def test_fatal_in_comment_does_not_count(self):
+        self.dut.write_text(self.hardware + '`ifndef SYNTHESIS\n// $fatal(1,"invalid");\n`endif\nendmodule\n')
+        with self.assertRaisesRegex(RuntimeError, 'not protected'):
+            check_guard(self.dut, True)
+
+    def test_diagnostic_names_inside_message_are_literal(self):
+        self.dut.write_text(self.hardware + self.guard.replace('"invalid"', '"literal $error and 100% %d"') + 'endmodule\n')
+        check_guard(self.dut, True)
+
+    def test_execution_must_not_continue_after_failed_require(self):
+        with self.assertRaisesRegex(RuntimeError, 'not rejected'):
+            self.result(1, 'legality rejected; ILLEGAL_EXECUTION_CONTINUED')
 
     def result(self, code, message):
         commands = []

@@ -61,8 +61,9 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
     assert(verilog.contains("? (A - B) : 1)-1:0"))
     val start=verilog.indexOf("`ifndef SYNTHESIS")
     val end=verilog.indexOf("`endif",start)
-    assert(start >= 0 && verilog.indexOf("$error",start) < end)
-    assert(verilog.indexOf("$fatal",start) < end)
+    val fatal = verilog.indexOf("$fatal(1,", start)
+    assert(start >= 0 && end > start && fatal > start && fatal < end)
+    assert(!verilog.contains("$error("))
     assert(verilog.indexOf("input") < start)
   }
   test("mixed symbolic requires are obligations even when the default violates them") {
@@ -77,6 +78,20 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
       assert(verilog.contains("$signed(A) >= $signed(B)"))
       assert(verilog.contains("`ifndef SYNTHESIS"))
     }
+  }
+  test("one deferred require emits one guarded fatal with a literal original message") {
+    val verilog = generate(new Component {
+      val a = p("A"); val b = p("B")
+      val din = in Bits(3 bits); val observed = out Bool(); observed := din.orR
+      legality(a >= b, "A must be >= B; 100% literal %d %m")
+    })
+    val start = verilog.indexOf("`ifndef SYNTHESIS")
+    val end = verilog.indexOf("`endif", start)
+    val fatal = verilog.indexOf("$fatal(1,", start)
+    assert(start >= 0 && end > start && fatal > start && fatal < end)
+    assert(verilog.indexOf("$fatal(", fatal + 1) == -1)
+    assert(!verilog.contains("$error("))
+    assert(verilog.contains("""$fatal(1, "%s", "MorphHDL parameter legality failed: A must be >= B; 100% literal %d %m");"""))
   }
   test("concrete and universally false requires still reject immediately") {
     failsWith("concrete false")(generate(new Component {

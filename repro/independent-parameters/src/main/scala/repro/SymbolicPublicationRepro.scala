@@ -29,6 +29,8 @@ object SymbolicPublicationRepro extends App {
     } else observed := din.orR
     scenario match {
       case "mixed" => require(a >= b, "A must be >= B")
+      case "message-format" =>
+        require(a >= b, "A must be >= B; 100% literal %d %m; quoted \"A\"; backslash \\;\nnext line")
       case "default-invalid-require" => require(a < b, "A must be < B")
       case "concrete-invalid" => require(1 > 2, "known false")
       case "structural" =>

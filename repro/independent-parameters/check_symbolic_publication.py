@@ -47,6 +47,7 @@ def fixture(scenario: str, pairs: tuple[tuple[int, int], ...], defaults: bool = 
 LARGE = ((32, 2), (1, 1), (1, 2048), (2048, 1), (2048, 2048), (120, 8), (17, 32))
 FIXTURES = (
     fixture("overlap", LARGE), fixture("child", LARGE),
+    fixture("message-format", ((3, 2),)),
     fixture("difference", ((32, 2), (2, 1), (2048, 1), (2048, 2047), (120, 8), (33, 17))),
     fixture("mixed", ((32, 2), (1, 1), (2048, 2), (2048, 2048), (120, 8), (17, 17))),
     fixture("default-invalid-require", ((1, 2), (1, 2048), (17, 32)), defaults=False),
@@ -61,10 +62,15 @@ def check_guard(source: Path, required: bool) -> None:
             raise RuntimeError("positive publication gained an unnecessary safe-width diagnostic")
         return
     blocks = re.findall(r"`ifndef SYNTHESIS\s*(.*?)`endif", text, flags=re.S)
-    if not blocks or not any("$error" in block and "$fatal" in block for block in blocks):
-        raise RuntimeError("required diagnostic is not protected from synthesis")
+    def code_only(raw: str) -> str:
+        # Ignore strings and comments: a message mentioning '$error' is not a task.
+        return re.sub(r'"(?:\\.|[^"\\])*"|//[^\n]*|/\*.*?\*/', " ", raw, flags=re.S)
+    if not blocks or not all(re.search(r"\$fatal\s*\(\s*1\s*,", code_only(block)) for block in blocks):
+        raise RuntimeError("required fatal diagnostic is not protected from synthesis")
+    if any(re.search(r"\$error\b", code_only(block)) for block in blocks):
+        raise RuntimeError("a require must use fatal only, not a recoverable or duplicate error report")
     hardware = re.sub(r"`ifndef SYNTHESIS\s*.*?`endif", "", text, flags=re.S)
-    if "$error" in hardware or "$fatal" in hardware:
+    if re.search(r"\$(error|fatal)\b", code_only(hardware)):
         raise RuntimeError("a simulation task escaped the synthesis guard")
     if not all(word in hardware for word in ("input", "observed", "assign")):
         raise RuntimeError("the synthesis guard removed hardware")
@@ -77,18 +83,49 @@ def failed_simulation(command: list[str], directory: Path, log: Path,
     log.write_text(result.stdout)
     commands.append({"argv": command, "cwd": str(directory), "returncode": result.returncode,
                      "expected": "invalid-parameter runtime rejection", "log": str(log)})
-    if result.returncode == 0 or marker not in result.stdout:
+    if result.returncode == 0 or marker not in result.stdout or "ILLEGAL_EXECUTION_CONTINUED" in result.stdout:
         raise RuntimeError(f"invalid tuple was not rejected by its legality diagnostic: {command}; {result.stdout}")
+
+
+def check_message(item: SymbolicFixture, output: str) -> None:
+    if output.count("MorphHDL parameter legality failed:") != 1:
+        raise RuntimeError("failed require did not produce exactly one original diagnostic")
+    if item.scenario == "message-format":
+        for literal in ('100% literal %d %m', 'quoted "A"', 'backslash \\;', '\nnext line'):
+            if literal not in output:
+                raise RuntimeError("fatal interpreted user message as a format string: " + repr(literal))
 
 
 def icarus_illegal(item: SymbolicFixture, source: Path, values: tuple[int, int], directory: Path,
                    commands: list[dict[str, Any]]) -> None:
     executable = directory / "illegal.vvp"
-    execute(["iverilog", "-g2001", "-s", item.module,
-             f"-P{item.module}.A={values[0]}", f"-P{item.module}.B={values[1]}",
-             "-o", str(executable), str(source)], directory, directory / "compile.log", 180, commands)
-    failed_simulation(["vvp", str(executable)], directory, directory / "run.log",
-                      "MorphHDL parameter legality failed", commands)
+    width = item.width(Case(values))
+    wrapper = directory / "invalid_tb.v"
+    wrapper.write_text(f"""module InvalidPolicyTop;
+  wire [{width-1}:0] din = {width}'b0;
+  wire observed;
+  {item.module} #(.A({values[0]}), .B({values[1]})) dut(.din(din), .observed(observed));
+  initial begin
+    #1;
+    $display("ILLEGAL_EXECUTION_CONTINUED");
+    if ($bits(dut.din) != {width} || observed !== 1'b0)
+      $fatal(1, "synthesis-guard physical-width check failed");
+    $display("SYNTHESIS_GUARD_BYPASS_PASS");
+    $finish;
+  end
+endmodule
+""")
+    compile_command = ["iverilog", "-g2001", "-s", "InvalidPolicyTop",
+                       "-o", str(executable), str(source), str(wrapper)]
+    execute(compile_command, directory, directory / "icarus-compile.log", 180, commands)
+    failed_simulation(["vvp", str(executable)], directory, directory / "icarus-run.log",
+                      "MorphHDL parameter legality failed: ", commands)
+    check_message(item, (directory / "icarus-run.log").read_text())
+    execute(compile_command[:1] + ["-DSYNTHESIS"] + compile_command[1:],
+            directory, directory / "icarus-synthesis-compile.log", 180, commands)
+    output = execute(["vvp", str(executable)], directory, directory / "icarus-synthesis-run.log", 180, commands)
+    if "SYNTHESIS_GUARD_BYPASS_PASS" not in output or "MorphHDL parameter legality failed" in output:
+        raise RuntimeError("SYNTHESIS did not remove the simulation diagnostic")
 
 
 def verilator_case(item: SymbolicFixture, source: Path, values: tuple[int, int], illegal: bool,
@@ -127,8 +164,7 @@ int main(int argc, char** argv) {{
             directory, directory / "build.log", 600, commands)
     command = [str(obj / "VPolicy")]
     if illegal:
-        # Verilator may stop at $error, before the subsequent $fatal message.
-        marker = "must be greater than zero" if item.scenario == "difference" else "A must be"
+        marker = "MorphHDL parameter legality failed: "
         failed_simulation(command, directory, directory / "run.log", marker, commands)
     else:
         result = execute(command, directory, directory / "run.log", 180, commands)
@@ -204,7 +240,7 @@ def main() -> int:
             probes = [(3,2)]
             if item.scenario == "default-invalid-require": probes = [(1,2)]
             invalid = ((2,2),(2,5)) if item.scenario == "difference" else \
-                      ((1,2),) if item.scenario in ("mixed","require-only") else \
+                      ((1,2),) if item.scenario in ("mixed","require-only","message-format") else \
                       ((3,2),) if item.scenario == "default-invalid-require" else ()
             for values in probes + list(invalid):
                 illegal = values in invalid
@@ -214,6 +250,8 @@ def main() -> int:
                     icarus_illegal(item, source, values, directory, summary["commands"])
                 verilator_case(item, source, values, illegal, directory, summary["commands"])
                 yosys_case(item, source, values, directory, summary["commands"])
+                if illegal:
+                    check_message(item, (directory / "run.log").read_text())
                 require_unchanged(source, sha)
                 summary["tool_cases"].append({"scenario": item.scenario, "A": values[0], "B": values[1],
                     "physical_width": item.width(Case(values)), "illegal_tuple": illegal,

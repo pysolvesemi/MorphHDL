@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "2dd742253a874f4392f69c938dce8c167c924d82"
+      "approved_tree": "f96ac0440a2718a0678b7a0b534fd160d0a4eb4c"
     },
     {
       "path": "idslpayload/src/main",
@@ -1201,15 +1201,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR188: one synthesis-guarded fatal for failed symbolic require"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "bf4804059ead277bb12617cc656c91b3d0c7cc12",
-        "sha256": "de5e5d583dc42ae9e7fd5063421796fed53becbe2e98816a15f3de0f6b828364"
+        "blob": "b83f5b472bf4f88a5085d16c247a3447b976267b",
+        "sha256": "a19563a04499f79f9f849d336643267673d864a70478b6eef38a66be85b7090e"
       },
       "edits": []
     },

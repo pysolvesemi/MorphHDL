@@ -131,20 +131,24 @@ condition. The core `ComponentEmitterVerilog` emits the diagnostic directly:
 `ifndef SYNTHESIS
   generate
     if (!($signed(A) >= $signed(B))) begin : g_morphhdl_parameter_legality_0
-      initial begin
-        $error("A must be >= B");
-        $fatal(1, "MorphHDL parameter legality failed");
-      end
+      initial $fatal(1, "%s", "MorphHDL parameter legality failed: A must be >= B");
     end
   endgenerate
 `endif
 ```
 
-Both simulation tasks are excluded from synthesis. The arithmetic, parameters,
-ports and hardware remain outside the guard. `$fatal` accompanies `$error`
-because the tested Icarus version reports `$error` without returning a failing
-process status. The driver requires both a nonzero exit and the expected
-legality message; unrelated crashes do not count as successful rejection.
+The simulation task is excluded from synthesis. Arithmetic, parameters, ports
+and hardware remain outside the guard. A failed `require` is a fatal contract
+violation, so the native emitter uses one `$fatal`, not `$error` or duplicate
+`$error`/`$fatal` reports. Its `1` argument is the standard finish-number; it
+must not be confused with a portable process exit-code setting. The driver
+requires a nonzero process status, the original legality message, and no
+continuation beyond the failure. Unrelated crashes do not count as rejection.
+The fixed `"%s"` format keeps percent directives, quotes, backslashes and newlines
+in user messages literal. Icarus and Verilator runtime probes exercise valid
+and invalid tuples from the SAME generated file. Icarus `-DSYNTHESIS` checks
+that diagnostics disappear; Yosys checks safe physical widths and proves the
+reduction. A synthesis build of an invalid tuple does NOT make that tuple legal.
 
 Universally true/false classifications use compositional proofs where possible.
 `Unknown` means no universal outcome was established, not that the default was
