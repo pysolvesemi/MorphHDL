@@ -7,6 +7,7 @@ on:
       - '.github/workflows/lane-when-expression-diagnostic.yml'
       - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
       - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
+      - 'morphhdl/src/test/resources/lane-expression/**'
   workflow_dispatch:
 
 permissions:
@@ -66,6 +67,15 @@ jobs:
           sudo apt-get install -y iverilog
           iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
           iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
+      - name: Simulate independent modular and four-state reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          iverilog -g2012 -s LaneExpressionExample_tb -o /tmp/lane-repro/simulation.vvp \
+            /tmp/lane-repro/plain/LaneExpressionExample.v \
+            morphhdl/src/test/resources/lane-expression/LaneExpressionExample_tb.sv
+          timeout 30s vvp /tmp/lane-repro/simulation.vvp | tee /tmp/lane-repro/simulation.log
+          grep -Fx 'PASS: 2833 independent lane vectors; PPC4=0/1; all lanes; modular boundaries; X/Z' /tmp/lane-repro/simulation.log
           find /tmp/lane-repro -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > /tmp/lane-repro/SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: always()
