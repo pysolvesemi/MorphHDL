@@ -10,8 +10,7 @@ import spinal.lib._
 
 object CompositeWideningProofHelpers {
   def typedWidth(value: BaseType): ElabInt =
-    ElabInt.fromExpression(ParameterizedWidth.expressionOf(value)
-      .getOrElse(ElabInt.literal(value.getBitsWidth).expression))
+    ElabInt.widthOf(value)
 
   def combine(a: BalancedCompositeWideningValue,
       b: BalancedCompositeWideningValue): BalancedCompositeWideningValue = {

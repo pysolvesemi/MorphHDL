@@ -102,6 +102,35 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     else false
   }
 
+  /** A NEW instruction is hardware construction authority only for one exact
+    * audited custom Bundle runtime class. Native scalar and host classes never
+    * enter through this path. */
+  def constructionType(owner: String): Boolean = {
+    if (!customBundle(owner)) false
+    else { auditBundle(owner); true }
+  }
+
+  /** Companion MODULE$ reads are admitted only when the companion belongs to
+    * the same audited Bundle class and its initializer has no host state. */
+  def constructionModule(owner: String): Boolean = {
+    val result = owner.endsWith("$") && customBundle(owner.dropRight(1))
+    if (result) auditCompanion(owner)
+    result
+  }
+
+  /** The abstract interpreter may complete only the exact constructor of the
+    * uninitialized Bundle value it already observed. auditBundle recursively
+    * proves all constructor bodies and immutable shape arguments first. */
+  def constructionCall(call: MethodInsnNode): Boolean = {
+    val result = call.getOpcode == Opcodes.INVOKESPECIAL && call.name == "<init>" &&
+      customBundle(call.owner)
+    if (result) {
+      auditBundle(call.owner)
+      exact(call.owner, call.name, call.desc)
+    }
+    result
+  }
+
   def dataDescriptor(descriptor: String): Boolean =
     descriptor.startsWith("L") && descriptor.endsWith(";") &&
       dataName(descriptor.substring(1, descriptor.length - 1))
@@ -165,11 +194,16 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     if (call.getOpcode != Opcodes.INVOKEVIRTUAL) return false
     // Bundle/Vec assignment uses the ordinary DataPimped conversion, whereas
     // scalar assignment is encoded directly on its BaseType class. The native
-    // wrapper only retains its exact Data receiver; admit just its assignment.
+    // wrapper only retains its exact Data receiver. Bridge initialization uses
+    // the same native DataPrimitives.init path as scalar initialization; its
+    // captured assignments, literal reset values and target ownership still
+    // require the independent closed bridge graph certificate.
     if (call.owner == "spinal/core/package$" && call.name == "DataPimped" &&
         call.desc == "(Lspinal/core/Data;)Lspinal/core/DataPimper;") return true
     if (call.owner == "spinal/core/DataPimper" && call.name == "$colon$eq" &&
         call.desc == "(Lspinal/core/Data;Lspinal/idslplugin/Location;)V") return true
+    if (bridge && call.owner == "spinal/core/DataPimper" && call.name == "init" &&
+        call.desc == "(Lspinal/core/Data;)Lspinal/core/Data;") return true
     if (customBundle(call.owner)) {
       auditBundle(call.owner)
       if (accessor(call.owner, call.name, call.desc)) return true

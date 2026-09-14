@@ -32,6 +32,9 @@ concurrency:
   group: increment-59g-register-bridges-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: Native register bridges Scala ${{ matrix.scala }}

@@ -2,7 +2,7 @@ package spinal.core.internals
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path, Paths}
-import morphhdl.{MorphNamedFieldVectors, MorphSignedCasts, MorphVerilog}
+import morphhdl.{MorphNamedFieldVectors, MorphSignedCasts, MorphSignedDeclarations, MorphVerilog}
 import morphhdl.frontend.HdlInt
 import nativeapplication.BalancedNestedResultNativeOracle
 import spinal.core._
@@ -24,7 +24,8 @@ object TypedBalancedReductionNestedResultArtifactWriter {
     val name = s"BalancedNestedResult_${layout}_${signed}_d$defaultCount"
     val base = config(path, name)
     val shaped = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
-    val configured = if (signed == "casts") MorphSignedCasts.enable(shaped) else shaped
+    val configured = if (signed == "casts") MorphSignedCasts.enable(shaped)
+      else MorphSignedDeclarations.disable(MorphSignedCasts.disable(shaped))
     MorphVerilog(configured) {
       new BalancedCombinedNestedResult(HdlInt.param("U_W", 5, 1, 32),
         HdlInt.param("S_W", 3, 1, 32), HdlInt.param("TAG_W", 7, 1, 32),

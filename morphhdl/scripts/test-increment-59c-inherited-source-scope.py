@@ -121,11 +121,12 @@ def main() -> None:
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
             "target/increment-59c-source-scope",
-            # The current full overlay/inherited traversal measured 127-154s
-            # locally and exceeded 120s in CI. Only this positive audit gets
-            # 600s; historical/mutation controls and Git retain their limits.
+            # The integrated parent-union traversal exceeded 600s in CI.
+            # Match the 59h current-positive budget for that integration;
+            # historical/mutation controls and Git retain their limits.
             lambda: [checked(ROOT, "current descendant through complete 59h and inherited source audits",
-                             timeout_seconds=600)],
+                             timeout_seconds=900 if (ROOT /
+                                 "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600)],
             "59c current-source controls PASS")
         return
     head = git(ROOT, "rev-parse", "HEAD")

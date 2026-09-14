@@ -1420,14 +1420,19 @@ private[internals] object ParameterizedVerilogVecs {
         val operations = ParameterizedVec.operationsOf(vector)
         val hasLiveOperation =
           operations.exists(operation => assignmentsOf(operation).exists(liveAssignments.containsKey))
+        val consumedProbe = TypedBalancedReductionBackend.ownsConsumedProbe(vector)
         val requiresPublication =
           carriers.exists(_.isIo) || hasLiveOperation ||
-            ParameterizedVec.formalBindingsOf(vector).nonEmpty ||
+            (ParameterizedVec.formalBindingsOf(vector).nonEmpty && !consumedProbe) ||
             structuralVecSelectionsOf(component).exists(_.vector eq vector)
         if (requiresPublication) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-VEC-PRUNED-REQUIRED",
-            "typed Vec lost every exact carrier declaration while a live port, operation or hierarchy binding still requires publication",
+            s"typed Vec '${vector.getName()}' #${vector.instanceCounter} lost every exact carrier declaration " +
+              s"while a live port, operation or hierarchy binding still requires publication; " +
+              s"io=${carriers.count(_.isIo)}, liveOperation=$hasLiveOperation, " +
+              s"operations=${operations.map(_.getClass.getSimpleName).mkString(",")}, " +
+              s"formals=${ParameterizedVec.formalBindingsOf(vector).map(_.formal.name).mkString(",")}",
             shape.sourceLocation
           )
         }

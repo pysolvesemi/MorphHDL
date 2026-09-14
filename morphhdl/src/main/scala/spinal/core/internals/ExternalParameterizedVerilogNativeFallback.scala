@@ -73,7 +73,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       canonicalOf: Component => Component
   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
     ExternalParameterizedNativeResize.withPublicationValidation(component) {
-      rewriteValidated(component, verilog, pc, canonicalOf)
+      ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
+        rewriteValidated(component, verilog, pc, canonicalOf)
+      }
     }
   }
 
@@ -149,7 +151,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     )
     val rewrittenResizes = rewriteRetainedResizeAssignments(
       component,
-      ExternalParameterizedHighBit.rewrite(component, rewrittenValues),
+      ExternalParameterizedNativeGeometry.rewrite(component,
+        ExternalParameterizedHighBit.rewrite(component, rewrittenValues)),
       nativeSignedResize = morphhdl.MorphSignedCasts.isEnabled(pc.config)
     )
     val rewrittenNormalizedTypedResizes =
@@ -3282,7 +3285,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed       => inferFixedBit(access)
         case _: BitVectorBitAccessFloating         => WidthLiteral(1)
-        case literal: BitVectorLiteral             => WidthLiteral(literal.getWidth)
+        case literal: BitVectorLiteral             =>
+          ExternalParameterizedNativeGeometry.widthOf(component, literal)
+            .map(retained).getOrElse(WidthLiteral(literal.getWidth))
         case _: BoolLiteral                        => WidthLiteral(1)
         case port: MemReadSync =>
           ParameterizedMemory.metadataOf(port.mem) match {
@@ -3523,6 +3528,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
 
       private def inferFixedRange(access: BitVectorRangedAccessFixed): WidthExpr = {
+        ExternalParameterizedNativeGeometry.widthOf(component, access).foreach { width =>
+          return retained(width)
+        }
         val source = ofExpression(access.source)
         if (source.isSymbolic && BigInt(access.hi) >= source.minimum) {
           fail(

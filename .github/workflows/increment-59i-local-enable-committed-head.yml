@@ -10,6 +10,8 @@ on:
       - 'morphhdl/contracts/increment-59i-local-enable-review.json'
       - 'morphhdl/scripts/check-increment-59i-local-enable-source-review.py'
       - 'morphhdl/scripts/test-increment-59i-local-enable-source-review.py'
+  pull_request:
+    branches: [parameterized-verilog]
   workflow_dispatch:
 
 permissions:
@@ -19,15 +21,19 @@ concurrency:
   group: increment-59i-local-enable-committed-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source:
+    if: github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure'
     name: Exact committed source and review
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -91,7 +97,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false

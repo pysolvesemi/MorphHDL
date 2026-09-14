@@ -16,7 +16,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "459a18b93a93d6668294b7895eb54ac5ad1014566345056c8233c5ec418e499b"
+CONTRACT_SHA256 = "2346b3db0698ecf85e1ec04e21df7c728c93b6f15c7ff6248f8868a4a099798e"
 
 
 def integration_review(root: Path):
@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "7b5486413e8b9091a169f532e8ab1f8e88aa0dcd8b3656ef189822d308945a8a",
+    require(hashlib.sha256(normalized).hexdigest() == "c2c0d9e7e575951d667a2a71daecf6c38bd6db07b58a71c658aadd0070330c1a",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.

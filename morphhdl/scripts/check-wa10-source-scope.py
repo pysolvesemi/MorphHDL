@@ -17,6 +17,7 @@ import json
 from pathlib import Path
 
 PREDECESSOR = "086cb4c642d0182e33bd86fd391f46fc7c0eb2a8"
+FINAL_SOURCE = "dab690bf94920d18ab8e47dedda69d3984519778"
 CONTRACT = "morphhdl/contracts/wa10-source-scope.json"
 OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 
@@ -58,12 +59,14 @@ def verify(root: Path) -> dict:
     require(CONTRACT in {entry["path"] for entry in sealed["files"]},
             "successor inventory is not sealed by the outer overlay")
     value = json.loads(overlay.regular(root, CONTRACT))
-    overlay.git(root, "merge-base", "--is-ancestor", PREDECESSOR, "HEAD")
+    overlay.git(root, "merge-base", "--is-ancestor", PREDECESSOR, FINAL_SOURCE)
+    overlay.git(root, "merge-base", "--is-ancestor", FINAL_SOURCE, "HEAD")
+    # Authenticate WA-10 against its immutable source anchor. A later,
+    # independently sealed successor may add paths or update shared audit files;
+    # the outer overlay above authenticates the complete current HEAD.
     actual = {path.decode() for path in overlay.git(
-        root, "diff", "--no-renames", "--name-only", "-z", PREDECESSOR, "HEAD").split(b"\0") if path}
-    integration = overlay.integration_review(root)
-    if integration is not None:
-        actual = integration.target_inventory(root, actual, PREDECESSOR, full=True)
+        root, "diff", "--no-renames", "--name-only", "-z",
+        PREDECESSOR, FINAL_SOURCE).split(b"\0") if path}
     validate_inventory(value, actual)
     return value
 
