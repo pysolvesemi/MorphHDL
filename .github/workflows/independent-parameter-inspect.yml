@@ -1,0 +1,28 @@
+name: Independent parameter compiler inventory
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/independent-parameter-inspect.yml']
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record exact proof consumers and regression suite inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compiler-inventory
+          git rev-parse HEAD | tee compiler-inventory/revision.txt
+          git grep -n -E 'ownerEvaluation|OwnerEvaluation|ElaborationWidthAuthority\.|requireAuthoritativeBooleanDomain|requireAuthoritativeIntegerDomain' -- core morphruntime morphhdl frontend > compiler-inventory/consumers.txt
+          cat compiler-inventory/consumers.txt
+          git ls-files '*src/test*' | grep -Ei 'Elab|Typed|Width|Control|Publish|Publication|Formal|Native|Projection|Domain' | tee compiler-inventory/tests.txt
+          git archive --format=tar.gz HEAD > compiler-inventory/checkout.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-parameter-compiler-inventory-${{ github.sha }}
+          path: compiler-inventory/
+          if-no-files-found: error
