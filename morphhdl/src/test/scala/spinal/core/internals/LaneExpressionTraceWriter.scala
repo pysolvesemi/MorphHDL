@@ -135,8 +135,8 @@ object LaneExpressionTraceWriter {
       require(production >= 0, "production wire-assignment phase missing")
       phases.insert(production, observe("before-production", output))
       phases.insert(production + 2, observe("after-production", output))
-      val emitter = phases.indexWhere(_.isInstanceOf[PhaseVerilog])
-      require(emitter >= 0, "Verilog phase missing")
+      val emitter = phases.indexWhere(_.isInstanceOf[PhaseMorphHdlExternalVerilog])
+      require(emitter >= 0, "MorphHDL Verilog phase missing")
       phases.insert(emitter, observe("before-emission", output))
     }
     MorphVerilog(config) {
