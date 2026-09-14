@@ -1,0 +1,49 @@
+name: Increment 59i target reconciliation archive
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths: [.github/workflows/increment-59i-export-target.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 61d1fe0dcac0b52856620944a2d7426fd1390a48
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Preserve the exact new target and its ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/59i-target-61d1fe0d"
+          mkdir -p "$out"
+          base=3b547ae5622ae212c17f6e67cc96924127a46a41
+          target=61d1fe0dcac0b52856620944a2d7426fd1390a48
+          test "$(git rev-parse HEAD)" = "$target"
+          test "$(git rev-parse HEAD^{tree})" = 476fe6d4ac8fce63da6aaf0e4aa9f447b4e4818f
+          git merge-base --is-ancestor "$base" "$target"
+          git diff --exit-code
+          git diff --cached --exit-code
+          git update-ref refs/heads/target-61d1fe0d "$target"
+          git bundle create "$out/target-61d1fe0d.bundle" refs/heads/target-61d1fe0d "^$base"
+          git bundle verify "$out/target-61d1fe0d.bundle" > "$out/bundle-verification.txt" 2>&1
+          git cat-file commit "$target" > "$out/target-commit.txt"
+          git ls-tree -r "$target" > "$out/target-tree.txt"
+          git diff --binary --full-index "$base" "$target" > "$out/target.patch"
+          git log --format=fuller "$base..$target" > "$out/target-history.txt"
+          (cd "$out" && sha256sum target-61d1fe0d.bundle target-commit.txt target-tree.txt target.patch target-history.txt > SHA256SUMS)
+      - name: Upload the source-only recovery archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-target-61d1fe0d-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-target-61d1fe0d
+          if-no-files-found: error
+          retention-days: 14
