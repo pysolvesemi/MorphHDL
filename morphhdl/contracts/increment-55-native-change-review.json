@@ -1361,10 +1361,24 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 53: permanent native StreamFifo structure repair"
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm.",
+      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason.",
       "edits": [
+        {
+          "id": "component-emitter-lane-condition-sharing-hook",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter.canInlineRepeatedWhenCondition",
+          "reason": "Default false preserves ordinary backends; only the exact Verilog-side proof may decline a condition-sharing wrap request.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "component-emitter-sync-isolation-01",
           "kind": "backend-isolation",
@@ -1374,6 +1388,19 @@
             {
               "side": "approved",
               "text": "spinalConfig.mergeSyncProcess",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-emitter-lane-condition-sharing-request",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter repeated when condition planning",
+          "reason": "Conjoin the per-expression backend proof with the unchanged sharing count. No existing mandatory wrapper is removed by this hook.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !canInlineRepeatedWhenCondition(c)",
               "count": 1
             }
           ]
@@ -1390,9 +1417,10 @@
         "Increment 60d: pure-SInt redundant cast elimination",
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
-        "WA-10: general typed expression inlining through native capture and structured emission"
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof.",
       "edits": [
         {
           "id": "componentemitterverilog-wa10-depthcut-snapshot",
@@ -1450,11 +1478,16 @@
           "id": "componentemitterverilog-wa10-expression-planning",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "  private lazy val wrappersProvenRedundant =\n    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)\n\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =\n    VerilogEmitterExpressionInlining.redundantSharedCondition(\n      component, spinalConfig, condition, wrappersProvenRedundant)\n",
               "count": 1
             }
           ]
@@ -1756,9 +1789,10 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
-        "WA-10: general typed expression inlining through native capture and structured emission"
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. Lane/when successor: allow only the singleton noBackendCombMerge tag at a fixed target boundary while retaining that tag and the process structure. Add a separate Bool repeated-condition proof requiring the same approved expression identity, at most 64 source nodes, at most 32 rendered process copies and total expansion at most 256. No name matching or signed/symbolic generalization.",
       "edits": []
     },
     {

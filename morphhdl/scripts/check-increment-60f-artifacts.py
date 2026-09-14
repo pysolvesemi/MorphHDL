@@ -646,6 +646,22 @@ WA11_SUITE_SOURCES = {
     "morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala": True,
 }
 
+# Exact additive lane/when suite. The complete source enrollment, never XML
+# presence, enables this profile; all inherited 2,012 tests remain required.
+LANE_WHEN_SUITES = {"morphhdl": {"morphhdl.LaneWhenInliningRegressionTests": 17}}
+LANE_WHEN_SUITE_SOURCES = frozenset((
+    "morphhdl/contracts/lane-when-source-scope.json",
+    "morphhdl/scripts/check-lane-when-source-scope.py",
+    "morphhdl/scripts/check-lane-when-inlining.py",
+    "morphhdl/src/test/scala/morphhdl/LaneWhenInliningRegressionTests.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneInliningRegressionWriter.scala",
+    "morphhdl/src/test/resources/lane-expression/tb_lane_conditions.sv",
+    "morphhdl/src/test/resources/lane-expression/tb_lane_receivers.sv",
+))
+
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -730,7 +746,7 @@ def compare(left: Path, right: Path) -> None:
 
 def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                         wa09: bool = False, wa10: bool = False,
-                        wa11: bool = False) -> tuple[dict, dict, dict]:
+                        wa11: bool = False, lane_when: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -900,6 +916,15 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                     total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
+    if lane_when:
+        require(wa08 and wa09 and wa10 and wa11,
+                "lane/when obligations require the complete reviewed WA-08/09/10/11 catalog")
+        for project, exact in LANE_WHEN_SUITES.items():
+            require(not suites[project].intersection(exact), "lane/when replaced an inherited suite")
+            tests, total_suites = counts[project]
+            suites[project] |= frozenset(exact)
+            counts[project] = (tests + sum(exact.values()), total_suites + len(exact))
+            extension.setdefault(project, {}).update(exact)
     return counts, suites, extension
 
 
@@ -940,16 +965,34 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool, b
     return True, True, wa10, bool(selected_wa11)
 
 
-def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool, bool]:
+def lane_when_suite_flag(entries: dict[str, dict], flags: tuple[bool, bool, bool, bool]) -> bool:
+    selected = set(entries).intersection(LANE_WHEN_SUITE_SOURCES)
+    if not selected:
+        return False
+    require(selected == LANE_WHEN_SUITE_SOURCES,
+            "partial lane/when suite-source enrollment: " + repr(sorted(LANE_WHEN_SUITE_SOURCES - selected)))
+    require(all(flags), "lane/when suite enrollment requires every inherited WA profile")
+    require(all(entries[path]["before_sha256"] is None for path in selected),
+            "lane/when suite source changed its added-source identity")
+    return True
+
+
+def reviewed_source_enrollment(root: Path) -> tuple[tuple[bool, bool, bool, bool], bool]:
     ternary = closure_module().boolean_ternary_review(root)
     adapter = getattr(ternary, "wa08_overlay", None)
     overlay = adapter(root) if adapter is not None else None
     if overlay is None:
-        return False, False, False, False
+        return (False, False, False, False), False
     # Presence or XML cannot authorize a new suite: verify immutable source
     # bytes, full governed inventory, Git index/worktree and source ancestry.
     entries = {entry["path"]: entry for entry in overlay.verify(root)["files"]}
-    return successor_suite_flags(entries)
+    flags = successor_suite_flags(entries)
+    return flags, lane_when_suite_flag(entries, flags)
+
+
+def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool, bool]:
+    """Preserve the predecessor helper's four-flag result and one verification."""
+    return reviewed_source_enrollment(root)[0]
 
 
 def reviewed_wa08_suites(root: Path) -> bool:
@@ -1001,9 +1044,9 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
         reviewed = publisher.reviewed_59d59e_packing(root)
         require(set(reviewed) == closure.PACKING_59D59E_PATHS,
                 "reviewed packing inventory escaped its exact source paths")
-    wa08, wa09, wa10, wa11 = reviewed_successor_suites(root)
+    (wa08, wa09, wa10, wa11), lane_when = reviewed_source_enrollment(root)
     counts, suite_inventory, extension = catalog_for_profile(
-        profile, packing, wa08, wa09, wa10, wa11)
+        profile, packing, wa08, wa09, wa10, wa11, lane_when)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))

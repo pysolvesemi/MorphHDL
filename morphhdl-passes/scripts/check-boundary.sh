@@ -28,11 +28,13 @@ is_wa08=false
 is_wa09=false
 is_wa10=false
 is_wa11=false
+is_lane_when=false
 case "${head_ref}" in
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
   agent/wa-10-*|wa-10-*) is_wa10=true ;;
   agent/wa-11-*|wa-11-*) is_wa11=true ;;
+  agent/lane-when-expression-inlining|parameterized-verilog) is_lane_when=true ;;
 esac
 
 collect_changed_files() {
@@ -168,8 +170,23 @@ wa09_cross_workspace_path() {
   esac
 }
 
+lane_when_cross_workspace_path() {
+  local reviewed
+  for reviewed in "${lane_when_reviewed_paths[@]}"; do
+    [[ "$1" != "${reviewed}" ]] || return 0
+  done
+  return 1
+}
+
 allowed_path() {
   local path="$1"
+  # Branch spelling alone never admits a path. Authenticate the immutable
+  # implementation plus exact successor-review inventory through the full seal.
+  if [[ "${is_lane_when}" == true ]] && \
+     [[ "${lane_when_scope_verified:-false}" == true ]] && \
+     wa10_dependencies_satisfied && lane_when_cross_workspace_path "${path}"; then
+    return 0
+  fi
   if [[ "${is_wa11}" == true ]] && \
      [[ "${wa08_overlay_verified:-false}" == true ]] && \
      wa11_dependencies_satisfied && wa11_cross_workspace_path "${path}"; then
@@ -238,6 +255,16 @@ if [[ -e "${wa10_scope}" || -e "${wa10_contract}" ]]; then
   wa10_paths="$(python3 "${wa10_scope}" --print-paths)"
   mapfile -t wa10_reviewed_paths <<< "${wa10_paths}"
   wa10_scope_verified=true
+fi
+
+lane_when_scope_verified=false
+lane_when_reviewed_paths=()
+lane_when_scope="morphhdl/scripts/check-lane-when-source-scope.py"
+lane_when_contract="morphhdl/contracts/lane-when-source-scope.json"
+if [[ -e "${lane_when_scope}" || -e "${lane_when_contract}" ]]; then
+  lane_when_paths="$(python3 "${lane_when_scope}" --print-paths)"
+  mapfile -t lane_when_reviewed_paths <<< "${lane_when_paths}"
+  lane_when_scope_verified=true
 fi
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then

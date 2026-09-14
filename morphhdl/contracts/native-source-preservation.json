@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "ae1fe0e4861036034d124933a26d7804d51fd561"
+      "approved_tree": "05d936ff1b65bd84ec1f74f8a0d9208682dcbe7f"
     },
     {
       "path": "idslpayload/src/main",
@@ -2335,9 +2335,10 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 53: permanent native StreamFifo structure repair"
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm.",
+      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
         "mode": "100644",
@@ -2347,10 +2348,33 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
         "mode": "100644",
-        "blob": "1afbf2dcecbdd4c930e9b35933f30c491f352657",
-        "sha256": "cc45263053cd7ff6a32faaea92f47ab257e079c7e31961221f8e78348fc8305f"
+        "blob": "3516bb9badd3cbc55c68677afd2d668e49e0b968",
+        "sha256": "536b26374e6836fa258c17f46a1b277b2e04adac8cfa0d5ce5681138e9825d70"
       },
       "edits": [
+        {
+          "id": "component-emitter-lane-condition-sharing-hook",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter.canInlineRepeatedWhenCondition",
+          "reason": "Default false preserves ordinary backends; only the exact Verilog-side proof may decline a condition-sharing wrap request.",
+          "baseline_span": {
+            "start": 2645,
+            "end": 2645,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2645,
+            "end": 2795,
+            "sha256": "ac4e07d2a1c502b60a8fac71dc3b56de66d9a960469d3e1423263e025e1048ed"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "component-emitter-sync-isolation-01",
           "kind": "backend-isolation",
@@ -2362,14 +2386,37 @@
             "sha256": "52ab5a137c42e0490b15acf3f75169222f12b47cb0b8105dfcbf0213ab846f89"
           },
           "approved_span": {
-            "start": 9154,
-            "end": 9401,
+            "start": 9304,
+            "end": 9551,
             "sha256": "f3db149697aaeedc0a048629b59506958e6413c1961410d7af1606feffe89e77"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "spinalConfig.mergeSyncProcess",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-emitter-lane-condition-sharing-request",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter repeated when condition planning",
+          "reason": "Conjoin the per-expression backend proof with the unchanged sharing count. No existing mandatory wrapper is removed by this hook.",
+          "baseline_span": {
+            "start": 16766,
+            "end": 16766,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 17024,
+            "end": 17062,
+            "sha256": "e55aca3d070ca280c881a6b2bc6e4f70f5e86ca1fec2fd45a62836b9e285875d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !canInlineRepeatedWhenCondition(c)",
               "count": 1
             }
           ]
@@ -2385,9 +2432,10 @@
         "Increment 60d: pure-SInt redundant cast elimination",
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
-        "WA-10: general typed expression inlining through native capture and structured emission"
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -2397,8 +2445,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "ebd1f2227f2e726b11a36b184c2c39048a8c3fb1",
-        "sha256": "a6452b7a34194cb6d3583f435a70515495a3434f5d74bb514d9b4c57ae700de4"
+        "blob": "146af151d341691bf1552e84265ad2cc1e52d563",
+        "sha256": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f"
       },
       "edits": [
         {
@@ -2497,7 +2545,7 @@
           "id": "componentemitterverilog-wa10-expression-planning",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative.",
           "baseline_span": {
             "start": 71335,
             "end": 71335,
@@ -2505,13 +2553,18 @@
           },
           "approved_span": {
             "start": 72509,
-            "end": 72635,
-            "sha256": "574d56f2b8866fd34ab1e6b2b0e9d18d5c3a87e6a8a07dc706a91d69f55c8a73"
+            "end": 72846,
+            "sha256": "cb72f40a50c74c248c42459331a056148cffcd8ba6df15cc9872978f5fe5a62f"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "  private lazy val wrappersProvenRedundant =\n    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)\n\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =\n    VerilogEmitterExpressionInlining.redundantSharedCondition(\n      component, spinalConfig, condition, wrappersProvenRedundant)\n",
               "count": 1
             }
           ]
@@ -2527,8 +2580,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 72710,
-            "end": 72764,
+            "start": 72921,
+            "end": 72975,
             "sha256": "7b8cf8b9483505102e3024ea0f855cb7c5df2f0996c308f9978af698e45296bb"
           },
           "required_exact_text": [
@@ -2550,8 +2603,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 74414,
-            "end": 74754,
+            "start": 74625,
+            "end": 74965,
             "sha256": "03cdcd84ab2b2dcf5638cbe56746a634cc3ae101f8825d7b0198a6a6efd079e8"
           },
           "required_exact_text": [
@@ -2573,8 +2626,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 74848,
-            "end": 74926,
+            "start": 75059,
+            "end": 75137,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -2596,8 +2649,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 75032,
-            "end": 75067,
+            "start": 75243,
+            "end": 75278,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -2619,8 +2672,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 75595,
-            "end": 75630,
+            "start": 75806,
+            "end": 75841,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -2642,8 +2695,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 76250,
-            "end": 76301,
+            "start": 76461,
+            "end": 76512,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -2665,8 +2718,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 77737,
-            "end": 77800,
+            "start": 77948,
+            "end": 78011,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -2688,8 +2741,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 77864,
-            "end": 77871,
+            "start": 78075,
+            "end": 78082,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -2711,8 +2764,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 77941,
-            "end": 77948,
+            "start": 78152,
+            "end": 78159,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -3026,15 +3079,16 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
-        "WA-10: general typed expression inlining through native capture and structured emission"
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
       ],
-      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning.",
+      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. Lane/when successor: allow only the singleton noBackendCombMerge tag at a fixed target boundary while retaining that tag and the process structure. Add a separate Bool repeated-condition proof requiring the same approved expression identity, at most 64 source nodes, at most 32 rendered process copies and total expansion at most 256. No name matching or signed/symbolic generalization.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
         "mode": "100644",
-        "blob": "af934dc2743eb2ea31577b8b5282ad9839d3aec2",
-        "sha256": "71fe0699d47bc48f9931910b2a6418fd664796221ab7f1e4447f47c33111b9bf"
+        "blob": "32fe04c810cb96b0514c949e5396396f4830f5b7",
+        "sha256": "95d22cdcf10b9bdedae83dddf1d3c98f04398d0e237783f3f5cdb477f909fb09"
       },
       "edits": []
     },
