@@ -46,89 +46,97 @@ and ordinary concrete `SpinalVerilog` remain unchanged.
 ## Qualification status and continuation
 
 The implementation is qualified at commit
-`244616e856bfb217987884b76f694fe7ec66e0ea`, tree
-`61c8f05d8f14025919c642b609859ec1c19769b6`. That source includes the target
-`f06d9c412924b99cf2c76422549c375a571757dc`, WA-10 general-expression inlining,
-and the authenticated Increment 61 pass-workflow signature. Its applicable
-workflows completed successfully, including the full permanent pass workspace.
+`cb46d185fec55e666ae66e372c3d5ae173ae3da0`, tree
+`d27f161de9a3df602fac3ce2579cd737a4e6c069`. That source includes target
+`3d582c281975732b32fbf6fafef9afb5549223d9`, preserving WA-10
+general-expression inlining and WA-11 symbolic Boolean-width normalization,
+with the authenticated Increment 61 pass-workflow integration adapter.
+All 45 applicable workflow runs on that exact source passed, including the
+full permanent pass workspace and both Scala WA-11 lanes.
 
 The roadmap records the implementation requirements as satisfied by that
-qualification. This closeout also integrates target
-`3d582c281975732b32fbf6fafef9afb5549223d9`, including WA-11 symbolic
-Boolean-width normalization. All six Increment 61 production files and all
-three test files are byte-identical to the qualified source. The complete
-WA-11 target is preserved, with the pass-workflow integration adapter and its
-single authenticated signature composed explicitly.
+qualification. The live target subsequently advanced to
+`3b547ae5622ae212c17f6e67cc96924127a46a41` through an inherited CI/audit
+repair affecting six paths. This continuation integrates that complete target
+and composes the Increment 61 source guards with its inherited audit changes.
+Compiler sources, all six Increment 61 production files and all three
+Increment 61 test files remain byte-identical to the qualified source.
 
-The evidence below applies to `244616e...`; it does not qualify the changed
-closeout tree or WA-11 integration. Every applicable workflow, including the
-new WA-11 workflow, must pass on the exact published closeout commit before
+The evidence below applies to `cb46d185...`; it does not qualify the changed
+continuation tree. Every applicable workflow must pass on the exact published
+final pre-merge commit before
 [PR #179](https://github.com/pysolvesemi/MorphHDL/pull/179) is merged. A roadmap
 checkbox or this document is not merge evidence. Merge closure additionally
 requires the live PR's `merged=true`, `merged_at`, and verified target ancestry.
-The combined inherited catalog must retain 2,012 tests in 197 suites plus
-Increment 61's unchanged 20 tests in two suites: 2,032 tests in 199 suites per
-Scala version. These are qualification obligations for the integrated tree,
-not results attributed to the earlier run.
+The required complete test catalog remains 2,012 inherited tests in 197 suites
+plus Increment 61's 20 tests in two suites: 2,032 tests in 199 suites per Scala
+version. Those counts passed at `cb46d185...` and must also pass on the final
+pre-merge head.
 
-## Completed qualification at 244616e
+At the user's explicit request, the merge commit will carry `[skip ci]` to
+avoid duplicate post-merge Actions runs. No post-merge CI will be dispatched;
+post-merge verification is limited to read-only merge state, commit/tree and
+target-ancestry checks. This does not waive any final pre-merge qualification.
 
-The GitHub Actions inventory for the exact qualified commit contains 59 runs:
-44 successful runs and 15 skipped historical workflows, with no failed or
-pending runs. The 44 successful runs comprise 41 pull-request runs and three
+## Completed qualification at cb46d185
+
+The GitHub Actions inventory for the exact qualified commit contains 60 runs:
+45 successful runs and 15 skipped historical workflows, with no failed or
+pending runs. The 45 successful runs comprise 42 pull-request runs and three
 push runs. These counts distinguish workflow runs from individual jobs.
 
 | Workflow | Run | Successful jobs | Evidence |
 | --- | --- | ---: | --- |
-| Increment 61 publication | [34773074358](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074358) | 4 | Source/audit composition, both Scala publication/tool/proof lanes, generated-byte comparison |
-| Increment 61 compatibility matrix | [34773074449](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074449) | 3 | Both Scala compatibility/tool lanes and generated-byte comparison |
-| Increment 60f equivalence closure | [34773074120](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074120) | 5 | Both Scala inherited-regression and signedness-closure lanes, deterministic signedness artifacts |
-| Permanent MorphHDL IR pass workspace | [34773074451](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074451) | 24 | Boundary checks, both Scala pass and WA-10 production lanes, native generation, WA-10 byte comparison, 16 formal shards, aggregate |
+| Increment 61 one-file-per-component publication | [34800518298](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518298) | 4 | Source/audit composition, both Scala publication/tool/proof lanes, generated-byte comparison |
+| Increment 61 per-component compatibility matrix | [34800518297](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518297) | 3 | Both Scala compatibility/tool lanes and generated-byte comparison |
+| Increment 60f equivalence closure | [34800518201](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518201) | 5 | Both Scala inherited-regression and signedness-closure lanes, deterministic signedness artifacts |
+| MorphHDL IR pass workspace | [34800518240](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518240) | 24 | Boundary checks, both Scala pass and WA-10 production lanes, native generation, WA-10 byte comparison, 16 formal shards, aggregate |
+| WA-11 symbolic Boolean integer normalization | [34800518353](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518353) | 3 | Both Scala Boolean-width normalization/production lanes and complete generated-Verilog byte comparison |
 
 Additional applicable exact-source workflows also passed:
 
 | Workflow | Event | Successful run |
 | --- | --- | --- |
-| Increment 55 concrete compatibility and approved-native-change audit | pull_request | [34773074467](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074467) |
-| Increment 56 native typed library-call surface | pull_request | [34773074453](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074453) |
-| Increment 57 broad native library migration and proof | pull_request | [34773074283](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074283) |
-| Increment 57a typed native StreamFifoCC depth and CDC proof | pull_request | [34773074378](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074378) |
-| Increment 57b StreamFifoCC payload-width formal proof | pull_request | [34773074377](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074377) |
-| Increment 58 legacy adapter and shadow-path retirement | pull_request | [34773074239](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074239) |
-| Increment 59 typed BlackBox parameter and generic binding | pull_request | [34773074297](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074297) |
-| Increment 59a bounded recursive Verilog module | pull_request | [34773074323](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074323) |
-| Increment 59c named field vectors | pull_request | [34773074501](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074501) |
-| Increment 59e composite balanced reductions | pull_request | [34773074456](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074456) |
-| Increment 59g native register bridge qualification | pull_request | [34773074121](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074121) |
-| Increment 60a SInt baseline capture | pull_request | [34773074125](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074125) |
-| Increment 60c signed declarations | pull_request | [34773074389](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074389) |
-| Increment 60d pure SInt casts | pull_request | [34773074303](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074303) |
-| Increment 60e signedness boundaries | pull_request | [34773074477](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074477) |
-| Increment 60g default signed Verilog | pull_request | [34773074302](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074302) |
-| Increment 61 one-file-per-component publication | push | [34773071709](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773071709) |
-| Increment 61 per-component compatibility matrix | push | [34773071772](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773071772) |
-| Increment 62 WA-08 inherited workflow closure | pull_request | [34773074293](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074293) |
-| MorphHDL Mill | pull_request | [34773074422](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074422) |
-| MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence | pull_request | [34773074285](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074285) |
-| MorphHDL StreamFifoCC CDC and formal proof | pull_request | [34773074440](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074440) |
-| MorphHDL baseline | pull_request | [34773074315](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074315) |
-| MorphHDL external SpinalHDL boundary | pull_request | [34773074122](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074122) |
-| MorphHDL external native Int formalization | pull_request | [34773074258](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074258) |
-| MorphHDL external native memory | pull_request | [34773074123](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074123) |
-| MorphHDL external structural and process capture | pull_request | [34773074399](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074399) |
-| MorphHDL external symbolic width | pull_request | [34773074524](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074524) |
-| MorphHDL native AXI4 Slave Factory formal equivalence | pull_request | [34773074290](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074290) |
-| MorphHDL native AXI4 Slave Factory parameterized offsets | pull_request | [34773074414](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074414) |
-| MorphHDL native Int nested symbolic control flow | pull_request | [34773074402](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074402) |
-| MorphHDL native Int shadow expressions | pull_request | [34773074479](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074479) |
-| MorphHDL native Int shadow provenance | pull_request | [34773074458](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074458) |
-| MorphHDL native Int symbolic conditionals | pull_request | [34773074473](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074473) |
-| MorphHDL native StreamFifo formal equivalence | pull_request | [34773074266](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074266) |
-| MorphHDL native StreamFifo parameter structure | pull_request | [34773074312](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074312) |
-| MorphHDL native StreamWidthAdapter parameterization | pull_request | [34773074341](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074341) |
-| MorphHDL native source guard | pull_request | [34773074295](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074295) |
-| MorphHDL native source guard | push | [34773071707](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773071707) |
-| MorphHDL typed elaboration values | pull_request | [34773074394](https://github.com/pysolvesemi/MorphHDL/actions/runs/34773074394) |
+| Increment 55 concrete compatibility and approved-native-change audit | pull_request | [34800518255](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518255) |
+| Increment 56 native typed library-call surface | pull_request | [34800518083](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518083) |
+| Increment 57 broad native library migration and proof | pull_request | [34800518521](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518521) |
+| Increment 57a typed native StreamFifoCC depth and CDC proof | pull_request | [34800518268](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518268) |
+| Increment 57b StreamFifoCC payload-width formal proof | pull_request | [34800518453](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518453) |
+| Increment 58 legacy adapter and shadow-path retirement | pull_request | [34800518273](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518273) |
+| Increment 59 typed BlackBox parameter and generic binding | pull_request | [34800518302](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518302) |
+| Increment 59a bounded recursive Verilog module | pull_request | [34800518256](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518256) |
+| Increment 59c named field vectors | pull_request | [34800518322](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518322) |
+| Increment 59e composite balanced reductions | pull_request | [34800518211](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518211) |
+| Increment 59g native register bridge qualification | pull_request | [34800518222](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518222) |
+| Increment 60a SInt baseline capture | pull_request | [34800518233](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518233) |
+| Increment 60c signed declarations | pull_request | [34800518146](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518146) |
+| Increment 60d pure SInt casts | pull_request | [34800518236](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518236) |
+| Increment 60e signedness boundaries | pull_request | [34800518252](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518252) |
+| Increment 60g default signed Verilog | pull_request | [34800518246](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518246) |
+| Increment 61 one-file-per-component publication | push | [34800515549](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800515549) |
+| Increment 61 per-component compatibility matrix | push | [34800515538](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800515538) |
+| Increment 62 WA-08 inherited workflow closure | pull_request | [34800518341](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518341) |
+| MorphHDL Mill | pull_request | [34800518191](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518191) |
+| MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence | pull_request | [34800518323](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518323) |
+| MorphHDL StreamFifoCC CDC and formal proof | pull_request | [34800518347](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518347) |
+| MorphHDL baseline | pull_request | [34800518238](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518238) |
+| MorphHDL external SpinalHDL boundary | pull_request | [34800518192](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518192) |
+| MorphHDL external native Int formalization | pull_request | [34800518279](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518279) |
+| MorphHDL external native memory | pull_request | [34800518295](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518295) |
+| MorphHDL external structural and process capture | pull_request | [34800518260](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518260) |
+| MorphHDL external symbolic width | pull_request | [34800518275](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518275) |
+| MorphHDL native AXI4 Slave Factory formal equivalence | pull_request | [34800518164](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518164) |
+| MorphHDL native AXI4 Slave Factory parameterized offsets | pull_request | [34800518276](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518276) |
+| MorphHDL native Int nested symbolic control flow | pull_request | [34800518288](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518288) |
+| MorphHDL native Int shadow expressions | pull_request | [34800518267](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518267) |
+| MorphHDL native Int shadow provenance | pull_request | [34800518263](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518263) |
+| MorphHDL native Int symbolic conditionals | pull_request | [34800518432](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518432) |
+| MorphHDL native StreamFifo formal equivalence | pull_request | [34800518289](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518289) |
+| MorphHDL native StreamFifo parameter structure | pull_request | [34800518245](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518245) |
+| MorphHDL native StreamWidthAdapter parameterization | pull_request | [34800518277](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518277) |
+| MorphHDL native source guard | pull_request | [34800518286](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518286) |
+| MorphHDL native source guard | push | [34800515611](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800515611) |
+| MorphHDL typed elaboration values | pull_request | [34800518173](https://github.com/pysolvesemi/MorphHDL/actions/runs/34800518173) |
 
 The 15 skipped historical workflows are deliberately gated to their earlier
 increment branches; their inherited obligations are covered by the applicable
@@ -141,13 +149,13 @@ generation job, one WA-10 cross-Scala job, 16 formal shards, and one aggregate
 job. No full-domain shard or aggregate was skipped.
 
 The aggregate artifact `morphhdl-wa07a-equivalence-evidence` (artifact ID
-`10328839571`) reports `PASS` and binds `source_commit` to the full qualified
+`10345572309`) reports `PASS` and binds `source_commit` to the full qualified
 commit above. It covers 11 pass configurations, 512 bindings per configuration,
 16 disjoint shards, and two complete repeated runs: **11,264 equivalence proofs
 and 11,264 comparison-reachability proofs**. Complete-domain coverage, exact
 disjoint coverage, determinism and mutation detection all pass. Its source
 signature registry digest is
-`0a97dab713652adb8809191ea8ddb6fb239bce7d65069e6e0745aa510b90881b` and fixture
+`9245bef65122066ce745a328a3d72ab3358e2f9b9a2006c43ba7a382653502b9` and fixture
 manifest digest is
 `f6a10f5326372a0e44b0de537db2a2222d1c8d4ab3eac8241d59660c11a1c650`.
 These are the inherited WA-04 through WA-09 proof counts; WA-10 production
@@ -157,11 +165,11 @@ qualification is reported separately below.
 | --- | --- | --- |
 | Increment 61 publication suite | 16 tests passed | 16 tests passed |
 | Increment 61 compatibility suite | 4 tests passed | 4 tests passed |
-| Full inherited and Increment 61 inventory | 2,016 tests / 197 suites; zero failures, errors or skips | 2,016 tests / 197 suites; zero failures, errors or skips |
+| Full inherited and Increment 61 inventory | 2,032 tests / 199 suites; zero failures, errors or skips | 2,032 tests / 199 suites; zero failures, errors or skips |
 | WA-10 focused core and production suites | 27 core + 14 production tests passed | 27 core + 14 production tests passed |
 | Publication and compatibility tools | Icarus Verilog-2001, Verilator and Yosys passed | Icarus Verilog-2001, Verilator and Yosys passed |
 
-The complete test inventory consists of 1,996 inherited tests in 195 suites plus
+The complete test inventory consists of 2,012 inherited tests in 197 suites plus
 Increment 61's 20 tests in two suites. The focused WA-10 counts are separate
 executions and are not added again to the complete inventory.
 
@@ -181,6 +189,24 @@ general-expression parameter case has 784. These fixtures qualify the public
 general-expression behavior independently of the inherited full-domain pass
 counts above.
 
+WA-11 qualification on the same exact source passes on Scala 2.12.18 and
+2.13.12, including the focused frontend/core normalization, domain-safety and
+ownership tests, independently generated baseline comparison and deterministic
+Verilog generation. Each lane validates 62 artifacts with 156 parameter
+overrides and 2,496 data/port-width pattern checks. Every generated Verilog file
+matches across Scala versions. The receipts are `wa11-2.12.18` (artifact ID
+`10331547031`) and `wa11-2.13.12` (artifact ID `10331432251`).
+
+Those receipts explicitly retain four preexisting strict-compiler rejections:
+the frontend address-helper fixture in default/disabled modes, once for the
+candidate and once for the independent reference. Each has the authenticated
+`undefined-portable-clog2-function` diagnostic and 16 compiler errors; these
+fixtures are not simulated. Candidate and reference rejections are checked
+independently and are deterministic. This is not a claim that every WA-11
+fixture compiles or is simulated. The WA-10 disabled-output check additionally
+authenticates the immutable WA-09 baseline and permits only the four exact
+WA-11 Boolean-width substitutions across the two production fixtures.
+
 The inherited signedness closure also passes on both Scala versions, retaining
 99 independently generated files, 64 boundary-equivalence tuples, the exact
 60a mutation counterexample and witness replay, four memory widths, eight
@@ -191,11 +217,11 @@ versions.
 ## Executed publication example
 
 The Scala fixture and publication entrypoint below are copied verbatim from
-[`Increment61PerComponentPublicationTests.scala` at the qualified source](https://github.com/pysolvesemi/MorphHDL/blob/244616e856bfb217987884b76f694fe7ec66e0ea/morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala).
+[`Increment61PerComponentPublicationTests.scala` at the qualified source](https://github.com/pysolvesemi/MorphHDL/blob/cb46d185fec55e666ae66e372c3d5ae173ae3da0/morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala).
 The displayed Verilog and source list come from the successful publication
-workflow's `increment-61-2.12.18` artifact (ID `10324341658`), under
+workflow's `increment-61-2.12.18` artifact (ID `10333982974`), under
 `generated-a/split/`. The corresponding Scala 2.13.12 artifact (ID
-`10323300937`) contains identical generated bytes. Only trailing whitespace is
+`10333494321`) contains identical generated bytes. Only trailing whitespace is
 trimmed for the Markdown display; the original downloaded artifacts and their
 digests retain the exact emitted bytes.
 
@@ -301,12 +327,12 @@ object Increment61PerComponentPublicationArtifacts {
 
 ### Increment61Leaf.v
 
-Original file SHA-256: `9fd055735dd1846fe6cdf1c67c1d657f461e967fd1554f9b74f885e5a185bff3`.
+Original file SHA-256: `655e6f2f7e5b67ee276af8234c63be05048e7c6fa8aec4e5f13e102df8332e08`.
 
 ```verilog
-// Generator : SpinalHDL dev    git head : 244616e856bfb217987884b76f694fe7ec66e0ea
+// Generator : SpinalHDL dev    git head : cb46d185fec55e666ae66e372c3d5ae173ae3da0
 // Component : Increment61Leaf
-// Git hash  : 244616e856bfb217987884b76f694fe7ec66e0ea
+// Git hash  : cb46d185fec55e666ae66e372c3d5ae173ae3da0
 
 `timescale 1ns/1ps
 module Increment61Leaf #(
@@ -323,12 +349,12 @@ endmodule
 
 ### Increment61Top.v
 
-Original file SHA-256: `f119d10c007ca7185c64965a353fb983a812dc9a1467a89b065723aeb98497c6`.
+Original file SHA-256: `473d3a5a0e4221deb6ea9d46622d70dc1c34a3db67fa524adabb6486717e7105`.
 
 ```verilog
-// Generator : SpinalHDL dev    git head : 244616e856bfb217987884b76f694fe7ec66e0ea
+// Generator : SpinalHDL dev    git head : cb46d185fec55e666ae66e372c3d5ae173ae3da0
 // Component : Increment61Top
-// Git hash  : 244616e856bfb217987884b76f694fe7ec66e0ea
+// Git hash  : cb46d185fec55e666ae66e372c3d5ae173ae3da0
 
 `timescale 1ns/1ps
 module Increment61Top #(
@@ -409,5 +435,5 @@ Consolidated publication remains available through
 supplied separately, and the split option does not copy or regenerate them.
 The combination of `netlistFileName` and `oneFilePerComponent = true` is rejected
 before elaboration. The final continuation must retain these contracts and
-pass all applicable checks, including the newly integrated WA-11 workflow,
+pass all applicable checks, including the inherited WA-11 workflow,
 before the branch is merged.
