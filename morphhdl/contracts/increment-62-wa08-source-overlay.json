@@ -2,6 +2,18 @@
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
   "files": [
     {
+      "after_sha256": "8f553a81ccc05d479da4623c353a188fa33c11fc6d298100015137ce5178c0da",
+      "before_sha256": "2094f8544efd0664681b914746ac7a79f90af7cd1c607c632396facef7095715",
+      "mode": "100644",
+      "path": ".github/workflows/increment-59d-widening.yml"
+    },
+    {
+      "after_sha256": "44abbf7749970860eaad5a9c272aa5e9ffd42c4b4d41e6a237d9e0b50e2f84a6",
+      "before_sha256": "6062ad05143a61fcbb617402322cbcc3ad2e7e5c0adee91dc144d293b6d88a6a",
+      "mode": "100644",
+      "path": ".github/workflows/increment-59h-nested-owners.yml"
+    },
+    {
       "after_sha256": "de1d3be15e5a2ec254c196a607d5d6fac759790856425cd9d21a1e53e995d18d",
       "before_sha256": "2e32d9ed31d845ac025d1b9bd92bd91fc6935727536dd9f421d736ea32c896c1",
       "mode": "100644",
@@ -422,10 +434,22 @@
       "path": "morphhdl/scripts/check-wa10-source-scope.py"
     },
     {
+      "after_sha256": "954a0073c08db14d6aeb5b6b021aaf360bc4de91c0e73b1b86b2f649dcf83fee",
+      "before_sha256": "a18121533dab67540f83622536e90e70829ffd2bd2b51abb748af58bf717a88f",
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-increment-59b-inherited-source-scope.py"
+    },
+    {
       "after_sha256": "6c7abf62b032ccb8a4821e4dc18a9c4eeb08b3fd2780b48bdff2172092c7e301",
       "before_sha256": "1c80072cd56a3518387459d1582d78a6c192d8c59090b2ef5473fba044fee3bd",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59c-inherited-source-scope.py"
+    },
+    {
+      "after_sha256": "73158f76ef16507b2dd95c1dedd87cb6dd752ea281dde8e2115576f9113d4cdb",
+      "before_sha256": "54df3c90aa0c8c09c5621c66eccded8aedbbefd8f91191cf075dff67d49a6d69",
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py"
     },
     {
       "after_sha256": "35cc0fc24c5151dedd939ce992d087bcfac33206abf8323935d144eadaa321bb",
@@ -668,7 +692,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "fcdcbde5a796fc88c35f42872f5a1e9314e0c1d0",
+  "final_source_commit": "23ce1f0d56bb8f3505fcca14068a23914a45f6ca",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
