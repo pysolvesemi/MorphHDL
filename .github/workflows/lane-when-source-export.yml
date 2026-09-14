@@ -89,12 +89,14 @@ jobs:
           for tool in iverilog vvp yosys yosys-abc verilator verilator_bin; do
             if command -v "$tool" >/dev/null; then cp "$(command -v "$tool")" /tmp/lane-tools/hdl/bin/; fi
           done
-          ivl=$(dirname "$(dpkg -L iverilog | grep '/ivl$' | head -n1)")
+          ivl_binary=$(dpkg -L iverilog | grep '/ivl/ivl$')
+          test -f "$ivl_binary"
+          ivl=$(dirname "$ivl_binary")
           cp -a "$ivl" /tmp/lane-tools/hdl/lib/ivl
           cp -a /usr/share/yosys /tmp/lane-tools/hdl/share/
           cp -a /usr/share/verilator /tmp/lane-tools/hdl/share/
           { iverilog -V; yosys -V; verilator --version; } > /tmp/lane-tools/hdl/versions.txt 2>&1
-          find /tmp/lane-tools/hdl -type f -print0 | sort -z | xargs -0 sha256sum > /tmp/lane-tools/hdl/SHA256SUMS
+          find /tmp/lane-tools/hdl -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > /tmp/lane-tools/hdl/SHA256SUMS
       - name: Package the external toolchain
         shell: bash
         run: |
