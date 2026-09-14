@@ -8,8 +8,12 @@ permissions:
 jobs:
   tools:
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Install verification tools
         run: |
           sudo apt-get update
@@ -18,11 +22,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p evidence/tools/lib
+          mkdir -p evidence/tools/bin evidence/tools/share evidence/tools/lib
           yosys -V | tee evidence/versions.txt
           verilator --version | tee -a evidence/versions.txt
-          cp /usr/bin/yosys* /usr/bin/berkeley-abc /usr/bin/verilator* evidence/tools/
-          cp -a /usr/share/yosys /usr/share/verilator evidence/tools/
+          cp /usr/bin/yosys* /usr/bin/berkeley-abc /usr/bin/verilator* evidence/tools/bin/
+          cp -a /usr/share/yosys /usr/share/verilator evidence/tools/share/
           for exe in /usr/bin/yosys /usr/bin/berkeley-abc /usr/bin/verilator_bin; do
             ldd "$exe" | awk '/=> \/.* \(/{print $3}' | while read -r lib; do
               case "$(basename "$lib")" in libc.so.*|libm.so.*|libstdc++*|libgcc_s*|libpthread*|libdl*|librt*) ;;
@@ -32,8 +36,19 @@ jobs:
           done
           tar -C evidence -czf evidence/verification-tools.tar.gz tools
           rm -rf evidence/tools
+      - name: Preserve exact source and audit-baseline Git objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > evidence/revision.txt
+          # Explicit object packing includes source trees and commits, never
+          # checkout credentials, Git configuration, or runner state.
+          for ref in HEAD 0c3628467db669e7b398208357e73fbf50ae64f6 24b59dd2dc42df08a222c40296cc5971f17b6b87 3b547ae5622ae212c17f6e67cc96924127a46a41 bec73bb9d2ff54897bee66d641b130b66d0db869; do
+            git rev-parse "$ref" "$ref^{tree}"
+            git ls-tree -r -t "$ref" | awk '{print $3}'
+          done | sort -u | git pack-objects --stdout > evidence/source-snapshots.pack
       - uses: actions/upload-artifact@v4
         with:
-          name: independent-parameter-verification-tools
+          name: independent-parameter-verification-tools-${{ github.sha }}
           path: evidence/
           if-no-files-found: error
