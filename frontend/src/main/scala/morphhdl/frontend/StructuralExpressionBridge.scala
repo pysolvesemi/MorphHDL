@@ -52,6 +52,70 @@ final class AnalyzedFrontendInteger private[frontend] (
   }
 }
 
+/** One analyzer-owned pair of a Boolean AST and its integer 0/1 encoding.
+  * The existing integer ingress remains the only source of exact authority;
+  * this wrapper only authorizes retaining the original predicate rendering
+  * after that ingress and its native equality have passed validation.
+  */
+final class AnalyzedFrontendBoolean private[frontend] (
+    private val source: HdlBool,
+    private val expression: ElaborationBooleanExpression,
+    private val encodedSource: HdlInt,
+    private val encodedAnalysis: AnalyzedFrontendInteger,
+    private val analyzerSeal: AnyRef
+) {
+  private[this] var consumed = false
+
+  def claim(): (
+      ElaborationBooleanExpression,
+      AnalyzedFrontendInteger
+  ) = synchronized {
+    if (!StructuralExpressionBridge.authenticatesFrontendBoolean(analyzerSeal)) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-BOOLEAN-AUTHORIZATION-INVALID",
+        "analyzed Boolean wrapper was not constructed by the frontend AST analyzer",
+        SourceOrigin("<analyzed-Boolean>", 1)
+      )
+    }
+    if (consumed) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-BOOLEAN-AUTHORIZATION-CONSUMED",
+        "analyzed Boolean wrapper already published its exact predicate",
+        source.origin
+      )
+    }
+    encodedAnalysis.requireAnalyzerAuthentication()
+    val integer = encodedAnalysis.expression
+    val sameEncoding = encodedSource.expression match {
+      case IntExpr.Select(condition, IntExpr.Literal(one), IntExpr.Literal(zero)) =>
+        (condition eq source.expression) && one == 1 && zero == 0
+      case _ => false
+    }
+    if (
+      !(encodedAnalysis.sourceIdentity eq encodedSource) || !sameEncoding ||
+      expression.default != source.witness ||
+      integer.default != (if (expression.default) BigInt(1) else BigInt(0)) ||
+      expression.parameters.size != integer.parameters.size ||
+      !expression.parameters.zip(integer.parameters).forall { case (left, right) =>
+        left eq right
+      } ||
+      expression.parameterRoots.size != integer.parameterRoots.size ||
+      !expression.parameterRoots.zip(integer.parameterRoots).forall { case (left, right) =>
+        left eq right
+      } ||
+      expression.sourceLocation != integer.sourceLocation
+    ) {
+      FrontendException.failAt(
+        "MORPH-FRONTEND-ANALYZED-BOOLEAN-SOURCE-MISMATCH",
+        "analyzed Boolean predicate and its integer encoding do not retain the same exact source",
+        source.origin
+      )
+    }
+    consumed = true
+    (expression, encodedAnalysis)
+  }
+}
+
 sealed abstract class AnalyzedStructuralIntegerKind private[frontend] (
     val label: String
 )
@@ -189,11 +253,15 @@ final class AnalyzedStructuralBoolean private[frontend] (
 /** Converts the guarded frontend expressions into backend-neutral core metadata. */
 private[frontend] object StructuralExpressionBridge {
   private object AnalyzerSeal
+  private object FrontendBooleanAnalyzerSeal
   private object StructuralIntegerAnalyzerSeal
   private object StructuralBooleanAnalyzerSeal
 
   private[frontend] def authenticates(value: AnyRef): Boolean =
     value eq AnalyzerSeal
+
+  private[frontend] def authenticatesFrontendBoolean(value: AnyRef): Boolean =
+    value eq FrontendBooleanAnalyzerSeal
 
   private[frontend] def authenticatesStructuralInteger(value: AnyRef): Boolean =
     value eq StructuralIntegerAnalyzerSeal
@@ -355,6 +423,36 @@ private[frontend] object StructuralExpressionBridge {
       expression = expression,
       singleRootEvaluations = singleRootEvaluations(value),
       analyzerSeal = AnalyzerSeal
+    )
+  }
+
+  /** Both renderings are derived here from the same exact predicate AST.
+    * The integer product deliberately follows the unchanged HdlInt.asElabInt
+    * analysis path, including its unsupported-case diagnostics.
+    */
+  def analyzedBoolean(
+      value: HdlBool,
+      role: String
+  ): AnalyzedFrontendBoolean = {
+    if (value eq null) {
+      FrontendException.fail(
+        "MORPH-FRONTEND-STRUCTURAL-BOOLEAN-NULL",
+        s"$role requires a non-null HdlBool"
+      )
+    }
+    val encoded = HdlInt.select(
+      value,
+      HdlInt.literalAt(BigInt(1), value.origin),
+      HdlInt.literalAt(BigInt(0), value.origin),
+      value.origin
+    )
+    val integer = analyzedWidth(encoded, "typed elaboration integer")
+    new AnalyzedFrontendBoolean(
+      source = value,
+      expression = booleanImpl(value, role, allowPortableLogHelper = true),
+      encodedSource = encoded,
+      encodedAnalysis = integer,
+      analyzerSeal = FrontendBooleanAnalyzerSeal
     )
   }
 
@@ -599,6 +697,13 @@ private[frontend] object StructuralExpressionBridge {
   def boolean(
       value: HdlBool,
       role: String
+  ): ElaborationBooleanExpression =
+    booleanImpl(value, role, allowPortableLogHelper = false)
+
+  private def booleanImpl(
+      value: HdlBool,
+      role: String,
+      allowPortableLogHelper: Boolean
   ): ElaborationBooleanExpression = {
     if (value eq null) {
       FrontendException.fail(
@@ -613,7 +718,7 @@ private[frontend] object StructuralExpressionBridge {
       value.origin
     )
     ElaborationBooleanExpression(
-      verilog = renderBoolean(value.expression, value.origin),
+      verilog = renderBoolean(value.expression, value.origin, allowPortableLogHelper),
       default = value.witness,
       parameters = schemas(value.integerParameters, value.parameters, value.origin),
       sourceLocation = Some(value.origin.rendered),
