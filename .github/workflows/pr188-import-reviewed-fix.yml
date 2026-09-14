@@ -1,0 +1,28 @@
+name: Apply reviewed PR188 workflow failure correction
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/pr188-import-reviewed-fix.yml']
+permissions:
+  contents: write
+  actions: write
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Apply exact reviewed source tree, seal unchanged audits and validate live guards
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/pr188-import-reviewed-fix.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr188-reviewed-fix-${{ github.sha }}
+          path: ${{ runner.temp }}/pr188-reviewed-fix-evidence/
+          if-no-files-found: error
