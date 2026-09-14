@@ -41,7 +41,7 @@ object LaneExpressionTraceWriter {
         if (kind != TypeUInt && kind != TypeBits && kind != TypeBool) "target-kind"
         else if (width(t) <= 0) "target-width"
         else if (t.component ne c) "target-component"
-        else if (!t.isEmptyOfTag) "target-tags"
+        else if (t.getTags().exists(tag => !(tag eq noBackendCombMerge))) "target-tags"
         else if (ParameterizedWidth.expressionOf(t).nonEmpty) "target-symbolic-width"
         else "accepted"
       }
@@ -84,7 +84,7 @@ object LaneExpressionTraceWriter {
             case _ => ""
           }
           val extra = e match {
-            case b: BaseType => s"name=${b.getName("")};symbolic=${ParameterizedWidth.expressionOf(b)};comb=${b.isComb};reg=${b.isReg}"
+            case b: BaseType => s"name=${b.getName("")};symbolic=${ParameterizedWidth.expressionOf(b)};comb=${b.isComb};reg=${b.isReg};vital=${b.isVital};frozen=${b.isFrozen()}"
             case r: Resize => s"input-width=${r.input.getWidth};size=${r.size};symbolic=${ParameterizedWidth.resizeExpressionOf(r)}"
             case _ => ""
           }
@@ -135,8 +135,8 @@ object LaneExpressionTraceWriter {
       require(production >= 0, "production wire-assignment phase missing")
       phases.insert(production, observe("before-production", output))
       phases.insert(production + 2, observe("after-production", output))
-      val emitter = phases.indexWhere(_.isInstanceOf[PhaseMorphHdlExternalVerilog])
-      require(emitter >= 0, "MorphHDL Verilog phase missing")
+      val emitter = phases.indexWhere(_.isInstanceOf[PhaseVerilog])
+      require(emitter >= 0, "native Verilog phase missing")
       phases.insert(emitter, observe("before-emission", output))
     }
     MorphVerilog(config) {

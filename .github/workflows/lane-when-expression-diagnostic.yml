@@ -1,10 +1,30 @@
-name: Lane and when expression reproduction
+name: Lane and when expression inlining qualification
 
 on:
   push:
-    branches: [agent/lane-when-expression-inlining]
+    branches: [agent/lane-when-expression-inlining, parameterized-verilog]
     paths:
       - '.github/workflows/lane-when-expression-diagnostic.yml'
+      - 'core/src/main/**'
+      - 'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala'
+      - 'morphhdl/src/main/**'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl-passes/src/main/**'
+      - 'morphhdl/scripts/check-lane-when-inlining.py'
+      - 'morphhdl/src/test/scala/morphhdl/Lane*'
+      - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
+      - 'morphhdl/src/test/resources/lane-expression/**'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/lane-when-expression-diagnostic.yml'
+      - 'core/src/main/**'
+      - 'morphhdl/src/main/**'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl-passes/src/main/**'
+      - 'morphhdl/scripts/check-lane-when-inlining.py'
+      - 'morphhdl/src/test/scala/morphhdl/Lane*'
       - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
       - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
       - 'morphhdl/src/test/resources/lane-expression/**'
@@ -14,20 +34,20 @@ permissions:
   contents: read
 
 jobs:
-  reproduce:
-    runs-on: ubuntu-slim
-    timeout-minutes: 15
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         scala: ['2.12.18', '2.13.12']
     env:
       SBT_TEST_PARALLEL: '0'
-      JVM_OPTS: '-Xmx3G -Xss4M -XX:ActiveProcessorCount=2'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-java@v4
@@ -35,52 +55,71 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: sbt/setup-sbt@v1
-      - name: Confirm the compiler is still the reported baseline
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --exit-code 3b547ae5622ae212c17f6e67cc96924127a46a41 -- core/src lib/src idslplugin/src morphplugin/src morphhdl/src/main morphir/src/main morphruntime/src/main frontend/src/main backends/verilog/src/main paramrtl/src/main morphhdl-passes/src morphhdl-passes/examples
-      - name: Run unchanged reproduction and read-only trace
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/lane-repro
-          git rev-parse HEAD HEAD^{tree} > /tmp/lane-repro/identity.txt
-          sbt '++${{ matrix.scala }}' \
-            'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/plain' \
-            'morph/Test/runMain spinal.core.internals.LaneExpressionTraceWriter /tmp/lane-repro/trace' \
-            'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/repeat' \
-            2>&1 | tee /tmp/lane-repro/sbt.log
-          cmp /tmp/lane-repro/plain/LaneExpressionExample.v /tmp/lane-repro/trace/rtl/LaneExpressionExample.v
-          cmp /tmp/lane-repro/plain/LaneExpressionExample.v /tmp/lane-repro/repeat/LaneExpressionExample.v
-          echo 'PASS: tracing leaves generated RTL byte-identical; repeat generation is deterministic'
-          cat /tmp/lane-repro/plain/LaneExpressionExample.v
-          for trace in /tmp/lane-repro/trace/*.tsv; do
-            echo "TRACE FILE: $trace"
-            cat "$trace"
-          done
-      - name: Compile the same artifact for both PPC4 bindings
-        shell: bash
+      - name: Install strict compile, four-state simulation, lint, and synthesis tools
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y iverilog
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/plain/LaneExpressionExample.v
-      - name: Simulate independent modular and four-state reference
+          sudo apt-get install -y iverilog verilator yosys
+      - name: Independently rebuild the unchanged reported compiler baseline
         shell: bash
         run: |
           set -euo pipefail
-          iverilog -g2012 -s LaneExpressionExample_tb -o /tmp/lane-repro/simulation.vvp \
-            /tmp/lane-repro/plain/LaneExpressionExample.v \
-            morphhdl/src/test/resources/lane-expression/LaneExpressionExample_tb.sv
-          timeout 30s vvp /tmp/lane-repro/simulation.vvp | tee /tmp/lane-repro/simulation.log
-          grep -Fx 'PASS: 2833 independent lane vectors; PPC4=0/1; all lanes; modular boundaries; X/Z' /tmp/lane-repro/simulation.log
-          find /tmp/lane-repro -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > /tmp/lane-repro/SHA256SUMS
+          baseline="$RUNNER_TEMP/lane-when-baseline"
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate-identity.txt"
+          git worktree add --detach "$baseline" 3b547ae5622ae212c17f6e67cc96924127a46a41
+          for file in GenerateLaneExpressionExample LaneConditionCoverageExample LaneReceiverCoverageExample LaneInliningRegressionWriter; do
+            cp "morphhdl/src/test/scala/morphhdl/$file.scala" "$baseline/morphhdl/src/test/scala/morphhdl/"
+          done
+          cd "$baseline"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/baseline-identity.txt"
+          git diff --exit-code -- core/src/main lib/src/main idslplugin/src/main morphplugin/src/main morphhdl/src/main morphir/src/main morphruntime/src/main frontend/src/main backends/verilog/src/main paramrtl/src/main morphhdl-passes/src morphhdl-passes/examples
+          sbt '++${{ matrix.scala }}' "morph/Test/runMain morphhdl.LaneInliningRegressionWriter $evidence/before" 2>&1 | tee "$evidence/baseline-sbt.log"
+      - name: Compile and test the actual current production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          sbt '++${{ matrix.scala }}' \
+            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests' \
+            'morph/Test/testOnly morphhdl.LaneWhenInliningRegressionTests spinal.core.MorphVerilogExpressionInliningTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.BooleanWidthNormalizationTests' \
+            "morph/Test/runMain morphhdl.LaneInliningRegressionWriter $evidence/after" \
+            "morph/Test/runMain morphhdl.GenerateLaneExpressionExample $evidence/plain" \
+            "morph/Test/runMain spinal.core.internals.LaneExpressionTraceWriter $evidence/trace" \
+            2>&1 | tee "$evidence/candidate-sbt.log"
+          cmp "$evidence/plain/LaneExpressionExample.v" "$evidence/trace/rtl/LaneExpressionExample.v"
+          cmp "$evidence/plain/LaneExpressionExample.v" "$evidence/after/first/default/lane/design.v"
+      - name: Check final RTL, parameter widths, simulations, proofs, and real RTL mutations
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          python3 morphhdl/scripts/check-lane-when-inlining.py \
+            --before "$evidence/before" --after "$evidence/after" --output "$evidence/validation"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lane-when-baseline-trace-${{ matrix.scala }}
-          path: /tmp/lane-repro/
+          name: lane-when-qualification-${{ matrix.scala }}
+          path: ${{ runner.temp }}/lane-when-evidence/
           if-no-files-found: error
           retention-days: 14
+  cross-scala:
+    needs: qualify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lane-when-qualification-2.12.18
+          path: scala212
+      - uses: actions/download-artifact@v4
+        with:
+          name: lane-when-qualification-2.13.12
+          path: scala213
+      - name: Require identical exact source identities and all emitted artifacts
+        run: |
+          set -euo pipefail
+          cmp scala212/candidate-identity.txt scala213/candidate-identity.txt
+          cmp scala212/baseline-identity.txt scala213/baseline-identity.txt
+          diff -ru scala212/before scala213/before
+          diff -ru scala212/after scala213/after

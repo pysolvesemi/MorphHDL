@@ -16,6 +16,8 @@ private object LaneWhenNativeTrace {
         "morphhdl.examples.ProductionWireAssignmentPhase")
       require(index >= 0, "production wire-assignment phase missing")
       val production = phases(index)
+      val intent = phases.collectFirst { case value: NativeConditionSourceIntent => value }
+      val inspector = new NamedWireExpressionNativePhase(conditionSourceIntent = intent)
       phases.update(index, new Phase {
         override def hasNetlistImpact: Boolean = production.hasNetlistImpact
         override def impl(pc: PhaseContext): Unit = {
@@ -52,6 +54,15 @@ private object LaneWhenNativeTrace {
                     s"\tconditionType=${condition.cond.getClass.getName}\twidth=${width(condition.cond)}"
                   condition.cond match {
                     case value: BaseType =>
+                      value.head.source.walkDrivingExpressions {
+                        case source: BaseType =>
+                          lines += s"$label\tcondition-source=${source.getName("")}\twidth=${source.getBitsWidth}\t" +
+                            s"type=${source.getTypeObject}\tsame-component=${source.component eq component}\t" +
+                            s"root=${source.parentScope eq source.rootScopeStatement}\t" +
+                            s"null-scope=${source.parentScope == null}\tanalog=${source.isAnalog}\tinout=${source.isInOut}\t" +
+                            s"symbolic=${ParameterizedWidth.expressionOf(source)}"
+                        case _ =>
+                      }
                       var occurrences = 0
                       pc.components().foreach(_.dslBody.walkStatements { statement =>
                         statement.walkDrivingExpressions {
@@ -62,8 +73,9 @@ private object LaneWhenNativeTrace {
                       lines += s"$label\tconditionCarrier=${value.getName("")}\t" +
                         s"origin=${NativeWireNameProvenance.origin(value)}\t" +
                         s"typeNode=${value.isTypeNode}\tnamed=${value.isNamed}\t" +
-                        s"root=${value.parentScope eq value.rootScopeStatement}\t" +
+                        s"root=${value.parentScope eq value.rootScopeStatement}\tcomponent-root=${value.parentScope eq component.dslBody}\t" +
                         s"singleDriver=${value.hasOnlyOneStatement}\toccurrences=$occurrences\t" +
+                        s"intent=${intent.exists(_.permits(value))}\tretained=${inspector.retentionReasonFor(pc, value)}\t" +
                         s"frozen=${value.isFrozen()}\ttags=${value.getTags().map(_.getClass.getName).mkString(",")}"
                     case _ =>
                   }
@@ -93,7 +105,7 @@ object LaneWhenInliningArtifactWriter extends App {
       targetDirectory = directory.toString,
       oneFilePerComponent = false,
       headerWithDate = false,
-      headerWithRepoHash = false
+      headerWithRepoHash = true
     ), enabled)
     config.netlistFileName = "LaneExpressionExample.v"
     if (trace) LaneWhenNativeTrace.install(config, directory.resolve("native.tsv"))
