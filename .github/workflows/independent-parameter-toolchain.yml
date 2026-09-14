@@ -1,0 +1,50 @@
+name: Independent parameter offline test workspace
+on:
+  push:
+    branches: [agent/independent-parameter-domain-composition]
+    paths: ['.github/workflows/independent-parameter-toolchain.yml']
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      SBT_OPTS: '-Xmx4G -XX:ActiveProcessorCount=2'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - name: Compile source and existing regression suites
+        run: |
+          mkdir -p offline-workspace
+          sbt -batch 'morph/Test/compile' 'show morph/Test/fullClasspath' 'show morph/Compile/fullClasspath' 2>&1 | tee offline-workspace/compile.log
+      - name: Package source, compiled classes, and public dependency jars
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD > offline-workspace/revision.txt
+          git archive --format=tar.gz HEAD > offline-workspace/source.tar.gz
+          find . -path '*/target/*' -type f \( -name '*.class' -o -name '*.jar' -o -name '*.xml' -o -name '*.properties' \) -print0 | tar --null -T - -czf offline-workspace/classes.tar.gz
+          mkdir -p offline-workspace/jars
+          find "$HOME/.cache/coursier" "$HOME/.sbt" -type f -name '*.jar' -print0 | while IFS= read -r -d '' jar; do
+            name="$(sha256sum "$jar" | cut -d ' ' -f 1)-$(basename "$jar")"
+            cp "$jar" "offline-workspace/jars/$name"
+          done
+          cd offline-workspace
+          tar -czf jars.tar.gz jars
+          rm -rf jars
+      - name: Package Icarus Verilog for local simulation
+        run: |
+          cd offline-workspace
+          apt-get download iverilog
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-parameter-offline-workspace-${{ github.sha }}
+          path: offline-workspace/
+          compression-level: 0
+          if-no-files-found: error
