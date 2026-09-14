@@ -63,10 +63,10 @@ def main() -> None:
         spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        # Match 60f's finite budget for the complete current-source audit.
-        # Historical/mutation checks and Git commands retain their 120s limits.
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py", "target/increment-59d-inherited-60f-scope",
+            # This is the same complete current audit as 59b/60f, not a
+            # historical or mutation case; only this positive gets 600s.
             lambda: [checked(ROOT, "current descendant through complete 59c and inherited source audits",
                              timeout_seconds=600)], "exact negative inherited 60f source-scope cases")
         return
