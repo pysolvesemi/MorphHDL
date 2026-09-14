@@ -390,7 +390,6 @@ def main() -> int:
             summary["typed_domain_fixture"] = "elaboration_and_verilog_compile_passed"
             for scenario, diagnostic in (
                 ("never", "SPINAL-ELAB-REQUIRE-ALWAYS-FALSE"),
-                ("mixed", "SPINAL-ELAB-REQUIRE-DOMAIN-UNPROVEN"),
                 ("joint-branch", "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING"),
             ):
                 rejected_output = results / scenario
@@ -401,7 +400,15 @@ def main() -> int:
                         summary["commands"], expected_diagnostic=diagnostic)
                 if list(rejected_output.glob("*.v")):
                     raise RuntimeError(f"failed {scenario} generation published Verilog")
-            summary["negative_native_boundaries"] = "always-false, mixed-validity, unsupported joint structural branch rejected"
+            summary["negative_native_boundaries"] = "always-false and unsupported joint structural branch rejected; mixed legality checked separately"
+        if not args.width_only:
+            symbolic_command = [sys.executable, str(here / "check_symbolic_publication.py"),
+                                "--results", str(results / "symbolic-policy")]
+            if args.java_classpath:
+                symbolic_command += ["--java-classpath", args.java_classpath]
+            execute(symbolic_command, here, results / "symbolic-policy.log",
+                    args.command_timeout_seconds, summary["commands"])
+            summary["symbolic_publication_policy"] = "native matrices and three-tool legality checks passed"
         summary["status"] = "new_fixture_checks_passed_NOT_full_compiler_qualification"
         return 0
     except (RuntimeError, OSError, UnicodeError) as error:

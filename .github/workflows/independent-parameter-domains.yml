@@ -7,10 +7,17 @@ on:
     branches: [parameterized-verilog]
     paths:
       - 'core/src/main/scala/spinal/core/ElabInt.scala'
+      - 'core/src/main/scala/spinal/core/NativeSymbolicLegality.scala'
+      - 'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala'
+      - 'morphruntime/**'
+      - 'lib/src/main/scala/spinal/lib/Stream.scala'
       - 'core/src/main/scala/spinal/core/Elaboration*.scala'
       - 'morphhdl/src/main/scala/spinal/core/internals/**'
       - 'morphhdl/src/test/scala/**'
       - 'morphhdl/contracts/native-source-preservation.json'
+      - 'morphhdl/contracts/increment-54-typed-layering-ir.contract'
+      - 'morphhdl/scripts/check-typed-layering-ir.py'
+      - 'frontend/**'
       - 'repro/independent-parameters/**'
       - '.github/workflows/independent-parameter-domains.yml'
   workflow_dispatch:
@@ -47,11 +54,16 @@ jobs:
           git rev-parse HEAD | tee independent-parameter-evidence/head.txt
           test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
           git diff --check
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py 2>&1 | tee independent-parameter-evidence/source-overlay-live.log
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test 2>&1 | tee independent-parameter-evidence/source-overlay-selftest.log
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee independent-parameter-evidence/source-preservation-live.log
           python3 morphhdl/scripts/check-native-source-preservation.py --self-test 2>&1 | tee independent-parameter-evidence/source-preservation.log
+          python3 morphhdl/scripts/check-production-retirement.py 2>&1 | tee independent-parameter-evidence/retirement-live.log
           python3 morphhdl/scripts/check-production-retirement.py --self-test 2>&1 | tee independent-parameter-evidence/retirement.log
+          python3 morphhdl/scripts/check-typed-layering-ir.py 2>&1 | tee independent-parameter-evidence/typed-layering-live.log
           python3 morphhdl/scripts/check-typed-layering-ir.py --self-test 2>&1 | tee independent-parameter-evidence/typed-layering.log
           cd repro/independent-parameters
-          python3 -m unittest -v test_check test_qualify
+          python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -93,6 +105,7 @@ jobs:
             independent-parameter-evidence/
             target/independent-domains-*/
             morphhdl/target/test-reports/
+            frontend/target/test-reports/
           if-no-files-found: error
 
   native-reproducer:

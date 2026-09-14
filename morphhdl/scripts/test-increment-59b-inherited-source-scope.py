@@ -113,11 +113,10 @@ def main() -> None:
         spec = importlib.util.spec_from_file_location("named_inherited_controls", helper)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        # The complete descendant audit took 144-145s in post-merge CI.
-        # Match 60f's finite positive-audit budget; historical/mutation checks
-        # and Git commands retain their existing 120s limits.
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59b-inherited-source-scope.py", "target/increment-59b-source-scope",
+            # Match the existing 60f full-positive budget: merged WA-10 audits
+            # take 136-140s in CI. Historical/mutation calls retain 120s.
             lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits",
                                      timeout_seconds=600)], "exact negative inherited source-scope cases")
         return

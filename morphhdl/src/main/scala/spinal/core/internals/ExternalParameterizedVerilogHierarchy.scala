@@ -563,7 +563,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
 
     ExternalFormalParameterRegistry.bindingsOf(child).foreach { binding =>
-      if (binding.actual.exactDomain.nonEmpty) {
+      if (ElaborationProductDomain.isRetained(binding.actual)) {
+        ElaborationProductDomain.owner(binding.actual, "compound child formal actual", binding.sourceLocation) {
+          (_, universe) => universe
+        }
+      } else if (binding.actual.exactDomain.nonEmpty) {
         ParameterizedStructure
           .projectedChildEvaluationOf(
             parent,

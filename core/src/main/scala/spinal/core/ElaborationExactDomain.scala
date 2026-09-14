@@ -325,6 +325,9 @@ private[spinal] object ElaborationDomainContext {
     else values.min
   }
 
+  private[core] def hasActiveRestrictions: Boolean =
+    Option(active.get()).exists(_.nonEmpty)
+
   def constrains(root: ElaborationIntegerParameterRoot): Boolean =
     Option(active.get())
       .getOrElse(Nil)

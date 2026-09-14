@@ -30,5 +30,6 @@
   "morphhdl.NativeSymbolicMemoryTests": 14,
   "morphhdl.StructuralGenerateControlTests": 12,
   "spinal.core.IndependentParameterDomainTests": 11,
-  "spinal.core.internals.IndependentParameterPublicationTests": 4
+  "spinal.core.internals.IndependentParameterPublicationTests": 4,
+  "spinal.core.SymbolicPublicationEvidenceTests": 15
 }

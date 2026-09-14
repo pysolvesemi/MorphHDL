@@ -306,7 +306,7 @@ class TypedExactDomainSafetyTests extends AnyFunSuite {
       )
     )
     assert(intercept[ParameterizedVerilogException](left + raw).code ==
-      "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+      "SPINAL-ELAB-DOMAIN-PRODUCT-AUTHORITY-MISSING")
   }
 
   test("partial Boolean evidence cannot escape into an independent root") {
