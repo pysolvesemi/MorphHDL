@@ -1,0 +1,33 @@
+name: Lane inlining exact source export
+on:
+  push:
+    branches: [agent/lane-when-expression-inlining]
+    paths: ['.github/workflows/lane-when-source-export.yml']
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export the pinned reproduction source and complete history
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref=26f315eb6ce83cc8dc59b40494797bc0fb72db48
+          mkdir -p /tmp/lane-source
+          git rev-parse "$ref" "$ref^{tree}" > /tmp/lane-source/identity.txt
+          git ls-tree -r "$ref" > /tmp/lane-source/tree.txt
+          git archive "$ref" | gzip -n > /tmp/lane-source/source.tar.gz
+          git bundle create /tmp/lane-source/history.bundle HEAD
+          sha256sum /tmp/lane-source/* > /tmp/lane-source/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lane-when-exact-source
+          path: /tmp/lane-source/
+          compression-level: 0
+          retention-days: 7
