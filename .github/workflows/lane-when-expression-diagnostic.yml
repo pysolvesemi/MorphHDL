@@ -13,78 +13,38 @@ permissions:
 
 jobs:
   reproduce:
-    runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
     env:
       SBT_TEST_PARALLEL: '0'
-      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+      JVM_OPTS: '-Xmx3G -Xss4M -XX:ActiveProcessorCount=2'
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: 26f315eb6ce83cc8dc59b40494797bc0fb72db48
           fetch-depth: 0
           persist-credentials: false
-      - name: Export exact source for offline investigation
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p /tmp/lane-source
-          git rev-parse HEAD HEAD^{tree} > /tmp/lane-source/identity.txt
-          git ls-tree -r HEAD > /tmp/lane-source/tree.txt
-          git archive HEAD | gzip -n > /tmp/lane-source/source.tar.gz
-          git bundle create /tmp/lane-source/history.bundle HEAD
-          sha256sum /tmp/lane-source/* > /tmp/lane-source/SHA256SUMS
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lane-when-source
-          path: /tmp/lane-source/
-          compression-level: 0
-          retention-days: 7
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: sbt/setup-sbt@v1
-      - name: Install Verilog validation tools
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y iverilog verilator yosys
-      - name: Run the supplied reproduction before modifying the compiler
+      - name: Run the pinned reproduction without compiler changes
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p /tmp/lane-repro
+          git rev-parse HEAD HEAD^{tree} > /tmp/lane-repro/identity.txt
           sbt '++2.12.18' 'morph/Test/runMain morphhdl.GenerateLaneExpressionExample /tmp/lane-repro/rtl' 2>&1 | tee /tmp/lane-repro/sbt.log
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
-          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
-      - name: Export portable compiled modules and external compiler dependencies
-        if: always()
+          cat /tmp/lane-repro/rtl/LaneExpressionExample.v
+      - name: Compile the same artifact for both PPC4 bindings
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/lane-build/deps /tmp/lane-build/metadata /tmp/lane-build/tools
-          find . -path '*/target/scala-2.12/*' \( -type f -o -type l \) -print0 | tar --null -T - -czf /tmp/lane-build/compiled.tar.gz
-          python3 - <<'PY'
-          import hashlib, pathlib, shutil
-          home = pathlib.Path.home()
-          target = pathlib.Path('/tmp/lane-build/deps')
-          rows = []
-          for root in [home / '.cache/coursier', home / '.ivy2/cache']:
-              if not root.exists():
-                  continue
-              for source in sorted(root.rglob('*.jar')):
-                  if 'sources' in source.name or 'javadoc' in source.name:
-                      continue
-                  digest = hashlib.sha256(source.read_bytes()).hexdigest()
-                  name = digest[:12] + '-' + source.name
-                  shutil.copy2(source, target / name)
-                  rows.append(digest + ' ' + name + ' ' + str(source))
-          pathlib.Path('/tmp/lane-build/metadata/dependencies.txt').write_text('\n'.join(rows) + '\n')
-          PY
-          cp /usr/bin/iverilog /usr/bin/vvp /tmp/lane-build/tools/
-          cp -a /usr/lib/x86_64-linux-gnu/ivl /tmp/lane-build/tools/
-          git rev-parse HEAD HEAD^{tree} > /tmp/lane-build/metadata/identity.txt
-          tar -C /tmp/lane-build -czf /tmp/lane-build-bundle.tar.gz deps compiled.tar.gz metadata tools
-          split -b 24000000 -d /tmp/lane-build-bundle.tar.gz /tmp/lane-build-part-
+          sudo apt-get update -qq
+          sudo apt-get install -y iverilog
+          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=0 -o /tmp/lane-repro/ppc1.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
+          iverilog -g2001 -s LaneExpressionExample -P LaneExpressionExample.PPC4=1 -o /tmp/lane-repro/ppc4.vvp /tmp/lane-repro/rtl/LaneExpressionExample.v
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -92,11 +52,3 @@ jobs:
           path: /tmp/lane-repro/
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: lane-when-build
-          path: /tmp/lane-build-part-*
-          compression-level: 0
-          if-no-files-found: error
-          retention-days: 7
