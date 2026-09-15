@@ -8,6 +8,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import re
+import textwrap
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,6 +120,93 @@ class LaneWhenReviewTests(unittest.TestCase):
         for predecessor in ("59d", "59e", "59f", "59g", "59h"):
             # A route must not be broadened to another unfinished increment.
             self.assertNotIn("github.head_ref == 'agent/increment-" + predecessor, text)
+
+    def qualification_job(self, name):
+        text = (ROOT / '.github/workflows/lane-when-expression-diagnostic.yml').read_text()
+        match = re.search(r'(?ms)^  ' + re.escape(name) + r':\n(.*?)(?=^  [A-Za-z][\w-]*:\n|\Z)', text)
+        self.assertIsNotNone(match, 'missing mandatory lane job: ' + name)
+        return match.group(1)
+
+    def test_compatibility_and_full_builds_have_no_branch_skip_route(self):
+        for name in ('compatibility', 'sbt-full', 'mill-full'):
+            with self.subTest(job=name):
+                job = self.qualification_job(name)
+                self.assertNotRegex(job, r'(?m)^    (?:if|needs):')
+                self.assertNotIn('continue-on-error', job)
+                self.assertNotRegex(job.replace('if: always()', ''), r'(?m)^\s+if:')
+                self.assertIn("- 2.12.18", job)
+                self.assertIn("- 2.13.12", job)
+                self.assertIn('fail-fast: false', job)
+
+    def test_new_gate_jobs_authenticate_exact_head_and_retain_evidence(self):
+        for name in ('compatibility', 'sbt-full', 'mill-full'):
+            with self.subTest(job=name):
+                job = self.qualification_job(name)
+                self.assertIn('ref: ${{ github.event.pull_request.head.sha || github.sha }}', job)
+                self.assertIn('fetch-depth: 0', job)
+                self.assertIn('submodules: recursive', job)
+                self.assertIn('check-increment-62-wa08-source-overlay.py', job)
+                self.assertIn('check-lane-when-source-scope.py', job)
+                self.assertIn('source-identity.txt', job)
+                self.assertIn('set -euo pipefail', job)
+                self.assertIn('actions/upload-artifact@v4', job)
+                self.assertIn('if-no-files-found: error', job)
+
+    def test_real_binary_source_and_report_abi_commands_are_mandatory(self):
+        job = self.qualification_job('compatibility')
+        for command in ('bash morphhdl/scripts/check-binary-compatibility.sh',
+                        'python3 morphhdl/scripts/check-jvm-binary-compatibility.py',
+                        'bash morphhdl/scripts/check-concrete-spinalverilog-parity.sh',
+                        'bash morphhdl/scripts/check-external-spinal-boundary.sh'):
+            self.assertIn(command, job)
+        self.assertIn('BASE_COMMIT: 61d1fe0dcac0b52856620944a2d7426fd1390a48', job)
+        self.assertIn('--baseline "$baseline_jar"', job)
+        self.assertIn('--current "$current_jar"', job)
+        self.assertNotIn('--skip-binary-linkage', job)
+        self.assertNotIn('|| true', job.split('Prove source linkage', 1)[1])
+
+    def test_full_sbt_and_mill_retain_native_simulations_and_packaging(self):
+        sbt = self.qualification_job('sbt-full')
+        mill = self.qualification_job('mill-full')
+        self.assertIn('compile Test/compile', sbt)
+        for gate in ('check-increment-58-retirement.py', 'check-production-retirement.py',
+                     'check-typed-layering-ir.py'):
+            self.assertIn(gate, sbt)
+        self.assertEqual(sbt.count('--require-jar'), 3)
+        for name in ('spinal.lib.CounterTester', 'spinal.lib.SpinalSimStreamFifoTester',
+                     'spinal.lib.SpinalSimStreamFifoCCTester',
+                     'spinal.lib.SpinalSimStreamWidthAdapterTester'):
+            self.assertIn(name, sbt)
+            self.assertIn(name, mill)
+        self.assertIn('mill-dist/1.1.0/', mill)
+        self.assertIn('timeout-minutes: 360', sbt)
+        self.assertIn('timeout-minutes: 360', mill)
+
+    def test_final_lane_gate_requires_each_real_job_success(self):
+        job = self.qualification_job('qualification')
+        self.assertIn('if: always()', job)
+        for name in ('qualify', 'cross-scala', 'compatibility', 'sbt-full', 'mill-full'):
+            self.assertIn('- ' + name, job)
+        script = textwrap.dedent(job.split('run: |\n', 1)[1])
+        names = ('QUALIFY', 'CROSS_SCALA', 'COMPATIBILITY', 'SBT_FULL', 'MILL_FULL')
+        good = {name: 'success' for name in names}
+        def execute(values):
+            return subprocess.run(['bash', '-c', script], env=values, text=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+        self.assertEqual(execute(good).returncode, 0)
+        controls = 0
+        for name in names:
+            for status in ('skipped', 'cancelled', 'failure', 'pending', ''):
+                with self.subTest(job=name, result=status):
+                    values = dict(good); values[name] = status
+                    result = execute(values)
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertNotIn('LANE_COMPLETE_QUALIFICATION_PASS', result.stdout)
+                    controls += 1
+            values = dict(good); del values[name]
+            self.assertNotEqual(execute(values).returncode, 0)
+            controls += 1
+        print('LANE_COMPLETE_GATE_REJECTIONS_PASS controls=' + str(controls))
 
     def test_preflight_failure_removes_stale_success_receipt(self):
         with tempfile.TemporaryDirectory(prefix="lane-stale-receipt-") as name:
