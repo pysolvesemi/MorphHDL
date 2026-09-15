@@ -57,7 +57,7 @@ object TypedBalancedReductionCompositeCaptureArtifacts {
       val base = config(root.resolve("candidate"), name)
       val shaped = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
       val configured = signed match {
-        case "legacy" => shaped
+        case "legacy" => MorphSignedDeclarations.disable(MorphSignedCasts.disable(shaped))
         case "declarations" => MorphSignedDeclarations.enable(shaped)
         case "casts" => MorphSignedCasts.enable(shaped)
       }

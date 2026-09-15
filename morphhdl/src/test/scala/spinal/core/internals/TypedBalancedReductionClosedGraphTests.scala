@@ -246,4 +246,123 @@ class TypedBalancedReductionClosedGraphTests extends AnyFunSuite {
       assert(observerError.getMessage.contains("MORPH-REDUCE-BALANCED-CAPTURE-NULL"))
     }
   }
+  private def elaborate(body: => Unit): Unit = {
+    SpinalConfig(targetDirectory = Files.createTempDirectory("scoped-closed-graph-").toString,
+      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
+      body
+      val anchor = out Bool()
+      anchor := False
+    })
+  }
+
+  private def unsignedCallback(body: (UInt, UInt) => UInt): UnvalidatedBalancedCallback = {
+    val width = HdlInt.param("SCOPED_WIDTH", 5, 2, 9)
+    val count = HdlInt.param("SCOPED_COUNT", 2, 2, 2)
+    val values = Vec(UInt(width bits), count)
+    values.foreach(_ := 0)
+    TypedBalancedReductionCapture(values, body, (x: UInt, _: Int) => x,
+      native[UInt]).rows.head.operator.get
+  }
+
+  test("explicit combinational observation closes the exact native unsigned saturation graph") {
+    elaborate {
+      val callback = unsignedCallback((a, b) => a +| b)
+      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      assert(observation.registerCount == 0)
+      assert(callback.declarations.exists(_.parentScope ne Component.current.dslBody))
+      assert(callback.statements.exists(_.isInstanceOf[WhenStatement]))
+      observation.requireUnchanged()
+    }
+  }
+
+  test("explicit combinational observation still rejects a missing else latch") {
+    elaborate {
+      val callback = unsignedCallback { (a, b) =>
+        val result = UInt(5 bits)
+        when(a(0)) { result := b }
+        result
+      }
+      assert(intercept[IllegalArgumentException] {
+        TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      }.getMessage.contains("SCOPE"))
+    }
+  }
+
+  test("explicit combinational observation rejects branch-local data escaping its arm") {
+    elaborate {
+      val callback = unsignedCallback { (a, b) =>
+        var escaped: UInt = null
+        val selected = UInt(5 bits)
+        when(a(0)) { selected := a } otherwise {
+          escaped = b ^ a
+          selected := escaped
+        }
+        selected ^ escaped
+      }
+      assert(intercept[IllegalArgumentException] {
+        TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      }.getMessage.contains("SCOPE-ESCAPE"))
+      // The intentionally illegal graph is an observation-only fixture.
+      callback.assignments.foreach(_.removeStatement())
+      callback.statements.collect { case value: WhenStatement => value }.foreach(_.removeStatement())
+      callback.declarations.foreach(_.removeStatement())
+    }
+  }
+
+  test("explicit combinational observation rejects conditional register state") {
+    elaborate {
+      val callback = unsignedCallback { (a, b) =>
+        val result = Reg(UInt(5 bits)) init(0)
+        when(a(0)) { result := a } otherwise { result := b }
+        result
+      }
+      assert(intercept[IllegalArgumentException] {
+        TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      }.getMessage.contains("ASSIGNMENT-SHAPE"))
+    }
+  }
+
+  test("explicit combinational observation rejects effects outside captured conditional data") {
+    elaborate {
+      val outside = UInt(5 bits)
+      val error = intercept[IllegalArgumentException] {
+        unsignedCallback { (a, b) =>
+          when(a(0)) { outside := b }
+          a +| b
+        }
+      }
+      assert(error.getMessage.contains("EXTERNAL-WRITE"))
+    }
+  }
+
+  test("explicit combinational observation freezes the native saturation condition") {
+    elaborate {
+      val callback = unsignedCallback((a, b) => a +| b)
+      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      val control = callback.statements.collectFirst { case value: WhenStatement => value }.get
+      val before = control.cond
+      control.cond = new BoolLiteral(false)
+      val error = intercept[IllegalArgumentException](observation.requireUnchanged())
+      assert(error.getMessage.contains("CHANGED") || error.getMessage.contains("UNREACHABLE"))
+      control.cond = before
+      observation.requireUnchanged()
+    }
+  }
+
+  test("explicit combinational observation freezes native saturation slice indices") {
+    elaborate {
+      val callback = unsignedCallback((a, b) => a +| b)
+      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
+      val access = callback.assignments.map(_.source).collectFirst {
+        case value: BitVectorRangedAccessFixed => value
+      }.get
+      val before = access.lo
+      access.lo = before + 1
+      val error = intercept[IllegalArgumentException](observation.requireUnchanged())
+      assert(error.getMessage.contains("CHANGED"))
+      access.lo = before
+      observation.requireUnchanged()
+    }
+  }
+
 }

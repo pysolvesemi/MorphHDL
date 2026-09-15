@@ -31,10 +31,11 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def check(root: Path, label: str, expected: str | None = None) -> dict:
+def check(root: Path, label: str, expected: str | None = None,
+          timeout_seconds: int = 180) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=180, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " failed complete source qualification:\n" + result.stdout)
@@ -75,9 +76,23 @@ def frozen_59c_controls(root: Path, current_check) -> None:
     print("59c current-source controls PASS: current complete 59g audit; frozen 59c mutations separately scoped", flush=True)
 
 
+def current_positive_timeout(root: Path) -> int:
+    # This caller runs the same complete 60f audit measured at 1621.921s.
+    # Presence selects only a finite resource budget; the audit must still
+    # authenticate every source byte. Historical/negative limits stay intact.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 180
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [check(ROOT, "current exact 59g source and all inherited guards")]
+    # The complete 427-file parent-union traversal already needs a 900s
+    # positive budget in the 59h harness (487.055s on the sealed tree).
+    # Keep every negative at 180s and all frozen historical limits intact.
+    timeout = current_positive_timeout(ROOT)
+    records = [check(ROOT, "current exact 59g source and all inherited guards",
+                     timeout_seconds=timeout)]
     spec = importlib.util.spec_from_file_location("bridge_review", ROOT / "morphhdl/scripts/check-increment-59g-source-review.py")
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)
@@ -132,6 +147,42 @@ def main() -> None:
                 expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([path])
             adapted.append((label, path, mutation, expected))
         cases = adapted
+    overlay = getattr(rollout, "wa08_overlay", lambda root: None)(ROOT) if rollout is not None else None
+    integration = overlay.integration_review(ROOT) if overlay is not None else None
+    if integration is not None:
+        # The complete positive audit authenticates the parent-union layer.
+        # Keep all original mutations, including paired/index/mode attacks,
+        # and select only the precise first rejection that owns each path.
+        integration_paths = {entry["path"] for entry in integration.contract(ROOT)["files"]}
+        adapted = []
+        for label, path, mutation, expected in cases:
+            if mutation in ("suffix", "paired") and path in integration_paths and path != CONTRACT:
+                expected = "59i target integration: unreviewed bytes cannot enter parent projection: " + path
+            elif mutation in ("executable", "symlink") and path in integration_paths:
+                expected = "59i reviewed source must be a regular non-executable file: " + path
+            elif path.startswith("foreign/src/main/") or (
+                    mutation == "remove" and path in rollout.WA07A_PRODUCTION_SHA256):
+                expected = "59i target integration: current tree path inventory differs"
+            elif mutation == "suffix" and path in rollout.WA07A_PRODUCTION_SHA256:
+                expected = "59i target integration: current tree differs from reviewed source: " + path
+            elif mutation == "untracked":
+                expected = "59i target integration: staged, unstaged or untracked content: " + repr([path])
+            adapted.append((label, path, mutation, expected))
+        cases = adapted
+        successor = getattr(integration, "successor_review", lambda root: None)(ROOT)
+        if successor is not None:
+            successor_paths = {entry["path"] for entry in successor.contract(ROOT)["files"]}
+            adapted = []
+            for label, path, mutation, expected in cases:
+                if mutation in ("suffix", "paired") and path in successor_paths and path != CONTRACT:
+                    expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + path
+                elif path.startswith("foreign/src/main/") or (
+                        mutation in ("suffix", "remove") and path in rollout.WA07A_PRODUCTION_SHA256):
+                    expected = "59i production successor: sealed route tree differs from immutable source plus exact seal"
+                elif mutation == "untracked":
+                    expected = "59i production successor: staged, unstaged or untracked content: " + repr([path])
+                adapted.append((label, path, mutation, expected))
+            cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59g-source-control-") as temporary:
         for index, (label, path, mutation, expected) in enumerate(cases):
             fixture = Path(temporary) / str(index)

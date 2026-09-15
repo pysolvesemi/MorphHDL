@@ -20,6 +20,9 @@ concurrency:
   group: increment-59i-generated-child-v3-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   scala:
     name: Generated-child v3 Scala ${{ matrix.scala }}
@@ -191,11 +194,17 @@ jobs:
           for kind in parameterized concrete; do
             mapfile -t sources < <(find "$out/rtl/$kind" -type f -name '*.v' | sort)
             test "${#sources[@]}" -gt 0
-            iverilog -g2001 -Wall -s BalancedCombinedGeneratedChildTop \
-              -o "$out/$kind.vvp" "${sources[@]}"
             joined=$(printf ' %q' "${sources[@]}")
-            yosys -q -p "read_verilog -noautowire${joined}; hierarchy -check -top BalancedCombinedGeneratedChildTop; proc; opt; check -assert; stat" \
-              > "$out/yosys-$kind.log"
+            if test "$kind" = parameterized; then
+              tops=(BalancedCombinedGeneratedChildTop_packed BalancedCombinedGeneratedChildTop_fields)
+            else
+              tops=(BalancedCombinedGeneratedChildTop_concrete)
+            fi
+            for top in "${tops[@]}"; do
+              iverilog -g2001 -Wall -s "$top" -o "$out/$top.vvp" "${sources[@]}"
+              yosys -q -p "read_verilog -noautowire${joined}; hierarchy -check -top $top; proc; opt; check -assert; stat" \
+                > "$out/yosys-$top.log"
+            done
           done
           sha256sum $(find "$out/rtl" -type f -name '*.v' | sort) > "$out/rtl-sha256.txt"
 

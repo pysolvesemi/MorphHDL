@@ -334,6 +334,14 @@ def integration_59d59f(root: Path) -> dict[str, str]:
     entries = reviewed["files"]
     require([entry["path"] for entry in entries] == sorted(INTEGRATION_59D59F_PATHS),
             "59d/59f integration exceeds its two exact callback paths")
+    # The named-field layer owns the authenticated successor projection.
+    # Older combined checkpoints have no such layer and their 59f helper
+    # predates current_inherited_source; keep their original direct read.
+    project = None
+    if named_source_review(root) is not None:
+        publisher = load(root, "59f-source-scope")
+        project = getattr(publisher, "current_inherited_source", None)
+        require(callable(project), "missing exact 59d/59f inherited-source projector")
     hashes = {}
     for entry in entries:
         require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"},
@@ -344,7 +352,7 @@ def integration_59d59f(root: Path) -> dict[str, str]:
         source_path = root / path
         require(source_path.is_file() and not source_path.is_symlink() and not source_path.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
-        source = source_path.read_text()
+        source = source_path.read_text() if project is None else project(root, path)
         require(hashlib.sha256(source.encode()).hexdigest() == entry["after_sha256"],
                 "59d/59f reviewed integration source changed: " + path)
         edits = entry["edits"]

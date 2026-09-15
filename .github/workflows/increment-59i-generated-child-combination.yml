@@ -22,6 +22,9 @@ concurrency:
   group: increment-59i-generated-child-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   scala:
     name: Generated-child Scala ${{ matrix.scala }}

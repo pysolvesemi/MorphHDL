@@ -25,8 +25,29 @@ final class BalancedCombinedGeneratedChildTop(width: HdlInt, tagWidth: HdlInt,
   val delayed = out(BalancedCompositeRecord(width, tagWidth, coordWidth)).setName("delayed")
   val signedSelected = out(BalancedCompositeComplex(width)).setName("signedSelected")
 
-  val child = new BalancedCombinedScopedRecords(width, tagWidth, coordWidth,
-    count, mode, childName).setName("child")
+  val child = {
+    // Bind every child formal through the existing typed constructor. MODE's
+    // positive encoding preserves the logical 0/1 control in the child while
+    // retaining the actual parent expression, including its +1 operation.
+    val concreteInputs: Boolean = Vector(width, tagWidth, coordWidth, count, mode).forall(_.asElabInt.isConcrete)
+    // This dispatch is a host construction decision; only one child exists.
+    concreteInputs match {
+      case true => new BalancedCombinedScopedRecords(width, tagWidth, coordWidth, count, mode, childName)
+      case false => ElabFormalComponent.parameters(Vector(
+        ElabFormalComponent.Parameter(width.asElabInt, "WIDTH", 1, 32),
+        ElabFormalComponent.Parameter(tagWidth.asElabInt, "TAG_WIDTH", 1, 32),
+        ElabFormalComponent.Parameter(coordWidth.asElabInt, "COORD_WIDTH", 1, 32),
+        ElabFormalComponent.Parameter(count.asElabInt, "COUNT", 1, 17),
+        ElabFormalComponent.Parameter(mode.asElabInt + 1, "MODE", 1, 2))) { formals =>
+        new BalancedCombinedScopedRecords(
+          HdlInt.fromElabIntParameter(formals(0)),
+          HdlInt.fromElabIntParameter(formals(1)),
+          HdlInt.fromElabIntParameter(formals(2)),
+          HdlInt.fromElabIntParameter(formals(3)),
+          HdlInt.fromElabIntParameter(formals(4)) - HdlInt.literal(1), childName)
+      }
+    }
+  }.setName("child")
   child.clk := clk
   child.reset := reset
   child.enable := enable
@@ -61,7 +82,7 @@ class TypedBalancedReductionGeneratedChildCombinationTests extends AnyFunSuite {
     val topName = "BalancedCombinedGeneratedChildTop_" + layout
     val childName = "BalancedCombinedGeneratedChild_" + layout
     val base = SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false, headerWithRepoHash = false, bitVectorWidthMax = 65536)
+      headerWithDate = false, bitVectorWidthMax = 65536)
     base.netlistFileName = topName + ".v"
     val config = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
     MorphVerilog(config) {
@@ -89,6 +110,7 @@ class TypedBalancedReductionGeneratedChildCombinationTests extends AnyFunSuite {
       "g_minimum", "g_maximum", "g_registered_min", "g_registered_max",
       "morphhdl_balanced_").foreach(value => assert(rtl.contains(value), value + "\n" + rtl))
     assert(!rtl.contains("records_key"), rtl)
+    assert(rtl.replaceAll("\\s+", "").contains(".MODE((MODE+1))"), rtl)
   }
 
   test("named-field vectors remain field preserving across the parameterized child") {
@@ -103,6 +125,7 @@ class TypedBalancedReductionGeneratedChildCombinationTests extends AnyFunSuite {
       "signedRecords_real", "signedRecords_imag", "selected_key",
       "delayed_tag", "signedSelected_real").foreach(value =>
       assert(rtl.contains(value), value + "\n" + rtl))
+    assert(rtl.replaceAll("\\s+", "").contains(".MODE((MODE+1))"), rtl)
   }
 
   test("all-literal ordinary SpinalVerilog preserves concrete hierarchy without HDL parameters") {
