@@ -32,7 +32,7 @@ jobs:
           # The current Increment 61 delta is sealed above. Keep the historical
           # WA-08 contract and its mutation tests unchanged at the merged target.
           integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
-          test "$integrated" = "3b547ae5622ae212c17f6e67cc96924127a46a41"
+          test "$integrated" = "61d1fe0dcac0b52856620944a2d7426fd1390a48"
           historical=$(mktemp -d "${RUNNER_TEMP:-/tmp}/wa08-inherited-source.XXXXXX")
           git worktree add --detach "$historical" "$integrated"
           trap 'git worktree remove --force "$historical"' EXIT

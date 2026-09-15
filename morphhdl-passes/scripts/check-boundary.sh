@@ -96,6 +96,20 @@ wa10_cross_workspace_path() {
   return 1
 }
 
+# The explicitly requested PR-186 follow-up repairs concurrent diagnostic
+# capture in these two existing test files. Keep the immutable 191-path WA-10
+# inventory intact; admit this bounded successor only on its exact repair
+# branch after both source checks have authenticated the current bytes.
+wa10_log_repair_path() {
+  [[ "${head_ref}" == agent/wa-10-inherited-audit-timeout ]] || return 1
+  case "$1" in
+    morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala|\
+    morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # WA-11 canonical elaboration normalization changes Morph-owned typed support
 # in core and the external frontend. Every admitted path is authenticated by
 # the exact cumulative overlay. WA-10 remains an independently sealed concern.
@@ -181,6 +195,12 @@ allowed_path() {
   if [[ "${is_wa10}" == true ]] && \
      [[ "${wa10_scope_verified:-false}" == true ]] && \
      wa10_dependencies_satisfied && wa10_cross_workspace_path "${path}"; then
+    return 0
+  fi
+  if [[ "${is_wa10}" == true ]] && \
+     [[ "${wa08_overlay_verified:-false}" == true ]] && \
+     [[ "${wa10_scope_verified:-false}" == true ]] && \
+     wa10_dependencies_satisfied && wa10_log_repair_path "${path}"; then
     return 0
   fi
   case "${path}" in

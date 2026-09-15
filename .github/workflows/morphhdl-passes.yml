@@ -115,7 +115,7 @@ jobs:
             python3 morphhdl/scripts/check-native-source-preservation.py
             python3 morphhdl/scripts/check-typed-native-source-overlay.py
             integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
-            test "$integrated" = 3b547ae5622ae212c17f6e67cc96924127a46a41
+            test "$integrated" = 61d1fe0dcac0b52856620944a2d7426fd1390a48
             git merge-base --is-ancestor "$integrated" HEAD
             # Every pass and native emitter source/test is unchanged. The
             # separately reviewed signature registry records this workflow's
@@ -137,16 +137,14 @@ jobs:
           current['files'][workflow] = inherited['files'][workflow]
           assert current == inherited, 'only the reviewed workflow signature may differ from the integrated registry'
           PY
-            # The target's later inherited-audit timeout repair changes no
-            # compiler, frontend or pass source. Authenticate that equality,
-            # then retain WA-11's immutable branch-specific static audit source.
-            audit_source=3d582c281975732b32fbf6fafef9afb5549223d9
-            git merge-base --is-ancestor "$audit_source" "$integrated"
-            git diff --exit-code "$audit_source" "$integrated" -- core frontend morphhdl-passes
-            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-wa11-static.XXXXXX")
+            # PR-186 supplies the reviewed successor boundary and diagnostic
+            # capture checks. Audit that exact merged target under its original
+            # repair branch and base after authenticating current source above.
+            audit_source="$integrated"
+            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-wa10-repair-static.XXXXXX")
             git worktree add --detach "$audit_root" "$audit_source"
-            audit_head_ref=agent/wa-11-symbolic-boolean-width-normalization
-            audit_base_sha=f06d9c412924b99cf2c76422549c375a571757dc
+            audit_head_ref=agent/wa-10-inherited-audit-timeout
+            audit_base_sha=3b547ae5622ae212c17f6e67cc96924127a46a41
             printf 'Current Increment 61 source: %s\nIntegrated target: %s\nHistorical WA-10/WA-11 static source: %s\n' \
               "$(git rev-parse HEAD)" "$integrated" "$audit_source"
           fi

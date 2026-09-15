@@ -54,15 +54,38 @@ with the authenticated Increment 61 pass-workflow integration adapter.
 All 45 applicable workflow runs on that exact source passed, including the
 full permanent pass workspace and both Scala WA-11 lanes.
 
-The roadmap records the implementation requirements as satisfied by that
-qualification. The live target subsequently advanced to
-`3b547ae5622ae212c17f6e67cc96924127a46a41` through an inherited CI/audit
-repair affecting six paths. This continuation integrates that complete target
-and composes the Increment 61 source guards with its inherited audit changes.
-Compiler sources, all six Increment 61 production files and all three
-Increment 61 test files remain byte-identical to the qualified source.
+The subsequent closeout `eb8794826755342069def311853d6c01ac14e551`, tree
+`16c8f548c8cdba1f6aa0d9645dd95c59906d92de`, also passed all 45 applicable
+workflows with 15 nonapplicable historical skips. Both Scala versions passed
+2,032 tests in 199 suites, and every job in the 24-job pass workspace passed,
+including all 16 formal shards and aggregate. Its principal receipts are
+[publication 34841967140](https://github.com/pysolvesemi/MorphHDL/actions/runs/34841967140),
+[compatibility 34841966603](https://github.com/pysolvesemi/MorphHDL/actions/runs/34841966603),
+[60f closure 34841966993](https://github.com/pysolvesemi/MorphHDL/actions/runs/34841966993),
+[full pass workspace 34841967325](https://github.com/pysolvesemi/MorphHDL/actions/runs/34841967325),
+and [WA-11 34841966984](https://github.com/pysolvesemi/MorphHDL/actions/runs/34841966984).
+The detailed generated example and earlier receipts below retain their actual
+`cb46d185` provenance.
 
-The evidence below applies to `cb46d185...`; it does not qualify the changed
+The roadmap records the implementation requirements as satisfied by those
+qualifications. The live target subsequently advanced to
+`61d1fe0dcac0b52856620944a2d7426fd1390a48` through merged PR #186, affecting
+16 paths. This continuation preserves its inherited audit fixes, exact boundary
+contracts, and concurrent native proof-output capture repair. The new output
+stress checks extend an existing test rather than adding or removing suite/test
+identities; the required inventory remains 2,032 tests in 199 suites per Scala
+version. All six Increment 61 production files and all three Increment 61 test
+files remain byte-identical to qualified `eb879482`.
+
+The source inventory is anchored to the complete PR-186 target. Its current
+pass and frontend sources must match that target exactly, with only the
+separately authenticated pass-workflow signature allowed to differ. Historical
+static audits execute the exact merged PR-186 source under its original
+`agent/wa-10-inherited-audit-timeout` branch and `3b547ae5` base. All dynamic
+Scala, generated RTL, simulation and formal checks still execute the current
+feature head.
+
+The recorded evidence applies to `cb46d185` and `eb879482`; it does not qualify the changed
 continuation tree. Every applicable workflow must pass on the exact published
 final pre-merge commit before
 [PR #179](https://github.com/pysolvesemi/MorphHDL/pull/179) is merged. A roadmap

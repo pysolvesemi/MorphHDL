@@ -1092,14 +1092,15 @@ dependency chain is unchanged and may proceed independently.
 
 - [x] **Increment 61 — Parameterized `oneFilePerComponent` publication**
 
-  **Implementation qualified:** commit `cb46d185fec55e666ae66e372c3d5ae173ae3da0`
+  **Implementation qualified:** commit `eb8794826755342069def311853d6c01ac14e551`
   passed all 45 applicable workflow runs, including dual-Scala publication,
   compatibility, all 2,032 regression tests per Scala version, complete
   pass-workspace proofs and WA-11 normalization.
   Actual Scala, generated RTL, source lists and exact run evidence are recorded
   in [the increment document](increment-61-one-file-per-component.md).
-  The continuation preserves target `3b547ae5622ae212c17f6e67cc96924127a46a41`'s
-  inherited-audit repair and updates the sealed integration anchors. All
+  The continuation preserves target `61d1fe0dcac0b52856620944a2d7426fd1390a48`'s
+  inherited-audit and native proof-output repairs and updates the sealed
+  integration anchors. All
   applicable checks must pass on that final published commit before
   [PR #179](https://github.com/pysolvesemi/MorphHDL/pull/179) is merged.
 
