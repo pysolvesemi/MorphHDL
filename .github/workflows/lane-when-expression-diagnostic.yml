@@ -227,7 +227,7 @@ jobs:
         if-no-files-found: error
         retention-days: 14
     env:
-      EVIDENCE_DIR: ${{ runner.temp }}/lane-compatibility-evidence
+      EVIDENCE_DIR: /tmp/lane-compatibility-evidence
       SBT_TEST_PARALLEL: '0'
   sbt-full:
     name: Lane SBT full suite Scala ${{ matrix.scala_version }}
@@ -309,7 +309,7 @@ jobs:
         if-no-files-found: error
         retention-days: 14
     env:
-      EVIDENCE_DIR: ${{ runner.temp }}/lane-sbt-full-evidence
+      EVIDENCE_DIR: /tmp/lane-sbt-full-evidence
       SBT_TEST_PARALLEL: '0'
   mill-full:
     name: Lane Mill affected full suite Scala ${{ matrix.scala_version }}
@@ -319,7 +319,7 @@ jobs:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     env:
       XDG_CACHE_HOME: /tmp/morphhdl-cache
-      EVIDENCE_DIR: ${{ runner.temp }}/lane-mill-full-evidence
+      EVIDENCE_DIR: /tmp/lane-mill-full-evidence
       SBT_TEST_PARALLEL: '0'
     strategy:
       fail-fast: false

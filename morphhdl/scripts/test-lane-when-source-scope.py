@@ -152,6 +152,29 @@ class LaneWhenReviewTests(unittest.TestCase):
                 self.assertIn('actions/upload-artifact@v4', job)
                 self.assertIn('if-no-files-found: error', job)
 
+    def test_job_environment_contexts_are_valid_and_mutations_rejected(self):
+        # GitHub resolves job env before assigning a runner. Unlike step env,
+        # this key cannot reference runner, env, job or steps contexts.
+        allowed = {'github', 'needs', 'strategy', 'matrix', 'vars', 'secrets', 'inputs'}
+        def unsupported(job):
+            environments = re.findall(r'(?m)^    env:\n((?:      [^\n]*\n)+)', job)
+            self.assertEqual(len(environments), 1)
+            expressions = re.findall(r'\$\{\{(.*?)\}\}', environments[0])
+            roots = {match for expression in expressions
+                     for match in re.findall(r'\b([A-Za-z_]\w*)\s*\.', expression)}
+            return roots - allowed
+        controls = 0
+        for name in ('compatibility', 'sbt-full', 'mill-full'):
+            job = self.qualification_job(name)
+            self.assertEqual(unsupported(job), set())
+            self.assertIn('EVIDENCE_DIR: /tmp/lane-' + name + '-evidence', job)
+            self.assertIn('image: ghcr.io/spinalhdl/docker:v1.2.0', job)
+            for invalid in ('runner.temp', 'env.TEMP', 'steps.output', 'job.container'):
+                mutant = job.replace('EVIDENCE_DIR: /tmp/', 'EVIDENCE_DIR: ${{ ' + invalid + ' }}/')
+                self.assertTrue(unsupported(mutant), invalid)
+                controls += 1
+        print('LANE_JOB_ENV_CONTEXT_REJECTIONS_PASS controls=' + str(controls))
+
     def test_real_binary_source_and_report_abi_commands_are_mandatory(self):
         job = self.qualification_job('compatibility')
         for command in ('bash morphhdl/scripts/check-binary-compatibility.sh',
