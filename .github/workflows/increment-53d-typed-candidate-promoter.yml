@@ -1,0 +1,174 @@
+name: Validate and promote typed Increment 53d foundation
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elaboration
+    paths:
+      - .github/workflows/increment-53d-typed-candidate-promoter.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-candidate-promoter
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    steps:
+      - name: Check out clean typed Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elaboration
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Select a compileable typed prototype without trusting its roadmap scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          def output(*args):
+              return subprocess.check_output(args, text=True).splitlines()
+
+          branches = output(
+              'git', 'for-each-ref', '--format=%(refname:short)',
+              'refs/remotes/origin/agent'
+          )
+          candidates = []
+          for branch in branches:
+              lower = branch.lower()
+              if '53d' not in lower or 'typed' not in lower:
+                  continue
+              if lower.endswith('typed-elaboration'):
+                  continue
+              files = output(
+                  'git', 'diff', '--name-only',
+                  'origin/parameterized-verilog...' + branch
+              )
+              permanent = [
+                  value for value in files
+                  if not value.startswith('.github/workflows/')
+                  and '/scripts/' not in value
+                  and value not in {
+                      'docs/morphhdl/parameterized-verilog-todo.md',
+                      'docs/morphhdl/typed-elaboration-architecture.md'
+                  }
+              ]
+              names = '\n'.join(permanent).lower()
+              score = 0
+              score += 100 if 'elabint.scala' in names else 0
+              score += 100 if 'elabbool.scala' in names else 0
+              score += 40 if 'lib/src/main/scala/spinal/lib/stream.scala' in names else 0
+              score += 20 if 'streamwidth' in names and 'test' in names else 0
+              score += min(20, len(permanent))
+              if score >= 200:
+                  candidates.append((score, branch, permanent))
+
+          if not candidates:
+              raise SystemExit('no typed ElabInt/ElabBool prototype branch is available')
+
+          candidates.sort(reverse=True)
+          score, branch, files = candidates[0]
+          Path('/tmp/typed-candidate').write_text(branch + '\n')
+          Path('/tmp/typed-files').write_text('\n'.join(files) + '\n')
+          print('selected', branch, 'score', score)
+          print('\n'.join(files))
+          PY
+
+      - name: Copy only permanent implementation and regression files
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$(cat /tmp/typed-candidate)"
+          while IFS= read -r path; do
+            test -n "$path" || continue
+            if git cat-file -e "$candidate:$path" 2>/dev/null; then
+              mkdir -p "$(dirname "$path")"
+              git show "$candidate:$path" > "$path"
+            else
+              rm -f "$path"
+            fi
+          done < /tmp/typed-files
+          git diff --check
+
+      - name: Enforce typed architecture boundaries before compiling
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f docs/morphhdl/typed-elaboration-architecture.md
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          find . -path './.git' -prune -o -type f -print | \
+            grep -Ev '^./(lib/src/main/scala/spinal/lib/Stream.scala|.*test.*|docs/.*|morphhdl/scripts/.*)$' | \
+            xargs grep -lE 'class[[:space:]]+StreamWidthAdapter|object[[:space:]]+StreamWidthAdapter' \
+            > /tmp/replacement-adapters || true
+          test ! -s /tmp/replacement-adapters
+          ! grep -R --line-number --fixed-strings \
+            'implicit def elabIntToInt' . \
+            --exclude-dir=.git --exclude='*.md'
+          ! grep -R --line-number --fixed-strings \
+            'implicit def elabBoolToBoolean' . \
+            --exclude-dir=.git --exclude='*.md'
+
+      - name: Compile production and tests through SBT on both Scala versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for version in 2.12.18 2.13.12; do
+            sbt -batch "++${version}" compile Test/compile
+          done
+
+      - name: Run typed and inherited Increment 53d contracts through SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          for version in 2.12.18 2.13.12; do
+            sbt -batch "++${version}" \
+              'morph/testOnly morphhdl.NaturalSymbolicConditionalTests morphhdl.ParameterizedStreamWidthAdapterTests morphhdl.GenericNativeDefinitionBoundaryTests'
+          done
+
+      - name: Run the same contract surface through Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          for version in 2.12.18 2.13.12; do
+            /tmp/morphhdl-mill "morph[${version}].testOnly" \
+              morphhdl.NaturalSymbolicConditionalTests \
+              morphhdl.ParameterizedStreamWidthAdapterTests \
+              morphhdl.GenericNativeDefinitionBoundaryTests
+          done
+
+      - name: Publish validated permanent files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git rm .github/workflows/increment-53d-typed-candidate-promoter.yml
+          git add -A
+          git diff --cached --check
+          ! git diff --cached --name-only | grep -E '(^\.github/workflows/|/scripts/)'
+          git commit -m 'Establish typed elaboration foundation for Increment 53d'
+          git push origin HEAD:agent/increment-53d-typed-elaboration
