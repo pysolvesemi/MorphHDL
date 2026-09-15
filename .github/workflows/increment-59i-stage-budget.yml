@@ -1,0 +1,64 @@
+name: Increment 59i inherited budget source staging
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-stage-budget.yml
+      - .github/recovery/59i-budget-source/**
+
+# Only immutable exact blobs and commits; remote ref publication is separate.
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Read complete repository history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Reconstruct reviewed budget source and run unchanged source guards
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-budget-evidence"
+          python3 -B .github/recovery/59i-budget-source/stage_budget.py prepare \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-budget-source" \
+            --output "$RUNNER_TEMP/59i-budget-evidence" \
+            2>&1 | tee "$RUNNER_TEMP/59i-budget-evidence/prepare.log"
+      - name: Export exact connector tree requests
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-budget-tree-requests-f43100e4-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-budget-evidence
+          if-no-files-found: error
+          retention-days: 14
+      - name: Verify connector trees and stage exact source and seal commits
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-budget-source/stage_budget.py commits \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-budget-source" \
+            --output "$RUNNER_TEMP/59i-budget-evidence" \
+            2>&1 | tee "$RUNNER_TEMP/59i-budget-evidence/commits.log"
+      - name: Preserve exact object receipts and source checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-budget-staged-source-f43100e4-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-budget-evidence
+          if-no-files-found: error
+          retention-days: 14
