@@ -60,8 +60,8 @@ def main() -> int:
                         help="only validate existing JUnit files; does not run or claim a clean build")
     args = parser.parse_args()
     expected = json.loads((HERE / "regression-suites.json").read_text(encoding="utf-8"))
-    if len(expected) != 33 or sum(expected.values()) != 334:
-        raise RuntimeError("the reviewed 33-suite/334-test inventory changed")
+    if len(expected) != 33 or sum(expected.values()) != 336:
+        raise RuntimeError("the reviewed 33-suite/336-test inventory changed")
     frontend_expected = json.loads((HERE / "frontend-regression-suites.json").read_text(encoding="utf-8"))
     if len(frontend_expected) != 23 or sum(frontend_expected.values()) != 265:
         raise RuntimeError("the reviewed 23-suite/265-test frontend inventory changed")

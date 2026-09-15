@@ -155,6 +155,14 @@ Universally true/false classifications use compositional proofs where possible.
 accepted or that two witness tuples were necessarily found. Strong structural
 queries can still ask the exact engine to distinguish a mixed domain.
 
+The MorphVerilog publication entry point explicitly enables native legality on
+its private configuration copy; its independent witness path explicitly disables
+it. `ParameterizedVerilogMode` remains a baseline-compatible flags-only marker.
+Setting that marker alone does not authorize deferred requirements, and native
+legality setup must not leak into a subsequent marker-only SpinalVerilog call derived from
+the caller's original configuration. The unchanged external-boundary fixture
+still compiles the marker against the immutable Increment 0 native sources.
+
 Only an active native parameterized Component can retain a deferred obligation.
 Mixed requirements under a captured structural branch currently fail with
 `SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED`. They need branch activation
@@ -250,3 +258,22 @@ selected native JUnit case with zero failures/skips. Local
 `--java-classpath` driver runs are explicitly recorded as offline-classpath
 qualification using rebuilt changed modules and archived unchanged dependencies;
 they are never represented as clean SBT or exact-final-head GitHub CI.
+
+## Inherited qualification integration
+
+The native approval policy and canonical byte-span manifest must agree as well
+as individually validate. The dedicated independent-parameter workflow now
+regenerates the canonical manifest from the reviewed policy and requires a
+byte-for-byte match. Its explicit policy entries include the authenticated
+product-provenance and native-legality sources; no path wildcard or source-audit
+exception is added.
+
+The inherited 60f report validator retains all frozen predecessor catalogs.
+PR188 is an additive, source-authenticated successor requiring 2047 executed
+cases in 200 suites across eight projects, including 1162 native cases in 109
+suites and 265 frontend cases in 23 suites. Only the complete source cluster
+from the verified immutable overlay enables that catalog. XML alone, missing
+sources, changed baseline identities, missing/new/renamed cases and skipped
+reports cannot qualify it. The selected clean-build gate additionally requires
+336 native cases in 33 suites and all 265 frontend cases. These are mandatory
+inventories, not a claim that a pending final-head run has passed.

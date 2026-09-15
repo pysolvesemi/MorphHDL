@@ -177,4 +177,40 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
     assert(text.contains("quoted \\\"A\\\" and slash \\\\ then\\nnext line"))
   }
 
+  test("baseline mode marker alone cannot authorize deferred parameter publication") {
+    val dir = Files.createTempDirectory("symbolic-baseline-mode-")
+    val config = morphhdl.runtime.ParameterizedVerilogMode.enable(
+      SpinalConfig(targetDirectory = dir.toString, headerWithDate = false))
+    failsWith("SPINAL-ELAB-REQUIRE-PUBLICATION-CONTEXT-MISSING") {
+      SpinalVerilog(config)(new Component {
+        val din = in Bits(3 bits); val observed = out Bool(); observed := din.orR
+        legality(p("A") >= p("B"), "requires the native publication entry point")
+      })
+    }
+    val files = Files.list(dir)
+    try assert(!files.anyMatch(path => path.toString.endsWith(".v")))
+    finally files.close()
+  }
+
+  test("native legality setup is isolated from the caller configuration") {
+    val dir = Files.createTempDirectory("symbolic-isolated-config-")
+    val config = SpinalConfig(targetDirectory = dir.toString, headerWithDate = false)
+    val originalFlags = config.flags.toSet
+    config.netlistFileName = "native.v"
+    MorphVerilog(config)(new Component {
+      val din = in Bits(3 bits); val observed = out Bool(); observed := din.orR
+      legality(p("A") >= p("B"), "still guarded and fatal")
+    })
+    assert(config.flags.toSet == originalFlags)
+    assert(!morphhdl.runtime.ParameterizedVerilogMode.isEnabled(config))
+    val text = new String(Files.readAllBytes(dir.resolve("native.v")), StandardCharsets.UTF_8)
+    assert(text.contains("`ifndef SYNTHESIS") && text.contains("$fatal(1,"))
+    assert(!text.contains("$error("))
+    failsWith("SPINAL-ELAB-REQUIRE-PUBLICATION-CONTEXT-MISSING") {
+      SpinalVerilog(morphhdl.runtime.ParameterizedVerilogMode.enable(config))(new Component {
+        legality(p("A") >= p("B"), "no leaked native mode")
+      })
+    }
+  }
+
 }

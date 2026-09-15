@@ -2448,6 +2448,16 @@
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
           "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+          "baseline_span": {
+            "start": 6231,
+            "end": 6231,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6231,
+            "end": 6351,
+            "sha256": "75162dfc5052d657bd8d0e2f726e7725aeb448142435b0046895eaa749601aaa"
+          },
           "required_exact_text": [
             {
               "side": "approved",
@@ -2459,17 +2469,7 @@
               "text": "component.localNamingScope.allocateName(name)",
               "count": 1
             }
-          ],
-          "baseline_span": {
-            "start": 6231,
-            "end": 6231,
-            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-          },
-          "approved_span": {
-            "start": 6231,
-            "end": 6351,
-            "sha256": "75162dfc5052d657bd8d0e2f726e7725aeb448142435b0046895eaa749601aaa"
-          }
+          ]
         },
         {
           "id": "componentemitterverilog-wa10-depthcut-snapshot",
