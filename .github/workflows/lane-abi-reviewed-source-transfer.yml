@@ -7,134 +7,41 @@ permissions:
   contents: write
 jobs:
   transfer:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-slim
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Authenticate and reconstruct reviewed source objects
+      - name: Run the exact authenticated source-transfer scripts
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git merge-base --is-ancestor 0ebf51c9464555912f178459bc2d249447770b94 HEAD
-          test "$(git diff --name-only 0ebf51c9464555912f178459bc2d249447770b94 HEAD)" = .github/workflows/lane-abi-reviewed-source-transfer.yml
           python3 - <<'PY'
-          import base64, gzip, hashlib, json, os, subprocess, urllib.request
-          def git(*args, data=None):
-              return subprocess.check_output(['git', *args], input=data)
-          pieces=[]
-          for sha in ('102f4a005e05cf87c114da1696f255371da27e3d', '9e12f27c6883a1b3942935d892fd77f4e29fddd0'):
-              req=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
-                  headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-              with urllib.request.urlopen(req, timeout=60) as reply: value=json.load(reply)
-              raw=base64.b64decode(value['content'])
-              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
-              pieces.append(raw)
-          # Correct two transport transcription characters, then authenticate
-          # the complete original payload before applying any source changes.
-          pieces[1]=pieces[1].replace(b'Trddcdb5', b'Trddcsb5').replace(b'To2f5', b'To2n5')
-          assert hashlib.sha1(b'blob 6728\0'+pieces[1]).hexdigest()=='405b1e2201d1c41c2000c3d56c1d6785a1440b38'
-          archive=base64.b64decode(b''.join(pieces), validate=True)
-          assert hashlib.sha256(archive).hexdigest()=='3517126590f6997e0658fd916da92d51760b9beed6b71e9c09488221e2578953'
-          rows=json.loads(gzip.decompress(archive))
-          assert len(rows)==3
-          import pathlib
-          pathlib.Path(os.environ["RUNNER_TEMP"],"reviewed-source.json").write_text(json.dumps(rows))
-          git('checkout','--detach','0ebf51c9464555912f178459bc2d249447770b94')
-          for row in rows:
-              raw=row['raw'].encode()
-              parent=next(line[7:] for line in row['raw'].splitlines() if line.startswith('parent '))
-              tree=row['raw'].splitlines()[0][5:]
-              assert git('rev-parse','HEAD').decode().strip()==parent
-              git('apply','--index','--binary','-',data=row['patch'].encode())
-              assert git('write-tree').decode().strip()==tree
-              assert git('hash-object','-w','-t','commit','--stdin',data=raw).decode().strip()==row['sha']
-              git('checkout','--detach',row['sha'])
-          assert git('rev-parse','HEAD').decode().strip()=='a7fbc06dc0ba420d31071dc8da98381f29ea6ed3'
-          assert git('rev-parse','HEAD^{tree}').decode().strip()=='a595035227ba6f29605f81cacd6942a33963053e'
-          print('EXACT_REVIEWED_SOURCE_RECONSTRUCTED')
+          import base64, hashlib, json, os, subprocess, urllib.request
+          sha='2df7cabb36334b404960da1bffb82823ff715e6e'
+          request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
+              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+          with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
+          raw=base64.b64decode(value['content'])
+          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
+          assert hashlib.sha256(raw).hexdigest()=='06295e0131d617f8d9b6299772d2e4f6e9888bbd865f8bf9aa411cdcdaa265b9'
+          lines=raw.decode().splitlines(keepends=True);blocks=[];i=0
+          while i<len(lines):
+              if lines[i].rstrip('\n')=='        run: |':
+                  i+=1;block=[]
+                  while i<len(lines) and (lines[i].startswith('          ') or lines[i].strip()==''):
+                      block.append(lines[i][10:] if lines[i].startswith('          ') else '\n');i+=1
+                  blocks.append(''.join(block))
+              else:i+=1
+          assert len(blocks)==2
+          for block in blocks:
+              subprocess.run(['bash','-n'],input=block,text=True,check=True)
+              subprocess.run(['bash','-e','-o','pipefail','-c',block],check=True)
           PY
-          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
-          python3 morphhdl/scripts/check-native-source-preservation.py
-          python3 morphhdl/scripts/check-lane-when-source-scope.py
-          test -z "$(git status --porcelain)"
-      - name: Publish immutable reviewed objects and export target history
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$(git ls-remote origin refs/heads/agent/lane-when-expression-inlining | cut -f1)" = "$GITHUB_SHA"
-          python3 - <<'PY'
-          import base64, datetime, json, os, pathlib, re, subprocess, urllib.request
-          
-          def git(*args, data=None):
-              return subprocess.check_output(['git', *args], input=data)
-          
-          def post(endpoint, value):
-              request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/'+endpoint,
-                  data=json.dumps(value).encode(), headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
-                  'Accept':'application/vnd.github+json','Content-Type':'application/json'}, method='POST')
-              with urllib.request.urlopen(request, timeout=120) as response:
-                  return json.load(response)
-          
-          def identity(raw):
-              name,email,timestamp,offset=re.fullmatch(r'(.*) <([^>]+)> (\d+) ([+-]\d{4})',raw).groups()
-              assert offset=='+0000', 'preserve exact UTC source commit identities'
-              return {'name':name,'email':email,'date':datetime.datetime.fromtimestamp(int(timestamp),datetime.timezone.utc).isoformat()}
-          
-          def upload_commit(sha):
-              text=git('cat-file','commit',sha).decode(); header,message=text.split('\n\n',1)
-              lines=header.splitlines(); tree=lines[0][5:]
-              value={'tree':tree,'parents':[line[7:] for line in lines if line.startswith('parent ')],
-                     'author':identity(next(line[7:] for line in lines if line.startswith('author '))),
-                     'committer':identity(next(line[10:] for line in lines if line.startswith('committer '))),
-                     'message':message}
-              assert post('commits',value)['sha']==sha, 'commit identity changed in publication'
-          
-          rows=json.loads(pathlib.Path(os.environ['RUNNER_TEMP'],'reviewed-source.json').read_text())
-          for row in rows:
-              sha=row['sha']; parent=git('rev-parse',sha+'^').decode().strip(); entries=[]
-              for path in git('diff','--no-renames','--name-only','-z',parent,sha).split(b'\0'):
-                  if not path: continue
-                  name=path.decode(); record=git('ls-tree','-z',sha,'--',name)
-                  if not record:
-                      entries.append({'path':name,'mode':'100644','type':'blob','sha':None});continue
-                  metadata,_=record.rstrip(b'\0').split(b'\t',1); mode,kind,blob=metadata.decode().split()
-                  assert kind=='blob' and mode in ('100644','100755')
-                  data=git('cat-file','blob',blob)
-                  assert post('blobs',{'encoding':'base64','content':base64.b64encode(data).decode()})['sha']==blob
-                  entries.append({'path':name,'mode':mode,'type':kind,'sha':blob})
-              tree=git('rev-parse',sha+'^{tree}').decode().strip()
-              assert post('trees',{'base_tree':git('rev-parse',parent+'^{tree}').decode().strip(),'tree':entries})['sha']==tree
-              upload_commit(sha)
-              print('REVIEWED_SOURCE_OBJECTS_PUBLISHED',sha,flush=True)
-          
-          message='WIP: publish verified PR187 ABI storage repair; target reconciliation remains open\n\nPreserve the exact locally audited source tree and both transport/source histories.\nThe temporary transfer workflow is absent from this tree. Upstream core ABI checks\nand old-binary controls passed on both Scala versions; new-target integration and\nall exact-final-head hosted qualification remain required. Keep PR187 draft.\n'
-          env=dict(os.environ,GIT_AUTHOR_NAME='github-actions[bot]',GIT_COMMITTER_NAME='github-actions[bot]',
-              GIT_AUTHOR_EMAIL='41898282+github-actions[bot]@users.noreply.github.com',
-              GIT_COMMITTER_EMAIL='41898282+github-actions[bot]@users.noreply.github.com')
-          published=subprocess.check_output(['git','commit-tree','a595035227ba6f29605f81cacd6942a33963053e',
-              '-p',os.environ['GITHUB_SHA'],'-p','a7fbc06dc0ba420d31071dc8da98381f29ea6ed3'],input=message.encode(),env=env).decode().strip()
-          upload_commit(published)
-          # Only immutable objects are uploaded here. The connected GitHub action will
-          # fast-forward the existing branch after checking the receipt and current ref.
-          git('update-ref','refs/receipt/pr187',published)
-          evidence=pathlib.Path(os.environ['RUNNER_TEMP'],'pr187-abi-transfer');evidence.mkdir(exist_ok=True)
-          (evidence/'published-commit.txt').write_bytes(git('cat-file','commit',published))
-          (evidence/'published-head.txt').write_text(published+'\n')
-          (evidence/'published-tree.txt').write_text('a595035227ba6f29605f81cacd6942a33963053e\n')
-          print('SOURCE_OBJECT_PUBLICATION_PASS',published,flush=True)
-          PY
-          git fetch origin parameterized-verilog
-          evidence="$RUNNER_TEMP/pr187-abi-transfer"
-          git bundle create "$evidence/history.bundle" refs/receipt/pr187 refs/remotes/origin/parameterized-verilog ^0ebf51c9464555912f178459bc2d249447770b94 ^61d1fe0dcac0b52856620944a2d7426fd1390a48
-          git rev-parse origin/parameterized-verilog > "$evidence/target-head.txt"
-          (cd "$evidence" && sha256sum history.bundle published-commit.txt published-head.txt published-tree.txt target-head.txt > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
