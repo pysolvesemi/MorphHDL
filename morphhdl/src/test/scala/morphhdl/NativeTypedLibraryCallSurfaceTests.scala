@@ -88,7 +88,9 @@ class NativeTypedLibraryCallSurfaceTests extends AnyFunSuite {
       val predicate: ElabBool = left < right
       predicate.isSymbolic
     }
-    assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    // The legacy frontend-created predicate has no native product proof.
+    // It must still fail rather than acquiring authority from its defaults.
+    assert(error.code == "SPINAL-ELAB-DOMAIN-PRODUCT-AUTHORITY-MISSING")
   }
 
   test("ordinary native calls emit typed Counter Stream Flow Mem Vec and hierarchy RTL") {

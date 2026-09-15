@@ -80,12 +80,25 @@ class AnalyzedFrontendBooleanTests extends AnyFunSuite {
     assert(error.code == "MORPH-FRONTEND-STRUCTURAL-LOCAL-PARAMETER-UNSUPPORTED")
   }
 
-  test("native Boolean normalization retains independent-root diagnostics") {
+  test("frontend-composed independent predicates require native product authority") {
     val enabled = HdlBool.param("ENABLE", default = false)
     val bypass = HdlBool.param("BYPASS", default = true)
     val error = intercept[ParameterizedVerilogException] {
       (enabled || bypass).asElabBool
     }
-    assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    // The frontend-composed AST has no native multi-root certificate. Do not
+    // make this path authoritative from its default or public metadata.
+    assert(error.code == "SPINAL-ELAB-DOMAIN-PRODUCT-AUTHORITY-MISSING")
+  }
+
+  test("independent native integer predicates compose after declaration ingress") {
+    val a = HdlInt.param("A", default = 4, min = 1, max = 8).asElabInt
+    val b = HdlInt.param("B", default = 4, min = 1, max = 8).asElabInt
+    assert(((a > 0) && (b > 0)).isAlwaysTrue)
+    assert(((a < 0) || (b < 0)).isAlwaysFalse)
+    val mixed = (a > 2) && (b > 2)
+    assert(mixed.isSymbolic)
+    assert(!mixed.isAlwaysTrue && !mixed.isAlwaysFalse)
+    assert(mixed.parameters.map(_.name).toSet == Set("A", "B"))
   }
 }

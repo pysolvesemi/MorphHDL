@@ -25,18 +25,20 @@ private[spinal] object ElabFormalComponent {
       if (actual.parameters.isEmpty)
         "SPINAL-ELAB-FORMAL-ACTUAL-LITERAL-INVALID"
       else "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED"
-    actual.requireAuthoritativeIntegerDomain(
-      "typed formal actual",
-      authoredFailureCode,
-      requireExactExtrema = false
-    )
+    val trustedSymbolic = ElaborationProductDomain.isRetained(actual.expression)
+    if (trustedSymbolic) ElaborationProductDomain.requireInteger(actual.expression, "typed formal actual")
+    else actual.requireAuthoritativeIntegerDomain(
+      "typed formal actual", authoredFailureCode, requireExactExtrema = false)
     val expression = actual.projectedExpression("typed formal actual")
-    ElabInt.requireAuthoritativeIntegerDomain(
-      expression,
-      "typed formal actual",
-      authoredFailureCode,
-      requireExactExtrema = true
-    )
+    if (trustedSymbolic) {
+      // Scalar binding itself needs an authentic parent expression, not a joint
+      // value table. A fresh definition-side root below still supplies the
+      // child's structural authority. Keep projected compound bindings closed.
+      ElaborationProductDomain.owner(expression, "typed formal actual", expression.sourceLocation) {
+        (_, universe) => universe
+      }
+    } else ElabInt.requireAuthoritativeIntegerDomain(
+      expression, "typed formal actual", authoredFailureCode, requireExactExtrema = true)
     val source = expression.sourceLocation.orElse(Some(s"<typed-formal:$name>"))
     // A validated parameter-free expression is the literal-authoritative path:
     // the generic formal registry emits that concrete actual directly while the
