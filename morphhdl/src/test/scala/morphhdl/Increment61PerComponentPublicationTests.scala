@@ -578,8 +578,13 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
         val fileArguments = sources.map(_.toString)
         NativeWireCompatibility.run(directory,
           Seq("iverilog", "-g2001", "-s", topName, "-tnull") ++ fileArguments)
+        // The synthesizable hardware remains Verilog-2001. PR188's guarded
+        // $fatal diagnostic needs a SystemVerilog parser; check that view too,
+        // without SYNTHESIS, and retain the unguarded runtime rejection below.
         NativeWireCompatibility.run(directory,
-          Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module", topName) ++ fileArguments)
+          Seq("verilator", "--lint-only", "--language", "1364-2001", "-DSYNTHESIS", "--top-module", topName) ++ fileArguments)
+        NativeWireCompatibility.run(directory,
+          Seq("verilator", "--lint-only", "--assert", "--language", "1800-2012", "--top-module", topName) ++ fileArguments)
         NativeWireCompatibility.run(directory, Seq("yosys", "-q", "-p",
           s"read_verilog -noautowire ${fileArguments.mkString(" ")}; hierarchy -check -top $topName; proc; memory; flatten; opt; check -assert; write_verilog synthesized.v"))
         assert(!read(directory.resolve("synthesized.v")).contains(diagnostic))

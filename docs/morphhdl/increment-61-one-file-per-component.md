@@ -91,6 +91,16 @@ production files are unchanged. Focused coverage extends an existing publication
 test to exercise the new legality behavior in per-component output; the 16
 publication and four compatibility test identities remain mandatory.
 
+The first PR-188 integration head `a41149a587f09b35e99629d515ee9c4c51a98646`
+failed baseline run `34982727655` and publication run `34982721641` in both Scala
+lanes because the new test sent a guarded `$fatal` task to Verilator's strict
+Verilog-2001 parser. This is a test-command dialect error. The repair keeps the
+hardware lint in Verilog-2001 with `SYNTHESIS` defined and adds a separate
+SystemVerilog-2012 diagnostic lint without that define. Icarus compilation,
+Yosys synthesis, and all six legal/illegal simulation tuples in both publication
+modes remain mandatory. Production RTL, fatal behavior, domains, and test
+identities are unchanged. The repaired head requires fresh qualification.
+
 The source inventory is anchored to the complete PR-188 target. Current core,
 frontend and pass sources match that target exactly, except the separately
 reviewed signature registry. Its 98-entry inventory is unchanged; four digests
