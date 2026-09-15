@@ -1,0 +1,75 @@
+name: CDC independent parameter consumers
+
+on:
+  push:
+    branches: [agent/cdc-independent-parameter-consumers]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - 'core/src/main/scala/spinal/core/**'
+      - 'morphruntime/**'
+      - 'morphhdl/src/main/scala/spinal/core/internals/**'
+      - 'morphhdl/src/test/scala/**'
+      - 'repro/cdc-independent-parameters/**'
+      - '.github/workflows/cdc-independent-parameter-consumers.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdc-independent-consumers-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SBT_TEST_PARALLEL: '0'
+  JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
+  JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
+
+jobs:
+  baseline-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Reproduce exact reported baseline diagnostics, not feature success
+        run: |
+          set -euo pipefail
+          mkdir -p cdc-independent-evidence
+          git rev-parse HEAD | tee cdc-independent-evidence/head.txt
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
+          git merge-base --is-ancestor 7f355a859e7e88ca343e1ff82f261fb47b3311d0 HEAD
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          # Only the two sealed review-metadata files may differ from the baseline.
+          git diff --exit-code 7f355a859e7e88ca343e1ff82f261fb47b3311d0 -- core morphruntime morphhdl frontend \
+            ':(exclude)morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
+            ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          python3 repro/cdc-independent-parameters/test_source_review.py
+          java -version
+          iverilog -V
+          verilator --version
+          yosys -V
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors 'runMain CdcIndependentParametersRepro /tmp/cdc-pr188-repro' 2>&1 | tee ../../cdc-independent-evidence/baseline.log
+          python3 check_baseline.py ../../cdc-independent-evidence/baseline.log
+          cp -a /tmp/cdc-pr188-repro ../../cdc-independent-evidence/baseline-rtl
+      - name: Retain allowlisted build tools for offline reproduction
+        run: python3 repro/cdc-independent-parameters/export_tools.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdc-independent-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: cdc-independent-evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -2,6 +2,12 @@
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
   "files": [
     {
+      "path": ".github/workflows/cdc-independent-parameter-consumers.yml",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "1671e6f3975e0eaa00ecb43239cbf9b7fd0872946c4f01380b5aa2bd86e98b8f"
+    },
+    {
       "path": ".github/workflows/increment-59d-widening.yml",
       "mode": "100644",
       "before_sha256": "2094f8544efd0664681b914746ac7a79f90af7cd1c607c632396facef7095715",
@@ -842,6 +848,48 @@
       "after_sha256": "0ef3093195b903a7da48a6d85a4b8d07e6dfee9b2b08afb5bd160186bf71c009"
     },
     {
+      "path": "repro/cdc-independent-parameters/.gitignore",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "24792225770216dfa8f9ce6544ba53ebaff6a4c5ec647ec4c9c8764417d807f5"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/build.sbt",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "b146821213208ec7e855a24330a59b50824c579451173f6031550d10e649e952"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/check_baseline.py",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "97def4d7bbb624d74e33d2041f4689c0b348d3f4c90607f7af96985da0e85603"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/export_tools.py",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "f309268c103019eff0bceeb888978e0806525ddbeae005606a1cc65af8b1b651"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/project/build.properties",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "7eec732340313479433996321d158c6fb684d2df4b0e80648c10fa3603c763da"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/src/main/scala/CdcIndependentParametersRepro.scala",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "0d5c158927487c933e1614e5bb970d1f0413ff7b9265a6cf3f6bdf23bda7d29c"
+    },
+    {
+      "path": "repro/cdc-independent-parameters/test_source_review.py",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "b23d99b0f93a5bd6eaae0a6b32d59180905e1b462434acb9dbb9fc28d8d5be7e"
+    },
+    {
       "path": "repro/independent-parameters/.gitignore",
       "mode": "100644",
       "before_sha256": null,
@@ -944,7 +992,7 @@
       "after_sha256": "ac72e384a76209c317e3b05d53849db39649c17b6622a1e75474f475cddb6a1d"
     }
   ],
-  "final_source_commit": "b9631a9e1613d38ed97f4a14f0ef29cd40f4de7b",
+  "final_source_commit": "8f8f0bc493fa274246aeda084d80751442cff8ad",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
