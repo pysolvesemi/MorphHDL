@@ -45,6 +45,7 @@ jobs:
           git rev-parse HEAD > target/increment-60f/head.txt
           git archive HEAD | gzip > target/increment-60f/source.tar.gz
           python3 morphhdl/scripts/test-increment-60f-source-budget.py
+          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
           python3 morphhdl/scripts/test-increment-60f-source-scheduling.py
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py

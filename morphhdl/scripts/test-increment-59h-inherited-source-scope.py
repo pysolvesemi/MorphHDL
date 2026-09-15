@@ -84,8 +84,11 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
 
 
 def current_positive_timeout(root: Path) -> int:
-    # The reviewed 59i parent-union audit retains its existing 900s budget.
-    # Target-only positives keep 600s; no historical, negative, or Git budget changes.
+    # The complete 60f traversal needs the same successor-only 3600s as
+    # its own inherited harness. The older 900/600s selections, all 180s
+    # negatives and historical checks, and all 120s Git limits are unchanged.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
     return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
 
 

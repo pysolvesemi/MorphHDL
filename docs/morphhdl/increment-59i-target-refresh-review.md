@@ -161,3 +161,28 @@ additional tests cover both marker states, actual joined entrypoint propagation,
 and failed or timed-out processes. No rejection case or proof invocation is
 removed, and the 59d/59h workflow fields and commands from both parents survive.
 This record does not assert full Scala, hardware, formal or final-head CI success.
+
+## Remaining inherited caller budgets
+
+The current-positive paths in 59c, 59f, 59g and 59h all invoke the same
+`check-increment-60f-equivalence-closure.py::source_scope` traversal as 59b,
+59d and 60f. A production-successor checkout therefore selects the already
+reviewed 3600-second positive budget at each of these four callers. The older
+parent-union selection remains 900 seconds. With neither marker present, 59c,
+59f and 59h retain 600 seconds and 59g retains 180 seconds. Historical fixture,
+negative-case and Git-operation budgets are unchanged.
+
+The new scheduling suite checks the real caller entrypoints using synthetic
+process results, preserves whole-harness AST fingerprints from `214774fb`, and
+rejects selector, process-status and hidden historical-budget mutations. Its
+fingerprint projection reverses only the four explicit budget-selector edits;
+it does not remove, bypass or cache any audit. Existing source-budget and
+incoming timeout suites remain enrolled without alteration.
+
+The enclosing standalone 59b job allows 90 minutes instead of 10, because its
+current positive alone can use 60 minutes. The 59c job allows 120 minutes
+instead of 75, retaining the same remaining time after the current-positive
+budget increases by 45 minutes. All existing workflow commands, matrices,
+checks and proof limits are retained; new test enrollment is additive. These
+finite resource caps are not proof results. Direct current-head harness runs
+and all remaining Scala/RTL/CI qualification are still required.

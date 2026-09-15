@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     # The expanded nested matrix proves every output partition; each tool and
     # solver retains its strict 180-second and 120-second deadline.
-    timeout-minutes: 75
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:

@@ -76,12 +76,21 @@ def frozen_59c_controls(root: Path, current_check) -> None:
     print("59c current-source controls PASS: current complete 59g audit; frozen 59c mutations separately scoped", flush=True)
 
 
+def current_positive_timeout(root: Path) -> int:
+    # This caller runs the same complete 60f audit measured at 1621.921s.
+    # Presence selects only a finite resource budget; the audit must still
+    # authenticate every source byte. Historical/negative limits stay intact.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 180
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     # The complete 427-file parent-union traversal already needs a 900s
     # positive budget in the 59h harness (487.055s on the sealed tree).
     # Keep every negative at 180s and all frozen historical limits intact.
-    timeout = 900 if (ROOT / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 180
+    timeout = current_positive_timeout(ROOT)
     records = [check(ROOT, "current exact 59g source and all inherited guards",
                      timeout_seconds=timeout)]
     spec = importlib.util.spec_from_file_location("bridge_review", ROOT / "morphhdl/scripts/check-increment-59g-source-review.py")
