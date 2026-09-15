@@ -15,190 +15,35 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Apply exact source, retain audit invariants and publish only immutable Git objects
+      - name: Reuse the exact audited correction with its prepublished workflow tree
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64, copy, datetime, gzip, hashlib, json, os, re, subprocess, urllib.request, urllib.parse, urllib.error
-          from pathlib import Path
-          repo = 'pysolvesemi/MorphHDL'
-          branch = 'agent/independent-parameter-domain-composition'
-          baseline = 'e32abcd43fd09cf410c430cdf8b5b5238f68d87c'
-          workflow = '.github/workflows/pr188-resume-housekeeping.yml'
-          expected_tree = 'b250429bd64641879f1634b411319d86f607d8a2'
-          paths = {
-              '.github/workflows/independent-parameter-domains.yml',
-              'docs/morphhdl/independent-parameter-domains.md',
-              'morphhdl/contracts/increment-55-native-change-review.json',
-              'morphhdl/contracts/native-source-preservation.json',
-              'morphhdl/scripts/check-increment-60f-artifacts.py',
-              'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala',
-              'morphhdl/src/test/scala/spinal/core/SymbolicPublicationEvidenceTests.scala',
-              'morphruntime/src/main/scala/morphhdl/runtime/ParameterizedVerilogMode.scala',
-              'repro/independent-parameters/qualify.py',
-              'repro/independent-parameters/regression-suites.json',
-          }
-          assert os.environ['GITHUB_REPOSITORY'] == repo
-          assert os.environ['GITHUB_REF'] == 'refs/heads/' + branch
-          evidence = Path(os.environ['RUNNER_TEMP']) / 'pr188-ci-candidate'
-          evidence.mkdir()
-          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'}
-          base = 'https://api.github.com/repos/' + repo
-          def api(path, payload=None, method=None):
-              body = json.dumps(payload).encode() if payload is not None else None
-              req = urllib.request.Request(base + path, data=body, headers=headers, method=method or ('POST' if payload is not None else 'GET'))
-              with urllib.request.urlopen(req, timeout=120) as response:
-                  raw = response.read()
-                  return json.loads(raw) if raw else None
-          def rawgit(*args):
-              return subprocess.check_output(['git', *args])
-          def git(*args):
-              return rawgit(*args).decode().strip()
-          def run(*args):
-              subprocess.run(args, check=True)
-          start = git('rev-parse', 'HEAD')
-          assert start == os.environ['GITHUB_SHA']
-          assert git('rev-parse', 'HEAD^') == baseline
-          assert not git('status', '--porcelain')
-          assert set(git('diff', '--name-only', baseline, start).splitlines()) == {workflow}
-          allowed = {baseline, start}
-          cancellations = []
-          def cancel_obsolete():
-              rows = []
-              for head in sorted(allowed):
-                  page = 1
-                  while True:
-                      query = urllib.parse.urlencode({'branch': branch, 'head_sha': head, 'per_page': 100, 'page': page})
-                      batch = api('/actions/runs?' + query)['workflow_runs']
-                      rows.extend(batch)
-                      if len(batch) < 100: break
-                      page += 1
-              for run_id in sorted({row['id'] for row in rows if row['status'] != 'completed'} - {int(os.environ['GITHUB_RUN_ID'])}):
-                  row = api('/actions/runs/' + str(run_id))
-                  assert row['head_branch'] == branch and row['head_sha'] in allowed
-                  assert row['head_repository']['full_name'] == repo
-                  if row['status'] == 'completed': continue
-                  try:
-                      api('/actions/runs/' + str(run_id) + '/cancel', method='POST')
-                      code = 202
-                  except urllib.error.HTTPError as error:
-                      if error.code != 409: raise
-                      code = 409
-                  cancellations.append({'id': run_id, 'head': row['head_sha'], 'http_status': code})
-              (evidence / 'cancellations.json').write_text(json.dumps(cancellations, indent=2) + '\n')
-          cancel_obsolete()
-          chunks = []
-          for sha in ('10a69c6c23337a4caefd18a2969a1e1c0711a6c1',
-                      '12776e8a5c2c67025e04ad6d67e5043b3eb549ba',
-                      '8449770edfc9b7d63f6baea0709896e13310aa97',
-                      '91021fd4539a4678b4e7ae6c6ac7cebd471f4a54',
-                      '7d783a944b6b667bf6d0a090c154c85ea0585675',
-                      '4e4c63538edb2d40224a529a653a063aed4dc4bd',
-                      '6105b04c67f8b720fc151a7a4460ed428828fa2c'):
-              packed = api('/git/blobs/' + sha)
-              assert packed['encoding'] == 'base64'
-              chunk = base64.b64decode(packed['content'])
-              assert hashlib.sha1(b'blob ' + str(len(chunk)).encode() + b'\0' + chunk).hexdigest() == sha
-              chunks.append(chunk)
-          compressed = b''.join(chunks)
-          assert hashlib.sha1(b'blob ' + str(len(compressed)).encode() + b'\0' + compressed).hexdigest() == '982e929765104ea46280d957501d00adc75b1f0f'
-          patch = gzip.decompress(compressed)
-          assert len(patch) == 37358
-          assert hashlib.sha256(patch).hexdigest() == '889fc7c95e5033e8a71cfdec0da87577c5fd5819c7a0c5fe5df573165dab95c9'
-          patch_path = evidence / 'ci-source.patch'
-          patch_path.write_bytes(patch)
-          run('git', 'apply', '--index', '--check', str(patch_path))
-          run('git', 'apply', '--index', str(patch_path))
-          assert set(git('diff', '--cached', '--name-only').splitlines()) == paths
-          run('git', 'rm', workflow)
-          assert git('write-tree') == expected_tree
-          run('git', 'diff', '--cached', '--check')
-          run('git', 'config', 'user.name', 'github-actions[bot]')
-          run('git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
-          run('git', 'commit', '-m', 'fix: restore baseline boundary and enroll exact independent-parameter regressions', '-m', 'Separate the baseline-compatible mode marker from native legality setup, retain guarded fatal diagnostics, synchronize the reviewed native policy and canonical manifest, and add the authenticated PR188 successor test inventory without changing predecessor obligations. Local baseline tests, 336 selected native tests, 265 frontend tests, 40 Python tests, 4130 inventory rejection controls and the unchanged-DUT tool matrices passed. Final-head CI remains mandatory.')
-          source = git('rev-parse', 'HEAD')
-          assert git('rev-parse', 'HEAD^{tree}') == expected_tree
-          manifest_path = Path('morphhdl/contracts/increment-62-wa08-source-overlay.json')
-          helper_path = Path('morphhdl/scripts/check-increment-62-wa08-source-overlay.py')
-          old = json.loads(manifest_path.read_text())
-          value = copy.deepcopy(old)
-          assert len(value['files']) == 157 and value['final_source_commit'] == '9e387d9c7c4e8a964819e55f245b80bdcb179c1f'
-          updates = []
-          for entry in value['files']:
-              if entry['path'] in paths:
-                  entry['after_sha256'] = hashlib.sha256(Path(entry['path']).read_bytes()).hexdigest()
-                  updates.append(entry['path'])
-          assert len(updates) == 9
-          for before, after in zip(old['files'], value['files']):
-              assert all(before[key] == after[key] for key in ('path', 'mode', 'before_sha256'))
-              if before['path'] not in updates: assert before == after
-          value['final_source_commit'] = source
-          manifest_path.write_text(json.dumps(value, indent=2) + '\n')
-          helper = helper_path.read_text()
-          normalized = lambda text: re.sub(r'^CONTRACT_SHA256 = "[^"]+"$', 'CONTRACT_SHA256 = "MANIFEST_HASH"', text, count=1, flags=re.M)
-          assert hashlib.sha256(normalized(helper).encode()).hexdigest() == old['helper_normalized_sha256']
-          helper_path.write_text(re.sub(r'^CONTRACT_SHA256 = "[0-9a-f]+"$', 'CONTRACT_SHA256 = "' + hashlib.sha256(manifest_path.read_bytes()).hexdigest() + '"', helper, count=1, flags=re.M))
-          assert normalized(helper_path.read_text()) == normalized(helper)
-          run('git', 'add', str(manifest_path), str(helper_path))
-          assert set(git('diff', '--cached', '--name-only').splitlines()) == {str(manifest_path), str(helper_path)}
-          run('git', 'commit', '-m', 'chore: seal reviewed PR188 boundary and inventory corrections', '-m', 'Preserve all 157 paths, baseline hashes, modes and checker logic. Update only the nine reviewed file hashes and the actual immutable source anchor. Final-head compiler and native tool validation remains required before merge.')
-          final = git('rev-parse', 'HEAD')
-          commands = [
-              ['python3', 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'],
-              ['python3', 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py', '--self-test'],
-              ['python3', 'morphhdl/scripts/check-native-source-preservation.py'],
-              ['python3', 'morphhdl/scripts/check-native-source-preservation.py', '--self-test'],
-              ['python3', 'morphhdl/scripts/check-native-source-preservation.py', '--generate-template', 'morphhdl/contracts/increment-55-native-change-review.json', '--output', str(evidence / 'regenerated-native-manifest.json')],
-              ['cmp', 'morphhdl/contracts/native-source-preservation.json', str(evidence / 'regenerated-native-manifest.json')],
-              ['python3', 'morphhdl/scripts/check-increment-60f-artifacts.py', 'self-test'],
-              ['python3', 'morphhdl/scripts/check-production-retirement.py'],
-              ['python3', 'morphhdl/scripts/check-production-retirement.py', '--self-test'],
-              ['python3', 'morphhdl/scripts/check-typed-layering-ir.py'],
-              ['python3', 'morphhdl/scripts/check-typed-layering-ir.py', '--self-test'],
-              ['python3', '-m', 'unittest', 'discover', '-s', 'repro/independent-parameters', '-p', 'test_*.py', '-v'],
-          ]
-          with (evidence / 'source-checks.log').open('w') as log:
-              for command in commands:
-                  log.write(repr(command) + '\n'); log.flush()
-                  subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
-          assert not git('status', '--porcelain')
-          assert not Path(workflow).exists()
-          def upload_commit(sha):
-              parent = git('rev-parse', sha + '^')
-              entries = []
-              for path in git('diff', '--no-renames', '--name-only', parent, sha).splitlines():
-                  row = git('ls-tree', sha, '--', path)
-                  if not row:
-                      entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': None})
-                      continue
-                  mode, kind, blob = row.split('\t', 1)[0].split()
-                  assert kind == 'blob' and mode in ('100644', '100755')
-                  result = api('/git/blobs', {'encoding': 'base64', 'content': base64.b64encode(rawgit('cat-file', 'blob', blob)).decode()})
-                  assert result['sha'] == blob
-                  entries.append({'path': path, 'mode': mode, 'type': kind, 'sha': blob})
-              tree = api('/git/trees', {'base_tree': git('rev-parse', parent + '^{tree}'), 'tree': entries})
-              assert tree['sha'] == git('rev-parse', sha + '^{tree}')
-              header, message = rawgit('cat-file', 'commit', sha).split(b'\n\n', 1)
-              def identity(role):
-                  match = re.search(rb'^' + role.encode() + rb' (.*) <([^<>]+)> ([0-9]+) ([+-][0-9]{4})$', header, re.M)
-                  assert match and match[4] == b'+0000'
-                  date = datetime.datetime.fromtimestamp(int(match[3]), datetime.timezone.utc).isoformat().replace('+00:00', 'Z')
-                  return {'name': match[1].decode(), 'email': match[2].decode(), 'date': date}
-              result = api('/git/commits', {'tree': tree['sha'], 'parents': [parent], 'message': message.decode(), 'author': identity('author'), 'committer': identity('committer')})
-              assert result['sha'] == sha, 'remote Git object identity differs from checked local commit'
-          upload_commit(source)
-          upload_commit(final)
-          assert api('/git/ref/heads/' + branch)['object']['sha'] == start, 'branch moved; candidate not applied'
-          run('git', 'bundle', 'create', str(evidence / 'source.bundle'), 'HEAD', '^' + start)
-          summary = {'status': 'prepared_and_source_audited_NOT_final_CI_NOT_ref_updated', 'trigger_head': start, 'source_head': source, 'source_tree': expected_tree, 'candidate_head': final, 'candidate_tree': git('rev-parse', 'HEAD^{tree}'), 'reviewed_updates': sorted(updates), 'overlay_paths': 157, 'commands': commands}
-          (evidence / 'candidate.json').write_text(json.dumps(summary, indent=2) + '\n')
-          (evidence / 'source.patch').write_bytes(rawgit('diff', '--binary', baseline, final))
-          cancel_obsolete()
-          print(json.dumps(summary, indent=2))
-          PY
+          python3 - <<'PYCODE'
+          import hashlib, subprocess, textwrap
+          anchor = '35ae59313c6f4c142a2f0c25937a20f7d6420270'
+          path = '.github/workflows/pr188-resume-housekeeping.yml'
+          raw = subprocess.check_output(['git', 'show', anchor + ':' + path])
+          expected = '0888ce615830c2ea29fdbc651d567e33a9a72c9b'
+          assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == expected
+          source = textwrap.dedent(raw.decode().split("          python3 - <<'PY'\n", 1)[1].split('          PY\n', 1)[0])
+          old = "assert git('rev-parse', 'HEAD^') == baseline"
+          new = "assert git('rev-parse', 'HEAD^') == '35ae59313c6f4c142a2f0c25937a20f7d6420270'"
+          assert source.count(old) == 1
+          source = source.replace(old, new)
+          source = source.replace('allowed = {baseline, start}', "allowed = {baseline, start, '35ae59313c6f4c142a2f0c25937a20f7d6420270'}")
+          old = "    tree = api('/git/trees', {'base_tree': git('rev-parse', parent + '^{tree}'), 'tree': entries})"
+          new = "    if git('rev-parse', sha + '^{tree}') == expected_tree:\n        tree = api('/git/trees/' + expected_tree)\n    else:\n" + '    ' + old
+          assert source.count(old) == 1
+          source = source.replace(old, new)
+          old = 'upload_commit(source)\nupload_commit(final)'
+          new = "run('git', 'bundle', 'create', str(evidence / 'prepared-source.bundle'), 'HEAD', '^' + start)\n(evidence / 'prepared.json').write_text(json.dumps({'status': 'source_checks_passed_NOT_objects_or_ref_confirmed', 'source': source, 'candidate': final, 'source_tree': expected_tree, 'candidate_tree': git('rev-parse', 'HEAD^{tree}'), 'updates': updates}, indent=2) + '\\n')\n" + old
+          assert source.count(old) == 1
+          source = source.replace(old, new)
+          exec(compile(source, '<reviewed-pr188-candidate>', 'exec'))
+          PYCODE
       - uses: actions/upload-artifact@v4
         if: always()
         with:
