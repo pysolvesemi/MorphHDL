@@ -486,6 +486,9 @@ object MorphHdlExternalParameterizedVerilog {
       .loopsOf(component)
       .foreach(loop => retainInteger(loop.count))
 
+    NativeSymbolicLegality.parametersOf(component).foreach(parameter => schemas += (parameter -> None))
+    NativeSymbolicLegality.rootsOf(component).foreach(root => uses += RootUse(root, root.sourceLocation))
+
     if (includeChildActuals) {
       component.children.foreach { child =>
         ExternalFormalParameterRegistry
@@ -864,7 +867,8 @@ object MorphHdlExternalParameterizedVerilog {
         ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component)
+        ParameterizedProcess.parametersOf(component) ++
+        NativeSymbolicLegality.parametersOf(component)
     val grouped = values.groupBy(_.name)
     grouped
       .collectFirst {
@@ -880,6 +884,7 @@ object MorphHdlExternalParameterizedVerilog {
   }
 
   private def hasParameterizedMetadata(component: Component): Boolean =
+    NativeSymbolicLegality.hasRequirements(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -907,6 +912,7 @@ object MorphHdlExternalParameterizedVerilog {
   private def requiresExpressionHierarchyRewrite(
       component: Component
   ): Boolean =
+    NativeSymbolicLegality.hasRequirements(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -916,6 +922,7 @@ object MorphHdlExternalParameterizedVerilog {
       ParameterizedVerilogFiniteFolds.hasFolds(component) ||
       ParameterizedProcess.parametersOf(component).nonEmpty ||
       component.children.exists { child =>
+        NativeSymbolicLegality.hasRequirements(child) ||
         ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
         ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
         ParameterizedMemory.parametersOf(child).nonEmpty ||

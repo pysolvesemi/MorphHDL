@@ -3,14 +3,14 @@ package spinal.core
 import java.lang.ref.{ReferenceQueue, WeakReference}
 import scala.collection.mutable
 
-/** Trusted, finite composition of packed-width expressions.
+/** Consumer-specific authority for packed-width expressions.
   *
-  * The public operations accept already-authoritative typed expressions, never
-  * text or a caller-provided evaluation table. Each result is certified by JVM
-  * identity; copying its public case-class fields does not copy its authority.
-  * Independent declaration roots are evaluated as a bounded Cartesian domain,
-  * while repeated roots retain their exact correlation. This deliberately does
-  * not extend the single-root contract of general elaboration integer APIs.
+  * Public operations accept authenticated expressions, never caller-authored
+  * evidence. The older finite width-table path is retained for its existing
+  * consumers. Native symbolic arithmetic uses private expression certificates;
+  * publication does not demand an attainable value table. Equality and explicit
+  * range/structural queries still use stronger proof. A public case-class copy
+  * inherits neither symbolic publication authority nor exact proof authority.
   */
 object ElaborationWidthAuthority {
   private val Role = "symbolic width composition"
@@ -70,7 +70,7 @@ object ElaborationWidthAuthority {
   }
 
   private[core] def isRetained(expression: ElaborationIntegerExpression): Boolean =
-    expression != null && evidenceOf(expression).nonEmpty
+    expression != null && (evidenceOf(expression).nonEmpty || ElaborationProductDomain.isRetained(expression))
 
   /** Recognize a typed certificate without treating legacy width summaries as
     * arithmetic authority. Recognized evidence is still validated at use.
@@ -84,7 +84,8 @@ object ElaborationWidthAuthority {
         expression.minimum == expression.default && expression.maximum == expression.default))
 
   private[core] def hasCompleteDomain(expression: ElaborationIntegerExpression): Boolean =
-    evidenceOf(expression) match {
+    if (ElaborationProductDomain.isRetained(expression)) ElaborationProductDomain.hasCompleteDomain(expression)
+    else evidenceOf(expression) match {
       case Some(evidence) => evidence.axes.forall(axis => axis.values.toSet == axis.domain.universe)
       case None => expression.exactDomain.forall(_.hasCompleteCoverage)
     }
@@ -108,6 +109,10 @@ object ElaborationWidthAuthority {
     */
   def requireAuthoritative(expression: ElaborationIntegerExpression,
                            role: String, failureCode: String): Unit = {
+    if (ElaborationProductDomain.isRetained(expression)) {
+      ElaborationProductDomain.requireInteger(expression, role)
+      return
+    }
     ElabInt.validateExpression(expression, role)
     evidenceOf(expression) match {
       case None =>
@@ -172,6 +177,9 @@ object ElaborationWidthAuthority {
   }
 
   private def source(expression: ElaborationIntegerExpression): Evidence = {
+    if (ElaborationProductDomain.isRetained(expression))
+      fail("SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED", Role,
+        "requires the compositional proof path rather than a finite width table", expression.sourceLocation)
     requireAuthoritative(expression, Role, Failure)
     evidenceOf(expression) match {
       case Some(evidence) => active(evidence, expression.sourceLocation)
@@ -188,6 +196,9 @@ object ElaborationWidthAuthority {
   }
 
   private def predicate(expression: ElaborationBooleanExpression): Evidence = {
+    if (ElaborationProductDomain.isRetained(expression))
+      fail("SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED", Role,
+        "requires the compositional predicate path rather than a finite width table", expression.sourceLocation)
     ElabInt.requireAuthoritativeBooleanDomain(expression, Role, Failure)
     expression.exactDomain match {
       case None => Evidence(Vector.empty,
@@ -287,7 +298,9 @@ object ElaborationWidthAuthority {
   }
 
   def add(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
-    if (equivalent(left, right)) binary(left, right, (l, _) => s"(2 * $l)", _ + _)
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      ElaborationProductDomain.integer("+", left, right)
+    else if (equivalent(left, right)) binary(left, right, (l, _) => s"(2 * $l)", _ + _)
     else binary(left, right, (l, r) => s"($l + $r)", _ + _)
 
   /** Preserve the native multiplication/concatenation width transfer's operand
@@ -296,12 +309,18 @@ object ElaborationWidthAuthority {
     */
   private[core] def addNative(left: ElaborationIntegerExpression,
                               right: ElaborationIntegerExpression): ElaborationIntegerExpression =
-    binary(left, right, (l, r) => s"($l + $r)", _ + _)
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      ElaborationProductDomain.integer("+", left, right)
+    else binary(left, right, (l, r) => s"($l + $r)", _ + _)
 
   def subtract(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
-    binary(left, right, (l, r) => s"($l - $r)", _ - _)
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      ElaborationProductDomain.integer("-", left, right)
+    else binary(left, right, (l, r) => s"($l - $r)", _ - _)
   def multiply(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
-    binary(left, right, (l, r) => s"($l * $r)", _ * _)
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      ElaborationProductDomain.integer("*", left, right)
+    else binary(left, right, (l, r) => s"($l * $r)", _ * _)
   def maximum(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
     extremum(left, right, maximum = true)
   def minimum(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): ElaborationIntegerExpression =
@@ -310,6 +329,8 @@ object ElaborationWidthAuthority {
   private def extremum(left: ElaborationIntegerExpression,
                         right: ElaborationIntegerExpression,
                         maximum: Boolean): ElaborationIntegerExpression = {
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      return ElaborationProductDomain.extremum(if (maximum) "max" else "min", left, right)
     val l = source(left)
     val r = source(right)
     val location = left.sourceLocation.orElse(right.sourceLocation)
@@ -333,6 +354,9 @@ object ElaborationWidthAuthority {
   def choose(condition: ElaborationBooleanExpression,
              whenTrue: ElaborationIntegerExpression,
              whenFalse: ElaborationIntegerExpression): ElaborationIntegerExpression = {
+    if (ElaborationProductDomain.isRetained(condition) || ElaborationProductDomain.isRetained(whenTrue) ||
+        ElaborationProductDomain.isRetained(whenFalse))
+      return ElaborationProductDomain.choose(condition, whenTrue, whenFalse)
     val location = condition.sourceLocation.orElse(whenTrue.sourceLocation).orElse(whenFalse.sourceLocation)
     val predicateEvidence = predicate(condition)
     if (equivalent(whenTrue, whenFalse)) return project(whenTrue, Role)
@@ -362,6 +386,7 @@ object ElaborationWidthAuthority {
   /** Narrow an existing width certificate to the currently captured branches. */
   private[core] def project(expression: ElaborationIntegerExpression,
                             role: String): ElaborationIntegerExpression = {
+    if (ElaborationProductDomain.isRetained(expression)) return ElaborationProductDomain.project(expression, role)
     requireAuthoritative(expression, role, Failure)
     evidenceOf(expression) match {
       case None => ElabInt.projectExpression(expression, role)
@@ -375,6 +400,8 @@ object ElaborationWidthAuthority {
   /** Exhaustive value-function equality with exact declaration identities. */
   def equivalent(left: ElaborationIntegerExpression,
                  right: ElaborationIntegerExpression): Boolean = {
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      return ElaborationProductDomain.equivalent(left, right)
     val l = source(left)
     val r = source(right)
     if (l.axes.size != r.axes.size || l.axes.exists(axis =>
@@ -386,10 +413,31 @@ object ElaborationWidthAuthority {
     }
   }
 
+  /** Native width relations with a known typed operation can be proved
+    * compositionally without materializing independent parameter products.
+    */
+  private[core] def provesPositiveComparison(left: ElaborationIntegerExpression,
+      right: ElaborationIntegerExpression, operator: String): Boolean = {
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      return ElaborationProductDomain.provesPositiveComparison(left, right, operator)
+    provesRelation(left, right) { (a, b) =>
+      a > 0 && b > 0 && (operator match {
+        case "==" => a == b
+        case "<=" => a <= b
+        case "<" => a < b
+        case ">=" => a >= b
+        case ">" => a > b
+        case _ => throw new IllegalArgumentException("unsupported typed comparison")
+      })
+    }
+  }
+
   /** A relation over all combinations of the exact participating roots. */
   private[core] def provesRelation(left: ElaborationIntegerExpression,
                                    right: ElaborationIntegerExpression)(
       relation: (BigInt, BigInt) => Boolean): Boolean = {
+    if (ElaborationProductDomain.isRetained(left) || ElaborationProductDomain.isRetained(right))
+      return ElaborationProductDomain.provesRelation(left, right)(relation)
     val l = source(left)
     val r = source(right)
     val axes = merge(Vector(l, r), left.sourceLocation.orElse(right.sourceLocation))
@@ -401,6 +449,8 @@ object ElaborationWidthAuthority {
     */
   def minimumWhen(width: ElaborationIntegerExpression,
                   condition: ElaborationBooleanExpression): Option[BigInt] = {
+    if (ElaborationProductDomain.isRetained(width) || ElaborationProductDomain.isRetained(condition))
+      return ElaborationProductDomain.conditionedExtrema(width, condition).map(_._1)
     val value = source(width)
     val guard = predicate(condition)
     val axes = merge(Vector(value, guard), width.sourceLocation.orElse(condition.sourceLocation))
@@ -412,6 +462,8 @@ object ElaborationWidthAuthority {
 
   def maximumWhen(width: ElaborationIntegerExpression,
                   condition: ElaborationBooleanExpression): Option[BigInt] = {
+    if (ElaborationProductDomain.isRetained(width) || ElaborationProductDomain.isRetained(condition))
+      return ElaborationProductDomain.conditionedExtrema(width, condition).map(_._2)
     val value = source(width)
     val guard = predicate(condition)
     val axes = merge(Vector(value, guard), width.sourceLocation.orElse(condition.sourceLocation))
@@ -424,6 +476,7 @@ object ElaborationWidthAuthority {
   /** Exact evaluation by declaration identity, for backend width proofs. */
   def evaluate(expression: ElaborationIntegerExpression,
                bindings: Vector[(ElaborationIntegerParameterRoot, BigInt)]): Option[BigInt] = {
+    if (ElaborationProductDomain.isRetained(expression)) return ElaborationProductDomain.evaluate(expression, bindings)
     val evidence = source(expression)
     val key = evidence.axes.map(axis => bindings.find(_._1 eq axis.root).map(_._2))
     if (key.exists(_.isEmpty)) None else evidence.values.get(key.map(_.get))

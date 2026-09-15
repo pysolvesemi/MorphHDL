@@ -54,6 +54,41 @@ object Increment61PerComponentFixture {
     dout := din
   }
 
+  // PR188 adds independent declaration axes and native legality obligations.
+  // Keep their interaction with canonical publication inside this increment's
+  // existing ownership regression, without replacing its scalar-formal case.
+  final class IndependentLeaf(dataBits: ElabInt, generationBits: ElabInt) extends Component {
+    setDefinitionName("Increment61IndependentLeaf")
+    addAttribute("keep_hierarchy", "TRUE")
+    val din = in Bits((dataBits + generationBits) bits)
+    val dout = out Bits((dataBits + generationBits) bits)
+    dout := din
+    ElabControl.requireCondition(
+      dataBits >= generationBits,
+      "Increment61 child requires DATA_BITS >= GENERATION_BITS",
+      "Increment61PerComponentPublicationTests.scala",
+      1
+    )
+  }
+
+  final class IndependentTop(dataBits: ElabInt, generationBits: ElabInt) extends Component {
+    setDefinitionName("Increment61IndependentTop")
+    val din = in Bits((dataBits + generationBits) bits)
+    val leftOut = out Bits((dataBits + generationBits) bits)
+    val rightOut = out Bits((dataBits + generationBits) bits)
+    val left = new IndependentLeaf(dataBits, generationBits)
+    val right = new IndependentLeaf(dataBits, generationBits)
+    left.din := din
+    right.din := din
+    leftOut := left.dout
+    rightOut := right.dout
+  }
+
+  def independent(): Component = new IndependentTop(
+    HdlInt.param("DATA_BITS", default = 2, min = 1, max = 8).asElabInt,
+    HdlInt.param("GENERATION_BITS", default = 2, min = 1, max = 8).asElabInt
+  )
+
   def hierarchical(): Component = {
     val leftWidth = HdlInt.param("LEFT_WIDTH", default = 5, min = 1, max = 64)
     val rightWidth = HdlInt.param("RIGHT_WIDTH", default = 5, min = 1, max = 64)
@@ -137,6 +172,7 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
       try assert(ownerStream.iterator().asScala.toVector.size == 3)
       finally ownerStream.close()
     }
+    checkIndependentPublication()
   }
 
   test("consolidated publication remains one unchanged source containing both definitions") {
@@ -500,6 +536,102 @@ class Increment61PerComponentPublicationTests extends AnyFunSuite {
           assert(failure.stage == MorphVerilogStage.SingleSourceGeneration)
           assert(failure.detail.contains("FILENAME-COLLISION"))
         case Right(files) => fail(s"expected collision rejection, received $files")
+      }
+    }
+  }
+
+  private def checkIndependentPublication(): Unit = {
+    val topName = "Increment61IndependentTop"
+    val leafName = "Increment61IndependentLeaf"
+    val diagnostic = "Increment61 child requires DATA_BITS >= GENERATION_BITS"
+    for (split <- Vector(false, true)) {
+      withTemporaryDirectory { directory =>
+        val report = MorphVerilog(SpinalConfig(
+          targetDirectory = directory.toString,
+          oneFilePerComponent = split,
+          headerWithDate = false
+        ))(independent())
+        val sources = report.generatedSourcesPaths.map(Paths.get(_))
+        val texts = sources.map(read)
+        val combined = texts.mkString("\n")
+        assert(moduleDefinitions(combined).sorted ==
+          Vector(leafName, topName).sorted)
+        assert(combined.contains("(DATA_BITS + GENERATION_BITS)-1:0"))
+        for (name <- Vector("DATA_BITS", "GENERATION_BITS")) {
+          val binding = s".$name($name)"
+          assert(combined.sliding(binding.length).count(_ == binding) == 2)
+        }
+        assert(combined.sliding("$fatal(1,".length).count(_ == "$fatal(1,") == 1)
+        assert(combined.contains(diagnostic))
+        if (split) {
+          assert(sources.map(_.getFileName.toString) ==
+            Vector(leafName + ".v", topName + ".v"))
+          val leaf = read(directory.resolve(leafName + ".v"))
+          assert(leaf.contains("`ifndef SYNTHESIS") && leaf.contains(diagnostic))
+          assert(!read(directory.resolve(topName + ".v")).contains("$fatal("))
+          assert(read(directory.resolve(topName + ".lst")).split("\n").toVector ==
+            sources.map(_.getFileName.toString))
+        } else assert(sources.size == 1)
+
+        // Compile the exact complete publication, with no source concatenation
+        // or text normalization. Simulation consumes these same native files.
+        val fileArguments = sources.map(_.toString)
+        NativeWireCompatibility.run(directory,
+          Seq("iverilog", "-g2001", "-s", topName, "-tnull") ++ fileArguments)
+        NativeWireCompatibility.run(directory,
+          Seq("verilator", "--lint-only", "--language", "1364-2001", "--top-module", topName) ++ fileArguments)
+        NativeWireCompatibility.run(directory, Seq("yosys", "-q", "-p",
+          s"read_verilog -noautowire ${fileArguments.mkString(" ")}; hierarchy -check -top $topName; proc; memory; flatten; opt; check -assert; write_verilog synthesized.v"))
+        assert(!read(directory.resolve("synthesized.v")).contains(diagnostic))
+
+        // Includes unequal axes, both domain corners, and invalid nondefault
+        // tuples. These are representative overrides, not a full-domain proof.
+        for ((dataBits, generationBits) <- Vector((1, 1), (2, 2), (8, 1), (8, 8), (1, 2), (1, 8))) {
+          val width = dataBits + generationBits
+          val testbench = directory.resolve(s"independent-$dataBits-$generationBits.v")
+          Files.write(testbench, s"""module Increment61IndependentCheck;
+            |  reg [$width-1:0] din;
+            |  wire [$width-1:0] leftOut, rightOut;
+            |  integer bitIndex;
+            |  $topName #(.DATA_BITS($dataBits), .GENERATION_BITS($generationBits)) dut
+            |    (.din(din), .leftOut(leftOut), .rightOut(rightOut));
+            |  task check;
+            |    begin
+            |      #1;
+            |      if (leftOut !== din || rightOut !== din)
+            |        $$fatal(1, "independent publication data mismatch");
+            |    end
+            |  endtask
+            |  initial begin
+            |    if ($$bits(dut.left.din) != $width || $$bits(dut.right.din) != $width)
+            |      $$fatal(1, "independent publication child width mismatch");
+            |    din = 0; check;
+            |    din = {$width{1'b1}}; check;
+            |    for (bitIndex = 0; bitIndex < $width; bitIndex = bitIndex + 1) begin
+            |      din = 0; din[bitIndex] = 1'b1; check;
+            |    end
+            |    din = {$width{1'bx}}; check;
+            |    din = {$width{1'bz}}; check;
+            |    $$display("INCREMENT61_INDEPENDENT_PUBLICATION_PASS");
+            |    $$finish;
+            |  end
+            |endmodule
+            |""".stripMargin.getBytes(StandardCharsets.UTF_8))
+          val binary = directory.resolve(s"independent-$dataBits-$generationBits.vvp")
+          NativeWireCompatibility.run(directory,
+            Seq("iverilog", "-g2012", "-s", "Increment61IndependentCheck", "-o", binary.toString) ++
+              fileArguments :+ testbench.toString)
+          if (dataBits >= generationBits) {
+            assert(NativeWireCompatibility.run(directory, Seq("vvp", binary.toString))
+              .contains("INCREMENT61_INDEPENDENT_PUBLICATION_PASS"))
+          } else {
+            val failure = intercept[IllegalArgumentException] {
+              NativeWireCompatibility.run(directory, Seq("vvp", binary.toString))
+            }
+            assert(failure.getMessage.contains(diagnostic))
+            assert(!failure.getMessage.contains("INCREMENT61_INDEPENDENT_PUBLICATION_PASS"))
+          }
+        }
       }
     }
   }

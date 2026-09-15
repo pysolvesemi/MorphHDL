@@ -1,10 +1,10 @@
 {
   "algorithm": "SHA-256",
   "files": {
-    ".github/workflows/morphhdl-passes.yml": "320e767bbd5862678deb2915e1d6401d17ab76f278143727bbc6ad84f4122407",
+    ".github/workflows/morphhdl-passes.yml": "1dc523243d8a707610855d601aaa67abea4ba0a2bcf0a17aaa58409bb80b5a83",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
     "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
-    "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "a6452b7a34194cb6d3583f435a70515495a3434f5d74bb514d9b4c57ae700de4",
+    "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "b66f8b0e8cecfad4bfd499da09b4360b24bb2130c00d2fe267ef65844db8ebe2",
     "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala": "3cefb7cf24d4e0703a2021b9d18eb1e789fd1547b6fa540e100ec961a607460e",
     "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": "71fe0699d47bc48f9931910b2a6418fd664796221ab7f1e4447f47c33111b9bf",
     "core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala": "04a686cfc4b61f8c1252620638a4781c1a9c6d5c5f0363c89959702f26d377f2",
@@ -85,7 +85,7 @@
     "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "5f69f96e62e4b001867e0362591130acf9d9ecc04437e72768f6e6c9dc3f09c9",
     "morphhdl-passes/tests/wa10/general_expression_tb.v": "d3235eaff587a4c4a21e7c76b7db41a3f6c910cad861284185aa38bafd999e12",
     "morphhdl-passes/tests/wa10/timing_expression_tb.v": "ee72b2afbac37070aadabaf7d7be0c7811f423b4ffbdc4a4b0c0c224572b6d5b",
-    "morphhdl/scripts/check-increment-60f-artifacts.py": "a53ce778003cbe5cd164ac0db2388df45606f3d2698b8003e3e4113d6167f797",
+    "morphhdl/scripts/check-increment-60f-artifacts.py": "2bbd0af0085a8d8a34ec6214d9b08defc0e3b0623bfff178a94329fad027fde4",
     "morphhdl/scripts/check-wa08-production-artifacts.py": "c90241a032083d6d7fcf0a78d298e8fa4cfcbbd92608d93eb687135aacbeee02",
     "morphhdl/scripts/check-wa10-source-scope.py": "ae4a7ff509a44b0f118bbab8baac09181d5a89a593496282c562c4e993af8dfe",
     "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala": "125e940da6c08dd80b2aed9d0c313007f6df81834302fcf49a8797f17ef413a9",
@@ -98,7 +98,7 @@
     "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala": "97b216a4a6b6453a5c96e06221d42f1f5d91aca8e6421b9d700d8c2c7f642fbc",
     "morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala": "38c09d76de8bd1258a1be3032da7300bd4af56545e744d0b1c12c9d2a7a8c1fd",
     "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "d354e40812d7e4e6ff0719ecd2a3b4a134eb87d1cb93712dd775365a44375cd3",
-    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": "3cf9890f8f19b92eaaed9915469cb2fb844b507b6ee1042b76b9316f32c274ec"
+    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": "9c753186e7a97e25814f8b92f5ca2cc584b8e3c91fd2211b34bf82e6246e34d5"
   },
   "schema_version": 1
 }

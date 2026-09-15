@@ -646,6 +646,46 @@ WA11_SUITE_SOURCES = {
     "morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala": True,
 }
 
+# PR188 retains the frozen WA-09/10/11 catalogs and adds exact obligations for
+# native independent-parameter provenance and symbolic legality. XML cannot
+# enroll this successor: only the complete authenticated source cluster can.
+PR188_SUITES = {
+    "frontend": {
+        "morphhdl.frontend.AnalyzedFrontendBooleanTests": 7,
+        "morphhdl.frontend.HdlBoolTests": 19,
+    },
+    "morphhdl": {
+        "spinal.core.IndependentParameterDomainTests": 11,
+        "spinal.core.internals.IndependentParameterPublicationTests": 4,
+        "spinal.core.SymbolicPublicationEvidenceTests": 18,
+    },
+}
+PR188_EXISTING_SUITES = frozenset(PR188_SUITES["frontend"])
+PR188_SUITE_SOURCES = {
+    "core/src/main/scala/spinal/core/ElaborationProductDomain.scala": True,
+    "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala": True,
+    "morphhdl/src/test/scala/spinal/core/IndependentParameterDomainTests.scala": True,
+    "morphhdl/src/test/scala/spinal/core/internals/IndependentParameterPublicationTests.scala": True,
+    "morphhdl/src/test/scala/spinal/core/SymbolicPublicationEvidenceTests.scala": True,
+    "frontend/src/test/scala/morphhdl/frontend/AnalyzedFrontendBooleanTests.scala": True,
+    "frontend/src/test/scala/morphhdl/frontend/HdlBoolTests.scala": False,
+}
+PR188_SOURCE_MARKERS = frozenset(
+    path for path in PR188_SUITE_SOURCES if not path.startswith("frontend/"))
+
+
+def independent_parameter_suite_flag(entries: dict[str, dict]) -> bool:
+    if not PR188_SOURCE_MARKERS.intersection(entries):
+        return False
+    require(set(PR188_SUITE_SOURCES) <= set(entries),
+            "partial PR188 suite-source enrollment: " +
+            repr(sorted(set(PR188_SUITE_SOURCES) - set(entries))))
+    for path, added in PR188_SUITE_SOURCES.items():
+        require((entries[path]["before_sha256"] is None) == added,
+                "PR188 suite source has changed baseline identity: " + path)
+    return True
+
+
 def require(ok: bool, message: str) -> None:
     if not ok:
         raise RuntimeError(message)
@@ -730,7 +770,7 @@ def compare(left: Path, right: Path) -> None:
 
 def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                         wa09: bool = False, wa10: bool = False,
-                        wa11: bool = False) -> tuple[dict, dict, dict]:
+                        wa11: bool = False, pr188: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -900,6 +940,26 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                     total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
+    if pr188:
+        require(wa09 and wa11, "PR188 exact suites require the reviewed WA-09/WA-11 predecessor")
+        for project, exact in PR188_SUITES.items():
+            tests, total_suites = counts[project]
+            reviewed_counts = extension.setdefault(project, {})
+            for name, expected_count in exact.items():
+                inherited = name in suites[project]
+                require(inherited == (name in PR188_EXISTING_SUITES),
+                        "PR188 changed an inherited/new suite classification: " + name)
+                if inherited:
+                    previous_count = reviewed_counts[name]
+                    require(expected_count > previous_count,
+                            "PR188 removed inherited test obligations: " + name)
+                    tests += expected_count - previous_count
+                else:
+                    suites[project] |= frozenset((name,))
+                    tests += expected_count
+                    total_suites += 1
+                reviewed_counts[name] = expected_count
+            counts[project] = (tests, total_suites)
     return counts, suites, extension
 
 
@@ -940,16 +1000,20 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool, b
     return True, True, wa10, bool(selected_wa11)
 
 
-def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool, bool]:
+def reviewed_successor_entries(root: Path) -> dict[str, dict] | None:
     ternary = closure_module().boolean_ternary_review(root)
     adapter = getattr(ternary, "wa08_overlay", None)
     overlay = adapter(root) if adapter is not None else None
     if overlay is None:
-        return False, False, False, False
+        return None
     # Presence or XML cannot authorize a new suite: verify immutable source
     # bytes, full governed inventory, Git index/worktree and source ancestry.
-    entries = {entry["path"]: entry for entry in overlay.verify(root)["files"]}
-    return successor_suite_flags(entries)
+    return {entry["path"]: entry for entry in overlay.verify(root)["files"]}
+
+
+def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool, bool]:
+    entries = reviewed_successor_entries(root)
+    return successor_suite_flags(entries) if entries is not None else (False, False, False, False)
 
 
 def reviewed_wa08_suites(root: Path) -> bool:
@@ -1001,9 +1065,12 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
         reviewed = publisher.reviewed_59d59e_packing(root)
         require(set(reviewed) == closure.PACKING_59D59E_PATHS,
                 "reviewed packing inventory escaped its exact source paths")
-    wa08, wa09, wa10, wa11 = reviewed_successor_suites(root)
+    entries = reviewed_successor_entries(root)
+    wa08, wa09, wa10, wa11 = (successor_suite_flags(entries) if entries is not None
+                            else (False, False, False, False))
+    pr188 = independent_parameter_suite_flag(entries or {})
     counts, suite_inventory, extension = catalog_for_profile(
-        profile, packing, wa08, wa09, wa10, wa11)
+        profile, packing, wa08, wa09, wa10, wa11, pr188)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -2150,6 +2217,66 @@ def self_test() -> None:
                          "changed WA-11 source baseline identity " + path)
             overlay.verify.return_value = reviewed_combined
             validate_wa09_reports()
+            independent = catalog_for_profile(
+                wa09_profile, packing=True, wa08=True, wa09=True,
+                wa10=True, wa11=True, pr188=True)
+            require(independent[0] == {**combined_successor[0],
+                        "frontend": (265, 23), "morphhdl": (1162, 109)},
+                    "PR188 exact additive suite totals changed")
+            for project, exact in combined_successor[2].items():
+                require(independent[2][project] == {**exact, **PR188_SUITES.get(project, {})} and
+                        independent[1][project] == combined_successor[1][project] |
+                            set(PR188_SUITES.get(project, {})),
+                        "PR188 lost an inherited suite or exact test obligation")
+            records = {entry["path"]: dict(entry) for entry in reviewed_combined["files"]}
+            records.update({path: {"path": path, "before_sha256": None if added else "a" * 64}
+                            for path, added in PR188_SUITE_SOURCES.items()})
+            reviewed_independent = {"files": list(records.values())}
+            overlay.verify.return_value = reviewed_independent
+            write_reports(independent)
+            validate_wa09_reports()
+            for project, exact in PR188_SUITES.items():
+                for name, count in exact.items():
+                    path = root / project / "target/test-reports" / (name + ".xml")
+                    original = path.read_bytes()
+                    for delta in (-1, 1):
+                        document = ET.parse(path)
+                        suite = document.getroot()
+                        suite.set("tests", str(count + delta))
+                        if delta < 0:
+                            suite.remove(suite.find("testcase"))
+                        else:
+                            ET.SubElement(suite, "testcase", name="unreviewed-independent-case")
+                        document.write(path)
+                        rejected(validate_wa09_reports, "PR188 changed exact cases " + name)
+                        require(not output.exists(), "failed PR188 inventory retained stale success")
+                        path.write_bytes(original)
+                    for attribute, value in (("name", "synthetic.SubstituteSuite"), ("skipped", "1")):
+                        document = ET.parse(path)
+                        document.getroot().set(attribute, value)
+                        document.write(path)
+                        rejected(validate_wa09_reports, "PR188 changed suite " + attribute)
+                        path.write_bytes(original)
+                    path.unlink()
+                    rejected(validate_wa09_reports, "missing PR188 suite " + name)
+                    path.write_bytes(original)
+            for path, added in PR188_SUITE_SOURCES.items():
+                overlay.verify.return_value = {"files": [entry for entry in records.values()
+                                                          if entry["path"] != path]}
+                rejected(validate_wa09_reports, "partial PR188 source enrollment " + path)
+                altered = [dict(entry) for entry in records.values()]
+                next(entry for entry in altered if entry["path"] == path)["before_sha256"] = \
+                    "d" * 64 if added else None
+                overlay.verify.return_value = {"files": altered}
+                rejected(validate_wa09_reports, "PR188 changed baseline identity " + path)
+            overlay.verify.return_value = reviewed_combined
+            rejected(validate_wa09_reports, "PR188 XML alone cannot enroll the successor")
+            overlay.verify.side_effect = RuntimeError("synthetic immutable-source rejection")
+            rejected(validate_wa09_reports, "PR188 must authenticate source before reading XML")
+            overlay.verify.side_effect = None
+            overlay.verify.return_value = reviewed_independent
+            validate_wa09_reports()
+    print("PR188 inventory requires 2047 tests / 200 suites, including every inherited obligation PASS")
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")
     print("WA-10 successor inventory requires exactly 1996 cases / 195 suites: 1119 Morph, 160 pass, 30 core cases PASS")
