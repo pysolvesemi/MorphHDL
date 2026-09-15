@@ -1,0 +1,135 @@
+diff --git a/.github/workflows/increment-59b-closed-graph.yml b/.github/workflows/increment-59b-closed-graph.yml
+index 0804b2c765938332bc4a1c8306295f8341bb97c4..93acac147af4ff425f40478b43d3c157810f4a9e 100644
+--- a/.github/workflows/increment-59b-closed-graph.yml
++++ b/.github/workflows/increment-59b-closed-graph.yml
+@@ -85,7 +85,7 @@ jobs:
+           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected.lower()
+           PY
+           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$dir/repositories"
+-      - name: Compile and run all 81 focused tests on the actual committed source
++      - name: Compile and run all 89 focused tests on the actual committed source
+         shell: bash
+         run: |
+           set -euo pipefail
+@@ -101,11 +101,15 @@ jobs:
+           python3 - <<'PY'
+           from pathlib import Path
+           import xml.etree.ElementTree as ET
+-          for name, count in [('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
++          for name, count in [('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+               assert len(files) == 1, (name, files)
+               suite = ET.parse(files[0]).getroot()
+               assert int(suite.get('tests','0')) == count, (name, suite.attrib)
++              cases = list(suite.iter('testcase'))
++              assert len(cases) == count, (name, 'testcase inventory differs')
++              assert len({case.get('name') for case in cases}) == count, (name, 'duplicate test names')
++              assert all(not any(node.tag in ('failure', 'error', 'skipped') for node in case) for case in cases), (name, 'non-passing testcase element')
+               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
+               print(name, suite.attrib)
+           PY
+diff --git a/.github/workflows/increment-59b-stage-replay.yml b/.github/workflows/increment-59b-stage-replay.yml
+index 633a23307d223869bdb4855212a1a800bdbf9f3e..9a926d2fcf3777be9e43f01e730856c562a855ef 100644
+--- a/.github/workflows/increment-59b-stage-replay.yml
++++ b/.github/workflows/increment-59b-stage-replay.yml
+@@ -114,11 +114,15 @@ jobs:
+           python3 - <<'PY'
+           from pathlib import Path
+           import xml.etree.ElementTree as ET
+-          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
++          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+               assert len(files) == 1, (name, files)
+               suite = ET.parse(files[0]).getroot()
+               assert int(suite.get('tests','0')) == count, (name, suite.attrib)
++              cases = list(suite.iter('testcase'))
++              assert len(cases) == count, (name, 'testcase inventory differs')
++              assert len({case.get('name') for case in cases}) == count, (name, 'duplicate test names')
++              assert all(not any(node.tag in ('failure', 'error', 'skipped') for node in case) for case in cases), (name, 'non-passing testcase element')
+               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
+               print(name, suite.attrib)
+           PY
+diff --git a/.github/workflows/increment-59d-widening.yml b/.github/workflows/increment-59d-widening.yml
+index cb12c1375e2f0f071a077aa75c0825d4a4fbfc32..5d36c6af18576feaa701e77df4b8d212029fa1b1 100644
+--- a/.github/workflows/increment-59d-widening.yml
++++ b/.github/workflows/increment-59d-widening.yml
+@@ -206,11 +206,15 @@ jobs:
+               import runpy
+               runpy.run_path(str(bridge_review))['verify'](Path.cwd())
+               bridge_policy_count = 16
+-          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
++          for name, count in [('TypedBalancedReductionWideningPublicationTests',6), ('NativeSymbolicWidthProvenanceTests',5), ('ElaborationWidthAuthorityTests',7), ('NativeWidthPublicationSafetyTests',6), ('NativePublicationWidthTests',1), ('TypedBalancedReductionWidthTransferTests',11), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionCallbackPolicyTests',bridge_policy_count), ('TypedBalancedReductionPublicationSafetyTests',8), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8)]:
+               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
+               assert len(files) == 1, (name, files)
+               suite = ET.parse(files[0]).getroot()
+               assert int(suite.get('tests','0')) == count, (name, suite.attrib)
++              cases = list(suite.iter('testcase'))
++              assert len(cases) == count, (name, 'testcase inventory differs')
++              assert len({case.get('name') for case in cases}) == count, (name, 'duplicate test names')
++              assert all(not any(node.tag in ('failure', 'error', 'skipped') for node in case) for case in cases), (name, 'non-passing testcase element')
+               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
+               print(name, suite.attrib)
+           PY
+diff --git a/.github/workflows/increment-59i-composite-saturation.yml b/.github/workflows/increment-59i-composite-saturation.yml
+index b8c3c987863389ab890fd75ff3e54edd1c4e80a1..335807b35dffc7b45aa72daf067ca43ebc58395b 100644
+--- a/.github/workflows/increment-59i-composite-saturation.yml
++++ b/.github/workflows/increment-59i-composite-saturation.yml
+@@ -109,7 +109,7 @@ jobs:
+       - name: Compile, test and retain original RTL
+         shell: bash
+         env:
+-          MORPHDL_59I_SAT_OUTPUT: ${{ github.workspace }}/target/increment-59i-saturation-${{ matrix.scala }}/generated
++          MORPHHDL_59I_SAT_OUTPUT: ${{ github.workspace }}/target/increment-59i-saturation-${{ matrix.scala }}/generated
+         run: |
+           set -euo pipefail
+           out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
+@@ -154,6 +154,8 @@ jobs:
+             wire [1:0] result_tag;
+             wire result_valid;
+             integer i;
++            integer sample;
++            integer checked_cycles;
+             integer acc;
+             reg [1:0] tag_acc;
+             reg valid_acc;
+@@ -173,6 +175,7 @@ jobs:
+                   valid_acc = valid_acc | values_valid[i];
+                 end
+                 #1;
++                checked_cycles = checked_cycles + 1;
+                 if (result_value !== ((acc > 7) ? 3'd7 : acc[2:0]) ||
+                     result_tag !== tag_acc || result_valid !== valid_acc) begin
+                   $display("59I-SATURATION-MISMATCH value=%h expected=%h tag=%h expected_tag=%h valid=%b expected_valid=%b",
+@@ -183,17 +186,23 @@ jobs:
+               end
+             endtask
+             initial begin
++              checked_cycles = 0;
+               values_value = 0; values_tag = 0; values_valid = 0; check;
+               values_value = {5{3'd7}}; values_tag = 10'b0110110011; values_valid = 5'b10101; check;
+               values_value = {3'd1,3'd2,3'd3,3'd0,3'd1}; values_tag = 10'b1110010110; values_valid = 5'b01010; check;
+               seed = 32'h59095A7A;
+-              for (i = 0; i < 256; i = i + 1) begin
++              for (sample = 0; sample < 256; sample = sample + 1) begin
+                 seed = seed * 32'd1664525 + 32'd1013904223;
+                 values_value = seed[14:0];
+                 seed = seed * 32'd1664525 + 32'd1013904223;
+                 values_tag = seed[9:0]; values_valid = seed[14:10];
+                 check;
+               end
++              if (checked_cycles != 259) begin
++                $display("59I-SATURATION-MISMATCH cycle_count=%0d expected=259", checked_cycles);
++                $finish(1);
++              end
++              $display("59I-SATURATION-CYCLES %0d", checked_cycles);
+               $display("59I-SATURATION-SIM-PASS");
+               $finish;
+             end
+@@ -202,6 +211,7 @@ jobs:
+           iverilog -g2001 -Wall -s tb -o "$out/tb.vvp" "$fields" "$out/tb.v"
+           vvp "$out/tb.vvp" | tee "$out/simulation.log"
+           grep -q '59I-SATURATION-SIM-PASS' "$out/simulation.log"
++          grep -qx '59I-SATURATION-CYCLES 259' "$out/simulation.log"
+           ! grep -q '59I-SATURATION-MISMATCH' "$out/simulation.log"
+ 
+           cat > "$out/miter.v" <<'VERILOG'
