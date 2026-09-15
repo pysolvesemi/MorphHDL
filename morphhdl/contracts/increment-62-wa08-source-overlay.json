@@ -32,7 +32,7 @@
       "path": ".github/workflows/increment-62-wa08-source-overlay.yml"
     },
     {
-      "after_sha256": "3f1eb1d57ea3354162fbb2c6e9e62d3e1e2c4986767dc4c426e20c7767688dbe",
+      "after_sha256": "fb77653e546aa2d40c68a3407b1ed7af8482cdd649b8f9054921ef63e2541d17",
       "before_sha256": null,
       "mode": "100644",
       "path": ".github/workflows/lane-when-expression-diagnostic.yml"
@@ -518,7 +518,7 @@
       "path": "morphhdl/scripts/test-inherited-source-audit-timeouts.py"
     },
     {
-      "after_sha256": "2723835ec4b3a8d83a93305870a464620aef2dc8cf37137dc30067319098b135",
+      "after_sha256": "b7231df4ea45ac28d2898e56275492f23ae1a55417678f8a31645b275f832ade",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/test-lane-when-source-scope.py"
@@ -794,7 +794,7 @@
       "path": "morphir/src/test/scala/morphhdl/ir/v1/CanonicalIrHandoffSpec.scala"
     }
   ],
-  "final_source_commit": "738e702b7c72922c3cee9c9e9dc85d63a4036c6c",
+  "final_source_commit": "8e71c1662a712913872bbbc5b77bff285aeaf61b",
   "helper_normalized_sha256": "58c4b49f7475c7791c3dd52470c94d1f9d044b0a9434583e4449913f1f2b9f3b",
   "schema_version": 1
 }
