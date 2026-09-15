@@ -1,0 +1,68 @@
+name: Increment 59i artifact-bound saturation hardware replay
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-saturation-hardware-replay.yml
+      - .github/recovery/59i-ci-driver-repairs/replay_saturation.py
+      - .github/recovery/59i-ci-driver-repairs/test_replay_saturation.py
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  hardware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - name: Read the exact replay driver
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: driver
+          fetch-depth: 1
+          submodules: false
+          persist-credentials: false
+      - name: Read the unchanged compiled source with its full history
+        uses: actions/checkout@v4
+        with:
+          ref: f43100e4899593eb5c9e78537a4dcf6f53f9c30f
+          path: source
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Reject invalid solver results and modified replay plans
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-replay-logs"
+          export MORPHHDL_REPO="$GITHUB_WORKSPACE/source"
+          python3 -B "$GITHUB_WORKSPACE/driver/.github/recovery/59i-ci-driver-repairs/test_replay_saturation.py" \
+            2>&1 | tee "$RUNNER_TEMP/59i-replay-logs/unit-controls.log"
+      - name: Replay both exact RTL artifacts without rebuilding Scala
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B "$GITHUB_WORKSPACE/driver/.github/recovery/59i-ci-driver-repairs/replay_saturation.py" \
+            --source "$GITHUB_WORKSPACE/source" \
+            --output "$RUNNER_TEMP/59i-saturation-hardware-replay" \
+            2>&1 | tee "$RUNNER_TEMP/59i-replay-logs/replay.log"
+      - name: Preserve source-bound terminal evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-saturation-hardware-replay-f43100e4-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/59i-saturation-hardware-replay
+            ${{ runner.temp }}/59i-replay-logs
+          if-no-files-found: error
+          retention-days: 21
