@@ -1,0 +1,100 @@
+name: Increment 59i fresh sealed baseline
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths: [.github/workflows/increment-59i-fresh-baseline.yml]
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  baseline:
+    name: Sealed baseline Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - name: Check out the exact source seal
+        uses: actions/checkout@v4
+        with:
+          ref: f43100e4899593eb5c9e78537a4dcf6f53f9c30f
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Verify source identity and unchanged native guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=target/59i-fresh-baseline
+          mkdir -p "$out"
+          test "$(git rev-parse HEAD)" = f43100e4899593eb5c9e78537a4dcf6f53f9c30f
+          test "$(git rev-parse HEAD^{tree})" = 44a48e034fc910506620f0125f2dd417500a89a1
+          test "$(git rev-parse HEAD^)" = b459aa9b94774dac3235c42561237e9c273bed6c
+          git rev-parse HEAD > "$out/head.txt"
+          git ls-files --stage > "$out/tracked-before.txt"
+          git diff --exit-code
+          git diff --cached --exit-code
+          git archive HEAD | gzip > "$out/source.tar.gz"
+          python3 --version > "$out/tool-versions.txt" 2>&1
+          java -version >> "$out/tool-versions.txt" 2>&1
+          for tool in iverilog vvp verilator yosys; do command -v "$tool" >> "$out/tool-versions.txt"; done
+          ./morphhdl/scripts/check-upstream-base.sh 2>&1 | tee "$out/upstream.log"
+          python3 -B morphhdl/scripts/check-increment-59i-production-successor.py 2>&1 | tee "$out/source-authentication.log"
+          python3 -B morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$out/native-source.log"
+          python3 -B morphhdl/scripts/check-typed-native-source-overlay.py 2>&1 | tee "$out/typed-native.log"
+      - name: Compile production sources with the original baseline command
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} compile > target/59i-fresh-baseline/production-compile.log 2>&1 || { tail -n 200 target/59i-fresh-baseline/production-compile.log; exit 1; }
+      - name: Compile all test sources with the original baseline command
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} Test/compile > target/59i-fresh-baseline/test-compile.log 2>&1 || { tail -n 200 target/59i-fresh-baseline/test-compile.log; exit 1; }
+      - name: Run every original baseline Scala test command
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch ++${{ matrix.scala }} \
+            idslplugin/test \
+            paramrtl/test \
+            frontend/test \
+            verilogBackend/test \
+            morph/test \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests' \
+            > target/59i-fresh-baseline/tests.log 2>&1 || { tail -n 240 target/59i-fresh-baseline/tests.log; exit 1; }
+      - name: Preserve source identity after execution
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git ls-files --stage > target/59i-fresh-baseline/tracked-after.txt
+          cmp target/59i-fresh-baseline/tracked-before.txt target/59i-fresh-baseline/tracked-after.txt
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git rev-parse HEAD)" = f43100e4899593eb5c9e78537a4dcf6f53f9c30f
+      - name: Retain terminal evidence including unsuccessful tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-fresh-baseline-f43100e4-${{ matrix.scala }}-${{ github.run_attempt }}
+          path: |
+            target/59i-fresh-baseline
+            **/target/test-reports/*.xml
+            **/target/scala-*/test-reports/*.xml
+          if-no-files-found: error
+          retention-days: 14
