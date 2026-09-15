@@ -1,0 +1,97 @@
+name: PR187 reviewed ABI source transfer
+on:
+  push:
+    branches: [agent/lane-when-expression-inlining]
+    paths: ['.github/workflows/lane-abi-reviewed-source-transfer.yml']
+permissions:
+  contents: write
+jobs:
+  transfer:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Authenticate and reconstruct reviewed source objects
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^)" = 0ebf51c9464555912f178459bc2d249447770b94
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, os, subprocess, urllib.request
+          def git(*args, data=None):
+              return subprocess.check_output(['git', *args], input=data)
+          pieces=[]
+          for sha in ('102f4a005e05cf87c114da1696f255371da27e3d', '9e12f27c6883a1b3942935d892fd77f4e29fddd0'):
+              req=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
+                  headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(req, timeout=60) as reply: value=json.load(reply)
+              raw=base64.b64decode(value['content'])
+              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
+              pieces.append(raw)
+          # Correct two transport transcription characters, then authenticate
+          # the complete original payload before applying any source changes.
+          pieces[1]=pieces[1].replace(b'Trddcdb5', b'Trddcsb5').replace(b'To2f5', b'To2n5')
+          assert hashlib.sha1(b'blob 6728\0'+pieces[1]).hexdigest()=='405b1e2201d1c41c2000c3d56c1d6785a1440b38'
+          archive=base64.b64decode(b''.join(pieces), validate=True)
+          assert hashlib.sha256(archive).hexdigest()=='3517126590f6997e0658fd916da92d51760b9beed6b71e9c09488221e2578953'
+          rows=json.loads(gzip.decompress(archive))
+          assert len(rows)==3
+          git('checkout','--detach','0ebf51c9464555912f178459bc2d249447770b94')
+          for row in rows:
+              raw=row['raw'].encode()
+              parent=next(line[7:] for line in row['raw'].splitlines() if line.startswith('parent '))
+              tree=row['raw'].splitlines()[0][5:]
+              assert git('rev-parse','HEAD').decode().strip()==parent
+              git('apply','--index','--binary','-',data=row['patch'].encode())
+              assert git('write-tree').decode().strip()==tree
+              assert git('hash-object','-w','-t','commit','--stdin',data=raw).decode().strip()==row['sha']
+              git('checkout','--detach',row['sha'])
+          assert git('rev-parse','HEAD').decode().strip()=='a7fbc06dc0ba420d31071dc8da98381f29ea6ed3'
+          assert git('rev-parse','HEAD^{tree}').decode().strip()=='a595035227ba6f29605f81cacd6942a33963053e'
+          print('EXACT_REVIEWED_SOURCE_RECONSTRUCTED')
+          PY
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-lane-when-source-scope.py
+          test -z "$(git status --porcelain)"
+      - name: Publish exact checkpoint and export current target reconciliation history
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch=agent/lane-when-expression-inlining
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          published=$(git commit-tree a595035227ba6f29605f81cacd6942a33963053e -p "$GITHUB_SHA" -p a7fbc06dc0ba420d31071dc8da98381f29ea6ed3 <<'MSG'
+          WIP: publish verified PR187 ABI storage repair; target reconciliation remains open
+
+          Preserve the exact locally audited source tree and both transport/source
+          histories. The temporary transfer workflow is absent from this tree.
+          Real upstream core ABI checks and old-binary controls passed on both Scala
+          versions; hosted final-head qualification and new-target integration remain
+          required. Keep PR187 draft and unmerged. No compatibility gate is waived.
+          MSG
+          )
+          git push origin "$published:refs/heads/$branch"
+          git fetch origin parameterized-verilog
+          git update-ref refs/receipt/pr187 "$published"
+          evidence="$RUNNER_TEMP/pr187-abi-transfer"
+          mkdir -p "$evidence"
+          git bundle create "$evidence/history.bundle" refs/receipt/pr187 refs/remotes/origin/parameterized-verilog ^0ebf51c9464555912f178459bc2d249447770b94 ^61d1fe0dcac0b52856620944a2d7426fd1390a48
+          git cat-file commit "$published" > "$evidence/published-commit.txt"
+          printf '%s\n' "$published" > "$evidence/published-head.txt"
+          git rev-parse "$published^{tree}" > "$evidence/published-tree.txt"
+          git rev-parse origin/parameterized-verilog > "$evidence/target-head.txt"
+          (cd "$evidence" && sha256sum history.bundle published-commit.txt published-head.txt published-tree.txt target-head.txt > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr187-abi-source-reconciliation
+          path: ${{ runner.temp }}/pr187-abi-transfer/
+          if-no-files-found: error
+          retention-days: 7
