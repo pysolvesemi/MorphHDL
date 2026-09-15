@@ -31,6 +31,45 @@ object VerilogEmitterExpressionInlining {
       case _                      => true
     }
 
+  /** A condition may be printed once per split process even when the native
+    * expression has only one use. Keep this distinct from arbitrary expression
+    * sharing: the ordinary complete sizing proof must already accept the exact
+    * condition identity, and the complete subtree supplies a conservative
+    * upper bound on the number of emitted process copies. This only declines
+    * the condition-sharing request; other mandatory wrapping reasons survive.
+    */
+  private[internals] def redundantSharedCondition(
+      component: Component,
+      config: SpinalConfig,
+      expression: Expression,
+      approved: IdentityHashMap[Expression, java.lang.Boolean]
+  ): Boolean = {
+    if (!isEnabled(config) || !approved.containsKey(expression) ||
+        expression.getTypeObject != TypeBool) return false
+    val pending = ArrayBuffer(expression)
+    var nodes = 0
+    while (pending.nonEmpty) {
+      val next = pending.remove(pending.size - 1)
+      nodes += 1
+      if (next == null || nodes > 64) return false
+      next match {
+        case _: BaseType =>
+        case _ => next.foreachDrivingExpression(child => pending += child)
+      }
+    }
+    var nativeConditions = 0
+    var leaves = 0
+    component.dslBody.walkStatements {
+      case when: WhenStatement if when.cond eq expression =>
+        nativeConditions += 1
+        when.whenTrue.walkLeafStatements(_ => leaves += 1)
+        when.whenFalse.walkLeafStatements(_ => leaves += 1)
+      case _ =>
+    }
+    nativeConditions == 1 && leaves >= 1 && leaves <= 32 &&
+      leaves.toLong * nodes <= 256
+  }
+
   /** Prove which synthetic expression carriers can be omitted, before emission.
     *
     * Verilog propagates an assignment/arithmetic/comparison/mux context into
@@ -73,7 +112,12 @@ object VerilogEmitterExpressionInlining {
     def fixedTargetBoundary(target: BaseType): Boolean =
       (unsignedKind(target) || target.getTypeObject == TypeBool) &&
         width(target) > 0 && target.component == component &&
-        target.isEmptyOfTag && ParameterizedWidth.expressionOf(target).isEmpty
+        // This layout-only flag protects process separation. The planner
+        // changes neither the target nor its driver/scope, so retain the flag
+        // while proving its pure RHS. All other target metadata still fences
+        // optimization; use singleton identity, never custom tag equality.
+        target.getTags().forall(_ eq noBackendCombMerge) &&
+        ParameterizedWidth.expressionOf(target).isEmpty
 
     def eligibleTarget(target: BaseType): Boolean = {
       var dataAssignments = 0

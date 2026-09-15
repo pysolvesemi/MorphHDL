@@ -30,7 +30,7 @@ concurrency:
 jobs:
   boundary:
     name: Pass workspace boundary and static contracts
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -168,6 +168,12 @@ jobs:
           python3 morphhdl-passes/scripts/check-wa10-general-expression.py --self-test
           python3 morphhdl-passes/scripts/check-wa10-general-expression.py
 
+      - name: Authenticate lane-condition successor scope and additive qualification controls
+        shell: bash
+        run: |
+          python3 morphhdl/scripts/check-lane-when-source-scope.py
+          python3 morphhdl/scripts/test-lane-when-source-scope.py
+
       - name: Verify formal-model signatures before expensive jobs
         shell: bash
         run: python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
@@ -183,7 +189,7 @@ jobs:
     name: Pass contracts, direct aliases, expressions and pipeline Scala ${{ matrix.scala_version }}
     # Independent compilation gives useful feedback while static contracts are
     # being updated. Equivalence still requires BOTH jobs to pass.
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container:
@@ -254,7 +260,7 @@ jobs:
   wa10_production:
     name: WA-10 general-expression production Scala ${{ matrix.scala }}
     needs: [boundary, contracts]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     container:
@@ -327,7 +333,7 @@ jobs:
   wa10_cross_scala:
     name: WA-10 production byte identity across Scala versions
     needs: wa10_production
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -354,7 +360,7 @@ jobs:
   native_generation:
     name: WA-04 through WA-09 native generation, legality and four-state checks
     needs: [boundary, contracts]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     container:
@@ -458,7 +464,7 @@ jobs:
   formal_shards:
     name: WA-07a through WA-09 full-domain proof shard ${{ matrix.shard }} / 16
     needs: [native_generation]
-    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') }}
+    if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     container:
@@ -530,7 +536,7 @@ jobs:
   equivalence:
     name: WA-04 through WA-09 legality, equivalence, mutation and determinism proof
     needs: [native_generation, formal_shards]
-    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-')) }}
+    if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining') }}
     runs-on: ubuntu-latest
     # Revalidate all retained proofs; this is not an individual solver budget.
     timeout-minutes: 60

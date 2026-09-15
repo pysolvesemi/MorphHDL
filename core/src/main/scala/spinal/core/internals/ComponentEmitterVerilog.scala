@@ -1620,6 +1620,10 @@ end
   private lazy val wrappersProvenRedundant =
     VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
 
+  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =
+    VerilogEmitterExpressionInlining.redundantSharedCondition(
+      component, spinalConfig, condition, wrappersProvenRedundant)
+
   def fillExpressionToWrap(): Unit = {
 
     def applyTo(that: Expression) =
