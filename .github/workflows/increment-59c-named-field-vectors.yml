@@ -60,20 +60,30 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Record source and validate approved native changes
+      - name: Compose the frozen 59c source review with Increment 61
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p target/increment-59c/bootstrap
-          git rev-parse HEAD > target/increment-59c/head.txt
-          git archive HEAD | gzip > target/increment-59c/source.tar.gz
+          output="$GITHUB_WORKSPACE/target/increment-59c"
+          predecessor="$output/predecessor-source"
+          mkdir -p "$output/bootstrap"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-59c-source-review.py --self-test
+            python3 morphhdl/scripts/check-increment-59c-source-review.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+          )
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-typed-layering-ir.py
           bash morphhdl/scripts/check-typed-vec-boundary.sh
-          python3 morphhdl/scripts/check-increment-59c-source-review.py --self-test
-          python3 morphhdl/scripts/check-increment-59c-source-review.py
-          python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-59c-named-field-vectors.py --self-test
           python3 morphhdl/scripts/check-increment-59c-nested-register-writes.py --self-test
       - name: Bootstrap repository-pinned SBT
