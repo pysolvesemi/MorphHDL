@@ -110,6 +110,15 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
     print(result.stdout, end="", flush=True)
 
 
+def current_positive_timeout(root: Path) -> int:
+    # This caller runs the same complete 60f audit measured at 1621.921s.
+    # Presence selects only a finite resource budget; the audit must still
+    # authenticate every source byte. Historical/negative limits stay intact.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
+
+
 def main() -> None:
     successor = ROOT / "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
     if (ROOT / "morphhdl/contracts/increment-59h-source-review.json").is_file():
@@ -121,11 +130,11 @@ def main() -> None:
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59c-inherited-source-scope.py",
             "target/increment-59c-source-scope",
-            # The current full overlay/inherited traversal measured 127-154s
-            # locally and exceeded 120s in CI. Only this positive audit gets
-            # 600s; historical/mutation controls and Git retain their limits.
+            # The integrated parent-union traversal exceeded 600s in CI.
+            # Match the 59h current-positive budget for that integration;
+            # historical/mutation controls and Git retain their limits.
             lambda: [checked(ROOT, "current descendant through complete 59h and inherited source audits",
-                             timeout_seconds=600)],
+                             timeout_seconds=current_positive_timeout(ROOT))],
             "59c current-source controls PASS")
         return
     head = git(ROOT, "rev-parse", "HEAD")

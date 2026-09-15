@@ -1219,6 +1219,86 @@ object ParameterizedVec {
     values.groupBy(_.name).toVector.map(_._2.head).sortBy(_.name)
   }
 
+  /** Rebuild nested shape metadata only while an unused native clone receives
+    * independently certified leaf widths. The exact source depth/root/capacity
+    * survive; ordinary copies and existing registry conflicts stay immutable.
+    */
+  private[spinal] def withFreshCloneWidths[A](source: Data, target: Data)(body: => A): A = synchronized {
+    def invalid(detail: String): Nothing = fail("SPINAL-ELAB-VEC-FRESH-CLONE-SHAPE", detail)
+    if (source == null || target == null || (source eq target))
+      invalid("width substitution requires distinct source and fresh native clone identities")
+    val sourceLeaves = source.flatten.toVector
+    val targetLeaves = target.flatten.toVector
+    if (sourceLeaves.isEmpty || sourceLeaves.size != targetLeaves.size ||
+        targetLeaves.distinct.size != targetLeaves.size)
+      invalid("fresh clone must preserve a nonempty, unaliased native leaf inventory")
+    def unused(leaf: BaseType): Boolean = leaf.isDirectionLess && !leaf.isReg &&
+      !leaf.isAnalog && leaf.head == null
+    sourceLeaves.zip(targetLeaves).foreach { case (from, to) =>
+      if (sourceLeaves.exists(_ eq to) || from.getClass != to.getClass ||
+          (from.component ne to.component) || !unused(to) ||
+          from.getBitsWidth != to.getBitsWidth ||
+          !ElabInt.equivalentExpression(
+            ParameterizedWidth.expressionOf(from).getOrElse(literal(from.getBitsWidth)),
+            ParameterizedWidth.expressionOf(to).getOrElse(literal(to.getBitsWidth))))
+        invalid("only unused exact native clones may receive substituted leaf widths")
+    }
+    val vectors = ArrayBuffer.empty[(Vec[_], Option[Entry], Option[ParameterizedVecShape])]
+    def collect(from: Data, to: Data): Unit = (from, to) match {
+      case (a: MultiData, b: MultiData) =>
+        val left = a.elements.toVector
+        val right = b.elements.toVector
+        if (a.getClass != b.getClass || left.map(_._1) != right.map(_._1))
+          invalid("fresh clone changed recursive container kinds or field paths")
+        left.zip(right).foreach { case ((_, x), (_, y)) => collect(x, y) }
+        (a, b) match {
+          case (original: Vec[_], cloned: Vec[_]) =>
+            val before = retained.get(new ParameterizedVecIdentityRef(cloned, null))
+            val expected = shapeOf(original)
+            if (before.map(_.shape).size != expected.size ||
+                before.zip(expected).exists { case (entry, shape) =>
+                  !equivalentShape(entry.shape, shape) || entry.operations.nonEmpty ||
+                    entry.completedWriteInvocations.nonEmpty || entry.formalBindings.nonEmpty
+                }) invalid("fresh clone must retain its original unused Vec depth, roots and capacity")
+            vectors += ((cloned, before, expected))
+          case (_: Vec[_], _) | (_, _: Vec[_]) => invalid("fresh clone changed a Vec container")
+          case _ =>
+        }
+      case (_: BaseType, _: BaseType) =>
+      case _ => invalid("fresh clone changed native data kinds")
+    }
+    collect(source, target)
+    val rollbackWidths = targetLeaves.collect { case leaf: BitVector =>
+      ParameterizedWidth.beginFreshCloneWidthChange(leaf)
+    }
+    vectors.foreach { case (vector, _, _) => retained.remove(new ParameterizedVecIdentityRef(vector, null)) }
+    try {
+      val result = body
+      if (target.flatten.toVector.zip(targetLeaves).exists { case (a, b) => a ne b } ||
+          target.flatten.size != targetLeaves.size || targetLeaves.exists(leaf => !unused(leaf)))
+        invalid("fresh width substitution changed native identities or introduced drivers")
+      // Descendants precede ancestors, so recapturing an enclosing Vec uses
+      // the new logical element widths and the original exact nested depths.
+      vectors.foreach { case (vector, _, expected) =>
+        expected match {
+          case Some(shape) => attach(vector.asInstanceOf[Vec[Data]], shape.depth,
+            shape.witnessDepth, shape.carrierCapacity, shape.sourceLocation)
+          case None => attachConcreteDepthIfSymbolicElement(vector.asInstanceOf[Vec[Data]], vector.vec.size)
+        }
+      }
+      result
+    } catch {
+      case error: Throwable =>
+        vectors.foreach { case (vector, before, _) =>
+          val key = new ParameterizedVecIdentityRef(vector, null)
+          retained.remove(key)
+          before.foreach(entry => retained.update(new ParameterizedVecIdentityRef(vector, queue), entry))
+        }
+        rollbackWidths.foreach(_.apply())
+        throw error
+    }
+  }
+
   /** Copy typed Vec metadata after the native clone and flattened-width copy. */
   private[spinal] def copyShape[T <: Data](from: Vec[T], to: Vec[T]): Vec[T] = synchronized {
     shapeOf(from).foreach { shape =>

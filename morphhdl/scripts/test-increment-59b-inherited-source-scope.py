@@ -105,6 +105,12 @@ def commit_fixture(root: Path, path: str) -> None:
         "-m", "isolated negative source-scope fixture")
 
 
+def current_positive_timeout(root: Path) -> int:
+    # The complete 60f traversal passed in 1621.921s on recovered 59i.
+    # Target-only positives keep 600s; no historical, negative, or Git budget changes.
+    return 3600 if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file() else 600
+
+
 def main() -> None:
     if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
         # Current 59c source audits remain mandatory. Replaced exact mutation
@@ -116,9 +122,10 @@ def main() -> None:
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59b-inherited-source-scope.py", "target/increment-59b-source-scope",
             # Match the existing 60f full-positive budget: merged WA-10 audits
-            # take 136-140s in CI. Historical/mutation calls retain 120s.
+            # take 136-140s in CI. The joined successor uses its measured 3600s budget.
+            # Historical/mutation calls retain 120s.
             lambda: [checked_current(ROOT, "current descendant through complete 59c and inherited source audits",
-                                     timeout_seconds=600)], "exact negative inherited source-scope cases")
+                                     timeout_seconds=current_positive_timeout(ROOT))], "exact negative inherited source-scope cases")
         return
     head = git(ROOT, "rev-parse", "HEAD")
     records = [checked_current(ROOT, "current descendant with qualified history and approved native source")]

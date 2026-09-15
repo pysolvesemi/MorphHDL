@@ -68,14 +68,23 @@ def digest(text: str) -> str:
 
 def current_inherited_source(root: Path, path: str) -> str:
     """Remove only the exact reviewed 59c layer before frozen sibling audits."""
-    source = restore_rollout(root, path, (root / path).read_text())
+    source = (root / path).read_text()
     checker = root / "morphhdl/scripts/check-increment-59c-source-review.py"
     if checker.exists():
         spec = importlib.util.spec_from_file_location("named_59c_scope", checker)
         require(spec is not None and spec.loader is not None, "cannot import reviewed 59c source scope")
         named = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(named)
+        nested = named.nested_source_review(root)
+        register = None if nested is None else getattr(nested, "register_source_review", lambda _: None)(root)
+        joined = None if register is None else getattr(register, "join_source_review", lambda _: None)(root)
+        if joined is None:
+            source = restore_rollout(root, path, source)
+        # The joined 59c -> 59h -> 59g -> 59i chain owns the current feature
+        # view. Its exact source certificates must run before target rollout.
         source = named.restore_source(root, path, source)
+    else:
+        source = restore_rollout(root, path, source)
     return source
 
 
