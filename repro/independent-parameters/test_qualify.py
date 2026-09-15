@@ -1,7 +1,14 @@
-"""Negative controls for the clean-build gate's JUnit evidence consumer."""
+"""Fail-closed source-audit budgets and clean-build JUnit evidence controls."""
+import contextlib
+import importlib.util
+import io
+import subprocess
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from qualify import verify_reports, verify_qualification_reports
 
 
@@ -79,6 +86,80 @@ class QualificationModuleCoverageTests(unittest.TestCase):
         self.report('frontend', 'FrontendSuite')
         self.assertEqual(verify_qualification_reports(self.root, {'NativeSuite': 1}, {'FrontendSuite': 1}),
                          {'morph': {'NativeSuite': 1}, 'frontend': {'FrontendSuite': 1}})
+
+
+class RegisterBridgeAuditBudgetTests(unittest.TestCase):
+    """Execute the real wrapper; mock execution, not its acceptance policy."""
+    ROOT = Path(__file__).resolve().parents[2]
+    PASS = "inherited native audits PASS"
+
+    def load_audit(self):
+        filename = self.ROOT / 'morphhdl/scripts/test-increment-59g-source-review.py'
+        spec = importlib.util.spec_from_file_location('independent_59g_audit_budget', filename)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_historical_and_mutation_defaults_still_use_180_seconds(self):
+        module = self.load_audit()
+        for expected, code, output in ((None, 0, self.PASS),
+                                       ('exact rejection', 1, 'exact rejection')):
+            with self.subTest(expected=expected), contextlib.redirect_stdout(io.StringIO()), \
+                    patch.object(module.subprocess, 'run', side_effect=(
+                        types.SimpleNamespace(returncode=code, stdout=output),
+                        types.SimpleNamespace(returncode=0, stdout='checked-source-head'))) as run:
+                record = module.check(self.ROOT, 'historical or mutation', expected)
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(run.call_args_list[0].kwargs['timeout'], 180)
+                self.assertEqual(run.call_args_list[1].kwargs['timeout'], 120)
+                self.assertEqual(record['exit_code'], code)
+                self.assertEqual(record['expected_rejection'], expected)
+                self.assertEqual(record['head'], 'checked-source-head')
+
+    def test_main_gives_only_complete_positive_audit_600_seconds(self):
+        module = self.load_audit()
+
+        class StopBeforeMutationWorktrees(Exception):
+            pass
+
+        with contextlib.redirect_stdout(io.StringIO()), \
+                patch.object(module, 'git', return_value='checked-source-head') as git, \
+                patch.object(module.importlib.util, 'spec_from_file_location',
+                             side_effect=StopBeforeMutationWorktrees) as load_review, \
+                patch.object(module.subprocess, 'run', return_value=types.SimpleNamespace(
+                    returncode=0, stdout=self.PASS)) as run:
+            with self.assertRaises(StopBeforeMutationWorktrees):
+                module.main()
+            self.assertEqual(run.call_count, 1)
+            self.assertEqual(run.call_args.kwargs['timeout'], 600)
+            self.assertEqual(run.call_args.args[0][:2], [sys.executable, '-c'])
+            self.assertEqual(run.call_args.args[0][3], str(self.ROOT))
+            self.assertEqual(run.call_args.args[0][4], str(self.ROOT / module.CHECKER))
+            self.assertEqual(git.call_count, 2)
+            self.assertTrue(all(call.args == (self.ROOT, 'rev-parse', 'HEAD')
+                                for call in git.call_args_list))
+            load_review.assert_called_once()
+
+    def test_positive_and_mutation_still_require_exact_outcomes(self):
+        module = self.load_audit()
+        for expected, budget, results in (
+                (None, 600, ((1, self.PASS), (0, 'no marker'), (1, 'no marker'))),
+                ('exact rejection', 180,
+                 ((0, 'exact rejection'), (1, 'unrelated error'), (0, self.PASS)))):
+            for code, output in results:
+                with self.subTest(expected=expected, code=code, output=output), \
+                        patch.object(module.subprocess, 'run', return_value=types.SimpleNamespace(
+                            returncode=code, stdout=output)), self.assertRaises(RuntimeError):
+                    module.check(self.ROOT, 'invalid outcome', expected, timeout_seconds=budget)
+
+    def test_timeout_cannot_be_a_pass_or_expected_mutation_rejection(self):
+        module = self.load_audit()
+        for expected, budget in ((None, 600), ('exact rejection', 180)):
+            with self.subTest(expected=expected), \
+                    patch.object(module.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
+                        'source audit', budget, output=self.PASS + ' exact rejection')), \
+                    self.assertRaises(subprocess.TimeoutExpired):
+                module.check(self.ROOT, 'timed-out audit', expected, timeout_seconds=budget)
 
 
 if __name__ == '__main__':
