@@ -14,11 +14,11 @@ that source/seal unchanged. It is the 133-file / 407-span checkpoint, not the
 later unidentified 135-file / 417-span state described in the handoff.
 
 The target refresh is exactly
-`3b547ae5622ae212c17f6e67cc96924127a46a41`; its common base with the published
+`61d1fe0dcac0b52856620944a2d7426fd1390a48`; its common base with the published
 59i predecessor is `f06d9c412924b99cf2c76422549c375a571757dc`. These immutable
 objects, not the current value of a branch name, define the review boundary.
-The refresh contains the newer WA-11 Boolean-width normalization and inherited
-audit scheduling work and must not be discarded to make older audits pass.
+The refresh includes WA-11 Boolean-width normalization and the merged PR #186
+audit scheduling and native diagnostic-capture work and must not be discarded to make older audits pass.
 
 ## Runtime and conflict reconciliation
 
@@ -55,14 +55,18 @@ not authorize source changes or provide proof results.
 
 Schema 2 additionally inventories every path changed by the target refresh and
 binds its exact target/source bytes and modes. Target-only changes must survive
-byte-for-byte. Only these six reviewed overlaps can differ from the target:
+byte-for-byte. Only these ten reviewed overlaps can differ from the target:
 
 - the 59d widening and 59h nested-owner workflow files, retaining target timing
   changes and 59i enrollment/cache settings;
 - `core/src/main/scala/spinal/core/ElabInt.scala`, retaining both native changes;
 - the native review policy and regenerated native-source manifest;
 - the WA-08 overlay helper, retaining the target's seal and authenticated 59i
-  adapter with exact helper-code identity.
+  adapter with exact helper-code identity;
+- the 59b, 59d and 59h inherited caller harnesses, preserving every original
+  check and mutation while composing the two parents' positive-test budgets;
+- the incoming audit-timeout unit tests, preserving all fourteen methods and
+  adding four controls for the joined caller budgets.
 
 Every overlap has its own explicit target-to-source reconciliation spans. The
 existing historical predecessor projection remains available for the inherited
@@ -127,3 +131,33 @@ was changed to satisfy the test; all original mutation payloads remain. The
 external development harness passed all 131 exact mutation controls before the
 fixture update was incorporated into this source. Final-head execution remains
 required.
+
+
+## PR #186 reconciliation and retained scheduling controls
+
+The earlier staged source `2375c64c81f5c19d08ad706634cd3484537e77b3` and its
+seal `1541077ca85082409a6a870884d9ac8b377acdea` remain immutable recovery points.
+The new target adds 15 commits and 16 changed paths after `3b547ae5`; none
+changes `src/main`. Every incoming path is retained. The complete native runtime
+and both native manifests are unchanged from the earlier staged source.
+
+The pending `3d5e97ce94c185f19b2e331972f5ed4d2e0e8496` regression restoration is
+included byte-for-byte: all eighteen source-budget tests, the historical portable
+whole-harness fingerprint, and both additive workflow enrollments. The separate
+six-test scheduling suite remains unchanged.
+
+The two incoming 600-second 59b/59d positives call the same complete 60f traversal
+already measured at 1621.921 seconds. They now select the previously reviewed
+3600-second budget only when the successor manifest is present. Target-only
+positives still select 600 seconds; historical/mutation/Git defaults remain 120
+seconds. The 59h current-positive overlap retains 900 seconds for its joined
+parent-union audit and the incoming 600 seconds otherwise; all historical and
+negative 59h checks retain 180 seconds. Presence selects a finite resource budget,
+not source authority: the executed audit must still authenticate the source.
+
+The fourteen incoming timeout tests still execute their original wrapper and
+entrypoint assertions against the correct target-only filesystem state. Four
+additional tests cover both marker states, actual joined entrypoint propagation,
+and failed or timed-out processes. No rejection case or proof invocation is
+removed, and the 59d/59h workflow fields and commands from both parents survive.
+This record does not assert full Scala, hardware, formal or final-head CI success.

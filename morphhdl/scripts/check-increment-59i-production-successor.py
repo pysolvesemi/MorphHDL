@@ -20,7 +20,7 @@ from pathlib import Path
 BASE = "954d9b2763b064dba60af71ad8fa509a9d7cada8"
 # Schema 2 admits only this reviewed target refresh. Schema 1 and all its
 # historical direct-child rules remain valid; a moving branch grants no rights.
-INTEGRATION_TARGET = "3b547ae5622ae212c17f6e67cc96924127a46a41"
+INTEGRATION_TARGET = "61d1fe0dcac0b52856620944a2d7426fd1390a48"
 INTEGRATION_BASE = "f06d9c412924b99cf2c76422549c375a571757dc"
 INTEGRATION_RECONCILIATIONS = frozenset((
     ".github/workflows/increment-59d-widening.yml",
@@ -29,6 +29,10 @@ INTEGRATION_RECONCILIATIONS = frozenset((
     "morphhdl/contracts/increment-55-native-change-review.json",
     "morphhdl/contracts/native-source-preservation.json",
     "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+    "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
+    "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+    "morphhdl/scripts/test-inherited-source-audit-timeouts.py",
 ))
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"

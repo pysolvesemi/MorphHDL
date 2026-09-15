@@ -36,7 +36,8 @@ def git(root: Path, *arguments: str) -> str:
     return result.stdout.strip()
 
 
-def checked(root: Path, label: str, expected: str | None = None, timeout_seconds: int = 180) -> dict:
+def checked(root: Path, label: str, expected: str | None = None,
+            timeout_seconds: int = 180) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             timeout=timeout_seconds, check=False)
@@ -82,14 +83,18 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
     print(result.stdout, end="", flush=True)
 
 
+def current_positive_timeout(root: Path) -> int:
+    # The reviewed 59i parent-union audit retains its existing 900s budget.
+    # Target-only positives keep 600s; no historical, negative, or Git budget changes.
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    # The complete 427-file parent-union audit took 487.055s on the sealed
-    # integrated tree after batching reads and caching immutable schema checks.
-    # Only this full current positive gets 900s; every negative keeps 180s,
-    # and unchanged frozen historical tests retain their own original limits.
-    timeout = 900 if (ROOT / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 180
-    records = [checked(ROOT, "current exact 59h delta and all inherited audits", timeout_seconds=timeout)]
+    # The complete current traversal can exceed 180s under audit contention.
+    # Match the bounded full-positive budget; historical/mutation calls stay 180s.
+    records = [checked(ROOT, "current exact 59h delta and all inherited audits",
+                       timeout_seconds=current_positive_timeout(ROOT))]
     prod = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     runtime = "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
     spec = importlib.util.spec_from_file_location(

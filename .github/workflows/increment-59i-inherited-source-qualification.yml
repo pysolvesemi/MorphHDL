@@ -86,6 +86,7 @@ jobs:
           python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
           python3 morphhdl/scripts/check-wa07b-inherited-review.py
           python3 morphhdl/scripts/test-wa07b-inherited-review.py
+          python3 morphhdl/scripts/test-increment-60f-source-budget.py
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/test-increment-60f-integration-reader.py -v
           python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py

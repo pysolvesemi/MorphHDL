@@ -10,6 +10,7 @@ on:
       - 'morphhdl/contracts/*59h*.json'
       - 'morphhdl/scripts/check-increment-59b-*.py'
       - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/scripts/test-inherited-source-audit-timeouts.py'
       - 'core/src/**'
       - 'lib/src/**'
       - 'frontend/src/**'
@@ -25,6 +26,7 @@ on:
       - 'morphhdl/contracts/*59h*.json'
       - 'morphhdl/scripts/check-increment-59b-*.py'
       - 'morphhdl/scripts/test-increment-59b-inherited-source-scope.py'
+      - 'morphhdl/scripts/test-inherited-source-audit-timeouts.py'
       - 'core/src/**'
       - 'lib/src/**'
       - 'frontend/src/**'
@@ -47,6 +49,7 @@ jobs:
   validate:
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59h-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') ||
@@ -81,6 +84,7 @@ jobs:
           mkdir -p "$output/bootstrap"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/test-inherited-source-audit-timeouts.py
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-increment-59h-source-review.py
