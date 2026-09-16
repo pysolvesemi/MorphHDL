@@ -75,11 +75,11 @@ jobs:
             const selected = new Set();
             lines.forEach((line, index) => {
               if (/\*\*\* FAILED \*\*\*|NoClassDefFoundError|ClassNotFoundException/.test(line)) {
-                for (let i = Math.max(0,index-3); i <= Math.min(lines.length-1,index+8); i++) selected.add(i);
+                for (let i = Math.max(0,index-3); i <= Math.min(lines.length-1,index+50); i++) selected.add(i);
               }
             });
             if (!selected.size) throw new Error('No failure context found in the pinned log');
-            const excerpts = [...selected].sort((a,b)=>a-b).slice(0,160).map(i => `${i+1}: ${lines[i]}`).join('\n');
+            const excerpts = [...selected].sort((a,b)=>a-b).slice(0,200).map(i => `${i+1}: ${lines[i]}`).join('\n');
             core.info('PINNED_FAILURE_EXCERPTS_BEGIN\n' + excerpts + '\nPINNED_FAILURE_EXCERPTS_END');
 
   compact-candidate:
