@@ -31,6 +31,8 @@ object CdcConsumerSuccess extends App {
       if (mode == "Value") {
         val widthValue = ElabValue.uintLike(recordBits, U(0, 12 bits), "record_width")
         val matchesWidth = out Bool()
+        // This block-local val is not a component field for automatic naming.
+        matchesWidth.setName("matchesWidth")
         matchesWidth := widthValue === 89
       }
     }
