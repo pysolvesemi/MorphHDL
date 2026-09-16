@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """One-shot, pinned PR189 source-review repair; never part of normal validation.
 
-Only the three-file transport checkpoint directly following INPUT is admitted.
+Only the reviewed two-file trigger-fix child of TRANSPORT is admitted. The
+original three-file transport and unchanged compiler remain pinned by INPUT.
 No production source is edited here. The existing native manifest generator is
 used with an explicit two-file review update; the WA08 verifier is unchanged.
 Run the resulting candidate's guards before publishing any candidate commit.
@@ -16,6 +17,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 INPUT = "0a495945f705fa905588737fd8bbf9c02f690844"
+TRANSPORT = "d6f73a9dfbacfe08ccfb23b3937a737f18e952be"
 TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
 WORKFLOW = ".github/workflows/cdc-independent-parameter-consumers.yml"
 SELF = "repro/cdc-independent-parameters/repair_source_reviews.py"
@@ -64,9 +66,13 @@ def commit(message: str, files: list[str]) -> str:
 def main() -> None:
     require(git("rev-parse", "--show-toplevel").decode().strip() == str(ROOT), "wrong repository root")
     head = git("rev-parse", "HEAD").decode().strip()
-    require(git("show", "-s", "--format=%P", "HEAD").decode().strip() == INPUT,
-            "this one-shot repair only accepts a direct transport child of " + INPUT)
-    require(paths(INPUT) == {WORKFLOW, SELF, SUCCESSOR}, "unreviewed transport changes")
+    require(git("show", "-s", "--format=%P", "HEAD").decode().strip() == TRANSPORT,
+            "this one-shot repair only accepts a direct trigger-fix child of " + TRANSPORT)
+    require(git("show", "-s", "--format=%P", TRANSPORT).decode().strip() == INPUT,
+            "original transport ancestry changed")
+    require(paths(INPUT, TRANSPORT) == {WORKFLOW, SELF, SUCCESSOR}, "unreviewed original transport changes")
+    require(paths(TRANSPORT) == {WORKFLOW, SELF}, "unreviewed trigger-fix changes")
+    require(paths(INPUT) == {WORKFLOW, SELF, SUCCESSOR}, "unreviewed cumulative transport changes")
     require(not git("status", "--porcelain", "--untracked-files=all"), "dirty starting checkout")
     git("merge-base", "--is-ancestor", TARGET, "HEAD")
     native = load(NATIVE_CHECK, "pr189_native_manifest_generator")

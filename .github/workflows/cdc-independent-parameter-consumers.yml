@@ -15,6 +15,10 @@ on:
       - 'morphhdl/contracts/**'
       - 'repro/cdc-independent-parameters/**'
       - '.github/workflows/cdc-independent-parameter-consumers.yml'
+  # A commit-specific owner review can start this workflow while [skip ci]
+  # continues to suppress the unrelated push/pull_request qualification fleet.
+  pull_request_review:
+    types: [submitted]
   workflow_dispatch:
     inputs:
       mode:
@@ -27,7 +31,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cdc-independent-consumers-${{ github.head_ref || github.ref_name }}
+  group: cdc-independent-consumers-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 defaults:
@@ -44,8 +48,9 @@ jobs:
   repair-reviewed-source:
     name: Pinned PR189 source-review repair and failed source gates
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.mode == 'source-repair' && github.ref_name == 'agent/cdc-independent-parameter-consumers') ||
-      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'pr189-source-repair-v1' && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/cdc-independent-parameter-consumers')
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'source-repair' && github.ref_name == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'pr189-source-repair-v1' && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) ||
+      (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:source-repair:{0}', github.event.pull_request.head.sha))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
@@ -141,8 +146,8 @@ jobs:
   source-preflight:
     name: Current-head source audit preflight
     if: >-
-      (github.event_name != 'workflow_dispatch' || inputs.mode != 'source-repair') &&
-      (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'pr189-targeted-ci-v1')
+      (github.event_name != 'pull_request_review' && (github.event_name != 'workflow_dispatch' || inputs.mode != 'source-repair') && (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'pr189-targeted-ci-v1')) ||
+      (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:checks:{0}', github.event.pull_request.head.sha))
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -178,6 +183,7 @@ jobs:
           )
           failures=0
           index=0
+          : > cdc-source-evidence/results.tsv
           for check in "${checks[@]}"; do
             index=$((index + 1))
             printf '\nCHECK %s: %s\n' "$index" "$check"
