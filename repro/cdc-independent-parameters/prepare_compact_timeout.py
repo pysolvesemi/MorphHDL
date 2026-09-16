@@ -13,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 QUALIFIED = "0a13d7fb01413d6d5f9f2bb8885f8abf109cb264"
 RESTORED = "96fa69762c682204c0476ac272d350d9ca1a5190"
-TRANSPORT_PARENT = "c7bea5872d35b19553e3313747d448c3ce7e11e0"
+TRANSPORT_PARENT = "b881907e578d81557ff975e2f212c8297d68cd44"
 TEMPLATE = "6e632df8900ee7760a384c6a572825acfd012ac6"
 PATH = "repro/cdc-independent-parameters/prepare_compact_timeout.py"
 BLOB = "d8de2bf69e18ca295c877834c71f6abfa8882ba5"

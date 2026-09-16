@@ -57,7 +57,7 @@ object CompactTimeoutGenerate extends App {
     targetDirectory = args(0) + "/" + name,
     oneFilePerComponent = false,
     headerWithDate = false,
-    headerWithRepoHash = false
+    headerWithRepoHash = true
   )
   MorphVerilog(config("timer")) {
     new CompactDeadline(timeout,
@@ -76,7 +76,7 @@ object CompactTimeoutSafety extends App {
     var caught = false
     try {
       MorphVerilog(SpinalConfig(targetDirectory = args(0) + "/" + label,
-        headerWithDate = false, headerWithRepoHash = false)) {
+        headerWithDate = false, headerWithRepoHash = true)) {
         new Component { body }
       }
     } catch {
