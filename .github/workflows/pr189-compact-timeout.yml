@@ -1,0 +1,157 @@
+name: PR189 compact timeout targeted repair
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr189-compact-timeout-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SBT_TEST_PARALLEL: '0'
+  JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
+  JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  compact-candidate:
+    name: Exact compact declaration, timer and affected compiler checks
+    if: >-
+      github.event.action == 'submitted' && github.event.review.state == 'commented' &&
+      github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner &&
+      github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' &&
+      github.event.pull_request.base.ref == 'parameterized-verilog' &&
+      github.event.review.commit_id == github.event.pull_request.head.sha &&
+      github.event.review.body == format('pr189:compact-timeout:{0}', github.event.pull_request.head.sha)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    permissions:
+      contents: write
+    env:
+      EXPECTED_INPUT: ${{ github.event.pull_request.head.sha }}
+      EVIDENCE: /tmp/pr189-compact-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+      - name: Construct only the exact reviewed candidate and preserve its identity
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_INPUT"
+          git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/input-identity.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 repro/cdc-independent-parameters/prepare_compact_timeout.py 2>&1 | tee "$EVIDENCE/preparation.log"
+          git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/candidate-identity.txt"
+          git diff --binary "$EXPECTED_INPUT" HEAD > "$EVIDENCE/candidate.patch"
+          git bundle create "$EVIDENCE/candidate.bundle" HEAD "^$EXPECTED_INPUT"
+      - name: Recheck every affected source guard and live rejection control
+        run: |
+          set -euo pipefail
+          checks=(
+            'git diff --check'
+            'python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+            'python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py --self-test'
+            'python3 morphhdl/scripts/check-native-source-preservation.py'
+            'python3 morphhdl/scripts/check-native-source-preservation.py --self-test'
+            'python3 morphhdl/scripts/check-typed-native-source-overlay.py'
+            'python3 morphhdl/scripts/check-increment-58-retirement.py'
+            'python3 morphhdl/scripts/check-production-retirement.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py --self-test'
+            'bash morphhdl/scripts/check-typed-vec-boundary.sh'
+            'python3 repro/cdc-independent-parameters/test_layering_root.py'
+            'python3 morphhdl/scripts/check-increment-60g-source-scope.py'
+            'python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py'
+            'python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py'
+            'python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only'
+          )
+          failures=0
+          index=0
+          : > "$EVIDENCE/source-results.tsv"
+          for check in "${checks[@]}"; do
+            index=$((index + 1))
+            if bash -e -o pipefail -c "$check" > "$EVIDENCE/source-$index.log" 2>&1; then
+              printf 'PASS\t%s\n' "$check" >> "$EVIDENCE/source-results.tsv"
+            else
+              failures=$((failures + 1))
+              printf 'FAIL\t%s\n' "$check" >> "$EVIDENCE/source-results.tsv"
+            fi
+            cat "$EVIDENCE/source-$index.log"
+          done
+          test "$index" = 18
+          test "$failures" = 0
+      - name: Compile both plugins and test the actual compact and existing consumers on both Scala versions
+        run: |
+          set -euo pipefail
+          java -version 2>&1 | tee "$EVIDENCE/java-version.txt"
+          iverilog -V > "$EVIDENCE/iverilog-version.txt" 2>&1
+          yosys -V > "$EVIDENCE/yosys-version.txt"
+          root="$PWD"
+          for scala in 2.12.18 2.13.12; do
+            destination="$EVIDENCE/scala-$scala"
+            mkdir -p "$destination"
+            cd "$root/repro/cdc-independent-parameters"
+            sbt -batch -no-colors "++$scala!" \
+              "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
+              "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
+              "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
+              "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
+              "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
+              "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
+              2>&1 | tee "$destination/compiler.log"
+            grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
+            python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
+              2>&1 | tee "$destination/timer-validation.log"
+            python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
+              2>&1 | tee "$destination/consumer-validation.log"
+            cd "$root"
+            sbt -batch -no-colors "++$scala" core/Test/test morph/Test/test \
+              2>&1 | tee "$destination/affected-regressions.log"
+          done
+          diff -ru "$EVIDENCE/scala-2.12.18/first" "$EVIDENCE/scala-2.13.12/first"
+          diff -ru "$EVIDENCE/scala-2.12.18/consumers" "$EVIDENCE/scala-2.13.12/consumers"
+          test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf '%s\n' 'PR189_COMPACT_TARGETED_PASS' > "$EVIDENCE/targeted-pass.txt"
+      - name: Publish only the passing candidate to the unchanged existing branch
+        run: |
+          set -euo pipefail
+          test "$(cat "$EVIDENCE/targeted-pass.txt")" = PR189_COMPACT_TARGETED_PASS
+          branch='agent/cdc-independent-parameter-consumers'
+          actual=$(git ls-remote --exit-code origin "refs/heads/$branch" | cut -f1)
+          test "$actual" = "$EXPECTED_INPUT"
+          git merge-base --is-ancestor "$EXPECTED_INPUT" HEAD
+          for commit in $(git rev-list "$EXPECTED_INPUT..HEAD"); do
+            git show -s --format=%B "$commit" | grep -F '[skip ci]'
+          done
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > "$EVIDENCE/published-head.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-compact-candidate-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: /tmp/pr189-compact-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+# This is affected compiler/consumer qualification only. It does not run the
+# repository's full formal/workflow fleet, mark this PR ready, or merge it.
