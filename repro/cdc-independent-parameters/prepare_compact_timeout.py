@@ -13,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 QUALIFIED = "0a13d7fb01413d6d5f9f2bb8885f8abf109cb264"
 RESTORED = "96fa69762c682204c0476ac272d350d9ca1a5190"
-TRANSPORT_PARENT = "5a8c8f5913d72c379decf0827e52c0fcdeafff6d"
+TRANSPORT_PARENT = "d294ce3ab2a9292378ba830a68cd0204c4f9fa01"
 TEMPLATE = "6e632df8900ee7760a384c6a572825acfd012ac6"
 PATH = "repro/cdc-independent-parameters/prepare_compact_timeout.py"
 BLOB = "d8de2bf69e18ca295c877834c71f6abfa8882ba5"
@@ -43,10 +43,20 @@ def main():
     text = exact(text,
         'COMPILER = {PRODUCT, PERMIT, LEGALITY, HDL, BRIDGE, ISSUER, STRUCTURE, FALLBACK}',
         'NATIVE_WIDTH = "morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala"\n'
+        'REGRESSION = "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala"\n'
         'COMPILER = {PRODUCT, PERMIT, LEGALITY, HDL, BRIDGE, ISSUER, STRUCTURE, FALLBACK, NATIVE_WIDTH}')
     text = exact(text,
         'require(git("show", "-s", "--format=%P", "HEAD").decode().strip() == BASE, "wrong transport parent")',
         'require(git("show", "-s", "--format=%P", "HEAD").decode().strip() == "' + TRANSPORT_PARENT + '", "wrong transport parent")')
+    text = exact(text,
+        '    for path in COMPILER | {BUILD, SCOPE, POLICY, NATIVE, WA, CONTRACT}:',
+        '    for path in COMPILER | {BUILD, SCOPE, POLICY, NATIVE, WA, CONTRACT, REGRESSION}:')
+    text = exact(text,
+        '    expected_scope = set(old_scope.SUCCESSOR_PATHS) | TRANSPORT | COMPILER',
+        '    expected_scope = set(old_scope.SUCCESSOR_PATHS) | TRANSPORT | COMPILER | {REGRESSION}')
+    text = exact(text,
+        'require(changed(BASE) == TRANSPORT | COMPILER | {BUILD, SCOPE, POLICY, NATIVE, WA, CONTRACT}, "unexpected final scope")',
+        'require(changed(BASE) == TRANSPORT | COMPILER | {BUILD, SCOPE, POLICY, NATIVE, WA, CONTRACT, REGRESSION}, "unexpected final scope")')
     text = exact(text,
         '    if (!allStatementsOf(component).exists(_ eq declaration))',
         '    if ((declaration.component ne component) || !allStatementsOf(component).exists(_ eq declaration))')
@@ -130,15 +140,24 @@ def main():
   assert(physicalWidthRejected, "compact integer admission bypassed the physical packed-width cap")
   println("COMPACT_PHYSICAL_WIDTH_REJECTION_PASS")
 """ + marker))
+    # Preserve the original positive rewrite and both stale-RHS rejection
+    # assertions. Only repair their setup: raw parameter summaries no longer
+    # authorize a retained UInt carrier before the emitter-lineage boundary.
+    edits.append(("REGRESSION", """      val binaryWidth = ElaborationIntegerParameter("BINARY_WIDTH", 4, 2, 8)
+      val hexWidth = ElaborationIntegerParameter("HEX_WIDTH", 8, 6, 8)""", """      // Authenticated widths let this test reach emitted-lineage validation;
+      // raw public schemas must not be used to bypass carrier authority.
+      val binaryWidth = HdlInt.param("BINARY_WIDTH", 4, 2, 8).asElabInt
+      val hexWidth = HdlInt.param("HEX_WIDTH", 8, 6, 8).asElabInt"""))
+    edits.append(("REGRESSION", '.UInt(ParameterizedBitCount(4, binaryWidth))', '.UInt(binaryWidth.bits)'))
+    edits.append(("REGRESSION", '.UInt(ParameterizedBitCount(8, hexWidth))', '.UInt(hexWidth.bits)'))
     correction = "".join("    replace(" + path + ", " + repr(old) + ", " + repr(new) + ")\n"
                          for path, old, new in edits) + "\n"
     text = exact(text, '    scope_text = (ROOT / SCOPE).read_text()',
                  correction + '    scope_text = (ROOT / SCOPE).read_text()')
-    # The extra regression is source, not an ephemeral runner modification.
-    # Commit it before calculating the source anchor and exact WA08 file seal.
+    # Both new and repaired regressions are part of the exact candidate tree.
     text = exact(text,
         'compiler_source = commit("PR189: retain compact declaration intervals without finite-table authority", COMPILER | {BUILD, SCOPE, POLICY})',
-        'compiler_source = commit("PR189: retain compact declaration intervals without finite-table authority", COMPILER | {BUILD, SCOPE, POLICY, ' + fixture + '})')
+        'compiler_source = commit("PR189: retain compact declaration intervals without finite-table authority", COMPILER | {BUILD, SCOPE, POLICY, REGRESSION, ' + fixture + '})')
     text = exact(text,
         '    candidate = commit("PR189: seal compact timeout candidate for targeted CI only", {WA, CONTRACT})',
         '    candidate = commit("PR189: seal compact timeout candidate for targeted CI only", {WA, CONTRACT})\n'
