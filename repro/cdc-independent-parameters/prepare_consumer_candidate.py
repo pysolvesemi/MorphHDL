@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Temporary exact source patch preparation. Stage objects only: NEVER update refs."""
-import base64
 import json
 import os
 from pathlib import Path
@@ -113,15 +112,19 @@ replace('morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVeri
 ''', '''    if (ElaborationProductDomain.isRetained(record.expression)) {
       val source = record.sourceLocation.orElse(record.expression.sourceLocation)
       val role = "retained symbolic UInt value"
-      def owned(expression: ElaborationIntegerExpression, use: String): ElaborationProductDomain.OwnerProof =
-        ElaborationProductDomain.owner(expression, use, source) { (root, universe) =>
-          ParameterizedStructure.exactDeclarationDomainOf(
-            component, value, root, universe, use, source).values
-        }.get
-      val (minimum, maximum) = owned(record.expression, role).publicationRange
-      val minimumWidth = ParameterizedWidth.expressionOf(value)
-        .map(width => owned(width, role + " carrier width").publicationRange._1)
-        .getOrElse(BigInt(value.getBitsWidth))
+      val owned = ElaborationProductDomain.owner(record.expression, role, source) { (root, universe) =>
+        ParameterizedStructure.exactDeclarationDomainOf(
+          component, value, root, universe, role, source).values
+      }.get
+      val (minimum, maximum) = owned.publicationRange
+      val minimumWidth = ParameterizedWidth.expressionOf(value).map { width =>
+        // A valid carrier can be literal, single-root, or compositional. Use
+        // the existing common owner validator instead of demanding a product
+        // certificate from every carrier. The authenticated lower enclosure
+        // is conservative even when its owner has a narrower exact domain.
+        NativePublicationWidth.validate(width, component, value, role + " carrier width")
+        width.minimum
+      }.getOrElse(BigInt(value.getBitsWidth))
       if (minimum < 0) fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-DOMAIN-UNSUPPORTED",
         s"$role reaches negative value $minimum in its live owner", source)
       if (minimumWidth < 1 || BigInt(maximum.bitLength) > minimumWidth)
