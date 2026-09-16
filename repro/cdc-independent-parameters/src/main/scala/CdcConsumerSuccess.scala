@@ -54,7 +54,7 @@ object CdcConsumerSafety extends App {
     var rejected = false
     try {
       MorphVerilog(SpinalConfig(targetDirectory = args(0) + "/" + name,
-        headerWithDate = false, headerWithRepoHash = false))(body)
+        headerWithDate = false, headerWithRepoHash = true))(body)
     } catch {
       case e: morphhdl.MorphVerilogException =>
         require(e.getMessage.contains(code), name + " unexpected diagnostic: " + e.getMessage)
