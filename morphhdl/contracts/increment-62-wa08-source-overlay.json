@@ -5,7 +5,7 @@
       "path": ".github/workflows/cdc-independent-parameter-consumers.yml",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "1671e6f3975e0eaa00ecb43239cbf9b7fd0872946c4f01380b5aa2bd86e98b8f"
+      "after_sha256": "91de14f681bfe5e9e812d691b415262c14637b8ca52f7a88ea0f9bef1d1d20f3"
     },
     {
       "path": ".github/workflows/increment-59d-widening.yml",
@@ -431,7 +431,7 @@
       "path": "morphhdl/contracts/increment-54-typed-layering-ir.contract",
       "mode": "100644",
       "before_sha256": "5fea327bd389adf644d12d14761763c27f488d964c93dc986cdd5b1ef6e872d7",
-      "after_sha256": "7494dc0371f75a24fbf00d09024af132e9d20d440a1eb35bd1a0dc3009478d81"
+      "after_sha256": "e87dafe56bdfd4458d2a6b4b45585ba747c2445ad256713ec709817a0c1dc06f"
     },
     {
       "path": "morphhdl/contracts/increment-55-native-change-review.json",
@@ -473,7 +473,7 @@
       "path": "morphhdl/scripts/check-typed-layering-ir.py",
       "mode": "100644",
       "before_sha256": "066d10bd125da3f697f528ad75379c0d3ebdbda604c2f16c8bfc8d5fd13dea8a",
-      "after_sha256": "f7361e79b8f5b5bcfbc4c476e6fe0f27aa96ea7a928ba908ab6728c5b7578aa8"
+      "after_sha256": "689ea6da1184901b5ece721cd90dee2b4b4825253676ff1069da795ad161f4d3"
     },
     {
       "path": "morphhdl/scripts/check-wa07b-inherited-review.py",
@@ -884,10 +884,16 @@
       "after_sha256": "0d5c158927487c933e1614e5bb970d1f0413ff7b9265a6cf3f6bdf23bda7d29c"
     },
     {
+      "path": "repro/cdc-independent-parameters/test_layering_root.py",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "308a619ea07e86f98f932e40fe975597592e93df33c5f97c8f53da7c5f41dbbf"
+    },
+    {
       "path": "repro/cdc-independent-parameters/test_source_review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "b23d99b0f93a5bd6eaae0a6b32d59180905e1b462434acb9dbb9fc28d8d5be7e"
+      "after_sha256": "befd57410edfe91115f0108cfd6fc7f4a09a8079acc51b27b7623c221ac69dda"
     },
     {
       "path": "repro/independent-parameters/.gitignore",
@@ -992,7 +998,7 @@
       "after_sha256": "ac72e384a76209c317e3b05d53849db39649c17b6622a1e75474f475cddb6a1d"
     }
   ],
-  "final_source_commit": "8f8f0bc493fa274246aeda084d80751442cff8ad",
+  "final_source_commit": "3f98319349644c36829132383cd28711d3017cee",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
