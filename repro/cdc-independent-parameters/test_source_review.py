@@ -9,7 +9,12 @@ ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 BASE = "7f355a859e7e88ca343e1ff82f261fb47b3311d0"
+LAYERING_HELPER = "morphhdl/scripts/check-typed-layering-ir.py"
+LAYERING_CONTRACT = "morphhdl/contracts/increment-54-typed-layering-ir.contract"
 REVIEWED = (
+    LAYERING_HELPER,
+    LAYERING_CONTRACT,
+    "repro/cdc-independent-parameters/test_layering_root.py",
     ".github/workflows/cdc-independent-parameter-consumers.yml",
     "repro/cdc-independent-parameters/.gitignore",
     "repro/cdc-independent-parameters/build.sbt",
@@ -26,7 +31,8 @@ spec.loader.exec_module(overlay)
 def baseline_unchanged(root):
     result = subprocess.run(["git", "diff", "--quiet", BASE, "--",
         "core", "morphruntime", "morphhdl", "frontend",
-        ":(exclude)" + HELPER, ":(exclude)" + CONTRACT], cwd=root)
+        ":(exclude)" + HELPER, ":(exclude)" + CONTRACT,
+        ":(exclude)" + LAYERING_HELPER, ":(exclude)" + LAYERING_CONTRACT], cwd=root)
     if result.returncode not in (0, 1):
         raise RuntimeError("baseline Git comparison failed")
     return result.returncode == 0

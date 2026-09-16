@@ -51,11 +51,15 @@ jobs:
           test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
           git merge-base --is-ancestor 7f355a859e7e88ca343e1ff82f261fb47b3311d0 HEAD
           python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
-          # Only the two sealed review-metadata files may differ from the baseline.
+          # Only these four independently sealed audit-metadata files may differ from the baseline.
           git diff --exit-code 7f355a859e7e88ca343e1ff82f261fb47b3311d0 -- core morphruntime morphhdl frontend \
             ':(exclude)morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
-            ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json'
+            ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json' \
+            ':(exclude)morphhdl/contracts/increment-54-typed-layering-ir.contract' \
+            ':(exclude)morphhdl/scripts/check-typed-layering-ir.py'
           python3 repro/cdc-independent-parameters/test_source_review.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          python3 repro/cdc-independent-parameters/test_layering_root.py
           java -version
           iverilog -V
           verilator --version
