@@ -4,32 +4,38 @@ on:
     branches: [agent/lane-when-expression-inlining]
     paths: ['.github/workflows/lane-abi-reviewed-source-transfer.yml']
 permissions:
-  contents: write
+  contents: read
 jobs:
-  transfer:
+  reconstruct:
     runs-on: ubuntu-slim
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Reconstruct reviewed source and publish immutable blob objects only
+      - name: Reconstruct and authenticate source with read-only credentials
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          GIT_AUTHOR_NAME: PR187 source reconstruction
+          GIT_AUTHOR_EMAIL: reconstruction@invalid.example
+          GIT_COMMITTER_NAME: PR187 source reconstruction
+          GIT_COMMITTER_EMAIL: reconstruction@invalid.example
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import base64, hashlib, json, os, pathlib, subprocess, urllib.request
-          def fetch_blob(sha):
-              req=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
+          def get_blob(sha):
+              request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
                   headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
-              with urllib.request.urlopen(req,timeout=60) as response: value=json.load(response)
+              with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
               raw=base64.b64decode(value['content'])
               assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
               return raw
-          raw=fetch_blob('2df7cabb36334b404960da1bffb82823ff715e6e')
+          raw=get_blob('2df7cabb36334b404960da1bffb82823ff715e6e')
           assert hashlib.sha256(raw).hexdigest()=='06295e0131d617f8d9b6299772d2e4f6e9888bbd865f8bf9aa411cdcdaa265b9'
           lines=raw.decode().splitlines(keepends=True);blocks=[];i=0
           while i<len(lines):
@@ -42,14 +48,84 @@ jobs:
           assert len(blocks)==2
           subprocess.run(['bash','-n'],input=blocks[0],text=True,check=True)
           subprocess.run(['bash','-e','-o','pipefail','-c',blocks[0]],check=True)
-          driver=fetch_blob('ae2da2e7c4750d4ae3c020ed3d098b1d11648442')
-          path=pathlib.Path(os.environ['RUNNER_TEMP'],'reconstruct-integrated.py');path.write_bytes(driver)
+          driver=get_blob('ae2da2e7c4750d4ae3c020ed3d098b1d11648442')
+          marker=b'# A GitHub Actions token cannot create trees containing workflow edits.'
+          assert driver.count(marker)==1
+          # The publication half is not executed. This job has read permission only.
+          source=driver.split(marker)[0]
+          path=pathlib.Path(os.environ['RUNNER_TEMP'],'reconstruct-read-only.py');path.write_bytes(source)
           subprocess.run(['python3',str(path)],check=True)
+          def git(*args):return subprocess.check_output(['git',*args])
+          assert git('rev-parse','HEAD').decode().strip()=='af6288504cbbdad2b7c03da3301ba2c1e0a41dab'
+          assert git('rev-parse','HEAD^{tree}').decode().strip()=='3e0b15de15e89d9de34d2f9873e1a3a831bbc198'
+          entries=[]
+          for path in git('diff','--no-renames','--name-only','-z','7f355a859e7e88ca343e1ff82f261fb47b3311d0','HEAD').split(b'\0'):
+              if not path:continue
+              name=path.decode();record=git('ls-tree','-z','HEAD','--',name)
+              metadata,_=record.rstrip(b'\0').split(b'\t',1);mode,kind,sha=metadata.decode().split()
+              assert kind=='blob' and mode in ('100644','100755')
+              entries.append({'path':name,'mode':mode,'type':kind,'sha':sha,
+                  'content':base64.b64encode(git('cat-file','blob',sha)).decode()})
+          assert len(entries)==44
+          publication=json.dumps(entries,sort_keys=True,separators=(',',':')).encode()
+          assert hashlib.sha256(publication).hexdigest()=='ef383b04cd92e1c08dcff0415f31ad2967222a0c7fb3b6817faa204d1ad2f7de'
+          evidence=pathlib.Path(os.environ['RUNNER_TEMP'],'pr187-integrated-source')
+          (evidence/'publication.json').write_bytes(publication)
+          print('READ_ONLY_SOURCE_AND_PUBLICATION_IDENTITY_PASS',flush=True)
           PY
       - uses: actions/upload-artifact@v4
-        if: always()
+        with:
+          name: pr187-reviewed-blob-data
+          path: ${{ runner.temp }}/pr187-integrated-source/
+          if-no-files-found: error
+          retention-days: 7
+  publish-data:
+    needs: reconstruct
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pr187-reviewed-blob-data
+          path: reviewed-data
+      - name: Upload authenticated data blobs without executing repository code
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, pathlib, urllib.request
+          raw=pathlib.Path('reviewed-data/publication.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()=='ef383b04cd92e1c08dcff0415f31ad2967222a0c7fb3b6817faa204d1ad2f7de'
+          entries=json.loads(raw);assert len(entries)==44
+          receipt=[]
+          for entry in entries:
+              assert set(entry)=={'path','mode','type','sha','content'}
+              assert entry['type']=='blob' and entry['mode'] in ('100644','100755')
+              content=base64.b64decode(entry['content'],validate=True)
+              assert hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()==entry['sha']
+              value={'encoding':'base64','content':entry['content']}
+              request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs',
+                  data=json.dumps(value).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
+                  'Accept':'application/vnd.github+json','Content-Type':'application/json'},method='POST')
+              with urllib.request.urlopen(request,timeout=120) as response: result=json.load(response)
+              assert result['sha']==entry['sha']
+              receipt.append({key:entry[key] for key in ('path','mode','type','sha')})
+          pathlib.Path('receipt').mkdir()
+          pathlib.Path('receipt/receipt.json').write_text(json.dumps({'schema_version':1,
+              'candidate':'af6288504cbbdad2b7c03da3301ba2c1e0a41dab',
+              'tree':'3e0b15de15e89d9de34d2f9873e1a3a831bbc198',
+              'base':'7f355a859e7e88ca343e1ff82f261fb47b3311d0',
+              'base_tree':'20e0696ce553d7bdc52072d0837f41d9188904b6',
+              'staging_head':os.environ['GITHUB_SHA'],'entries':receipt},indent=2)+'\n')
+          print('AUTHENTICATED_DATA_BLOBS_UPLOADED',len(receipt),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
         with:
           name: pr187-integrated-source-blobs
-          path: ${{ runner.temp }}/pr187-integrated-source/
+          path: receipt/
           if-no-files-found: error
           retention-days: 7
