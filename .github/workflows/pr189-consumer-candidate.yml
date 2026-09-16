@@ -1,0 +1,80 @@
+name: PR189 compiler consumer candidate
+on:
+  push:
+    branches: [agent/cdc-independent-parameter-consumers]
+    paths:
+      - '.github/workflows/pr189-consumer-candidate.yml'
+      - 'repro/cdc-independent-parameters/prepare_consumer_candidate.py'
+permissions:
+  contents: read
+concurrency:
+  group: pr189-compiler-candidate-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      head: ${{ steps.candidate.outputs.head }}
+      tree: ${{ steps.candidate.outputs.tree }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: candidate
+        name: Apply explicit compiler source edits and stage objects without changing refs
+        env:
+          GH_OBJECT_TOKEN: ${{ github.token }}
+        run: python3 repro/cdc-independent-parameters/prepare_consumer_candidate.py
+  validate:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
+      JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Compile exact candidate and generate success-only fixtures twice
+        run: |
+          set -euo pipefail
+          mkdir -p cdc-consumer-evidence
+          git rev-parse HEAD | tee cdc-consumer-evidence/head.txt
+          test "$(git rev-parse HEAD)" = '${{ needs.prepare.outputs.head }}'
+          test "$(git rev-parse HEAD^{tree})" = '${{ needs.prepare.outputs.tree }}'
+          git diff 448dfdf29839bfde4f8ff1f4833f3bb01180a56d HEAD > cdc-consumer-evidence/compiler.patch
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors 'runMain spinal.core.CdcConsumerSuccess out-consumers' 'runMain spinal.core.CdcConsumerSafety safety-consumers' 2>&1 | tee ../../cdc-consumer-evidence/generation.log
+          sbt -batch -no-colors 'runMain spinal.core.CdcConsumerSuccess out-consumers-repeat' 2>&1 | tee ../../cdc-consumer-evidence/repeat.log
+      - name: Independent same-artifact override simulation and synthesis
+        run: |
+          set -euo pipefail
+          cd repro/cdc-independent-parameters
+          python3 check_consumers.py out-consumers out-consumers-repeat ../../cdc-consumer-evidence/simulation 2>&1 | tee ../../cdc-consumer-evidence/override-matrix.log
+          cat out-consumers/BlackBox/CdcRecordBlackBox.v
+          cat out-consumers/Value/CdcRecordValue.v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-compiler-consumer-${{ needs.prepare.outputs.head }}
+          path: |
+            cdc-consumer-evidence/
+            repro/cdc-independent-parameters/out-consumers/
+            repro/cdc-independent-parameters/out-consumers-repeat/
+          if-no-files-found: error
+          retention-days: 30
