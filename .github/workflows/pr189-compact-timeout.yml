@@ -41,8 +41,8 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const run_id = 35129471360;
-            const expected_head = 'c7bea5872d35b19553e3313747d448c3ce7e11e0';
+            const run_id = 35132618002;
+            const expected_head = 'bfe60684049cf263e011d45f3a651b6c00fd7422';
             const branch = 'agent/cdc-independent-parameter-consumers';
             const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id});
             if (run.head_sha !== expected_head || run.head_branch !== branch ||
@@ -100,38 +100,81 @@ jobs:
           git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/candidate-identity.txt"
           git diff --binary "$EXPECTED_INPUT" HEAD > "$EVIDENCE/candidate.patch"
           git bundle create "$EVIDENCE/candidate.bundle" HEAD "^$EXPECTED_INPUT"
-      # Catch compiler/behavior defects before the long unchanged mutation
-      # suites. All source gates still execute before any candidate publication.
-      - name: Compile both plugins and test the actual compact and existing consumers on both Scala versions
+      - name: Authenticate clean candidate bytes before compiling any fixture
         run: |
           set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py 2>&1 | tee "$EVIDENCE/early-wa08.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$EVIDENCE/early-native.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$EVIDENCE/early-successor.log"
           java -version 2>&1 | tee "$EVIDENCE/java-version.txt"
           iverilog -V > "$EVIDENCE/iverilog-version.txt" 2>&1
           yosys -V > "$EVIDENCE/yosys-version.txt"
-          root="$PWD"
-          for scala in 2.12.18 2.13.12; do
-            destination="$EVIDENCE/scala-$scala"
-            mkdir -p "$destination"
-            cd "$root/repro/cdc-independent-parameters"
-            sbt -batch -no-colors "++$scala!" \
-              "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
-              "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
-              "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
-              "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
-              "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
-              "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
-              2>&1 | tee "$destination/compiler.log"
-            grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
-            python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
-              2>&1 | tee "$destination/timer-validation.log"
-            python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
-              2>&1 | tee "$destination/consumer-validation.log"
-            cd "$root"
-            sbt -batch -no-colors "++$scala" core/Test/test morph/Test/test \
-              2>&1 | tee "$destination/affected-regressions.log"
-          done
+      # Keep the same payload, but expose individual stages so a failed native
+      # generator cannot be confused with a running inherited regression suite.
+      - name: Scala 2.12.18 native generation and exact construction rejections
+        run: |
+          set -euo pipefail
+          destination="$EVIDENCE/scala-2.12.18"
+          mkdir -p "$destination"
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors '++2.12.18!' \
+            "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
+            "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
+            "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
+            "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
+            "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
+            "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
+            2>&1 | tee "$destination/compiler.log"
+          grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
+          grep -F 'COMPACT_PHYSICAL_WIDTH_REJECTION_PASS' "$destination/compiler.log"
+      - name: Scala 2.12.18 same-artifact timer, geometry and record simulation and synthesis
+        run: |
+          set -euo pipefail
+          destination="$EVIDENCE/scala-2.12.18"
+          cd repro/cdc-independent-parameters
+          python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
+            2>&1 | tee "$destination/timer-validation.log"
+          python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
+            2>&1 | tee "$destination/consumer-validation.log"
+      - name: Scala 2.13.12 native generation and exact construction rejections
+        run: |
+          set -euo pipefail
+          destination="$EVIDENCE/scala-2.13.12"
+          mkdir -p "$destination"
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors '++2.13.12!' \
+            "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
+            "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
+            "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
+            "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
+            "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
+            "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
+            2>&1 | tee "$destination/compiler.log"
+          grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
+          grep -F 'COMPACT_PHYSICAL_WIDTH_REJECTION_PASS' "$destination/compiler.log"
+      - name: Scala 2.13.12 same-artifact simulation and synthesis and cross-Scala determinism
+        run: |
+          set -euo pipefail
+          destination="$EVIDENCE/scala-2.13.12"
+          cd repro/cdc-independent-parameters
+          python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
+            2>&1 | tee "$destination/timer-validation.log"
+          python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
+            2>&1 | tee "$destination/consumer-validation.log"
           diff -ru "$EVIDENCE/scala-2.12.18/first" "$EVIDENCE/scala-2.13.12/first"
           diff -ru "$EVIDENCE/scala-2.12.18/consumers" "$EVIDENCE/scala-2.13.12/consumers"
+      - name: Scala 2.12.18 affected core and Morph regression suites
+        run: |
+          set -euo pipefail
+          sbt -batch -no-colors '++2.12.18' core/Test/test morph/Test/test \
+            2>&1 | tee "$EVIDENCE/scala-2.12.18/affected-regressions.log"
+      - name: Scala 2.13.12 affected core and Morph regression suites
+        run: |
+          set -euo pipefail
+          sbt -batch -no-colors '++2.13.12' core/Test/test morph/Test/test \
+            2>&1 | tee "$EVIDENCE/scala-2.13.12/affected-regressions.log"
           test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
           git diff --exit-code
           git diff --cached --exit-code
