@@ -86,8 +86,14 @@ def main():
             "mixed requirement is not simulation-only fatal")
     require("PROFILE" not in text, "unexpected profile selector")
     for top, rtl in (("CompactDeadline", timer), ("CompactDeadlineGeometry", geometry)):
-        execute(["iverilog", "-g2005", "-s", top, "-o", str(args.results/(top+"-strict.vvp")), str(rtl)],
+        # Match Increment61: strict Verilog hardware and SystemVerilog fatal
+        # diagnostics are distinct views. Neither replaces the other's check.
+        execute(["iverilog", "-g2005", "-DSYNTHESIS", "-s", top,
+                 "-o", str(args.results/(top+"-strict.vvp")), str(rtl)],
                 args.results/(top+"-strict.log"))
+        execute(["iverilog", "-g2012", "-s", top,
+                 "-o", str(args.results/(top+"-diagnostic.vvp")), str(rtl)],
+                args.results/(top+"-diagnostic.log"))
     def simulate(rtl, tb_text, tag, expected, invalid=False):
         tb = args.results/(tag+".sv")
         binary = args.results/(tag+".vvp")
