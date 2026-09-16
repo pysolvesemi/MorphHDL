@@ -705,7 +705,7 @@ object MorphVerilog {
   }
 
   private def copyForWitness(config: SpinalConfig, witnessDirectory: Path): SpinalConfig =
-    ParameterizedVerilogMode.disable(config.copy(
+    spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.disable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -715,7 +715,7 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    ))
+    )), enabled = false)
 
   private def copyForSingleSource(config: SpinalConfig, workspace: Path): SpinalConfig = {
     val phaseInserters = config.phasesInserters.clone()
@@ -725,7 +725,7 @@ object MorphVerilog {
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.
-    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(ParameterizedVerilogMode.enable(config.copy(
+    val nativeConfig = spinal.core.NativeSymbolicLegality.configure(ParameterizedVerilogMode.enable(config.copy(
       mode = Verilog,
       flags = config.flags.clone(),
       debugComponents = config.debugComponents.clone(),
@@ -734,7 +734,8 @@ object MorphVerilog {
       transformationPhases = config.transformationPhases.clone(),
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
-    ))))
+    )), enabled = true)
+    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(nativeConfig))
   }
 
   private def readSingleSourceParameters[T <: Component](

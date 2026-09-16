@@ -24,6 +24,9 @@
   ],
   "review_paths": [
     ".github/workflows/morphhdl-passes.yml",
+    "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+    "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+    "core/src/test/scala/spinal/core/internals/VerilogDeclarationPolicyStorageTests.scala",
     "docs/morphhdl/evidence/lane-when-inlining/SHA256SUMS",
     "docs/morphhdl/evidence/lane-when-inlining/after/conditions.v",
     "docs/morphhdl/evidence/lane-when-inlining/after/lane.v",
@@ -44,6 +47,7 @@
     "morphhdl/scripts/check-increment-60f-artifacts.py",
     "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
     "morphhdl/scripts/check-lane-when-source-scope.py",
-    "morphhdl/scripts/test-lane-when-source-scope.py"
+    "morphhdl/scripts/test-lane-when-source-scope.py",
+    "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala"
   ]
 }

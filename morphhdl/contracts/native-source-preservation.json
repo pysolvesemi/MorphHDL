@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "05d936ff1b65bd84ec1f74f8a0d9208682dcbe7f"
+      "approved_tree": "4ca797f7da929837133353998c91643830cf8983"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "97b8429fd9de997b9cea442de810fbb4565909aa"
+      "approved_tree": "44d89c4cea335135231755dc580b55148248fee0"
     },
     {
       "path": "scalaplugin/src/main",
@@ -468,15 +468,17 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "WA-11: authenticated symbolic Boolean/integer conversion normalization"
+        "WA-11: authenticated symbolic Boolean/integer conversion normalization",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabInt.scala",
         "mode": "100644",
-        "blob": "78a8b8863f550ec3ad146d6cef153262d4f29cd4",
-        "sha256": "44f321bf043f64a7f4acde77bc245b761b5eab20a83b80d4f338f4dd6de84a6c"
+        "blob": "7c27b11a4156fb9bc6d58ef541c2bfb0751e0b09",
+        "sha256": "f8e28e90edb3841d192e8ea7c81a1bfff514388fd8cd7b11d114fbb7e533f372"
       },
       "edits": []
     },
@@ -486,15 +488,34 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
-        "Increment 53f: typed parameter-sensitive primitive closure (#129)"
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations.",
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
         "mode": "100644",
-        "blob": "b4ce850d2a1f6af160ee06eca95b23c9c0d564b4",
-        "sha256": "aa188e63b789f056a2f5f04c4dacca20c762cafe6b23857b218acede7c1da1cf"
+        "blob": "9c43a036248c31313fa72cd8bbf272d7f0b98f56",
+        "sha256": "ef24218d3c40ac5c5a7e74ad079d05e58ee6829f9d837c379b21cc37a27c602c"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+        "mode": "100644",
+        "blob": "2862144daf02cd6a42d6ec351f2cfac44e7ac93f",
+        "sha256": "527fbf598b1c8ae7c38d26363fe527f44ddd7855bb3b6a47d369b4f656715c60"
       },
       "edits": []
     },
@@ -520,15 +541,17 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Certify finite width-specific expression composition across independent root identities, preserve exact private-object provenance and guarded projection, and reject forged/copy-derived authority or illegal geometry without broadening general elaboration control domains. Conditional extrema and redundant choose arms use exact admitted bindings, including guarded full-group geometry, without granting authority from rendered expressions.",
+      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
         "mode": "100644",
-        "blob": "30a837a24ab72b3e1972eb273dfd95f88cb4db38",
-        "sha256": "27d67d51b5727f085c1de63016486318d5c18cc1e5a17593f53a91dc1e856cac"
+        "blob": "35d2e7729b4d24ee3eb23a8dff2547d62e55aea1",
+        "sha256": "b038d210f10e9e38488c3ba41e4e21b695a0bd1ebdf488605cdb1e2c8f922f27"
       },
       "edits": []
     },
@@ -1172,6 +1195,24 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR188: one synthesis-guarded fatal for failed symbolic require"
+      ],
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+        "mode": "100644",
+        "blob": "b83f5b472bf4f88a5085d16c247a3447b976267b",
+        "sha256": "a19563a04499f79f9f849d336643267673d864a70478b6eef38a66be85b7090e"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
@@ -2433,9 +2474,10 @@
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
         "WA-10: general typed expression inlining through native capture and structured emission",
-        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof. Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -2445,10 +2487,38 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "146af151d341691bf1552e84265ad2cc1e52d563",
-        "sha256": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f"
+        "blob": "0b402c0c6eae3468ddb3f5f427ec6cfc93c280f2",
+        "sha256": "0b917cd3406d14b296ad4c0cb7a602f3e716c045807f006e39ce176d4f1e6d14"
       },
       "edits": [
+        {
+          "id": "symbolic-legality-native-emission-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
+          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+          "baseline_span": {
+            "start": 6231,
+            "end": 6231,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6231,
+            "end": 6351,
+            "sha256": "75162dfc5052d657bd8d0e2f726e7725aeb448142435b0046895eaa749601aaa"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeSymbolicLegality.render(component,",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "component.localNamingScope.allocateName(name)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "componentemitterverilog-wa10-depthcut-snapshot",
           "kind": "backend-isolation",
@@ -2460,8 +2530,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8941,
-            "end": 9150,
+            "start": 9061,
+            "end": 9270,
             "sha256": "3c5cbabff21b6791bebdbc5517571628445c879be86c2705ff1ee1d4d55f612e"
           },
           "required_exact_text": [
@@ -2483,8 +2553,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9178,
-            "end": 10127,
+            "start": 9298,
+            "end": 10247,
             "sha256": "04ad6b89b7b13732a88508c9277a450810226d64b8cdaee4061cd31be9c1253a"
           },
           "required_exact_text": [
@@ -2506,8 +2576,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 30624,
-            "end": 30632,
+            "start": 30744,
+            "end": 30752,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -2529,8 +2599,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31593,
-            "end": 31601,
+            "start": 31713,
+            "end": 31721,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -2552,8 +2622,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 72509,
-            "end": 72846,
+            "start": 72629,
+            "end": 72966,
             "sha256": "cb72f40a50c74c248c42459331a056148cffcd8ba6df15cc9872978f5fe5a62f"
           },
           "required_exact_text": [
@@ -2580,8 +2650,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 72921,
-            "end": 72975,
+            "start": 73041,
+            "end": 73095,
             "sha256": "7b8cf8b9483505102e3024ea0f855cb7c5df2f0996c308f9978af698e45296bb"
           },
           "required_exact_text": [
@@ -2603,8 +2673,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 74625,
-            "end": 74965,
+            "start": 74745,
+            "end": 75085,
             "sha256": "03cdcd84ab2b2dcf5638cbe56746a634cc3ae101f8825d7b0198a6a6efd079e8"
           },
           "required_exact_text": [
@@ -2626,8 +2696,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 75059,
-            "end": 75137,
+            "start": 75179,
+            "end": 75257,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -2649,8 +2719,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 75243,
-            "end": 75278,
+            "start": 75363,
+            "end": 75398,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -2672,8 +2742,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 75806,
-            "end": 75841,
+            "start": 75926,
+            "end": 75961,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -2695,8 +2765,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 76461,
-            "end": 76512,
+            "start": 76581,
+            "end": 76632,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -2718,8 +2788,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 77948,
-            "end": 78011,
+            "start": 78068,
+            "end": 78131,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -2741,8 +2811,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78075,
-            "end": 78082,
+            "start": 78195,
+            "end": 78202,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -2764,8 +2834,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78152,
-            "end": 78159,
+            "start": 78272,
+            "end": 78279,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -2911,15 +2981,62 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+      ],
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+        "mode": "100644",
+        "blob": "072278d53b048698dcc1bb8160323a32a497a499",
+        "sha256": "d4503805a586f1989764827fbe074a930819bcf52137e653692ce5a93414e3c9"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+        "mode": "100644",
+        "blob": "dab29d541e5af8cf5d38074230ddc31e567cdc39",
+        "sha256": "dbada79cb31c6e787c7e66b4f37b5b354adae2a525d305e65e023b18635cba4f"
+      },
+      "edits": [
+        {
+          "id": "verilog-policy-owner-pr187-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Add only the optional storage mixin; it is default-unbound and owned by this concrete emitter, not shared across generations or threads.",
+          "baseline_span": {
+            "start": 1842,
+            "end": 1842,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 1842,
+            "end": 1882,
+            "sha256": "3da0ed68a4ccfd99cceb1eb2eb7e216221240a90fab7b66a18654a1f399e4553"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "with VerilogBase.DeclarationPolicyOwner ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
-        "Increment 60e: signedness boundaries, aggregates and hierarchy closure"
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
@@ -2929,15 +3046,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "f3dc55d170c34ed58d709f474b9f25553696e9b4",
-        "sha256": "54379ce710d3ba88a7fc5f6a24cc2ca1f49662c687da36a5434c7f581b4a1bb3"
+        "blob": "aed58cebc15b045c0582e2806069676aafc31aab",
+        "sha256": "5750b1c91f2e0394a317074ff2c75073f3bd19657b88562bafc7a6afd680995e"
       },
       "edits": [
         {
           "id": "signed-boundary-60e-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -2945,13 +3062,13 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 4684,
-            "sha256": "13376409d0ffa9fa27eb5e5f2277fc07ce59b20ca3606d4a1ae2ccbf5c08cb71"
+            "end": 5579,
+            "sha256": "c96836409dc89281fe0049195fc9bda77372b92db8f749699db20bc75ad69e32"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
               "count": 1
             }
           ]
@@ -2960,21 +3077,21 @@
           "id": "signed-boundary-60e-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 4727,
-            "end": 7067,
-            "sha256": "8a77a18a14857eff2121447c58accaaca2c345265ae75a70e1bd7f0388ea1e27"
+            "start": 5622,
+            "end": 8522,
+            "sha256": "9b0f7e55cd26e725f617c09553bf1ed88e45a907d2479e7e7f861acee4b48224"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  private var declarationPolicy: DeclarationPolicy = null\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
@@ -2990,8 +3107,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7521,
-            "end": 7528,
+            "start": 8976,
+            "end": 8983,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -3013,8 +3130,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7842,
-            "end": 7849,
+            "start": 9297,
+            "end": 9304,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -3036,8 +3153,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 11555,
-            "end": 12014,
+            "start": 13010,
+            "end": 13469,
             "sha256": "fbfe94f004ca279d7e82b11d3313dc69d7b7612b69d696d776b5953a834502ec"
           },
           "required_exact_text": [
@@ -3059,8 +3176,8 @@
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 12705,
-            "end": 12887,
+            "start": 14160,
+            "end": 14342,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [
@@ -4000,9 +4117,10 @@
         "Increment 55: audit concrete compatibility",
         "Increment 57: broad native library migration and proof",
         "Increment 57a: typed StreamFifoCC architecture",
-        "Increment 57b: typed StreamFifoCC payload-width formal proof"
+        "Increment 57b: typed StreamFifoCC payload-width formal proof",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output. Keep the existing typed pipeline hardware-construction precondition proof-required using requireStructuralCondition; deferred user requirements must not authorize library structure. No native data-path algorithm change.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
@@ -4012,15 +4130,15 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/Stream.scala",
         "mode": "100644",
-        "blob": "f1a21e7a4a7f54a813b230cb60dd693a0486db6d",
-        "sha256": "671b1c6fbe1e5c12a22f15c91416f8ce99d124bce27e2ef27dc53bdc3eb2f5a3"
+        "blob": "af0ed1f70b53971c931f64e55b96ca0f3aa02ded",
+        "sha256": "eebd9d4415b27a16bf87205d354390145ab1d5535e17a9ebf5e7676ac2809200"
       },
       "edits": [
         {
           "id": "stream-pipeline-control-01",
           "kind": "overload",
           "owner": "spinal.lib.Stream.pipelined(ElabBool, ElabBool, ElabBool)",
-          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms.",
+          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms. Keep the existing universality requirement through the explicit structural-require API.",
           "baseline_span": {
             "start": 7170,
             "end": 7170,
@@ -4028,13 +4146,18 @@
           },
           "approved_span": {
             "start": 7170,
-            "end": 10664,
-            "sha256": "50190578438b651d8f2f49222c6e177859fd08a5e69105c31374306b59919e92"
+            "end": 10674,
+            "sha256": "75ed7e7515cb66207193d5388c22f3d49a6968913fe907645bb057317e21116f"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "halfRate can be enabled only when m2s and s2m are disabled",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabControl.requireStructuralCondition(",
               "count": 1
             }
           ]
@@ -4050,8 +4173,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 11648,
-            "end": 12267,
+            "start": 11658,
+            "end": 12277,
             "sha256": "692981286d90dbfd1fea70c7faf998ca3a19719b1c144d233925c7790b6cc6b8"
           },
           "required_exact_text": [
@@ -4073,8 +4196,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13044,
-            "end": 13292,
+            "start": 13054,
+            "end": 13302,
             "sha256": "7047a17dc0ccac719ef524a71c47d5a46797dd536e5f62239dfefbeebb9924b1"
           },
           "required_exact_text": [
@@ -4096,8 +4219,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13368,
-            "end": 13482,
+            "start": 13378,
+            "end": 13492,
             "sha256": "7af766ee51eb0c61b6cee9bbe46778d9e5f24c5fdd5863251bbe4bc914c30792"
           },
           "required_exact_text": [
@@ -4119,8 +4242,8 @@
             "sha256": "b356d221ecab8d80bc2ea58072d4a789ff79c0e6f48e90f26103576dc39bc750"
           },
           "approved_span": {
-            "start": 13749,
-            "end": 13773,
+            "start": 13759,
+            "end": 13783,
             "sha256": "0853965127c06e1ccd42e57263fbb2631ec59220807f746c7893abd24392844c"
           },
           "required_exact_text": [
@@ -4142,8 +4265,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13779,
-            "end": 14634,
+            "start": 13789,
+            "end": 14644,
             "sha256": "5bbbf51ea4ccc1253437f5a09b1c15770eeae93a14520918162b114d487c68ea"
           },
           "required_exact_text": [
@@ -4165,8 +4288,8 @@
             "sha256": "ec8710c3ef93d7916543b8a2e0720fc66a8b6393bee3b064f75c27ad684a0db8"
           },
           "approved_span": {
-            "start": 14908,
-            "end": 15691,
+            "start": 14918,
+            "end": 15701,
             "sha256": "a3cf5582a877582a9e49806713b4eec72177d0dca3cbadbf4343e52cc27c8171"
           },
           "required_exact_text": [
@@ -4188,8 +4311,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16039,
-            "end": 16354,
+            "start": 16049,
+            "end": 16364,
             "sha256": "0aa3e10ba89901ce2e06df49e9f0e3484ca2c314c64fcafb43c8a45c2f29404f"
           },
           "required_exact_text": [
@@ -4211,8 +4334,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 59353,
-            "end": 61506,
+            "start": 59363,
+            "end": 61516,
             "sha256": "81aa8bca89c3adaf6807fc7f7fbaa42f72282aea53d2f8d0f18869b9f3869cd6"
           },
           "required_exact_text": [
@@ -4234,8 +4357,8 @@
             "sha256": "a2e66787f5c1cfe8b39fbbab76376391453302b503fef1ddff580b2ca635b18e"
           },
           "approved_span": {
-            "start": 62626,
-            "end": 63464,
+            "start": 62636,
+            "end": 63474,
             "sha256": "59e8e44ef0ed8d074ac17d99f72f9f73d5d98474ff2f96c6ff58dda71658e61d"
           },
           "required_exact_text": [
@@ -4257,8 +4380,8 @@
             "sha256": "a79d4b38ff2f8cba5b1bf107c4fcce53ed2433ec447b60ff58e94dbb960973e7"
           },
           "approved_span": {
-            "start": 63728,
-            "end": 64197,
+            "start": 63738,
+            "end": 64207,
             "sha256": "16dc19a106aa2a16a315e422d50529f085689dbce586bd61f761be0131017676"
           },
           "required_exact_text": [
@@ -4280,8 +4403,8 @@
             "sha256": "a19a2f2f4da47c70e8a99bea6806530c447c14cb27d02e6ae645043f9cdcd8c3"
           },
           "approved_span": {
-            "start": 64323,
-            "end": 64478,
+            "start": 64333,
+            "end": 64488,
             "sha256": "904ca6ce4c6113d9a5bb993d38456c91d5817a304869c67726ac33ccdb71578b"
           },
           "required_exact_text": [
@@ -4303,8 +4426,8 @@
             "sha256": "ecde61eed9dc91a6f42e2eff36cef37b21dc481a86fcad4071f6e5a750451b97"
           },
           "approved_span": {
-            "start": 64511,
-            "end": 64989,
+            "start": 64521,
+            "end": 64999,
             "sha256": "c6291073f9169025c185a1cd433c5c2cf4f4686d9c1bf7545b3a8203206245b8"
           },
           "required_exact_text": [
@@ -4326,8 +4449,8 @@
             "sha256": "efac880a35a43fe3881f36f42320c490621bd66ec32ce88171ff9ec33cf54a91"
           },
           "approved_span": {
-            "start": 65172,
-            "end": 65311,
+            "start": 65182,
+            "end": 65321,
             "sha256": "509ca1b85d38ad9b02d0e60262ad2093c57cf5b917c06a4620491a92f9973030"
           },
           "required_exact_text": [
@@ -4349,8 +4472,8 @@
             "sha256": "21878dc1e30195e630e4a751f576b69c3811ae549dc8c0e8f9417fb5b1719c90"
           },
           "approved_span": {
-            "start": 65321,
-            "end": 66791,
+            "start": 65331,
+            "end": 66801,
             "sha256": "82c8de5896f274084476e64518e4412f533d5a73e0b8eb7e9dbae6e492ecdb93"
           },
           "required_exact_text": [
@@ -4372,8 +4495,8 @@
             "sha256": "602e0fbad33944a1e471fac1d9adae8dcfc219aac5c46552303607119ea6c3da"
           },
           "approved_span": {
-            "start": 66882,
-            "end": 67120,
+            "start": 66892,
+            "end": 67130,
             "sha256": "1982884d04b00ec4dee6f553469338131460cbc267bb9083ba23db57a6c4d60c"
           },
           "required_exact_text": [
@@ -4395,8 +4518,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 67618,
-            "end": 67652,
+            "start": 67628,
+            "end": 67662,
             "sha256": "b619264973484b22cbb28a33e3cb3841385c6647ee86b4a25612324877344934"
           },
           "required_exact_text": [
@@ -4418,8 +4541,8 @@
             "sha256": "a6ca003712555b9e21d51879d18674d444e9ed261accb943f149bfd7d1451be9"
           },
           "approved_span": {
-            "start": 67670,
-            "end": 67910,
+            "start": 67680,
+            "end": 67920,
             "sha256": "a29f51fea32019f95499579c9087d071d17b92b99b1b6727507875624902ed7b"
           },
           "required_exact_text": [
@@ -4441,8 +4564,8 @@
             "sha256": "10638f12abb10b107e59574bd07cb0f369d8d72af67e07ae16f9f70adda8581f"
           },
           "approved_span": {
-            "start": 68037,
-            "end": 68093,
+            "start": 68047,
+            "end": 68103,
             "sha256": "a1d07e15048d163e27847781b988a9a575f7164f5854c949f8b1314a3f1a7108"
           },
           "required_exact_text": [
@@ -4464,8 +4587,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 68158,
-            "end": 68163,
+            "start": 68168,
+            "end": 68173,
             "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
           },
           "required_exact_text": [
@@ -4487,8 +4610,8 @@
             "sha256": "8d3b1c32847501288ae2e8c5f2bb81ffe84ef6bed5d2b54e5cbfb6ec87cd10b1"
           },
           "approved_span": {
-            "start": 68269,
-            "end": 68541,
+            "start": 68279,
+            "end": 68551,
             "sha256": "f164c41d546043ea80f8d40311cd401aaa5538f180c9ee2b4f91d4262f0b6db4"
           },
           "required_exact_text": [
@@ -4510,8 +4633,8 @@
             "sha256": "3278f7a69e11effa20e7602af2d253bff96cf9481b7ecfb7234a15dcfdd557ed"
           },
           "approved_span": {
-            "start": 68808,
-            "end": 69203,
+            "start": 68818,
+            "end": 69213,
             "sha256": "50a11984d1d0961aa3814658be9970f4f222e0de5eae7ce45d9c03213f7d6cd3"
           },
           "required_exact_text": [
@@ -4533,8 +4656,8 @@
             "sha256": "abc2ccfb632d7a1f85ab102f90b5d2f5df2c0c68f1cdfeb581fb8f1877496610"
           },
           "approved_span": {
-            "start": 69228,
-            "end": 70080,
+            "start": 69238,
+            "end": 70090,
             "sha256": "4903a8d35da47ed615a6ed879bf0a49e4b3980d2aab39465ff07dba45954b086"
           },
           "required_exact_text": [
@@ -4556,8 +4679,8 @@
             "sha256": "3fd603d67b440c47fcf0c179e38b61aeda1a5375c25497f0fa564ab7f71b44ea"
           },
           "approved_span": {
-            "start": 70190,
-            "end": 70317,
+            "start": 70200,
+            "end": 70327,
             "sha256": "b893888716f56adde098513ba8c6ed2bb2719e31822e3d72e11172271e2ad6ee"
           },
           "required_exact_text": [
@@ -4579,8 +4702,8 @@
             "sha256": "0f98ba723988360ebe8a7fed0d36aca91484dbb883ef17c398be3444a13cda56"
           },
           "approved_span": {
-            "start": 70468,
-            "end": 70518,
+            "start": 70478,
+            "end": 70528,
             "sha256": "df2cc48fe14f92350b4830573003c80e6f8a55d7e235d3d1b038d2dd435906a4"
           },
           "required_exact_text": [
@@ -4602,8 +4725,8 @@
             "sha256": "ad85558c438e209784bd472a484434907168d20c89d83fa81d40120fd5f31fc5"
           },
           "approved_span": {
-            "start": 70652,
-            "end": 71607,
+            "start": 70662,
+            "end": 71617,
             "sha256": "c70fd44d71aa37466df043589a4b58d5878a80fad96fb9352391fdfc1f282a26"
           },
           "required_exact_text": [
@@ -4625,8 +4748,8 @@
             "sha256": "fba4e4a32c38b739cb88aa6169f6d6cf28f0f9770a8ca4f4ae952a0d72e929c0"
           },
           "approved_span": {
-            "start": 71657,
-            "end": 71697,
+            "start": 71667,
+            "end": 71707,
             "sha256": "cb9dcd478ad6c60b3f5c3168b14b5ed2a30a497550a535ca099e5dde58fb41e9"
           },
           "required_exact_text": [
@@ -4648,8 +4771,8 @@
             "sha256": "50e721e49c013f00c62cf59f2163542a9d8df02464efeb615d31051b0fddc326"
           },
           "approved_span": {
-            "start": 71729,
-            "end": 71734,
+            "start": 71739,
+            "end": 71744,
             "sha256": "4d4fa659effc8e9f0e422439f844ffce1f6a299a20cd14722d4fcb3ddcc6dce8"
           },
           "required_exact_text": [
@@ -4671,8 +4794,8 @@
             "sha256": "f08707745636e8b47d13b19d2d931bd0eb5103cc04213fc8080a8b6e359ce299"
           },
           "approved_span": {
-            "start": 71902,
-            "end": 71994,
+            "start": 71912,
+            "end": 72004,
             "sha256": "6a447801492ab3fea2da09c574621dc6db7bef22ca904bc5dbe333ba745f05cc"
           },
           "required_exact_text": [
@@ -4694,8 +4817,8 @@
             "sha256": "d0acade5b49b3a1f4412fb1d10b47445478cb863900cff0ea75298f7c62abea7"
           },
           "approved_span": {
-            "start": 72215,
-            "end": 72248,
+            "start": 72225,
+            "end": 72258,
             "sha256": "c3f35eb244241de88ce4d2f95bb7bfb77316aee57aa40c43e31950b22ce20f40"
           },
           "required_exact_text": [
@@ -4717,8 +4840,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 72600,
-            "end": 72619,
+            "start": 72610,
+            "end": 72629,
             "sha256": "34aea572e8343d92475eca8447aaefabe10cd09fb1dd5acb6fcdba202c52b065"
           },
           "required_exact_text": [
@@ -4740,8 +4863,8 @@
             "sha256": "499f81ea2503aae7c8dac1478ee4cd45acfd57a4b1a65fc77df4e6d13f68083e"
           },
           "approved_span": {
-            "start": 72719,
-            "end": 73716,
+            "start": 72729,
+            "end": 73726,
             "sha256": "65ed4a3f172cb926876bfd55885eec634a04d2b118103c5ec8224c0605affbbd"
           },
           "required_exact_text": [
@@ -4763,8 +4886,8 @@
             "sha256": "18ac3e7343f016890c510e93f935261169d9e3f565436429830faf0934f4f8e4"
           },
           "approved_span": {
-            "start": 73808,
-            "end": 73813,
+            "start": 73818,
+            "end": 73823,
             "sha256": "86acc3e48bb16fba4c1bdf8ba02a65d3b38ff5d7ec9b815a0c87c5facb5b5b79"
           },
           "required_exact_text": [
@@ -4786,8 +4909,8 @@
             "sha256": "df4fb0158780446df9dfefdc0d846d92061a8fbab70764ea684b9711c5dce324"
           },
           "approved_span": {
-            "start": 73869,
-            "end": 74218,
+            "start": 73879,
+            "end": 74228,
             "sha256": "6d6c0fc850929a12d16196ce7c8aa0b3bf179c06003ab8cfc2dc636db79af550"
           },
           "required_exact_text": [
@@ -4809,8 +4932,8 @@
             "sha256": "f6ab59ac914fb469ac671df0b90c39b6f0e75576891f3fbfcce534dbde4c5eb1"
           },
           "approved_span": {
-            "start": 74804,
-            "end": 75032,
+            "start": 74814,
+            "end": 75042,
             "sha256": "3ef14d2d15118036579f70cbb89cf844ba66e7422c64c8ba409d812008888090"
           },
           "required_exact_text": [
@@ -4832,8 +4955,8 @@
             "sha256": "a4f14ff3ab84665d89fd9ec05656d3b3d0557a3d3389b42a4d79c8dcc3cc38ab"
           },
           "approved_span": {
-            "start": 75440,
-            "end": 75711,
+            "start": 75450,
+            "end": 75721,
             "sha256": "ac5755b942f771a6ba24cdf4a0a5430d9896e8a74af17032fc5701743c69a382"
           },
           "required_exact_text": [
@@ -4855,8 +4978,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 75801,
-            "end": 88453,
+            "start": 75811,
+            "end": 88463,
             "sha256": "42f36081748c884f5aaf0eeb732a2412a1a8d05a1d0285d0930ee48135967a05"
           },
           "required_exact_text": [
@@ -4878,8 +5001,8 @@
             "sha256": "211e63d22c9ce8165bac7c9e9515420c7deb9c123e2487f6bcdce6f71535f2c2"
           },
           "approved_span": {
-            "start": 88467,
-            "end": 88792,
+            "start": 88477,
+            "end": 88802,
             "sha256": "04f8ab6ba6edb72cd3ef1d159fd7d4b85add5f6f7421b1241f4c356f1e7d576b"
           },
           "required_exact_text": [
@@ -4901,8 +5024,8 @@
             "sha256": "aec7ca25c84fff166cfb7e757ce5edb8685143802d90e3e3a68d751bf98b3d7a"
           },
           "approved_span": {
-            "start": 88800,
-            "end": 94801,
+            "start": 88810,
+            "end": 94811,
             "sha256": "a268d45668880bd4de1a5894bb96cf962ca0358a61570e769c4157091f7e1466"
           },
           "required_exact_text": [
@@ -4924,8 +5047,8 @@
             "sha256": "5455e012c22b75eee4f69e62f1a3128dc5745003da4c9a8bb321b81cda92d041"
           },
           "approved_span": {
-            "start": 94920,
-            "end": 95207,
+            "start": 94930,
+            "end": 95217,
             "sha256": "ea8528fe0ff9efa643e0122b2280bb19756064abcd46c5fab8dfef038af4501d"
           },
           "required_exact_text": [
@@ -4947,8 +5070,8 @@
             "sha256": "7832fe02dd98d3208165757d0f8df305543aaf5444e05653a7b7e3e9e2a52b50"
           },
           "approved_span": {
-            "start": 95222,
-            "end": 95256,
+            "start": 95232,
+            "end": 95266,
             "sha256": "506fb90b9456f6ee2f9f7714c64e9d29ecc2631bfe553ff3ea0eaf1bd0dad57c"
           },
           "required_exact_text": [
@@ -4970,8 +5093,8 @@
             "sha256": "41e85befa52ce75d62a2ee77f1e55a25df050887b4a92907cfa360a2f07a0360"
           },
           "approved_span": {
-            "start": 95267,
-            "end": 95267,
+            "start": 95277,
+            "end": 95277,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -4993,8 +5116,8 @@
             "sha256": "1821b1a5f2c09dea80719ddc06b4c789530785fd04fc03e9a728d07e87ac1211"
           },
           "approved_span": {
-            "start": 95697,
-            "end": 96016,
+            "start": 95707,
+            "end": 96026,
             "sha256": "f23dc240ef4c340a43ab2e94d8ff20ae3e90fb321b0e1468c5c0da0f28d4a39e"
           },
           "required_exact_text": [
@@ -5016,8 +5139,8 @@
             "sha256": "8f0731ac980f4bae8c85c5494e7367ace693382055f44bd63427319f84144a8d"
           },
           "approved_span": {
-            "start": 96074,
-            "end": 96297,
+            "start": 96084,
+            "end": 96307,
             "sha256": "ba4b4a0d4f7164519a3260b5fb109f17735688205d9297d7ddff672886e44807"
           },
           "required_exact_text": [
@@ -5039,8 +5162,8 @@
             "sha256": "ce30153061884e93a226e2d3abafef6d57d339959ee7dc48c9694c3f5bbf93d2"
           },
           "approved_span": {
-            "start": 96337,
-            "end": 96773,
+            "start": 96347,
+            "end": 96783,
             "sha256": "0a740c3c81ccb4053dc9fb2feab12bb79b2b44dcf051abb419e2971114599ce1"
           },
           "required_exact_text": [
@@ -5062,8 +5185,8 @@
             "sha256": "5d88acb1e64861100071d4bca1e10f65b85d662aae94836c86c14e1c7c717d79"
           },
           "approved_span": {
-            "start": 96828,
-            "end": 97131,
+            "start": 96838,
+            "end": 97141,
             "sha256": "61d3efa7fc5ae6cdb33dc87f6e7d3e4342986a18c979f6709a6d5dbab9e8851d"
           },
           "required_exact_text": [
@@ -5085,8 +5208,8 @@
             "sha256": "262f5c34e32706ab4f937fcb0e1f42b4dadebf9c45dd74a2f217c87968259eff"
           },
           "approved_span": {
-            "start": 97165,
-            "end": 98778,
+            "start": 97175,
+            "end": 98788,
             "sha256": "57f25c033dee681bdfd206743f27db50ba17898ba7da38265ec9ec880f66dfa2"
           },
           "required_exact_text": [
@@ -5108,8 +5231,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 98783,
-            "end": 99456,
+            "start": 98793,
+            "end": 99466,
             "sha256": "2e83b038440b016b3811e30e5408f8ad4318b7335fdb853583d9f35fdc5221a5"
           },
           "required_exact_text": [
@@ -5131,8 +5254,8 @@
             "sha256": "77afa9b322262e495e1581aec7187e1d1b606ddba65b0a9e8fef21f2994ffa11"
           },
           "approved_span": {
-            "start": 100547,
-            "end": 104797,
+            "start": 100557,
+            "end": 104807,
             "sha256": "aff3ae6b4c493ab4143d6665fa5f7bc02e3372c8c49f7b8a7a75bf4d2da740a1"
           },
           "required_exact_text": [
@@ -5164,8 +5287,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 104880,
-            "end": 105151,
+            "start": 104890,
+            "end": 105161,
             "sha256": "b67149f5bdd79f49573a119b3f23cbe23b50124f3ae849afa326c0782efbdc24"
           },
           "required_exact_text": [
@@ -5187,8 +5310,8 @@
             "sha256": "1f8a0f234b4efd542c95d026c84241d67cb765f01c0d2635327e195218fd1522"
           },
           "approved_span": {
-            "start": 107313,
-            "end": 107502,
+            "start": 107323,
+            "end": 107512,
             "sha256": "73225f1a0008a00a316c98a5d1aafed4acb1b0a418e823a6563fbf75934be1cf"
           },
           "required_exact_text": [
@@ -5210,8 +5333,8 @@
             "sha256": "6a234dee63a00145e5256193c4d04c36ccb6cc11b46a5e5d72e4b844b2484f35"
           },
           "approved_span": {
-            "start": 107527,
-            "end": 108089,
+            "start": 107537,
+            "end": 108099,
             "sha256": "3df32a76bded29c18fe35e9eac22858c02f74bc4270702a6be025b85c9a1a0af"
           },
           "required_exact_text": [
@@ -5233,8 +5356,8 @@
             "sha256": "d32bf44e5caaa644510f61931191a7195ba11cef928289fb162a223a590183a7"
           },
           "approved_span": {
-            "start": 108262,
-            "end": 108542,
+            "start": 108272,
+            "end": 108552,
             "sha256": "657fa9e76eb4169ff6b00cd634c8160086b6a6bb920fdefbcbff162eed2c8f76"
           },
           "required_exact_text": [
@@ -5256,8 +5379,8 @@
             "sha256": "fce2f4c7301ead307d3bfba0695b9d9b1e4ac0ba4b312e05ae243fe8d14df22a"
           },
           "approved_span": {
-            "start": 108550,
-            "end": 109382,
+            "start": 108560,
+            "end": 109392,
             "sha256": "2002dc299e6dff73b80861c90ba40c076d9a431cff02f187d1051f117556dbc4"
           },
           "required_exact_text": [
@@ -5279,8 +5402,8 @@
             "sha256": "9ee749590029090a3161695c472125ee80a319259d7c4d5caaabc41fc62388f0"
           },
           "approved_span": {
-            "start": 109428,
-            "end": 109818,
+            "start": 109438,
+            "end": 109828,
             "sha256": "98d4cf9bbc8dcb13c2aa886b6bdf492c20cd3168d6692a95b5569b572bf98b4c"
           },
           "required_exact_text": [
@@ -5302,8 +5425,8 @@
             "sha256": "235381f2bf96ee0fe0d1f55e1d08bbe98d5507efb929045c0e0ed5c8dde1f4bb"
           },
           "approved_span": {
-            "start": 109822,
-            "end": 110346,
+            "start": 109832,
+            "end": 110356,
             "sha256": "ed609b2878f94fbe1a8d10c42c32404dc78a36a1d21f7abdd5b2f549c6c57a58"
           },
           "required_exact_text": [
@@ -5325,8 +5448,8 @@
             "sha256": "2ac6c430face2851076a5d49e0814f23efc41c3e2851d1f05ffc5441eff6f7f1"
           },
           "approved_span": {
-            "start": 110350,
-            "end": 110782,
+            "start": 110360,
+            "end": 110792,
             "sha256": "9a12a2732b93620832e732b6b430d7b2730c28f3c3035276388049e24e50883f"
           },
           "required_exact_text": [
@@ -5348,8 +5471,8 @@
             "sha256": "777310645dc716eda71254cb8e97332e30877e4cd9df3d08f4240199bd2af1a2"
           },
           "approved_span": {
-            "start": 110786,
-            "end": 111080,
+            "start": 110796,
+            "end": 111090,
             "sha256": "2455abc04c5c9655c78742e2a93ba53abb6a6100a83b423e32433406e7645155"
           },
           "required_exact_text": [
@@ -5371,8 +5494,8 @@
             "sha256": "5a68cfee8256b639c39b85eb01153c0e44ed7621a3d17d99bb8ab2ba45fe9225"
           },
           "approved_span": {
-            "start": 111084,
-            "end": 115712,
+            "start": 111094,
+            "end": 115722,
             "sha256": "360b372dec83678328e8f995142a6af26de2cd31438ddb64becf65595ca3a391"
           },
           "required_exact_text": [
@@ -5419,8 +5542,8 @@
             "sha256": "185f2e9341ad87ce0238505bea02af4980d7edbab5ca303617aec1c6b0cfbdb3"
           },
           "approved_span": {
-            "start": 115724,
-            "end": 121702,
+            "start": 115734,
+            "end": 121712,
             "sha256": "a989f888e778be8198150ca1ac501aa4a6d7c9dceb834facf09ac33fb98cff23"
           },
           "required_exact_text": [
@@ -5477,8 +5600,8 @@
             "sha256": "34dc051709420e96339883ff17cc6a965fd4ef322ed122a97f48d2f31735ae3c"
           },
           "approved_span": {
-            "start": 121710,
-            "end": 122188,
+            "start": 121720,
+            "end": 122198,
             "sha256": "87b24de42e69cb8877d663b60264e4d95c1468be2d4e5f4df4cb6f5d65d8b39c"
           },
           "required_exact_text": [
@@ -5505,8 +5628,8 @@
             "sha256": "e035cb8eaaa6a220632e8a194128ca4d6b862b417bed28a0e6b88cc1bfed5911"
           },
           "approved_span": {
-            "start": 122194,
-            "end": 122941,
+            "start": 122204,
+            "end": 122951,
             "sha256": "1bfad062ce77be69340ee1f87a0819ca83cfe5e899f7787b32585597e112d30c"
           },
           "required_exact_text": [
@@ -5533,8 +5656,8 @@
             "sha256": "ef3b08871a31cfa47979ebab4c264a191efd71fb355f8297956820b1f4e53313"
           },
           "approved_span": {
-            "start": 122953,
-            "end": 125164,
+            "start": 122963,
+            "end": 125174,
             "sha256": "55fb254ff1e020630cf9bd87161d8432a474ffa6c4f56e2c9be2bf0e4d0d9f14"
           },
           "required_exact_text": [
@@ -5586,8 +5709,8 @@
             "sha256": "578b2b652604060bff3dd413109c1fbe6095936bd33270b5a66590590a378af5"
           },
           "approved_span": {
-            "start": 125170,
-            "end": 125624,
+            "start": 125180,
+            "end": 125634,
             "sha256": "7c85762be57725324d2dfefc517a1be43ed32f6d1514785abf56c0a9ee1f3ca7"
           },
           "required_exact_text": [
@@ -5614,8 +5737,8 @@
             "sha256": "97166571867cd49a3de6425e078ab80656ba73a8075ca4d7fa036665f8dc18b6"
           },
           "approved_span": {
-            "start": 125632,
-            "end": 126028,
+            "start": 125642,
+            "end": 126038,
             "sha256": "29edda97a3a854856d881104f7a4c4a657ad9104065e056938e5baf7c37ca21c"
           },
           "required_exact_text": [
@@ -5637,8 +5760,8 @@
             "sha256": "870a0cc5dcd848b061706699ad456ebeedef9c65d61efe1e9c1eabede3988e8d"
           },
           "approved_span": {
-            "start": 126032,
-            "end": 127565,
+            "start": 126042,
+            "end": 127575,
             "sha256": "26152440c277cc2c7c859652d5487643fbf5cca2e28eb686f307ac9f257a7fa7"
           },
           "required_exact_text": [
@@ -5675,8 +5798,8 @@
             "sha256": "d1d895111526866c43e2e18d7dc7e0cf615b98014d0f932a4505798533fd902a"
           },
           "approved_span": {
-            "start": 127578,
-            "end": 128298,
+            "start": 127588,
+            "end": 128308,
             "sha256": "7eece3226868c2871887da143169376071ecc43817ee2da8b1cd27f583c1950c"
           },
           "required_exact_text": [
@@ -5703,8 +5826,8 @@
             "sha256": "b700fe3fa2bd29774c33665bb954df7bf585a6660dfec55739d29973196c1b22"
           },
           "approved_span": {
-            "start": 128304,
-            "end": 133488,
+            "start": 128314,
+            "end": 133498,
             "sha256": "5f6a377db12a1e42bc2ee76dd79175f416551a827d06e89cccee3c929adbd296"
           },
           "required_exact_text": [
@@ -5731,8 +5854,8 @@
             "sha256": "91c8e28d5539fc69385acfbc602aa28b36ae848810f276a294eccde266882d05"
           },
           "approved_span": {
-            "start": 133497,
-            "end": 133497,
+            "start": 133507,
+            "end": 133507,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "required_exact_text": [
@@ -5759,8 +5882,8 @@
             "sha256": "04f21220e6481867f2f3720ae3f7256e5057965db8189ba23b94f1dd34e9bbbe"
           },
           "approved_span": {
-            "start": 138989,
-            "end": 139209,
+            "start": 138999,
+            "end": 139219,
             "sha256": "e09fbe467ec7ebe307c7a50efbd934b4def4a9d043615b92c13eee57501c6f84"
           },
           "required_exact_text": [
@@ -5782,8 +5905,8 @@
             "sha256": "18aca6348140bf7510f0989054d6aaa9d949ee0456bf3937ab0466026687172b"
           },
           "approved_span": {
-            "start": 139492,
-            "end": 139673,
+            "start": 139502,
+            "end": 139683,
             "sha256": "77a3b216b6dc5d7d00a7aef257193ec8dfc2213342e87c930e7a7bf4c9606acf"
           },
           "required_exact_text": [
@@ -5805,8 +5928,8 @@
             "sha256": "41a5050279ff0aa00c3a5492fa469c0e3cc3d9004c27e2c7d974d746125e6999"
           },
           "approved_span": {
-            "start": 140273,
-            "end": 140456,
+            "start": 140283,
+            "end": 140466,
             "sha256": "c67b645fda71352ddaf3fd5f6ee2d628cb014455f4746ca9ff7a1f1e0cf1ca40"
           },
           "required_exact_text": [
@@ -5828,8 +5951,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 140656,
-            "end": 140708,
+            "start": 140666,
+            "end": 140718,
             "sha256": "0283202c7523fbd1cb456a6217125d1f44393639a07ec9ebbfb16826a1fd1aad"
           },
           "required_exact_text": [

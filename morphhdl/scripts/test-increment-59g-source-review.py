@@ -31,10 +31,11 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def check(root: Path, label: str, expected: str | None = None) -> dict:
+def check(root: Path, label: str, expected: str | None = None,
+          timeout_seconds: int = 180) -> dict:
     result = subprocess.run([sys.executable, "-c", DRIVER, str(root), str(ROOT / CHECKER)],
                             text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            timeout=180, check=False)
+                            timeout=timeout_seconds, check=False)
     if expected is None:
         if result.returncode or "inherited native audits PASS" not in result.stdout:
             raise RuntimeError(label + " failed complete source qualification:\n" + result.stdout)
@@ -77,7 +78,10 @@ def frozen_59c_controls(root: Path, current_check) -> None:
 
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
-    records = [check(ROOT, "current exact 59g source and all inherited guards")]
+    # This complete traversal includes all current and frozen inherited audits.
+    # Match the bounded positive budget of 59d/59h; mutation calls retain 180s.
+    records = [check(ROOT, "current exact 59g source and all inherited guards",
+                     timeout_seconds=600)]
     spec = importlib.util.spec_from_file_location("bridge_review", ROOT / "morphhdl/scripts/check-increment-59g-source-review.py")
     helper = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(helper)

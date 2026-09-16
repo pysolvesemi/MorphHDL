@@ -247,9 +247,11 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "WA-11: authenticated symbolic Boolean/integer conversion normalization"
+        "WA-11: authenticated symbolic Boolean/integer conversion normalization",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation.",
       "edits": []
     },
     {
@@ -259,9 +261,22 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
-        "Increment 53f: typed parameter-sensitive primitive closure (#129)"
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations.",
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST.",
       "edits": []
     },
     {
@@ -281,9 +296,11 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Certify finite width-specific expression composition across independent root identities, preserve exact private-object provenance and guarded projection, and reject forged/copy-derived authority or illegal geometry without broadening general elaboration control domains. Conditional extrema and redundant choose arms use exact admitted bindings, including guarded full-group geometry, without granting authority from rendered expressions.",
+      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework.",
       "edits": []
     },
     {
@@ -652,6 +669,18 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR188: one synthesis-guarded fatal for failed symbolic require"
+      ],
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report.",
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
@@ -1418,10 +1447,29 @@
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
         "WA-10: general typed expression inlining through native capture and structured emission",
-        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof. Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
       "edits": [
+        {
+          "id": "symbolic-legality-native-emission-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
+          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeSymbolicLegality.render(component,",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "component.localNamingScope.allocateName(name)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "componentemitterverilog-wa10-depthcut-snapshot",
           "kind": "backend-isolation",
@@ -1691,6 +1739,31 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+      ],
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "edits": [
+        {
+          "id": "verilog-policy-owner-pr187-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Add only the optional storage mixin; it is default-unbound and owned by this concrete emitter, not shared across generations or threads.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "with VerilogBase.DeclarationPolicyOwner ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "baseline_path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "change": "modified",
@@ -1698,19 +1771,20 @@
       "introduced_by": [
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
-        "Increment 60e: signedness boundaries, aggregates and hierarchy closure"
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
       "edits": [
         {
           "id": "signed-boundary-60e-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
               "count": 1
             }
           ]
@@ -1719,11 +1793,11 @@
           "id": "signed-boundary-60e-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  private var declarationPolicy: DeclarationPolicy = null\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
@@ -2320,19 +2394,25 @@
         "Increment 55: audit concrete compatibility",
         "Increment 57: broad native library migration and proof",
         "Increment 57a: typed StreamFifoCC architecture",
-        "Increment 57b: typed StreamFifoCC payload-width formal proof"
+        "Increment 57b: typed StreamFifoCC payload-width formal proof",
+        "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output.",
+      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output. Keep the existing typed pipeline hardware-construction precondition proof-required using requireStructuralCondition; deferred user requirements must not authorize library structure. No native data-path algorithm change.",
       "edits": [
         {
           "id": "stream-pipeline-control-01",
           "kind": "overload",
           "owner": "spinal.lib.Stream.pipelined(ElabBool, ElabBool, ElabBool)",
-          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms.",
+          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms. Keep the existing universality requirement through the explicit structural-require API.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "halfRate can be enabled only when m2s and s2m are disabled",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabControl.requireStructuralCondition(",
               "count": 1
             }
           ]

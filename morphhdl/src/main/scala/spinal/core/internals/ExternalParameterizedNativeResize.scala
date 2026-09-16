@@ -173,8 +173,8 @@ object ExternalParameterizedNativeResize {
                       // emission intact; only varying resize boundaries need
                       // protected declarations and symbolic publication.
                       val identity = (source.parentScope eq target.parentScope) &&
-                        NativePublicationWidth.equivalentAtOwner(
-                          sourceWidth, targetWidth, component, target)
+                        NativePublicationWidth.equivalentAtOwners(
+                          sourceWidth, source, targetWidth, target, component)
                       val fixedNarrowing = targetWidth.parameters.isEmpty &&
                         targetWidth.maximum <= sourceWidth.minimum
                       if (!literalZeroReservation && !identity && !fixedNarrowing) {

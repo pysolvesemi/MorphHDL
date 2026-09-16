@@ -135,6 +135,8 @@ class ComponentEmitterVerilog(
   }
 
   def emitArchitecture(): Unit = {
+    endModule ++= NativeSymbolicLegality.render(component,
+      name => component.localNamingScope.allocateName(name))
     definitionAttributes ++= emitSyntaxAttributes(component.definition.instanceAttributes)
 
     for(mem <- mems){

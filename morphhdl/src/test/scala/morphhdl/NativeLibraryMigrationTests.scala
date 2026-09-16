@@ -86,7 +86,7 @@ class NativeLibraryMigrationTests extends AnyFunSuite {
     }
   }
 
-  test("typed pipeline control rejects independent roots and illegal domains") {
+  test("typed pipeline predicates compose independent roots and reject illegal domains") {
     val first = HdlInt
       .param("FIRST_MODE", default = 0, min = 0, max = 1)
       .asElabInt
@@ -94,13 +94,11 @@ class NativeLibraryMigrationTests extends AnyFunSuite {
       .param("SECOND_MODE", default = 0, min = 0, max = 1)
       .asElabInt
 
-    val independent = intercept[ParameterizedVerilogException] {
-      first.elabEq(0) || second.elabEq(0)
-    }
-    assert(
-      independent.code ==
-        "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
-    )
+    val independent = first.elabEq(0) || second.elabEq(0)
+    assert(independent.isSymbolic)
+    assert(!independent.isAlwaysTrue && !independent.isAlwaysFalse)
+    assert((independent || !independent).isAlwaysTrue)
+    assert((independent && !independent).isAlwaysFalse)
 
     withTemporaryDirectory { directory =>
       val config = generationConfig(

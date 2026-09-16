@@ -14,7 +14,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "b1cdf591655f175a0353b1dfea79dad99c637060b6d4597335644d05439fb1ba"
+CONTRACT_SHA256 = "ee0fa2562c8d287cf5e444703742070cbdd3c0546eb08f93ed072b1bcb9e356e"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -38,7 +38,8 @@ def governed(path: str) -> bool:
     return (re.search(r"(?:^|/)src/(?:main|test)/", path) is not None or
             path.startswith(("morphhdl/scripts/", "morphhdl/contracts/",
                              "morphhdl-passes/scripts/", "morphhdl-passes/tests/",
-                             "morphhdl-passes/examples/", ".github/workflows/")) or
+                             "morphhdl-passes/examples/", ".github/workflows/",
+                             "repro/independent-parameters/")) or
             path in ("build.sbt", "build.mill", "morphhdl-passes/build.sbt"))
 
 

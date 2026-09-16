@@ -82,7 +82,7 @@ jobs:
           set -euo pipefail
           evidence="$RUNNER_TEMP/lane-when-evidence"
           sbt '++${{ matrix.scala }}' \
-            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests' \
+            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.VerilogDeclarationPolicyStorageTests' \
             'morph/Test/testOnly morphhdl.LaneWhenInliningRegressionTests spinal.core.MorphVerilogExpressionInliningTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.BooleanWidthNormalizationTests' \
             "morph/Test/runMain morphhdl.LaneInliningRegressionWriter $evidence/after" \
             "morph/Test/runMain morphhdl.GenerateLaneExpressionExample $evidence/plain" \
@@ -162,7 +162,7 @@ jobs:
     - name: Prove MorphHDL report ABI against the exact prior increment
       shell: bash
       env:
-        BASE_COMMIT: 61d1fe0dcac0b52856620944a2d7426fd1390a48
+        BASE_COMMIT: 7f355a859e7e88ca343e1ff82f261fb47b3311d0
         SCALA_VERSION: ${{ matrix.scala_version }}
       run: |
         set -euo pipefail

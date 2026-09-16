@@ -5,7 +5,7 @@
     ".github/workflows/morphhdl-passes.yml": "20059acac59b2bf069d7678cf049b7b1a9afb55af8f6ba9e11f49703863bbd9a",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
     "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
-    "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "6b5d5727d50d74d90c49b31dda1d74a8eae6eba562153b94ddac4c2ff0df736f",
+    "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "0b917cd3406d14b296ad4c0cb7a602f3e716c045807f006e39ce176d4f1e6d14",
     "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala": "3cefb7cf24d4e0703a2021b9d18eb1e789fd1547b6fa540e100ec961a607460e",
     "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": "95d22cdcf10b9bdedae83dddf1d3c98f04398d0e237783f3f5cdb477f909fb09",
     "core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala": "04a686cfc4b61f8c1252620638a4781c1a9c6d5c5f0363c89959702f26d377f2",
@@ -86,7 +86,7 @@
     "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": "5f69f96e62e4b001867e0362591130acf9d9ecc04437e72768f6e6c9dc3f09c9",
     "morphhdl-passes/tests/wa10/general_expression_tb.v": "d3235eaff587a4c4a21e7c76b7db41a3f6c910cad861284185aa38bafd999e12",
     "morphhdl-passes/tests/wa10/timing_expression_tb.v": "ee72b2afbac37070aadabaf7d7be0c7811f423b4ffbdc4a4b0c0c224572b6d5b",
-    "morphhdl/scripts/check-increment-60f-artifacts.py": "3d16581508550687d7b7ec6c09dca9966261ee4a365af64c5ed42bdc91ff453a",
+    "morphhdl/scripts/check-increment-60f-artifacts.py": "9b4a3171b2404b5b0426d72f5e67f30d6d20bdb83c148dd7e8b781df918700c3",
     "morphhdl/scripts/check-wa08-production-artifacts.py": "c90241a032083d6d7fcf0a78d298e8fa4cfcbbd92608d93eb687135aacbeee02",
     "morphhdl/scripts/check-wa10-source-scope.py": "ae4a7ff509a44b0f118bbab8baac09181d5a89a593496282c562c4e993af8dfe",
     "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala": "125e940da6c08dd80b2aed9d0c313007f6df81834302fcf49a8797f17ef413a9",
@@ -99,6 +99,6 @@
     "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala": "97b216a4a6b6453a5c96e06221d42f1f5d91aca8e6421b9d700d8c2c7f642fbc",
     "morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala": "38c09d76de8bd1258a1be3032da7300bd4af56545e744d0b1c12c9d2a7a8c1fd",
     "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": "d354e40812d7e4e6ff0719ecd2a3b4a134eb87d1cb93712dd775365a44375cd3",
-    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": "3cf9890f8f19b92eaaed9915469cb2fb844b507b6ee1042b76b9316f32c274ec"
+    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": "9c753186e7a97e25814f8b92f5ca2cc584b8e3c91fd2211b34bf82e6246e34d5"
   }
 }

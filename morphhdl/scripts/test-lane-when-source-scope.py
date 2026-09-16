@@ -91,6 +91,21 @@ class LaneWhenReviewTests(unittest.TestCase):
         self.assertEqual(new[2]["morphhdl"]["morphhdl.LaneWhenInliningRegressionTests"], 17)
         self.assertEqual(new[1]["morphhdl"] - old[1]["morphhdl"], {"morphhdl.LaneWhenInliningRegressionTests"})
 
+    def test_combined_parameter_and_lane_catalog_preserves_both_successors(self):
+        common = dict(packing=True, wa08=True, wa09=True, wa10=True, wa11=True)
+        lane = catalog.catalog_for_profile(PROFILE, **common, lane_when=True)
+        independent = catalog.catalog_for_profile(PROFILE, **common, pr188=True)
+        combined = catalog.catalog_for_profile(PROFILE, **common, lane_when=True, pr188=True)
+        self.assertEqual(tuple(map(sum, zip(*combined[0].values()))), (2064, 201))
+        for project in combined[0]:
+            self.assertEqual(combined[1][project], lane[1][project] | independent[1][project])
+            self.assertEqual(combined[2].get(project, {}),
+                             {**lane[2].get(project, {}), **independent[2].get(project, {})})
+        self.assertEqual(combined[2]['morphhdl']['morphhdl.LaneWhenInliningRegressionTests'], 17)
+        self.assertEqual(combined[2]['morphhdl']['spinal.core.IndependentParameterDomainTests'], 11)
+        self.assertEqual(combined[2]['morphhdl']['spinal.core.SymbolicPublicationEvidenceTests'], 18)
+        self.assertEqual(combined[2]['frontend']['morphhdl.frontend.AnalyzedFrontendBooleanTests'], 7)
+
     def test_partial_source_enrollment_and_changed_added_identity_are_rejected(self):
         entries = {path: {"before_sha256": None} for path in catalog.LANE_WHEN_SUITE_SOURCES}
         self.assertTrue(catalog.lane_when_suite_flag(entries, (True,)*4))
@@ -182,7 +197,7 @@ class LaneWhenReviewTests(unittest.TestCase):
                         'bash morphhdl/scripts/check-concrete-spinalverilog-parity.sh',
                         'bash morphhdl/scripts/check-external-spinal-boundary.sh'):
             self.assertIn(command, job)
-        self.assertIn('BASE_COMMIT: 61d1fe0dcac0b52856620944a2d7426fd1390a48', job)
+        self.assertIn('BASE_COMMIT: 7f355a859e7e88ca343e1ff82f261fb47b3311d0', job)
         self.assertIn('--baseline "$baseline_jar"', job)
         self.assertIn('--current "$current_jar"', job)
         self.assertNotIn('--skip-binary-linkage', job)
@@ -230,6 +245,36 @@ class LaneWhenReviewTests(unittest.TestCase):
             self.assertNotEqual(execute(values).returncode, 0)
             controls += 1
         print('LANE_COMPLETE_GATE_REJECTIONS_PASS controls=' + str(controls))
+
+    def test_policy_storage_repair_keeps_upstream_abi_checks_and_runs_real_regressions(self):
+        workflow = (ROOT / '.github/workflows/lane-when-expression-diagnostic.yml').read_text()
+        self.assertIn('spinal.core.internals.VerilogDeclarationPolicyStorageTests', workflow)
+        self.assertIn('bash morphhdl/scripts/check-binary-compatibility.sh', workflow)
+        self.assertNotIn('--baseline-ref', self.qualification_job('compatibility'))
+        paths = {
+            'core/src/main/scala/spinal/core/internals/VerilogBase.scala',
+            'core/src/main/scala/spinal/core/internals/PhaseVerilog.scala',
+            'core/src/test/scala/spinal/core/internals/VerilogDeclarationPolicyStorageTests.scala',
+            'morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala',
+        }
+        self.assertTrue(paths <= scope.REVIEW_PATHS)
+        printer = (ROOT / 'core/src/main/scala/spinal/core/internals/VerilogBase.scala').read_text()
+        historical_interface = printer.split('trait VerilogBase extends VhdlVerilogBase{', 1)[1]
+        self.assertNotIn('private var declarationPolicy', historical_interface)
+        self.assertIn('private def declarationPolicy: DeclarationPolicy', historical_interface)
+        self.assertIn('case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy', historical_interface)
+        self.assertIn('binding a Verilog declaration policy requires DeclarationPolicyOwner', historical_interface)
+        self.assertIn('@volatile private var boundPolicy: DeclarationPolicy = null', printer)
+        self.assertIn('installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized', printer)
+        self.assertIn('policy != null && boundPolicy == null', printer)
+        for forbidden in ('ThreadLocal', 'WeakHashMap', 'IdentityHashMap'):
+            self.assertNotIn(forbidden, printer)
+        emitter = (ROOT / 'core/src/main/scala/spinal/core/internals/PhaseVerilog.scala').read_text()
+        self.assertIn('with VerilogBase with VerilogBase.DeclarationPolicyOwner', emitter)
+        suite = (ROOT / 'morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala').read_text()
+        self.assertEqual(suite.count('new VerilogBase with VerilogBase.DeclarationPolicyOwner {}'), 2)
+        self.assertIn('intercept[MorphHdlSignednessException](foreign.emitType(input))', suite)
+        self.assertIn('intercept[IllegalArgumentException](printer.bindDeclarationPolicy(policy))', suite)
 
     def test_preflight_failure_removes_stale_success_receipt(self):
         with tempfile.TemporaryDirectory(prefix="lane-stale-receipt-") as name:
