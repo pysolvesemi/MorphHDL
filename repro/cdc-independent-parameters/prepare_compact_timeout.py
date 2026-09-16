@@ -13,7 +13,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 QUALIFIED = "0a13d7fb01413d6d5f9f2bb8885f8abf109cb264"
 RESTORED = "96fa69762c682204c0476ac272d350d9ca1a5190"
-TRANSPORT_PARENT = "393cfd73935177fa02ee371aea2e102d10e71a56"
+TRANSPORT_PARENT = "5a8c8f5913d72c379decf0827e52c0fcdeafff6d"
 TEMPLATE = "6e632df8900ee7760a384c6a572825acfd012ac6"
 PATH = "repro/cdc-independent-parameters/prepare_compact_timeout.py"
 BLOB = "d8de2bf69e18ca295c877834c71f6abfa8882ba5"
@@ -106,7 +106,8 @@ def main():
         "          parameter.maximum > BigInt(pc.config.bitVectorWidthMax)\n",
         "          parameter.maximum > BigInt(Int.MaxValue) ||\n"
         "          (parameter.maximum > BigInt(pc.config.bitVectorWidthMax) && !hasCompactParameterOwner(parameter))\n"))
-    fixture = repr("repro/cdc-independent-parameters/src/main/scala/CompactTimeout.scala")
+    fixture_path = "repro/cdc-independent-parameters/src/main/scala/CompactTimeout.scala"
+    fixture = repr(fixture_path)
     marker = '  assert(controls == 9, "compact rejection inventory changed")'
     edits.append((fixture, marker, """  // This is separate from the nine original authority controls: accepting
   // compact integer values must not raise the physical bit-vector width cap.
@@ -133,6 +134,15 @@ def main():
                          for path, old, new in edits) + "\n"
     text = exact(text, '    scope_text = (ROOT / SCOPE).read_text()',
                  correction + '    scope_text = (ROOT / SCOPE).read_text()')
+    # The extra regression is source, not an ephemeral runner modification.
+    # Commit it before calculating the source anchor and exact WA08 file seal.
+    text = exact(text,
+        'compiler_source = commit("PR189: retain compact declaration intervals without finite-table authority", COMPILER | {BUILD, SCOPE, POLICY})',
+        'compiler_source = commit("PR189: retain compact declaration intervals without finite-table authority", COMPILER | {BUILD, SCOPE, POLICY, ' + fixture + '})')
+    text = exact(text,
+        '    candidate = commit("PR189: seal compact timeout candidate for targeted CI only", {WA, CONTRACT})',
+        '    candidate = commit("PR189: seal compact timeout candidate for targeted CI only", {WA, CONTRACT})\n'
+        '    require(not git("status", "--porcelain", "--untracked-files=all"), "candidate differs from committed compiler or regression sources")')
     namespace = {"__name__": "pr189_pinned_compact_template", "__file__": str(ROOT / PATH)}
     exec(compile(text, TEMPLATE + ":" + PATH + ":publication-corrections", "exec"), namespace)
     if namespace["BASE"] != QUALIFIED:
