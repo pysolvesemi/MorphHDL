@@ -1034,7 +1034,9 @@ object ExternalFormalParameterRegistry {
       actual,
       "formal parameter actual expression"
     )
-    if (!isCanonicalDirectParameterActual(actual)) {
+    if (ElaborationProductDomain.isRetained(actual)) {
+      ElaborationProductDomain.requireInteger(actual, "formal parameter actual expression")
+    } else if (!isCanonicalDirectParameterActual(actual)) {
       ElabInt.requireAuthoritativeIntegerDomain(
         actual,
         "formal parameter actual expression",

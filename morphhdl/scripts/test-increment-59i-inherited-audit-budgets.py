@@ -82,6 +82,23 @@ def selector(default: int) -> ast.FunctionDef:
 def historical_ast(filename: str, text: str) -> ast.Module:
     default = next(row[2] for row in CASES if row[0] == filename)
     tree = ast.parse(text)
+    if filename == "test-increment-59g-source-review.py":
+        joined = dump(ast.parse("max(600, current_positive_timeout(ROOT))", mode="eval").body)
+        unjoined = ast.parse("current_positive_timeout(ROOT)", mode="eval").body
+
+        class RestoreJoinedBudget(ast.NodeTransformer):
+            count = 0
+
+            def visit_Call(self, node):
+                if dump(node) == joined:
+                    self.count += 1
+                    return copy.deepcopy(unjoined)
+                return self.generic_visit(node)
+
+        restorer = RestoreJoinedBudget()
+        tree = restorer.visit(tree)
+        if restorer.count != 1:
+            raise AssertionError("expected exactly one reviewed 600s/59i maximum budget")
     helpers = [node for node in tree.body if isinstance(node, ast.FunctionDef)
                and node.name == "current_positive_timeout"]
     if len(helpers) != 1 or dump(helpers[0]) != dump(selector(default)):
@@ -117,6 +134,15 @@ def write_marker(root: Path, name: str) -> None:
 
 
 class InheritedAuditBudgetTests(unittest.TestCase):
+    def test_joined_59g_budget_preserves_all_three_positive_cases(self):
+        for present, expected in (((), 600), ((PARENT,), 900), ((SUCCESSOR,), 3600)):
+            with self.subTest(present=present), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for name in present:
+                    write_marker(root, name)
+                actual = max(600, load("test-increment-59g-source-review.py").current_positive_timeout(root))
+                self.assertEqual(actual, expected)
+
     def test_empty_parser_type_params_are_portable(self):
         tree = ast.parse("def probe():\n    pass\n")
         expected = dump(tree)

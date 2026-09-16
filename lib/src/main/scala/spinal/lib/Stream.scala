@@ -228,7 +228,7 @@ class Stream[T <: Data](val payloadType :  HardType[T]) extends Bundle with IMas
       )
 
     val legal = !(halfRate && (m2s || s2m))
-    ElabControl.requireCondition(
+    ElabControl.requireStructuralCondition(
       legal,
       "halfRate can be enabled only when m2s and s2m are disabled",
       sourcecode.File(),

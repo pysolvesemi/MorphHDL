@@ -90,7 +90,7 @@ def main() -> None:
     # The complete 427-file parent-union traversal already needs a 900s
     # positive budget in the 59h harness (487.055s on the sealed tree).
     # Keep every negative at 180s and all frozen historical limits intact.
-    timeout = current_positive_timeout(ROOT)
+    timeout = max(600, current_positive_timeout(ROOT))
     records = [check(ROOT, "current exact 59g source and all inherited guards",
                      timeout_seconds=timeout)]
     spec = importlib.util.spec_from_file_location("bridge_review", ROOT / "morphhdl/scripts/check-increment-59g-source-review.py")

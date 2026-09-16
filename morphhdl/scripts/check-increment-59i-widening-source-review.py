@@ -34,7 +34,7 @@ PRODUCTION_PATHS = frozenset(PATHS)
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
 # Same normalized immutable code identity used by the existing target adapter.
-SUCCESSOR_HELPER_SHA256 = "d18d47a49cbb363077b266e47f10ea8b8604542dec8ff1955b3f4d29de7634c4"
+SUCCESSOR_HELPER_SHA256 = "d719d46132368d732d508a5d92434408eef3d0a2634751b3dfcc2c082525726d"
 
 
 def require(condition: bool, detail: str) -> None:

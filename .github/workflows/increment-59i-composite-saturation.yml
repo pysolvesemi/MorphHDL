@@ -109,7 +109,7 @@ jobs:
       - name: Compile, test and retain original RTL
         shell: bash
         env:
-          MORPHDL_59I_SAT_OUTPUT: ${{ github.workspace }}/target/increment-59i-saturation-${{ matrix.scala }}/generated
+          MORPHHDL_59I_SAT_OUTPUT: ${{ github.workspace }}/target/increment-59i-saturation-${{ matrix.scala }}/generated
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-saturation-$SCALA_VERSION"
@@ -154,6 +154,8 @@ jobs:
             wire [1:0] result_tag;
             wire result_valid;
             integer i;
+            integer sample;
+            integer checked_cycles;
             integer acc;
             reg [1:0] tag_acc;
             reg valid_acc;
@@ -173,6 +175,7 @@ jobs:
                   valid_acc = valid_acc | values_valid[i];
                 end
                 #1;
+                checked_cycles = checked_cycles + 1;
                 if (result_value !== ((acc > 7) ? 3'd7 : acc[2:0]) ||
                     result_tag !== tag_acc || result_valid !== valid_acc) begin
                   $display("59I-SATURATION-MISMATCH value=%h expected=%h tag=%h expected_tag=%h valid=%b expected_valid=%b",
@@ -183,17 +186,23 @@ jobs:
               end
             endtask
             initial begin
+              checked_cycles = 0;
               values_value = 0; values_tag = 0; values_valid = 0; check;
               values_value = {5{3'd7}}; values_tag = 10'b0110110011; values_valid = 5'b10101; check;
               values_value = {3'd1,3'd2,3'd3,3'd0,3'd1}; values_tag = 10'b1110010110; values_valid = 5'b01010; check;
               seed = 32'h59095A7A;
-              for (i = 0; i < 256; i = i + 1) begin
+              for (sample = 0; sample < 256; sample = sample + 1) begin
                 seed = seed * 32'd1664525 + 32'd1013904223;
                 values_value = seed[14:0];
                 seed = seed * 32'd1664525 + 32'd1013904223;
                 values_tag = seed[9:0]; values_valid = seed[14:10];
                 check;
               end
+              if (checked_cycles != 259) begin
+                $display("59I-SATURATION-MISMATCH cycle_count=%0d expected=259", checked_cycles);
+                $finish(1);
+              end
+              $display("59I-SATURATION-CYCLES %0d", checked_cycles);
               $display("59I-SATURATION-SIM-PASS");
               $finish;
             end
@@ -202,6 +211,7 @@ jobs:
           iverilog -g2001 -Wall -s tb -o "$out/tb.vvp" "$fields" "$out/tb.v"
           vvp "$out/tb.vvp" | tee "$out/simulation.log"
           grep -q '59I-SATURATION-SIM-PASS' "$out/simulation.log"
+          grep -qx '59I-SATURATION-CYCLES 259' "$out/simulation.log"
           ! grep -q '59I-SATURATION-MISMATCH' "$out/simulation.log"
 
           cat > "$out/miter.v" <<'VERILOG'
@@ -264,14 +274,30 @@ jobs:
           Path(sys.argv[2]).write_text(changed)
           PY
           iverilog -g2001 -Wall -tnull "$out/mutated.v"
-          sed "s|$fields|$out/mutated.v|g" "$out/prove.ys" > "$out/mutation.ys"
+          python3 - "$fields" "$out" <<'PY_MUTATION'
+          from pathlib import Path
+          import sys
+          fields, out = sys.argv[1], Path(sys.argv[2])
+          positive = (out / 'prove.ys').read_text()
+          assert positive.count(' -verify ') == 1
+          assert positive.count(fields) == 1
+          negative = positive.replace(fields, str(out / 'mutated.v'), 1).replace(' -verify ', ' -falsify ', 1)
+          negative = negative.rstrip('\n') + ' -dump_vcd "' + str(out / 'mutation-counterexample.vcd') + '"\n'
+          (out / 'mutation.ys').write_text(negative)
+          PY_MUTATION
           set +e
           yosys -Q -T -s "$out/mutation.ys" > "$out/mutation.log" 2>&1
           mutation_status=$?
           set -e
-          test "$mutation_status" -ne 0
-          grep -q 'model found' "$out/mutation.log"
-          ! grep -q 'timeout' "$out/mutation.log"
+          python3 - "$mutation_status" "$out" <<'PY_MUTATION_RESULT'
+          from pathlib import Path
+          import runpy, sys
+          status, out = int(sys.argv[1]), Path(sys.argv[2])
+          scope = runpy.run_path('morphhdl/scripts/check-increment-60f-equivalence-closure.py')
+          scope['classify_solver'](status, (out / 'mutation.log').read_text(), scope['SAT_FAIL'])
+          model = out / 'mutation-counterexample.vcd'
+          assert model.is_file() and model.stat().st_size > 0, 'missing actual mutation counterexample'
+          PY_MUTATION_RESULT
 
       - uses: actions/upload-artifact@v4
         if: always()

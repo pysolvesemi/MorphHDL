@@ -114,11 +114,15 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET
-          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',20), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
+          for name, count in [('TypedBalancedReductionStageReplayTests',23), ('TypedBalancedReductionClosedGraphTests',27), ('TypedBalancedReductionOperatorReplayTests',24), ('TypedBalancedReductionCaptureTests',10), ('TypedBalancedReductionCaptureSafetyTests',12), ('TypedBalancedReductionPlanTests',8), ('ReduceBalancedTreeNativeContractTests',8)]:
               files = list(Path('morphhdl/target').rglob('*' + name + '.xml'))
               assert len(files) == 1, (name, files)
               suite = ET.parse(files[0]).getroot()
               assert int(suite.get('tests','0')) == count, (name, suite.attrib)
+              cases = list(suite.iter('testcase'))
+              assert len(cases) == count, (name, 'testcase inventory differs')
+              assert len({case.get('name') for case in cases}) == count, (name, 'duplicate test names')
+              assert all(not any(node.tag in ('failure', 'error', 'skipped') for node in case) for case in cases), (name, 'non-passing testcase element')
               assert all(int(suite.get(key,'0')) == 0 for key in ('failures','errors','skipped')), (name,suite.attrib)
               print(name, suite.attrib)
           PY

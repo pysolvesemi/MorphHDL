@@ -35,14 +35,27 @@ class HdlBoolTests extends AnyFunSuite {
     assert(nullError.code == "MORPH-FRONTEND-TYPED-BOOLEAN-NULL")
   }
 
-  test("native typed Boolean ingress rejects independent roots") {
+  test("frontend-composed independent Boolean ingress rejects missing product authority") {
     val enabled = HdlBool.param("ENABLE", default = true)
     val bypass = HdlBool.param("BYPASS", default = false)
     val error = intercept[ParameterizedVerilogException] {
       val value: ElabBool = enabled && bypass
       value
     }
-    assert(error.code == "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING")
+    assert(error.code == "SPINAL-ELAB-DOMAIN-PRODUCT-AUTHORITY-MISSING")
+  }
+
+  test("independently declared Boolean roots compose through explicit native operations") {
+    val enabled = HdlBool.param("ENABLE", default = true).asElabBool
+    val bypass = HdlBool.param("BYPASS", default = true).asElabBool
+    val conjunction = enabled && bypass
+    val disjunction = enabled || bypass
+    // Equal defaults do not make either expression universally true or
+    // correlate the roots; the independent 0/1 domains remain authoritative.
+    assert(conjunction.isSymbolic && disjunction.isSymbolic)
+    assert(conjunction.parameters.map(_.name).toSet == Set("ENABLE", "BYPASS"))
+    assert(((enabled || !enabled) && (bypass || !bypass)).isAlwaysTrue)
+    assert(((enabled && !enabled) || (bypass && !bypass)).isAlwaysFalse)
   }
 
   test("retains literal and public-parameter witnesses and expressions") {

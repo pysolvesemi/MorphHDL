@@ -16,7 +16,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "933bdb973a0b346a4385a767ce177ec96d399456775b5d9694301e9feae584af"
+CONTRACT_SHA256 = "84b14f56e54a729a1e83dc8c1bc0902c78f7b758ff3cc4d5f1310d13e4c2c365"
 
 
 def integration_review(root: Path):
@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "1c2e9faf0cc3b405f5a1bc8b9a0ad5d6ef4058a4cba1d6ac2026340029c54b86",
+    require(hashlib.sha256(normalized).hexdigest() == "9736fe7a1f535590343cc505e51edaa8ba7253069021066a5622009019eae989",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
@@ -51,6 +51,26 @@ def integration_review(root: Path):
         sys.modules[name] = module
     module.contract(root)
     return module
+
+
+
+def overlay_target_source(root: Path, integration, path: str, source: bytes) -> bytes:
+    projected = integration.target_source(root, path, source)
+    successor = integration.successor_review(root)
+    if successor is not None and successor.contract(root)["schema_version"] == 3:
+        # Increment 61 has its own retained certificate. Its approved delta is
+        # projected only for this older WA-08 source audit, never for compilation.
+        return successor.increment61_predecessor_source(root, path, projected)
+    return projected
+
+
+def overlay_target_inventory(root: Path, integration, paths: set[str], base: str,
+        full: bool = False) -> set[str]:
+    projected = integration.target_inventory(root, paths, base, full)
+    successor = integration.successor_review(root)
+    if successor is not None and successor.contract(root)["schema_version"] == 3:
+        return successor.increment61_predecessor_inventory(root, projected, base, full)
+    return projected
 
 
 def require(ok: bool, detail: str) -> None:
@@ -74,7 +94,8 @@ def governed(path: str) -> bool:
     return (re.search(r"(?:^|/)src/(?:main|test)/", path) is not None or
             path.startswith(("morphhdl/scripts/", "morphhdl/contracts/",
                              "morphhdl-passes/scripts/", "morphhdl-passes/tests/",
-                             "morphhdl-passes/examples/", ".github/workflows/")) or
+                             "morphhdl-passes/examples/", ".github/workflows/",
+                             "repro/independent-parameters/")) or
             path in ("build.sbt", "build.mill", "morphhdl-passes/build.sbt"))
 
 
@@ -121,7 +142,7 @@ def contract(root: Path) -> dict:
     helper = regular(root, HELPER)
     integration = integration_review(root)
     if integration is not None:
-        helper = integration.target_source(root, HELPER, helper)
+        helper = overlay_target_source(root, integration, HELPER, helper)
     require(digest(normalized_helper(helper)) ==
             value["helper_normalized_sha256"], "sealed overlay helper changed")
     return value
@@ -164,7 +185,7 @@ def verify(root: Path) -> dict:
             indexed[path.decode()] = (mode, blob)
     for path, entry in records.items():
         raw = regular(root, path, entry["mode"])
-        projected = integration.target_source(root, path, raw) if integration is not None else raw
+        projected = overlay_target_source(root, integration, path, raw) if integration is not None else raw
         require(digest(projected) == entry["after_sha256"],
                 "unreviewed production delta: current reviewed bytes differ: " + path)
         old = frozen(root, BASE, path)
@@ -186,7 +207,7 @@ def verify(root: Path) -> dict:
     changed = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
                                       "-z", BASE, head).split(b"\0") if p}
     if integration is not None:
-        changed = integration.target_inventory(root, changed, BASE, full=True)
+        changed = overlay_target_inventory(root, integration, changed, BASE, full=True)
     expected = set(records) | {HELPER, CONTRACT}
     require({p for p in changed if governed(p)} == {p for p in expected if governed(p)},
             "unreviewed production delta: governed inventory differs: " +
@@ -239,7 +260,7 @@ def restore_source(root: Path, path: str, source: bytes) -> bytes:
         return before
     integration = integration_review(root)
     if integration is not None:
-        source = integration.target_source(root, path, source)
+        source = overlay_target_source(root, integration, path, source)
     require(source == before or digest(source) == entry["after_sha256"],
             "unreviewed bytes cannot enter historical projection: " + path)
     return before
@@ -253,7 +274,7 @@ def inherited_inventory(root: Path, paths: set[str], revision: str) -> set[str]:
     entries = {entry["path"] for entry in verify(root)["files"]}
     integration = integration_review(root)
     if integration is not None:
-        paths = integration.target_inventory(root, paths, revision)
+        paths = overlay_target_inventory(root, integration, paths, revision)
     current = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
                                       "-z", revision, "HEAD").split(b"\0") if p}
     # Callers may supply a production-only inventory. Do not introduce test or

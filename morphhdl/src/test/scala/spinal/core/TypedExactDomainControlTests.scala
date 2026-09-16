@@ -185,7 +185,7 @@ class TypedExactDomainControlTests extends AnyFunSuite {
     val error = intercept[ParameterizedVerilogException] {
       (first > 1) && (second > 1)
     }
-    assert(error.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED")
+    assert(error.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
   }
 
   private def typedDepth(default: Int): ElabInt =
