@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "f96ac0440a2718a0678b7a0b534fd160d0a4eb4c"
+      "approved_tree": "fd6b3e3b5ca41463a9e9060438f7a8d39b02a72b"
     },
     {
       "path": "idslpayload/src/main",
@@ -533,6 +533,23 @@
         "mode": "100644",
         "blob": "a8279f4b0667616c4f666c3f7e0b45ca6dec1ffe",
         "sha256": "9366006897a806beddaa03643dd4a24dc5a302e9ae5293eb6a70c2af863bc071"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR189: authenticated independent-parameter publication consumers"
+      ],
+      "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+        "mode": "100644",
+        "blob": "739ed3428d177e6b57f54003afc782e92dc075c6",
+        "sha256": "18a062193f6e0d1a495915103c21ff6adb3c558a50f15ab07f0b8896279351ee"
       },
       "edits": []
     },
@@ -2817,15 +2834,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59: typed BlackBox parameter and generic binding"
+        "Increment 59: typed BlackBox parameter and generic binding",
+        "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
       ],
-      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses.",
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
         "mode": "100644",
-        "blob": "3bfdb766b2b6264d2217f4452da507daece7ae65",
-        "sha256": "c82f9aa8e7f8ca90958940752301de6bd50676f139675e8b7bb638d5e94956e6"
+        "blob": "b83ea78d50f300fdb190e5671e0099f496b28372",
+        "sha256": "91f36c15bb38121740860df26e58f5f20b4b3f84d7090b786f71d2c62687163b"
       },
       "edits": []
     },

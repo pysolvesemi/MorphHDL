@@ -82,7 +82,27 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
+def _cdc_successor(root: Path):
+    # The optional successor must authenticate every current byte before the
+    # unchanged historical Increment61 check is allowed to run.
+    import importlib.util
+    path = root / "morphhdl/scripts/check-cdc-successor-source.py"
+    if not path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("inc61_cdc_successor", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load the PR189 successor verifier")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def verify(root: Path = ROOT) -> None:
+    successor = _cdc_successor(root)
+    if successor is not None:
+        successor.verify(root)
+        successor.verify_predecessor(root)
+        return
     contract = load_contract()
     base = contract["base_commit"]
     integrated = integrated_target_is_ancestor(contract, root)
@@ -137,6 +157,12 @@ def verify(root: Path = ROOT) -> None:
 
 
 def self_test() -> None:
+    successor = _cdc_successor(ROOT)
+    if successor is not None:
+        successor.verify(ROOT)
+        successor.verify_predecessor(ROOT, self_test=True)
+        successor.self_test(ROOT)
+        return
     contract = load_contract()
     integrated = integrated_target_is_ancestor(contract, ROOT)
     cases = 0

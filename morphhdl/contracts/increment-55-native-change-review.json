@@ -291,6 +291,17 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR189: authenticated independent-parameter publication consumers"
+      ],
+      "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
       "baseline_path": null,
       "change": "added",
@@ -1643,9 +1654,10 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59: typed BlackBox parameter and generic binding"
+        "Increment 59: typed BlackBox parameter and generic binding",
+        "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
       ],
-      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses.",
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
       "edits": []
     },
     {
