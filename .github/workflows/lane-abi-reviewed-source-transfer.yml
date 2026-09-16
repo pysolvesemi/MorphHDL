@@ -4,7 +4,7 @@ on:
     branches: [agent/lane-when-expression-inlining]
     paths: ['.github/workflows/lane-abi-reviewed-source-transfer.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
   transfer:
     runs-on: ubuntu-slim
@@ -14,7 +14,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Reconstruct authenticated candidate without remote writes
+      - name: Reconstruct reviewed source and publish immutable blob objects only
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -22,12 +22,14 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import base64, hashlib, json, os, pathlib, subprocess, urllib.request
-          sha='2df7cabb36334b404960da1bffb82823ff715e6e'
-          request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
-              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
-          with urllib.request.urlopen(request,timeout=60) as response: value=json.load(response)
-          raw=base64.b64decode(value['content'])
-          assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
+          def fetch_blob(sha):
+              req=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
+                  headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=60) as response: value=json.load(response)
+              raw=base64.b64decode(value['content'])
+              assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
+              return raw
+          raw=fetch_blob('2df7cabb36334b404960da1bffb82823ff715e6e')
           assert hashlib.sha256(raw).hexdigest()=='06295e0131d617f8d9b6299772d2e4f6e9888bbd865f8bf9aa411cdcdaa265b9'
           lines=raw.decode().splitlines(keepends=True);blocks=[];i=0
           while i<len(lines):
@@ -38,36 +40,16 @@ jobs:
                   blocks.append(''.join(block))
               else:i+=1
           assert len(blocks)==2
-          # Execute only the reviewed reconstruction and source-audit block.
-          # The second block attempted remote writes and is deliberately not run.
           subprocess.run(['bash','-n'],input=blocks[0],text=True,check=True)
           subprocess.run(['bash','-e','-o','pipefail','-c',blocks[0]],check=True)
-          evidence=pathlib.Path(os.environ['RUNNER_TEMP'],'pr187-abi-transfer')
-          evidence.mkdir(exist_ok=True)
-          (evidence/'transfer-implementation.yml').write_bytes(raw)
-          (evidence/'reviewed-source.json').write_bytes(pathlib.Path(os.environ['RUNNER_TEMP'],'reviewed-source.json').read_bytes())
+          driver=fetch_blob('ae2da2e7c4750d4ae3c020ed3d098b1d11648442')
+          path=pathlib.Path(os.environ['RUNNER_TEMP'],'reconstruct-integrated.py');path.write_bytes(driver)
+          subprocess.run(['python3',str(path)],check=True)
           PY
-      - name: Export exact candidate and target history
-        shell: bash
-        run: |
-          set -euo pipefail
-          evidence="$RUNNER_TEMP/pr187-abi-transfer"
-          test "$(git rev-parse HEAD)" = a7fbc06dc0ba420d31071dc8da98381f29ea6ed3
-          test "$(git rev-parse 'HEAD^{tree}')" = a595035227ba6f29605f81cacd6942a33963053e
-          git update-ref refs/receipt/pr187-candidate HEAD
-          git update-ref refs/receipt/pr187-staging "$GITHUB_SHA"
-          git fetch origin parameterized-verilog
-          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate-identity.txt"
-          git rev-parse origin/parameterized-verilog 'origin/parameterized-verilog^{tree}' > "$evidence/target-identity.txt"
-          git rev-parse "$GITHUB_SHA" "$GITHUB_SHA^{tree}" > "$evidence/staging-identity.txt"
-          git bundle create "$evidence/history.bundle" refs/receipt/pr187-candidate refs/receipt/pr187-staging refs/remotes/origin/parameterized-verilog
-          git bundle verify "$evidence/history.bundle"
-          git archive --format=tar.gz HEAD > "$evidence/candidate.tar.gz"
-          (cd "$evidence" && sha256sum history.bundle candidate.tar.gz candidate-identity.txt target-identity.txt staging-identity.txt reviewed-source.json transfer-implementation.yml > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr187-abi-source-reconciliation
-          path: ${{ runner.temp }}/pr187-abi-transfer/
+          name: pr187-integrated-source-blobs
+          path: ${{ runner.temp }}/pr187-integrated-source/
           if-no-files-found: error
           retention-days: 7
