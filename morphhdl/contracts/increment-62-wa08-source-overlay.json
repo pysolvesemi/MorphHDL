@@ -20,7 +20,7 @@
       "path": ".github/workflows/increment-60f-equivalence-closure.yml"
     },
     {
-      "after_sha256": "4f7e3015d073e7e881088ad4651b319571d46fcf3c36f0ca87686e1d63fab618",
+      "after_sha256": "32f1bfc4b9d50d612f5ed7de5d7b7907e90e35ef910a2cdae1a4a84fcf00c261",
       "before_sha256": "d19274c613c15061465e96c3c6f9477528d6e3b50f7d2af9b74b0669b8881c1b",
       "mode": "100644",
       "path": ".github/workflows/increment-60g-default-signed-verilog.yml"
@@ -212,7 +212,7 @@
       "path": "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala"
     },
     {
-      "after_sha256": "ea2db47a5a8f5c03a1e5373a73b7b584d68f426b0198553a3c776363dc9a05ff",
+      "after_sha256": "14a81825f3a142bf1231dd4afcc30143e6a5efed7fd1eb2a597b70f62c27aaeb",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala"
@@ -242,7 +242,7 @@
       "path": "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala"
     },
     {
-      "after_sha256": "535028a059d2ab078fe5fbade40f3c19e522e6a8c5e1ca562d56535bf3f69899",
+      "after_sha256": "6157d434f5e315984af812f233d68dbbab852ef31d2f9690a4b03451289584c2",
       "before_sha256": "ff78fd2384d30e616a648cf507fefbccc17459beb2ba64d34cc614bb6b02bc6f",
       "mode": "100644",
       "path": "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala"
@@ -434,7 +434,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "c8a90532298b4d67e0f01ac0a883e6e2c03922e7eb4bb965a7b103f7d64dd6f0",
+      "after_sha256": "826932e695bd7906968734a33d8ed976abf37ef44d7de2f3d60a60b4faea38fa",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -464,7 +464,7 @@
       "path": "morphhdl/contracts/increment-55-native-change-review.json"
     },
     {
-      "after_sha256": "8d0b94d23c4a06e65faaed3497cda87c12f96b295d402a75b14069045d8236e1",
+      "after_sha256": "caaceca27692113d34f01d32abf933b6f85e86b8eab57c1910118ba55b4e92c3",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/lane-when-source-scope.json"
@@ -506,7 +506,7 @@
       "path": "morphhdl/scripts/check-lane-when-inlining.py"
     },
     {
-      "after_sha256": "a4359339bd8103464b7b9f18079c3df0d87e3446a3b478f3a1beff2c7fbc691e",
+      "after_sha256": "1fd92e7a398de2fe1f6c35ab67345feb50bf95c7683102734d72b00bae05109e",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-lane-when-source-scope.py"
@@ -566,7 +566,7 @@
       "path": "morphhdl/scripts/test-increment-59g-source-review.py"
     },
     {
-      "after_sha256": "1d3dfad7db9c33df2812665ac746c91ec938279bcfcab13474d6deffe6a6052e",
+      "after_sha256": "a768f8af19b0f91487466e1ba5ecf389ca912107c3f3865f5921fffc0ebf3811",
       "before_sha256": "0acd3aaf2997b77eb63f029064087b91a2da335ee604d9e926f0b2870b2786db",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py"
@@ -614,7 +614,7 @@
       "path": "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala"
     },
     {
-      "after_sha256": "64eb82e4ca819a7f3546c40abc3009bba30d100dc63ee0aff10a9f9362a02112",
+      "after_sha256": "268fffd39a71091cc99c08b3be3dbcb3a0b3724c9e5bd8107e8d758a6914bf65",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala"
@@ -740,7 +740,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala"
     },
     {
-      "after_sha256": "1c0ccdab9c3591a880af4bce0cc71e628f9a69726ff62807daec0231db60f3ce",
+      "after_sha256": "a635754d843c5e947a5a09f423fa1a582c9b23a8d94649f7e3ea8668ce493ea0",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/LaneWhenInliningRegressionTests.scala"
@@ -1064,7 +1064,7 @@
       "path": "repro/independent-parameters/test_symbolic_policy.py"
     }
   ],
-  "final_source_commit": "033541420fc408ca87aeae260c8372802c13ae7b",
+  "final_source_commit": "21b7a9beb9a9365de2eed866216a622667f6a671",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
