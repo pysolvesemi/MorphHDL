@@ -4,7 +4,7 @@ on:
     branches: [agent/lane-when-expression-inlining]
     paths: ['.github/workflows/lane-abi-reviewed-source-transfer.yml']
 permissions:
-  contents: write
+  contents: read
 jobs:
   transfer:
     runs-on: ubuntu-slim
@@ -14,14 +14,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
-      - name: Run the exact authenticated source-transfer scripts
+      - name: Reconstruct authenticated candidate without remote writes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64, hashlib, json, os, subprocess, urllib.request
+          import base64, hashlib, json, os, pathlib, subprocess, urllib.request
           sha='2df7cabb36334b404960da1bffb82823ff715e6e'
           request=urllib.request.Request('https://api.github.com/repos/pysolvesemi/MorphHDL/git/blobs/'+sha,
               headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
@@ -38,10 +38,32 @@ jobs:
                   blocks.append(''.join(block))
               else:i+=1
           assert len(blocks)==2
-          for block in blocks:
-              subprocess.run(['bash','-n'],input=block,text=True,check=True)
-              subprocess.run(['bash','-e','-o','pipefail','-c',block],check=True)
+          # Execute only the reviewed reconstruction and source-audit block.
+          # The second block attempted remote writes and is deliberately not run.
+          subprocess.run(['bash','-n'],input=blocks[0],text=True,check=True)
+          subprocess.run(['bash','-e','-o','pipefail','-c',blocks[0]],check=True)
+          evidence=pathlib.Path(os.environ['RUNNER_TEMP'],'pr187-abi-transfer')
+          evidence.mkdir(exist_ok=True)
+          (evidence/'transfer-implementation.yml').write_bytes(raw)
+          (evidence/'reviewed-source.json').write_bytes(pathlib.Path(os.environ['RUNNER_TEMP'],'reviewed-source.json').read_bytes())
           PY
+      - name: Export exact candidate and target history
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/pr187-abi-transfer"
+          test "$(git rev-parse HEAD)" = a7fbc06dc0ba420d31071dc8da98381f29ea6ed3
+          test "$(git rev-parse 'HEAD^{tree}')" = a595035227ba6f29605f81cacd6942a33963053e
+          git update-ref refs/receipt/pr187-candidate HEAD
+          git update-ref refs/receipt/pr187-staging "$GITHUB_SHA"
+          git fetch origin parameterized-verilog
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate-identity.txt"
+          git rev-parse origin/parameterized-verilog 'origin/parameterized-verilog^{tree}' > "$evidence/target-identity.txt"
+          git rev-parse "$GITHUB_SHA" "$GITHUB_SHA^{tree}" > "$evidence/staging-identity.txt"
+          git bundle create "$evidence/history.bundle" refs/receipt/pr187-candidate refs/receipt/pr187-staging refs/remotes/origin/parameterized-verilog
+          git bundle verify "$evidence/history.bundle"
+          git archive --format=tar.gz HEAD > "$evidence/candidate.tar.gz"
+          (cd "$evidence" && sha256sum history.bundle candidate.tar.gz candidate-identity.txt target-identity.txt staging-identity.txt reviewed-source.json transfer-implementation.yml > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         if: always()
         with:
