@@ -54,6 +54,7 @@ jobs:
           mkdir -p target/increment-60b
           git archive HEAD | gzip > target/increment-60b/source.tar.gz
           python3 morphhdl/scripts/check-increment-60b-signedness-authority.py
+          python3 -B morphhdl/scripts/test-increment-60b-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py

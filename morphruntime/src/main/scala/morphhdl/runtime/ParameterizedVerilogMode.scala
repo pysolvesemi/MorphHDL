@@ -31,6 +31,9 @@ object ParameterizedVerilogMode {
     }
     val flags = config.flags.clone()
     if (enabled) flags += Enabled else flags -= Enabled
+    // This baseline-compatible marker must not depend on newer native classes.
+    // The MorphVerilog publication entry point configures native legality;
+    // setting this marker alone does not grant deferred-publication authority.
     config.copy(flags = flags)
   }
 }

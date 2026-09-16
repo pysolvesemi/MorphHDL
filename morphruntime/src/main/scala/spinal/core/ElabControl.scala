@@ -143,20 +143,25 @@ object ElabControl {
     requireConditionValue(condition, sourceFile, sourceLine, "require condition")
     if (!ParameterizedStructure.captureEnabled) {
       Predef.require(condition.witness, message)
-    } else if (condition.isAlwaysFalse) {
-      fail(
-        "SPINAL-ELAB-REQUIRE-ALWAYS-FALSE",
-        String.valueOf(message),
-        rendered(sourceFile, sourceLine)
-      )
-    } else if (!condition.isAlwaysTrue) {
-      fail(
-        "SPINAL-ELAB-REQUIRE-DOMAIN-UNPROVEN",
-        s"typed requirement '${condition.expression.verilog}' is not proven true over its complete parameter domain: ${String
-            .valueOf(message)}",
-        rendered(sourceFile, sourceLine)
-      )
+    } else if (condition.expression.parameters.isEmpty) {
+      Predef.require(condition.witness, message)
+    } else {
+      NativeSymbolicLegality.requireSymbolic(condition, message, Some(rendered(sourceFile, sourceLine)))
     }
+  }
+
+  /** Library precondition needed to choose or construct native hardware now.
+    * Unlike a user legality obligation this must hold across the active domain.
+    */
+  def requireStructuralCondition(condition: ElabBool, message: => Any,
+      sourceFile: String, sourceLine: Int): Unit = {
+    requireConditionValue(condition, sourceFile, sourceLine, "structural requirement")
+    if (!ParameterizedStructure.captureEnabled) Predef.require(condition.witness, message)
+    else if (condition.isAlwaysFalse)
+      fail("SPINAL-ELAB-REQUIRE-ALWAYS-FALSE", String.valueOf(message), rendered(sourceFile, sourceLine))
+    else if (!condition.isAlwaysTrue)
+      fail("SPINAL-ELAB-REQUIRE-DOMAIN-UNPROVEN",
+        "structural requirement is not universally proven: " + String.valueOf(message), rendered(sourceFile, sourceLine))
   }
 
   private def captureOne[T](

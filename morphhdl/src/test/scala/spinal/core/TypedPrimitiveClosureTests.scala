@@ -1418,8 +1418,10 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
       }
     }
     assert(
+      // Arithmetic can compose these axes, but the Counter state contract
+      // still requires one authoritative exact root. Do not weaken that gate.
       independent.code ==
-        "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
+        "SPINAL-ELAB-COUNTER-EXACT-DOMAIN-REQUIRED"
     )
 
     var ordinalTwo: ParameterizedVerilogException = null

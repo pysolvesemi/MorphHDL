@@ -640,10 +640,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         val withRange = packedPattern.replaceAllIn(
           current,
           matched => {
-            if (replaced) matched.matched
+            if (replaced) Matcher.quoteReplacement(matched.matched)
             else {
               replaced = true
-              range + matched.group(2) + matched.group(3)
+              Matcher.quoteReplacement(range + matched.group(2) + matched.group(3))
             }
           }
         )
@@ -655,10 +655,10 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           scalarPattern.replaceAllIn(
             withRange,
             matched => {
-              if (inserted) matched.matched
+              if (inserted) Matcher.quoteReplacement(matched.matched)
               else {
                 inserted = true
-                matched.group(1) + range + " " + matched.group(2)
+                Matcher.quoteReplacement(matched.group(1) + range + " " + matched.group(2))
               }
             }
           )
