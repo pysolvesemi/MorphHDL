@@ -5,6 +5,7 @@ on:
     branches: [agent/cdc-independent-parameter-consumers]
   pull_request:
     branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - 'core/src/main/scala/spinal/core/**'
       - 'morphruntime/**'
@@ -15,11 +16,16 @@ on:
       - 'repro/cdc-independent-parameters/**'
       - '.github/workflows/cdc-independent-parameter-consumers.yml'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Run the pinned source repair or normal targeted qualification
+        type: choice
+        options: [checks, source-repair]
+        default: checks
 
 permissions:
   contents: read
 
-# A push and its pull_request event must not launch duplicate qualification.
 concurrency:
   group: cdc-independent-consumers-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -32,10 +38,111 @@ env:
   SBT_TEST_PARALLEL: '0'
   JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
   JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
+  PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
+  repair-reviewed-source:
+    name: Pinned PR189 source-review repair and failed source gates
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.mode == 'source-repair' && github.ref_name == 'agent/cdc-independent-parameter-consumers') ||
+      (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'pr189-source-repair-v1' && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/cdc-independent-parameter-consumers')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+      - name: Prepare only the pinned reviewed source metadata repair
+        env:
+          EXPECTED_INPUT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/pr189-source-repair"
+          mkdir -p "$evidence"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_INPUT"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/input-identity.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python3 repro/cdc-independent-parameters/repair_source_reviews.py 2>&1 | tee "$evidence/prepare.log"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate-identity.txt"
+          git diff --binary "$EXPECTED_INPUT" HEAD > "$evidence/candidate.patch"
+          git bundle create "$evidence/candidate.bundle" HEAD "^$EXPECTED_INPUT"
+      - name: Execute the failed source gates and their rejection controls
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/pr189-source-repair"
+          checks=(
+            'git diff --check'
+            'python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+            'python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py --self-test'
+            'python3 morphhdl/scripts/check-native-source-preservation.py'
+            'python3 morphhdl/scripts/check-native-source-preservation.py --self-test'
+            'python3 morphhdl/scripts/check-typed-native-source-overlay.py'
+            'python3 morphhdl/scripts/check-increment-58-retirement.py'
+            'python3 morphhdl/scripts/check-production-retirement.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py --self-test'
+            'bash morphhdl/scripts/check-typed-vec-boundary.sh'
+            'python3 repro/cdc-independent-parameters/test_layering_root.py'
+            'python3 morphhdl/scripts/check-increment-60g-source-scope.py'
+            'python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py'
+            'python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py'
+            'python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only'
+          )
+          failures=0
+          index=0
+          : > "$evidence/results.tsv"
+          for check in "${checks[@]}"; do
+            index=$((index + 1))
+            printf '\nCHECK %s: %s\n' "$index" "$check"
+            if bash -e -o pipefail -c "$check" > "$evidence/check-$index.log" 2>&1; then
+              printf 'PASS\t%s\n' "$check" >> "$evidence/results.tsv"
+            else
+              failures=$((failures + 1))
+              printf 'FAIL\t%s\n' "$check" >> "$evidence/results.tsv"
+            fi
+            cat "$evidence/check-$index.log"
+          done
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Targeted source failures: %s\n' "$failures"
+          test "$failures" -eq 0
+      - name: Publish only a passing source candidate without launching full CI
+        env:
+          EXPECTED_INPUT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          branch='agent/cdc-independent-parameter-consumers'
+          actual=$(git ls-remote --exit-code origin "refs/heads/$branch" | cut -f1)
+          test "$actual" = "$EXPECTED_INPUT"
+          git merge-base --is-ancestor "$EXPECTED_INPUT" HEAD
+          # Every new commit contains [skip ci]. No force push, target update,
+          # automatic merge, or full-workflow dispatch is permitted here.
+          for commit in $(git rev-list "$EXPECTED_INPUT..HEAD"); do
+            git show -s --format=%B "$commit" | grep -F '[skip ci]'
+          done
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > "$RUNNER_TEMP/pr189-source-repair/published-head.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-targeted-source-repair-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/pr189-source-repair/
+          if-no-files-found: error
+          retention-days: 30
+
   source-preflight:
     name: Current-head source audit preflight
+    if: >-
+      (github.event_name != 'workflow_dispatch' || inputs.mode != 'source-repair') &&
+      (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'pr189-targeted-ci-v1')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -48,7 +155,6 @@ jobs:
       - name: Collect every current-source audit failure before expensive jobs
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PYTHONDONTWRITEBYTECODE: '1'
         run: |
           set -euo pipefail
           mkdir -p cdc-source-evidence
@@ -103,8 +209,6 @@ jobs:
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
     steps:
-      # This reviewed snapshot contains the original probe and the unmodified
-      # PR188 compiler. Never apply an unchanged-compiler assertion to PR189.
       - uses: actions/checkout@v4
         with:
           ref: 448dfdf29839bfde4f8ff1f4833f3bb01180a56d
@@ -123,8 +227,6 @@ jobs:
           test "$(git rev-parse HEAD)" = 448dfdf29839bfde4f8ff1f4833f3bb01180a56d
           git merge-base --is-ancestor 7f355a859e7e88ca343e1ff82f261fb47b3311d0 HEAD
           python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
-          # These four audit-metadata exceptions apply ONLY to this immutable
-          # historical checkout, never to the current compiler under test.
           git diff --exit-code 7f355a859e7e88ca343e1ff82f261fb47b3311d0 -- core morphruntime morphhdl frontend \
             ':(exclude)morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
             ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json' \
@@ -209,5 +311,5 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-# Record-consumer success is not PR189 completion. The separate compact timeout
-# declaration and live timer/mixed-legality tests remain required before merge.
+# Source-repair success is not compiler qualification. Record-consumer success
+# is not PR189 completion: compact timeout and mixed-validity tests remain open.
