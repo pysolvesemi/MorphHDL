@@ -5,178 +5,195 @@ on:
     paths: [.github/workflows/pr189-layering-root-preparation.yml]
 permissions:
   contents: read
+  actions: read
+defaults:
+  run:
+    shell: bash
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
 jobs:
-  prepare:
-    if: github.repository == 'pysolvesemi/MorphHDL'
+  source-descriptor:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    permissions:
-      contents: write
-      issues: write
-      actions: read
-    env:
-      PYTHONDONTWRITEBYTECODE: '1'
+    timeout-minutes: 10
+    outputs:
+      tree: ${{ steps.recover.outputs.tree }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Retain reviewed bytes, accept explicit publication, qualify exact head
+      - name: Recover integrity-checked reviewed source descriptor
+        id: recover
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
         run: |
           set -euo pipefail
           python3 -u - <<'PY'
-          import copy, hashlib, io, json, os, re, subprocess, time, urllib.error, urllib.parse, urllib.request, zipfile
+          import hashlib, io, json, os, subprocess, urllib.error, urllib.parse, urllib.request, zipfile
           from pathlib import Path
-          root = Path.cwd()
-          expected = '4d05c36cd393eeefcd0aa57e5a4da2522656683b'
-          prep = '.github/workflows/pr189-layering-root-preparation.yml'
-          branch = 'agent/cdc-independent-parameter-consumers'
-          endpoint = 'https://api.github.com/repos/pysolvesemi/MorphHDL/'
-          out = root/'target/pr189-layering-preparation'
-          out.mkdir(parents=True, exist_ok=True)
-          def git(*args):
-              return subprocess.check_output(['git', *args], cwd=root)
-          def api(path, data=None, method=None):
-              request = urllib.request.Request(endpoint+path,
-                  data=None if data is None else json.dumps(data).encode(), method=method,
-                  headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN'],
-                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
-                           'X-GitHub-Api-Version': '2022-11-28'})
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  return json.load(response)
-          preparation = git('rev-parse','HEAD').decode().strip()
-          assert git('diff','--name-only',expected,preparation).decode().splitlines() == [prep]
-          git('merge-base','--is-ancestor',expected,preparation)
-          # Recover the exact patch that already passed all fourteen gates. The
-          # previous failure was publication permission, not a source/test failure.
-          artifact = api('actions/artifacts/10428288696')
-          assert artifact['workflow_run']['head_sha'] == '7db8340cd680240fc512455327514c1804ec88a0'
-          digest = 'c4ce4c38a9776542eaa40238bbd26a8a0bd557451b967d9cd4e9549e63de5f62'
-          assert artifact['digest'] == 'sha256:'+digest
+          base='https://api.github.com/repos/pysolvesemi/MorphHDL/'
+          prep='.github/workflows/pr189-layering-root-preparation.yml'
+          def git(*args): return subprocess.check_output(['git',*args])
+          assert git('diff','--name-only','4d05c36cd393eeefcd0aa57e5a4da2522656683b','HEAD').decode().splitlines()==[prep]
           class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, req, fp, code, msg, headers, newurl):
-                  return None
-          request = urllib.request.Request(endpoint+'actions/artifacts/10428288696/zip',
-              headers={'Authorization': 'Bearer '+os.environ['GH_TOKEN']})
+              def redirect_request(self,req,fp,code,msg,headers,newurl): return None
+          req=urllib.request.Request(base+'actions/artifacts/10428891655/zip',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN']})
           try:
-              response = urllib.request.build_opener(NoRedirect).open(request,timeout=60)
-              raw = response.read()
+              with urllib.request.build_opener(NoRedirect).open(req,timeout=60) as response: raw=response.read()
           except urllib.error.HTTPError as error:
-              assert error.code in (301,302,303,307,308), error.code
-              url = error.headers['Location']
-              assert urllib.parse.urlparse(url).scheme == 'https'
-              # Never forward GitHub credentials to the artifact storage host.
-              with urllib.request.urlopen(url,timeout=60) as response:
-                  raw = response.read()
-          assert hashlib.sha256(raw).hexdigest() == digest
+              assert error.code in (301,302,303,307,308)
+              url=error.headers['Location']; assert urllib.parse.urlparse(url).scheme=='https'
+              with urllib.request.urlopen(url,timeout=60) as response: raw=response.read()
+          assert hashlib.sha256(raw).hexdigest()=='dfe3aff2ca53908ad15efaa88b8773812ce9c5e6c5eabd2caca268489cf55d70'
           with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-              names = [name for name in archive.namelist() if name == 'repair.patch']
-              assert len(names) == 1
-              patch = archive.read(names[0])
-          patchfile = out/'recovered.patch'
-          patchfile.write_bytes(patch)
-          lc = 'morphhdl/contracts/increment-54-typed-layering-ir.contract'
-          lh = 'morphhdl/scripts/check-typed-layering-ir.py'
-          oc = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
-          oh = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
-          cw = '.github/workflows/cdc-independent-parameter-consumers.yml'
-          sr = 'repro/cdc-independent-parameters/test_source_review.py'
-          test = 'repro/cdc-independent-parameters/test_layering_root.py'
-          reviewed = [lc,lh,cw,sr,test]
-          assert set(re.findall(rb'^diff --git a/(\S+) b/\S+$',patch,re.M)) == {
-              p.encode() for p in reviewed+[oc,oh]}
-          args = ['apply','--exclude='+oc,'--exclude='+oh,str(patchfile)]
-          git(*args[:1], '--check', *args[1:])
-          git(*args)
-          (root/prep).unlink()
-          git('add','--',*(reviewed+[prep]))
-          git('diff','--cached','--check')
-          assert set(git('diff','--cached','--name-only').decode().splitlines()) == set(reviewed+[prep])
-          comment_id = None
-          def publish_descriptor(stage, parent, paths):
-              global comment_id
-              elements = []
-              for path in paths:
-                  p = root/path
-                  if not p.exists():
-                      elements.append({'path':path,'mode':'100644','type':'blob','sha':None})
-                      continue
-                  content = p.read_bytes()
-                  local = hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()
-                  blob = api('git/blobs',{'content':content.decode(),'encoding':'utf-8'},'POST')
-                  assert blob['sha'] == local
-                  elements.append({'path':path,'mode':'100644','type':'blob','sha':local})
-              tree = git('write-tree').decode().strip()
-              descriptor = {'stage':stage,'parent_sha':parent,
-                  'base_tree_sha':git('rev-parse',parent+'^{tree}').decode().strip(),
-                  'tree_elements':elements,'expected_tree_sha':tree,
-                  'branch':branch,'branch_updated_by_workflow':False}
-              text = json.dumps(descriptor,indent=2)+'\n'
-              (out/(stage+'-publication.json')).write_text(text)
-              blob = api('git/blobs',{'content':text,'encoding':'utf-8'},'POST')
-              body = ('PR189 layering repair: **'+stage+' publication descriptor ready**.\n\n'
-                  'Descriptor Git blob: `'+blob['sha']+'`. Expected tree: `'+tree+'`.\n\n'
-                  'The workflow does not move branch refs or merge. This preserves the previously tested repair '
-                  'for explicit publication through the authorized connector. Exact published-head checks follow. '
-                  'The original compiler-consumer repair remains incomplete.')
-              if comment_id is None:
-                  comment_id = api('issues/189/comments',{'body':body},'POST')['id']
-              else:
-                  api('issues/comments/'+str(comment_id),{'body':body},'PATCH')
-              print('PUBLICATION_DESCRIPTOR',blob['sha'],text,flush=True)
-              return tree
-          def accept_publication(parent, expected_tree):
-              deadline = time.monotonic()+1200
-              while time.monotonic()<deadline:
-                  ref = api('git/ref/heads/'+branch)
-                  sha = ref['object']['sha']
-                  if sha != parent:
-                      commit = api('git/commits/'+sha)
-                      assert commit['tree']['sha'] == expected_tree, (sha,commit['tree']['sha'],expected_tree)
-                      assert [p['sha'] for p in commit['parents']] == [parent], 'unexpected publication ancestry'
-                      git('fetch','--no-tags','origin',sha)
-                      git('checkout','--force','--detach',sha)
-                      assert git('rev-parse','HEAD^{tree}').decode().strip() == expected_tree
-                      return sha
-                  time.sleep(5)
-              raise RuntimeError('Explicit publication was not received; no branch refs changed by workflow')
-          source_tree = publish_descriptor('source',preparation,reviewed+[prep])
-          source = accept_publication(preparation,source_tree)
-          manifest = json.loads((root/oc).read_text())
-          before = copy.deepcopy(manifest['files'])
-          entries = {entry['path']:entry for entry in manifest['files']}
+              descriptor=json.loads(archive.read('source-publication.json'))
+              patch=archive.read('recovered.patch')
+          assert descriptor['parent_sha']=='e041479c906f6a21127b94eadf6cd33c281c21e2'
+          assert descriptor['branch']=='agent/cdc-independent-parameter-consumers'
+          # Only the preparation workflow differs from the descriptor's old parent;
+          # that exact path is deleted by the reviewed source tree.
+          assert git('diff','--name-only',descriptor['parent_sha'],'HEAD').decode().splitlines()==[prep]
+          assert any(e['path']==prep and e['sha'] is None for e in descriptor['tree_elements'])
+          descriptor['parent_sha']=git('rev-parse','HEAD').decode().strip()
+          descriptor['base_tree_sha']=git('rev-parse','HEAD^{tree}').decode().strip()
+          print('SOURCE_PUBLICATION_DESCRIPTOR='+json.dumps(descriptor),flush=True)
+          print('REVIEWED_PATCH_BEGIN\n'+patch.decode()+'REVIEWED_PATCH_END',flush=True)
+          out=Path('target/pr189-source-descriptor');out.mkdir(parents=True,exist_ok=True)
+          (out/'descriptor.json').write_text(json.dumps(descriptor,indent=2)+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write('tree='+descriptor['expected_tree_sha']+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr189-source-descriptor-${{ github.sha }}
+          path: target/pr189-source-descriptor/
+          retention-days: 14
+  seal-descriptor:
+    needs: source-descriptor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    outputs:
+      source: ${{ steps.seal.outputs.source }}
+      tree: ${{ steps.seal.outputs.tree }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Authenticate explicit source publication and prepare exact seal
+        id: seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PARENT: ${{ github.sha }}
+          SOURCE_TREE: ${{ needs.source-descriptor.outputs.tree }}
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import copy, hashlib, json, os, re, subprocess, time, urllib.request
+          from pathlib import Path
+          base='https://api.github.com/repos/pysolvesemi/MorphHDL/'
+          branch='agent/cdc-independent-parameter-consumers'
+          def git(*args): return subprocess.check_output(['git',*args])
+          def api(path,data=None):
+              req=urllib.request.Request(base+path,data=None if data is None else json.dumps(data).encode(),headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+              with urllib.request.urlopen(req,timeout=60) as response: return json.load(response)
+          deadline=time.monotonic()+1200
+          while True:
+              source=api('git/ref/heads/'+branch)['object']['sha']
+              if source!=os.environ['PARENT']: break
+              if time.monotonic()>deadline: raise RuntimeError('No explicit source publication received')
+              time.sleep(5)
+          commit=api('git/commits/'+source)
+          assert commit['tree']['sha']==os.environ['SOURCE_TREE']
+          assert [p['sha'] for p in commit['parents']]==[os.environ['PARENT']]
+          git('fetch','--no-tags','origin',source);git('checkout','--force','--detach',source)
+          oc='morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          oh='morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+          reviewed=['morphhdl/contracts/increment-54-typed-layering-ir.contract','morphhdl/scripts/check-typed-layering-ir.py','.github/workflows/cdc-independent-parameter-consumers.yml','repro/cdc-independent-parameters/test_source_review.py','repro/cdc-independent-parameters/test_layering_root.py']
+          manifest=json.loads(Path(oc).read_text()); before=copy.deepcopy(manifest['files'])
+          entries={e['path']:e for e in manifest['files']}
           for path in reviewed:
               if path not in entries:
                   assert not git('ls-tree',manifest['base'],'--',path)
-                  entries[path] = {'path':path,'mode':'100644','before_sha256':None,'after_sha256':''}
-              entries[path]['after_sha256'] = hashlib.sha256((root/path).read_bytes()).hexdigest()
+                  entries[path]={'path':path,'mode':'100644','before_sha256':None,'after_sha256':''}
+              entries[path]['after_sha256']=hashlib.sha256(Path(path).read_bytes()).hexdigest()
           for entry in before:
-              if entry['path'] not in reviewed:
-                  assert entries[entry['path']] == entry
-          manifest['files'] = [entries[p] for p in sorted(entries)]
-          manifest['final_source_commit'] = source
-          helper = (root/oh).read_bytes()
-          normalized = re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "MANIFEST_HASH"',helper,count=1,flags=re.M)
-          assert hashlib.sha256(normalized).hexdigest() == manifest['helper_normalized_sha256']
-          raw = (json.dumps(manifest,indent=2)+'\n').encode()
-          (root/oc).write_bytes(raw)
-          helper,count = re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "'+hashlib.sha256(raw).hexdigest().encode()+b'"',helper,count=1,flags=re.M)
-          assert count == 1
-          (root/oh).write_bytes(helper)
-          git('add','--',oc,oh)
-          git('diff','--cached','--check')
-          final_tree = publish_descriptor('seal',source,[oc,oh])
-          final = accept_publication(source,final_tree)
-          commands = [
+              if entry['path'] not in reviewed: assert entries[entry['path']]==entry
+          manifest['files']=[entries[p] for p in sorted(entries)];manifest['final_source_commit']=source
+          helper=Path(oh).read_bytes()
+          normalized=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "MANIFEST_HASH"',helper,count=1,flags=re.M)
+          assert hashlib.sha256(normalized).hexdigest()==manifest['helper_normalized_sha256']
+          raw=(json.dumps(manifest,indent=2)+'\n').encode();Path(oc).write_bytes(raw)
+          helper,count=re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "'+hashlib.sha256(raw).hexdigest().encode()+b'"',helper,count=1,flags=re.M)
+          assert count==1;Path(oh).write_bytes(helper)
+          git('add','--',oc,oh);git('diff','--cached','--check')
+          elements=[]
+          for path in [oc,oh]:
+              raw=Path(path).read_bytes();expected=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+              sha=api('git/blobs',{'content':raw.decode(),'encoding':'utf-8'})['sha'];assert sha==expected
+              elements.append({'path':path,'mode':'100644','type':'blob','sha':sha})
+          tree=git('write-tree').decode().strip()
+          descriptor={'parent_sha':source,'base_tree_sha':commit['tree']['sha'],'tree_elements':elements,'expected_tree_sha':tree,'sealed_files':len(entries)}
+          print('SEAL_PUBLICATION_DESCRIPTOR='+json.dumps(descriptor),flush=True)
+          out=Path('target/pr189-seal-descriptor');out.mkdir(parents=True,exist_ok=True)
+          (out/'descriptor.json').write_text(json.dumps(descriptor,indent=2)+'\n')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output: output.write('source='+source+'\ntree='+tree+'\n')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr189-seal-descriptor-${{ github.sha }}
+          path: target/pr189-seal-descriptor/
+          retention-days: 14
+  validate-published-head:
+    needs: seal-descriptor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact published commit with unchanged source gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE: ${{ needs.seal-descriptor.outputs.source }}
+          FINAL_TREE: ${{ needs.seal-descriptor.outputs.tree }}
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import json, os, subprocess, time, urllib.request
+          from pathlib import Path
+          base='https://api.github.com/repos/pysolvesemi/MorphHDL/'
+          def api(path):
+              req=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN']})
+              with urllib.request.urlopen(req,timeout=60) as response:return json.load(response)
+          def git(*args):return subprocess.check_output(['git',*args])
+          deadline=time.monotonic()+1200
+          while True:
+              final=api('git/ref/heads/agent/cdc-independent-parameter-consumers')['object']['sha']
+              if final!=os.environ['SOURCE']:break
+              if time.monotonic()>deadline:raise RuntimeError('No explicit sealed publication received')
+              time.sleep(5)
+          commit=api('git/commits/'+final)
+          assert commit['tree']['sha']==os.environ['FINAL_TREE']
+          assert [p['sha'] for p in commit['parents']]==[os.environ['SOURCE']]
+          git('fetch','--no-tags','origin',final);git('checkout','--force','--detach',final)
+          assert not Path('.github/workflows/pr189-layering-root-preparation.yml').exists()
+          out=Path('target/pr189-exact-layering-validation');out.mkdir(parents=True,exist_ok=True)
+          (out/'head.txt').write_text(final+'\n')
+          commands=[
               ['python3','morphhdl/scripts/check-native-source-preservation.py'],
               ['python3','morphhdl/scripts/check-increment-58-retirement.py'],
-              ['python3',lh],['python3',lh,'--self-test'],
+              ['python3','morphhdl/scripts/check-typed-layering-ir.py'],
+              ['python3','morphhdl/scripts/check-typed-layering-ir.py','--self-test'],
               ['bash','morphhdl/scripts/check-typed-vec-boundary.sh'],
-              ['python3',oh],['python3',sr],['python3',test],
+              ['python3','morphhdl/scripts/check-increment-62-wa08-source-overlay.py'],
+              ['python3','repro/cdc-independent-parameters/test_source_review.py'],
+              ['python3','repro/cdc-independent-parameters/test_layering_root.py'],
               ['python3','morphhdl/scripts/check-increment-59c-source-review.py','--self-test'],
               ['python3','morphhdl/scripts/check-increment-59c-source-review.py'],
               ['python3','morphhdl/scripts/test-increment-59c-inherited-source-scope.py'],
@@ -185,24 +202,18 @@ jobs:
               ['python3','morphhdl/scripts/test-increment-62-wa08-source-overlay.py']]
           for index,command in enumerate(commands):
               print('CHECK',index,' '.join(command),flush=True)
-              result = subprocess.run(command,cwd=root,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
-              (out/('%02d.log'%index)).write_text(result.stdout)
-              print(result.stdout,flush=True)
-              assert result.returncode == 0,(command,result.returncode)
-          git('diff','--check')
-          assert not git('diff','--name-only') and not git('diff','--cached','--name-only')
-          (out/'repair.patch').write_bytes(git('diff',expected,final))
-          summary = {'source_head':source,'tested_head':final,'tree':final_tree,
-              'sealed_files':len(manifest['files']),'commands_passed':len(commands),
-              'compiler_feature_complete':False,'temporary_workflow_in_final_tree':False}
+              result=subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+              (out/('%02d.log'%index)).write_text(result.stdout);print(result.stdout,flush=True)
+              assert result.returncode==0,(command,result.returncode)
+          git('diff','--check');assert not git('diff','--name-only') and not git('diff','--cached','--name-only')
+          summary={'tested_head':final,'tree':commit['tree']['sha'],'source_head':os.environ['SOURCE'],'source_commands_passed':len(commands),'compiler_feature_complete':False}
           (out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
-          api('issues/comments/'+str(comment_id),{'body':'PR189 layering-root repair: all 14 targeted source gates passed on the exact published head.\n\n```json\n'+json.dumps(summary,indent=2)+'\n```\n\nThis is source-audit repair, not completion of the BlackBox/value/timeout compiler feature. PR must remain draft and unmerged.'},'PATCH')
-          print('PR189_EXACT_PUBLISHED_RESULT='+json.dumps(summary),flush=True)
+          print('EXACT_PUBLISHED_SOURCE_REPAIR_PASS='+json.dumps(summary),flush=True)
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr189-layering-preparation-${{ github.sha }}
-          path: target/pr189-layering-preparation/
+          name: pr189-exact-layering-validation-${{ github.sha }}
+          path: target/pr189-exact-layering-validation/
           if-no-files-found: error
           retention-days: 14
