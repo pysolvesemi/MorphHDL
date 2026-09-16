@@ -39,6 +39,20 @@ class LaneWhenInliningRegressionTests extends AnyFunSuite {
   private lazy val receivers = emit()(new LaneReceiverCoverageExample(_))
 
   test("all four laneDe comparisons inline fixed extensions through the process-separation tag") {
+    val namedClass = Class.forName("morphhdl.examples.NamedWireExpressionNativePhase")
+    val namedConstructor = namedClass.getConstructor(java.lang.Boolean.TYPE)
+    for (unnamedOnly <- Vector(false, true)) {
+      val phase = namedConstructor.newInstance(Boolean.box(unnamedOnly))
+        .asInstanceOf[spinal.core.internals.Phase]
+      assert(phase.hasNetlistImpact)
+    }
+    for (name <- Vector("UnnamedWireExpressionNativePhase", "ProductionWireAssignmentPhase")) {
+      val constructor = Class.forName("morphhdl.examples." + name).getConstructor()
+      val first = constructor.newInstance().asInstanceOf[spinal.core.internals.Phase]
+      val second = constructor.newInstance().asInstanceOf[spinal.core.internals.Phase]
+      assert(first.hasNetlistImpact && second.hasNetlistImpact)
+      assert(first ne second)
+    }
     assert(!lane.contains("_zz_laneDe"), lane)
     for (n <- 0 until 4) {
       assert(lane.contains(s"laneDe[$n] = ((io_running && ({3'd0, laneX_$n} < io_hActive)) && ({4'd0, laneY_$n} < io_vActive));"), lane)

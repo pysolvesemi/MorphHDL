@@ -46,6 +46,9 @@ import spinal.core.internals._
 private[examples] final class UnnamedWireExpressionNativePhase(
     conditionSourceIntent: Option[NativeConditionSourceIntent] = None
 ) extends Phase {
+  // Scala default arguments do not retain the historical JVM ()V constructor.
+  def this() = this(None)
+
   // The unnamed and named slots retain separate provenance and canonical pass
   // identities, while sharing one lossless typed capture/writeback authority.
   private val delegate = new NamedWireExpressionNativePhase(unnamedOnly = true, conditionSourceIntent)

@@ -230,3 +230,17 @@ focused/inherited suite passed on Scala 2.12.18 and 2.13.12. These results are
 not SBT/Mill or exact-final-GitHub-head qualification. Full repository CI,
 SBT/Mill and binary compatibility remain open until their actual final-head
 runs pass. No target branch update or merge is authorized by a partial result.
+
+## Failed-run repair, 2026-09-16 (qualification pending)
+
+The exact `a970cc890b07fbe2ccf708b1b431caaf78a4e17d` receipts identify two failing workflow families: lane qualification (`35053364996`, and duplicate push run `35053360769`) and Increment 60g (`35053365116`).
+
+The lane report-ABI job lost three JVM constructors: `NamedWireExpressionNativePhase(boolean)`, `UnnamedWireExpressionNativePhase()`, and `ProductionWireAssignmentPhase()`. Explicit delegating constructors restore those descriptors without changing the new parameter-aware constructor paths. The existing lane regression now resolves and instantiates all three legacy signatures reflectively. An uncaptured legacy production phase keeps condition inlining fail-closed and allocates its own source-intent state.
+
+The 59h mutation control reached an earlier native-hook authentication guard. The mutated `VerilogBase.scala` was correctly rejected, but the test expected a historical-projection diagnostic. The repair requires the precise current-source rejection, including its file path and a nonzero exit; all other negative cases and production guards remain unchanged. The 98-path signature inventory and 17 lane tests are retained, with additive linkage assertions.
+
+This first repair is based on the failed source head. It does not overwrite or roll back target commit `27af65abbee0d2334d6be7a6e4e2408b8af32fd9` (merged Increment 61). Its integration and associated audit reconciliation remain outstanding before merge. Do not mark this PR complete or merge it. Start only the repaired-head lane and Increment 60g workflows; full CI is prohibited until those targeted workflows pass on the intended final candidate. Old workflow retries still check the old source and do not qualify this repair.
+
+The existing 60g workflow also subscribes to pushes on this exact repair branch, alongside the existing lane workflow. This is additive routing only: no job, assertion, baseline, matrix, trigger on other branches, or qualification gate is disabled. With the separately observed target merge conflict still outstanding, these are the only push workflows matching this branch; resolve target integration only after their repaired-head qualification succeeds, then qualify the integrated source with full CI. Never use an old-head rerun as evidence for these changed sources.
+
+Local checks on the failure repair passed the 177-file source seal, native-source preservation, 19 lane review tests (including 41 safety mutations, 30 complete-gate rejection controls, and 12 job-context rejection controls), and the formal-validator self-tests. The actual previously failing 59h source suite passed two positives and all 28 exact rejections, with unchanged 59c and pre-rollout 59h historical controls separately replayed. These source checks do not claim Scala/JVM, HDL simulation, synthesis, or hosted CI qualification.

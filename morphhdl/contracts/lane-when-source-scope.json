@@ -23,6 +23,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala"
   ],
   "review_paths": [
+    ".github/workflows/increment-60g-default-signed-verilog.yml",
     ".github/workflows/morphhdl-passes.yml",
     "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
     "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
@@ -47,6 +48,7 @@
     "morphhdl/scripts/check-increment-60f-artifacts.py",
     "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
     "morphhdl/scripts/check-lane-when-source-scope.py",
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
     "morphhdl/scripts/test-lane-when-source-scope.py",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala"
   ]

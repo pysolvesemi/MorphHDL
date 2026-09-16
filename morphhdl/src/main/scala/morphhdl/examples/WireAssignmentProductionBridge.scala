@@ -89,6 +89,10 @@ private[morphhdl] object WireAssignmentProductionBridge {
 }
 
 private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionSourceIntent) extends Phase {
+  // Legacy callers have no pre-liveness capture. A fresh, uncaptured inventory
+  // fails closed for condition inlining without sharing mutable phase state.
+  def this() = this(new NativeConditionSourceIntent)
+
   private val expectedOrder = WireAliasPassConfiguration(enabled = true).enabledPasses
   private var completed = false
 

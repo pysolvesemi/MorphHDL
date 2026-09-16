@@ -34,6 +34,10 @@ private[examples] final class NamedWireExpressionNativePhase(
     unnamedOnly: Boolean = false,
     conditionSourceIntent: Option[NativeConditionSourceIntent] = None
 ) extends Phase {
+  // Preserve the pre-lane JVM constructor for already-compiled phase clients.
+  // Missing source-intent capture keeps condition inlining conservative.
+  def this(unnamedOnly: Boolean) = this(unnamedOnly, None)
+
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
