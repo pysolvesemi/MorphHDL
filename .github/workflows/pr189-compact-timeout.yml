@@ -41,8 +41,8 @@ jobs:
       - uses: actions/github-script@v7
         with:
           script: |
-            const run_id = 35132618002;
-            const expected_head = 'bfe60684049cf263e011d45f3a651b6c00fd7422';
+            const run_id = 35135638145;
+            const expected_head = '16738974cca6c549925453ef5127ea0e1485f9f2';
             const branch = 'agent/cdc-independent-parameter-consumers';
             const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id});
             if (run.head_sha !== expected_head || run.head_branch !== branch ||
@@ -61,6 +61,26 @@ jobs:
                 core.info(`COMPLETED_DURING_CANCELLATION ${run_id} ${latest.conclusion}`);
               }
             }
+      - name: Extract bounded diagnostic context from the completed predecessor log
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const job_id = 104917054262;
+            const {data: job} = await github.rest.actions.getJobForWorkflowRun({...context.repo, job_id});
+            if (job.run_id !== 35132618002 || job.head_sha !== 'bfe60684049cf263e011d45f3a651b6c00fd7422' ||
+                job.status !== 'completed') throw new Error('Diagnostic source is not the pinned completed job');
+            const {data} = await github.rest.actions.downloadJobLogsForWorkflowRun({...context.repo, job_id});
+            const text = typeof data === 'string' ? data : Buffer.from(data).toString('utf8');
+            const lines = text.split('\n');
+            const selected = new Set();
+            lines.forEach((line, index) => {
+              if (/\*\*\* FAILED \*\*\*|NoClassDefFoundError|ClassNotFoundException/.test(line)) {
+                for (let i = Math.max(0,index-3); i <= Math.min(lines.length-1,index+8); i++) selected.add(i);
+              }
+            });
+            if (!selected.size) throw new Error('No failure context found in the pinned log');
+            const excerpts = [...selected].sort((a,b)=>a-b).slice(0,160).map(i => `${i+1}: ${lines[i]}`).join('\n');
+            core.info('PINNED_FAILURE_EXCERPTS_BEGIN\n' + excerpts + '\nPINNED_FAILURE_EXCERPTS_END');
 
   compact-candidate:
     name: Exact compact declaration, timer and affected compiler checks
