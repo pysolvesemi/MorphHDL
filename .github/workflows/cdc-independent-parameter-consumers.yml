@@ -8,8 +8,10 @@ on:
     paths:
       - 'core/src/main/scala/spinal/core/**'
       - 'morphruntime/**'
-      - 'morphhdl/src/main/scala/spinal/core/internals/**'
+      - 'morphhdl/src/main/**'
       - 'morphhdl/src/test/scala/**'
+      - 'morphhdl/scripts/**'
+      - 'morphhdl/contracts/**'
       - 'repro/cdc-independent-parameters/**'
       - '.github/workflows/cdc-independent-parameter-consumers.yml'
   workflow_dispatch:
@@ -17,9 +19,10 @@ on:
 permissions:
   contents: read
 
+# A push and its pull_request event must not launch duplicate qualification.
 concurrency:
-  group: cdc-independent-consumers-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
-  cancel-in-progress: false
+  group: cdc-independent-consumers-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 defaults:
   run:
@@ -31,7 +34,120 @@ env:
   JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
 
 jobs:
+  source-preflight:
+    name: Current-head source audit preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Collect every current-source audit failure before expensive jobs
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p cdc-source-evidence
+          git rev-parse HEAD | tee cdc-source-evidence/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git rev-parse 'HEAD^{tree}' > cdc-source-evidence/tree.txt
+          git merge-base --is-ancestor 27af65abbee0d2334d6be7a6e4e2408b8af32fd9 HEAD
+          checks=(
+            'git diff --check'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py'
+            'python3 morphhdl/scripts/check-increment-61-source-review.py --self-test'
+            'python3 morphhdl/scripts/check-native-source-preservation.py'
+            'python3 morphhdl/scripts/check-native-source-preservation.py --self-test'
+            'python3 morphhdl/scripts/check-typed-native-source-overlay.py'
+            'python3 morphhdl/scripts/check-increment-58-retirement.py'
+            'python3 morphhdl/scripts/check-production-retirement.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py'
+            'python3 morphhdl/scripts/check-typed-layering-ir.py --self-test'
+            'bash morphhdl/scripts/check-typed-vec-boundary.sh'
+            'python3 repro/cdc-independent-parameters/test_layering_root.py'
+          )
+          failures=0
+          index=0
+          for check in "${checks[@]}"; do
+            index=$((index + 1))
+            printf '\nCHECK %s: %s\n' "$index" "$check"
+            if bash -e -o pipefail -c "$check" > "cdc-source-evidence/check-$index.log" 2>&1; then
+              printf 'PASS\t%s\n' "$check" >> cdc-source-evidence/results.tsv
+            else
+              failures=$((failures + 1))
+              printf 'FAIL\t%s\n' "$check" >> cdc-source-evidence/results.tsv
+            fi
+            cat "cdc-source-evidence/check-$index.log"
+          done
+          git diff --exit-code
+          git diff --cached --exit-code
+          printf 'Current-source audit failures: %s\n' "$failures"
+          test "$failures" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdc-current-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: cdc-source-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
   baseline-probe:
+    name: Historical baseline reproduction (448dfdf; not feature qualification)
+    needs: source-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      # This reviewed snapshot contains the original probe and the unmodified
+      # PR188 compiler. Never apply an unchanged-compiler assertion to PR189.
+      - uses: actions/checkout@v4
+        with:
+          ref: 448dfdf29839bfde4f8ff1f4833f3bb01180a56d
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Reproduce historical diagnostics on the exact historical source
+        env:
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p cdc-independent-evidence
+          printf '%s\n' "$EVENT_HEAD" > cdc-independent-evidence/event-head.txt
+          git rev-parse HEAD | tee cdc-independent-evidence/head.txt
+          git rev-parse 'HEAD^{tree}' > cdc-independent-evidence/tree.txt
+          test "$(git rev-parse HEAD)" = 448dfdf29839bfde4f8ff1f4833f3bb01180a56d
+          git merge-base --is-ancestor 7f355a859e7e88ca343e1ff82f261fb47b3311d0 HEAD
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          # These four audit-metadata exceptions apply ONLY to this immutable
+          # historical checkout, never to the current compiler under test.
+          git diff --exit-code 7f355a859e7e88ca343e1ff82f261fb47b3311d0 -- core morphruntime morphhdl frontend \
+            ':(exclude)morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
+            ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json' \
+            ':(exclude)morphhdl/contracts/increment-54-typed-layering-ir.contract' \
+            ':(exclude)morphhdl/scripts/check-typed-layering-ir.py'
+          python3 repro/cdc-independent-parameters/test_source_review.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          python3 repro/cdc-independent-parameters/test_layering_root.py
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors 'runMain CdcIndependentParametersRepro /tmp/cdc-pr188-repro' 2>&1 | tee ../../cdc-independent-evidence/baseline.log
+          python3 check_baseline.py ../../cdc-independent-evidence/baseline.log
+          cp -a /tmp/cdc-pr188-repro ../../cdc-independent-evidence/baseline-rtl
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdc-historical-baseline-448dfdf-${{ github.event.pull_request.head.sha || github.sha }}
+          path: cdc-independent-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  record-consumers:
+    name: Current-head ports, BlackBox and UInt consumers
+    needs: source-preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     container:
@@ -43,37 +159,55 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Reproduce exact reported baseline diagnostics, not feature success
+      - name: Authenticate the actual compiler head and record tools
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          mkdir -p cdc-independent-evidence
-          git rev-parse HEAD | tee cdc-independent-evidence/head.txt
-          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
-          git merge-base --is-ancestor 7f355a859e7e88ca343e1ff82f261fb47b3311d0 HEAD
-          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
-          # Only these four independently sealed audit-metadata files may differ from the baseline.
-          git diff --exit-code 7f355a859e7e88ca343e1ff82f261fb47b3311d0 -- core morphruntime morphhdl frontend \
-            ':(exclude)morphhdl/scripts/check-increment-62-wa08-source-overlay.py' \
-            ':(exclude)morphhdl/contracts/increment-62-wa08-source-overlay.json' \
-            ':(exclude)morphhdl/contracts/increment-54-typed-layering-ir.contract' \
-            ':(exclude)morphhdl/scripts/check-typed-layering-ir.py'
-          python3 repro/cdc-independent-parameters/test_source_review.py
-          python3 morphhdl/scripts/check-typed-layering-ir.py
-          python3 repro/cdc-independent-parameters/test_layering_root.py
-          java -version
-          iverilog -V
-          verilator --version
-          yosys -V
+          mkdir -p cdc-consumer-evidence
+          git rev-parse HEAD | tee cdc-consumer-evidence/head.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git rev-parse 'HEAD^{tree}' | tee cdc-consumer-evidence/tree.txt
+          java -version 2>&1 | tee cdc-consumer-evidence/java-version.txt
+          iverilog -V > cdc-consumer-evidence/iverilog-version.txt 2>&1
+          yosys -V | tee cdc-consumer-evidence/yosys-version.txt
+      - id: generate
+        name: Require successful native generation twice with both plugins
+        run: |
+          set -euo pipefail
           cd repro/cdc-independent-parameters
-          sbt -batch -no-colors 'runMain CdcIndependentParametersRepro /tmp/cdc-pr188-repro' 2>&1 | tee ../../cdc-independent-evidence/baseline.log
-          python3 check_baseline.py ../../cdc-independent-evidence/baseline.log
-          cp -a /tmp/cdc-pr188-repro ../../cdc-independent-evidence/baseline-rtl
-      - name: Retain allowlisted build tools for offline reproduction
-        run: python3 repro/cdc-independent-parameters/export_tools.py
+          sbt -batch -no-colors 'runMain spinal.core.CdcConsumerSuccess out-consumers' 2>&1 | tee ../../cdc-consumer-evidence/generation.log
+          sbt -batch -no-colors 'runMain spinal.core.CdcConsumerSuccess out-consumers-repeat' 2>&1 | tee ../../cdc-consumer-evidence/repeat.log
+          cat out-consumers/BlackBox/CdcRecordBlackBox.v
+          cat out-consumers/Value/CdcRecordValue.v
+      - name: Same-artifact independent override simulation and synthesis
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          cd repro/cdc-independent-parameters
+          python3 check_consumers.py out-consumers out-consumers-repeat ../../cdc-consumer-evidence/simulation 2>&1 | tee ../../cdc-consumer-evidence/override-matrix.log
+      - name: Exact construction-side rejection diagnostics
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          cd repro/cdc-independent-parameters
+          sbt -batch -no-colors 'runMain spinal.core.CdcConsumerSafety safety-consumers' 2>&1 | tee ../../cdc-consumer-evidence/safety.log
+      - name: Tracked source remains unchanged by validation
+        if: always()
+        run: |
+          set -euo pipefail
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cdc-independent-baseline-${{ github.event.pull_request.head.sha || github.sha }}
-          path: cdc-independent-evidence/
+          name: cdc-record-consumers-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            cdc-consumer-evidence/
+            repro/cdc-independent-parameters/out-consumers/
+            repro/cdc-independent-parameters/out-consumers-repeat/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
+
+# Record-consumer success is not PR189 completion. The separate compact timeout
+# declaration and live timer/mixed-legality tests remain required before merge.
