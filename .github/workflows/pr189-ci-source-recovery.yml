@@ -1,0 +1,74 @@
+name: PR189 exact CI source recovery
+on:
+  push:
+    branches: [agent/cdc-independent-parameter-consumers]
+    paths: ['.github/workflows/pr189-ci-source-recovery.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: e7ad90670d7658f6b141ba562e614c5f6aa671b1
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bundle the exact failing source and collect only its failed job logs
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ci-recovery/logs
+          test "$(git rev-parse HEAD)" = e7ad90670d7658f6b141ba562e614c5f6aa671b1
+          git rev-parse HEAD > ci-recovery/head.txt
+          git rev-parse HEAD^{tree} > ci-recovery/tree.txt
+          git bundle create ci-recovery/source.bundle HEAD
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, urllib.request
+          root = pathlib.Path('ci-recovery')
+          repo = 'pysolvesemi/MorphHDL'
+          head = 'e7ad90670d7658f6b141ba562e614c5f6aa671b1'
+          base = 'https://api.github.com/repos/' + repo + '/actions/'
+          def get(path):
+              request = urllib.request.Request(base + path, headers={
+                  'Authorization': 'Bearer ' + os.environ['GH_READ_TOKEN'],
+                  'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=60) as response:
+                  return response.read()
+          records = []
+          for page in range(1, 5):
+              runs = json.loads(get('runs?head_sha=' + head + '&status=failure&per_page=100&page=' + str(page)))['workflow_runs']
+              for run in runs:
+                  assert run['head_sha'] == head and run['head_branch'] == 'agent/cdc-independent-parameter-consumers'
+                  jobs = []
+                  for job_page in range(1, 6):
+                      batch = json.loads(get('runs/' + str(run['id']) + '/jobs?per_page=100&page=' + str(job_page)))['jobs']
+                      jobs.extend(batch)
+                      if len(batch) < 100:
+                          break
+                  for job in jobs:
+                      if job['conclusion'] == 'failure':
+                          name = str(run['id']) + '-' + str(job['id']) + '.log'
+                          raw = get('jobs/' + str(job['id']) + '/logs')
+                          (root / 'logs' / name).write_bytes(raw)
+                          records.append({'run': run['id'], 'workflow': run['name'],
+                              'job': job['id'], 'name': job['name'], 'head': head,
+                              'steps': job['steps'], 'file': 'logs/' + name,
+                              'sha256': hashlib.sha256(raw).hexdigest()})
+              if len(runs) < 100:
+                  break
+          (root / 'failed-jobs.json').write_text(json.dumps(records, indent=2) + '\n')
+          (root / 'manifest.json').write_text(json.dumps({
+              p.name: hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in root.iterdir() if p.is_file()}, indent=2) + '\n')
+          print('Recovered exact failed source and', len(records), 'failed-job logs')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr189-exact-failing-source-e7ad906
+          path: ci-recovery/
+          if-no-files-found: error
+          retention-days: 14
