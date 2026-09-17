@@ -25,6 +25,7 @@
   "review_paths": [
     ".github/workflows/increment-60f-equivalence-closure.yml",
     ".github/workflows/increment-60g-default-signed-verilog.yml",
+    ".github/workflows/increment-61-one-file-per-component.yml",
     ".github/workflows/increment-62-wa08-source-overlay.yml",
     ".github/workflows/morphhdl-passes.yml",
     "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
@@ -49,11 +50,13 @@
     "morphhdl/contracts/lane-when-source-scope.json",
     "morphhdl/contracts/native-source-preservation.json",
     "morphhdl/scripts/check-increment-60f-artifacts.py",
+    "morphhdl/scripts/check-increment-61-publication-artifacts.py",
     "morphhdl/scripts/check-increment-61-source-review.py",
     "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
     "morphhdl/scripts/check-lane-when-increment61-source.py",
     "morphhdl/scripts/check-lane-when-source-scope.py",
     "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+    "morphhdl/scripts/test-increment-61-publication-artifacts.py",
     "morphhdl/scripts/test-lane-when-source-scope.py",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala"
   ]

@@ -93,7 +93,9 @@ def verify(root: Path = ROOT) -> dict:
     target_paths = {entry["path"] for entry in contract["reviewed_files"]} | set(contract["audit_paths"])
     require(changed(root, BASE, TARGET) == target_paths, "merged Increment 61 inventory changed")
     lane_paths = changed(root, BASE, LANE)
-    expected = target_paths | lane_paths | {SELF, "morphhdl-passes/scripts/test-boundary-guard.sh"}
+    expected = target_paths | lane_paths | {SELF, "morphhdl-passes/scripts/test-boundary-guard.sh",
+        "morphhdl/scripts/check-increment-61-publication-artifacts.py",
+        "morphhdl/scripts/test-increment-61-publication-artifacts.py"}
     require(changed(root, BASE, "HEAD") == expected, "complete integration inventory differs")
 
     target_tree = outer.tree(root, TARGET)
@@ -191,6 +193,12 @@ def self_test(root: Path = ROOT) -> None:
             reject("formal signature registry", lambda: append(REGISTRY))
             reject("boundary source routing controls", lambda: append("morphhdl-passes/scripts/test-boundary-guard.sh"))
             reject("frozen Increment 61 contract", lambda: append(CONTRACT))
+            for path in (
+                ".github/workflows/increment-61-one-file-per-component.yml",
+                "morphhdl/scripts/check-increment-61-publication-artifacts.py",
+                "morphhdl/scripts/test-increment-61-publication-artifacts.py",
+            ):
+                reject("publication artifact routing " + path, lambda p=path: append(p))
             victim = paths[0]
             def hidden_index():
                 original = (fixture / victim).read_bytes()
@@ -208,7 +216,7 @@ def self_test(root: Path = ROOT) -> None:
                        lambda rev=ancestor: git(fixture, "reset", "--hard", rev))
         finally:
             git(root, "worktree", "remove", "--force", str(fixture))
-    require(len(cases) == 22, "changed current-source rejection inventory")
+    require(len(cases) == 25, "changed current-source rejection inventory")
     output = root / "target/lane-increment61-source"
     output.mkdir(parents=True, exist_ok=True)
     (output / "current-rejection-controls.json").write_text(json.dumps({

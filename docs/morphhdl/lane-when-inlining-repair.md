@@ -244,3 +244,40 @@ This first repair is based on the failed source head. It does not overwrite or r
 The existing 60g workflow also subscribes to pushes on this exact repair branch, alongside the existing lane workflow. This is additive routing only: no job, assertion, baseline, matrix, trigger on other branches, or qualification gate is disabled. With the separately observed target merge conflict still outstanding, these are the only push workflows matching this branch; resolve target integration only after their repaired-head qualification succeeds, then qualify the integrated source with full CI. Never use an old-head rerun as evidence for these changed sources.
 
 Local checks on the failure repair passed the 177-file source seal, native-source preservation, 19 lane review tests (including 41 safety mutations, 30 complete-gate rejection controls, and 12 job-context rejection controls), and the formal-validator self-tests. The actual previously failing 59h source suite passed two positives and all 28 exact rejections, with unchanged 59c and pre-rollout 59h historical controls separately replayed. These source checks do not claim Scala/JVM, HDL simulation, synthesis, or hosted CI qualification.
+
+## Retry-safe publication artifact repair, 2026-09-17 (qualification pending)
+
+On integrated head `464b098ad7dc60ed1e5f63f34051acb872f46b1c`, the
+Increment 59e dependency-download retry succeeded. Increment 61's Scala 2.13
+retry also passed its tests, strict tools, equivalence and publication mutation
+checks. Its cross-Scala job, however, repeatedly downloaded failed-attempt
+artifact `10480837438`, containing only SBT diagnostics, rather than successful
+retry artifact `10480684291`. The complete successful 2.12/2.13 publication
+sets were independently downloaded and found byte-identical, including both
+repeated generations. Retrying comparison job `105081258551` reproduced the
+stale selection in job `105136967743`; it did not establish a compiler defect.
+
+The repaired workflow keeps attempt-specific diagnostic artifacts separate
+from success-only `increment-61-qualified-*` artifacts. Qualified uploads occur
+only after every existing producer gate succeeds and replace an earlier
+qualified artifact on retry. Each carries the exact source commit, Scala lane,
+workflow run, producer attempt and all four generated-file hashes. Comparison
+requires the exact two Scala publications, both complete repeated generations,
+the expected source and run, valid attempt ordering, and byte equality. Missing,
+extra, empty, linked, mismatched or stale content fails. The original recursive
+`diff`, strict tool checks, equivalence bindings and mutation controls remain.
+
+An owner-only, same-repository review command `/qualify-increment61 <HEAD>`
+provides targeted qualification after a CI-suppressed checkpoint. It is limited
+to this existing repair branch and target, requires the review's commit identity
+to equal the current PR head, and does not grant write permissions or use
+`pull_request_target`. Ordinary push, pull-request and manual triggers remain.
+No other workflow subscribes to this review event in the inspected source.
+Only the previously failing publication workflow is to run before another full
+CI cycle; neither a skipped checkpoint nor prior-head results qualify a merge.
+
+This repair changes CI and artifact validation only: **no generated-Verilog
+effect and no compiler-source changes**. The original Increment 61 contract,
+all fourteen parent compiler files and all 98 formal-signature paths remain
+unchanged. Hosted repaired-head qualification is still required; no roadmap
+checkbox is closed by this repair record.

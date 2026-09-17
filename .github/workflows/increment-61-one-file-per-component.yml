@@ -48,6 +48,10 @@ on:
       - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
       - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
   workflow_dispatch:
+  # Owner-issued exact-head review command permits failure-only qualification
+  # after a CI-suppressed checkpoint, without enabling other PR workflows.
+  pull_request_review:
+    types: [submitted]
 
 permissions:
   contents: read
@@ -58,6 +62,15 @@ concurrency:
 
 jobs:
   source:
+    if: >-
+      github.event_name != 'pull_request_review' ||
+      (github.event.review.state == 'commented' &&
+       github.event.review.user.login == github.repository_owner &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.base.ref == 'parameterized-verilog' &&
+       github.event.pull_request.head.ref == 'agent/lane-when-expression-inlining' &&
+       github.event.review.commit_id == github.event.pull_request.head.sha &&
+       github.event.review.body == format('/qualify-increment61 {0}', github.event.pull_request.head.sha))
     name: Exact source and inherited audit composition
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -76,6 +89,7 @@ jobs:
           mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/test-increment-61-publication-artifacts.py
           python3 morphhdl/scripts/check-increment-61-source-review.py | tee "$output/review.log"
           python3 morphhdl/scripts/check-increment-61-source-review.py --self-test | tee -a "$output/review.log"
           base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
@@ -239,13 +253,25 @@ jobs:
           output="$GITHUB_WORKSPACE/target/increment-61"
           git rev-parse HEAD > "$output/head.txt"
           find "$output/generated-a" -type f -print0 | sort -z | xargs -0 sha256sum > "$output/generated.sha256"
+          python3 morphhdl/scripts/check-increment-61-publication-artifacts.py record \
+            "$output" "$(git rev-parse HEAD)" "$SCALA_VERSION" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-61-${{ matrix.scala }}
+          name: increment-61-diagnostics-${{ matrix.scala }}-attempt-${{ github.run_attempt }}
           path: target/increment-61
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload qualified publication only after every producer gate
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: increment-61-qualified-${{ matrix.scala }}
+          path: target/increment-61
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
 
   cross-scala:
     needs: publication
@@ -253,16 +279,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          pattern: increment-61-2.*
+          pattern: increment-61-qualified-2.*
           path: target/increment-61-cross
       - name: Compare complete generated publication sets
         shell: bash
         run: |
           set -euo pipefail
           root=target/increment-61-cross
-          left="$root/increment-61-2.12.18/generated-a"
-          right="$root/increment-61-2.13.12/generated-a"
+          python3 morphhdl/scripts/check-increment-61-publication-artifacts.py compare \
+            "$root" "$(git rev-parse HEAD)" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            | tee target/increment-61-cross-proof.json
+          left="$root/increment-61-qualified-2.12.18/generated-a"
+          right="$root/increment-61-qualified-2.13.12/generated-a"
           test -d "$left" && test -d "$right"
           diff -ru "$left" "$right" | tee "$root/cross-scala.diff"

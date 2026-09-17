@@ -90,7 +90,7 @@ def _lane_successor(root: Path):
     if not path.exists():
         return None
     require(path.is_file() and not path.is_symlink(), "linked lane/61 successor checker")
-    require(sha256(path.read_bytes()) == "c85d480995b560831af9dfdfe2c5477fc019743b8105d7f7ba9820f19ce724a7",
+    require(sha256(path.read_bytes()) == "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
             "lane/61 successor checker digest changed")
     spec = importlib.util.spec_from_file_location("increment61_lane_successor", path)
     require(spec is not None and spec.loader is not None, "missing lane/61 successor checker")

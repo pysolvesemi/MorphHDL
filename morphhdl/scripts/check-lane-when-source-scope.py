@@ -19,6 +19,9 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 OVERLAY_CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 # Exact paths for this repair's review infrastructure; no source root wildcard.
 REVIEW_PATHS = frozenset((
+    '.github/workflows/increment-61-one-file-per-component.yml',
+    'morphhdl/scripts/check-increment-61-publication-artifacts.py',
+    'morphhdl/scripts/test-increment-61-publication-artifacts.py',
     "morphhdl-passes/scripts/test-boundary-guard.sh",
     ".github/workflows/increment-60f-equivalence-closure.yml",
     ".github/workflows/increment-62-wa08-source-overlay.yml",
