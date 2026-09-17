@@ -1,0 +1,66 @@
+name: Increment 59i failed-only 59g report repair
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-59g-report-stage.yml
+      - .github/recovery/59i-59g-report-v2/**
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Restore exact report repair and retain every source preflight
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-59g-report-evidence"
+          python3 -B .github/recovery/59i-59g-report-v2/stage.py prepare \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-59g-report-source" \
+            --output "$RUNNER_TEMP/59i-59g-report-evidence" \
+            --bundle "$RUNNER_TEMP/59i-59g-report.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-59g-report-evidence/prepare.log"
+          cp "$RUNNER_TEMP/59i-59g-report.bundle" "$RUNNER_TEMP/59i-59g-report-evidence/reviewed.bundle"
+      - name: Export exact tree requests for connector publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-59g-report-trees-c74b34bb-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-59g-report-evidence
+          if-no-files-found: error
+          retention-days: 21
+      - name: Stage exact commit objects and dispatch only still-failed 59g
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-59g-report-v2/stage.py publish \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-59g-report-source" \
+            --output "$RUNNER_TEMP/59i-59g-report-evidence" \
+            --bundle "$RUNNER_TEMP/59i-59g-report.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-59g-report-evidence/publication.log"
+      - name: Preserve source, object and dispatch receipts even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-59g-report-staged-c74b34bb-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-59g-report-evidence
+          if-no-files-found: error
+          retention-days: 21
