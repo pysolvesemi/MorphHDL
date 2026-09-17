@@ -1,0 +1,92 @@
+name: Increment 59i failed-only diagnostic evidence
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths: [.github/workflows/increment-59i-failed-log-diagnostics.yml]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnostics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Read only failed run logs and preserve exact identities
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import concurrent.futures, hashlib, io, json, os, re, urllib.request, zipfile
+          from pathlib import Path
+          repo = 'pysolvesemi/MorphHDL'
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          original = '14dc0d2bb7274d9e91b60f112619a78b237936ab'
+          repaired = '68e0edbeb5c5fda0069ca11b11ef99d4dae42d3a'
+          selected = {
+              35138263753: original, 35176167267: repaired,
+              35138263721: original, 35138263930: original,
+              35138263581: original, 35138263797: original,
+              35138263672: original, 35138263939: original,
+              35138263633: original, 35138263862: original,
+              35138263755: original, 35138263771: original,
+              35138263964: original,
+          }
+          out = Path(os.environ['RUNNER_TEMP']) / '59i-failed-diagnostics'
+          out.mkdir(parents=True, exist_ok=False)
+          base = 'https://api.github.com/repos/' + repo
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                     'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
+          def get(path):
+              assert path.startswith('/actions/runs/')
+              req = urllib.request.Request(base + path, headers=headers)
+              with urllib.request.urlopen(req, timeout=120) as response:
+                  return response.read()
+          failure = re.compile(r'\*\*\* (?:FAILED|ABORTED|[0-9]+ TEST)|\[error\]|TimeoutExpired|timed out after|^.*(?:AssertionError|RuntimeError|Exception:|##\[error\])|test failed|No such file', re.I)
+          ansi = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
+          def collect(item):
+              run, head = item
+              root = out / str(run); root.mkdir()
+              meta = json.loads(get('/actions/runs/' + str(run)))
+              assert meta['head_sha'] == head and meta['conclusion'] == 'failure', meta
+              (root / 'run.json').write_text(json.dumps(meta, indent=2) + '\n')
+              raw = get('/actions/runs/' + str(run) + '/logs')
+              (root / 'logs.zip').write_bytes(raw)
+              excerpts = []
+              with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                  for name in sorted(archive.namelist()):
+                      if name.endswith('/'):
+                          continue
+                      text = ansi.sub('', archive.read(name).decode('utf-8-sig', errors='replace'))
+                      lines = text.splitlines()
+                      indexes = {j for i, line in enumerate(lines) if failure.search(line)
+                                 for j in range(max(0, i-4), min(len(lines), i+14))}
+                      if indexes:
+                          excerpts.append('\n### ' + name + '\n')
+                          previous = -2
+                          for i in sorted(indexes):
+                              if i != previous + 1:
+                                  excerpts.append('...')
+                              excerpts.append(str(i+1) + ': ' + lines[i]); previous = i
+              (root / 'failures.txt').write_text('\n'.join(excerpts) + '\n')
+              return {'run_id': run, 'head': head, 'workflow_id': meta['workflow_id'],
+                      'name': meta['name'], 'attempt': meta['run_attempt'],
+                      'conclusion': meta['conclusion'], 'zip_sha256': hashlib.sha256(raw).hexdigest(),
+                      'bytes': len(raw), 'excerpt_sections': len(excerpts)}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+              records = list(pool.map(collect, selected.items()))
+          (out / 'inventory.json').write_text(json.dumps(records, indent=2) + '\n')
+          print(json.dumps(records, indent=2))
+          PY
+      - name: Preserve diagnostics, never substitute them for passing tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-failed-log-diagnostics-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-failed-diagnostics
+          if-no-files-found: error
+          retention-days: 21
