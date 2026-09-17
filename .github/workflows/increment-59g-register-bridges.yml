@@ -82,6 +82,7 @@ jobs:
           python3 morphhdl/scripts/check-native-source-preservation.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-increment-59g-register-bridges.py --self-test
+          python3 -B morphhdl/scripts/test-increment-59g-report-inventory.py
       - name: Bootstrap the repository-pinned SBT launcher
         shell: bash
         run: |
@@ -123,7 +124,7 @@ jobs:
                       'TypedBalancedReductionBridgeReplayTests': 12,
                       'TypedBalancedReductionCallbackPolicyTests': 16,
                       'TypedBalancedReductionStageReplayTests': 23,
-                      'TypedBalancedReductionClosedGraphTests': 20}
+                      'TypedBalancedReductionClosedGraphTests': 27}
           reports = list(Path('morphhdl/target').rglob('TEST-*TypedBalancedReduction*Tests.xml'))
           assert reports, 'no bridge/reduction test reports'
           seen = set()

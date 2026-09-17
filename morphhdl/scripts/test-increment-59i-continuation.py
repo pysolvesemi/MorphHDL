@@ -150,7 +150,16 @@ class ContinuationTests(unittest.TestCase):
 
     def test_original_integration_inventory_survives_an_already_integrated_parent(self):
         self.assertEqual(self.review.CONTINUATION_PARENT,
+            'ddf61ef25f927d646027cebbcaca6d724ad8a5fa')
+        # Keep the original published-parent assertion on the exact preceding
+        # certificate, while this report-only successor pins the next link.
+        prior = json.loads(git(self.root, 'show',
+            self.review.CONTINUATION_PARENT + ':' + CONTRACT))
+        self.assertEqual(prior['previous_seal']['seal_commit'],
             '14dc0d2bb7274d9e91b60f112619a78b237936ab')
+        self.assertEqual(hashlib.sha256(git(self.root, 'show',
+            self.review.CONTINUATION_PARENT + ':' + CONTRACT)).hexdigest(),
+            self.review.CONTINUATION_PARENT_MANIFEST)
         git(self.root, 'merge-base', '--is-ancestor',
             self.review.CONTINUATION_TARGET, self.review.CONTINUATION_PARENT)
         self.assertEqual(set(e['path'] for e in self.value['target_integration']['files']),
