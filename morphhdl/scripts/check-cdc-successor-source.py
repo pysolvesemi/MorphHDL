@@ -21,6 +21,8 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 INC61 = "morphhdl/scripts/check-increment-61-source-review.py"
 INC61_CONTRACT = "morphhdl/contracts/increment-61-source-review.json"
 SUCCESSOR_PATHS = frozenset("""
+.github/workflows/increment-60b-signedness-authority.yml
+.github/workflows/pr189-60b-source-repair.yml
 .github/workflows/cdc-independent-parameter-consumers.yml
 .github/workflows/pr189-compact-timeout.yml
 core/src/main/scala/spinal/core/ElaborationProductDomain.scala
