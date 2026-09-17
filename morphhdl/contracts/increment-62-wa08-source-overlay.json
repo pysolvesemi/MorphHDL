@@ -2,10 +2,22 @@
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
   "files": [
     {
+      "after_sha256": "fc35f82abce044120549798ba892198ac213a5fcbb15e8574a70ec2a3695aea4",
+      "before_sha256": "0bc0c9c208b023add230d4898dc2276cb46e45c9adb2e693b08483c97b765bce",
+      "mode": "100644",
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml"
+    },
+    {
       "after_sha256": "d0e8c8d3faf98e27948f5eaf70b2cf3f6aed11a9e9f2ad2b239cf379d8fc929c",
       "before_sha256": "2094f8544efd0664681b914746ac7a79f90af7cd1c607c632396facef7095715",
       "mode": "100644",
       "path": ".github/workflows/increment-59d-widening.yml"
+    },
+    {
+      "after_sha256": "786f61fcd3045a46bdbb1b07ab87589de0b5ff9e494ebe3a817d940ab284bd17",
+      "before_sha256": "d2979a1a32e88160f58c6237578930ec5c08de0deb6fd3de1e3f42484bbf5957",
+      "mode": "100644",
+      "path": ".github/workflows/increment-59g-register-bridges.yml"
     },
     {
       "after_sha256": "b2f7d7e6a8f08ffa112521cc43b220c689efd1317a44b1c5d50349e3c2b87102",
@@ -14,25 +26,55 @@
       "path": ".github/workflows/increment-59h-nested-owners.yml"
     },
     {
-      "after_sha256": "de1d3be15e5a2ec254c196a607d5d6fac759790856425cd9d21a1e53e995d18d",
+      "after_sha256": "57674df5bb164c73996ba272f4f6dcbecc3add2f7f170120166acf235cc93de1",
+      "before_sha256": "52be6012a35de82855089cf8d44898ec6646080370ef5c1a699ddc1171f8525b",
+      "mode": "100644",
+      "path": ".github/workflows/increment-60c-signed-declarations.yml"
+    },
+    {
+      "after_sha256": "14448a2e6380f2e4325d85b9e8e1cb66c82fca7754e55a98ab975809d0e68673",
+      "before_sha256": "6d858e5798aa3072633892a276bac2ec402e734de4b87309a0a93df49cab3c97",
+      "mode": "100644",
+      "path": ".github/workflows/increment-60d-pure-sint-casts.yml"
+    },
+    {
+      "after_sha256": "65ec3914cd90e2b0c9e8cb58c65e365a642ba52fbce37d98878ebb8f2935306a",
+      "before_sha256": "f4c056f9bf5285a075c4e93a09cb95e5280e92bb9a9ba08cd32b0916d45620e2",
+      "mode": "100644",
+      "path": ".github/workflows/increment-60e-signedness-boundaries.yml"
+    },
+    {
+      "after_sha256": "33cc3efacefc3ce3af630b6f1d8c11f31c476500d5364c4b53b723dc49afa70b",
       "before_sha256": "2e32d9ed31d845ac025d1b9bd92bd91fc6935727536dd9f421d736ea32c896c1",
       "mode": "100644",
       "path": ".github/workflows/increment-60f-equivalence-closure.yml"
     },
     {
-      "after_sha256": "32f1bfc4b9d50d612f5ed7de5d7b7907e90e35ef910a2cdae1a4a84fcf00c261",
+      "after_sha256": "1d0589bf1296653cd79104fdc9788f0f9a838037565438ba7a4f07106c424646",
       "before_sha256": "d19274c613c15061465e96c3c6f9477528d6e3b50f7d2af9b74b0669b8881c1b",
       "mode": "100644",
       "path": ".github/workflows/increment-60g-default-signed-verilog.yml"
     },
     {
-      "after_sha256": "252f5d68ff2d3c01bc4297bb7db9b24c0f3712d3d2e6b4c0db28358b58dfcf3d",
+      "after_sha256": "69cb6d500a543cd08244ac5960f2a35caca32c17490891a5edf5e893db07336f",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml"
+    },
+    {
+      "after_sha256": "3d223d937f8b78c9cf2449f734bb29b655601d79671c9b262483c6488b39ee3d",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": ".github/workflows/increment-61-one-file-per-component.yml"
+    },
+    {
+      "after_sha256": "5773f115508cd34ab5f5348b7e320398c207c8a9082ad5a5f54cd294ceea214b",
       "before_sha256": null,
       "mode": "100644",
       "path": ".github/workflows/increment-62-wa08-source-overlay.yml"
     },
     {
-      "after_sha256": "02d72ec5fcc3aa0de10915199037d3f657002962746612df9d7aaccb6fcbe029",
+      "after_sha256": "76e759a978d8a11f87c748c0523d58d1f95f4c3d4e0768e8e78a4ad679b3c616",
       "before_sha256": null,
       "mode": "100644",
       "path": ".github/workflows/independent-parameter-domains.yml"
@@ -44,7 +86,7 @@
       "path": ".github/workflows/lane-when-expression-diagnostic.yml"
     },
     {
-      "after_sha256": "20059acac59b2bf069d7678cf049b7b1a9afb55af8f6ba9e11f49703863bbd9a",
+      "after_sha256": "2c240935d5644bc184089bdc82529799b77cb85240ed8946a23a5f1493ebbff5",
       "before_sha256": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
       "mode": "100644",
       "path": ".github/workflows/morphhdl-passes.yml"
@@ -320,7 +362,7 @@
       "path": "morphhdl-passes/scripts/run-wa10-regression.sh"
     },
     {
-      "after_sha256": "ab24aeabae2ef3144946eeb479a94118a0a6ca8cb578ba018c883bbcf5254f66",
+      "after_sha256": "391daf650a3404b96b871e7bcd1a4d5dedd3708a710d2c818715b9f38c93915e",
       "before_sha256": "90c0c275711cfe4b03ab1adbdff553c738fd669107fa450606210da04e84d910",
       "mode": "100755",
       "path": "morphhdl-passes/scripts/test-boundary-guard.sh"
@@ -434,7 +476,7 @@
       "path": "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v"
     },
     {
-      "after_sha256": "826932e695bd7906968734a33d8ed976abf37ef44d7de2f3d60a60b4faea38fa",
+      "after_sha256": "23d0b287a8d34e3f6894400847b0e70f646ce3e3b7e864a72a9cf4ca4a94be95",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
       "mode": "100644",
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
@@ -464,7 +506,13 @@
       "path": "morphhdl/contracts/increment-55-native-change-review.json"
     },
     {
-      "after_sha256": "caaceca27692113d34f01d32abf933b6f85e86b8eab57c1910118ba55b4e92c3",
+      "after_sha256": "67f19808ea90ef6b8ef2b17f9dedb98f7ea40dbcdd57df172604e0da17faa972",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/contracts/increment-61-source-review.json"
+    },
+    {
+      "after_sha256": "ee52041837f5327249193d7e8c9a9db7317736cfa7763d2d426737dbe3793f89",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/lane-when-source-scope.json"
@@ -494,10 +542,28 @@
       "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
     },
     {
+      "after_sha256": "bbbdd9d61af42e7f8e5b6b4cbe5fc0918424819c8603f98798f99e112fe54f96",
+      "before_sha256": "790c9c650cacf005e49174b32dfe2a21bc9402a9f74893f2651a3331d5a1c5b2",
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-increment-60g-default-rollout.py"
+    },
+    {
       "after_sha256": "8df0f23c5db529e073b0eacaeb4c03e25b3cbef0a5d633d0abd7581257e255dc",
       "before_sha256": "a49e07e936054dedef0b8f37d0254d9bd3a2550540aa8ffc570d609f67c5042a",
       "mode": "100644",
       "path": "morphhdl/scripts/check-increment-60g-source-scope.py"
+    },
+    {
+      "after_sha256": "ee7576ab45bb407b9b36931bef1b406c5b4a9c63ad4c5206656670b40223cc0c",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-increment-61-source-review.py"
+    },
+    {
+      "after_sha256": "c85d480995b560831af9dfdfe2c5477fc019743b8105d7f7ba9820f19ce724a7",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-lane-when-increment61-source.py"
     },
     {
       "after_sha256": "3ff42300301e69d38d2989c16ff147a85c91c6a56f13cd37cc845780ed756f0c",
@@ -506,7 +572,7 @@
       "path": "morphhdl/scripts/check-lane-when-inlining.py"
     },
     {
-      "after_sha256": "1fd92e7a398de2fe1f6c35ab67345feb50bf95c7683102734d72b00bae05109e",
+      "after_sha256": "ac80120a7f17de9d937f27a3119f2a6a95d8883920de41ebae148d225d134f83",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-lane-when-source-scope.py"
@@ -602,7 +668,13 @@
       "path": "morphhdl/scripts/test-wa07b-inherited-review.py"
     },
     {
-      "after_sha256": "e04e532a9da3e0cfcd2a3dadf2b7f1c733ba4c1e5a4085aa945c06b5c0d0c422",
+      "after_sha256": "09d42b95cdb53c964939c1ecae7ddacd2ea566b972a28a6993a00003ad292e2d",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala"
+    },
+    {
+      "after_sha256": "37bfde6594ab7d04dc369dddb8beb5d031970adc38b871afb62ebb166b80145f",
       "before_sha256": "934a5920ad1bf7c93a6862848c86155e545abc96795646d3059a3667bb336529",
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala"
@@ -618,6 +690,12 @@
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala"
+    },
+    {
+      "after_sha256": "77133794259d597e19784639cc4b19a7595e6a9e3cf74e32f3d3abc888a2d038",
+      "before_sha256": "c86ff4cb1dde2889f2b1c76df6fa00ed3c0f2208eef60245b86b7d64249a37b6",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala"
     },
     {
       "after_sha256": "0e02787dfbab289c7deec2a702677ef95aca60292c669afb5f245a6dcbc779ac",
@@ -650,10 +728,22 @@
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala"
     },
     {
-      "after_sha256": "24c25830c907f71efac9efdeb9cf6eae091950dd1a8a472b57d9862aaae682e7",
+      "after_sha256": "827f4aad7411023735c7bf22f5c518b754de4e5cf8a67006c73a4ba325b2b9ff",
+      "before_sha256": "3c1e9becfc9013f5f51b938846bbf57b347521cb5cceb4c2c581efe51035c6ab",
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala"
+    },
+    {
+      "after_sha256": "09413e389f662df28a67bcb16ea8969333abcea2ea60ed8d889e113903a085b4",
       "before_sha256": "82b95d538c187dc0d34c551ce017e560b9c6633ddcef66683fa80721de3399b2",
       "mode": "100644",
       "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala"
+    },
+    {
+      "after_sha256": "3103284c4d5a8d442b3baa59cc49841c1261ebfcd9e53e94a9bc20d78f9aaf0f",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/main/scala/spinal/core/internals/MorphHdlRecursivePerComponentPublication.scala"
     },
     {
       "after_sha256": "f9b755019c27db8c01a25efd71f746e068ac589ce8036c7df94cce40bfafd65e",
@@ -720,6 +810,24 @@
       "before_sha256": "8d75953ea0e5ab1c6ea2fbca105b5e31b2f3537895116cf33cde4d8e303266cc",
       "mode": "100644",
       "path": "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala"
+    },
+    {
+      "after_sha256": "5f9f89a4ea2fbd958caa92273718fed6fd8f24de5c7ba0d57335f6b278716910",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala"
+    },
+    {
+      "after_sha256": "23182c8d50be2c24d58204c74a714a0957895ff779525655fd20279c6728fb4f",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala"
+    },
+    {
+      "after_sha256": "d58ac4ff1e2c51633ce268bd7da1f036eb11f9f965b7dadcca997d5ff2199dee",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala"
     },
     {
       "after_sha256": "814b9c6bc371a91c7a621f287bfa8a3516c23066212ee118d26aa052ded3201e",
@@ -1064,7 +1172,7 @@
       "path": "repro/independent-parameters/test_symbolic_policy.py"
     }
   ],
-  "final_source_commit": "21b7a9beb9a9365de2eed866216a622667f6a671",
+  "final_source_commit": "f30975f2b6e43fff479a851d6a2dd2630c48083d",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
