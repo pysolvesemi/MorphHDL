@@ -15,10 +15,19 @@ from pathlib import Path
 import re
 
 SCALAS = ("2.12.18", "2.13.12")
-FILES = frozenset((
+PUBLICATION_FILES = frozenset((
     "consolidated/Increment61Top.v", "split/Increment61Leaf.v",
     "split/Increment61Top.v", "split/Increment61Top.lst",
 ))
+# Native split publication also emits a hidden ownership manifest and three
+# path-hash owner markers. These are part of the complete deterministic output,
+# not disposable diagnostics. Authenticate and upload them, never filter them.
+OWNERS = "split/.Increment61Top.morphhdl-one-file-per-component.owners/"
+METADATA_FILES = frozenset((
+    "split/.Increment61Top.morphhdl-one-file-per-component.manifest",
+)) | frozenset(OWNERS + hashlib.sha256(name.encode()).hexdigest() + ".owner"
+              for name in ("Increment61Leaf.v", "Increment61Top.v", "Increment61Top.lst"))
+FILES = PUBLICATION_FILES | METADATA_FILES
 MANIFEST = "publication-proof.json"
 PREFIX = "increment-61-qualified-"
 
@@ -43,7 +52,9 @@ def generated(root: Path) -> dict[str, bytes]:
         require(path.is_dir() or path.is_file(), "nonregular generation member: " + str(path))
         if path.is_file():
             files[path.relative_to(root).as_posix()] = regular(path)
-    require(set(files) == FILES, "complete publication inventory differs: " + str(root))
+    require(set(files) == FILES, "complete publication inventory differs: " + str(root) +
+            "; missing=" + repr(sorted(FILES - set(files))) +
+            "; extra=" + repr(sorted(set(files) - FILES)))
     return files
 
 

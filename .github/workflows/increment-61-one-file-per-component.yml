@@ -268,7 +268,12 @@ jobs:
         if: success()
         with:
           name: increment-61-qualified-${{ matrix.scala }}
-          path: target/increment-61
+          path: |
+            target/increment-61/generated-a
+            target/increment-61/generated-b
+            target/increment-61/head.txt
+            target/increment-61/publication-proof.json
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 14
           overwrite: true

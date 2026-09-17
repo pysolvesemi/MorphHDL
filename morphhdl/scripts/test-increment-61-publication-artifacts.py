@@ -125,10 +125,41 @@ class PublicationArtifactTests(unittest.TestCase):
         self.assertIn("pattern: increment-61-qualified-2.*", text)
         block = text.split("- name: Upload qualified publication only after every producer gate", 1)[1]
         block = block.split("  cross-scala:", 1)[0]
-        for expected in ("if: success()", "overwrite: true", "name: increment-61-qualified-${{ matrix.scala }}"):
+        for expected in ("if: success()", "overwrite: true", "include-hidden-files: true", "name: increment-61-qualified-${{ matrix.scala }}"):
             self.assertIn(expected, block)
         for expected in ("equiv_status -assert", "missing child definition unexpectedly compiled", "duplicate child definition unexpectedly compiled", "wrong-file publication mutation was not detected", "diff -ru", "submodules: recursive", "fetch-depth: 0"):
             self.assertIn(expected, text)
+
+    def test_native_hidden_manifest_and_owner_markers_are_mandatory(self):
+        self.assertEqual(len(gate.PUBLICATION_FILES), 4)
+        self.assertEqual(len(gate.METADATA_FILES), 4)
+        self.assertEqual(len(gate.FILES), 8)
+        # Match a download from an uploader that incorrectly omits dotfiles.
+        for relative in gate.METADATA_FILES:
+            path = self.right / "generated-a" / relative
+            original = path.read_bytes()
+            path.unlink()
+            try:
+                with self.assertRaisesRegex(RuntimeError, "complete publication inventory"):
+                    self.check()
+            finally:
+                path.write_bytes(original)
+
+    def test_hidden_metadata_survives_complete_archive_roundtrip(self):
+        import shutil
+        import zipfile
+        archive = self.root.parent / (self.root.name + ".zip")
+        self.addCleanup(lambda: archive.unlink(missing_ok=True))
+        with zipfile.ZipFile(archive, "w") as output:
+            for path in self.root.rglob("*"):
+                if path.is_file():
+                    output.write(path, path.relative_to(self.root))
+        for child in self.root.iterdir():
+            shutil.rmtree(child)
+        with zipfile.ZipFile(archive) as source:
+            source.extractall(self.root)
+        self.assertEqual(self.check()["status"], "PASS")
+        self.assertEqual(len(self.check()["files"]), 8)
 
     def test_review_trigger_is_owner_only_same_repo_branch_and_exact_head(self):
         text = (SCRIPT.parents[2] / ".github/workflows/increment-61-one-file-per-component.yml").read_text()
