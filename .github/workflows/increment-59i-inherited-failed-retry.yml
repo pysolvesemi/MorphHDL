@@ -1,0 +1,97 @@
+name: Increment 59i failed-only inherited source retry
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths: [.github/workflows/increment-59i-inherited-failed-retry.yml]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: increment-59i-inherited-retry-c74b34bb
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify prior failure and dispatch only inherited exact-source qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import urllib.request
+
+          REPO = 'pysolvesemi/MorphHDL'
+          HEAD = 'c74b34bb1154d1df20bf85aa63e1276388511a02'
+          BRANCH = 'recovery/increment-59i-59g-report-c74b34bb'
+          WORKFLOW = 358545231
+          FAILED_RUN = 35138263939
+          OLD_HEAD = '14dc0d2bb7274d9e91b60f112619a78b237936ab'
+          RUNS = '/actions/runs?head_sha=' + HEAD + '&event=workflow_dispatch&per_page=100'
+          DISPATCH = '/actions/workflows/' + str(WORKFLOW) + '/dispatches'
+          ALLOWED = {('GET', '/git/ref/heads/' + BRANCH), ('GET', '/actions/runs/' + str(FAILED_RUN)),
+                     ('GET', RUNS), ('POST', DISPATCH)}
+
+
+          def require(ok, message):
+              if not ok:
+                  raise RuntimeError(message)
+
+
+          def api(method, path, body=None):
+              require(os.environ['GITHUB_REPOSITORY'] == REPO, 'Wrong repository')
+              require((method, path) in ALLOWED, 'Operation outside the one-workflow allowlist')
+              if method == 'POST':
+                  require(body == {'ref': BRANCH}, 'Unexpected dispatch ref or inputs')
+              req = urllib.request.Request('https://api.github.com/repos/' + REPO + path,
+                  method=method, data=None if body is None else json.dumps(body).encode(),
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
+                           'X-GitHub-Api-Version': '2022-11-28'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  raw = response.read()
+                  return json.loads(raw) if raw else None
+
+
+          def main():
+              original = api('GET', '/actions/runs/' + str(FAILED_RUN))
+              require((original['id'], original['workflow_id'], original['head_sha'], original['conclusion']) == (
+                  FAILED_RUN, WORKFLOW, OLD_HEAD, 'failure'), 'Not the recorded failed workflow')
+              branch = api('GET', '/git/ref/heads/' + BRANCH)
+              require(branch['object']['sha'] == HEAD, 'Candidate ref moved')
+              inventory = api('GET', RUNS)
+              require(inventory['total_count'] <= 100, 'Refuse a truncated run inventory')
+              runs = inventory['workflow_runs']
+              require(all(r['head_sha'] == HEAD for r in runs), 'Unexpected run head')
+              matches = [r for r in runs if r['workflow_id'] == WORKFLOW]
+              if not matches:
+                  api('POST', DISPATCH, {'ref': BRANCH})
+              receipt = dict(head=HEAD, branch=BRANCH, workflow=WORKFLOW, original_failure=FAILED_RUN,
+                  dispatched=not matches, existing_runs=[r['id'] for r in matches], full_ci_dispatched=False,
+                  feature_ref_updated=False, target_ref_updated=False)
+              out = Path(os.environ['RUNNER_TEMP']) / '59i-inherited-retry'
+              out.mkdir(parents=True, exist_ok=True)
+              (out / 'dispatch.json').write_text(json.dumps(receipt, indent=2) + '\n')
+              print(json.dumps(receipt, indent=2))
+
+
+          if __name__ == '__main__':
+              main()
+          PY
+      - name: Retain the exact dispatch receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-inherited-dispatch-c74b34bb-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-inherited-retry
+          if-no-files-found: error
+          retention-days: 21
