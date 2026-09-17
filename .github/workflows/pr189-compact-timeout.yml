@@ -22,9 +22,8 @@ env:
   PYTHONDONTWRITEBYTECODE: '1'
 
 # The compact compiler was committed, tested and published by run 35175042711.
-# Do not reconstruct another compiler candidate from the historical patch.
-# This transition changes only this control file and its exact WA08 seal.
-# All compiler/HDL/mutation payloads are retained below on committed source.
+# This control-only transition does not reconstruct or alter compiler sources.
+# All compact compiler, HDL and mutation payloads are retained on committed source.
 jobs:
   seal-control:
     name: Authenticate CI-only transition from the passing compact source
@@ -74,7 +73,8 @@ jobs:
           import importlib.util, json, os, re, subprocess, tempfile
           from pathlib import Path
           root = Path.cwd()
-          base = 'de27c051d0db2acea18ebbc45d3f55326fba7716'
+          base = 'd63ee5b1a8e6d6b0380ebd562798a92614b89614'
+          qualified = 'de27c051d0db2acea18ebbc45d3f55326fba7716'
           workflow = '.github/workflows/pr189-compact-timeout.yml'
           helper = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
           manifest = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
@@ -82,12 +82,15 @@ jobs:
               return subprocess.check_output(['git', '--literal-pathspecs', *args], timeout=120)
           def require(ok, message):
               if not ok: raise RuntimeError('PR189 CI transition: ' + message)
+          def changed(a, b):
+              return set(git('diff', '--name-only', '--no-renames', '-z', a, b).decode().split('\0')) - {''}
           head = git('rev-parse', 'HEAD').decode().strip()
           require(head == os.environ['EXPECTED_INPUT'], 'wrong input head')
           require(git('show', '-s', '--format=%P', head).decode().strip() == base, 'unexpected input parent')
-          paths = set(git('diff', '--name-only', '--no-renames', '-z', base, head).decode().split('\0')) - {''}
-          require(paths == {workflow}, 'only the workflow control file may change')
+          require(changed(base, head) == {workflow}, 'only the workflow control file may change')
+          require(changed(qualified, base) == {workflow, helper, manifest}, 'predecessor changed compiler or tests')
           require(not git('status', '--porcelain', '--untracked-files=all'), 'dirty input')
+          git('merge-base', '--is-ancestor', qualified, base)
           git('merge-base', '--is-ancestor', '27af65abbee0d2334d6be7a6e4e2408b8af32fd9', head)
           spec = importlib.util.spec_from_file_location('reviewed_wa08', root / helper)
           wa = importlib.util.module_from_spec(spec)
@@ -118,15 +121,15 @@ jobs:
           require(count == 1 and wa.normalized_helper(updated) == wa.normalized_helper(old_bytes), 'verifier logic changed')
           (root / helper).write_bytes(updated)
           git('add', '--', helper, manifest)
-          git('commit', '-q', '-m', 'PR189: bind failed-first CI control to its exact source review [skip ci]')
-          changed = set(git('diff', '--name-only', '--no-renames', '-z', base, 'HEAD').decode().split('\0')) - {''}
-          require(changed == {workflow, helper, manifest}, 'unexpected transition delta')
+          git('commit', '-q', '-m', 'PR189: bind corrected failed-first CI control to its exact source review [skip ci]')
+          require(changed(qualified, 'HEAD') == {workflow, helper, manifest}, 'unexpected transition delta')
           require(not git('status', '--porcelain', '--untracked-files=all'), 'uncommitted candidate bytes')
           Path('/tmp/pr189-ci-transition/identity.json').write_text(json.dumps({
-              'qualified_compiler': base, 'input': head,
+              'qualified_compiler': qualified, 'previous_control': base, 'input': head,
               'head': git('rev-parse', 'HEAD').decode().strip(),
               'tree': git('rev-parse', 'HEAD^{tree}').decode().strip(),
-              'changed_paths': sorted(changed), 'compiler_and_test_sources_unchanged': True}, indent=2) + '\n')
+              'changed_paths': sorted(changed(qualified, 'HEAD')),
+              'compiler_and_test_sources_unchanged': True}, indent=2) + '\n')
           PY
           git diff --check
           git diff --binary de27c051d0db2acea18ebbc45d3f55326fba7716 HEAD > /tmp/pr189-ci-transition/control.patch
@@ -179,6 +182,7 @@ jobs:
             const head = process.env.QUALIFICATION_HEAD;
             const branch = 'agent/cdc-independent-parameter-consumers';
             const target = '27af65abbee0d2334d6be7a6e4e2408b8af32fd9';
+            fs.writeFileSync(directory+'/start.json',JSON.stringify({head,target,run_id:context.runId},null,2));
             if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('Missing sealed qualification head');
             const cases = [
               ['cdc-independent-parameter-consumers.yml',35128354201],
@@ -202,6 +206,19 @@ jobs:
               ['morphhdl-native-source-guard.yml',35079236455],
               ['morphhdl-native-stream-width-adapter.yml',35079236383]
             ];
+            // Read the raw REST envelope explicitly. Octokit's pagination plugin
+            // normalizes collections, so response.data.workflow_runs is not a
+            // valid mapper after that normalization (including an empty page).
+            async function collect(method,params,key) {
+              const rows=[];
+              for(let page=1;page<=20;page++) {
+                const {data}=await method({...params,per_page:100,page});
+                if(!Array.isArray(data[key])) throw new Error('Unexpected API collection: '+key);
+                rows.push(...data[key]);
+                if(data[key].length<100 || rows.length>=data.total_count) return rows;
+              }
+              throw new Error('API pagination bound exceeded: '+key);
+            }
             async function guard() {
               const {data:p} = await github.rest.pulls.get({...context.repo,pull_number:189});
               if (p.state !== 'open' || p.merged || p.head.sha !== head || p.head.ref !== branch ||
@@ -209,33 +226,31 @@ jobs:
                   p.base.sha !== target) throw new Error('PR head or target changed; full CI is forbidden');
             }
             async function runs() {
-              return await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
-                {...context.repo,branch,head_sha:head,event:'workflow_dispatch',per_page:100},
-                response => response.data.workflow_runs);
+              return await collect(github.rest.actions.listWorkflowRunsForRepo,
+                {...context.repo,branch,head_sha:head,event:'workflow_dispatch'},'workflow_runs');
             }
-            const selected = [];
+            const selected=[];
             await guard();
-            // Validate the whole allowlist before starting any workflow.
             for (const [file,id] of cases) {
               const {data:old} = await github.rest.actions.getWorkflowRun({...context.repo,run_id:id});
               if (old.conclusion !== 'failure' || old.status !== 'completed' || old.head_branch !== branch ||
                   old.path !== '.github/workflows/'+file) throw new Error('Failed-workflow inventory changed: '+file);
               const {data:source} = await github.rest.repos.getContent({...context.repo,path:old.path,ref:head});
-              const text = Buffer.from(source.content,'base64').toString('utf8');
-              if (!/^  workflow_dispatch:/m.test(text)) throw new Error('No selective dispatch trigger: '+file);
+              if (!/^  workflow_dispatch:/m.test(Buffer.from(source.content,'base64').toString('utf8')))
+                throw new Error('No selective dispatch trigger: '+file);
               selected.push({file,workflow_id:old.workflow_id,historical_failure:id});
             }
-            let existing = await runs();
-            for (const row of selected) {
+            fs.writeFileSync(directory+'/selected.json',JSON.stringify({head,target,selected},null,2));
+            let existing=await runs();
+            for(const row of selected) {
               await guard();
-              const prior = existing.filter(r=>r.workflow_id===row.workflow_id && r.head_sha===head && r.event==='workflow_dispatch')
+              const prior=existing.filter(r=>r.workflow_id===row.workflow_id && r.head_sha===head && r.event==='workflow_dispatch')
                 .sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at))[0];
-              if (prior && (prior.conclusion==='success' || prior.status!=='completed')) {
-                row.run_id=prior.id; row.minimum_attempt=prior.run_attempt; core.info('REUSE '+JSON.stringify(row));
-              } else if (prior && prior.conclusion==='failure') {
-                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs',
-                  {...context.repo,run_id:prior.id});
-                row.run_id=prior.id; row.minimum_attempt=prior.run_attempt+1; core.info('RETRY_FAILED_JOBS '+JSON.stringify(row));
+              if(prior && (prior.conclusion==='success' || prior.status!=='completed')) {
+                row.run_id=prior.id;row.minimum_attempt=prior.run_attempt;core.info('REUSE '+JSON.stringify(row));
+              } else if(prior && prior.conclusion==='failure') {
+                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs',{...context.repo,run_id:prior.id});
+                row.run_id=prior.id;row.minimum_attempt=prior.run_attempt+1;core.info('RETRY_FAILED_JOBS '+JSON.stringify(row));
               } else {
                 row.requested_at=Date.now();
                 await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:row.workflow_id,ref:branch,
@@ -246,15 +261,15 @@ jobs:
             }
             const deadline=Date.now()+300*60*1000;
             while(Date.now()<deadline) {
-              await guard(); existing=await runs();
-              const failures=[]; let successful=0;
+              await guard();existing=await runs();
+              const failures=[];let successful=0;
               for(const row of selected) {
                 const matches=existing.filter(r=>r.workflow_id===row.workflow_id && r.head_sha===head && r.event==='workflow_dispatch' &&
-                  (row.run_id ? r.id===row.run_id : Date.parse(r.created_at)>=row.requested_at-2000));
+                  (row.run_id?r.id===row.run_id:Date.parse(r.created_at)>=row.requested_at-2000));
                 if(matches.length>1) throw new Error('Ambiguous exact-head run identity: '+row.file);
                 if(!matches.length) continue;
-                const r=matches[0]; row.run_id=r.id; row.minimum_attempt ||= r.run_attempt;
-                row.url=r.html_url; row.status=r.status; row.conclusion=r.conclusion; row.run_attempt=r.run_attempt;
+                const r=matches[0];row.run_id=r.id;row.minimum_attempt ||= r.run_attempt;
+                row.url=r.html_url;row.status=r.status;row.conclusion=r.conclusion;row.run_attempt=r.run_attempt;
                 if(r.run_attempt<row.minimum_attempt) continue;
                 if(r.status==='completed') {
                   if(r.conclusion==='success') successful++;
@@ -266,24 +281,22 @@ jobs:
               if(failures.length) throw new Error('TARGETED_FAILED; full CI not started: '+JSON.stringify(failures));
               if(successful===20) {
                 for(const row of selected) {
-                  const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,
-                    {...context.repo,run_id:row.run_id,filter:'latest',per_page:100},response=>response.data.jobs);
-                  if(!jobs.some(j=>j.conclusion==='success' && j.steps && j.steps.length>2))
-                    throw new Error('No executed qualification job: '+row.file);
+                  const jobs=await collect(github.rest.actions.listJobsForWorkflowRun,
+                    {...context.repo,run_id:row.run_id,filter:'latest'},'jobs');
+                  if(!jobs.some(j=>j.conclusion==='success' && j.steps && j.steps.length>2)) throw new Error('No executed qualification job: '+row.file);
                 }
                 await guard();
                 fs.writeFileSync(directory+'/targeted-pass.json',JSON.stringify({head,target,selected},null,2));
-                core.info('PR189_ALL_FAILED_WORKFLOWS_PASS '+head); return;
+                core.info('PR189_ALL_FAILED_WORKFLOWS_PASS '+head);return;
               }
               await new Promise(resolve=>setTimeout(resolve,45000));
             }
             throw new Error('Targeted qualification timed out; full CI not started');
-      - name: Start full CI only after rechecking all targeted successes on the unchanged head
+      - name: Start full applicable CI only after all targeted successes on the unchanged head
         uses: actions/github-script@v7
         with:
           script: |
-            const fs=require('fs');
-            const directory='/tmp/pr189-failed-first';
+            const fs=require('fs');const directory='/tmp/pr189-failed-first';
             const gate=JSON.parse(fs.readFileSync(directory+'/targeted-pass.json','utf8'));
             const branch='agent/cdc-independent-parameter-consumers';
             if(gate.head!==process.env.QUALIFICATION_HEAD || gate.selected.length!==20) throw new Error('Invalid targeted gate');
@@ -298,20 +311,46 @@ jobs:
               if(r.head_sha!==gate.head || r.conclusion!=='success' || r.status!=='completed' ||
                   r.run_attempt<row.minimum_attempt || r.event!=='workflow_dispatch') throw new Error('Targeted result is not valid: '+row.file);
             }
-            // Recover the existing PR qualification fleet, not maintenance,
-            // release, Docker-publishing or unrelated debug workflows.
-            const historical=await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
-              {...context.repo,branch,head_sha:'f3c0c6fcfbeab2d9070ffd0f0c5e61fc9d77df63',event:'pull_request',per_page:100},
-              response=>response.data.workflow_runs);
-            const inventory=new Map(historical.map(r=>[r.path,r.workflow_id]));
+            const {data:history}=await github.rest.actions.listWorkflowRunsForRepo({...context.repo,branch,
+              head_sha:'f3c0c6fcfbeab2d9070ffd0f0c5e61fc9d77df63',event:'pull_request',per_page:100});
+            if(history.total_count!==57 || history.workflow_runs.length!==57) throw new Error('Historical PR fleet needs review');
+            const inventory=new Map(history.workflow_runs.map(r=>[r.path,r.workflow_id]));
             for(const row of gate.selected) inventory.set('.github/workflows/'+row.file,row.workflow_id);
             if(inventory.size!==59) throw new Error('Full qualification inventory needs review: '+inventory.size);
-            for(const [path] of inventory) {
+            // These exact historical definitions have no dispatch trigger. The
+            // first three are restricted to their original implementation PR;
+            // the other eight route run=false when the target already contains
+            // their workflow. Do not turn those skips into qualification passes
+            // or alter their conditions to manufacture extra workflow runs.
+            const routedOnly={
+              'increment-53d-typed-streamwidthadapter.yml':'cd2171d976b227cc7a4228987b7d317fa5d59d79',
+              'increment-53e-typed-streamfifo.yml':'5b4d521b04e2e436346b86c278c2b80b4a9e5235',
+              'increment-53f-typed-primitives.yml':'e5504b83e7697c064b7510f9835fdde938b922ca',
+              'increment-55-concrete-compatibility-audit.yml':'d05fab68e1e88f92bbe8634f0208c261e80fdf31',
+              'increment-56-native-typed-library-surface.yml':'0799647e42c1cb2c8b366009fd678ed1b212c191',
+              'increment-57-broad-native-library-migration.yml':'5f0a685760765af519273e925ca818a0dc68e538',
+              'increment-57a-typed-streamfifocc.yml':'02cc96023375a57712f53b5e9019dad6078d8bf7',
+              'increment-57b-streamfifocc-payload-width-formal.yml':'0672e4508a36cd3b2672f95123d12da0a6631599',
+              'increment-58-legacy-retirement.yml':'ab1a9376337eaa798e0662f140b5d4fc7c5aa7d0',
+              'increment-59-typed-blackbox-generics.yml':'805b7fc4010e2309f1e33bc70f38e5fa50cf97c0',
+              'increment-59a-recursive-verilog-module.yml':'a29ab825c2de4dfc4dcd237b33f806b3e37f24f9'
+            };
+            const skipped=[];
+            for(const [path] of [...inventory]) {
               if(!path.startsWith('.github/workflows/') || path.includes('pr189-') || !path.endsWith('.yml')) throw new Error('Unexpected full workflow: '+path);
               const {data:source}=await github.rest.repos.getContent({...context.repo,path,ref:gate.head});
-              if(!/^  workflow_dispatch:/m.test(Buffer.from(source.content,'base64').toString('utf8')))
-                throw new Error('Full qualification lacks a dispatch trigger: '+path);
+              const text=Buffer.from(source.content,'base64').toString('utf8');
+              const file=path.split('/').pop();
+              if(Object.prototype.hasOwnProperty.call(routedOnly,file)) {
+                const {data:baseline}=await github.rest.repos.getContent({...context.repo,path,ref:gate.target});
+                if(source.sha!==routedOnly[file] || baseline.sha!==routedOnly[file] || /^  workflow_dispatch:/m.test(text) ||
+                    gate.selected.some(row=>row.file===file)) throw new Error('Historical routing exemption changed: '+file);
+                skipped.push({path,blob:source.sha,reason:'Not applicable to this PR under its unchanged historical routing',qualification_pass:false});
+                inventory.delete(path);
+              } else if(!/^  workflow_dispatch:/m.test(text)) throw new Error('Unreviewed missing full-CI trigger: '+path);
             }
+            if(skipped.length!==11 || inventory.size!==48) throw new Error('Applicable full-CI inventory changed');
+            fs.writeFileSync(directory+'/full-applicability.json',JSON.stringify({head:gate.head,skipped,workflows:[...inventory.keys()]},null,2));
             const dispatched=[];
             for(const [path,id] of [...inventory].sort()) {
               await guard();
@@ -323,7 +362,7 @@ jobs:
               await new Promise(resolve=>setTimeout(resolve,200));
             }
             await guard();
-            core.info('PR189_FULL_CI_DISPATCHED count=59 head='+gate.head+'; these are dispatch receipts, not passing results');
+            core.info('PR189_FULL_CI_DISPATCHED count=48 head='+gate.head+'; dispatch receipts are not passing results');
       - uses: actions/upload-artifact@v4
         if: always()
         with:
