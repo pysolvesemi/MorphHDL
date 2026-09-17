@@ -32,6 +32,12 @@
       "after_sha256": "b2f7d7e6a8f08ffa112521cc43b220c689efd1317a44b1c5d50349e3c2b87102"
     },
     {
+      "path": ".github/workflows/increment-60b-signedness-authority.yml",
+      "mode": "100644",
+      "before_sha256": "e619f1580ed226ed0a50170b58a993642e5bf0c9d0d75c4f4bf3781a7ac6986b",
+      "after_sha256": "9a553eafddc1bbea24394e10cfeb6c42250f40fca919327571b057b87a0d145a"
+    },
+    {
       "path": ".github/workflows/increment-60c-signed-declarations.yml",
       "mode": "100644",
       "before_sha256": "52be6012a35de82855089cf8d44898ec6646080370ef5c1a699ddc1171f8525b",
@@ -90,6 +96,12 @@
       "mode": "100644",
       "before_sha256": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
       "after_sha256": "1dc523243d8a707610855d601aaa67abea4ba0a2bcf0a17aaa58409bb80b5a83"
+    },
+    {
+      "path": ".github/workflows/pr189-60b-source-repair.yml",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "9d53536cc0a408c8dc3e6058727eac8a2a384e6bd05e4d478939cc9473e485c7"
     },
     {
       "path": ".github/workflows/pr189-compact-timeout.yml",
@@ -1469,7 +1481,7 @@
       "path": "morphhdl/scripts/check-cdc-successor-source.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "e26bb7ee7f941fac767eea973d5e20125cec9f0524d66e8b50820df9da334bbf"
+      "after_sha256": "7e788d97f6d167a9b28f61c60615f957878a99edd9c970beaca0cb13dae564c0"
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
@@ -2132,7 +2144,7 @@
       "after_sha256": "ac72e384a76209c317e3b05d53849db39649c17b6622a1e75474f475cddb6a1d"
     }
   ],
-  "final_source_commit": "cbc7b58c67acf9a4d5e44b7f3c474969bb4c854b",
+  "final_source_commit": "d81a27d734cc51880de326a1cf0e6f2969775f90",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
