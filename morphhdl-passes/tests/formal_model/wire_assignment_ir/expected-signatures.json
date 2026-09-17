@@ -2,7 +2,7 @@
   "schema_version": 1,
   "algorithm": "SHA-256",
   "files": {
-    ".github/workflows/morphhdl-passes.yml": "20059acac59b2bf069d7678cf049b7b1a9afb55af8f6ba9e11f49703863bbd9a",
+    ".github/workflows/morphhdl-passes.yml": "2c240935d5644bc184089bdc82529799b77cb85240ed8946a23a5f1493ebbff5",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
     "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "0b917cd3406d14b296ad4c0cb7a602f3e716c045807f006e39ce176d4f1e6d14",
@@ -38,7 +38,7 @@
     "morphhdl-passes/scripts/run-wa07b-regression.sh": "ac56645234937591dd15162b800b0f940fd2933cd1cfec97e4fe5eea1b7cd24f",
     "morphhdl-passes/scripts/run-wa09-regression.sh": "ca5e7685be74d3d72177cd234cbd4268555da0c35be445780f2e54b9b1d747ca",
     "morphhdl-passes/scripts/run-wa10-regression.sh": "e702286b6804a7ae5f1d08d14bdc8bb9c252785cb2333e4130d2c6b52db029a9",
-    "morphhdl-passes/scripts/test-boundary-guard.sh": "ab24aeabae2ef3144946eeb479a94118a0a6ca8cb578ba018c883bbcf5254f66",
+    "morphhdl-passes/scripts/test-boundary-guard.sh": "391daf650a3404b96b871e7bcd1a4d5dedd3708a710d2c818715b9f38c93915e",
     "morphhdl-passes/scripts/test_historical_native_reports.py": "4eb63bd877d768747d86ccebb514c69cd5fbc1c09270f13bec08d499fa4bcc97",
     "morphhdl-passes/scripts/test_wire_assignment_clock_model.py": "05e61e99ab8fba104ce2a9e5dfad1f614dc9a52d2de08a81d2c6b15d47c514b7",
     "morphhdl-passes/scripts/test_wire_assignment_cone_tools.py": "f548d1ab162e600f8e8e3cbca38f496b2e9ba2c8c9bcd30544dbec3a44ce8a22",

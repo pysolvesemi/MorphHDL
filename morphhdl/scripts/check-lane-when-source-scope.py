@@ -19,6 +19,11 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 OVERLAY_CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 # Exact paths for this repair's review infrastructure; no source root wildcard.
 REVIEW_PATHS = frozenset((
+    "morphhdl-passes/scripts/test-boundary-guard.sh",
+    ".github/workflows/increment-60f-equivalence-closure.yml",
+    ".github/workflows/increment-62-wa08-source-overlay.yml",
+    "morphhdl/scripts/check-increment-61-source-review.py",
+    "morphhdl/scripts/check-lane-when-increment61-source.py",
     # Exact ABI blocker repair; every source also requires the native/outer seals.
     "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
     "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
