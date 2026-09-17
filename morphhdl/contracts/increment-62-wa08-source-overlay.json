@@ -62,7 +62,7 @@
       "path": ".github/workflows/increment-61-compatibility-matrix.yml"
     },
     {
-      "after_sha256": "3d223d937f8b78c9cf2449f734bb29b655601d79671c9b262483c6488b39ee3d",
+      "after_sha256": "4c0bbdbe43bda96daa4ec6075c4afb3d0d8696dada7a4f38e10ae8f5aade9211",
       "before_sha256": null,
       "mode": "100644",
       "path": ".github/workflows/increment-61-one-file-per-component.yml"
@@ -512,7 +512,7 @@
       "path": "morphhdl/contracts/increment-61-source-review.json"
     },
     {
-      "after_sha256": "ee52041837f5327249193d7e8c9a9db7317736cfa7763d2d426737dbe3793f89",
+      "after_sha256": "d3c4890586ab5cd1d2fbd425fcf3179c4b0d2ed5c344d2db13964e789bbf70ee",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/contracts/lane-when-source-scope.json"
@@ -554,13 +554,19 @@
       "path": "morphhdl/scripts/check-increment-60g-source-scope.py"
     },
     {
-      "after_sha256": "ee7576ab45bb407b9b36931bef1b406c5b4a9c63ad4c5206656670b40223cc0c",
+      "after_sha256": "44df399e6cf5fe48601fcdded932574a94a720f5ff244ba748af85fdf9bef300",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/scripts/check-increment-61-publication-artifacts.py"
+    },
+    {
+      "after_sha256": "deb7704c1381677fe179954d9ca8f7abbc02353fdea8a9bd9aeef04218e75dbf",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-increment-61-source-review.py"
     },
     {
-      "after_sha256": "c85d480995b560831af9dfdfe2c5477fc019743b8105d7f7ba9820f19ce724a7",
+      "after_sha256": "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-lane-when-increment61-source.py"
@@ -572,7 +578,7 @@
       "path": "morphhdl/scripts/check-lane-when-inlining.py"
     },
     {
-      "after_sha256": "ac80120a7f17de9d937f27a3119f2a6a95d8883920de41ebae148d225d134f83",
+      "after_sha256": "dc7dfc22fdbf199fcb31b095dd73c5f5bdd26b36730187c458d78feb0748121f",
       "before_sha256": null,
       "mode": "100644",
       "path": "morphhdl/scripts/check-lane-when-source-scope.py"
@@ -642,6 +648,12 @@
       "before_sha256": "878d23fbccf6825bc37362a2298502c11fa6d97dd1ea305003bb43098cfdedff",
       "mode": "100644",
       "path": "morphhdl/scripts/test-increment-60f-inherited-source-scope.py"
+    },
+    {
+      "after_sha256": "b4618d837f723ad19b0ec9dc83c44cd150f23ea1c5faa00dbc6fd37f39a4e757",
+      "before_sha256": null,
+      "mode": "100644",
+      "path": "morphhdl/scripts/test-increment-61-publication-artifacts.py"
     },
     {
       "after_sha256": "8e7bcac0cbd085317a5e4b8cc6e8584c079bd4f508e401630cd32767125ef094",
@@ -1172,7 +1184,7 @@
       "path": "repro/independent-parameters/test_symbolic_policy.py"
     }
   ],
-  "final_source_commit": "f30975f2b6e43fff479a851d6a2dd2630c48083d",
+  "final_source_commit": "78d2504cff590171c40f7841e97506b42134fdf5",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "schema_version": 1
 }
