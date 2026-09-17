@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import MappingProxyType
 
 BASE = "954d9b2763b064dba60af71ad8fa509a9d7cada8"
 # Schema 2 admits only this reviewed target refresh. Schema 1 and all its
@@ -40,17 +41,24 @@ INTEGRATION_RECONCILIATIONS = frozenset((
 ))
 # A separately reviewed continuation retains the published seal as its first
 # parent. These are immutable certificates, never moving branch permissions.
-CONTINUATION_PARENT = "f43100e4899593eb5c9e78537a4dcf6f53f9c30f"
-CONTINUATION_PARENT_TREE = "44a48e034fc910506620f0125f2dd417500a89a1"
-CONTINUATION_PARENT_SOURCE = "b459aa9b94774dac3235c42561237e9c273bed6c"
-CONTINUATION_PARENT_MANIFEST = "f61e298bd49a1ea7b45565884c398f8a287d24adac8f4bc76067705c094c2486"
-CONTINUATION_PARENT_HELPER = "d18d47a49cbb363077b266e47f10ea8b8604542dec8ff1955b3f4d29de7634c4"
+CONTINUATION_PARENT = "14dc0d2bb7274d9e91b60f112619a78b237936ab"
+CONTINUATION_PARENT_TREE = "93594357906ec1f71485aff354b94bcaaaf3da67"
+CONTINUATION_PARENT_SOURCE = "a7d6730f0153ad501c09f856931cacaa2c287967"
+CONTINUATION_PARENT_MANIFEST = "d9f575bfe5b6463c09cf7888f9410196229c69f7bd251023ef9d65fd37ddef0e"
+CONTINUATION_PARENT_HELPER = "d719d46132368d732d508a5d92434408eef3d0a2634751b3dfcc2c082525726d"
 CONTINUATION_TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
+# Keep the original integrated target inventory rooted at the same two
+# historical branches. The immediate predecessor now already contains that
+# integration; using its merge-base would incorrectly erase the 81 target
+# records. Both fixed ancestors are independently authenticated below.
+CONTINUATION_INTEGRATION_PARENT = "f43100e4899593eb5c9e78537a4dcf6f53f9c30f"
 CONTINUATION_COMMON = "61d1fe0dcac0b52856620944a2d7426fd1390a48"
 CONTINUATION_61_BASE = "7f355a859e7e88ca343e1ff82f261fb47b3311d0"
 CONTINUATION_61_CONTRACT = "67f19808ea90ef6b8ef2b17f9dedb98f7ea40dbcdd57df172604e0da17faa972"
 CONTINUATION_61_HELPER = "0b095ea126c5f7d844db6338a1811fc0bce290b82e17ded71d9aaac7dd84443e"
 CONTINUATION_RECONCILIATIONS = frozenset((
+    '.github/workflows/independent-parameter-domains.yml',
+    'repro/independent-parameters/test_qualify.py',
     '.github/workflows/increment-59c-named-field-vectors.yml',
     '.github/workflows/increment-59g-register-bridges.yml',
     '.github/workflows/increment-60c-signed-declarations.yml',
@@ -88,7 +96,7 @@ def previous_certificate() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "d9f575bfe5b6463c09cf7888f9410196229c69f7bd251023ef9d65fd37ddef0e"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -316,7 +324,10 @@ def validate_target_integration(value: dict, schema: int = 2) -> None:
 def verify_target_integration(root: Path, value: dict) -> None:
     target = value["target_integration"]
     target_commit, common_base, _ = integration_parameters(value["schema_version"])
-    scope_parent = CONTINUATION_PARENT if value["schema_version"] == 3 else BASE
+    scope_parent = CONTINUATION_INTEGRATION_PARENT if value["schema_version"] == 3 else BASE
+    if value["schema_version"] == 3:
+        git(root, "merge-base", "--is-ancestor", scope_parent, CONTINUATION_PARENT)
+        git(root, "merge-base", "--is-ancestor", CONTINUATION_TARGET, CONTINUATION_PARENT)
     for key, commit in (("target", target_commit), ("common_base", common_base)):
         require(revision(root, commit) == commit and
             git(root, "rev-parse", commit + "^{tree}").decode().strip() == target[key + "_tree"],
@@ -352,7 +363,7 @@ def validated_manifest(raw: bytes, predecessor: str) -> str:
     return value["helper_normalized_sha256"]
 
 
-def contract(root: Path) -> dict:
+def _authenticated_contract_bytes(root: Path) -> bytes:
     require(re.fullmatch(r"[0-9a-f]{64}", CONTRACT_SHA256) is not None,
         "source successor has not been sealed after independent review")
     raw = regular(root, CONTRACT)
@@ -363,9 +374,36 @@ def contract(root: Path) -> dict:
         "sealed successor helper changed")
     require(re.search(rb'^CONTRACT_SHA256 = "' + CONTRACT_SHA256.encode() + rb'"$', helper, re.M)
         is not None, "helper manifest-hash slot differs")
-    # Re-read/authenticate live files on every call and give each caller a
-    # fresh object. A prior pass or mutated return value grants no authority.
-    return json.loads(raw)
+    return raw
+
+
+def _freeze_json(value):
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+@functools.lru_cache(maxsize=8)
+def _immutable_contract_view(raw: bytes):
+    # Only parsed immutable data is cached; no checkout authorization is cached.
+    return _freeze_json(json.loads(raw))
+
+
+def authenticate_contract(root: Path) -> None:
+    _authenticated_contract_bytes(root)
+
+
+def _projection_contract(root: Path):
+    # Every projection still authenticates current bytes, links, modes and the
+    # pinned helper before consulting immutable parsed data. Internal readers
+    # cannot mutate it; the public contract() retains its fresh-object API.
+    return _immutable_contract_view(_authenticated_contract_bytes(root))
+
+
+def contract(root: Path) -> dict:
+    return json.loads(_authenticated_contract_bytes(root))
 
 
 def restore_reviewed(entry: dict, before: bytes, after: bytes) -> bytes:
@@ -405,7 +443,7 @@ def sealed_helper(root: Path, value: dict) -> bytes:
 
 def restore_source(root: Path, path: str, source: bytes) -> bytes:
     """Accept only an exact reviewed source or its immutable predecessor view."""
-    value = contract(root)
+    value = _projection_contract(root)
     if path == CONTRACT:
         require(source in (b"", regular(root, CONTRACT)), "unreviewed seal bytes in projection")
         return b""
@@ -688,13 +726,13 @@ def predecessor_inventory(root: Path, paths: set[str], qualification_base: str,
 
 
 def target_anchor(root: Path) -> str | None:
-    schema = contract(root)["schema_version"]
+    schema = _projection_contract(root)["schema_version"]
     return integration_parameters(schema)[0] if schema >= 2 else None
 
 
 def target_source(root: Path, path: str, source: bytes) -> bytes:
     """Project only authenticated current bytes to the pinned refreshed target."""
-    value = contract(root)
+    value = _projection_contract(root)
     require(value["schema_version"] >= 2, "target refresh projection requires schema 2 or 3")
     before = frozen(root, integration_parameters(value["schema_version"])[0], path) or b""
     if source == before:
@@ -735,7 +773,7 @@ def increment61_predecessor_source(root: Path, path: str, source: bytes) -> byte
     The complete verify() authenticates both certificates and the live tree;
     each projection additionally authenticates its manifest and exact input.
     """
-    require(contract(root)["schema_version"] == 3, "Increment 61 predecessor requires schema 3")
+    require(_projection_contract(root)["schema_version"] == 3, "Increment 61 predecessor requires schema 3")
     current = frozen(root, CONTINUATION_TARGET, path) or b""
     previous = frozen(root, CONTINUATION_61_BASE, path) or b""
     require(source in (current, previous), "unreviewed bytes cannot enter Increment 61 predecessor projection: " + path)

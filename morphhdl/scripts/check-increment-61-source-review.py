@@ -84,7 +84,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "d719d46132368d732d508a5d92434408eef3d0a2634751b3dfcc2c082525726d"
+CONTINUATION_HELPER_SHA256 = "266aefad7bd29c81e837600eb8ff636b3220b50ed83cea86307605b8d8613496"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
