@@ -8,8 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  # Cleanup must not queue behind the exact superseded run it needs to stop.
-  group: ${{ startsWith(github.event.review.body, 'pr189:cancel-superseded:') && 'pr189-compact-cleanup' || 'pr189-compact-timeout' }}-${{ github.event.pull_request.head.ref }}
+  group: pr189-failed-first-${{ github.event.pull_request.head.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -22,193 +21,369 @@ env:
   JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
   PYTHONDONTWRITEBYTECODE: '1'
 
+# The compact compiler was committed, tested and published by run 35175042711.
+# Do not reconstruct another compiler candidate from the historical patch.
+# This transition changes only this control file and its exact WA08 seal.
+# All compiler/HDL/mutation payloads are retained below on committed source.
 jobs:
-  cancel-superseded-run:
-    name: Cancel only the exact superseded compact candidate
+  seal-control:
+    name: Authenticate CI-only transition from the passing compact source
     if: >-
       github.event.action == 'submitted' && github.event.review.state == 'commented' &&
       github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner &&
-      github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository &&
+      github.repository == 'pysolvesemi/MorphHDL' && github.event.pull_request.number == 189 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' &&
       github.event.pull_request.base.ref == 'parameterized-verilog' &&
       github.event.review.commit_id == github.event.pull_request.head.sha &&
-      github.event.review.body == format('pr189:cancel-superseded:{0}', github.event.pull_request.head.sha)
+      github.event.review.body == format('pr189:failed-workflows:{0}', github.event.pull_request.head.sha)
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      actions: write
-    steps:
-      - uses: actions/github-script@v7
-        with:
-          script: |
-            const run_id = 35135638145;
-            const expected_head = '16738974cca6c549925453ef5127ea0e1485f9f2';
-            const branch = 'agent/cdc-independent-parameter-consumers';
-            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id});
-            if (run.head_sha !== expected_head || run.head_branch !== branch ||
-                run.path !== '.github/workflows/pr189-compact-timeout.yml') {
-              throw new Error('Refuse to cancel an unrelated workflow run');
-            }
-            if (run.status === 'completed') {
-              core.info(`ALREADY_COMPLETED ${run_id} ${run.conclusion}`);
-            } else {
-              try {
-                await github.rest.actions.cancelWorkflowRun({...context.repo, run_id});
-                core.info(`CANCEL_REQUESTED ${run_id} ${expected_head}`);
-              } catch (error) {
-                const {data: latest} = await github.rest.actions.getWorkflowRun({...context.repo, run_id});
-                if (latest.status !== 'completed') throw error;
-                core.info(`COMPLETED_DURING_CANCELLATION ${run_id} ${latest.conclusion}`);
-              }
-            }
-      - name: Extract bounded diagnostic context from the completed predecessor log
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const job_id = 104917054262;
-            const {data: job} = await github.rest.actions.getJobForWorkflowRun({...context.repo, job_id});
-            if (job.run_id !== 35132618002 || job.head_sha !== 'bfe60684049cf263e011d45f3a651b6c00fd7422' ||
-                job.status !== 'completed') throw new Error('Diagnostic source is not the pinned completed job');
-            const {data} = await github.rest.actions.downloadJobLogsForWorkflowRun({...context.repo, job_id});
-            const text = typeof data === 'string' ? data : Buffer.from(data).toString('utf8');
-            const lines = text.split('\n');
-            const selected = new Set();
-            lines.forEach((line, index) => {
-              if (/\*\*\* FAILED \*\*\*|NoClassDefFoundError|ClassNotFoundException/.test(line)) {
-                for (let i = Math.max(0,index-3); i <= Math.min(lines.length-1,index+50); i++) selected.add(i);
-              }
-            });
-            if (!selected.size) throw new Error('No failure context found in the pinned log');
-            const excerpts = [...selected].sort((a,b)=>a-b).slice(0,200).map(i => `${i+1}: ${lines[i]}`).join('\n');
-            core.info('PINNED_FAILURE_EXCERPTS_BEGIN\n' + excerpts + '\nPINNED_FAILURE_EXCERPTS_END');
-
-  compact-candidate:
-    name: Exact compact declaration, timer and affected compiler checks
-    if: >-
-      github.event.action == 'submitted' && github.event.review.state == 'commented' &&
-      github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner &&
-      github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' &&
-      github.event.pull_request.base.ref == 'parameterized-verilog' &&
-      github.event.review.commit_id == github.event.pull_request.head.sha &&
-      github.event.review.body == format('pr189:compact-timeout:{0}', github.event.pull_request.head.sha)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
+    timeout-minutes: 45
     permissions:
       contents: write
+      actions: read
+    outputs:
+      head: ${{ steps.publish.outputs.head }}
+      tree: ${{ steps.publish.outputs.tree }}
     env:
       EXPECTED_INPUT: ${{ github.event.pull_request.head.sha }}
-      EVIDENCE: /tmp/pr189-compact-evidence
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          submodules: recursive
           persist-credentials: true
-      - name: Construct only the exact reviewed candidate and preserve its identity
+      - name: Require the actual predecessor qualification to have succeeded
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id: 35175042711});
+            if (run.status !== 'completed' || run.conclusion !== 'success' ||
+                run.head_sha !== '3fb55a9c575ea7695dd763744906dd5f3b1b876f' ||
+                run.head_branch !== 'agent/cdc-independent-parameter-consumers' ||
+                run.path !== '.github/workflows/pr189-compact-timeout.yml') {
+              throw new Error('The pinned compact predecessor is not qualified');
+            }
+      - name: Seal only this reviewed workflow delta without changing any verifier algorithm
         run: |
           set -euo pipefail
-          mkdir -p "$EVIDENCE"
-          test "$(git rev-parse HEAD)" = "$EXPECTED_INPUT"
-          git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/input-identity.txt"
+          mkdir -p /tmp/pr189-ci-transition
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          python3 repro/cdc-independent-parameters/prepare_compact_timeout.py 2>&1 | tee "$EVIDENCE/preparation.log"
-          git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/candidate-identity.txt"
-          git diff --binary "$EXPECTED_INPUT" HEAD > "$EVIDENCE/candidate.patch"
-          git bundle create "$EVIDENCE/candidate.bundle" HEAD "^$EXPECTED_INPUT"
-      - name: Authenticate clean candidate bytes before compiling any fixture
+          python3 - <<'PY'
+          import importlib.util, json, os, re, subprocess, tempfile
+          from pathlib import Path
+          root = Path.cwd()
+          base = 'de27c051d0db2acea18ebbc45d3f55326fba7716'
+          workflow = '.github/workflows/pr189-compact-timeout.yml'
+          helper = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+          manifest = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          def git(*args):
+              return subprocess.check_output(['git', '--literal-pathspecs', *args], timeout=120)
+          def require(ok, message):
+              if not ok: raise RuntimeError('PR189 CI transition: ' + message)
+          head = git('rev-parse', 'HEAD').decode().strip()
+          require(head == os.environ['EXPECTED_INPUT'], 'wrong input head')
+          require(git('show', '-s', '--format=%P', head).decode().strip() == base, 'unexpected input parent')
+          paths = set(git('diff', '--name-only', '--no-renames', '-z', base, head).decode().split('\0')) - {''}
+          require(paths == {workflow}, 'only the workflow control file may change')
+          require(not git('status', '--porcelain', '--untracked-files=all'), 'dirty input')
+          git('merge-base', '--is-ancestor', '27af65abbee0d2334d6be7a6e4e2408b8af32fd9', head)
+          spec = importlib.util.spec_from_file_location('reviewed_wa08', root / helper)
+          wa = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(wa)
+          with tempfile.TemporaryDirectory(prefix='pr189-qualified-predecessor-') as directory:
+              checkout = Path(directory) / 'source'
+              git('worktree', 'add', '--quiet', '--detach', str(checkout), base)
+              try:
+                  subprocess.run(['python3', str(checkout / helper)], cwd=checkout, check=True, timeout=300)
+              finally:
+                  git('worktree', 'remove', '--force', str(checkout))
+          old = wa.contract(root)
+          records = old['files']
+          selected = [entry for entry in records if entry['path'] == workflow]
+          require(len(selected) == 1, 'workflow missing from the existing exact inventory')
+          require(selected[0]['after_sha256'] == wa.digest(git('show', base + ':' + workflow)), 'old workflow bytes differ')
+          old_bytes = (root / helper).read_bytes()
+          before_records = json.loads(json.dumps(records))
+          selected[0]['after_sha256'] = wa.digest((root / workflow).read_bytes())
+          for before, after in zip(before_records, records):
+              if before['path'] != workflow: require(before == after, 'unrelated review entry changed')
+              else: require({k:v for k,v in before.items() if k != 'after_sha256'} ==
+                            {k:v for k,v in after.items() if k != 'after_sha256'}, 'baseline or mode changed')
+          old['final_source_commit'] = head
+          (root / manifest).write_text(json.dumps(old, indent=2) + '\n')
+          replacement = ('CONTRACT_SHA256 = "' + wa.digest((root / manifest).read_bytes()) + '"').encode()
+          updated, count = re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$', replacement, old_bytes, count=1, flags=re.M)
+          require(count == 1 and wa.normalized_helper(updated) == wa.normalized_helper(old_bytes), 'verifier logic changed')
+          (root / helper).write_bytes(updated)
+          git('add', '--', helper, manifest)
+          git('commit', '-q', '-m', 'PR189: bind failed-first CI control to its exact source review [skip ci]')
+          changed = set(git('diff', '--name-only', '--no-renames', '-z', base, 'HEAD').decode().split('\0')) - {''}
+          require(changed == {workflow, helper, manifest}, 'unexpected transition delta')
+          require(not git('status', '--porcelain', '--untracked-files=all'), 'uncommitted candidate bytes')
+          Path('/tmp/pr189-ci-transition/identity.json').write_text(json.dumps({
+              'qualified_compiler': base, 'input': head,
+              'head': git('rev-parse', 'HEAD').decode().strip(),
+              'tree': git('rev-parse', 'HEAD^{tree}').decode().strip(),
+              'changed_paths': sorted(changed), 'compiler_and_test_sources_unchanged': True}, indent=2) + '\n')
+          PY
+          git diff --check
+          git diff --binary de27c051d0db2acea18ebbc45d3f55326fba7716 HEAD > /tmp/pr189-ci-transition/control.patch
+      - name: Check the exact source boundary and its rejection controls before publication
         run: |
           set -euo pipefail
+          for checker in check-increment-62-wa08-source-overlay.py check-native-source-preservation.py check-increment-61-source-review.py; do
+            python3 "morphhdl/scripts/$checker" 2>&1 | tee "/tmp/pr189-ci-transition/$checker.log"
+            python3 "morphhdl/scripts/$checker" --self-test 2>&1 | tee "/tmp/pr189-ci-transition/$checker-mutations.log"
+          done
           git diff --exit-code
           git diff --cached --exit-code
-          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py 2>&1 | tee "$EVIDENCE/early-wa08.log"
-          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$EVIDENCE/early-native.log"
-          python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$EVIDENCE/early-successor.log"
-          java -version 2>&1 | tee "$EVIDENCE/java-version.txt"
-          iverilog -V > "$EVIDENCE/iverilog-version.txt" 2>&1
-          yosys -V > "$EVIDENCE/yosys-version.txt"
-      - name: Recheck the failed 59h mutation boundary before compiler regressions
+      - id: publish
+        name: Publish only the checked control seal with automatic CI suppressed
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py \
-            2>&1 | tee "$EVIDENCE/early-59h.log"
-          grep -Fx '59h current-source controls PASS: two positives and 28 exact rejections; unchanged 59c historical controls separately scoped' "$EVIDENCE/early-59h.log"
-          test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
-          git diff --exit-code
-          git diff --cached --exit-code
-      # Keep every existing compiler, simulation and late source-mutation gate.
-      # The extra fail-fast check above prevents a known audit defect from being
-      # discovered only after both long inherited compiler regression suites.
-      - name: Scala 2.12.18 native generation and exact construction rejections
+          branch='agent/cdc-independent-parameter-consumers'
+          test "$(git ls-remote --exit-code origin "refs/heads/$branch" | cut -f1)" = "$EXPECTED_INPUT"
+          test "$(git ls-remote --exit-code origin refs/heads/parameterized-verilog | cut -f1)" = 27af65abbee0d2334d6be7a6e4e2408b8af32fd9
+          git merge-base --is-ancestor "$EXPECTED_INPUT" HEAD
+          for commit in $(git rev-list "$EXPECTED_INPUT..HEAD"); do git show -s --format=%B "$commit" | grep -F '[skip ci]'; done
+          git push origin "HEAD:refs/heads/$branch"
+          printf 'head=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
+          git rev-parse HEAD > /tmp/pr189-ci-transition/published-head.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-ci-transition-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: /tmp/pr189-ci-transition/
+          if-no-files-found: error
+          retention-days: 30
+
+  failed-first:
+    name: Run only the 20 previously failed standard workflows before full CI
+    needs: seal-control
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    permissions:
+      contents: read
+      actions: write
+    env:
+      QUALIFICATION_HEAD: ${{ needs.seal-control.outputs.head }}
+    steps:
+      - name: Dispatch or resume exact-head failed workflows and require every result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const directory = '/tmp/pr189-failed-first'; fs.mkdirSync(directory, {recursive:true});
+            const head = process.env.QUALIFICATION_HEAD;
+            const branch = 'agent/cdc-independent-parameter-consumers';
+            const target = '27af65abbee0d2334d6be7a6e4e2408b8af32fd9';
+            if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('Missing sealed qualification head');
+            const cases = [
+              ['cdc-independent-parameter-consumers.yml',35128354201],
+              ['increment-59c-named-field-vectors.yml',35128354515],
+              ['increment-59e-composite-reduction.yml',35079236409],
+              ['increment-59g-register-bridges.yml',35128354261],
+              ['increment-60a-sint-baseline.yml',35079236544],
+              ['increment-60c-signed-declarations.yml',35128353956],
+              ['increment-60d-pure-sint-casts.yml',35128354322],
+              ['increment-60e-signedness-boundaries.yml',35128354509],
+              ['increment-60f-equivalence-closure.yml',35079236525],
+              ['increment-60g-default-signed-verilog.yml',35128354285],
+              ['increment-61-compatibility-matrix.yml',35128354346],
+              ['increment-61-one-file-per-component.yml',35128354463],
+              ['increment-62-wa08-source-overlay.yml',35128354490],
+              ['independent-parameter-domains.yml',35079236335],
+              ['morphhdl-baseline.yml',35079236462],
+              ['morphhdl-enum-localparams.yml',35079236663],
+              ['morphhdl-external-symbolic-width.yml',35128354317],
+              ['morphhdl-mill.yml',35079236819],
+              ['morphhdl-native-source-guard.yml',35079236455],
+              ['morphhdl-native-stream-width-adapter.yml',35079236383]
+            ];
+            async function guard() {
+              const {data:p} = await github.rest.pulls.get({...context.repo,pull_number:189});
+              if (p.state !== 'open' || p.merged || p.head.sha !== head || p.head.ref !== branch ||
+                  p.head.repo.full_name !== 'pysolvesemi/MorphHDL' || p.base.ref !== 'parameterized-verilog' ||
+                  p.base.sha !== target) throw new Error('PR head or target changed; full CI is forbidden');
+            }
+            async function runs() {
+              return await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
+                {...context.repo,branch,head_sha:head,event:'workflow_dispatch',per_page:100},
+                response => response.data.workflow_runs);
+            }
+            const selected = [];
+            await guard();
+            // Validate the whole allowlist before starting any workflow.
+            for (const [file,id] of cases) {
+              const {data:old} = await github.rest.actions.getWorkflowRun({...context.repo,run_id:id});
+              if (old.conclusion !== 'failure' || old.status !== 'completed' || old.head_branch !== branch ||
+                  old.path !== '.github/workflows/'+file) throw new Error('Failed-workflow inventory changed: '+file);
+              const {data:source} = await github.rest.repos.getContent({...context.repo,path:old.path,ref:head});
+              const text = Buffer.from(source.content,'base64').toString('utf8');
+              if (!/^  workflow_dispatch:/m.test(text)) throw new Error('No selective dispatch trigger: '+file);
+              selected.push({file,workflow_id:old.workflow_id,historical_failure:id});
+            }
+            let existing = await runs();
+            for (const row of selected) {
+              await guard();
+              const prior = existing.filter(r=>r.workflow_id===row.workflow_id && r.head_sha===head && r.event==='workflow_dispatch')
+                .sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at))[0];
+              if (prior && (prior.conclusion==='success' || prior.status!=='completed')) {
+                row.run_id=prior.id; row.minimum_attempt=prior.run_attempt; core.info('REUSE '+JSON.stringify(row));
+              } else if (prior && prior.conclusion==='failure') {
+                await github.request('POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs',
+                  {...context.repo,run_id:prior.id});
+                row.run_id=prior.id; row.minimum_attempt=prior.run_attempt+1; core.info('RETRY_FAILED_JOBS '+JSON.stringify(row));
+              } else {
+                row.requested_at=Date.now();
+                await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:row.workflow_id,ref:branch,
+                  ...(row.file==='cdc-independent-parameter-consumers.yml'?{inputs:{mode:'checks'}}:{})});
+                core.info('DISPATCH_FAILED_WORKFLOW '+JSON.stringify(row));
+              }
+              fs.writeFileSync(directory+'/selected.json',JSON.stringify({head,target,selected},null,2));
+            }
+            const deadline=Date.now()+300*60*1000;
+            while(Date.now()<deadline) {
+              await guard(); existing=await runs();
+              const failures=[]; let successful=0;
+              for(const row of selected) {
+                const matches=existing.filter(r=>r.workflow_id===row.workflow_id && r.head_sha===head && r.event==='workflow_dispatch' &&
+                  (row.run_id ? r.id===row.run_id : Date.parse(r.created_at)>=row.requested_at-2000));
+                if(matches.length>1) throw new Error('Ambiguous exact-head run identity: '+row.file);
+                if(!matches.length) continue;
+                const r=matches[0]; row.run_id=r.id; row.minimum_attempt ||= r.run_attempt;
+                row.url=r.html_url; row.status=r.status; row.conclusion=r.conclusion; row.run_attempt=r.run_attempt;
+                if(r.run_attempt<row.minimum_attempt) continue;
+                if(r.status==='completed') {
+                  if(r.conclusion==='success') successful++;
+                  else failures.push(row);
+                }
+              }
+              fs.writeFileSync(directory+'/selected.json',JSON.stringify({head,target,selected},null,2));
+              core.info('TARGETED_PROGRESS '+successful+'/'+selected.length+' '+JSON.stringify(selected.map(r=>({file:r.file,id:r.run_id,status:r.status,conclusion:r.conclusion}))));
+              if(failures.length) throw new Error('TARGETED_FAILED; full CI not started: '+JSON.stringify(failures));
+              if(successful===20) {
+                for(const row of selected) {
+                  const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,
+                    {...context.repo,run_id:row.run_id,filter:'latest',per_page:100},response=>response.data.jobs);
+                  if(!jobs.some(j=>j.conclusion==='success' && j.steps && j.steps.length>2))
+                    throw new Error('No executed qualification job: '+row.file);
+                }
+                await guard();
+                fs.writeFileSync(directory+'/targeted-pass.json',JSON.stringify({head,target,selected},null,2));
+                core.info('PR189_ALL_FAILED_WORKFLOWS_PASS '+head); return;
+              }
+              await new Promise(resolve=>setTimeout(resolve,45000));
+            }
+            throw new Error('Targeted qualification timed out; full CI not started');
+      - name: Start full CI only after rechecking all targeted successes on the unchanged head
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs');
+            const directory='/tmp/pr189-failed-first';
+            const gate=JSON.parse(fs.readFileSync(directory+'/targeted-pass.json','utf8'));
+            const branch='agent/cdc-independent-parameter-consumers';
+            if(gate.head!==process.env.QUALIFICATION_HEAD || gate.selected.length!==20) throw new Error('Invalid targeted gate');
+            async function guard() {
+              const {data:p}=await github.rest.pulls.get({...context.repo,pull_number:189});
+              if(p.state!=='open' || p.merged || p.head.sha!==gate.head || p.head.ref!==branch ||
+                  p.base.ref!=='parameterized-verilog' || p.base.sha!==gate.target) throw new Error('Source moved; full dispatch refused');
+            }
+            await guard();
+            for(const row of gate.selected) {
+              const {data:r}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:row.run_id});
+              if(r.head_sha!==gate.head || r.conclusion!=='success' || r.status!=='completed' ||
+                  r.run_attempt<row.minimum_attempt || r.event!=='workflow_dispatch') throw new Error('Targeted result is not valid: '+row.file);
+            }
+            // Recover the existing PR qualification fleet, not maintenance,
+            // release, Docker-publishing or unrelated debug workflows.
+            const historical=await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
+              {...context.repo,branch,head_sha:'f3c0c6fcfbeab2d9070ffd0f0c5e61fc9d77df63',event:'pull_request',per_page:100},
+              response=>response.data.workflow_runs);
+            const inventory=new Map(historical.map(r=>[r.path,r.workflow_id]));
+            for(const row of gate.selected) inventory.set('.github/workflows/'+row.file,row.workflow_id);
+            if(inventory.size!==59) throw new Error('Full qualification inventory needs review: '+inventory.size);
+            for(const [path] of inventory) {
+              if(!path.startsWith('.github/workflows/') || path.includes('pr189-') || !path.endsWith('.yml')) throw new Error('Unexpected full workflow: '+path);
+              const {data:source}=await github.rest.repos.getContent({...context.repo,path,ref:gate.head});
+              if(!/^  workflow_dispatch:/m.test(Buffer.from(source.content,'base64').toString('utf8')))
+                throw new Error('Full qualification lacks a dispatch trigger: '+path);
+            }
+            const dispatched=[];
+            for(const [path,id] of [...inventory].sort()) {
+              await guard();
+              await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:id,ref:branch,
+                ...(path.endsWith('/cdc-independent-parameter-consumers.yml')?{inputs:{mode:'checks'}}:{})});
+              dispatched.push({path,workflow_id:id,requested_at:new Date().toISOString()});
+              fs.writeFileSync(directory+'/full-dispatch.json',JSON.stringify({head:gate.head,dispatched},null,2));
+              core.info('FULL_WORKFLOW_DISPATCHED '+path+' '+gate.head);
+              await new Promise(resolve=>setTimeout(resolve,200));
+            }
+            await guard();
+            core.info('PR189_FULL_CI_DISPATCHED count=59 head='+gate.head+'; these are dispatch receipts, not passing results');
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-failed-first-${{ needs.seal-control.outputs.head }}-${{ github.run_attempt }}
+          path: /tmp/pr189-failed-first/
+          if-no-files-found: error
+          retention-days: 30
+
+  full-compact-current:
+    name: Full qualification of compact and independent consumers on the published commit
+    needs: [seal-control, failed-first]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      EXPECTED_HEAD: ${{ needs.seal-control.outputs.head }}
+      EVIDENCE: /tmp/pr189-final-compact
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.seal-control.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Both Scala versions, both plugins, exact rejections and same-artifact hardware behavior
         run: |
           set -euo pipefail
-          destination="$EVIDENCE/scala-2.12.18"
-          mkdir -p "$destination"
-          cd repro/cdc-independent-parameters
-          sbt -batch -no-colors '++2.12.18!' \
-            "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
-            "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
-            "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
-            "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
-            "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
-            "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
-            2>&1 | tee "$destination/compiler.log"
-          grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
-          grep -F 'COMPACT_PHYSICAL_WIDTH_REJECTION_PASS' "$destination/compiler.log"
-      - name: Scala 2.12.18 same-artifact timer, geometry and record simulation and synthesis
-        run: |
-          set -euo pipefail
-          destination="$EVIDENCE/scala-2.12.18"
-          cd repro/cdc-independent-parameters
-          python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
-            2>&1 | tee "$destination/timer-validation.log"
-          python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
-            2>&1 | tee "$destination/consumer-validation.log"
-      - name: Scala 2.13.12 native generation and exact construction rejections
-        run: |
-          set -euo pipefail
-          destination="$EVIDENCE/scala-2.13.12"
-          mkdir -p "$destination"
-          cd repro/cdc-independent-parameters
-          sbt -batch -no-colors '++2.13.12!' \
-            "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
-            "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
-            "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
-            "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
-            "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
-            "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
-            2>&1 | tee "$destination/compiler.log"
-          grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
-          grep -F 'COMPACT_PHYSICAL_WIDTH_REJECTION_PASS' "$destination/compiler.log"
-      - name: Scala 2.13.12 same-artifact simulation and synthesis and cross-Scala determinism
-        run: |
-          set -euo pipefail
-          destination="$EVIDENCE/scala-2.13.12"
-          cd repro/cdc-independent-parameters
-          python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
-            2>&1 | tee "$destination/timer-validation.log"
-          python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
-            2>&1 | tee "$destination/consumer-validation.log"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          mkdir -p "$EVIDENCE"
+          git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE/identity.txt"
+          for scala in 2.12.18 2.13.12; do
+            destination="$EVIDENCE/scala-$scala"
+            mkdir -p "$destination"
+            (
+              cd repro/cdc-independent-parameters
+              sbt -batch -no-colors "++$scala!" \
+                "runMain spinal.core.CompactTimeoutGenerate $destination/first" \
+                "runMain spinal.core.CompactTimeoutGenerate $destination/repeat" \
+                "runMain spinal.core.CompactTimeoutSafety $destination/safety" \
+                "runMain spinal.core.CdcConsumerSuccess $destination/consumers" \
+                "runMain spinal.core.CdcConsumerSuccess $destination/consumers-repeat" \
+                "runMain spinal.core.CdcConsumerSafety $destination/consumer-safety" \
+                2>&1 | tee "$destination/compiler.log"
+              grep -F 'COMPACT_TIMEOUT_SAFETY_PASS controls=9' "$destination/compiler.log"
+              grep -F 'COMPACT_PHYSICAL_WIDTH_REJECTION_PASS' "$destination/compiler.log"
+              python3 check_compact_timeout.py "$destination/first" "$destination/repeat" "$destination/validation" \
+                2>&1 | tee "$destination/timer-validation.log"
+              python3 check_consumers.py "$destination/consumers" "$destination/consumers-repeat" "$destination/consumer-validation" \
+                2>&1 | tee "$destination/consumer-validation.log"
+            )
+            sbt -batch -no-colors "++$scala" core/Test/test morph/Test/test \
+              2>&1 | tee "$destination/affected-regressions.log"
+          done
           diff -ru "$EVIDENCE/scala-2.12.18/first" "$EVIDENCE/scala-2.13.12/first"
           diff -ru "$EVIDENCE/scala-2.12.18/consumers" "$EVIDENCE/scala-2.13.12/consumers"
-      - name: Scala 2.12.18 affected core and Morph regression suites
-        run: |
-          set -euo pipefail
-          sbt -batch -no-colors '++2.12.18' core/Test/test morph/Test/test \
-            2>&1 | tee "$EVIDENCE/scala-2.12.18/affected-regressions.log"
-      - name: Scala 2.13.12 affected core and Morph regression suites
-        run: |
-          set -euo pipefail
-          sbt -batch -no-colors '++2.13.12' core/Test/test morph/Test/test \
-            2>&1 | tee "$EVIDENCE/scala-2.13.12/affected-regressions.log"
-          test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git diff --exit-code
           git diff --cached --exit-code
-      - name: Recheck every affected source guard and live rejection control
+      - name: Preserve all 18 source and mutation gates on the exact final source
         run: |
           set -euo pipefail
           checks=(
@@ -231,45 +406,30 @@ jobs:
             'python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py'
             'python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only'
           )
-          failures=0
-          index=0
+          failures=0; index=0
           : > "$EVIDENCE/source-results.tsv"
           for check in "${checks[@]}"; do
-            index=$((index + 1))
+            index=$((index+1))
             if bash -e -o pipefail -c "$check" > "$EVIDENCE/source-$index.log" 2>&1; then
               printf 'PASS\t%s\n' "$check" >> "$EVIDENCE/source-results.tsv"
             else
-              failures=$((failures + 1))
+              failures=$((failures+1))
               printf 'FAIL\t%s\n' "$check" >> "$EVIDENCE/source-results.tsv"
             fi
             cat "$EVIDENCE/source-$index.log"
           done
           test "$index" = 18
           test "$failures" = 0
-          test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git diff --exit-code
           git diff --cached --exit-code
-          printf '%s\n' 'PR189_COMPACT_TARGETED_PASS' > "$EVIDENCE/targeted-pass.txt"
-      - name: Publish only the passing candidate to the unchanged existing branch
-        run: |
-          set -euo pipefail
-          test "$(cat "$EVIDENCE/targeted-pass.txt")" = PR189_COMPACT_TARGETED_PASS
-          branch='agent/cdc-independent-parameter-consumers'
-          actual=$(git ls-remote --exit-code origin "refs/heads/$branch" | cut -f1)
-          test "$actual" = "$EXPECTED_INPUT"
-          git merge-base --is-ancestor "$EXPECTED_INPUT" HEAD
-          for commit in $(git rev-list "$EXPECTED_INPUT..HEAD"); do
-            git show -s --format=%B "$commit" | grep -F '[skip ci]'
-          done
-          git push origin "HEAD:refs/heads/$branch"
-          git rev-parse HEAD > "$EVIDENCE/published-head.txt"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr189-compact-candidate-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
-          path: /tmp/pr189-compact-evidence/
+          name: pr189-final-compact-${{ needs.seal-control.outputs.head }}-${{ github.run_attempt }}
+          path: /tmp/pr189-final-compact/
           if-no-files-found: error
           retention-days: 30
 
-# Only affected qualification is selected. No full workflow/formal dispatch,
-# ready transition, target update, new branch or merge is performed here.
+# No compiler edits, new branches, force pushes, target updates or merges.
+# Failed-first success authorizes full dispatch, not a claim that full CI passed.
