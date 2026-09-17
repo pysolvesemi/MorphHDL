@@ -21,9 +21,10 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 INC61 = "morphhdl/scripts/check-increment-61-source-review.py"
 INC61_CONTRACT = "morphhdl/contracts/increment-61-source-review.json"
 SUCCESSOR_PATHS = frozenset("""
-.github/workflows/increment-60b-signedness-authority.yml
-.github/workflows/pr189-60b-source-repair.yml
 .github/workflows/cdc-independent-parameter-consumers.yml
+.github/workflows/increment-60b-signedness-authority.yml
+.github/workflows/morphhdl-passes.yml
+.github/workflows/pr189-60b-source-repair.yml
 .github/workflows/pr189-compact-timeout.yml
 core/src/main/scala/spinal/core/ElaborationProductDomain.scala
 core/src/main/scala/spinal/core/ElaborationPublicationValue.scala
@@ -33,6 +34,8 @@ core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala
 frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
 frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala
 frontend/src/main/scala/spinal/core/ExternalAnalyzedFrontendPermitIssuer.scala
+morphhdl-passes/scripts/test-boundary-guard.sh
+morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
 morphhdl/contracts/increment-54-typed-layering-ir.contract
 morphhdl/contracts/increment-55-native-change-review.json
 morphhdl/contracts/increment-62-wa08-source-overlay.json
@@ -57,6 +60,7 @@ repro/cdc-independent-parameters/check_consumers.py
 repro/cdc-independent-parameters/export_tools.py
 repro/cdc-independent-parameters/prepare_compact_timeout.py
 repro/cdc-independent-parameters/project/build.properties
+repro/cdc-independent-parameters/repair_pass_routes.py
 repro/cdc-independent-parameters/repair_source_reviews.py
 repro/cdc-independent-parameters/src/main/scala/CdcConsumerSuccess.scala
 repro/cdc-independent-parameters/src/main/scala/CdcIndependentParametersRepro.scala
