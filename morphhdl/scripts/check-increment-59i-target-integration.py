@@ -17,6 +17,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
+from types import MappingProxyType
 
 COMMON_BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 FEATURE_PARENT = "31e7488be8073022ae840dc7391c19a6f3727847"
@@ -27,7 +28,7 @@ CONTRACT = "morphhdl/contracts/increment-59i-target-integration.json"
 CONTRACT_SHA256 = "9ec750ceffa71d79e2fc78dc91b0c033ebe3ae4035116ed1495ba0012d9cd4b4"
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-SUCCESSOR_HELPER_SHA256 = "d719d46132368d732d508a5d92434408eef3d0a2634751b3dfcc2c082525726d"
+SUCCESSOR_HELPER_SHA256 = "266aefad7bd29c81e837600eb8ff636b3220b50ed83cea86307605b8d8613496"
 
 
 def require(ok: bool, detail: str) -> None:
@@ -68,7 +69,7 @@ def successor_review(root: Path):
         sys.modules[name] = module
     # Only authenticated code and immutable Git objects are shared. Never
     # cache authorization for live files, the index, or a moving HEAD.
-    module.contract(root)
+    module.authenticate_contract(root)
     return module
 
 
@@ -194,7 +195,7 @@ def validated_manifest(raw: bytes, common_base: str, feature_parent: str, target
             "unordered, duplicate or incomplete integration inventory")
     return value["helper_normalized_sha256"]
 
-def contract(root: Path) -> dict:
+def _authenticated_contract_bytes(root: Path) -> bytes:
     root = root.resolve()
     raw = regular(root, CONTRACT)
     require(re.fullmatch(r"[0-9a-f]{64}", CONTRACT_SHA256) is not None and
@@ -206,9 +207,32 @@ def contract(root: Path) -> dict:
         helper = successor.restore_source(root, HELPER, helper)
     require(digest(normalized_helper(helper)) == expected_helper,
             "sealed integration helper changed")
-    # A fresh parsed object prevents callers from mutating cached authority.
-    # Every invocation still re-reads and authenticates the manifest and helper.
-    return json.loads(raw)
+    return raw
+
+
+def _freeze_json(value):
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+@functools.lru_cache(maxsize=8)
+def _immutable_contract_view(raw: bytes):
+    # Only parsed immutable data is cached; no checkout authorization is cached.
+    return _freeze_json(json.loads(raw))
+
+
+def _projection_contract(root: Path):
+    # Every projection still authenticates current bytes, links, modes and the
+    # pinned helper before consulting immutable parsed data. Internal readers
+    # cannot mutate it; the public contract() retains its fresh-object API.
+    return _immutable_contract_view(_authenticated_contract_bytes(root))
+
+
+def contract(root: Path) -> dict:
+    return json.loads(_authenticated_contract_bytes(root))
 
 
 def governed(path: str) -> bool:
@@ -348,7 +372,7 @@ def verify(root: Path) -> dict:
 
 
 def parent_source(root: Path, path: str, source: bytes, revision: str, key: str) -> bytes:
-    value = contract(root)
+    value = _projection_contract(root)
     entry = next((entry for entry in value["files"] if entry["path"] == path), None)
     if entry is not None:
         before = frozen(root.resolve(), revision, path)

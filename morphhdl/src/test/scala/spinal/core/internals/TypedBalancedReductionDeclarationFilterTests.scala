@@ -1,10 +1,11 @@
 package spinal.core.internals
 
-import java.util.regex.Pattern
+import java.util.regex.{Matcher, Pattern}
 import org.scalatest.funsuite.AnyFunSuite
 import scala.util.Random
 
-/** Differential source tests: output must match the frozen pre-59i parser.
+/** Differential source tests against the unfiltered native parser, including
+  * the integrated target's literal replacement quoting fix.
   * The substring check authorizes nothing; both exact patterns still decide.
   */
 class TypedBalancedReductionDeclarationFilterTests extends AnyFunSuite {
@@ -35,6 +36,12 @@ class TypedBalancedReductionDeclarationFilterTests extends AnyFunSuite {
       val line = "wire [2:0] " + name + ";"
       parity(line, Vector(other -> "[WIDTH-1:0]"))
     }
+    // Explicit semantic oracle: identifiers are literal replacement text.
+    val widths = Vector("a$1" -> "[WIDTH-1:0]")
+    assert(rewrite("wire [2:0] a$1;", widths) == "wire [WIDTH-1:0] a$1;")
+    assert(rewrite("wire a$1;", widths) == "wire [WIDTH-1:0] a$1;")
+    assert(reference("wire [2:0] a$1;", widths) == "wire [WIDTH-1:0] a$1;")
+    assert(reference("wire a$1;", widths) == "wire [WIDTH-1:0] a$1;")
   }
 
   test("non-declarations and complex declarations retain the existing acceptance boundary") {
@@ -100,10 +107,10 @@ class TypedBalancedReductionDeclarationFilterTests extends AnyFunSuite {
       val withRange = packedPattern.replaceAllIn(
         current,
         matched => {
-          if (replaced) matched.matched
+          if (replaced) Matcher.quoteReplacement(matched.matched)
           else {
             replaced = true
-            range + matched.group(2) + matched.group(3)
+            Matcher.quoteReplacement(range + matched.group(2) + matched.group(3))
           }
         }
       )
@@ -115,10 +122,10 @@ class TypedBalancedReductionDeclarationFilterTests extends AnyFunSuite {
         scalarPattern.replaceAllIn(
           withRange,
           matched => {
-            if (inserted) matched.matched
+            if (inserted) Matcher.quoteReplacement(matched.matched)
             else {
               inserted = true
-              matched.group(1) + range + " " + matched.group(2)
+              Matcher.quoteReplacement(matched.group(1) + range + " " + matched.group(2))
             }
           }
         )

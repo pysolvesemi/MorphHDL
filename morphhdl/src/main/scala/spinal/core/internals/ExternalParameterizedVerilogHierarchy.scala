@@ -856,7 +856,14 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
     val bindingMap = bindings.toMap
     val compoundWidths = canonicalPorts.flatMap { case (name, port) =>
-      ParameterizedWidth.expressionOf(port).filter(_.completedParameterRoots.size > 1).map { _ =>
+      // Inherited product-domain ports have already passed the exact owner,
+      // declaration-root and whole-width equivalence proof in
+      // inheritedCompoundBinding. They carry no explicit typed child family
+      // and must not enter the separate finite-table family substitution.
+      ParameterizedWidth.expressionOf(port).filter { width =>
+        width.completedParameterRoots.size > 1 &&
+          !width.parameters.forall(p => bindingMap(p.name).isInstanceOf[InheritedAxisBinding])
+      }.map { _ =>
         name -> validateTypedCompoundPortConnections(parent, child, canonical, actualByName(name), port,
           assignments, instanceName, name)
       }

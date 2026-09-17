@@ -110,6 +110,65 @@ class ContinuationTests(unittest.TestCase):
         self.commit([source])
         self.review.CONTRACT_SHA256 = digest
 
+    def test_projection_cache_is_deeply_immutable(self):
+        view = self.review._projection_contract(self.root)
+        self.assertIs(view, self.review._projection_contract(self.root))
+        with self.assertRaises(TypeError):
+            view['source_commit'] = '0' * 40
+        with self.assertRaises(TypeError):
+            view['files'][0]['path'] = 'unreviewed.scala'
+        with self.assertRaises(TypeError):
+            view['files'][0] = {}
+        self.check()
+
+    def test_public_manifest_cannot_poison_cached_projection(self):
+        first = self.review.contract(self.root)
+        first['source_commit'] = '0' * 40
+        first['files'][0]['path'] = 'poison.scala'
+        first['files'].clear()
+        self.assertEqual(self.review.contract(self.root), self.value)
+        self.assertEqual(self.review._projection_contract(self.root)['source_commit'], self.source)
+        self.check()
+
+    def test_projection_cache_reauthenticates_live_manifest(self):
+        self.review._projection_contract(self.root)
+        (self.root / CONTRACT).write_bytes(self.manifest + b'\n')
+        self.reject('sealed successor manifest changed',
+            lambda: self.review._projection_contract(self.root))
+
+    def test_projection_cache_reauthenticates_helper_mode(self):
+        self.review._projection_contract(self.root)
+        (self.root / HELPER).chmod(0o755)
+        self.reject('source mode changed',
+            lambda: self.review._projection_contract(self.root))
+
+    def test_cached_projection_does_not_authorize_new_source(self):
+        self.review._projection_contract(self.root)
+        path = self.root / 'morphhdl/src/main/scala/UnreviewedCacheInput.scala'
+        path.write_text('object UnreviewedCacheInput {}\n')
+        self.reject('untracked|unexpected')
+
+    def test_original_integration_inventory_survives_an_already_integrated_parent(self):
+        self.assertEqual(self.review.CONTINUATION_PARENT,
+            '14dc0d2bb7274d9e91b60f112619a78b237936ab')
+        git(self.root, 'merge-base', '--is-ancestor',
+            self.review.CONTINUATION_TARGET, self.review.CONTINUATION_PARENT)
+        self.assertEqual(set(e['path'] for e in self.value['target_integration']['files']),
+            self.review.changed(self.root, self.review.CONTINUATION_COMMON, self.review.CONTINUATION_TARGET))
+        self.assertEqual(git(self.root, 'merge-base', '--all',
+            self.review.CONTINUATION_INTEGRATION_PARENT, self.review.CONTINUATION_TARGET).decode().strip(),
+            self.review.CONTINUATION_COMMON)
+
+    def test_target_projection_cache_preserves_live_authentication(self):
+        target = load(self.root / 'morphhdl/scripts/check-increment-59i-target-integration.py')
+        first = target._projection_contract(self.root)
+        self.assertIs(first, target._projection_contract(self.root))
+        with self.assertRaises(TypeError):
+            first['files'][0]['path'] = 'poison.scala'
+        (self.root / HELPER).write_bytes(self.helper + b'\n# altered after cache\n')
+        self.reject('production successor reviewer changed',
+            lambda: target._projection_contract(self.root))
+
     def test_complete_current_source_and_both_original_certificates(self):
         value = self.check()
         self.assertEqual(value['previous_seal'], self.review.previous_certificate())

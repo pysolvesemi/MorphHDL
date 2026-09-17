@@ -48,6 +48,7 @@ SUCCESSOR = 'morphhdl/scripts/check-increment-59i-production-successor.py'
 SUCCESSOR_SHA256 = frozenset((
     'd18d47a49cbb363077b266e47f10ea8b8604542dec8ff1955b3f4d29de7634c4',
     'd719d46132368d732d508a5d92434408eef3d0a2634751b3dfcc2c082525726d',
+    '266aefad7bd29c81e837600eb8ff636b3220b50ed83cea86307605b8d8613496',
 ))
 
 
