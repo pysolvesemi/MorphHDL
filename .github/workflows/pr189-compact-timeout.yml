@@ -131,8 +131,18 @@ jobs:
           java -version 2>&1 | tee "$EVIDENCE/java-version.txt"
           iverilog -V > "$EVIDENCE/iverilog-version.txt" 2>&1
           yosys -V > "$EVIDENCE/yosys-version.txt"
-      # Keep the same payload, but expose individual stages so a failed native
-      # generator cannot be confused with a running inherited regression suite.
+      - name: Recheck the failed 59h mutation boundary before compiler regressions
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py \
+            2>&1 | tee "$EVIDENCE/early-59h.log"
+          grep -Fx '59h current-source controls PASS: two positives and 28 exact rejections; unchanged 59c historical controls separately scoped' "$EVIDENCE/early-59h.log"
+          test "$(git rev-parse HEAD)" = "$(head -n1 "$EVIDENCE/candidate-identity.txt")"
+          git diff --exit-code
+          git diff --cached --exit-code
+      # Keep every existing compiler, simulation and late source-mutation gate.
+      # The extra fail-fast check above prevents a known audit defect from being
+      # discovered only after both long inherited compiler regression suites.
       - name: Scala 2.12.18 native generation and exact construction rejections
         run: |
           set -euo pipefail
