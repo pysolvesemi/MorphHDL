@@ -129,7 +129,9 @@ def main() -> None:
             "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
         adapted = []
         for label, relative, mutation, expected in cases:
-            if mutation == "suffix" and relative in overlay_paths:
+            # Both edits must be rejected before historical projection.
+            # The frozen pre-rollout replay retains the inner span check.
+            if mutation in ("suffix", "inside") and relative in overlay_paths:
                 expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
             elif (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
                     relative.endswith("/TypedBalancedReductionCompositeReplay.scala") or

@@ -13,6 +13,7 @@ lazy val cdcIndependentParametersRepro = (project in file("."))
     name := "cdc-independent-parameters-repro",
     version := "0.1.0",
     scalaVersion := "2.12.18",
+    crossScalaVersions := Seq("2.12.18", "2.13.12"),
     scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:reflectiveCalls"),
     Compile / scalacOptions ++= Seq(
       "-Xplugin:" + (idsl / Compile / packageBin).value.getAbsolutePath,

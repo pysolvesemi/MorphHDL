@@ -1121,10 +1121,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     if (ElaborationProductDomain.isRetained(record.expression)) {
       val source = record.sourceLocation.orElse(record.expression.sourceLocation)
       val role = "retained symbolic UInt value"
-      val owned = ElaborationProductDomain.owner(record.expression, role, source) { (root, universe) =>
-        ParameterizedStructure.exactDeclarationDomainOf(
-          component, value, root, universe, role, source).values
-      }.get
+      val owned = ElaborationProductDomain.ownerWithCompact(record.expression, role, source)(
+        (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
+          component, value, root, universe, role, source).values,
+        (root, _) => ParameterizedStructure.requireCompactDeclarationOwner(
+          component, value, root, role, source)
+      ).get
       val (minimum, maximum) = owned.publicationRange
       val minimumWidth = ParameterizedWidth.expressionOf(value).map { width =>
         // A valid carrier can be literal, single-root, or compositional. Use
@@ -2237,6 +2239,31 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ParameterizedWidth.sourceLocationOf(bitVector).get
       }
 
+    /** A large integer domain is not a large hardware width. Admission here
+      * requires a genuine compact certificate and a real native consumer, not
+      * a name/schema match or an unused requirement. Every physical width is
+      * still checked independently by validateWidths below.
+      */
+    private def hasCompactParameterOwner(parameter: ElaborationIntegerParameter): Boolean = {
+      val widthOwner = declarations.distinct.exists {
+        case value: BitVector => ParameterizedWidth.expressionOf(value).exists { expression =>
+          if (!ElaborationProductDomain.hasCompactParameter(expression, parameter)) false
+          else {
+            NativePublicationWidth.validate(expression, component, value, "compact integer parameter width owner")
+            true
+          }
+        }
+        case _ => false
+      }
+      widthOwner || ExternalParameterizedValueRegistry.valuesOf(component).exists { case (value, record) =>
+        if (!ElaborationProductDomain.hasCompactParameter(record.expression, parameter)) false
+        else {
+          validateRetainedValueProjection(component, value, record)
+          true
+        }
+      }
+    }
+
     private def validateParameters(): Unit = {
       val portableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
       val namedDeclarations = declarations.distinct.flatMap { value =>
@@ -2264,7 +2291,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         if (
           parameter.minimum < 0 || parameter.maximum < parameter.minimum ||
           parameter.default < parameter.minimum || parameter.default > parameter.maximum ||
-          parameter.maximum > BigInt(pc.config.bitVectorWidthMax)
+          parameter.maximum > BigInt(Int.MaxValue) ||
+          (parameter.maximum > BigInt(pc.config.bitVectorWidthMax) && !hasCompactParameterOwner(parameter))
         ) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-PARAMETER-DOMAIN-INVALID",
@@ -2976,10 +3004,12 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         val role = s"signal '${declaration.getName()}' composed width"
         val owned = new IdentityHashMap[ElaborationIntegerExpression, ElaborationProductDomain.OwnerProof]()
         origins.foreach { origin =>
-          val proof = ElaborationProductDomain.owner(origin, role, source) {
+          val proof = ElaborationProductDomain.ownerWithCompact(origin, role, source)(
             (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
-              component, declaration, root, universe, role, source).values
-          }.getOrElse {
+              component, declaration, root, universe, role, source).values,
+            (root, _) => ParameterizedStructure.requireCompactDeclarationOwner(
+              component, declaration, root, role, source)
+          ).getOrElse {
             fail("SPINAL-ELAB-DOMAIN-PROJECTION-EVIDENCE-MISSING", s"$role lost its product proof", source)
           }
           owned.put(origin, proof)

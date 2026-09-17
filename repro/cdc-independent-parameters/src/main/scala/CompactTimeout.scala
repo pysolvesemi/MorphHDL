@@ -123,6 +123,26 @@ object CompactTimeoutSafety extends App {
   reject("arbitrary-enumeration", "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED") {
     ElaborationProductDomain.provesRelation(timeout.expression, ElabInt.literal(0).expression)(_ > _)
   }
+  // This is separate from the nine original authority controls: accepting
+  // compact integer values must not raise the physical bit-vector width cap.
+  var physicalWidthRejected = false
+  try {
+    MorphVerilog(SpinalConfig(targetDirectory = args(0) + "/oversized-packed-width",
+      headerWithDate = false, headerWithRepoHash = true)) {
+      new Component {
+        val bound = timeout
+        val din = in Bits(bound bits)
+        val dout = out Bits(bound bits)
+        dout := din
+      }
+    }
+  } catch {
+    case error: Exception if Option(error.getMessage).exists(
+      _.contains("SPINAL-PARAMETERIZED-VERILOG-EXPRESSION-DOMAIN-TOO-LARGE")) =>
+      physicalWidthRejected = true
+  }
+  assert(physicalWidthRejected, "compact integer admission bypassed the physical packed-width cap")
+  println("COMPACT_PHYSICAL_WIDTH_REJECTION_PASS")
   assert(controls == 9, "compact rejection inventory changed")
   println("COMPACT_TIMEOUT_SAFETY_PASS controls=" + controls)
 }

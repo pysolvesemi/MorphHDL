@@ -22,8 +22,15 @@ INC61 = "morphhdl/scripts/check-increment-61-source-review.py"
 INC61_CONTRACT = "morphhdl/contracts/increment-61-source-review.json"
 SUCCESSOR_PATHS = frozenset("""
 .github/workflows/cdc-independent-parameter-consumers.yml
+.github/workflows/pr189-compact-timeout.yml
+core/src/main/scala/spinal/core/ElaborationProductDomain.scala
 core/src/main/scala/spinal/core/ElaborationPublicationValue.scala
+core/src/main/scala/spinal/core/ExternalCompilerPermit.scala
+core/src/main/scala/spinal/core/NativeSymbolicLegality.scala
 core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala
+frontend/src/main/scala/morphhdl/frontend/HdlInt.scala
+frontend/src/main/scala/morphhdl/frontend/StructuralExpressionBridge.scala
+frontend/src/main/scala/spinal/core/ExternalAnalyzedFrontendPermitIssuer.scala
 morphhdl/contracts/increment-54-typed-layering-ir.contract
 morphhdl/contracts/increment-55-native-change-review.json
 morphhdl/contracts/increment-62-wa08-source-overlay.json
@@ -32,19 +39,26 @@ morphhdl/scripts/check-cdc-successor-source.py
 morphhdl/scripts/check-increment-61-source-review.py
 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
 morphhdl/scripts/check-typed-layering-ir.py
+morphhdl/scripts/test-increment-59h-inherited-source-scope.py
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala
 morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+morphhdl/src/main/scala/spinal/core/internals/NativePublicationWidth.scala
+morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogTests.scala
 morphruntime/src/main/scala/spinal/core/ElabValue.scala
 morphruntime/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala
+morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala
 repro/cdc-independent-parameters/.gitignore
 repro/cdc-independent-parameters/build.sbt
 repro/cdc-independent-parameters/check_baseline.py
+repro/cdc-independent-parameters/check_compact_timeout.py
 repro/cdc-independent-parameters/check_consumers.py
 repro/cdc-independent-parameters/export_tools.py
+repro/cdc-independent-parameters/prepare_compact_timeout.py
 repro/cdc-independent-parameters/project/build.properties
 repro/cdc-independent-parameters/repair_source_reviews.py
 repro/cdc-independent-parameters/src/main/scala/CdcConsumerSuccess.scala
 repro/cdc-independent-parameters/src/main/scala/CdcIndependentParametersRepro.scala
+repro/cdc-independent-parameters/src/main/scala/CompactTimeout.scala
 repro/cdc-independent-parameters/test_layering_root.py
 repro/cdc-independent-parameters/test_source_review.py
 """.split())

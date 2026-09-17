@@ -24,9 +24,29 @@ private[spinal] object ElaborationProductDomain {
   private type Root = ElaborationIntegerParameterRoot
   private type Environment = Map[Root, BigInt]
 
-  private final case class Axis(domain: ElaborationExactDomain[_], values: Vector[BigInt]) {
-    def root: Root = domain.root
-    def schema: ElaborationIntegerParameter = domain.parameter
+  // A compact axis is an authenticated closed interval, never a sampled
+  // exact-domain table. Its empty finite-storage vector is NOT an admitted
+  // universe; every operation which needs enumeration rejects it explicitly.
+  private final case class Axis(domain: Option[ElaborationExactDomain[_]], root: Root,
+                                schema: ElaborationIntegerParameter, values: Vector[BigInt]) {
+    def compact: Boolean = domain.isEmpty
+    def cardinality: BigInt = if (compact) schema.maximum - schema.minimum + 1 else BigInt(values.size)
+    def containsValue(value: BigInt): Boolean =
+      if (compact) value >= schema.minimum && value <= schema.maximum else values.contains(value)
+    def representative: BigInt =
+      if (compact || values.contains(schema.default)) schema.default else values.min
+    def sameScope(that: Axis): Boolean = compact == that.compact && values == that.values
+    def enumerationValues: Vector[BigInt] = {
+      if (compact) fail("SPINAL-ELAB-DOMAIN-COMPACT-ENUMERATION-UNSUPPORTED",
+        "this consumer requires exhaustive values, not compact declaration authority", root.sourceLocation)
+      values
+    }
+  }
+  private object Axis {
+    def apply(domain: ElaborationExactDomain[_], values: Vector[BigInt]): Axis =
+      new Axis(Some(domain), domain.root, domain.parameter, values)
+    def compact(root: Root, schema: ElaborationIntegerParameter): Axis =
+      new Axis(None, root, schema, Vector.empty)
   }
   private final case class Extrema(minimum: BigInt, maximum: BigInt) {
     def constant: Boolean = minimum == maximum
@@ -38,6 +58,10 @@ private[spinal] object ElaborationProductDomain {
   private sealed trait Atom {
     def roots: Set[Root]
     def evaluate(values: Environment): BigInt
+  }
+  private final case class CompactLeaf(root: Root) extends Atom {
+    val roots: Set[Root] = Set(root)
+    def evaluate(environment: Environment): BigInt = environment(root)
   }
   private final case class Leaf(root: Root, values: Map[BigInt, BigInt]) extends Atom {
     val roots: Set[Root] = Set(root)
@@ -128,6 +152,14 @@ private[spinal] object ElaborationProductDomain {
     retained.put(new Identity(value, queue), proof)
     ()
   }
+  /** Classification only: the publication caller must separately validate
+    * the exact live owner. Public schemas or equal names cannot mint this bit.
+    */
+  private[core] def hasCompactParameter(value: ElaborationIntegerExpression,
+      parameter: ElaborationIntegerParameter): Boolean =
+    certificate(value).exists(_.axes.exists(axis => axis.compact &&
+      (axis.schema eq parameter) && axis.root.isAuthoritativeSchema(parameter)))
+
   private[core] def isRetained(value: ElaborationIntegerExpression): Boolean = certificate(value).nonEmpty
   private[core] def isRetained(value: ElaborationBooleanExpression): Boolean = certificate(value).nonEmpty
   private[core] def needs(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean =
@@ -140,6 +172,36 @@ private[spinal] object ElaborationProductDomain {
   private def fail(code: String, detail: String, location: Option[String]): Nothing =
     ParameterizedVerilogException.fail(code, s"$Role $detail", location)
 
+  /** The only compact ingress: a one-use permit for a bare frontend
+    * declaration AST, not a public expression summary or sampled table.
+    */
+  private[core] def compactDeclaration(value: ElaborationIntegerExpression,
+      sourceIdentity: AnyRef, permit: ExternalCompilerPermit): ElaborationIntegerExpression = {
+    ExternalCompilerPermit.requireAnalyzedCompactDeclaration(permit, value, sourceIdentity)
+    ElabInt.validateExpression(value, "compact parameter declaration")
+    if (ElaborationDomainContext.hasActiveRestrictions)
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
+        "compact declarations cannot be minted in a structural branch", value.sourceLocation)
+    val schema = value.parameters match {
+      case Vector(parameter) => parameter
+      case _ => fail(Missing, "compact ingress needs exactly one declaration", value.sourceLocation)
+    }
+    val root = value.completedParameterRoots match {
+      case Vector(declaration) => declaration
+      case _ => fail(Missing, "compact ingress lost its exact root", value.sourceLocation)
+    }
+    if (schema.minimum < 1 || !schema.maximum.isValidInt ||
+        schema.maximum - schema.minimum + 1 <= MaximumJointValues ||
+        value.default != schema.default || value.minimum != schema.minimum || value.maximum != schema.maximum ||
+        value.verilog != schema.name || root.name != schema.name ||
+        value.generateIndex.nonEmpty || value.exactDomain.nonEmpty || value.projectionProvenance.nonEmpty)
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-DECLARATION-INVALID",
+        "compact ingress requires an unchanged positive Int-sized direct declaration", value.sourceLocation)
+    root.bindAuthoritativeSchema(schema, "compact parameter declaration", value.sourceLocation)
+    retain(value, TrustedExpressionEvidence(atom(CompactLeaf(root)), Vector(Axis.compact(root, schema))))
+    value
+  }
+
   private def merge(sources: Vector[TrustedExpressionEvidence], location: Option[String]): Vector[Axis] = {
     val axes = sources.flatMap(_.axes).foldLeft(Vector.empty[Axis]) { (known, axis) =>
       known.find(_.root.name == axis.root.name) match {
@@ -149,7 +211,7 @@ private[spinal] object ElaborationProductDomain {
         case Some(previous) if (previous.root ne axis.root) || (previous.schema ne axis.schema) =>
           fail("SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED",
             s"has distinct declarations for the same emitted name '${axis.root.name}'", location)
-        case Some(previous) if previous.values != axis.values =>
+        case Some(previous) if !previous.sameScope(axis) =>
           fail("SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH",
             s"has incompatible authorized scopes for '${axis.root.name}'", location)
         case Some(_) => known
@@ -163,11 +225,19 @@ private[spinal] object ElaborationProductDomain {
 
   private def active(proof: TrustedExpressionEvidence, role: String, location: Option[String]): TrustedExpressionEvidence = {
     val axes = proof.axes.map { axis =>
-      val requested = ElaborationDomainContext.admitted(axis.domain)
-      if (requested.isEmpty || !requested.subsetOf(axis.values.toSet))
-        fail("SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH",
-          s"$role cannot use '${axis.root.name}' outside its authorized branch", location)
-      axis.copy(values = requested.toVector.sorted)
+      if (axis.compact) {
+        // This first compact ingress deliberately grants no branch projection.
+        if (ElaborationDomainContext.hasActiveRestrictions)
+          fail("SPINAL-ELAB-DOMAIN-COMPACT-SCOPE-UNSUPPORTED",
+            s"$role cannot use a compact declaration under structural restrictions", location)
+        axis
+      } else {
+        val requested = ElaborationDomainContext.admitted(axis.domain.get)
+        if (requested.isEmpty || !requested.subsetOf(axis.values.toSet))
+          fail("SPINAL-ELAB-DOMAIN-EVIDENCE-SCOPE-MISMATCH",
+            s"$role cannot use '${axis.root.name}' outside its authorized branch", location)
+        axis.copy(values = requested.toVector.sorted)
+      }
     }
     proof.copy(axes = axes)
   }
@@ -222,10 +292,10 @@ private[spinal] object ElaborationProductDomain {
       }
   }
   private def representative(axes: Vector[Axis]): Environment = axes.map { axis =>
-    axis.root -> (if (axis.values.contains(axis.schema.default)) axis.schema.default else axis.values.min)
+    axis.root -> axis.representative
   }.toMap
   private def relevant(roots: Set[Root], axes: Vector[Axis]): Vector[Axis] = axes.filter(axis => roots(axis.root))
-  private def domainSize(axes: Vector[Axis]): BigInt = axes.foldLeft(BigInt(1))((n, axis) => n * axis.values.size)
+  private def domainSize(axes: Vector[Axis]): BigInt = axes.foldLeft(BigInt(1))((n, axis) => n * axis.cardinality)
 
   /** Streaming fallback: no product vector is built, and only overlapping
     * dependencies enter this evaluator. The cap is a rejection, not a sample.
@@ -277,6 +347,9 @@ private[spinal] object ElaborationProductDomain {
     Extrema(form.constant + limits.map(_.minimum).sum, form.constant + limits.map(_.maximum).sum)
   }
   private def atomBounds(value: Atom, axes: Vector[Axis], location: Option[String]): Extrema = value match {
+    case CompactLeaf(root) =>
+      val axis = axes.find(_.root eq root).get
+      Extrema(axis.schema.minimum, axis.schema.maximum)
     case leaf: Leaf =>
       val values = axes.find(_.root eq leaf.root).get.values.map(leaf.values)
       Extrema(values.min, values.max)
@@ -351,7 +424,7 @@ private[spinal] object ElaborationProductDomain {
           } else if (operands(0).roots.size == 1) {
             val root = operands(0).roots.head
             val axis = axes.find(_.root eq root).get
-            val (yesValues, noValues) = axis.values.partition(value => operands(0).evaluate(Map(root -> value)) != 0)
+            val (yesValues, noValues) = axis.enumerationValues.partition(value => operands(0).evaluate(Map(root -> value)) != 0)
             val choices = Vector(yesValues -> operands(1), noValues -> operands(2)).collect {
               case (values, arm) if values.nonEmpty =>
                 bounds(arm, axes.map(a => if (a.root eq root) a.copy(values = values) else a), location)
@@ -394,6 +467,9 @@ private[spinal] object ElaborationProductDomain {
       Enclosure(form.constant + parts.map(_.minimum).sum, form.constant + parts.map(_.maximum).sum)
     })
     def atomEnclosure(value: Atom): Enclosure = value match {
+      case CompactLeaf(root) =>
+        val axis = proof.axes.find(_.root eq root).get
+        Enclosure(axis.schema.minimum, axis.schema.maximum)
       case leaf: Leaf =>
         val values = proof.axes.find(_.root eq leaf.root).get.values.map(leaf.values)
         Enclosure(values.min, values.max)
@@ -613,7 +689,7 @@ private[spinal] object ElaborationProductDomain {
         if (current.axes == original.axes) value else publishBoolean(value.verilog, current, value.sourceLocation).expression
     }
   private[core] def hasCompleteDomain(value: ElaborationIntegerExpression): Boolean =
-    certificate(value).exists(_.axes.forall(axis => axis.values.toSet == axis.domain.universe))
+    certificate(value).exists(_.axes.forall(axis => axis.compact || axis.values.toSet == axis.domain.get.universe))
   private[core] def equivalent(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean = {
     val l = source(left); val r = source(right)
     if (!sameAxes(l.axes, r.axes)) false
@@ -659,7 +735,7 @@ private[spinal] object ElaborationProductDomain {
     else if (c.form.roots.size == 1) {
       val root = c.form.roots.head
       val selected = axes.map(axis => if (axis.root ne root) axis else
-        axis.copy(values = axis.values.filter(n => c.form.evaluate(Map(root -> n)) != 0)))
+        axis.copy(values = axis.enumerationValues.filter(n => c.form.evaluate(Map(root -> n)) != 0)))
       pair(bounds(v.form, selected, location))
     } else {
       var low: Option[BigInt] = None
@@ -677,14 +753,14 @@ private[spinal] object ElaborationProductDomain {
 
   private def sameAxes(left: Vector[Axis], right: Vector[Axis]): Boolean =
     left.size == right.size && left.forall(l => right.exists(r =>
-      (l.root eq r.root) && (l.schema eq r.schema) && l.values == r.values))
+      (l.root eq r.root) && (l.schema eq r.schema) && l.sameScope(r)))
   private[core] def evaluate(value: ElaborationIntegerExpression, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
     val proof = source(value)
     evaluate(proof, bindings)
   }
   private def evaluate(proof: TrustedExpressionEvidence, bindings: Vector[(Root, BigInt)]): Option[BigInt] = {
     if (bindings.map(_._1).distinct.size != bindings.size) return None
-    if (proof.axes.exists(axis => !bindings.find(_._1 eq axis.root).exists(entry => axis.values.contains(entry._2)))) None
+    if (proof.axes.exists(axis => !bindings.find(_._1 eq axis.root).exists(entry => axis.containsValue(entry._2)))) None
     else Some(proof.form.evaluate(bindings.toMap))
   }
 
@@ -697,7 +773,7 @@ private[spinal] object ElaborationProductDomain {
     private[ElaborationProductDomain] val publicationBounds = checkedEnclosure(proof, sourceLocation)
     val roots: Vector[Root] = proof.axes.map(_.root)
     val schemas: Vector[ElaborationIntegerParameter] = proof.axes.map(_.schema)
-    val rootValues: Vector[Vector[BigInt]] = proof.axes.map(_.values)
+    def rootValues: Vector[Vector[BigInt]] = proof.axes.map(_.enumerationValues)
     def publicationRange: (BigInt, BigInt) = publicationBounds.minimum -> publicationBounds.maximum
     def minimum: BigInt = limits.minimum
     def maximum: BigInt = limits.maximum
@@ -720,8 +796,17 @@ private[spinal] object ElaborationProductDomain {
   private[core] def literalOwner(value: BigInt): OwnerProof =
     new OwnerProof(TrustedExpressionEvidence(literal(value), Vector.empty), None)
 
+  // Retain the existing JVM/API entrypoint; old finite consumers do not gain
+  // compact authority merely because their callback accepts a Set.
   private[core] def owner(value: ElaborationIntegerExpression, role: String, location: Option[String])(
-      ownerValues: (Root, Set[BigInt]) => Set[BigInt]): Option[OwnerProof] = {
+      ownerValues: (Root, Set[BigInt]) => Set[BigInt]): Option[OwnerProof] =
+    ownerWithCompact(value, role, location)(ownerValues, (_, _) =>
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-UNSUPPORTED",
+        s"$role has no compact native-owner validator", location))
+
+  private[core] def ownerWithCompact(value: ElaborationIntegerExpression, role: String, location: Option[String])(
+      ownerValues: (Root, Set[BigInt]) => Set[BigInt],
+      compactOwner: (Root, ElaborationIntegerParameter) => Unit): Option[OwnerProof] = {
     val retainedProof = certificate(value)
     if (retainedProof.isEmpty) {
       // Authenticate raw single-root metadata through the very same carrier
@@ -738,11 +823,16 @@ private[spinal] object ElaborationProductDomain {
     ElabInt.validateExpression(value, role)
     validateInventory(value.parameters, value.completedParameterRoots, original, role, location)
     val axes = original.axes.map { axis =>
-      val requested = ownerValues(axis.root, axis.domain.universe)
-      if (requested.isEmpty || !requested.subsetOf(axis.values.toSet))
-        fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
-          s"$role exceeds its authorized owner scope for '${axis.root.name}'", location)
-      axis.copy(values = requested.toVector.sorted)
+      if (axis.compact) {
+        compactOwner(axis.root, axis.schema)
+        axis
+      } else {
+        val requested = ownerValues(axis.root, axis.domain.get.universe)
+        if (requested.isEmpty || !requested.subsetOf(axis.values.toSet))
+          fail("SPINAL-ELAB-DOMAIN-PROJECTION-OWNER-SCOPE-MISMATCH",
+            s"$role exceeds its authorized owner scope for '${axis.root.name}'", location)
+        axis.copy(values = requested.toVector.sorted)
+      }
     }
     val owned = new OwnerProof(original.copy(axes = axes), location)
     if (owned.default != value.default)

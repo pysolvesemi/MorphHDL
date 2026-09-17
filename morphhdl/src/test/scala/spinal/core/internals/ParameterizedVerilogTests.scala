@@ -317,18 +317,20 @@ class ParameterizedVerilogTests extends AnyFunSuite {
 
   test("retained value rewrite rejects a stale same-name emitted right-hand side") {
     withTemporaryDirectory { directory =>
-      val binaryWidth = ElaborationIntegerParameter("BINARY_WIDTH", 4, 2, 8)
-      val hexWidth = ElaborationIntegerParameter("HEX_WIDTH", 8, 6, 8)
+      // Authenticated widths let this test reach emitted-lineage validation;
+      // raw public schemas must not be used to bypass carrier authority.
+      val binaryWidth = HdlInt.param("BINARY_WIDTH", 4, 2, 8).asElabInt
+      val hexWidth = HdlInt.param("HEX_WIDTH", 8, 6, 8).asElabInt
       val report = SpinalVerilog(concreteConfig(directory)) {
         new Component {
           setDefinitionName("RetainedValueEmittedLineage")
           val observedBinary = out(UInt(4 bits)).setName("observed_binary")
           val observedHex = out(UInt(8 bits)).setName("observed_hex")
           val retainedBinary = ParameterizedWidth
-            .UInt(ParameterizedBitCount(4, binaryWidth))
+            .UInt(binaryWidth.bits)
             .setName("retained_binary")
           val retainedHex = ParameterizedWidth
-            .UInt(ParameterizedBitCount(8, hexWidth))
+            .UInt(hexWidth.bits)
             .setName("retained_hex")
           retainedBinary.assignFrom(UIntLiteral(BigInt(3), null, 4))
           retainedHex.assignFrom(UIntLiteral(BigInt(42), null, 8))
