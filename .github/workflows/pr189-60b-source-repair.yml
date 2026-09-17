@@ -17,10 +17,13 @@ defaults:
 
 env:
   PYTHONDONTWRITEBYTECODE: '1'
+  SBT_TEST_PARALLEL: '0'
+  JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
+  JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
 
 jobs:
-  repair-source-review:
-    name: Repair only the failed inherited 60b source-audit composition
+  seal-control:
+    name: Authenticate the CI-passed 60b repair and seal only this controller
     if: >-
       github.event.action == 'submitted' && github.event.review.state == 'commented' &&
       github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner &&
@@ -29,9 +32,9 @@ jobs:
       github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' &&
       github.event.pull_request.base.ref == 'parameterized-verilog' &&
       github.event.review.commit_id == github.event.pull_request.head.sha &&
-      github.event.review.body == format('pr189:repair-60b:{0}', github.event.pull_request.head.sha)
+      github.event.review.body == format('pr189:qualify-60b:{0}', github.event.pull_request.head.sha)
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 45
     permissions:
       contents: write
       actions: read
@@ -46,281 +49,320 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: true
-      - name: Authenticate the actual full-CI failure, not a historical skip
+      - name: Require actual passed source checks and the exact independently published candidate
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            fs.mkdirSync('/tmp/pr189-60b-source', {recursive:true});
-            const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo, run_id:35194688418});
-            if (run.head_sha !== '05e8f46b76c39017958b98c36b04475493446cef' ||
-                run.head_branch !== 'agent/cdc-independent-parameter-consumers' ||
-                run.path !== '.github/workflows/increment-60b-signedness-authority.yml' ||
-                run.status !== 'completed' || run.conclusion !== 'failure') {
-              throw new Error('The pinned 60b source-scope failure no longer matches');
+            const fs=require('fs'), crypto=require('crypto'), cp=require('child_process');
+            const dir='/tmp/pr189-60b-control'; fs.mkdirSync(dir,{recursive:true});
+            const {data:job}=await github.rest.actions.getJobForWorkflowRun({...context.repo,job_id:105128859008});
+            const expected=['Apply the pinned CI-only repair and seal its exact reviewed inventory',
+              'Execute the repaired source step and unchanged native rejection controls',
+              'Reject real mutations of the new workflow review without altering any verifier'];
+            if(job.run_id!==35198971684 || job.head_sha!=='46a19a28b101d0ada4044d7d05c8da1d50965362' ||
+                !expected.every(name=>job.steps.some(s=>s.name===name && s.conclusion==='success')) ||
+                !job.steps.some(s=>s.name==='Publish only the source-verified repair with automatic CI suppressed' && s.conclusion==='failure')) {
+              throw new Error('Missing actual source success followed by the known workflow-token publication rejection');
             }
-            const {data: jobs} = await github.rest.actions.listJobsForWorkflowRun({...context.repo,run_id:run.id,per_page:100});
-            if (jobs.total_count !== 2 || !jobs.jobs.every(j => j.conclusion === 'failure' &&
-                j.steps.some(s => s.name === 'Check merged prerequisite and unchanged native/emitter scope' && s.conclusion === 'failure'))) {
-              throw new Error('Both expected Scala lanes must have the actual source-scope failure');
-            }
-            fs.writeFileSync('/tmp/pr189-60b-source/failed-run.json', JSON.stringify({run,jobs},null,2));
-      - name: Apply the pinned CI-only repair and seal its exact reviewed inventory
+            const {data:download}=await github.rest.actions.downloadArtifact({...context.repo,artifact_id:10487153703,archive_format:'zip'});
+            const zip=Buffer.from(download);
+            if(crypto.createHash('sha256').update(zip).digest('hex')!=='34a80481d6e8bfd9147a830165a2612e724095c3a0a24ef05df73cdddea0902d') throw new Error('Source artifact bytes changed');
+            fs.writeFileSync(dir+'/source-repair.zip',zip);
+            const identity=JSON.parse(cp.execFileSync('python3',['-c',
+              'import json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1])\ni=z.getinfo("identity.json")\nassert i.file_size<100000\nprint(z.read(i).decode())',dir+'/source-repair.zip'],{encoding:'utf8'}));
+            if(identity.head!=='9d6d5ba21a9c1137e6c36fb5a80162402a9ae6e2' ||
+                identity.tree!=='9e32e13f56fea5ef71d3e7b14fbbeaf9a6041f15' ||
+                identity.source_anchor!=='d81a27d734cc51880de326a1cf0e6f2969775f90' ||
+                identity.input!=='46a19a28b101d0ada4044d7d05c8da1d50965362' ||
+                identity.compiler_and_test_sources_unchanged!==true) throw new Error('The inspected source candidate identity does not match');
+            fs.writeFileSync(dir+'/source-success.json',JSON.stringify({identity,job},null,2));
+      - name: Seal this one-file controller update without asking the Actions token to modify workflows
         run: |
           set -euo pipefail
-          mkdir -p /tmp/pr189-60b-source
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           python3 - <<'PY'
-          import importlib.util, json, os, re, subprocess, tempfile
+          import importlib.util,json,os,re,subprocess,tempfile
           from pathlib import Path
-          root = Path.cwd()
-          base = '05e8f46b76c39017958b98c36b04475493446cef'
-          target = '27af65abbee0d2334d6be7a6e4e2408b8af32fd9'
-          transport = '.github/workflows/pr189-60b-source-repair.yml'
-          workflow = '.github/workflows/increment-60b-signedness-authority.yml'
-          successor = 'morphhdl/scripts/check-cdc-successor-source.py'
-          helper = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
-          manifest = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
-          evidence = Path('/tmp/pr189-60b-source')
-          def git(*args):
-              return subprocess.check_output(['git', '--literal-pathspecs', *args], timeout=120)
-          def require(ok, detail):
-              if not ok: raise RuntimeError('PR189 60b repair: ' + detail)
-          def changed(a, b):
-              return {p.decode() for p in git('diff','--no-renames','--name-only','-z',a,b).split(b'\0') if p}
-          head = git('rev-parse','HEAD').decode().strip()
-          require(head == os.environ['EXPECTED_INPUT'], 'wrong input head')
-          require(git('show','-s','--format=%P',head).decode().strip() == base, 'unexpected parent')
-          require(changed(base,head) == {transport}, 'transport must be the only input change')
-          require(not git('status','--porcelain','--untracked-files=all'), 'dirty input')
+          root=Path.cwd()
+          base='9d6d5ba21a9c1137e6c36fb5a80162402a9ae6e2'
+          target='27af65abbee0d2334d6be7a6e4e2408b8af32fd9'
+          control='.github/workflows/pr189-60b-source-repair.yml'
+          helper='morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+          contract='morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          def git(*args): return subprocess.check_output(['git','--literal-pathspecs',*args],timeout=120)
+          def require(ok,message):
+              if not ok: raise RuntimeError('PR189 60b controller: '+message)
+          head=git('rev-parse','HEAD').decode().strip()
+          require(head==os.environ['EXPECTED_INPUT'],'wrong input')
+          require(git('show','-s','--format=%P',head).decode().strip()==base,'unexpected parent')
+          changed=set(git('diff','--name-only',base,head).decode().splitlines())
+          require(changed=={control},'unreviewed input change')
+          require(git('rev-parse',base+'^{tree}').decode().strip()=='9e32e13f56fea5ef71d3e7b14fbbeaf9a6041f15','wrong passed source tree')
+          require(not git('status','--porcelain','--untracked-files=all'),'dirty input')
           git('merge-base','--is-ancestor',target,head)
-          require(git('rev-parse',base+':'+workflow).decode().strip() == 'd10a959c71a34236962e192f74f51ca8175fe8e5', 'unexpected failed workflow blob')
-          with tempfile.TemporaryDirectory(prefix='pr189-60b-previous-') as directory:
-              checkout = Path(directory) / 'source'
-              git('worktree','add','--quiet','--detach',str(checkout),base)
+          with tempfile.TemporaryDirectory(prefix='pr189-passed-60b-') as directory:
+              previous=Path(directory)/'source'
+              git('worktree','add','--quiet','--detach',str(previous),base)
               try:
-                  subprocess.run(['python3',str(checkout/helper)],cwd=checkout,check=True,timeout=300)
-                  subprocess.run(['python3',str(checkout/successor)],cwd=checkout,check=True,timeout=300)
-              finally:
-                  git('worktree','remove','--force',str(checkout))
-          before = (root/workflow).read_text()
-          needle = '          python3 morphhdl/scripts/check-increment-60b-signedness-authority.py\n'
-          require(before.count(needle) == 1, 'ambiguous historical source-audit call')
-          # Reuse the same exact current-source and pre-Increment61 composition
-          # as 60c, while also replaying the original 60b guard unchanged on its
-          # actual merged source. No --without-git-scope bypass is introduced.
-          commands = [
-              'python3 morphhdl/scripts/check-increment-61-source-review.py',
-              'python3 morphhdl/scripts/check-increment-61-source-review.py --self-test',
-              'predecessor=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)',
-              'historical_60b=d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0',
-              'git merge-base --is-ancestor "$predecessor" HEAD',
-              'git merge-base --is-ancestor "$historical_60b" HEAD',
-              'temporary=$(mktemp -d)',
-              'trap \'git worktree remove --force "$temporary/60b" >/dev/null 2>&1 || true; git worktree remove --force "$temporary/pre-61" >/dev/null 2>&1 || true; rm -rf "$temporary"\' EXIT',
-              'git worktree add --quiet --detach "$temporary/60b" "$historical_60b"',
-              '(cd "$temporary/60b" && python3 morphhdl/scripts/check-increment-60b-signedness-authority.py)',
-              'git worktree add --quiet --detach "$temporary/pre-61" "$predecessor"',
-              '(cd "$temporary/pre-61" && python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only)',
-          ]
-          replacement = ''.join('          '+line+'\n' for line in commands)
-          after = before.replace(needle,replacement)
-          # The additional immutable audits need the same headroom as the
-          # inherited source adapters; no command or behavioral gate is removed.
-          require(after.count('    timeout-minutes: 30\n') == 1, 'unexpected timeout declaration')
-          after = after.replace('    timeout-minutes: 30\n','    timeout-minutes: 45\n',1)
-          require(after.replace(replacement,needle).replace('    timeout-minutes: 45\n','    timeout-minutes: 30\n',1) == before,
-                  'repair altered a behavioral command or other workflow content')
-          (root/workflow).write_text(after)
-          (evidence/'source-step.sh').write_text('set -euo pipefail\n'+'\n'.join(commands)+'\n')
-          old_successor = (root/successor).read_text()
-          marker = 'SUCCESSOR_PATHS = frozenset("""\n'
-          require(old_successor.count(marker) == 1, 'ambiguous successor inventory')
-          require(transport not in old_successor and workflow not in old_successor, 'new paths already admitted')
-          new_successor = old_successor.replace(marker,marker+workflow+'\n'+transport+'\n',1)
-          require(new_successor.replace(marker+workflow+'\n'+transport+'\n',marker,1) == old_successor,
-                  'successor algorithm changed')
-          (root/successor).write_text(new_successor)
-          git('add','--',workflow,successor)
-          git('commit','-q','-m','PR189: compose the failed 60b audit with exact inherited source reviews [skip ci]')
-          anchor = git('rev-parse','HEAD').decode().strip()
-          require(changed(base,anchor) == {transport,workflow,successor}, 'unexpected source anchor delta')
-          spec = importlib.util.spec_from_file_location('reviewed_wa08',root/helper)
-          wa = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(wa)
-          old = wa.contract(root)
-          records = {entry['path']:entry for entry in old['files']}
-          before_records = json.loads(json.dumps(records))
-          for path in (transport,workflow,successor):
-              raw = wa.regular(root,path)
-              previous = wa.frozen(root,wa.BASE,path)
-              old_hash = wa.digest(previous) if previous is not None else None
-              if path in records:
-                  require(records[path]['before_sha256'] == old_hash and records[path]['mode'] == '100644', 'baseline or mode changed: '+path)
-                  require(records[path]['after_sha256'] == wa.digest(git('show',base+':'+path)), 'unreviewed previous bytes: '+path)
-                  records[path]['after_sha256'] = wa.digest(raw)
-              else:
-                  records[path] = {'path':path,'mode':'100644','before_sha256':old_hash,'after_sha256':wa.digest(raw)}
-          for path,entry in before_records.items():
-              if path not in (transport,workflow,successor): require(records[path] == entry, 'unrelated review entry changed: '+path)
-          old['files'] = [records[path] for path in sorted(records)]
-          old['final_source_commit'] = anchor
-          (root/manifest).write_text(json.dumps(old,indent=2)+'\n')
-          old_helper = (root/helper).read_bytes()
-          updated,count = re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',
-              ('CONTRACT_SHA256 = "'+wa.digest((root/manifest).read_bytes())+'"').encode(),old_helper,count=1,flags=re.M)
-          require(count == 1 and wa.normalized_helper(updated) == wa.normalized_helper(old_helper), 'overlay verifier algorithm changed')
-          (root/helper).write_bytes(updated)
-          git('add','--',helper,manifest)
-          git('commit','-q','-m','PR189: seal the exact 60b workflow-only audit repair [skip ci]')
-          expected = {transport,workflow,successor,helper,manifest}
-          require(changed(base,'HEAD') == expected, 'unexpected final repair delta')
-          require(not git('status','--porcelain','--untracked-files=all'), 'dirty final candidate')
-          (evidence/'identity.json').write_text(json.dumps({'input':head,'previous_head':base,'target':target,
-              'source_anchor':anchor,'head':git('rev-parse','HEAD').decode().strip(),
-              'tree':git('rev-parse','HEAD^{tree}').decode().strip(),
-              'changed_paths':sorted(expected),'compiler_and_test_sources_unchanged':True},indent=2)+'\n')
+                  subprocess.run(['python3',str(previous/'morphhdl/scripts/check-increment-61-source-review.py')],cwd=previous,check=True,timeout=300)
+              finally: git('worktree','remove','--force',str(previous))
+          spec=importlib.util.spec_from_file_location('wa08_control',root/helper)
+          wa=importlib.util.module_from_spec(spec); spec.loader.exec_module(wa)
+          manifest=wa.contract(root)
+          records=manifest['files']
+          selected=[entry for entry in records if entry['path']==control]
+          require(len(selected)==1,'controller missing from exact reviewed inventory')
+          entry=selected[0]
+          require(entry['mode']=='100644' and entry['before_sha256'] is None,'controller baseline or mode changed')
+          require(entry['after_sha256']==wa.digest(git('show',base+':'+control)),'wrong previous reviewed controller')
+          entry['after_sha256']=wa.digest(wa.regular(root,control))
+          manifest['final_source_commit']=head
+          (root/contract).write_text(json.dumps(manifest,indent=2)+'\n')
+          old=(root/helper).read_bytes()
+          new,count=re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',
+              ('CONTRACT_SHA256 = "'+wa.digest((root/contract).read_bytes())+'"').encode(),old,count=1,flags=re.M)
+          require(count==1 and wa.normalized_helper(new)==wa.normalized_helper(old),'verifier algorithm changed')
+          (root/helper).write_bytes(new)
+          git('add','--',helper,contract)
+          git('commit','-q','-m','PR189: seal failed-60b-first qualification control without workflow-token writes [skip ci]')
+          require(set(git('diff','--name-only',head,'HEAD').decode().splitlines())=={helper,contract},'Actions candidate changes a workflow or compiler file')
+          require(set(git('diff','--name-only',base,'HEAD').decode().splitlines())=={control,helper,contract},'unexpected complete controller delta')
+          Path('/tmp/pr189-60b-control/identity.json').write_text(json.dumps({'input':head,'base':base,'target':target,
+              'head':git('rev-parse','HEAD').decode().strip(),'tree':git('rev-parse','HEAD^{tree}').decode().strip(),
+              'compiler_and_test_sources_unchanged':True},indent=2)+'\n')
           PY
           git diff --check
-          git diff --binary 05e8f46b76c39017958b98c36b04475493446cef HEAD > /tmp/pr189-60b-source/candidate.patch
-      - name: Execute the repaired source step and unchanged native rejection controls
-        run: |
-          set -euo pipefail
-          bash /tmp/pr189-60b-source/source-step.sh 2>&1 | tee /tmp/pr189-60b-source/repaired-source-step.log
-          for checker in check-increment-62-wa08-source-overlay.py check-native-source-preservation.py; do
-            python3 "morphhdl/scripts/$checker" 2>&1 | tee "/tmp/pr189-60b-source/$checker.log"
-            python3 "morphhdl/scripts/$checker" --self-test 2>&1 | tee "/tmp/pr189-60b-source/$checker-mutations.log"
-          done
-          python3 morphhdl/scripts/check-increment-58-retirement.py
-          python3 morphhdl/scripts/check-production-retirement.py
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py
-      - name: Reject real mutations of the new workflow review without altering any verifier
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import subprocess
-          from pathlib import Path
-          paths = ('.github/workflows/increment-60b-signedness-authority.yml',
-                   '.github/workflows/pr189-60b-source-repair.yml')
-          for index,path in enumerate(paths):
-              file = Path(path)
-              original = file.read_bytes()
-              try:
-                  file.write_bytes(original+b'\n# PR189 unreviewed workflow mutation\n')
-                  result = subprocess.run(['python3','morphhdl/scripts/check-increment-61-source-review.py'],
-                      text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=300)
-                  Path('/tmp/pr189-60b-source/mutation-'+str(index)+'.log').write_text(result.stdout)
-                  if result.returncode == 0 or 'WA-08 source overlay:' not in result.stdout or path not in result.stdout:
-                      raise RuntimeError('workflow mutation did not reach its exact source guard: '+path)
-                  print('PR189_60B_WORKFLOW_MUTATION_REJECTED '+path)
-              finally:
-                  file.write_bytes(original)
-          PY
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
           git diff --exit-code
           git diff --cached --exit-code
       - id: publish
-        name: Publish only the source-verified repair with automatic CI suppressed
+        name: Publish only the checked metadata seal with automatic CI suppressed
         run: |
           set -euo pipefail
           branch='agent/cdc-independent-parameter-consumers'
           test "$(git ls-remote --exit-code origin "refs/heads/$branch" | cut -f1)" = "$EXPECTED_INPUT"
           test "$(git ls-remote --exit-code origin refs/heads/parameterized-verilog | cut -f1)" = 27af65abbee0d2334d6be7a6e4e2408b8af32fd9
           git merge-base --is-ancestor "$EXPECTED_INPUT" HEAD
-          for commit in $(git rev-list "$EXPECTED_INPUT..HEAD"); do git show -s --format=%B "$commit" | grep -F '[skip ci]'; done
+          git show -s --format=%B HEAD | grep -F '[skip ci]'
+          git diff --exit-code "$EXPECTED_INPUT" HEAD -- .github/workflows
           git push origin "HEAD:refs/heads/$branch"
           printf 'head=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
-          git rev-parse HEAD > /tmp/pr189-60b-source/published-head.txt
+          git rev-parse HEAD > /tmp/pr189-60b-control/published-head.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr189-60b-source-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
-          path: /tmp/pr189-60b-source/
+          name: pr189-60b-control-${{ github.event.pull_request.head.sha }}-${{ github.run_attempt }}
+          path: /tmp/pr189-60b-control/
           if-no-files-found: error
           retention-days: 30
 
-  qualify-only-failed-60b:
-    name: Rerun only the failed 60b workflow on the repaired published head
-    needs: repair-source-review
+  failed-first:
+    name: Qualify only failed full-stage workflows before restarting exact-head full CI
+    needs: seal-control
     runs-on: ubuntu-24.04
-    timeout-minutes: 105
+    timeout-minutes: 330
     permissions:
       contents: read
       actions: write
     env:
-      QUALIFICATION_HEAD: ${{ needs.repair-source-review.outputs.head }}
+      QUALIFICATION_HEAD: ${{ needs.seal-control.outputs.head }}
     steps:
-      - name: Require both actual Scala lanes, unchanged behavioral gates and baseline proofs
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.seal-control.outputs.head }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Recover the authentic full inventory, rerun failures first, then dispatch full CI
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            const dir = '/tmp/pr189-60b-qualification'; fs.mkdirSync(dir,{recursive:true});
-            const head = process.env.QUALIFICATION_HEAD;
-            const branch = 'agent/cdc-independent-parameter-consumers';
-            const target = '27af65abbee0d2334d6be7a6e4e2408b8af32fd9';
-            const workflow_id = 350709339;
-            const path = '.github/workflows/increment-60b-signedness-authority.yml';
-            if (!/^[0-9a-f]{40}$/.test(head)) throw new Error('Missing published qualification head');
-            async function unchanged() {
-              const {data: pr} = await github.rest.pulls.get({...context.repo,pull_number:189});
-              if (pr.state !== 'open' || pr.head.sha !== head || pr.head.ref !== branch ||
-                  pr.head.repo.full_name !== 'pysolvesemi/MorphHDL' || pr.base.ref !== 'parameterized-verilog' || pr.base.sha !== target) {
-                throw new Error('PR189 head or target moved; do not dispatch or qualify another source');
+            const fs=require('fs'), crypto=require('crypto'), cp=require('child_process');
+            const dir='/tmp/pr189-60b-gates'; fs.mkdirSync(dir,{recursive:true});
+            const head=process.env.QUALIFICATION_HEAD, target='27af65abbee0d2334d6be7a6e4e2408b8af32fd9';
+            const previous='05e8f46b76c39017958b98c36b04475493446cef', repaired='9d6d5ba21a9c1137e6c36fb5a80162402a9ae6e2';
+            const branch='agent/cdc-independent-parameter-consumers', cutoff=Date.parse('2026-09-17T07:27:40Z');
+            if(!/^[0-9a-f]{40}$/.test(head)) throw new Error('Missing exact published qualification head');
+            const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).trim();
+            if(git('rev-parse','HEAD')!==head) throw new Error('Wrong qualification checkout');
+            async function guard() {
+              const {data:p}=await github.rest.pulls.get({...context.repo,pull_number:189});
+              if(p.state!=='open' || p.merged || p.head.sha!==head || p.head.ref!==branch ||
+                  p.head.repo.full_name!=='pysolvesemi/MorphHDL' || p.base.ref!=='parameterized-verilog' || p.base.sha!==target) {
+                throw new Error('PR head or target moved; no further dispatch is authorized');
               }
             }
-            await unchanged();
-            const listed = await github.rest.actions.listWorkflowRuns({...context.repo,workflow_id,head_sha:head,event:'workflow_dispatch',per_page:100});
-            const prior = listed.data.workflow_runs.filter(r => r.head_sha === head && r.path === path && r.head_branch === branch);
-            if (prior.length > 1) throw new Error('Ambiguous current-head 60b qualification inventory');
-            let selected = prior[0];
-            if (!selected) {
-              fs.writeFileSync(dir+'/request.json',JSON.stringify({head,target,workflow_id,path,requested_at:new Date().toISOString()},null,2));
-              await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id,ref:branch});
-            } else if (selected.status === 'completed' && selected.conclusion !== 'success') {
-              await github.rest.actions.reRunWorkflowFailedJobs({...context.repo,run_id:selected.id});
-              selected = {...selected,run_attempt:selected.run_attempt+1};
+            await guard();
+            const {data:originalGate}=await github.rest.actions.getJobForWorkflowRun({...context.repo,job_id:105084674580});
+            if(originalGate.run_id!==35184822674 || originalGate.conclusion!=='success' ||
+                !originalGate.steps.some(s=>s.name==='Start full applicable CI only after all targeted successes on the unchanged head' && s.conclusion==='success')) {
+              throw new Error('Original failed-first/full-stage receipt is not authentic');
             }
-            const deadline = Date.now()+95*60*1000;
-            while (Date.now() < deadline) {
-              await unchanged();
-              if (!selected) {
-                const response = await github.rest.actions.listWorkflowRuns({...context.repo,workflow_id,head_sha:head,event:'workflow_dispatch',per_page:100});
-                const rows = response.data.workflow_runs.filter(r => r.head_sha === head && r.path === path && r.head_branch === branch);
-                if (rows.length > 1) throw new Error('Ambiguous dispatch receipt');
-                if (rows.length === 1) selected = rows[0];
+            const {data:download}=await github.rest.actions.downloadArtifact({...context.repo,artifact_id:10484944875,archive_format:'zip'});
+            const zip=Buffer.from(download);
+            if(crypto.createHash('sha256').update(zip).digest('hex')!=='74b032a9858b3fe54cf07f6f1e98b7f4d9595188b6d55f5adc9b49cd7b56ff5d') throw new Error('Historical inventory artifact bytes changed');
+            fs.writeFileSync(dir+'/original-gate.zip',zip);
+            const stored=JSON.parse(cp.execFileSync('python3',['-c',
+              'import json,sys,zipfile\nz=zipfile.ZipFile(sys.argv[1])\nnames=["targeted-pass.json","full-applicability.json","full-dispatch.json"]\nassert all(z.getinfo(n).file_size<1000000 for n in names)\nprint(json.dumps({n:json.loads(z.read(n)) for n in names}))',dir+'/original-gate.zip'],{encoding:'utf8'}));
+            const initial=stored['targeted-pass.json'], applicability=stored['full-applicability.json'], full=stored['full-dispatch.json'];
+            if(initial.head!==previous || initial.target!==target || initial.selected.length!==20 ||
+                applicability.head!==previous || applicability.workflows.length!==48 || applicability.skipped.length!==11 ||
+                full.head!==previous || full.dispatched.length!==48) throw new Error('Unexpected historical qualification inventory');
+            const inventory=new Map(full.dispatched.map(row=>[row.path,row]));
+            if(inventory.size!==48 || !applicability.workflows.every(path=>inventory.has(path))) throw new Error('Full inventory is not closed');
+            for(const [path,row] of inventory) {
+              if(!/^\.github\/workflows\/[a-zA-Z0-9-]+\.yml$/.test(path) || path.includes('/pr189-') || !Number.isSafeInteger(row.workflow_id)) throw new Error('Invalid workflow inventory entry');
+              const baseline=path.endsWith('/increment-60b-signedness-authority.yml')?repaired:previous;
+              if(git('rev-parse',head+':'+path)!==git('rev-parse',baseline+':'+path) ||
+                  !/^  workflow_dispatch:/m.test(git('show',head+':'+path))) throw new Error('Unreviewed standard workflow definition: '+path);
+            }
+            for(const row of applicability.skipped) {
+              if(!/^\.github\/workflows\/[a-zA-Z0-9-]+\.yml$/.test(row.path) || inventory.has(row.path) ||
+                  row.qualification_pass!==false || git('rev-parse',head+':'+row.path)!==row.blob ||
+                  git('rev-parse',target+':'+row.path)!==row.blob) throw new Error('Historical routing exemption changed');
+            }
+            fs.writeFileSync(dir+'/applicability.json',JSON.stringify({head,target,inventory:[...inventory.values()],not_applicable:applicability.skipped},null,2));
+            const selected=new Map();
+            const deadline=Date.now()+300*60*1000;
+            while(Date.now()<deadline) {
+              await guard();
+              const old=await github.paginate(github.rest.actions.listWorkflowRunsForRepo,{...context.repo,head_sha:previous,event:'workflow_dispatch',per_page:100});
+              const fleet=old.filter(r=>Date.parse(r.created_at)>=cutoff);
+              if(fleet.length!==48 || new Set(fleet.map(r=>r.path)).size!==48 || !fleet.every(r=>r.head_sha===previous &&
+                  r.head_branch===branch && inventory.has(r.path) && inventory.get(r.path).workflow_id===r.workflow_id)) throw new Error('Predecessor full-stage runs no longer match their closed inventory');
+              fs.writeFileSync(dir+'/predecessor-full-results.json',JSON.stringify(fleet.map(r=>({id:r.id,path:r.path,head:r.head_sha,status:r.status,conclusion:r.conclusion})),null,2));
+              const failures=fleet.filter(r=>r.status==='completed' && r.conclusion!=='success');
+              const live=await github.paginate(github.rest.actions.listWorkflowRunsForRepo,{...context.repo,head_sha:head,event:'workflow_dispatch',per_page:100});
+              for(const oldRun of failures) {
+                if(selected.has(oldRun.path)) continue;
+                const matches=live.filter(r=>r.path===oldRun.path && r.head_sha===head && r.head_branch===branch && r.workflow_id===oldRun.workflow_id);
+                if(matches.length>1) throw new Error('Ambiguous current-head failed-workflow rerun');
+                const row={path:oldRun.path,workflow_id:oldRun.workflow_id,previous_run:oldRun.id,run_id:matches[0]?.id,requested_at:new Date().toISOString()};
+                await guard();
+                if(!row.run_id) await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:row.workflow_id,ref:branch,
+                  ...(row.path.endsWith('/cdc-independent-parameter-consumers.yml')?{inputs:{mode:'checks'}}:{})});
+                selected.set(row.path,row);
+                fs.writeFileSync(dir+'/selected.json',JSON.stringify({head,target,selected:[...selected.values()]},null,2));
+                core.info('FAILED_WORKFLOW_ONLY_DISPATCHED '+row.path+' '+head);
               }
-              if (selected) {
-                const {data: run} = await github.rest.actions.getWorkflowRun({...context.repo,run_id:selected.id});
-                if (run.head_sha !== head || run.head_branch !== branch || run.path !== path) throw new Error('Run identity changed');
-                fs.writeFileSync(dir+'/run.json',JSON.stringify(run,null,2));
-                core.info(`PR189_60B_PROGRESS ${run.id} ${head} ${run.status} ${run.conclusion}`);
-                if (run.run_attempt >= selected.run_attempt && run.status === 'completed') {
-                  if (run.conclusion !== 'success') throw new Error('The repaired 60b workflow did not pass: '+run.html_url);
-                  const {data: jobs} = await github.rest.actions.listJobsForWorkflowRun({...context.repo,run_id:run.id,per_page:100});
-                  fs.writeFileSync(dir+'/jobs.json',JSON.stringify(jobs,null,2));
-                  const names = ['Signedness authority Scala 2.12.18','Signedness authority Scala 2.13.12'];
-                  const gates = ['Check merged prerequisite and unchanged native/emitter scope',
-                    'Signedness rules, identity rejection, replay and publication parity',
-                    'Requalify unchanged baseline and live negative-result mutation'];
-                  if (jobs.total_count !== 2 || !names.every(name => {
-                    const matches = jobs.jobs.filter(j => j.name === name && j.head_sha === head);
-                    return matches.length === 1 && matches[0].conclusion === 'success' && gates.every(g =>
-                      matches[0].steps.some(s => s.name === g && s.conclusion === 'success'));
-                  })) throw new Error('A required Scala payload was skipped or did not execute');
-                  await unchanged();
-                  fs.writeFileSync(dir+'/targeted-pass.json',JSON.stringify({head,target,run_id:run.id,scala:names,required_gates:gates},null,2));
-                  core.info('PR189_60B_TARGETED_PASS '+head+' '+run.id);
-                  return;
+              let passed=0;
+              for(const row of selected.values()) {
+                if(!row.run_id) {
+                  const matches=live.filter(r=>r.path===row.path && r.head_sha===head && r.head_branch===branch && r.workflow_id===row.workflow_id);
+                  if(matches.length>1) throw new Error('Ambiguous dispatch receipt: '+row.path);
+                  if(matches.length) row.run_id=matches[0].id;
+                }
+                if(!row.run_id) continue;
+                const {data:run}=await github.rest.actions.getWorkflowRun({...context.repo,run_id:row.run_id});
+                if(run.head_sha!==head || run.head_branch!==branch || run.path!==row.path) throw new Error('Rerun source identity changed');
+                row.status=run.status; row.conclusion=run.conclusion;
+                if(run.status==='completed') {
+                  if(run.conclusion!=='success') throw new Error('TARGETED_FAILED; full CI blocked: '+run.html_url);
+                  const jobs=await github.paginate(github.rest.actions.listJobsForWorkflowRun,{...context.repo,run_id:run.id,filter:'latest',per_page:100});
+                  if(!jobs.some(j=>j.conclusion==='success' && j.steps?.length>2) || jobs.some(j=>!['success','skipped'].includes(j.conclusion))) throw new Error('Rerun has missing or failed actual payloads');
+                  if(row.path.endsWith('/increment-60b-signedness-authority.yml')) {
+                    const names=['Signedness authority Scala 2.12.18','Signedness authority Scala 2.13.12'];
+                    const gates=['Check merged prerequisite and unchanged native/emitter scope',
+                      'Signedness rules, identity rejection, replay and publication parity',
+                      'Requalify unchanged baseline and live negative-result mutation'];
+                    if(jobs.length!==2 || !names.every(name=>{
+                      const match=jobs.filter(j=>j.name===name && j.head_sha===head);
+                      return match.length===1 && match[0].conclusion==='success' && gates.every(g=>match[0].steps.some(s=>s.name===g && s.conclusion==='success'));
+                    })) throw new Error('60b did not execute both Scala behavioral/tool payloads');
+                  }
+                  fs.writeFileSync(dir+'/jobs-'+run.id+'.json',JSON.stringify(jobs,null,2));
+                  passed++;
                 }
               }
-              await new Promise(resolve => setTimeout(resolve,30000));
+              fs.writeFileSync(dir+'/selected.json',JSON.stringify({head,target,selected:[...selected.values()]},null,2));
+              core.info('PR189_FAILED_FIRST_PROGRESS '+passed+'/'+selected.size+' predecessor_complete='+fleet.filter(r=>r.status==='completed').length+'/48');
+              if(fleet.every(r=>r.status==='completed') && selected.size>0 && passed===selected.size &&
+                  selected.has('.github/workflows/increment-60b-signedness-authority.yml') && failures.every(r=>selected.has(r.path))) {
+                await guard();
+                fs.writeFileSync(dir+'/targeted-pass.json',JSON.stringify({head,target,selected:[...selected.values()]},null,2));
+                core.info('PR189_ALL_FULL_STAGE_FAILURES_PASS '+head);
+                const dispatched=[];
+                for(const [path,row] of [...inventory].sort()) {
+                  await guard();
+                  const requested_at=new Date().toISOString();
+                  await github.rest.actions.createWorkflowDispatch({...context.repo,workflow_id:row.workflow_id,ref:branch,
+                    ...(path.endsWith('/cdc-independent-parameter-consumers.yml')?{inputs:{mode:'checks'}}:{})});
+                  dispatched.push({path,workflow_id:row.workflow_id,requested_at});
+                  fs.writeFileSync(dir+'/full-dispatch.json',JSON.stringify({head,target,dispatched},null,2));
+                  core.info('FULL_WORKFLOW_DISPATCHED '+path+' '+head);
+                }
+                await guard();
+                core.info('PR189_FULL_CI_DISPATCHED count=48 head='+head+'; dispatch is not a passing result');
+                return;
+              }
+              await new Promise(resolve=>setTimeout(resolve,45000));
             }
-            throw new Error('60b qualification timed out; full CI remains blocked');
+            throw new Error('Failed-first closure timed out; full CI remains blocked');
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr189-60b-qualification-${{ needs.repair-source-review.outputs.head }}-${{ github.run_attempt }}
-          path: /tmp/pr189-60b-qualification/
+          name: pr189-60b-gates-${{ needs.seal-control.outputs.head }}-${{ github.run_attempt }}
+          path: /tmp/pr189-60b-gates/
           if-no-files-found: error
           retention-days: 30
+
+  full-compact-current:
+    name: Requalify unchanged compact and record compiler on the exact full-CI head
+    needs: [seal-control, failed-first]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      EXPECTED_HEAD: ${{ needs.seal-control.outputs.head }}
+      EVIDENCE: /tmp/pr189-final-compact
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.seal-control.outputs.head }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Execute both unchanged full-compact command blocks from their authenticated definition
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,subprocess,textwrap
+          from pathlib import Path
+          revision='05e8f46b76c39017958b98c36b04475493446cef'
+          path='.github/workflows/pr189-compact-timeout.yml'
+          expected='4c4d1ed908df6ab4c150d736b7cef57b9918241a'
+          def git(*args): return subprocess.check_output(['git',*args],text=True,timeout=120).strip()
+          if git('rev-parse','HEAD')!=os.environ['EXPECTED_HEAD'] or git('rev-parse',revision+':'+path)!=expected:
+              raise RuntimeError('Wrong full-qualification source or command definition')
+          source=git('show',revision+':'+path)
+          marker='\n  full-compact-current:\n'
+          if source.count(marker)!=1: raise RuntimeError('Ambiguous original full qualification job')
+          job=source.split(marker,1)[1]+'\n'
+          blocks=re.findall(r'^        run: \|\n((?:          [^\n]*\n|\n)+)',job,re.M)
+          if len(blocks)!=2: raise RuntimeError('Expected the exact compiler/behavior and 18-source-gate blocks')
+          evidence=Path(os.environ['EVIDENCE']); evidence.mkdir(parents=True,exist_ok=True)
+          (evidence/'commands-origin.txt').write_text(revision+'\n'+path+'\n'+expected+'\n')
+          for index,block in enumerate(blocks,1):
+              command=textwrap.dedent(block)
+              (evidence/('original-command-'+str(index)+'.sh')).write_text(command)
+              subprocess.run(['bash','-e','-o','pipefail','-c',command],check=True)
+          if git('rev-parse','HEAD')!=os.environ['EXPECTED_HEAD']: raise RuntimeError('Full qualification head moved')
+          subprocess.run(['git','diff','--exit-code'],check=True)
+          subprocess.run(['git','diff','--cached','--exit-code'],check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr189-full-compact-${{ needs.seal-control.outputs.head }}-${{ github.run_attempt }}
+          path: /tmp/pr189-final-compact/
+          if-no-files-found: error
+          retention-days: 30
+
+# No automatic merge, force push, target update or compiler/application edit.
+# Source publication carries [skip ci]; failed-first closure gates every full dispatch.
