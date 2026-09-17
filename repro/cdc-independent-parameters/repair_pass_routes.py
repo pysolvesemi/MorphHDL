@@ -177,25 +177,31 @@ def main():
         if direct not in text:
             raise SystemExit("boundary enforcement must consume the resolved source branch")
         return
-    # The Increment61 adapter introduced an authenticated intermediate route.
-    # Verify its actual input, fallback, output and enforcement connections;
-    # do not accept a decorative source-variable occurrence or a branch label.
+    def step(name):
+        marker = "      - name: " + name + "\\n"
+        if text.count(marker) != 1:
+            raise SystemExit("missing or ambiguous boundary step: " + name)
+        return text.split(marker, 1)[1].split("\\n      - ", 1)[0]
+    audit = step("Authenticate the Increment 61 integration and resolve historical static audit sources")
+    enforce = step("Enforce isolated pass paths")
+    # Verify the actual resolver and enforcement blocks, not matching strings
+    # elsewhere in the workflow or a decorative source-variable occurrence.
     required = (
         "SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}",
         'audit_root="$GITHUB_WORKSPACE"',
         'audit_head_ref="$SOURCE_HEAD_REF"',
         'audit_base_sha="$SOURCE_BASE_SHA"',
-        '"$audit_root" "$audit_head_ref" "$audit_base_sha" >> "$GITHUB_OUTPUT"',
+        '\\"$audit_root\\" \\"$audit_head_ref\\" \\"$audit_base_sha\\" >> \\"$GITHUB_OUTPUT\\"',
         "working-directory: ${{ steps.audit.outputs.root }}",
         "MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}",
         "MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}",
     )
-    if not all(fragment in text for fragment in required):
+    if not all(fragment in audit for fragment in required[:5]) or not all(fragment in enforce for fragment in required[5:]):
         raise SystemExit("authenticated boundary route must preserve source input and audited outputs")
     marker = 'if [[ "$SOURCE_HEAD_REF" == agent/cdc-independent-parameter-consumers ]]; then'
-    if text.count(marker) != 1:
+    if audit.count(marker) != 1:
         raise SystemExit("missing exact PR189 source-authentication route")
-    route = text.split(marker, 1)[1].split('          elif ', 1)[0]
+    route = audit.split(marker, 1)[1].split('          elif ', 1)[0]
     checks = (
         "python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
         "python3 morphhdl/scripts/check-increment-61-source-review.py",
