@@ -9,8 +9,6 @@ jobs:
   focused:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
-    permissions:
-      contents: write
     env:
       SBT_TEST_PARALLEL: '0'
       JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
@@ -18,56 +16,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Materialize reviewed source delta on this repair branch only
-        if: github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
-        run: |
-          set -euo pipefail
-          transfer=repro/remaining-wires/compiler-transfer.patch
-          if ! test -f "$transfer"; then exit 0; fi
-          test "$(git ls-remote origin "$GITHUB_REF" | cut -f1)" = "$GITHUB_SHA"
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('repro/remaining-wires/compiler-transfer.patch')
-          text = p.read_text().replace('\n diff --git ', '\ndiff --git ')
-          p.write_text(text)
-          PY
-          git apply --check "$transfer"
-          git apply "$transfer"
-          git add core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala
-          git rm -f "$transfer"
-          git diff --cached --check
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: native sequential condition and typed direct-slice consumers [skip ci]'
-          git push origin HEAD:refs/heads/agent/wa-sequential-wire-consumers
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
       - uses: sbt/setup-sbt@v1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.cache/coursier
+          key: ${{ runner.os }}-sequential-wire-${{ hashFiles('**/build.sbt', 'project/**') }}
       - name: Install HDL tools
         run: sudo apt-get update -qq && sudo apt-get install -y iverilog yosys
-      - name: Generate standalone public API reproduction
+      - name: Generate public API matrix using both compiler plugins
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/remaining-wires"
           git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/remaining-wires/source.txt"
+          git diff --exit-code
           cd repro/remaining-wires
-          sbt -batch "runMain GenerateRemainingWireRepro $RUNNER_TEMP/remaining-wires/default" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/generation.log"
-          for ppc in 0 1; do
-            iverilog -g2001 -s RemainingWireRepro -PRemainingWireRepro.PPC4=$ppc -o "$RUNNER_TEMP/remaining-wires/ppc$ppc.vvp" "$RUNNER_TEMP/remaining-wires/default/RemainingWireRepro.v"
-          done
-          python3 - "$RUNNER_TEMP/remaining-wires/default/RemainingWireRepro.v" <<'PY'
-          import re,sys
-          from pathlib import Path
-          v=Path(sys.argv[1]).read_text()
-          assert not re.search(r'\bwhen_\w+|\b_zz_timing_[hv]Total\w*',v),v
-          assert 'timing_hTotal <= timing_proposedHTotal[12:0];' in v,v
-          assert 'timing_vTotal <= timing_proposedVTotal[11:0];' in v,v
-          print('PASS: six helpers absent, named sources retained, exact direct slices')
-          PY
-      - name: Existing combinational and emitter guards
+          sbt -batch "runMain GenerateRemainingWireMatrix $RUNNER_TEMP/remaining-wires/matrix" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/generation.log"
+      - name: Verify shape determinism simulation equivalence and synthesis
         run: |
           set -euo pipefail
-          sbt -batch 'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests' 'morph/Test/testOnly morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/inherited-tests.log"
+          python3 repro/remaining-wires/check.py "$RUNNER_TEMP/remaining-wires/matrix" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/checks.log"
+      - name: Native emitter protection and inherited combinational regressions
+        run: |
+          set -euo pipefail
+          sbt -batch 'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' 'morph/Test/testOnly morphhdl.SequentialWireNativeTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/scala-tests.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
