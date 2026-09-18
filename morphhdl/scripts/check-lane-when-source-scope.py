@@ -197,7 +197,12 @@ def verify(root: Path) -> dict:
     require(spec is not None and spec.loader is not None, "missing sequential source reviewer")
     successor = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(successor)
-    successor.verify(root, sealed)
+    result = successor.verify(root, sealed)
+    if (root / "morphhdl/scripts/check-pr190-pr189-source-sync.py").exists():
+        # The combined source proof has already authenticated every admitted
+        # path; branch spelling alone still grants no cross-workspace access.
+        value = dict(value)
+        value["review_paths"] = sorted(set(value["review_paths"]) | set(result["paths"]))
     return value
 
 
@@ -208,7 +213,7 @@ def main() -> None:
     args = parser.parse_args()
     value = verify(args.repo_root)
     if args.print_paths:
-        print("\n".join(sorted(set(value["implementation_paths"]) | REVIEW_PATHS)))
+        print("\n".join(sorted(set(value["implementation_paths"]) | set(value["review_paths"]))))
     else:
         print("LANE_WHEN_SOURCE_SCOPE_PASS implementation_paths=" + str(len(value["implementation_paths"])) +
               " review_paths=" + str(len(REVIEW_PATHS)))

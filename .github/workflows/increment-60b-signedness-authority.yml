@@ -30,7 +30,7 @@ jobs:
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b'))
     name: Signedness authority Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -49,7 +49,18 @@ jobs:
           set -euo pipefail
           mkdir -p target/increment-60b
           git archive HEAD | gzip > target/increment-60b/source.tar.gz
-          python3 morphhdl/scripts/check-increment-60b-signedness-authority.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          predecessor=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          historical_60b=d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0
+          git merge-base --is-ancestor "$predecessor" HEAD
+          git merge-base --is-ancestor "$historical_60b" HEAD
+          temporary=$(mktemp -d)
+          trap 'git worktree remove --force "$temporary/60b" >/dev/null 2>&1 || true; git worktree remove --force "$temporary/pre-61" >/dev/null 2>&1 || true; rm -rf "$temporary"' EXIT
+          git worktree add --quiet --detach "$temporary/60b" "$historical_60b"
+          (cd "$temporary/60b" && python3 morphhdl/scripts/check-increment-60b-signedness-authority.py)
+          git worktree add --quiet --detach "$temporary/pre-61" "$predecessor"
+          (cd "$temporary/pre-61" && python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only)
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py

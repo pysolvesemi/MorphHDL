@@ -72,7 +72,12 @@ object ExternalParameterizedValueRegistry {
   private def exactValueDomain(
       expression: ElaborationIntegerExpression
   ): Option[ElaborationExactDomain[BigInt]] =
-    ElabInt.requireAuthoritativeIntegerDomain(
+    if (ElaborationProductDomain.isRetained(expression)) {
+      // The identity-bound enclosure proves unsigned representability without
+      // pretending that a product expression has one finite declaration axis.
+      ElaborationProductDomain.requireInteger(expression, "retained UInt expression")
+      None
+    } else ElabInt.requireAuthoritativeIntegerDomain(
       expression,
       role = "retained UInt expression",
       failureCode = "SPINAL-PARAMETERIZED-VERILOG-VALUE-EXACT-DOMAIN-REQUIRED",
@@ -123,6 +128,8 @@ object ExternalParameterizedValueRegistry {
     }
 
     val retainedWidth = ParameterizedWidth.expressionOf(value)
+    retainedWidth.foreach(width => ElaborationWidthAuthority.requireAuthoritative(
+      width, "retained UInt carrier width", "SPINAL-PARAMETERIZED-VERILOG-VALUE-WIDTH-INSUFFICIENT"))
     val minimumWidth = retainedWidth
       .map(_.minimum)
       .getOrElse(BigInt(value.getBitsWidth))

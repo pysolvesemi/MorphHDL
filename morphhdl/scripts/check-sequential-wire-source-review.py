@@ -146,6 +146,12 @@ def safety_failures(path: str, text: str) -> list[str]:
 
 def verify_layering_successor(root: Path) -> None:
     """Add exactly one scanned high-level root; retain every other audit rule."""
+    sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
+    if sync_path.exists():
+        spec = importlib.util.spec_from_file_location("sequential_cdc_layering", sync_path)
+        require(spec is not None and spec.loader is not None, "missing layering sync reviewer")
+        sync = importlib.util.module_from_spec(spec); spec.loader.exec_module(sync)
+        return sync.verify_layering(root)
     contract = "morphhdl/contracts/increment-54-typed-layering-ir.contract"
     checker = "morphhdl/scripts/check-typed-layering-ir.py"
     new_root = "repro/remaining-wires/src/main"
@@ -176,6 +182,12 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     # Before any projection, authenticate every governed source in current
     # HEAD, index and worktree, including ignored additions and gitlinks.
     seal = sealed if sealed is not None else outer.verify(root)
+    sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
+    if sync_path.exists():
+        spec = importlib.util.spec_from_file_location("sequential_cdc_sync", sync_path)
+        require(spec is not None and spec.loader is not None, "missing sync reviewer")
+        sync = importlib.util.module_from_spec(spec); spec.loader.exec_module(sync)
+        return sync.verify(root, seal)
     for anchor, tree in ((BASE, BASE_TREE), (SOURCE, SOURCE_TREE)):
         git(root, "merge-base", "--is-ancestor", anchor, "HEAD")
         require(git(root, "rev-parse", anchor + "^{tree}").decode().strip() == tree,

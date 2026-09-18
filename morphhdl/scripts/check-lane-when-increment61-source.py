@@ -78,6 +78,10 @@ def unique_json(raw: bytes) -> dict:
 
 def verify(root: Path = ROOT) -> dict:
     root = root.resolve()
+    sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
+    if sync_path.exists():
+        sealed = load(root, OUTER).verify(root)
+        return load(root, "morphhdl/scripts/check-pr190-pr189-source-sync.py").verify(root, sealed)
     for ancestor in (TARGET, LANE):
         git(root, "merge-base", "--is-ancestor", ancestor, "HEAD")
     require(git(root, "merge-base", TARGET, LANE).decode().strip() == BASE,
