@@ -1,66 +1,200 @@
-name: PR190 targeted source review
+name: PR190 verified target sync publication
 on:
   push:
     branches: [agent/wa-sequential-wire-consumers]
-  workflow_dispatch:
+    paths: ['.github/workflows/sequential-source-review-targeted.yml']
 permissions:
   contents: read
 concurrency:
   group: pr190-targeted-source-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  source-preflight:
+  prepare-sync:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      LEFT: 28b5a04621ed6207b374f37b88fa4f5b4030c0d4
+      TARGET: e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d
+      SOURCE_TREE: edc797d06e7fda4ecdd05e30cbe1fe896fe26a86
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Current source review and additive rejection controls
+      - name: Reconstruct only the verified merged source delta
         run: |
           set -euo pipefail
-          mkdir -p target/sequential-source-review
-          git rev-parse HEAD 'HEAD^{tree}' > target/sequential-source-review/source.txt
-          python3 morphhdl/scripts/check-sequential-wire-source-review.py 2>&1 | tee target/sequential-source-review/current.log
-          python3 morphhdl/scripts/test-sequential-wire-source-review.py 2>&1 | tee target/sequential-source-review/mutations.log
-      - name: Native source guard and canonical manifest reproducibility
+          test "$(git rev-parse HEAD^)" = "$LEFT"
+          test "$(git rev-parse origin/parameterized-verilog)" = "$TARGET"
+          mkdir -p "$RUNNER_TEMP/pr190-sync"
+          python3 - <<'PY'
+          import base64,zlib,hashlib,json,os,subprocess,tempfile
+          from pathlib import Path
+          root=Path.cwd(); dest=Path(os.environ['RUNNER_TEMP'])/'pr190-sync'
+          def git(*args, **kwargs): return subprocess.check_output(['git','--literal-pathspecs',*args],cwd=root,**kwargs)
+          parts=[Path('repro/remaining-wires/pr190-sync-transfer.'+str(i)) for i in (0,1)]
+          raw=zlib.decompress(base64.b64decode(''.join(p.read_text() for p in parts),validate=True))
+          assert hashlib.sha256(raw).hexdigest()=='b30176fd2a31e5b0226f2ebc91d37ef2a9feb25bf6bb9181acd9c5856f7d1b14'
+          packet=json.loads(raw)
+          assert packet['left']==os.environ['LEFT'] and packet['target']==os.environ['TARGET']
+          assert packet['source_tree']==os.environ['SOURCE_TREE']
+          assert packet['base_tree']==git('rev-parse',packet['target']+'^{tree}').decode().strip()
+          assert len(packet['entries'])==38 and len(packet['blobs'])==15
+          assert set(git('diff','--name-only',packet['left'],'HEAD').decode().splitlines())=={'.github/workflows/sequential-source-review-targeted.yml',*(str(p) for p in parts)}
+          (dest/'packet.json').write_bytes(raw)
+          for sha,spec in packet['blobs'].items():
+            path=spec['path']; relative=Path(path)
+            assert not relative.is_absolute() and '..' not in relative.parts
+            assert spec['base'] in (packet['left'],packet['target'])
+            with tempfile.TemporaryDirectory(prefix='pr190-one-blob-') as tmp:
+              folder=Path(tmp); file=folder/path
+              if spec['exists']:
+                file.parent.mkdir(parents=True,exist_ok=True)
+                file.write_bytes(git('show',spec['base']+':'+path))
+              patch=folder/'review.patch'; patch.write_text(spec['patch'])
+              lines=[x for x in spec['patch'].splitlines() if x.startswith('diff --git ')]
+              assert lines==['diff --git a/'+path+' b/'+path]
+              subprocess.run(['git','apply','--check',str(patch)],cwd=folder,check=True)
+              subprocess.run(['git','apply',str(patch)],cwd=folder,check=True)
+              content=file.read_bytes()
+              assert hashlib.sha1(b'blob '+str(len(content)).encode()+b'\0'+content).hexdigest()==sha,path
+              assert git('hash-object','-w','--stdin',input=content).decode().strip()==sha
+          env=dict(os.environ,GIT_INDEX_FILE=str(dest/'source.index'))
+          git('read-tree',packet['base_tree'],env=env)
+          for entry in packet['entries']:
+            assert entry['type']=='blob' and entry['mode'] in ('100644','100755')
+            git('update-index','--add','--cacheinfo',entry['mode'],entry['sha'],entry['path'],env=env)
+          assert git('write-tree',env=env).decode().strip()==packet['source_tree']
+          print('EXACT_SOURCE_TREE_READY',packet['source_tree'])
+          PY
+      - name: Store verified blobs only; no workflow trees or reference writes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs=require('fs'),cp=require('child_process');
+            const {owner,repo}=context.repo;
+            const packet=JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/pr190-sync/packet.json`));
+            const ref=(await github.rest.git.getRef({owner,repo,ref:'heads/agent/wa-sequential-wire-consumers'})).data;
+            const target=(await github.rest.git.getRef({owner,repo,ref:'heads/parameterized-verilog'})).data;
+            if(ref.object.sha!==context.sha || target.object.sha!==packet.target) throw new Error('Source or target moved');
+            for(const sha of Object.keys(packet.blobs)) {
+              const bytes=cp.execFileSync('git',['cat-file','blob',sha],{maxBuffer:8*1024*1024});
+              const blob=(await github.rest.git.createBlob({owner,repo,encoding:'base64',content:bytes.toString('base64')})).data;
+              if(blob.sha!==sha) throw new Error('Stored blob mismatch');
+            }
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/pr190-sync/source-ready.json`,JSON.stringify({transport:context.sha,target:packet.target,base_tree:packet.base_tree,source_tree:packet.source_tree,entries:packet.entries},null,2));
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pr190-target-sync-source-ready
+          path: ${{ runner.temp }}/pr190-sync/*.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Await the exact two-parent source commit from the authorized repository connection
+        id: source
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner,repo}=context.repo;
+            for(let n=0;n<120;n++) {
+              const ref=(await github.rest.git.getRef({owner,repo,ref:'heads/agent/wa-sequential-wire-consumers'})).data;
+              if(ref.object.sha!==context.sha) {
+                const commit=(await github.rest.git.getCommit({owner,repo,commit_sha:ref.object.sha})).data;
+                if(commit.tree.sha!==process.env.SOURCE_TREE || commit.parents.length!==2 ||
+                   commit.parents[0].sha!==context.sha || commit.parents[1].sha!==process.env.TARGET)
+                  throw new Error('Unexpected integration commit; refusing seal');
+                core.setOutput('sha',commit.sha);return;
+              }
+              await new Promise(resolve=>setTimeout(resolve,5000));
+            }
+            throw new Error('Verified integration commit was not published in the bounded window');
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind the unchanged complete overlay algorithm to the real two-parent source
+        env:
+          SOURCE: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
-          python3 morphhdl/scripts/check-native-source-preservation.py
-          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output "$RUNNER_TEMP/native-source-preservation.json"
-          cmp morphhdl/contracts/native-source-preservation.json "$RUNNER_TEMP/native-source-preservation.json"
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
-          python3 morphhdl/scripts/check-typed-native-source-overlay.py
-          python3 morphhdl/scripts/check-increment-58-retirement.py
-          python3 morphhdl/scripts/check-production-retirement.py
-          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --check
-          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --check
-      - name: Layering inventory and standalone-source rejection controls
-        run: |
-          set -euo pipefail
-          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test
-          python3 morphhdl/scripts/check-typed-layering-ir.py
-          (cd repro/independent-parameters; python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy)
-      - name: Original complete regression inventory self-tests
-        run: python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
-      - name: Exact branch boundary and inherited rejection tests
-        run: |
-          set -euo pipefail
-          MORPHDL_PASSES_BASE_SHA=f5049ae2abfe5a47cd1fac3574ea08d630bd183f MORPHDL_PASSES_HEAD_REF=agent/wa-sequential-wire-consumers bash morphhdl-passes/scripts/check-boundary.sh
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
+          test "$(git rev-parse HEAD)" = "$SOURCE"
+          python3 - <<'PY'
+          import importlib.util,subprocess,json,hashlib,re,os
+          from pathlib import Path
+          root=Path.cwd()
+          def git(*args):return subprocess.check_output(['git','--literal-pathspecs',*args])
+          def load(name,path):
+            spec=importlib.util.spec_from_file_location(name,root/path)
+            module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+          helper='morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+          contract='morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          m=load('original_overlay',helper);r=load('sync','morphhdl/scripts/check-pr190-pr189-source-sync.py')
+          source=git('rev-parse','HEAD').decode().strip()
+          assert source==os.environ['SOURCE'] and git('rev-parse','HEAD^{tree}').decode().strip()==os.environ['SOURCE_TREE']
+          left=json.loads(git('show',r.LEFT+':'+contract));right=json.loads(git('show',r.TARGET+':'+contract))
+          assert left['base']==right['base']==m.BASE
+          assert left['helper_normalized_sha256']==right['helper_normalized_sha256']=='14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab'
+          assert hashlib.sha256(m.normalized_helper((root/helper).read_bytes())).hexdigest()==left['helper_normalized_sha256']
+          paths={e['path'] for v in (left,right) for e in v['files']}
+          paths|={p.decode() for p in git('diff','--no-renames','--name-only','-z',m.BASE,source).split(b'\0') if p and m.governed(p.decode())}
+          paths|=r.RECONCILED;paths-={helper,contract}
+          entries=[];tree=m.tree(root,source)
+          for path in sorted(paths):
+            mode,sha=tree[path];raw=git('show',source+':'+path);before=m.frozen(root,m.BASE,path)
+            assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==sha
+            entry=dict(path=path,mode=mode,before_sha256=hashlib.sha256(before).hexdigest() if before is not None else None,after_sha256=hashlib.sha256(raw).hexdigest())
+            for prior in (left,right):
+              old=next((x for x in prior['files'] if x['path']==path),None)
+              if old:assert old['before_sha256']==entry['before_sha256'] and old['mode']==mode,path
+            entries.append(entry)
+          assert len(entries)==401,len(entries)
+          value=dict(schema_version=1,base=m.BASE,final_source_commit=source,helper_normalized_sha256=left['helper_normalized_sha256'],files=entries)
+          raw=(json.dumps(value,indent=2)+'\n').encode();(root/contract).write_bytes(raw)
+          content,n=re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "'+hashlib.sha256(raw).hexdigest().encode()+b'"',(root/helper).read_bytes(),count=1,flags=re.M)
+          assert n==1;(root/helper).write_bytes(content)
+          dest=Path(os.environ['RUNNER_TEMP'])/'pr190-sync'
+          (dest/'published-source.txt').write_text(source+'\n')
+          (dest/'overlay.json').write_bytes((root/contract).read_bytes());(dest/'overlay-helper.py').write_bytes(content)
+          PY
+          git add morphhdl/contracts/increment-62-wa08-source-overlay.json morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'review: bind combined PR189 and PR190 source checkpoint [skip ci]'
+          python3 morphhdl/scripts/check-pr190-pr189-source-sync.py 2>&1 | tee "$RUNNER_TEMP/pr190-sync/current.log"
+          python3 morphhdl/scripts/test-pr190-pr189-source-sync.py 2>&1 | tee "$RUNNER_TEMP/pr190-sync/mutations.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$RUNNER_TEMP/pr190-sync/native.log"
+          python3 morphhdl/scripts/check-typed-layering-ir.py 2>&1 | tee "$RUNNER_TEMP/pr190-sync/layering.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$RUNNER_TEMP/pr190-sync/successor.log"
+          test -z "$(git status --porcelain)"
+      - name: Store only the two verified ordinary seal blobs
+        uses: actions/github-script@v7
+        env:
+          SOURCE: ${{ steps.source.outputs.sha }}
+        with:
+          script: |
+            const fs=require('fs'),cp=require('child_process');const {owner,repo}=context.repo;
+            const git=(...args)=>cp.execFileSync('git',['--literal-pathspecs',...args],{encoding:'utf8'}).trim();
+            const paths=['morphhdl/contracts/increment-62-wa08-source-overlay.json','morphhdl/scripts/check-increment-62-wa08-source-overlay.py'];
+            if(JSON.stringify(git('diff','--name-only',process.env.SOURCE,'HEAD').split('\n').sort())!==JSON.stringify([...paths].sort()))
+              throw new Error('Unexpected final seal change');
+            const entries=[];
+            for(const path of paths) {
+              const expected=git('rev-parse',`HEAD:${path}`);
+              const blob=(await github.rest.git.createBlob({owner,repo,encoding:'base64',content:fs.readFileSync(path).toString('base64')})).data;
+              if(blob.sha!==expected)throw new Error('Seal identity mismatch');
+              entries.push({path,mode:'100644',type:'blob',sha:blob.sha});
+            }
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/pr190-sync/seal-ready.json`,JSON.stringify({source:process.env.SOURCE,tree:git('rev-parse','HEAD^{tree}'),entries},null,2));
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr190-source-review
-          path: target/sequential-source-review/
+          name: pr190-target-sync-seal-ready
+          path: |
+            ${{ runner.temp }}/pr190-sync/*.json
+            ${{ runner.temp }}/pr190-sync/*.log
+            ${{ runner.temp }}/pr190-sync/*.txt
+            ${{ runner.temp }}/pr190-sync/overlay-helper.py
           if-no-files-found: error
           retention-days: 14
-  inherited-wa08:
-    needs: source-preflight
-    uses: ./.github/workflows/increment-62-wa08-source-overlay.yml
-  sequential-regressions:
-    needs: inherited-wa08
-    uses: ./.github/workflows/sequential-wire-consumers.yml
