@@ -201,8 +201,13 @@ def main() -> None:
         assert len(re.findall(r'^\s*reg\s', default, flags=re.M)) == 6, default
         disabled = versions['disabled'].read_text()
         assert len(re.findall(r'^\s*assign when_\w+\s*=', disabled, flags=re.M)) == 4, disabled
-        for axis in ('h', 'v'):
-            assert re.search(rf'assign _zz_timing_{axis}Total\s*=\s*timing_proposed{axis.upper()}Total;', disabled), disabled
+        # Disabling the production pipeline restores Spinal's earlier native
+        # cleanup too: that path already slices named totals directly. Its
+        # historical distinction is retained conditions + arithmetic carriers,
+        # not the enabled-pipeline's former two direct-total aliases.
+        for axis, high in (('h', 12), ('v', 11)):
+            assert f'timing_{axis}Total <= timing_proposed{axis.upper()}Total[{high}:0];' in disabled, disabled
+            assert re.search(rf'assign _zz_timing_proposed{axis.upper()}Total\w*\s*=', disabled), disabled
         bench = logs / f'tb-{reset}.v'
         bench.write_text(timing_bench(reset))
         for mode, dut in versions.items():

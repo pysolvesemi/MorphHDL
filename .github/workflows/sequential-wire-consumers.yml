@@ -2,9 +2,22 @@ name: Native sequential wire consumers
 on:
   push:
     branches: [agent/wa-sequential-wire-consumers]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/sequential-wire-consumers.yml'
+      - 'repro/remaining-wires/**'
+      - 'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala'
+      - 'core/src/test/scala/spinal/core/internals/*Wire*Tests.scala'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala'
+      - 'morphhdl/src/test/scala/morphhdl/**'
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: native-sequential-wire-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   focused:
     runs-on: ubuntu-22.04
@@ -48,12 +61,18 @@ jobs:
         run: |
           set -euo pipefail
           python3 repro/remaining-wires/check.py "$RUNNER_TEMP/remaining-wires/matrix" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/checks.log"
-      - name: Native emitter protection and inherited combinational regressions
+      - name: Native emitter regression suite
         if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/remaining-wires"
-          sbt -batch 'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' 'morph/Test/testOnly morphhdl.SequentialWireNativeTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/scala-tests.log"
+          sbt -batch 'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/core-tests.log"
+      - name: Native preservation diagnostics and inherited combinational regressions
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/remaining-wires"
+          sbt -batch 'morph/Test/testOnly morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/morph-tests.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
