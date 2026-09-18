@@ -21,6 +21,7 @@ import sys
 import tempfile
 from pathlib import Path
 from types import MappingProxyType
+from collections import deque
 
 BASE = "954d9b2763b064dba60af71ad8fa509a9d7cada8"
 # Schema 2 admits only this reviewed target refresh. Schema 1 and all its
@@ -41,11 +42,11 @@ INTEGRATION_RECONCILIATIONS = frozenset((
 ))
 # A separately reviewed continuation retains the published seal as its first
 # parent. These are immutable certificates, never moving branch permissions.
-CONTINUATION_PARENT = "ddf61ef25f927d646027cebbcaca6d724ad8a5fa"
-CONTINUATION_PARENT_TREE = "3799df87efb1f09cde3ace13fd5a0a0d6cf661be"
-CONTINUATION_PARENT_SOURCE = "c7d2bd016b9643f90d76c40c4ac234835eb3b57b"
-CONTINUATION_PARENT_MANIFEST = "58137cd48bb63865a6f1ddf1b3232a3338cf0c3f4e7948af2b93643c75e8dccb"
-CONTINUATION_PARENT_HELPER = "266aefad7bd29c81e837600eb8ff636b3220b50ed83cea86307605b8d8613496"
+CONTINUATION_PARENT = "c74b34bb1154d1df20bf85aa63e1276388511a02"
+CONTINUATION_PARENT_TREE = "3e29a314d85c6f708fdd78eaeb68098ff136510c"
+CONTINUATION_PARENT_SOURCE = "106fa49a30e3b8513a6b6038b929250305360f8a"
+CONTINUATION_PARENT_MANIFEST = "c009edae6cbae02695ed834579eaa62300e434e749821ad8af1ced692352d18c"
+CONTINUATION_PARENT_HELPER = "c9be9212f628384ac6c30d59c2382009ce681da40c514f4592e1b1a60ae790a7"
 CONTINUATION_TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
 # Keep the original integrated target inventory rooted at the same two
 # historical branches. The immediate predecessor now already contains that
@@ -96,7 +97,7 @@ def previous_certificate() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "c009edae6cbae02695ed834579eaa62300e434e749821ad8af1ced692352d18c"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -115,6 +116,7 @@ def blob(raw: bytes) -> str:
     return hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
 
 
+@functools.lru_cache(maxsize=16)
 def normalized_helper(raw: bytes) -> bytes:
     pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
     require(len(re.findall(pattern, raw, re.M)) == 1, "ambiguous helper seal")
@@ -130,21 +132,41 @@ def git(root: Path, *args: str) -> bytes:
 
 
 def valid_path(path: object) -> bool:
-    return (isinstance(path, str) and bool(path) and Path(path).as_posix() == path and
+    return isinstance(path, str) and _valid_path_text(path)
+
+
+@functools.lru_cache(maxsize=8192)
+def _valid_path_text(path: str) -> bool:
+    return (bool(path) and Path(path).as_posix() == path and
         not Path(path).is_absolute() and ".." not in Path(path).parts and
         ".git" not in Path(path).parts and "\0" not in path)
 
 
+@functools.lru_cache(maxsize=8192)
+def _relative_ancestors(path: str) -> tuple[str, ...]:
+    """Cache lexical paths only, never a filesystem lookup or permission."""
+    parts = Path(path).parts
+    return tuple(os.path.join(*parts[:n]) for n in range(1, len(parts) + 1))
+
+
 def regular(root: Path, path: str, mode: str = "100644") -> bytes:
     require(valid_path(path), "invalid path: " + repr(path))
-    parts = Path(path).parts
-    require(all(not (root / Path(*parts[:n])).is_symlink() for n in range(1, len(parts) + 1)),
-        "linked source: " + path)
-    file = root / path
-    require(file.is_file() and stat.S_ISREG(file.stat().st_mode), "missing regular source: " + path)
+    # lstat every ancestor on every call. Parsing the same relative path is
+    # pure; caching stat results, modes, links, or live bytes would not be.
+    filename = None
+    info = None
+    for relative in _relative_ancestors(path):
+        filename = os.path.join(root, relative)
+        try:
+            info = os.lstat(filename)
+        except (FileNotFoundError, NotADirectoryError):
+            require(False, "missing regular source: " + path)
+        require(not stat.S_ISLNK(info.st_mode), "linked source: " + path)
+    require(info is not None and stat.S_ISREG(info.st_mode), "missing regular source: " + path)
     require(mode in ("100644", "100755") and
-        bool(file.stat().st_mode & 0o111) == (mode == "100755"), "source mode changed: " + path)
-    return file.read_bytes()
+        bool(info.st_mode & 0o111) == (mode == "100755"), "source mode changed: " + path)
+    with open(filename, "rb") as stream:
+        return stream.read()
 
 
 @functools.lru_cache(maxsize=128)
@@ -363,11 +385,26 @@ def validated_manifest(raw: bytes, predecessor: str) -> str:
     return value["helper_normalized_sha256"]
 
 
+# Successful immutable (digest, bytes) pairs, not authorization decisions.
+# A hit requires equality of ALL freshly read bytes, not size/mtime/inode or
+# a previous call's success. Return the original bytes object so its Python
+# hash and parsed immutable view can also be reused without hashing megabytes.
+_CANONICAL_MANIFESTS = deque(maxlen=8)
+
+
+def _canonical_manifest(raw: bytes, expected: str) -> bytes:
+    for known_digest, known_bytes in _CANONICAL_MANIFESTS:
+        if known_digest == expected and raw == known_bytes:
+            return known_bytes
+    require(digest(raw) == expected, "sealed successor manifest changed")
+    _CANONICAL_MANIFESTS.append((expected, raw))
+    return raw
+
+
 def _authenticated_contract_bytes(root: Path) -> bytes:
     require(re.fullmatch(r"[0-9a-f]{64}", CONTRACT_SHA256) is not None,
         "source successor has not been sealed after independent review")
-    raw = regular(root, CONTRACT)
-    require(digest(raw) == CONTRACT_SHA256, "sealed successor manifest changed")
+    raw = _canonical_manifest(regular(root, CONTRACT), CONTRACT_SHA256)
     expected_helper = validated_manifest(raw, BASE)
     helper = regular(root, HELPER)
     require(digest(normalized_helper(helper)) == expected_helper,

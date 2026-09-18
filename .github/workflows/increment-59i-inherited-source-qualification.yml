@@ -61,6 +61,7 @@ jobs:
         python3 morphhdl/scripts/test-increment-59i-production-successor.py -v
         python3 morphhdl/scripts/test-increment-59i-target-refresh.py -v
         python3 -B morphhdl/scripts/test-increment-59i-continuation.py -v
+        python3 -B morphhdl/scripts/test-increment-59i-source-io.py -v
         python3 morphhdl/scripts/test-increment-60f-source-scheduling.py -v
     - name: Run exact composition and inherited source audits
       shell: bash

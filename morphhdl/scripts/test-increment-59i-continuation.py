@@ -150,12 +150,16 @@ class ContinuationTests(unittest.TestCase):
 
     def test_original_integration_inventory_survives_an_already_integrated_parent(self):
         self.assertEqual(self.review.CONTINUATION_PARENT,
-            'ddf61ef25f927d646027cebbcaca6d724ad8a5fa')
+            'c74b34bb1154d1df20bf85aa63e1276388511a02')
         # Keep the original published-parent assertion on the exact preceding
         # certificate, while this report-only successor pins the next link.
         prior = json.loads(git(self.root, 'show',
             self.review.CONTINUATION_PARENT + ':' + CONTRACT))
         self.assertEqual(prior['previous_seal']['seal_commit'],
+            'ddf61ef25f927d646027cebbcaca6d724ad8a5fa')
+        prior_prior = json.loads(git(self.root, 'show',
+            prior['previous_seal']['seal_commit'] + ':' + CONTRACT))
+        self.assertEqual(prior_prior['previous_seal']['seal_commit'],
             '14dc0d2bb7274d9e91b60f112619a78b237936ab')
         self.assertEqual(hashlib.sha256(git(self.root, 'show',
             self.review.CONTINUATION_PARENT + ':' + CONTRACT)).hexdigest(),
@@ -177,6 +181,40 @@ class ContinuationTests(unittest.TestCase):
         (self.root / HELPER).write_bytes(self.helper + b'\n# altered after cache\n')
         self.reject('production successor reviewer changed',
             lambda: target._projection_contract(self.root))
+
+    def test_content_cache_rejects_same_size_manifest_edit_with_preserved_mtime(self):
+        self.review._projection_contract(self.root)
+        file = self.root / CONTRACT
+        before = file.stat()
+        changed = self.manifest.replace(b'"schema_version": 3', b'"schema_version": 9', 1)
+        self.assertNotEqual(changed, self.manifest)
+        self.assertEqual(len(changed), len(self.manifest))
+        file.write_bytes(changed)
+        os.utime(file, ns=(before.st_atime_ns, before.st_mtime_ns))
+        self.reject('sealed successor manifest changed')
+
+    def test_content_cache_rejects_new_helper_bytes(self):
+        self.review._projection_contract(self.root)
+        (self.root / HELPER).write_bytes(self.helper + b'\n# late helper change\n')
+        self.reject('sealed successor helper changed')
+
+    def test_warm_lexical_cache_rejects_mode_change_on_other_live_source(self):
+        self.check()
+        file = self.root / 'morphhdl/scripts/check-increment-59i-target-integration.py'
+        file.chmod(0o755)
+        self.reject('source mode changed')
+
+    def test_warm_lexical_cache_rejects_parent_directory_link(self):
+        self.check()
+        original = self.root / 'morphhdl/src/test/scala'
+        moved = self.root / 'moved-scala'
+        original.rename(moved)
+        original.symlink_to(moved, target_is_directory=True)
+        try:
+            self.reject('linked source')
+        finally:
+            original.unlink()
+            moved.rename(original)
 
     def test_complete_current_source_and_both_original_certificates(self):
         value = self.check()
