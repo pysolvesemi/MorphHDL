@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "5ef6a52ece26139dcc9a9876595feda11ab285e3",
+  "final_source_commit": "f10c174e85196eb845852bf051e2c2771fd6acc9",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -98,7 +98,7 @@
       "path": ".github/workflows/sequential-source-review-targeted.yml",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "65cde3104416827a857438f7e3604f8b38b650b4e3c2fc24ea85563ca43c221a"
+      "after_sha256": "e5b8557885c32d03fe5ff4b074bb5a33a65583f493d535c4aef91798bb8287c9"
     },
     {
       "path": ".github/workflows/sequential-wire-consumers.yml",
@@ -218,7 +218,7 @@
       "path": "docs/morphhdl/sequential-wire-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "4b51194062cdf978f1dfc832c5697f5475067893f0d5fa88cbd1bafd5b454bd4"
+      "after_sha256": "d3e6d3da88d947816e8a6573d2b65015b6f065f0081999c665be4ea02d6bd7e7"
     },
     {
       "path": "frontend/src/main/scala/morphhdl/frontend/HdlBool.scala",
@@ -524,7 +524,7 @@
       "path": "morphhdl/contracts/increment-54-typed-layering-ir.contract",
       "mode": "100644",
       "before_sha256": "5fea327bd389adf644d12d14761763c27f488d964c93dc986cdd5b1ef6e872d7",
-      "after_sha256": "7494dc0371f75a24fbf00d09024af132e9d20d440a1eb35bd1a0dc3009478d81"
+      "after_sha256": "23f71adaf72206f6bfc09cf275062c9f05d1d7138ee3d76a6043b3a3decd2ec2"
     },
     {
       "path": "morphhdl/contracts/increment-55-native-change-review.json",
@@ -542,7 +542,7 @@
       "path": "morphhdl/contracts/lane-when-source-scope.json",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "73846b762907b050bbc85d558ce8e9c60317c335c81c598b5349b6bc212d7908"
+      "after_sha256": "697e0c7a55048d12efbd7dd4b7c44b92090932cbf4d7fdac1228a39646ea8f8f"
     },
     {
       "path": "morphhdl/contracts/native-source-preservation.json",
@@ -608,19 +608,19 @@
       "path": "morphhdl/scripts/check-lane-when-source-scope.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "01f0b6e545af1da14c9b0e41c839526c10c7700d5c267e23240ede69ac115077"
+      "after_sha256": "b431e713053367fff41270ebbb76a5f21371bac3a1df3e9b6fcde89f8754f7b8"
     },
     {
       "path": "morphhdl/scripts/check-sequential-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "ddcccfb6890904d9085112acb0dc6f47a9485fb14a12d0dc5d25cca315a11d99"
+      "after_sha256": "864c9176186e7779c1a0889aa1d06d7d62f8ed4ef5b8d31d12504ddd04eda993"
     },
     {
       "path": "morphhdl/scripts/check-typed-layering-ir.py",
       "mode": "100644",
       "before_sha256": "066d10bd125da3f697f528ad75379c0d3ebdbda604c2f16c8bfc8d5fd13dea8a",
-      "after_sha256": "f7361e79b8f5b5bcfbc4c476e6fe0f27aa96ea7a928ba908ab6728c5b7578aa8"
+      "after_sha256": "d7e358c03f3dd047bb3db32d63ea2ccd9b4f00fc921df20828389b28995be569"
     },
     {
       "path": "morphhdl/scripts/check-wa07b-inherited-review.py",
@@ -710,7 +710,7 @@
       "path": "morphhdl/scripts/test-sequential-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "672bf9ee2ac78e6602c398c68f32cee057e18e1f584b739300a06950f6fd2daa"
+      "after_sha256": "6bd572d943b876d7b071545e31e8609fbb679287a5a5952ca67a867756611f23"
     },
     {
       "path": "morphhdl/scripts/test-wa07b-inherited-review.py",
