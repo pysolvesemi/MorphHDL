@@ -73,6 +73,16 @@ private[examples] final class UnnamedWireAliasNativePhase(
     )
   }
 
+  /** Read-only explanation using exactly the proof used by native writeback. */
+  private[examples] def retentionReasonFor(pc: PhaseContext, value: BaseType): Option[String] =
+    candidateSnapshot(pc).find(_.alias eq value) match {
+      case None => Some("WA04-NATIVE-NOT-A-CANDIDATE")
+      case Some(candidate) => proveCandidate(pc, candidate) match {
+        case Left(reason) => Some(reason)
+        case Right(proof) => applyCanonicalDecision(candidate, proof).left.toOption
+      }
+    }
+
   override def hasNetlistImpact: Boolean = true
 
   override def impl(pc: PhaseContext): Unit = {
@@ -189,10 +199,18 @@ private[examples] final class UnnamedWireAliasNativePhase(
       Left("WA04-NATIVE-PRESERVATION")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA04-NATIVE-USE-CONTEXT")
-    else if (candidate.useStatements.exists {
+    // Source preservation belongs to the alias identity, not its immediate
+    // receiver kind. A narrowing resize can put a combinational type node
+    // between this alias and its register consumer. Checking only direct
+    // register uses would erase explicit vital intent through that node.
+    // Consult the pre-liveness inventory; current isVital also includes
+    // inferred liveness and therefore cannot distinguish protected aliases.
+    else if (sourceIntent.exists(intent => !intent.permits(alias)))
+      Left("WA04-NATIVE-SOURCE-INTENT")
+    else if (sourceIntent.isEmpty && candidate.useStatements.exists {
         case value: DataAssignmentStatement => value.finalTarget.isReg
         case _ => false
-      } && !sourceIntent.exists(_.permits(alias)))
+      })
       Left("WA04-NATIVE-SEQUENTIAL-SOURCE-INTENT")
     else if (new NamedWireAliasNativePhase().expressionRemovalBlocker(
         pc, candidate.component, alias, assignment,

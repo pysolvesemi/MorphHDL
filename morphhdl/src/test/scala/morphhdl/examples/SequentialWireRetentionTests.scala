@@ -31,13 +31,16 @@ class SequentialWireRetentionTests extends AnyFunSuite {
           override def impl(pc: PhaseContext): Unit = {
             reason = new NamedWireExpressionNativePhase(conditionSourceIntent = intent)
               .retentionReasonFor(pc, predicate)
-            if (kind == "explicit") {
-              // This source is already a direct named alias at this boundary,
-              // not an expression candidate. Check its actual provenance too.
+            if (kind == "explicit" || kind == "explicit-declaration") {
               assert(NativeWireNameProvenance.origin(predicate)
                 .flatMap(_.explicitName).contains("when_user_l456"))
-              assert(predicate.head.asInstanceOf[DataAssignmentStatement].source
-                .isInstanceOf[BaseType])
+              // An explicitly named expression result is still a type node.
+              // candidateForValue admits type nodes only for generated/unnamed
+              // conditions. This is NOT a direct BaseType-to-BaseType alias.
+              assert(predicate.isTypeNode == (kind == "explicit"))
+              val expression = predicate.head.asInstanceOf[DataAssignmentStatement].source
+              assert(expression.isInstanceOf[Operator.Bool.Not], expression)
+              assert(expression.asInstanceOf[Operator.Bool.Not].input eq inputPort)
             }
             observed = true
           }
@@ -53,12 +56,16 @@ class SequentialWireRetentionTests extends AnyFunSuite {
           val select = in UInt(2 bits)
           val result = out Bits(8 bits)
           val state = Reg(Bits(8 bits)) init(0)
-          @dontName val condition = !input
+          @dontName val condition = if (kind == "explicit-declaration") {
+            val declaration = Bool()
+            declaration := !input
+            declaration
+          } else !input
           predicate = condition
           kind match {
             case "keep" => condition.addAttribute("keep")
             case "vital" => condition.setAsVital()
-            case "explicit" => condition.setName("when_user_l456")
+            case "explicit" | "explicit-declaration" => condition.setName("when_user_l456")
             case _ =>
           }
           when(condition) {
@@ -89,6 +96,7 @@ class SequentialWireRetentionTests extends AnyFunSuite {
       "keep" -> "WA10-CONDITION-PRESERVATION",
       "vital" -> "WA10-CONDITION-SOURCE-INTENT",
       "explicit" -> "WA10-CONDITION-NOT-A-CANDIDATE",
+      "explicit-declaration" -> "WA10-CONDITION-USER-NAME",
       "switch" -> "WA10-CONDITION-RECEIVER-CONTEXT",
       "partial" -> "WA10-CONDITION-UNSUPPORTED-CONTROL")) {
     test(s"$kind receiver is retained with its exact native reason") {
@@ -96,6 +104,102 @@ class SequentialWireRetentionTests extends AnyFunSuite {
       assert(reason.contains(expected), reason)
       assert(name.nonEmpty && verilog.contains(s"assign $name = "), verilog)
       assert(verilog.contains(s"if($name)"), verilog)
+    }
+  }
+
+  /** Observe the normalized graph, including the intermediary that hid vital intent. */
+  private def inspectAlias(shape: String, protectedAlias: Boolean): Unit = {
+    val directory = Files.createTempDirectory("alias-source-intent-")
+    var alias: UInt = null
+    var sourcePort: UInt = null
+    var observed = false
+    try {
+      val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
+        oneFilePerComponent = false, headerWithDate = false))
+      config.netlistFileName = "dut.v"
+      config.phasesInserters += { phases: ArrayBuffer[Phase] =>
+        val index = phases.indexWhere(_.getClass.getName == "morphhdl.examples.ProductionWireAssignmentPhase")
+        require(index >= 0)
+        val intent = phases.collectFirst { case value: NativeConditionSourceIntent => value }.get
+        phases.insert(index, new Phase {
+          override def hasNetlistImpact: Boolean = false
+          override def impl(pc: PhaseContext): Unit = {
+            assert(alias.isUnnamed && !alias.isTypeNode && alias.hasOnlyOneStatement)
+            assert(alias.head.asInstanceOf[DataAssignmentStatement].source eq sourcePort)
+            // Both aliases are now live. Only the captured source intent can
+            // distinguish the explicit vital alias from the unprotected one.
+            assert(alias.isVital)
+            assert(intent.permits(alias) == !protectedAlias)
+            val consumers = ArrayBuffer.empty[DataAssignmentStatement]
+            alias.component.dslBody.walkStatements {
+              case assignment: DataAssignmentStatement if assignment.finalTarget ne alias =>
+                var referencesAlias = false
+                assignment.walkDrivingExpressions {
+                  case value: BaseType if value eq alias => referencesAlias = true
+                  case _ =>
+                }
+                if (referencesAlias) consumers += assignment
+              case _ =>
+            }
+            assert(consumers.nonEmpty)
+            if (shape == "whole-register") assert(consumers.exists(_.finalTarget.isReg))
+            else {
+              assert(consumers.forall(_.finalTarget.isComb))
+              assert(consumers.exists(_.source.isInstanceOf[Resize]))
+            }
+            val reason = new UnnamedWireAliasNativePhase(Some(intent)).retentionReasonFor(pc, alias)
+            if (protectedAlias) assert(reason.contains("WA04-NATIVE-SOURCE-INTENT"), reason)
+            else assert(reason.isEmpty, reason)
+            observed = true
+          }
+        })
+      }
+      MorphVerilog(config) {
+        val ppc = HdlBool.param("PPC4", default = false).asElabBool.toElabInt * 3 + 1
+        new Component {
+          val laneWitness = out Bits(ppc bits)
+          laneWitness := 0
+          val source = in UInt(18 bits)
+          sourcePort = source
+          @dontName val direct = UInt(18 bits)
+          alias = direct
+          direct := source
+          if (protectedAlias) direct.setAsVital()
+          val width = if (shape == "whole-register") 18 else 13
+          val result = out UInt(width bits)
+          if (shape == "comb-slice") result := direct.resized
+          else {
+            val state = Reg(UInt(width bits)) init(0)
+            state.setName("state")
+            if (shape == "whole-register") state := direct else state := direct.resized
+            result := state
+          }
+        }
+      }
+      assert(observed, "The production-boundary observer did not run")
+      val verilog = new String(Files.readAllBytes(directory.resolve("dut.v")), StandardCharsets.UTF_8)
+      val name = alias.getName("")
+      if (protectedAlias) {
+        assert(name.nonEmpty, verilog)
+        assert(verilog.contains(s"assign $name = ${sourcePort.getName()};"), verilog)
+        val selected = if (shape == "whole-register") name else s"$name[12:0]"
+        assert(verilog.contains((if (shape == "comb-slice") "assign result = " else "state <= ") + selected + ";"), verilog)
+      } else {
+        assert(alias.parentScope == null, "The unprotected alias must really be removed")
+        val selected = if (shape == "whole-register") sourcePort.getName() else s"${sourcePort.getName()}[12:0]"
+        assert(verilog.contains((if (shape == "comb-slice") "assign result = " else "state <= ") + selected + ";"), verilog)
+      }
+    } finally {
+      val paths = Files.walk(directory)
+      try paths.iterator.asScala.toVector.sortBy(_.getNameCount).reverse.foreach(Files.deleteIfExists(_))
+      finally paths.close()
+    }
+  }
+
+  for (shape <- Vector("whole-register", "register-slice", "comb-slice");
+       protectedAlias <- Vector(false, true)) {
+    test(s"$shape honors captured vital=$protectedAlias independent of immediate consumer kind") {
+      inspectAlias(shape, protectedAlias)
     }
   }
 }
