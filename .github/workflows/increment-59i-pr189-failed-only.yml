@@ -1,0 +1,53 @@
+name: Increment 59i PR189 synchronized failed-only qualification dispatch
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-pr189-failed-only.yml
+      - .github/recovery/59i-pr189-failed-only/**
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: increment-59i-pr189-failed-only-f4264188
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - name: Validate restricted dispatch controls and the exact synchronized source
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/59i-pr189-failed-only"
+          mkdir -p "$out"
+          python3 -B .github/recovery/59i-pr189-failed-only/test_dispatch.py 2>&1 | tee "$out/controller-tests.log"
+          source="$RUNNER_TEMP/59i-pr189-reviewed-source"
+          git worktree add --detach "$source" f42641880e0645f0c997ecedabd031bf8948bbfa
+          test "$(git -C "$source" rev-parse HEAD^{tree})" = c24dc1b9842849bb10abc3e6ad051fe7f8847172
+          (cd "$source" && python3 -B morphhdl/scripts/check-increment-59i-production-successor.py) 2>&1 | tee "$out/source-review.log"
+          test -z "$(git -C "$source" status --porcelain --untracked-files=all)"
+      - name: Dispatch only the five original failed inherited workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-pr189-failed-only/dispatch.py \
+            --output "$RUNNER_TEMP/59i-pr189-failed-only" \
+            2>&1 | tee "$RUNNER_TEMP/59i-pr189-failed-only/dispatch.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-pr189-failed-only-f4264188-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-pr189-failed-only
+          if-no-files-found: error
+          retention-days: 21
