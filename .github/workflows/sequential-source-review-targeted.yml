@@ -26,11 +26,13 @@ jobs:
             const fs = require('fs');
             const branch = 'agent/wa-sequential-wire-consumers';
             const oldHead = 'd9c3f574ef7dc036ebdfd8e2078a512c40c5aed9';
-            const allowedHeads = new Set([oldHead, context.sha]);
+            const allowedHeads = new Set([oldHead, '8120db187de12b62185d55cc2d43324eda9189f8', context.sha]);
             const {owner, repo} = context.repo;
             const pr = (await github.rest.pulls.get({owner, repo, pull_number: 190})).data;
-            if (pr.state !== 'closed' || pr.head.ref !== branch || pr.head.sha !== context.sha)
-              throw new Error('PR190 state/head changed; refusing cancellation');
+            const ref = (await github.rest.git.getRef({owner,repo,ref:`heads/${branch}`})).data;
+            if (pr.state !== 'closed' || pr.head.ref !== branch ||
+                !allowedHeads.has(pr.head.sha) || ref.object.sha !== context.sha)
+              throw new Error('PR190 state/live branch changed; refusing cancellation');
             const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
               {owner, repo, branch, per_page: 100});
             const receipt = {control_sha: context.sha, original_sha: oldHead, snapshot: runs.map(r =>
