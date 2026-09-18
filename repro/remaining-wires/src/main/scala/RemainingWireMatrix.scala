@@ -4,7 +4,7 @@ import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
 import morphhdl.frontend.HdlBool
 
 /** Independent of application RTL. Both clocks deliberately use one predicate. */
-class SequentialConsumerStress extends Component {
+class SequentialConsumerStress(ppc: ElabInt) extends Component {
   val io = new Bundle {
     val clkA, clkB, rstA, rstB, enableA, enableB = in Bool()
     val block, forceRun, priority, clear, allowB = in Bool()
@@ -15,6 +15,7 @@ class SequentialConsumerStress extends Component {
     val sameEdgeA = out Bool()
     val signedA = out SInt(8 bits)
     val signedWideA = out SInt(20 bits)
+    val lanes = out Bits(ppc bits)
   }
   @dontName val shared = !io.block || io.forceRun
   val sourceWord = io.value + io.extra
@@ -64,6 +65,7 @@ class SequentialConsumerStress extends Component {
     } otherwise { count := 0 }
     when(!io.allowB) { count := 1 }
   }
+  io.lanes := 0
   io.countA := a.count
   io.priorA := a.prior
   io.totalA := a.total
@@ -97,7 +99,8 @@ object GenerateRemainingWireMatrix extends App {
   }
   for (mode <- Vector("default", "repeat", "disabled")) {
     MorphVerilog(config(s"stress-$mode", mode)) {
-      val dut = new SequentialConsumerStress
+      val dut = new SequentialConsumerStress(
+        HdlBool.param("PPC4", default = false).asElabBool.toElabInt * 3 + 1)
       dut.setDefinitionName(if (mode == "disabled") "StressReference" else "StressOptimized")
       dut
     }

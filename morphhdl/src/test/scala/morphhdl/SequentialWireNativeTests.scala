@@ -5,16 +5,23 @@ import java.nio.file.Files
 import scala.collection.JavaConverters._
 import org.scalatest.funsuite.AnyFunSuite
 import spinal.core._
+import morphhdl.frontend.HdlBool
 
 class SequentialWireNativeTests extends AnyFunSuite {
   private object UnknownIntent extends SpinalTag
-  private def emit(disabled: Boolean = false)(factory: => Component): String = {
+  private abstract class Fixture(ppc: ElabInt) extends Component {
+    val parameterWitness = out Bits(ppc bits)
+    parameterWitness := 0
+  }
+  private def emit(disabled: Boolean = false)(factory: ElabInt => Component): String = {
     val dir = Files.createTempDirectory("sequential-native-")
     try {
       val config = SpinalConfig(targetDirectory = dir.toString, headerWithDate = false,
         oneFilePerComponent = false)
       config.netlistFileName = "dut.v"
-      MorphVerilog(if (disabled) MorphWireAssignmentPasses(config, enabled = false) else config)(factory)
+      MorphVerilog(if (disabled) MorphWireAssignmentPasses(config, enabled = false) else config) {
+        factory(HdlBool.param("PPC4", default = false).asElabBool.toElabInt * 3 + 1)
+      }
       new String(Files.readAllBytes(dir.resolve("dut.v")), StandardCharsets.UTF_8)
     } finally {
       val paths = Files.walk(dir)
@@ -22,7 +29,7 @@ class SequentialWireNativeTests extends AnyFunSuite {
       finally paths.close()
     }
   }
-  private def feedback: Component = new Component {
+  private def feedback(ppc: ElabInt): Component = new Fixture(ppc) {
     val enable, priority = in Bool()
     val countOut = out UInt(13 bits)
     val flagOut = out Bool()
@@ -43,7 +50,7 @@ class SequentialWireNativeTests extends AnyFunSuite {
     assert("count <= 13'h0*7;".r.findFirstIn(v).nonEmpty, v)
     assert(emit(disabled = true)(feedback).contains("assign when_"))
   }
-  private final class Protected(protection: Int, aliasCase: Boolean) extends Component {
+  private final class Protected(ppc: ElabInt, protection: Int, aliasCase: Boolean) extends Fixture(ppc) {
     val enable = in Bool()
     val source = in UInt(18 bits)
     val result = out UInt(13 bits)
@@ -60,6 +67,7 @@ class SequentialWireNativeTests extends AnyFunSuite {
       case 4 => protectedNode.addTag(UnknownIntent)
       case 5 => protectedNode.setName(if (aliasCase) "_zz_user_signal" else "when_user_l999")
       case 6 => protectedNode.addTag(spinal.core.sim.SimPublic)
+      case -1 => () // Unprotected control for the identical receiver graph.
     }
     when(predicate) { state := alias.resized }
     result := state
@@ -68,15 +76,21 @@ class SequentialWireNativeTests extends AnyFunSuite {
        (label, protection) <- Vector("keep", "dontSimplify", "vital", "frozen", "unknown tag", "explicit lookalike", "debug").zipWithIndex) {
     test(s"$label ${if (aliasCase) "direct alias" else "condition"} remains a named identity for register consumers") {
       var dut: Protected = null
-      val v = emit() { dut = new Protected(protection, aliasCase); dut }
+      val v = emit() { ppc => dut = new Protected(ppc, protection, aliasCase); dut }
       val name = dut.protectedNode.getName()
       assert(name.nonEmpty)
       assert(v.contains(s"assign $name = "), v)
       if (!aliasCase) assert(v.contains(s"if($name)"), v)
     }
   }
+  test("unprotected controls really remove both generated identities on the same graph") {
+    val v = emit() { ppc => new Protected(ppc, -1, aliasCase = false) }
+    assert(!v.contains("assign when_"), v)
+    assert(v.contains("state <= source[12:0];"), v)
+    assert(!v.contains("assign _zz_"), v)
+  }
   test("named source and arithmetic slice bases survive while direct register slices simplify") {
-    val v = emit() { new Component {
+    val v = emit() { ppc => new Fixture(ppc) {
       val enable = in Bool()
       val first, second = in UInt(18 bits)
       val result, arithmeticOut = out UInt(13 bits)
@@ -97,7 +111,7 @@ class SequentialWireNativeTests extends AnyFunSuite {
   }
   test("unsupported switch consumers retain the condition helper rather than being partially rewritten") {
     var predicate: Bool = null
-    val v = emit() { new Component {
+    val v = emit() { ppc => new Fixture(ppc) {
       val a = in Bool()
       val select = in UInt(2 bits)
       val result = out UInt(8 bits)
