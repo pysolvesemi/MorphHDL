@@ -1,0 +1,66 @@
+name: Increment 59i failed-only audit I/O repair
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-audit-io-stage.yml
+      - .github/recovery/59i-audit-io/**
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Restore exact source-I/O repair and retain every source preflight
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-audit-io-evidence"
+          python3 -B .github/recovery/59i-audit-io/stage.py prepare \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-audit-io-source" \
+            --output "$RUNNER_TEMP/59i-audit-io-evidence" \
+            --bundle "$RUNNER_TEMP/59i-audit-io.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-audit-io-evidence/prepare.log"
+          cp "$RUNNER_TEMP/59i-audit-io.bundle" "$RUNNER_TEMP/59i-audit-io-evidence/reviewed.bundle"
+      - name: Export exact tree requests for connector publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-audit-io-trees-969af59a-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-audit-io-evidence
+          if-no-files-found: error
+          retention-days: 21
+      - name: Stage exact commit objects and dispatch only failed inherited-source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-audit-io/stage.py publish \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-audit-io-source" \
+            --output "$RUNNER_TEMP/59i-audit-io-evidence" \
+            --bundle "$RUNNER_TEMP/59i-audit-io.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-audit-io-evidence/publication.log"
+      - name: Preserve source, object and dispatch receipts even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-audit-io-staged-969af59a-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-audit-io-evidence
+          if-no-files-found: error
+          retention-days: 21
