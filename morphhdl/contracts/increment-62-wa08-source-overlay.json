@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "8491f21cf062988bc41c21e8bdfec846f80f90d8",
+  "final_source_commit": "0437d55b76fc4ab9eebf13c000c097519cec49a6",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -128,7 +128,7 @@
       "path": ".github/workflows/sequential-source-review-targeted.yml",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "f70dc38c39f7f90b2ee682868abb3134fa1fcda79ce0f77d0c41acb593717fd4"
+      "after_sha256": "d6e60a739a0240e0a1c3c8fe036b8d1bd21501a6ece363ebdec77debee11b53c"
     },
     {
       "path": ".github/workflows/sequential-wire-consumers.yml",
@@ -1718,7 +1718,7 @@
       "path": "morphhdl/scripts/test-pr190-pr189-source-sync.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "2da4d82d5e8b11caef60904688ba8d71e3983c1bd4b3a759536d0acfbfdfc2ba"
+      "after_sha256": "22e80b1c03bd821338a54b6a1576f0cb9d4cf0f32248e08e53e1c12780fe5c59"
     },
     {
       "path": "morphhdl/scripts/test-sequential-wire-source-review.py",
