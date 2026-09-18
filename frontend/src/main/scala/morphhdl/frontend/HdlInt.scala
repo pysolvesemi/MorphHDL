@@ -193,6 +193,11 @@ final class HdlInt private[frontend] (
     * value to Scala `Int`.
     */
   def asElabInt: spinal.core.ElabInt = {
+    StructuralExpressionBridge.analyzedCompactDeclaration(this) match {
+      case Some(declaration) =>
+        return spinal.core.ExternalAnalyzedFrontendPermitIssuer.compact(declaration)
+      case None =>
+    }
     val analyzed =
       StructuralExpressionBridge.analyzedWidth(this, "typed elaboration integer")
     HdlInt

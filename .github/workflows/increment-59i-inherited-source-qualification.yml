@@ -256,6 +256,9 @@ jobs:
         python3 -B morphhdl/scripts/check-increment-59i-audit-shards.py aggregate \
           --directory "$RUNNER_TEMP/59i-audit-shards" --head "$AUDIT_HEAD" \
           --output "$GITHUB_WORKSPACE/target/increment-59i-rollout-composition/shards.json"
+    - name: Verify merged PR189 source synchronization
+      shell: bash
+      run: python3 -B morphhdl/scripts/test-increment-59i-pr189-sync.py
     - name: Validate immutable native source reviews at both exact parents
       shell: bash
       run: |

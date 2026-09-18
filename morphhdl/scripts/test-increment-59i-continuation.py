@@ -150,9 +150,13 @@ class ContinuationTests(unittest.TestCase):
 
     def test_original_integration_inventory_survives_an_already_integrated_parent(self):
         self.assertEqual(self.review.CONTINUATION_PARENT,
+            '37d1629f9b78c4d9cd6646abee9962fdd046e413')
+        sharded = json.loads(git(self.root, 'show',
+            self.review.CONTINUATION_PARENT + ':' + CONTRACT))
+        self.assertEqual(sharded['previous_seal']['seal_commit'],
             '969af59a0378fca5b964d04d8f2af49b123dd804')
         immediate = json.loads(git(self.root, 'show',
-            self.review.CONTINUATION_PARENT + ':' + CONTRACT))
+            sharded['previous_seal']['seal_commit'] + ':' + CONTRACT))
         self.assertEqual(immediate['previous_seal']['seal_commit'],
             'c74b34bb1154d1df20bf85aa63e1276388511a02')
         # Keep the original published-parent assertion on the exact preceding
@@ -168,8 +172,12 @@ class ContinuationTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(git(self.root, 'show',
             self.review.CONTINUATION_PARENT + ':' + CONTRACT)).hexdigest(),
             self.review.CONTINUATION_PARENT_MANIFEST)
+        # The old integrated target remains in the pinned sharding parent;
+        # PR189 is incorporated by the new source's second parent instead.
         git(self.root, 'merge-base', '--is-ancestor',
-            self.review.CONTINUATION_TARGET, self.review.CONTINUATION_PARENT)
+            self.review.CONTINUATION_COMMON, self.review.CONTINUATION_PARENT)
+        git(self.root, 'merge-base', '--is-ancestor',
+            self.review.CONTINUATION_TARGET, self.value['source_commit'])
         self.assertEqual(set(e['path'] for e in self.value['target_integration']['files']),
             self.review.changed(self.root, self.review.CONTINUATION_COMMON, self.review.CONTINUATION_TARGET))
         self.assertEqual(git(self.root, 'merge-base', '--all',
@@ -361,7 +369,7 @@ class ContinuationTests(unittest.TestCase):
         path = '.github/workflows/increment-60f-equivalence-closure.yml'
         integration = overlay.integration_review(self.root)
         projected = overlay.overlay_target_source(self.root, integration, path, (self.root / path).read_bytes())
-        self.assertEqual(projected, git(self.root, 'show', self.review.CONTINUATION_61_BASE + ':' + path))
+        self.assertEqual(projected, git(self.root, 'show', self.review.CONTINUATION_TARGET + ':' + path))
         self.assertEqual(self.review.target_anchor(self.root), self.review.CONTINUATION_TARGET)
 
     def test_increment61_historical_projection_rejects_foreign_input(self):

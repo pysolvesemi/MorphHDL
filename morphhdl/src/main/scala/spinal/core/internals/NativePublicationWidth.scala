@@ -37,11 +37,16 @@ private[internals] object NativePublicationWidth {
         Map(Vector.empty[BigInt] -> width.default))
     }
     if (ElaborationProductDomain.isRetained(width)) {
-      val owned = ElaborationProductDomain.owner(width, role, width.sourceLocation) {
+      val owned = ElaborationProductDomain.ownerWithCompact(width, role, width.sourceLocation)(
         (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
-          component, declaration, root, universe, role, width.sourceLocation).values
-      }.get
-      return Evidence(owned.roots, owned.schemas, owned.rootValues, Map.empty, Some(owned))
+          component, declaration, root, universe, role, width.sourceLocation).values,
+        (root, _) => ParameterizedStructure.requireCompactDeclarationOwner(
+          component, declaration, root, role, width.sourceLocation)
+      ).get
+      // Product comparisons use the exact root/schema/scope OwnerProof, not
+      // a finite root table. Asking for rootValues would enumerate a compact
+      // declaration or reject valid compact-derived native packed widths.
+      return Evidence(owned.roots, owned.schemas, Vector.empty, Map.empty, Some(owned))
     }
     val certified = ElaborationWidthAuthority.ownerEvaluation(width, role, width.sourceLocation) {
       (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(

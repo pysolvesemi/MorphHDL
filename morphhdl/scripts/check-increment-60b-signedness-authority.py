@@ -51,6 +51,7 @@ SUCCESSOR_SHA256 = frozenset((
     'c9be9212f628384ac6c30d59c2382009ce681da40c514f4592e1b1a60ae790a7',
     'f952c57a2b927a73afefd2418db562be8e917ece1763be54449f67095f8918b1',
     'ee3833309ea2306dd34ac07cab18f99384d9e76fb8f3a6da070f2caadfe4e3fa',
+    'c3eff01cc7b0dda2d9d04c288e2ad6942feab0eb100fabd4c4baff76f8c8d5aa',
 ))
 
 

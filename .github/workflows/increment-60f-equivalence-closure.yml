@@ -190,9 +190,10 @@ jobs:
           # reports out of the frozen 60f inventory.
           python3 morphhdl/scripts/check-increment-61-source-review.py
           python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-          # Use the sealed integrated target, not the pre-WA-08 branch point.
-          # Its unchanged catalog also requires the inherited resize-width suite.
-          base=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+          # The verified predecessor includes every already-qualified lane
+          # suite on the composed successor, or the original integrated target
+          # on Increment 61 alone. Only the two Increment 61 reports are removed.
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-regression-base)
           git merge-base --is-ancestor "$base" HEAD
           printf '%s\n' "$base" > "$output/inherited-source-head.txt"
           git worktree add --detach "$predecessor" "$base"

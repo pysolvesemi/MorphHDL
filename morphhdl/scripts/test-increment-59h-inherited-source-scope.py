@@ -162,7 +162,12 @@ def main() -> None:
             "morphhdl/contracts/increment-62-wa08-source-overlay.json").read_text())["files"]}
         adapted = []
         for label, relative, mutation, expected in cases:
-            if mutation == "suffix" and relative in overlay_paths:
+            if label == "changed native printer" and mutation == "suffix" and relative in overlay_paths:
+                # Native-hook verification authenticates current overlay bytes
+                # before attempting a historical projection. Preserve the
+                # exact earlier rejection, including its path and nonzero exit.
+                expected = "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: " + relative
+            elif mutation in ("suffix", "inside") and relative in overlay_paths:
                 expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
             elif (mutation == "hidden-index" or relative.startswith("foreign/src/main/") or
                     relative.endswith("/TypedBalancedReductionCompositeReplay.scala") or

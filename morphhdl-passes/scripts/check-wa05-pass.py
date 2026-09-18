@@ -211,7 +211,7 @@ REGISTERED_IDENTITY_HOOKS = {
     "UnnamedWireAliasNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(alias) &&",
     # WA-10 routes the unnamed slot through the shared named-expression
     # engine, which must still invoke the independently guarded metadata proof.
-    "UnnamedWireExpressionNativeBridge.scala": "new NamedWireExpressionNativePhase(unnamedOnly = true)",
+    "UnnamedWireExpressionNativeBridge.scala": "new NamedWireExpressionNativePhase(unnamedOnly = true, conditionSourceIntent)",
     "NamedWireExpressionNativeBridge.scala": "sharedSafety.expressionRemovalBlocker(",
     "ConstantOperandNativeBridge.scala": "!NativeWireAssignmentMetadata.retains(target) &&",
     "BooleanTernaryNativeBridge.scala": "if bridge.eligible(assignment)",
@@ -857,6 +857,23 @@ object Pass { def eligible(origin: NameOrigin, left: SymbolId, right: SymbolId) 
         if not any("WA05-REGISTERED-IDENTITY-HOOK" in failure
                    for failure in registered_identity_failures(mutant, metadata)):
             raise AssertionError(f"registered identity hook removal survived: {name}")
+    # The lane-condition successor adds an explicit, per-generation intent
+    # argument to this delegate. Require that exact argument and unnamed-only
+    # mode; a dropped/replaced intent is not equivalent source spelling.
+    delegated = "UnnamedWireExpressionNativeBridge.scala"
+    for old_argument, new_argument in (
+        (", conditionSourceIntent)", ")"),
+        (", conditionSourceIntent)", ", None)"),
+        (", conditionSourceIntent)", ", Some(new NativeConditionSourceIntent))"),
+        ("unnamedOnly = true,", "unnamedOnly = false,"),
+    ):
+        mutant = dict(hooks)
+        if old_argument not in mutant[delegated]:
+            raise AssertionError("missing current delegate mutation site: " + old_argument)
+        mutant[delegated] = mutant[delegated].replace(old_argument, new_argument, 1)
+        if not any("WA05-REGISTERED-IDENTITY-HOOK" in failure
+                   for failure in registered_identity_failures(mutant, metadata)):
+            raise AssertionError("changed condition-source intent delegation survived: " + new_argument)
     for marker in REGISTERED_IDENTITY_MARKERS:
         mutant = metadata.replace(marker, "removedRegistryInventory")
         if not any("WA05-REGISTERED-IDENTITY-INVENTORY" in failure

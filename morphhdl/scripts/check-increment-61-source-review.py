@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import sys
 import subprocess
 import tempfile
-import re
 import types
 from pathlib import Path
 
@@ -84,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "ee3833309ea2306dd34ac07cab18f99384d9e76fb8f3a6da070f2caadfe4e3fa"
+CONTINUATION_HELPER_SHA256 = "c3eff01cc7b0dda2d9d04c288e2ad6942feab0eb100fabd4c4baff76f8c8d5aa"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -108,7 +109,7 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     exec(compile(raw, str(file), "exec"), module.__dict__)
     value = module.verify(root)
     require(value["schema_version"] == 3 and
-            module.target_anchor(root) == "27af65abbee0d2334d6be7a6e4e2408b8af32fd9",
+            module.target_anchor(root) == "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
             "unreviewed Increment 61 continuation target")
     # The original contract still authenticates its exact reviewed inventory;
     # the outer certificate authenticates every current byte, mode and parent.
@@ -121,8 +122,45 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     return True
 
 
+
+def _cdc_successor(root: Path):
+    import importlib.util
+    path = root / "morphhdl/scripts/check-cdc-successor-source.py"
+    if not path.exists():
+        return None
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "b449c9aff9ec8fb735c021a808aaa7c192443a3b8a9fc7298228e832bf223fad":
+        raise RuntimeError("PR189 successor source: linked or changed integration checker")
+    spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
+    require(spec is not None and spec.loader is not None, "missing CDC successor checker")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _lane_successor(root: Path):
+    # The current union is authenticated before the unchanged historical
+    # Increment 61 review is replayed. No compiler source is projected away.
+    import importlib.util
+    path = root / "morphhdl/scripts/check-lane-when-increment61-source.py"
+    if not path.exists():
+        return None
+    require(path.is_file() and not path.is_symlink(), "linked lane/61 successor checker")
+    require(sha256(path.read_bytes()) == "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
+            "lane/61 successor checker digest changed")
+    spec = importlib.util.spec_from_file_location("increment61_lane_successor", path)
+    require(spec is not None and spec.loader is not None, "missing lane/61 successor checker")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def verify(root: Path = ROOT) -> None:
     if continuation_review(root):
+        return
+    successor = _cdc_successor(root) or _lane_successor(root)
+    if successor is not None:
+        successor.verify(root)
+        successor.verify_predecessor(root)
         return
     contract = load_contract()
     base = contract["base_commit"]
@@ -180,6 +218,12 @@ def verify(root: Path = ROOT) -> None:
 def self_test() -> None:
     if continuation_review(ROOT, self_test=True):
         return
+    successor = _cdc_successor(ROOT) or _lane_successor(ROOT)
+    if successor is not None:
+        successor.verify(ROOT)
+        successor.verify_predecessor(ROOT, self_test=True)
+        successor.self_test(ROOT)
+        return
     contract = load_contract()
     integrated = integrated_target_is_ancestor(contract, ROOT)
     cases = 0
@@ -211,9 +255,27 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--print-base", action="store_true")
+    parser.add_argument("--print-regression-base", action="store_true")
     args = parser.parse_args()
     if args.print_base:
         print(load_contract()["base_commit"])
+    elif args.print_regression_base:
+        import contextlib
+        with contextlib.redirect_stdout(sys.stderr):
+            continued = continuation_review(ROOT)
+        if continued:
+            # Authenticate the current union, then keep the original target's
+            # regression source selection and historical test inventory.
+            print("5374b958f8f94114b1ed46a3069845d580886da9")
+            return
+        successor = _cdc_successor(ROOT) or _lane_successor(ROOT)
+        if successor is not None:
+            import contextlib
+            with contextlib.redirect_stdout(sys.stderr):
+                successor.verify(ROOT)
+            print(successor.REGRESSION_BASE if hasattr(successor, "REGRESSION_BASE") else successor.LANE)
+        else:
+            print(load_contract()["integrated_target_commit"])
     elif args.self_test:
         self_test()
     else:

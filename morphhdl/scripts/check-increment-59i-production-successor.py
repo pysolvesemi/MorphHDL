@@ -42,43 +42,34 @@ INTEGRATION_RECONCILIATIONS = frozenset((
 ))
 # A separately reviewed continuation retains the published seal as its first
 # parent. These are immutable certificates, never moving branch permissions.
-CONTINUATION_PARENT = "969af59a0378fca5b964d04d8f2af49b123dd804"
-CONTINUATION_PARENT_TREE = "86732918d3d071ec0b505c435f9df45f477f26b9"
-CONTINUATION_PARENT_SOURCE = "59a42dbfcd1ea7d95af69d2116e7796c3efdef71"
-CONTINUATION_PARENT_MANIFEST = "ba5181c48a6f6173daa139ce6206bb67b956431165d2593ba8ef98209a4bb3c0"
-CONTINUATION_PARENT_HELPER = "f952c57a2b927a73afefd2418db562be8e917ece1763be54449f67095f8918b1"
-CONTINUATION_TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
-# Keep the original integrated target inventory rooted at the same two
-# historical branches. The immediate predecessor now already contains that
-# integration; using its merge-base would incorrectly erase the 81 target
-# records. Both fixed ancestors are independently authenticated below.
-CONTINUATION_INTEGRATION_PARENT = "f43100e4899593eb5c9e78537a4dcf6f53f9c30f"
-CONTINUATION_COMMON = "61d1fe0dcac0b52856620944a2d7426fd1390a48"
+CONTINUATION_PARENT = "37d1629f9b78c4d9cd6646abee9962fdd046e413"
+CONTINUATION_PARENT_TREE = "8d3bd63ada3bdb4ad7db1ed5311260972922c7cb"
+CONTINUATION_PARENT_SOURCE = "8933bb4d8bed35b420f8b14c88636c2d513d7672"
+CONTINUATION_PARENT_MANIFEST = "c64f923ddd7778115a13374505fd90a3a84f04700c8caf77884477f0f2f37ccb"
+CONTINUATION_PARENT_HELPER = "ee3833309ea2306dd34ac07cab18f99384d9e76fb8f3a6da070f2caadfe4e3fa"
+CONTINUATION_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
+# The immediate sealed predecessor already contains Increment61. The current
+# target delta is exactly 27af65ab..the PR189 merge, including PR187. Its earlier
+# 81 target records remain mandatory through the immutable predecessor audit.
+CONTINUATION_INTEGRATION_PARENT = "37d1629f9b78c4d9cd6646abee9962fdd046e413"
+CONTINUATION_COMMON = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
 CONTINUATION_61_BASE = "7f355a859e7e88ca343e1ff82f261fb47b3311d0"
 CONTINUATION_61_CONTRACT = "67f19808ea90ef6b8ef2b17f9dedb98f7ea40dbcdd57df172604e0da17faa972"
-CONTINUATION_61_HELPER = "0b095ea126c5f7d844db6338a1811fc0bce290b82e17ded71d9aaac7dd84443e"
+CONTINUATION_61_HELPER = "82b1e8db624b1076a1a4871e1980691d907517e97956f3bf885763fe8a02298f"
 CONTINUATION_RECONCILIATIONS = frozenset((
-    '.github/workflows/independent-parameter-domains.yml',
-    'repro/independent-parameters/test_qualify.py',
-    '.github/workflows/increment-59c-named-field-vectors.yml',
-    '.github/workflows/increment-59g-register-bridges.yml',
-    '.github/workflows/increment-60c-signed-declarations.yml',
-    '.github/workflows/increment-60d-pure-sint-casts.yml',
-    '.github/workflows/increment-60e-signedness-boundaries.yml',
+    '.github/workflows/increment-60b-signedness-authority.yml',
     '.github/workflows/increment-60f-equivalence-closure.yml',
     '.github/workflows/increment-60g-default-signed-verilog.yml',
     '.github/workflows/increment-62-wa08-source-overlay.yml',
-    'core/src/main/scala/spinal/core/ElabInt.scala',
+    'frontend/src/main/scala/morphhdl/frontend/HdlInt.scala',
     'morphhdl/contracts/increment-55-native-change-review.json',
     'morphhdl/contracts/native-source-preservation.json',
+    'morphhdl/scripts/check-cdc-successor-source.py',
     'morphhdl/scripts/check-increment-61-source-review.py',
     'morphhdl/scripts/check-increment-62-wa08-source-overlay.py',
-    'morphhdl/scripts/test-increment-59g-source-review.py',
-    'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala',
+    'morphhdl/scripts/test-increment-59h-inherited-source-scope.py',
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
-    'morphruntime/src/main/scala/spinal/core/ElabFormalComponent.scala',
-    'morphruntime/src/main/scala/spinal/core/ExternalFormalParameterRegistry.scala',
 ))
 
 
@@ -97,7 +88,7 @@ def previous_certificate() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "c64f923ddd7778115a13374505fd90a3a84f04700c8caf77884477f0f2f37ccb"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -349,7 +340,8 @@ def verify_target_integration(root: Path, value: dict) -> None:
     scope_parent = CONTINUATION_INTEGRATION_PARENT if value["schema_version"] == 3 else BASE
     if value["schema_version"] == 3:
         git(root, "merge-base", "--is-ancestor", scope_parent, CONTINUATION_PARENT)
-        git(root, "merge-base", "--is-ancestor", CONTINUATION_TARGET, CONTINUATION_PARENT)
+        git(root, "merge-base", "--is-ancestor", CONTINUATION_COMMON, CONTINUATION_PARENT)
+        git(root, "merge-base", "--is-ancestor", CONTINUATION_COMMON, CONTINUATION_TARGET)
     for key, commit in (("target", target_commit), ("common_base", common_base)):
         require(revision(root, commit) == commit and
             git(root, "rev-parse", commit + "^{tree}").decode().strip() == target[key + "_tree"],

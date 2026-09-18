@@ -462,26 +462,33 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       case value: ParameterizedBlackBoxIntegerGeneric
           if value.expression.parameters.nonEmpty =>
         val role = s"BlackBox integer generic '${value.name}' of instance '$instanceName'"
-        val ownerEvaluation = ParameterizedStructure.projectedChildEvaluationOf(
-          parent, blackBox, value.expression, role, value.sourceLocation
-        )
-        def validateIntegerDomain(): Unit = {
-          ElabInt.requireAuthoritativeIntegerDomain(
-            value.expression,
-            role,
-            "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",
-            requireExactExtrema = false
+        if (ElaborationProductDomain.isRetained(value.expression)) {
+          ElaborationProductDomain.owner(value.expression, role, value.sourceLocation) { (root, universe) =>
+            ParameterizedStructure.exactChildDomainOf(
+              parent, blackBox, root, universe, role, value.sourceLocation).values
+          }.get
+        } else {
+          val ownerEvaluation = ParameterizedStructure.projectedChildEvaluationOf(
+            parent, blackBox, value.expression, role, value.sourceLocation
           )
-          ()
-        }
-        ownerEvaluation match {
-          case Some(evaluation) =>
-            ElaborationDomainContext.withAdmitted(
-              value.expression.exactDomain.get.root,
-              evaluation.rootValues,
-              value.sourceLocation
-            )(validateIntegerDomain())
-          case None => validateIntegerDomain()
+          def validateIntegerDomain(): Unit = {
+            ElabInt.requireAuthoritativeIntegerDomain(
+              value.expression,
+              role,
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",
+              requireExactExtrema = false
+            )
+            ()
+          }
+          ownerEvaluation match {
+            case Some(evaluation) =>
+              ElaborationDomainContext.withAdmitted(
+                value.expression.exactDomain.get.root,
+                evaluation.rootValues,
+                value.sourceLocation
+              )(validateIntegerDomain())
+            case None => validateIntegerDomain()
+          }
         }
         value.name -> ExpressionBinding(value.expression)
       case value: ParameterizedBlackBoxBooleanGeneric
@@ -505,12 +512,20 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               expression.sourceLocation
             )
           }
-          ElabInt.requireAuthoritativeIntegerDomain(
-            expression,
-            s"BlackBox port '$name' width of instance '$instanceName'",
-            "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID",
-            requireExactExtrema = false
-          )
+          if (ElaborationProductDomain.isRetained(expression)) {
+            val role = s"BlackBox port '$name' width of instance '$instanceName'"
+            ElaborationProductDomain.owner(expression, role, expression.sourceLocation) { (root, universe) =>
+              ParameterizedStructure.exactChildDomainOf(
+                parent, blackBox, root, universe, role, expression.sourceLocation).values
+            }.get
+          } else {
+            ElabInt.requireAuthoritativeIntegerDomain(
+              expression,
+              s"BlackBox port '$name' width of instance '$instanceName'",
+              "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WIDTH-DOMAIN-INVALID",
+              requireExactExtrema = false
+            )
+          }
           if (expression.default != BigInt(port.getBitsWidth)) {
             fail(
               "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-PORT-WITNESS-MISMATCH",

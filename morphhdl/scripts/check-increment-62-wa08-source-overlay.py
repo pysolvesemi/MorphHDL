@@ -16,7 +16,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "84b14f56e54a729a1e83dc8c1bc0902c78f7b758ff3cc4d5f1310d13e4c2c365"
+CONTRACT_SHA256 = "432752c59d656fc3f34f383f7fe503e7768c67275522d3afd7baebcb8ab33770"
 
 
 def integration_review(root: Path):
@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "e72cb02d32fb60bab4d323aa7636e80a2c9747c856a68e5a9de18cf7b525ecb2",
+    require(hashlib.sha256(normalized).hexdigest() == "f53a935a33ea2c5510dafc6bf2716b1f5ff2ba760e8a51eef91c1ecbcfcad592",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
@@ -55,22 +55,15 @@ def integration_review(root: Path):
 
 
 def overlay_target_source(root: Path, integration, path: str, source: bytes) -> bytes:
-    projected = integration.target_source(root, path, source)
-    successor = integration.successor_review(root)
-    if successor is not None and successor.contract(root)["schema_version"] == 3:
-        # Increment 61 has its own retained certificate. Its approved delta is
-        # projected only for this older WA-08 source audit, never for compilation.
-        return successor.increment61_predecessor_source(root, path, projected)
-    return projected
+    # The pinned PR189 target carries the cumulative WA08 certificate. Its
+    # Increment61/lane/CDC changes must not be projected back to the old 7f355a85
+    # seal. target_source authenticates current input before returning history.
+    return integration.target_source(root, path, source)
 
 
 def overlay_target_inventory(root: Path, integration, paths: set[str], base: str,
         full: bool = False) -> set[str]:
-    projected = integration.target_inventory(root, paths, base, full)
-    successor = integration.successor_review(root)
-    if successor is not None and successor.contract(root)["schema_version"] == 3:
-        return successor.increment61_predecessor_inventory(root, projected, base, full)
-    return projected
+    return integration.target_inventory(root, paths, base, full)
 
 
 def require(ok: bool, detail: str) -> None:

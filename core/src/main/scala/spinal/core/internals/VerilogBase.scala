@@ -98,6 +98,24 @@ object VerilogBase {
     def inputText: String = printer.emitExpression(resize.input)
   }
 
+  /** Optional storage owned by the concrete emitter, not by the historical
+    * VerilogBase interface. A field in that interface would add abstract JVM
+    * accessors and break already-compiled implementations. The strong reference
+    * lives exactly as long as its owner; no global or thread-local registry is
+    * involved, even when a policy itself retains the emitter.
+    */
+  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>
+    @volatile private var boundPolicy: DeclarationPolicy = null
+
+    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy
+
+    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {
+      require(policy != null && boundPolicy == null,
+        "a Verilog declaration policy must be non-null and bound exactly once")
+      boundPolicy = policy
+    }
+  }
+
   trait DeclarationPolicy {
     def signed(occurrence: DeclarationOccurrence): Boolean
     def wrapperRange(occurrence: DeclarationOccurrence): Option[String]
@@ -112,7 +130,18 @@ object VerilogBase {
 trait VerilogBase extends VhdlVerilogBase{
   import VerilogBase._
 
-  private var declarationPolicy: DeclarationPolicy = null
+  // Concrete default accessors keep old VerilogBase implementations stateless
+  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.
+  private def declarationPolicy: DeclarationPolicy = this match {
+    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy
+    case _ => null
+  }
+
+  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {
+    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)
+    case _ => throw new IllegalArgumentException(
+      "binding a Verilog declaration policy requires DeclarationPolicyOwner")
+  }
 
   /** One generation-local opt-in; an ordinary native emitter has no policy. */
   private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {
