@@ -403,6 +403,28 @@ private[frontend] object StructuralExpressionBridge {
     * single-root table derived from the same HdlInt AST.  No API accepts a raw
     * expression/table pair and turns it into this wrapper.
     */
+  /** Authenticate only a bare declaration token. Large arbitrary HdlInt
+    * ASTs are not promoted from interval summaries by this ingress.
+    */
+  def analyzedCompactDeclaration(value: HdlInt): Option[AnalyzedCompactDeclaration] = {
+    if (value == null || value.scope.nonEmpty || value.localDeclaration.nonEmpty ||
+        value.localParameters.nonEmpty || value.booleanParameters.nonEmpty ||
+        value.booleanLocalParameters.nonEmpty || value.formalBinding.nonEmpty) return None
+    val token = (value.expression, value.declaration) match {
+      case (IntExpr.ParameterRef(name), Some(declaration))
+          if name == declaration.declaration.name && value.parameters.size == 1 &&
+            value.parameters.exists(_ eq declaration) => declaration
+      case _ => return None
+    }
+    val facts = IntExpressionAnalysis.parameterFacts(token.declaration).getOrElse(return None)
+    val minimum = facts.interval.lower.getOrElse(return None)
+    val maximum = facts.interval.upper.getOrElse(return None)
+    if (maximum - minimum + 1 <= spinal.core.ElabInt.MaximumExactDomainSize) return None
+    val expression = integerImpl(value, "compact parameter declaration",
+      NativeStructuralFrontend.currentGenerateIndices, allowPortableLogHelper = true)
+    Some(new AnalyzedCompactDeclaration(value, expression, AnalyzerSeal))
+  }
+
   def analyzedWidth(
       value: HdlInt,
       role: String,
@@ -912,4 +934,22 @@ private[frontend] object StructuralExpressionBridge {
       allowPortableLogHelper: Boolean
   ): String =
     s"((${renderInteger(left, origin, allowPortableLogHelper)}) $operator (${renderInteger(right, origin, allowPortableLogHelper)}))"
+}
+
+/** One-use analyzer-owned direct declaration. No public factory accepts raw
+  * integer metadata to construct this wrapper.
+  */
+final class AnalyzedCompactDeclaration private[frontend] (
+    private val sourceIdentity: AnyRef,
+    private val expression: ElaborationIntegerExpression,
+    private val analyzerSeal: AnyRef
+) {
+  private[this] var consumed = false
+  def claim(): (AnyRef, ElaborationIntegerExpression) = synchronized {
+    if (!StructuralExpressionBridge.authenticates(analyzerSeal) || consumed)
+      FrontendException.failAt("MORPH-FRONTEND-COMPACT-AUTHORIZATION-INVALID",
+        "compact declaration analysis is foreign or already consumed", SourceOrigin("<compact-declaration>", 1))
+    consumed = true
+    sourceIdentity -> expression
+  }
 }

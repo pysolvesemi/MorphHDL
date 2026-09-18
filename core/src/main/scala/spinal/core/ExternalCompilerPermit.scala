@@ -16,6 +16,14 @@ final class ExternalCompilerPermit private[core] (
 ) {
   private[this] var consumed = false
 
+  private[core] def claimCompactDeclaration(
+      expression: ElaborationIntegerExpression, source: AnyRef
+  ): Boolean = synchronized {
+    if (consumed || !(kind eq ExternalCompilerPermit.AnalyzedCompactDeclaration) ||
+        !(integerExpression eq expression) || !(sourceIdentity eq source)) false
+    else { consumed = true; true }
+  }
+
   private[core] def claimSingleRoot(
       expression: ElaborationIntegerExpression,
       evaluations: AnyRef
@@ -34,6 +42,22 @@ final class ExternalCompilerPermit private[core] (
 object ExternalCompilerPermit {
   private[core] sealed abstract class Kind private[ExternalCompilerPermit] ()
   private[core] case object AnalyzedSingleRoot extends Kind
+  private[core] case object AnalyzedCompactDeclaration extends Kind
+
+  private[core] def analyzedCompactDeclaration(source: AnyRef,
+      expression: ElaborationIntegerExpression): ExternalCompilerPermit = {
+    require(source != null && expression != null, "compact analyzed source must not be null")
+    new ExternalCompilerPermit(AnalyzedCompactDeclaration, source, expression, source)
+  }
+
+  private[core] def requireAnalyzedCompactDeclaration(permit: ExternalCompilerPermit,
+      expression: ElaborationIntegerExpression, source: AnyRef): Unit = {
+    if (permit == null || source == null || expression == null ||
+        !permit.claimCompactDeclaration(expression, source))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-INT-COMPACT-AUTHORIZATION-MISMATCH",
+        "compact declaration received a missing, consumed, copied, stale or foreign frontend permit",
+        Option(expression).flatMap(_.sourceLocation))
+  }
 
   /** Called only by the frontend module's opaque analyzed-wrapper bridge.  The
     * bridge accepts no raw expression/table pair.

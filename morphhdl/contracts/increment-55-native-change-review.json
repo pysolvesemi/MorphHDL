@@ -274,9 +274,10 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Independent-parameter domain composition corrective repair (2026-09-14)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "edits": []
     },
     {
@@ -288,6 +289,17 @@
         "Increment 53e: typed StreamFifo depth architecture (#128)"
       ],
       "reason": "Retain reviewed projection ownership for exact typed elaboration expressions.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR189: authenticated independent-parameter publication consumers"
+      ],
+      "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
       "edits": []
     },
     {
@@ -310,9 +322,10 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration.",
+      "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "edits": []
     },
     {
@@ -677,9 +690,10 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "PR188: separate symbolic publication provenance from structural proof",
-        "PR188: one synthesis-guarded fatal for failed symbolic require"
+        "PR188: one synthesis-guarded fatal for failed symbolic require",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "edits": []
     },
     {
@@ -1676,9 +1690,10 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59: typed BlackBox parameter and generic binding"
+        "Increment 59: typed BlackBox parameter and generic binding",
+        "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
       ],
-      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses.",
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
       "edits": []
     },
     {

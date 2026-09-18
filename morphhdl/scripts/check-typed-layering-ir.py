@@ -18,7 +18,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 DEFAULT_MANIFEST = "morphhdl/contracts/increment-54-typed-layering-ir.contract"
 EXPECTED_REPOSITORY = "pysolvesemi/MorphHDL"
-EXPECTED_CONTRACT_SHA256 = "0bede059b85d46778134d389947e092e5f1b9953458825a33aaa9fd743fcaa47"
+EXPECTED_CONTRACT_SHA256 = "61c16d899b7655c9bf50d51112023c5a328058340a6e276c0f1b71ded71102c3"
 EXPECTED_PLUGIN_COMPONENTS = (
     "MorphHdlTypedElaborationControlComponent",
     "MorphHdlNaturalSymbolicConditionalComponent",

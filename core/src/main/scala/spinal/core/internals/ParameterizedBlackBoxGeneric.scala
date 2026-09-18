@@ -71,7 +71,8 @@ private[spinal] object ParameterizedBlackBoxGenericRegistry {
       throw new IllegalArgumentException("typed BlackBox integer generic must not be null")
 
     val role = s"BlackBox integer generic '$name'"
-    val expression = value.authoritativeProjectedExpression(
+    val expression = ElaborationPublicationValue.projected(
+      value,
       role,
       failureCode =
         "SPINAL-PARAMETERIZED-VERILOG-BLACKBOX-INTEGER-GENERIC-DOMAIN-INVALID",

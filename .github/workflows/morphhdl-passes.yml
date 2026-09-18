@@ -105,7 +105,38 @@ jobs:
           audit_root="$GITHUB_WORKSPACE"
           audit_head_ref="$SOURCE_HEAD_REF"
           audit_base_sha="$SOURCE_BASE_SHA"
-          if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then
+          if [[ "$SOURCE_HEAD_REF" == agent/cdc-independent-parameter-consumers ]]; then
+            # Authenticate the entire live successor BEFORE any frozen replay.
+            # This is not a WA branch-name exemption or a current-code bypass.
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/check-increment-61-source-review.py
+            python3 morphhdl/scripts/check-cdc-successor-source.py --self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+            python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+            integrated=f5049ae2abfe5a47cd1fac3574ea08d630bd183f
+            audit_source=3990185a2701f652c1a47c8b8f244f9bf0d32974
+            git merge-base --is-ancestor "$integrated" HEAD
+            git merge-base --is-ancestor "$audit_source" "$integrated"
+            # Only this workflow and the boundary self-test/signature adapter
+            # change. Every pass implementation, rule, oracle and formal test
+            # is still byte-identical to the integrated, reviewed pass sources.
+            registry=morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json
+            boundary_test=morphhdl-passes/scripts/test-boundary-guard.sh
+            git diff --exit-code "$integrated" HEAD -- morphhdl-passes \
+              ":(exclude)$registry" ":(exclude)$boundary_test"
+            git diff --exit-code "$audit_source" "$integrated" -- morphhdl-passes \
+              ":(exclude)$registry" ":(exclude)$boundary_test"
+            # Check the CURRENT workflow's source-to-audit routing and every
+            # existing boundary negative control before the historical replay.
+            bash morphhdl-passes/scripts/test-boundary-guard.sh
+            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/pr189-pass-static.XXXXXX")
+            git worktree add --detach "$audit_root" "$audit_source"
+            audit_head_ref=agent/lane-when-expression-inlining
+            audit_base_sha=27af65abbee0d2334d6be7a6e4e2408b8af32fd9
+            printf 'Current PR189 source: %s\nHistorical pass-only static source: %s\n' \
+              "$(git rev-parse HEAD)" "$audit_source"
+          elif [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then
             # The complete current publication delta is sealed before applying
             # the unchanged WA-10/WA-11 static contracts at their merged target.
             # All Scala, native generation, simulation and formal jobs below

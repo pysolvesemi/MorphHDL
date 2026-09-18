@@ -59,9 +59,12 @@ object NativeSymbolicLegality {
     // Top-level obligations have no captured branch restrictions. The exact
     // owner object is the private registry key; the AST must retain its own
     // native authority as well. Validating does not ask for universal truth.
-    ElaborationProductDomain.owner(record.encoded, "symbolic legality publication", record.location) {
-      (_, universe) => universe
-    }.getOrElse(ParameterizedVerilogException.fail(Missing, "legality expression lost native authority", record.location))
+    // The private obligation registry binds a full-domain predicate to the
+    // exact Component. requireSymbolic rejects all structural restrictions.
+    ElaborationProductDomain.ownerWithCompact(record.encoded, "symbolic legality publication", record.location)(
+      (_, universe) => universe,
+      (_, _) => ()
+    ).getOrElse(ParameterizedVerilogException.fail(Missing, "legality expression lost native authority", record.location))
     ()
   }
 

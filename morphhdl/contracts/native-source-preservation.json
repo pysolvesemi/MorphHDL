@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "4ca797f7da929837133353998c91643830cf8983"
+      "approved_tree": "f1935c800daf1927951d64ea0a182721f1eea59d"
     },
     {
       "path": "idslpayload/src/main",
@@ -507,15 +507,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Independent-parameter domain composition corrective repair (2026-09-14)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "2862144daf02cd6a42d6ec351f2cfac44e7ac93f",
-        "sha256": "527fbf598b1c8ae7c38d26363fe527f44ddd7855bb3b6a47d369b4f656715c60"
+        "blob": "fd2aa0b0a7b51be67f0f7268c00b14496c9ae2ac",
+        "sha256": "74d0bf356b19011ad893c369008ac50e29fc5a3d988a82ded6a1aff6a32814e7"
       },
       "edits": []
     },
@@ -533,6 +534,23 @@
         "mode": "100644",
         "blob": "a8279f4b0667616c4f666c3f7e0b45ca6dec1ffe",
         "sha256": "9366006897a806beddaa03643dd4a24dc5a302e9ae5293eb6a70c2af863bc071"
+      },
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR189: authenticated independent-parameter publication consumers"
+      ],
+      "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+        "mode": "100644",
+        "blob": "739ed3428d177e6b57f54003afc782e92dc075c6",
+        "sha256": "18a062193f6e0d1a495915103c21ff6adb3c558a50f15ab07f0b8896279351ee"
       },
       "edits": []
     },
@@ -561,15 +579,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 53g: retire native-Int shadow reconstruction (#130)"
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration.",
+      "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
         "mode": "100644",
-        "blob": "b1bdb94c976411b386d4c5fd7fc30f12c06f1fa2",
-        "sha256": "a4fa0c043b75f2d2faf6f15f1980bb4607aabe45984c06bc3a2cb3dacc8fe1f5"
+        "blob": "b5145603bcab6195ba378bf5dac2de60928a16fb",
+        "sha256": "fedd936423118efebd7e0bd1cd22eac7973c72963c9d5f3758be927ad1646557"
       },
       "edits": []
     },
@@ -1202,15 +1221,16 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "PR188: separate symbolic publication provenance from structural proof",
-        "PR188: one synthesis-guarded fatal for failed symbolic require"
+        "PR188: one synthesis-guarded fatal for failed symbolic require",
+        "PR189: authentic compact declaration and explicit publication authority"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "b83f5b472bf4f88a5085d16c247a3447b976267b",
-        "sha256": "a19563a04499f79f9f849d336643267673d864a70478b6eef38a66be85b7090e"
+        "blob": "28b037b2ace82de88b405951a9172bf10ba14666",
+        "sha256": "140bf21ecc6ef16b2b02e9e8251f1f5cf3c553ba4ea16f8bbed4bfd251fdec0a"
       },
       "edits": []
     },
@@ -2870,15 +2890,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59: typed BlackBox parameter and generic binding"
+        "Increment 59: typed BlackBox parameter and generic binding",
+        "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
       ],
-      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses.",
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
         "mode": "100644",
-        "blob": "3bfdb766b2b6264d2217f4452da507daece7ae65",
-        "sha256": "c82f9aa8e7f8ca90958940752301de6bd50676f139675e8b7bb638d5e94956e6"
+        "blob": "b83ea78d50f300fdb190e5671e0099f496b28372",
+        "sha256": "91f36c15bb38121740860df26e58f5f20b4b3f84d7090b786f71d2c62687163b"
       },
       "edits": []
     },
