@@ -1,0 +1,263 @@
+diff --git a/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala b/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala
+index 32fe04c..a870ec2 100644
+--- a/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala
++++ b/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala
+@@ -70,6 +70,36 @@ object VerilogEmitterExpressionInlining {
+       leaves.toLong * nodes <= 256
+   }
+ 
++  /** A late identity-sized unsigned resize can itself be a legal select base:
++    * its printer emits only the existing declaration's reference. This is not
++    * expression slicing or arithmetic reassociation. Every link must retain
++    * the exact native type and fixed width; annotations and symbolic resizing
++    * fail closed. The real source (including its name/protection) is untouched.
++    */
++  private[internals] def directSelectBase(
++      component: Component,
++      expression: Expression
++  ): Option[BaseType] = {
++    def follow(node: Expression, depth: Int): Option[BaseType] = {
++      if (node == null || depth > 32) return None
++      node match {
++        case base: BaseType if (base.component eq component) &&
++            (base.getTypeObject == TypeUInt || base.getTypeObject == TypeBits) &&
++            base.getBitsWidth > 0 && !base.isAnalog && !base.isInOut &&
++            ParameterizedWidth.expressionOf(base).isEmpty => Some(base)
++        case resize: Resize if
++            (resize.isInstanceOf[ResizeUInt] || resize.isInstanceOf[ResizeBits]) &&
++            isUnannotated(resize) && resize.input != null && resize.size > 0 &&
++            resize.size == resize.input.getWidth &&
++            resize.getTypeObject == resize.input.getTypeObject &&
++            ParameterizedWidth.resizeExpressionOf(resize).isEmpty =>
++          follow(resize.input, depth + 1)
++        case _ => None
++      }
++    }
++    follow(expression, 0)
++  }
++
+   /** Prove which synthetic expression carriers can be omitted, before emission.
+     *
+     * Verilog propagates an assignment/arithmetic/comparison/mux context into
+@@ -159,7 +189,7 @@ object VerilogEmitterExpressionInlining {
+ 
+       def publish(nodes: scala.collection.Seq[Expression]): Unit = nodes.foreach { node =>
+         val count = occurrences.get(node)
+-        if (count != null && count.intValue == 1)
++        if (count != null && (count.intValue == 1 || directSelectBase(component, node).nonEmpty))
+           result.put(node, java.lang.Boolean.TRUE)
+       }
+ 
+@@ -269,7 +299,8 @@ object VerilogEmitterExpressionInlining {
+           case _ => false
+         }
+         visiting.remove(expression)
+-        if (proven && !referenceRequired) wrappers += expression
++        if (proven && (!referenceRequired || directSelectBase(component, expression).nonEmpty))
++          wrappers += expression
+         proven
+       }
+ 
+@@ -280,6 +311,16 @@ object VerilogEmitterExpressionInlining {
+       case assignment: DataAssignmentStatement => assignment.target match {
+         case target: BaseType if eligibleTarget(target) =>
+           plan(assignment.source, width(target))
++        // A no-op unsigned carrier which prints an existing reference has no
++        // arithmetic or assignment-context obligation. This narrow fallback
++        // handles repeated/nested register updates without enabling arbitrary
++        // expression inlining across multiple assignments or priority trees.
++        case target: BaseType if fixedTargetBoundary(target) =>
++          assignment.source.walkExpression {
++            case resize: Resize if directSelectBase(component, resize).nonEmpty =>
++              result.put(resize, java.lang.Boolean.TRUE)
++            case _ =>
++          }
+         // Static disjoint selections have an exact receiver width. Only the
+         // pure RHS is planned; target selection, driver and procedural scope
+         // remain untouched. Overlap, whole-object overrides and dynamic
+ diff --git a/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala b/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala
+index 718a5ea..d8bd5fe 100644
+--- a/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala
++++ b/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala
+@@ -618,7 +618,8 @@ private[examples] final class NamedWireExpressionNativePhase(
+       case value: DataAssignmentStatement => value: Statement
+     }
+     new NamedWireAliasNativePhase().expressionRemovalBlocker(
+-      pc, candidate.component, alias, candidate.assignment, dataReceivers
++      pc, candidate.component, alias, candidate.assignment, dataReceivers,
++      allowRegisterRhs = true
+     ) match {
+       case Some(reason) => return Left("WA10-CONDITION-" + reason)
+       case None =>
+@@ -744,22 +745,32 @@ private[examples] final class NamedWireExpressionNativePhase(
+     var renderedUses = 0
+     candidate.useStatements.foreach {
+       case when: WhenStatement =>
++        // Only combinational destinations can be blocking writers. A native
++        // register reads the pre-edge value even when the same register is a
++        // dependency of this predicate. Never coalesce its NBA writes into a
++        // combinational process, and never change its clock/reset/init/scope.
+         val controlled = ArrayBuffer.empty[BaseType]
++        val registers = ArrayBuffer.empty[BaseType]
+         def inspect(scope: ScopeStatement): Unit = scope.walkStatements {
+           case assignment: DataAssignmentStatement =>
+             val target = assignment.finalTarget
+-            if ((target.component ne component) || !target.isComb || target.isAnalog ||
++            if ((target.component ne component) || target.isAnalog ||
+                 target.isInputOrInOut || target.parentScope == null ||
+                 !(target.parentScope eq target.rootScopeStatement)) unsupported = true
+-            if (!contains(controlled, target)) controlled += target
++            if (target.isComb) {
++              if (!contains(controlled, target)) controlled += target
++            } else if (target.isReg && target.clockDomain != null &&
++                (assignment.target eq target)) {
++              if (!contains(registers, target)) registers += target
++            } else unsupported = true
+           case _: WhenStatement =>
+           case _: BaseType =>
+           case _ => unsupported = true
+         }
+         inspect(when.whenTrue)
+         inspect(when.whenFalse)
+-        if (unsupported || controlled.isEmpty)
+-          return Left("WA10-CONDITION-NONCOMBINATIONAL-CONTROL")
++        if (unsupported || (controlled.isEmpty && registers.isEmpty))
++          return Left("WA10-CONDITION-UNSUPPORTED-CONTROL")
+         val controls = ArrayBuffer[TreeStatement](outerControl(when).getOrElse(when))
+         var progress = true
+         while (progress) {
+@@ -775,14 +786,14 @@ private[examples] final class NamedWireExpressionNativePhase(
+               }
+             }
+           }
+-          if (controlled.size > 32 || controls.size > 256)
++          if (controlled.size + registers.size > 32 || controls.size > 256)
+             return Left("WA10-CONDITION-PROCESS-BUDGET")
+         }
+         if (dependencies.exists(value => contains(controlled, value)))
+           return Left("WA10-CONDITION-BLOCKING-DEPENDENCY")
+-        renderedUses += controlled.size * references(when, candidate.alias)
++        renderedUses += (controlled.size + registers.size) * references(when, candidate.alias)
+       case assignment: DataAssignmentStatement =>
+-        if (dependencies.exists(_ eq assignment.finalTarget))
++        if (assignment.finalTarget.isComb && dependencies.exists(_ eq assignment.finalTarget))
+           return Left("WA10-CONDITION-BLOCKING-DEPENDENCY")
+         renderedUses += references(assignment, candidate.alias)
+       case _ => return Left("WA10-CONDITION-RECEIVER-CONTEXT")
+@@ -988,6 +999,11 @@ private[examples] final class NamedWireExpressionNativePhase(
+     statement.walkDrivingExpressions {
+       case access: SubAccess if expressionReferences(access.getBitVector, alias) =>
+         selected = true
++      // A narrowing resize also emits a Verilog-2001 select. Keep its real
++      // arithmetic base/name; only proven direct aliases may pass through it.
++      case resize: Resize if resize.input != null && resize.size < resize.input.getWidth &&
++          expressionReferences(resize.input, alias) =>
++        selected = true
+       case _ =>
+     }
+     selected
+ diff --git a/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala b/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala
+index 9237348..8a6b661 100644
+--- a/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala
++++ b/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala
+@@ -50,7 +50,12 @@ import spinal.core.internals._
+   * It never parses generated HDL and never recognizes a component or signal
+   * name. Production handoff remains reserved for WA-07.
+   */
+-private[examples] final class UnnamedWireAliasNativePhase extends Phase {
++private[examples] final class UnnamedWireAliasNativePhase(
++    sourceIntent: Option[NativeConditionSourceIntent]
++) extends Phase {
++  // Keep the historical no-argument constructor. Without the pre-liveness
++  // inventory, the new sequential profile fails closed; legacy comb uses stay.
++  def this() = this(None)
+   private var completed = false
+   private var visited = 0
+   private var eliminated = Vector.empty[Int]
+@@ -127,7 +132,9 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
+   private def candidateSnapshot(pc: PhaseContext): Vector[NativeCandidate] = {
+     val values = Vector.newBuilder[NativeCandidate]
+     pc.components().foreach { component =>
+-      val statements = statementsOf(component)
++      // Inventory hierarchy reads too: an unsupported external use must retain
++      // the alias, rather than disappear from the local rewrite proof.
++      val statements = pc.components().toVector.flatMap(statementsOf)
+       component.dslBody.walkDeclarations {
+         case alias: BaseType
+             if alias.isUnnamed && alias.isComb && alias.isDirectionLess &&
+@@ -179,6 +186,18 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
+       Left("WA04-NATIVE-PRESERVATION")
+     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
+       Left("WA04-NATIVE-USE-CONTEXT")
++    else if (candidate.useStatements.exists {
++        case value: DataAssignmentStatement => value.finalTarget.isReg
++        case _ => false
++      } && !sourceIntent.exists(_.permits(alias)))
++      Left("WA04-NATIVE-SEQUENTIAL-SOURCE-INTENT")
++    else if (new NamedWireAliasNativePhase().expressionRemovalBlocker(
++        pc, candidate.component, alias, assignment,
++        candidate.useStatements.filter {
++          case value: DataAssignmentStatement => value.finalTarget.isReg
++          case _ => false
++        }, allowRegisterRhs = true).nonEmpty)
++      Left("WA04-NATIVE-IDENTITY-OR-USE-BOUNDARY")
+     else if (createsCycle(candidate.component, alias, source))
+       Left("WA04-NATIVE-CYCLE")
+     else
+@@ -211,6 +230,24 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
+           !assignment.finalTarget.isAnalog &&
+           !assignment.finalTarget.isInputOrInOut =>
+       true
++    case assignment: DataAssignmentStatement
++        if (assignment.target eq assignment.finalTarget) &&
++          (assignment.finalTarget ne alias) &&
++          (assignment.finalTarget.component eq component) &&
++          assignment.finalTarget.isReg && assignment.finalTarget.clockDomain != null &&
++          !assignment.finalTarget.isAnalog && !assignment.finalTarget.isInputOrInOut &&
++          (assignment.finalTarget.parentScope eq component.dslBody) =>
++      var scope = assignment.parentScope
++      var depth = 0
++      while (scope != null && (scope ne component.dslBody)) {
++        depth += 1
++        if (depth > 128) return false
++        scope.parentStatement match {
++          case when: WhenStatement => scope = when.parentScope
++          case _ => return false
++        }
++      }
++      scope eq component.dslBody
+     case _ => false
+   }
+ 
+@@ -421,14 +458,14 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
+       }
+     }
+ 
+-    aliasAssignment.removeStatement()
+-    alias.removeStatement()
+-
++    // Check the complete supported inventory before destroying either node.
+     val remaining = statementsOf(component).map(references(_, alias)).sum
+     if (remaining != 0)
+       throw new IllegalStateException(
+-        s"WA-04 native witness rewrite left $remaining reference(s) to a removed identity"
++        s"WA-04 native witness rewrite left $remaining reference(s) to a retained identity"
+       )
++    aliasAssignment.removeStatement()
++    alias.removeStatement()
+     replacements
+   }
+ 
+ diff --git a/morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala b/morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala
+index 2d95762..6838e44 100644
+--- a/morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala
++++ b/morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala
+@@ -124,7 +124,7 @@ private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionS
+           "WA-08 production wire-assignment pipeline failed to converge"
+         )
+ 
+-      val unnamed = new UnnamedWireAliasNativePhase
++      val unnamed = new UnnamedWireAliasNativePhase(Some(sourceIntent))
+       unnamed.impl(pc)
+       val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
+       named.impl(pc)
