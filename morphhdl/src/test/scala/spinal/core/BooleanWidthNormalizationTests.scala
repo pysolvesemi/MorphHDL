@@ -167,7 +167,7 @@ class BooleanWidthNormalizationTests extends AnyFunSuite {
     val first = HdlBool.param("SAME", default = false).asElabBool
     val second = HdlBool.param("SAME", default = false).asElabBool
     val independent = intercept[ParameterizedVerilogException] { first && second }
-    assert(independent.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED")
+    assert(independent.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED")
     val width = intercept[ParameterizedVerilogException] { first.toElabInt.bits }
     assert(width.code == "SPINAL-ELAB-INT-WIDTH-DOMAIN-INVALID")
   }

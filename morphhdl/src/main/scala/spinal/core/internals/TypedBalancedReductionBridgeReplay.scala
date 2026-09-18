@@ -155,6 +155,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     val seen = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val consumed = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
     val initializerNodes = new IdentityHashMap[BaseType, BigInt]()
+    val zeroInitializerNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val enableNodes = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val registers = ArrayBuffer.empty[RegisterStep]
     var minimumInitializerWidth = 0
@@ -185,31 +186,54 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       * Follow only their exact full-object constant aliases. Do not evaluate
       * arbitrary expressions or accept a pre-existing external constant.
       */
-    def initializer(expression: Expression): BigInt = expression match {
+    def initializer(expression: Expression, zeroOnly: Boolean = false): BigInt = expression match {
       case literal: BitVectorLiteral
           if !literal.hasPoison &&
             (literal.getTypeObject.asInstanceOf[AnyRef] eq input.kind) =>
-        minimumInitializerWidth = minimumInitializerWidth.max(literal.getWidth)
-        if (BigInt(literal.getWidth) > input.width.minimum)
+        if (zeroOnly && literal.value != 0)
+          fail("INITIALIZER", "symbolic initializer aliases must terminate in exact native zero")
+        val required = if (zeroOnly) 1 else literal.getWidth
+        minimumInitializerWidth = minimumInitializerWidth.max(required)
+        if (BigInt(required) > input.width.minimum)
           fail("INITIALIZER-WIDTH", "initializer width exceeds the smallest certified data width")
         literal.value
       case literal: BoolLiteral if input.kind eq TypeBool =>
+        if (zeroOnly && literal.value)
+          fail("INITIALIZER", "symbolic initializer aliases must terminate in exact native zero")
         minimumInitializerWidth = minimumInitializerWidth.max(1)
         if (literal.value) BigInt(1) else BigInt(0)
       case value: BaseType =>
         local(value)
-        if (value.isReg || (value eq source) ||
-            ParameterizedWidth.expressionOf(value).exists(_.parameters.nonEmpty))
+        if (value.isReg || (value eq source))
           fail("INITIALIZER", "initializer aliases must be local constant-only combinational nodes")
-        minimumInitializerWidth = minimumInitializerWidth.max(value.getBitsWidth)
-        if (BigInt(value.getBitsWidth) > input.width.minimum)
+        val symbolic = ParameterizedWidth.expressionOf(value).filter(_.parameters.nonEmpty)
+        symbolic.foreach { width =>
+          ElaborationWidthAuthority.requireAuthoritative(width, "native bridge zero initializer",
+            "MORPH-REDUCE-BALANCED-BRIDGE-INITIALIZER")
+          if (width.minimum < 1 || width.default != BigInt(value.getBitsWidth) ||
+              !ElabInt.equivalentExactFunction(width, input.width))
+            fail("INITIALIZER", "symbolic zero alias must retain its exact corresponding bridge width function")
+          localGuards += (() => {
+            if (!ParameterizedWidth.expressionOf(value).exists(_ eq width))
+              fail("STALE-SHAPE", "symbolic zero alias changed its exact retained width authority")
+          })
+        }
+        // A full, local, correctly typed constant-zero graph denotes zero at
+        // every positive width. Its native witness width is not a lower bound
+        // on replay. Other initializers retain their existing width checks.
+        val requireZero = zeroOnly || symbolic.nonEmpty
+        val required = if (requireZero) 1 else value.getBitsWidth
+        minimumInitializerWidth = minimumInitializerWidth.max(required)
+        if (BigInt(required) > input.width.minimum)
           fail("INITIALIZER-WIDTH", "initializer alias width exceeds the smallest certified data width")
+        if (!requireZero && zeroInitializerNodes.containsKey(value))
+          fail("INITIALIZER", "an ordinary initializer cannot reuse a zero-only width proof")
         if (!initializerNodes.containsKey(value)) {
           if (seen.put(value, java.lang.Boolean.TRUE) != null)
             fail("INITIALIZER", "initializer aliases cannot overlap the data path or form cycles")
           val assignments = assignmentsOf(value)
           val initial = assignments match {
-            case Vector(data: DataAssignmentStatement) => initializer(data.source)
+            case Vector(data: DataAssignmentStatement) => initializer(data.source, requireZero)
             case _ => fail("INITIALIZER", "initializer alias must have exactly one native constant driver")
           }
           val fixed = value match { case bits: BitVector => bits.fixedWidth; case _ => -1 }
@@ -219,8 +243,12 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
               fail("STALE-SHAPE", "initializer alias changed its width or resize policy")
           })
           initializerNodes.put(value, initial)
+          if (requireZero) zeroInitializerNodes.put(value, java.lang.Boolean.TRUE)
         }
-        initializerNodes.get(value)
+        val constant = initializerNodes.get(value)
+        if (requireZero && constant != 0)
+          fail("INITIALIZER", "symbolic initializer aliases must terminate in exact native zero")
+        constant
       case _ => fail("INITIALIZER", "initializers must be typed native constants or transparent local constant aliases")
     }
 

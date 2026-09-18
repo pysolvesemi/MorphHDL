@@ -201,8 +201,57 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
     }
   }
 
+  private def checkConcurrentProcessOutput(directory: Path): Unit = {
+    val linesPerStream = 4096
+    val padding = "0123456789abcdef" * 32
+    val script = directory.resolve("concurrent_native_diagnostics.sh")
+    Files.write(script, s"""#!/bin/sh
+      |set -eu
+      |emit() {
+      |  stream=$$1
+      |  index=0
+      |  while [ "$$index" -lt $linesPerStream ]; do
+      |    printf '%s-%s:%s\\n' "$$stream" "$$index" '$padding'
+      |    index=$$((index + 1))
+      |  done
+      |}
+      |emit stdout &
+      |stdout_pid=$$!
+      |emit stderr >&2
+      |wait "$$stdout_pid"
+      |exit "$$1"
+      |""".stripMargin.getBytes(StandardCharsets.UTF_8))
+
+    Vector(0, 7).foreach { exitStatus =>
+      val command = Seq("sh", script.toString, exitStatus.toString)
+      val output = if (exitStatus == 0) NativeWireCompatibility.run(directory, command)
+      else {
+        val failure = intercept[IllegalArgumentException] {
+          NativeWireCompatibility.run(directory, command)
+        }
+        val prefix = "requirement failed: " + command.mkString(" ") + "\n"
+        assert(failure.getMessage.startsWith(prefix), "nonzero process exit lost its command diagnostic")
+        failure.getMessage.substring(prefix.length)
+      }
+      assert(!output.contains('\u0000'), s"concurrent process output contains NULs for exit $exitStatus")
+      assert(output.endsWith("\n"), s"concurrent process output lost its final newline for exit $exitStatus")
+      val lines = output.split("\n", -1).toVector.dropRight(1)
+      assert(lines.size == 2 * linesPerStream,
+        s"concurrent process output lost or split lines for exit $exitStatus")
+      Vector("stdout", "stderr").foreach { stream =>
+        val expected = (0 until linesPerStream).map(index => s"$stream-$index:$padding").toVector
+        val actual = lines.filter(_.startsWith(stream + "-"))
+        // The streams may interleave, but each stream must retain every exact
+        // line once, in order, for successful and rejected tool invocations.
+        val intact = actual == expected
+        assert(intact, s"concurrent $stream diagnostics were corrupted for exit $exitStatus")
+      }
+    }
+  }
+
   test("ordinary assignments muxes arithmetic concatenation slicing and resize reuse native Verilog emission") {
     withTemporaryDirectory { directory =>
+      checkConcurrentProcessOutput(directory)
       val parameterizedDirectory = directory.resolve("parameterized")
       val concreteDirectory = directory.resolve("concrete")
       Files.createDirectories(parameterizedDirectory)

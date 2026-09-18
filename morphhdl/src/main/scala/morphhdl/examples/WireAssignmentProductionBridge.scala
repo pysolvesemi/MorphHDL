@@ -7,6 +7,7 @@ import spinal.core.SpinalConfig
 import spinal.core.internals.{
   Phase,
   PhaseContext,
+  PhaseRemoveUselessStuff,
   PhaseRemoveIntermediateUnnameds,
   VerilogEmitterExpressionInlining
 }
@@ -75,11 +76,23 @@ private[morphhdl] object WireAssignmentProductionBridge {
     // canonical pipeline. A fresh phase is created for every generation attempt.
     phases.update(cleanup(1), new PhaseRemoveIntermediateUnnameds(true))
     cleanup.drop(3).reverse.foreach(index => phases.remove(index))
-    phases.update(cleanup(2), new ProductionWireAssignmentPhase)
+    val sourceIntent = new NativeConditionSourceIntent
+    phases.update(cleanup(2), new ProductionWireAssignmentPhase(sourceIntent))
+    // Capture after application transformation phases but before any native
+    // liveness sweep can infer vital bits. The complete per-generation identity
+    // inventory then distinguishes explicit preservation from inferred liveness.
+    val firstLiveness = phases.indexWhere(_.isInstanceOf[PhaseRemoveUselessStuff])
+    if (firstLiveness < 0 || firstLiveness >= cleanup(2))
+      throw new IllegalStateException("condition source intent requires a pre-optimization liveness boundary")
+    phases.insert(firstLiveness, sourceIntent)
   }
 }
 
-private final class ProductionWireAssignmentPhase extends Phase {
+private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionSourceIntent) extends Phase {
+  // Legacy callers have no pre-liveness capture. A fresh, uncaptured inventory
+  // fails closed for condition inlining without sharing mutable phase state.
+  def this() = this(new NativeConditionSourceIntent)
+
   private val expectedOrder = WireAliasPassConfiguration(enabled = true).enabledPasses
   private var completed = false
 
@@ -115,9 +128,9 @@ private final class ProductionWireAssignmentPhase extends Phase {
       unnamed.impl(pc)
       val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
       named.impl(pc)
-      val expression = new UnnamedWireExpressionNativePhase
+      val expression = new UnnamedWireExpressionNativePhase(Some(sourceIntent))
       expression.impl(pc)
-      val namedExpression = new NamedWireExpressionNativePhase
+      val namedExpression = new NamedWireExpressionNativePhase(conditionSourceIntent = Some(sourceIntent))
       namedExpression.impl(pc)
       val constant = new ConstantOperandNativePhase
       constant.impl(pc)

@@ -187,10 +187,10 @@ object MorphHdlExternalEnumLocalizer {
   )
   def rewrite(pc: PhaseContext): Unit = {
     if (!ParameterizedVerilogMode.isEnabled(pc.config)) return
-    if (pc.config.oneFilePerComponent) {
+    if (pc.config.oneFilePerComponent && pc.config.netlistFileName != null) {
       fail(
-        "SPINAL-PARAMETERIZED-VERILOG-ENUM-MULTI-FILE-UNSUPPORTED",
-        "module-local enum publication requires one native Verilog publication file"
+        "SPINAL-PARAMETERIZED-VERILOG-ENUM-MULTI-FILE-NAME-AMBIGUOUS",
+        "oneFilePerComponent requires definition-derived filenames; netlistFileName cannot name several logical components"
       )
     }
     if (pc.config.isSystemVerilog) {
@@ -206,19 +206,109 @@ object MorphHdlExternalEnumLocalizer {
         "enum localization ran without an elaborated top-level component"
       )
     }
-    val target = targetPath(pc, top)
-    if (!Files.isRegularFile(target)) {
-      fail(
-        "SPINAL-PARAMETERIZED-VERILOG-ENUM-SOURCE-MISSING",
-        s"native Verilog publication is missing: $target"
+    if (pc.config.oneFilePerComponent) {
+      localizePerComponent(pc, top)
+    } else {
+      val target = targetPath(pc, top)
+      if (!Files.isRegularFile(target) || Files.isSymbolicLink(target)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-ENUM-SOURCE-MISSING",
+          s"native Verilog publication is missing: $target"
+        )
+      }
+
+      val native = normalize(
+        new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
       )
+      val localized = localize(top, native)
+      if (localized != native) publishAtomically(target, localized)
+    }
+  }
+
+  private def localizePerComponent(pc: PhaseContext, top: Component): Unit = {
+    val components = componentGraph(top).filterNot { component =>
+      component.isInBlackBoxTree || component.isInstanceOf[BlackBox]
+    }
+    val constantsByModule = components
+      .groupBy(componentName)
+      .map { case (name, candidates) =>
+        val schemas = candidates.map(constantsOf).distinct
+        if (schemas.size != 1) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-ENUM-CANONICAL-SCHEMA-CONFLICT",
+            s"native module identity '$name' maps to ${schemas.size} distinct enum schemas"
+          )
+        }
+        name -> schemas.head
+      }
+
+    constantsByModule.toVector.sortBy(_._1).foreach { case (name, constants) =>
+      if (constants.nonEmpty) {
+        val target = perComponentTargetPath(pc, name)
+        if (!Files.isRegularFile(target) || Files.isSymbolicLink(target)) {
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-ENUM-SOURCE-MISSING",
+            s"native per-component Verilog publication is missing: $target"
+          )
+        }
+        val native = normalize(
+          new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
+        )
+        val lines = native.split("\n", -1).toVector
+        val blocks = moduleBlocks(lines)
+        if (blocks.size != 1 || blocks.head.name != name) {
+          val observed = blocks.map(_.name).mkString(", ")
+          fail(
+            "SPINAL-PARAMETERIZED-VERILOG-ENUM-MODULE-WRONG-FILE",
+            s"logical component '$name' must own exactly '${name}.v'; observed module blocks [$observed]"
+          )
+        }
+        val block = blocks.head
+        val moduleText = lines.slice(block.start, block.end + 1).mkString("\n")
+        val localizedModule = localizeModule(name, moduleText, constants)
+        val localized =
+          (lines.take(block.start) ++
+            localizedModule.split("\n", -1).toVector ++
+            lines.drop(block.end + 1)).mkString("\n")
+        if (localized != native) publishAtomically(target, localized)
+      }
     }
 
-    val native = normalize(
-      new String(Files.readAllBytes(target), StandardCharsets.UTF_8)
-    )
-    val localized = localize(top, native)
-    if (localized != native) publishAtomically(target, localized)
+    val globalAliases = constantsByModule.valuesIterator.flatten
+      .filter(_.global)
+      .flatMap(constantAliases)
+      .toVector
+      .groupBy(_.nativeName)
+      .map(_._2.head)
+      .toVector
+    val defineTarget = Paths.get(pc.config.targetDirectory).resolve("enumdefine.v")
+    if (Files.exists(defineTarget)) {
+      if (!Files.isRegularFile(defineTarget) || Files.isSymbolicLink(defineTarget)) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-ENUM-SHARED-DEFINITIONS-INVALID",
+          s"native enum definition artifact is not a regular file: $defineTarget"
+        )
+      }
+      val nativeDefinitions = normalize(
+        new String(Files.readAllBytes(defineTarget), StandardCharsets.UTF_8)
+      )
+      val cleaned = removeGlobalDefinitions(
+        nativeDefinitions,
+        globalAliases.map(_.nativeName).toSet
+      )
+      if (cleaned.trim.nonEmpty) {
+        fail(
+          "SPINAL-PARAMETERIZED-VERILOG-ENUM-SHARED-DEFINITIONS-UNOWNED",
+          "per-component publication left an enum compilation-unit definition without an exact module owner"
+        )
+      }
+      Files.delete(defineTarget)
+    } else if (globalAliases.nonEmpty) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-ENUM-SHARED-DEFINITIONS-MISSING",
+        "native per-component publication omitted the expected global enum definition artifact"
+      )
+    }
   }
 
   private def localize(top: Component, native: String): String = {
@@ -758,6 +848,24 @@ object MorphHdlExternalEnumLocalizer {
       )
     }
     blocks.toVector
+  }
+
+  private def perComponentTargetPath(pc: PhaseContext, name: String): Path = {
+    if (name.contains('/') || name.contains('\\') || name == "." || name == "..") {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-ENUM-MODULE-FILENAME-INVALID",
+        s"logical component '$name' cannot be mapped to one safe Verilog filename"
+      )
+    }
+    val directory = Paths.get(pc.config.targetDirectory).toAbsolutePath.normalize()
+    val target = directory.resolve(name + ".v").normalize()
+    if (target.getParent != directory) {
+      fail(
+        "SPINAL-PARAMETERIZED-VERILOG-ENUM-MODULE-FILENAME-INVALID",
+        s"logical component '$name' escapes the publication directory"
+      )
+    }
+    target
   }
 
   private def targetPath(pc: PhaseContext, top: Component): Path = {

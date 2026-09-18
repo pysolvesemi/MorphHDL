@@ -69,7 +69,8 @@ object ElabValue {
       throw new IllegalArgumentException(
         "typed UInt adapter requires a non-null ElabInt and prototype"
       )
-    val expression = value.authoritativeProjectedExpression(
+    val expression = ElaborationPublicationValue.projected(
+      value,
       role = "typed UInt value",
       failureCode = "SPINAL-PARAMETERIZED-VERILOG-VALUE-EXACT-DOMAIN-REQUIRED",
       requireProjectedExactExtrema = true

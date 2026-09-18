@@ -937,6 +937,20 @@ WA-04 or WA-05 can remove an alias.
   No additional hardware wire-assignment pass is defined here. Symbolic
   Boolean/integer parameter normalization remains a separate compiler concern.
 
+### WA-10 lane-bit/generated-condition follow-up
+
+- [ ] Close the subsequently reported lane-bit and generated `when` carrier
+  defects on the existing `agent/lane-when-expression-inlining` branch. The
+  bounded production repair and standalone regressions have executed locally;
+  exact published-head SBT/Mill, source-review seals, inherited CI and merge
+  qualification remain required. Historical WA-10 completion evidence above is
+  unchanged and does not qualify this follow-up.
+
+  The actual root causes, source boundaries, generated before/after Verilog,
+  commands, local evidence and remaining gates are recorded in
+  [the lane/condition repair](../docs/morphhdl/lane-when-inlining-repair.md).
+  This extends the existing inlining path; it defines no new increment or pass.
+
 ## Symbolic elaboration normalization
 
 WA-11 is an authorized compiler follow-up to this roadmap. It operates on

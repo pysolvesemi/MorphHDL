@@ -1,0 +1,163 @@
+name: Increment 61 per-component compatibility matrix
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - agent/increment-61-one-file-per-component
+    paths:
+      - '.github/workflows/increment-61-compatibility-matrix.yml'
+      - 'morphhdl/contracts/increment-61-source-review.json'
+      - 'morphhdl/scripts/check-increment-61-source-review.py'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/increment-61-compatibility-matrix.yml'
+      - 'morphhdl/contracts/increment-61-source-review.json'
+      - 'morphhdl/scripts/check-increment-61-source-review.py'
+      - 'morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala'
+      - 'morphhdl/src/main/scala/morphhdl/MorphVerilog.scala'
+      - 'morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala'
+      - 'morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-61-compatibility-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Compatibility and tools Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Require exact reviewed source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-compatibility"
+          mkdir -p "$output"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+      - name: Generate the complete per-component compatibility corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-compatibility"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/testOnly morphhdl.Increment61CompatibilityMatrixTests' \
+            "morph/Test/runMain morphhdl.Increment61CompatibilityMatrixArtifacts $output/generated" \
+            > "$output/sbt.log" 2>&1 || { tail -n 300 "$output/sbt.log"; exit 1; }
+      - name: Strict Verilog-2001 compile, lint and synthesis for every roadmap family
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-61-compatibility"
+          compatibility="$output/generated"
+          while IFS=$'\t' read -r case_id generated_top tool_top support_file; do
+            test -n "$case_id" && test -n "$generated_top" && test -n "$tool_top"
+            directory="$compatibility/$case_id"
+            list="$directory/$generated_top.lst"
+            test -s "$list"
+            mapfile -t relative_sources < "$list"
+            test "${#relative_sources[@]}" -gt 0
+            sources=()
+            for relative in "${relative_sources[@]}"; do
+              test "$relative" = "$(basename "$relative")"
+              test -s "$directory/$relative"
+              sources+=("$directory/$relative")
+            done
+            if [ "$support_file" != '-' ]; then
+              test "$support_file" = "$(basename "$support_file")"
+              test -s "$directory/$support_file"
+              sources+=("$directory/$support_file")
+            fi
+            timeout 120 iverilog -g2001 -Wall -Wimplicit -s "$tool_top" \
+              -o "$output/$case_id.vvp" "${sources[@]}" \
+              > "$output/$case_id-iverilog.log" 2>&1
+            timeout 120 verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+              --top-module "$tool_top" "${sources[@]}" \
+              > "$output/$case_id-verilator.log" 2>&1
+            timeout 180 yosys -Q -T -ql "$output/$case_id-yosys.log" -p "
+              read_verilog -defer -noautowire ${sources[*]};
+              hierarchy -check -simcheck -top $tool_top;
+              synth -top $tool_top -flatten;
+              check -assert;
+              stat;
+            "
+          done < "$compatibility/cases.tsv"
+          git rev-parse HEAD > "$output/head.txt"
+          find "$output/generated" -type f -print0 | sort -z | xargs -0 sha256sum > "$output/generated.sha256"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-61-compatibility-${{ matrix.scala }}
+          path: target/increment-61-compatibility
+          if-no-files-found: error
+          retention-days: 14
+
+  cross-scala:
+    name: Cross-Scala compatibility publication bytes
+    needs: qualify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-61-compatibility-2.*
+          path: target/increment-61-compatibility-cross
+      - name: Compare complete generated corpora
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=target/increment-61-compatibility-cross
+          left="$root/increment-61-compatibility-2.12.18/generated"
+          right="$root/increment-61-compatibility-2.13.12/generated"
+          test -d "$left" && test -d "$right"
+          diff -ru "$left" "$right" | tee "$root/cross-scala.diff"
