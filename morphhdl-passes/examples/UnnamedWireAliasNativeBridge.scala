@@ -50,7 +50,12 @@ import spinal.core.internals._
   * It never parses generated HDL and never recognizes a component or signal
   * name. Production handoff remains reserved for WA-07.
   */
-private[examples] final class UnnamedWireAliasNativePhase extends Phase {
+private[examples] final class UnnamedWireAliasNativePhase(
+    sourceIntent: Option[NativeConditionSourceIntent]
+) extends Phase {
+  // Keep the historical no-argument constructor. Without the pre-liveness
+  // inventory, the new sequential profile fails closed; legacy comb uses stay.
+  def this() = this(None)
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
@@ -127,7 +132,9 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
   private def candidateSnapshot(pc: PhaseContext): Vector[NativeCandidate] = {
     val values = Vector.newBuilder[NativeCandidate]
     pc.components().foreach { component =>
-      val statements = statementsOf(component)
+      // Inventory hierarchy reads too: an unsupported external use must retain
+      // the alias, rather than disappear from the local rewrite proof.
+      val statements = pc.components().toVector.flatMap(statementsOf)
       component.dslBody.walkDeclarations {
         case alias: BaseType
             if alias.isUnnamed && alias.isComb && alias.isDirectionLess &&
@@ -179,6 +186,18 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
       Left("WA04-NATIVE-PRESERVATION")
     else if (!candidate.useStatements.forall(allowedUse(candidate.component, alias, _)))
       Left("WA04-NATIVE-USE-CONTEXT")
+    else if (candidate.useStatements.exists {
+        case value: DataAssignmentStatement => value.finalTarget.isReg
+        case _ => false
+      } && !sourceIntent.exists(_.permits(alias)))
+      Left("WA04-NATIVE-SEQUENTIAL-SOURCE-INTENT")
+    else if (new NamedWireAliasNativePhase().expressionRemovalBlocker(
+        pc, candidate.component, alias, assignment,
+        candidate.useStatements.filter {
+          case value: DataAssignmentStatement => value.finalTarget.isReg
+          case _ => false
+        }, allowRegisterRhs = true).nonEmpty)
+      Left("WA04-NATIVE-IDENTITY-OR-USE-BOUNDARY")
     else if (createsCycle(candidate.component, alias, source))
       Left("WA04-NATIVE-CYCLE")
     else
@@ -211,6 +230,24 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
           !assignment.finalTarget.isAnalog &&
           !assignment.finalTarget.isInputOrInOut =>
       true
+    case assignment: DataAssignmentStatement
+        if (assignment.target eq assignment.finalTarget) &&
+          (assignment.finalTarget ne alias) &&
+          (assignment.finalTarget.component eq component) &&
+          assignment.finalTarget.isReg && assignment.finalTarget.clockDomain != null &&
+          !assignment.finalTarget.isAnalog && !assignment.finalTarget.isInputOrInOut &&
+          (assignment.finalTarget.parentScope eq component.dslBody) =>
+      var scope = assignment.parentScope
+      var depth = 0
+      while (scope != null && (scope ne component.dslBody)) {
+        depth += 1
+        if (depth > 128) return false
+        scope.parentStatement match {
+          case when: WhenStatement => scope = when.parentScope
+          case _ => return false
+        }
+      }
+      scope eq component.dslBody
     case _ => false
   }
 
@@ -421,14 +458,14 @@ private[examples] final class UnnamedWireAliasNativePhase extends Phase {
       }
     }
 
-    aliasAssignment.removeStatement()
-    alias.removeStatement()
-
+    // Check the complete supported inventory before destroying either node.
     val remaining = statementsOf(component).map(references(_, alias)).sum
     if (remaining != 0)
       throw new IllegalStateException(
-        s"WA-04 native witness rewrite left $remaining reference(s) to a removed identity"
+        s"WA-04 native witness rewrite left $remaining reference(s) to a retained identity"
       )
+    aliasAssignment.removeStatement()
+    alias.removeStatement()
     replacements
   }
 

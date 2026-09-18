@@ -70,6 +70,36 @@ object VerilogEmitterExpressionInlining {
       leaves.toLong * nodes <= 256
   }
 
+  /** A late identity-sized unsigned resize can itself be a legal select base:
+    * its printer emits only the existing declaration's reference. This is not
+    * expression slicing or arithmetic reassociation. Every link must retain
+    * the exact native type and fixed width; annotations and symbolic resizing
+    * fail closed. The real source (including its name/protection) is untouched.
+    */
+  private[internals] def directSelectBase(
+      component: Component,
+      expression: Expression
+  ): Option[BaseType] = {
+    def follow(node: Expression, depth: Int): Option[BaseType] = {
+      if (node == null || depth > 32) return None
+      node match {
+        case base: BaseType if (base.component eq component) &&
+            (base.getTypeObject == TypeUInt || base.getTypeObject == TypeBits) &&
+            base.getBitsWidth > 0 && !base.isAnalog && !base.isInOut &&
+            ParameterizedWidth.expressionOf(base).isEmpty => Some(base)
+        case resize: Resize if
+            (resize.isInstanceOf[ResizeUInt] || resize.isInstanceOf[ResizeBits]) &&
+            isUnannotated(resize) && resize.input != null && resize.size > 0 &&
+            resize.size == resize.input.getWidth &&
+            resize.getTypeObject == resize.input.getTypeObject &&
+            ParameterizedWidth.resizeExpressionOf(resize).isEmpty =>
+          follow(resize.input, depth + 1)
+        case _ => None
+      }
+    }
+    follow(expression, 0)
+  }
+
   /** Prove which synthetic expression carriers can be omitted, before emission.
     *
     * Verilog propagates an assignment/arithmetic/comparison/mux context into
@@ -159,7 +189,7 @@ object VerilogEmitterExpressionInlining {
 
       def publish(nodes: scala.collection.Seq[Expression]): Unit = nodes.foreach { node =>
         val count = occurrences.get(node)
-        if (count != null && count.intValue == 1)
+        if (count != null && (count.intValue == 1 || directSelectBase(component, node).nonEmpty))
           result.put(node, java.lang.Boolean.TRUE)
       }
 
@@ -269,7 +299,8 @@ object VerilogEmitterExpressionInlining {
           case _ => false
         }
         visiting.remove(expression)
-        if (proven && !referenceRequired) wrappers += expression
+        if (proven && (!referenceRequired || directSelectBase(component, expression).nonEmpty))
+          wrappers += expression
         proven
       }
 
@@ -280,6 +311,16 @@ object VerilogEmitterExpressionInlining {
       case assignment: DataAssignmentStatement => assignment.target match {
         case target: BaseType if eligibleTarget(target) =>
           plan(assignment.source, width(target))
+        // A no-op unsigned carrier which prints an existing reference has no
+        // arithmetic or assignment-context obligation. This narrow fallback
+        // handles repeated/nested register updates without enabling arbitrary
+        // expression inlining across multiple assignments or priority trees.
+        case target: BaseType if fixedTargetBoundary(target) =>
+          assignment.source.walkExpression {
+            case resize: Resize if directSelectBase(component, resize).nonEmpty =>
+              result.put(resize, java.lang.Boolean.TRUE)
+            case _ =>
+          }
         // Static disjoint selections have an exact receiver width. Only the
         // pure RHS is planned; target selection, driver and procedural scope
         // remain untouched. Overlap, whole-object overrides and dynamic
