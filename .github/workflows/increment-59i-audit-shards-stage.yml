@@ -1,0 +1,68 @@
+name: Increment 59i failed-only audit sharding staging
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-audit-shards-stage.yml
+      - .github/recovery/59i-audit-shards/**
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Verify exact routing and reconstruct the saved sharding seal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/59i-audit-shards-evidence"
+          python3 -B .github/recovery/59i-audit-shards/test_stage.py \
+            2>&1 | tee "$RUNNER_TEMP/59i-audit-shards-evidence/transport-tests.log"
+          python3 -B .github/recovery/59i-audit-shards/stage.py prepare \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-audit-shards-source" \
+            --output "$RUNNER_TEMP/59i-audit-shards-evidence" \
+            --bundle "$RUNNER_TEMP/59i-audit-shards.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-audit-shards-evidence/prepare.log"
+          cp "$RUNNER_TEMP/59i-audit-shards.bundle" "$RUNNER_TEMP/59i-audit-shards-evidence/reviewed.bundle"
+      - name: Export exact source and seal tree requests
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-audit-shards-trees-37d1629f-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-audit-shards-evidence
+          if-no-files-found: error
+          retention-days: 21
+      - name: Stage exact commits and dispatch only failed inherited-source qualification
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-audit-shards/stage.py publish \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-audit-shards-source" \
+            --output "$RUNNER_TEMP/59i-audit-shards-evidence" \
+            --bundle "$RUNNER_TEMP/59i-audit-shards.bundle" \
+            2>&1 | tee "$RUNNER_TEMP/59i-audit-shards-evidence/publication.log"
+      - name: Preserve source checks and publication receipts on every outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-audit-shards-staged-37d1629f-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-audit-shards-evidence
+          if-no-files-found: error
+          retention-days: 21
