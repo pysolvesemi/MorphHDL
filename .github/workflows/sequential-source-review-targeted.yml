@@ -7,6 +7,37 @@ on:
 permissions:
   contents: read
 jobs:
+  supersede-pr190:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      fail-fast: false
+      matrix:
+        group:
+          - 'morphhdl-external-memory-MorphHDL external native memory-refs/pull/190/merge'
+          - 'increment-60a-Increment 60a SInt baseline capture-refs/pull/190/merge'
+          - 'morphhdl-native-int-expressions-MorphHDL native Int shadow expressions-refs/pull/190/merge'
+          - 'increment-59e-composite-refs/pull/190/merge'
+          - 'morphhdl-baseline-MorphHDL baseline-refs/pull/190/merge'
+          - 'morphhdl-native-int-conditionals-MorphHDL native Int symbolic conditionals-refs/pull/190/merge'
+          - 'increment-60c-Increment 60c signed declarations-refs/pull/190/merge'
+          - 'morphhdl-ir-passes-MorphHDL IR pass workspace-refs/pull/190/merge-d9c3f574ef7dc036ebdfd8e2078a512c40c5aed9'
+          - 'morphhdl-native-int-shadow-MorphHDL native Int shadow provenance-refs/pull/190/merge'
+          - 'morphhdl-native-int-nested-MorphHDL native Int nested symbolic control flow-refs/pull/190/merge'
+          - 'morphhdl-native-streamfifo-MorphHDL native StreamFifo parameter structure-refs/pull/190/merge'
+          - 'increment-59g-register-bridges-refs/pull/190/merge'
+          - 'morphhdl-streamfifocc-proof-MorphHDL StreamFifoCC CDC and formal proof-refs/pull/190/merge'
+          - 'morphhdl-native-stream-width-adapter-MorphHDL native StreamWidthAdapter parameterization-refs/pull/190/merge'
+          - 'morphhdl-mill-MorphHDL Mill-refs/pull/190/merge'
+          - 'morphhdl-native-streamfifo-formal-MorphHDL native StreamFifo formal equivalence-refs/pull/190/merge'
+          - 'increment-60f-Increment 60f equivalence closure-refs/pull/190/merge'
+          - 'morphhdl-external-structural-process-MorphHDL external structural and process capture-refs/pull/190/merge'
+    concurrency:
+      group: ${{ matrix.group }}
+      cancel-in-progress: true
+    steps:
+      - run: printf 'PR190-only concurrency reservation released.\n'
   cancel-and-export:
     if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
     runs-on: ubuntu-latest
@@ -26,7 +57,7 @@ jobs:
             const fs = require('fs');
             const branch = 'agent/wa-sequential-wire-consumers';
             const oldHead = 'd9c3f574ef7dc036ebdfd8e2078a512c40c5aed9';
-            const allowedHeads = new Set([oldHead, '8120db187de12b62185d55cc2d43324eda9189f8', context.sha]);
+            const allowedHeads = new Set([oldHead, '8120db187de12b62185d55cc2d43324eda9189f8', '85a11a769fc9091cc0e9c3e6a4f9163b8fb3434a', context.sha]);
             const {owner, repo} = context.repo;
             const pr = (await github.rest.pulls.get({owner, repo, pull_number: 190})).data;
             const ref = (await github.rest.git.getRef({owner,repo,ref:`heads/${branch}`})).data;
