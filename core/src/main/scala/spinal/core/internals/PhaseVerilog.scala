@@ -26,7 +26,7 @@ import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 
-class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc with VerilogBase {
+class PhaseVerilog(pc: PhaseContext, report: SpinalReport[_]) extends PhaseMisc with VerilogBase with VerilogBase.DeclarationPolicyOwner {
   import pc._
   globalPrefix = pc.config.globalPrefix
 
