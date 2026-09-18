@@ -2,114 +2,181 @@ name: PR190 targeted source review
 on:
   push:
     branches: [agent/wa-sequential-wire-consumers]
-    paths: ['.github/workflows/sequential-source-review-targeted.yml']
-  workflow_dispatch:
+    paths: ['.github/workflows/sequential-source-review-targeted.yml', 'repro/remaining-wires/source-review-transfer.patch.xz.*']
 permissions:
   contents: read
 jobs:
-  supersede-pr190:
+  materialize-reviewed-source:
     if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
-    strategy:
-      fail-fast: false
-      matrix:
-        group:
-          - 'morphhdl-external-memory-MorphHDL external native memory-refs/pull/190/merge'
-          - 'increment-60a-Increment 60a SInt baseline capture-refs/pull/190/merge'
-          - 'morphhdl-native-int-expressions-MorphHDL native Int shadow expressions-refs/pull/190/merge'
-          - 'increment-59e-composite-refs/pull/190/merge'
-          - 'morphhdl-baseline-MorphHDL baseline-refs/pull/190/merge'
-          - 'morphhdl-native-int-conditionals-MorphHDL native Int symbolic conditionals-refs/pull/190/merge'
-          - 'increment-60c-Increment 60c signed declarations-refs/pull/190/merge'
-          - 'morphhdl-ir-passes-MorphHDL IR pass workspace-refs/pull/190/merge-d9c3f574ef7dc036ebdfd8e2078a512c40c5aed9'
-          - 'morphhdl-native-int-shadow-MorphHDL native Int shadow provenance-refs/pull/190/merge'
-          - 'morphhdl-native-int-nested-MorphHDL native Int nested symbolic control flow-refs/pull/190/merge'
-          - 'morphhdl-native-streamfifo-MorphHDL native StreamFifo parameter structure-refs/pull/190/merge'
-          - 'increment-59g-register-bridges-refs/pull/190/merge'
-          - 'morphhdl-streamfifocc-proof-MorphHDL StreamFifoCC CDC and formal proof-refs/pull/190/merge'
-          - 'morphhdl-native-stream-width-adapter-MorphHDL native StreamWidthAdapter parameterization-refs/pull/190/merge'
-          - 'morphhdl-mill-MorphHDL Mill-refs/pull/190/merge'
-          - 'morphhdl-native-streamfifo-formal-MorphHDL native StreamFifo formal equivalence-refs/pull/190/merge'
-          - 'increment-60f-Increment 60f equivalence closure-refs/pull/190/merge'
-          - 'morphhdl-external-structural-process-MorphHDL external structural and process capture-refs/pull/190/merge'
-    concurrency:
-      group: ${{ matrix.group }}
-      cancel-in-progress: true
-    steps:
-      - run: printf 'PR190-only concurrency reservation released.\n'
-  cancel-and-export:
-    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/wa-sequential-wire-consumers'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
-      contents: read
-      actions: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Cancel only superseded PR190 qualification runs
+      - name: Verify exact transport parent and apply only reviewed source delta
+        env:
+          EXPECTED_PARENT: 0ceb4430f56abe70546e78c8683efe01e5f0bf26
+          EXPECTED_PATCH: 0dbaefa01cfc8b1e4fa1ea9e85353fa13458344feebfa1eb1e2ba7ea7a381d11
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pr190"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code
+          python3 - <<'PY'
+          import lzma,hashlib,os,subprocess
+          from pathlib import Path
+          parts=[Path('repro/remaining-wires/source-review-transfer.patch.xz.'+str(i)) for i in (0,1)]
+          raw=lzma.decompress(b''.join(p.read_bytes() for p in parts))
+          assert hashlib.sha256(raw).hexdigest()==os.environ['EXPECTED_PATCH']
+          Path(os.environ['RUNNER_TEMP'],'pr190','review.patch').write_bytes(raw)
+          expected={'.github/workflows/sequential-source-review-targeted.yml',*(str(p) for p in parts)}
+          changed=set(subprocess.check_output(['git','diff','--name-only',os.environ['EXPECTED_PARENT'],'HEAD']).decode().splitlines())
+          assert changed==expected,changed
+          PY
+          # Restore only the transport workflow to the patch's verified base.
+          git show "$EXPECTED_PARENT:.github/workflows/sequential-source-review-targeted.yml" > .github/workflows/sequential-source-review-targeted.yml
+          git apply --check "$RUNNER_TEMP/pr190/review.patch"
+          git apply "$RUNNER_TEMP/pr190/review.patch"
+          git rm repro/remaining-wires/source-review-transfer.patch.xz.0 repro/remaining-wires/source-review-transfer.patch.xz.1
+          git diff --check
+          python3 - <<'PY'
+          import hashlib,importlib.util,subprocess
+          from pathlib import Path
+          p=Path('morphhdl/scripts/check-sequential-wire-source-review.py')
+          spec=importlib.util.spec_from_file_location('review',p)
+          r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
+          changed=set(subprocess.check_output(['git','diff','--name-only','0ceb4430f56abe70546e78c8683efe01e5f0bf26']).decode().splitlines())
+          changed|=set(subprocess.check_output(['git','ls-files','--others','--exclude-standard']).decode().splitlines())
+          assert changed <= r.REVIEW_PATHS,sorted(changed-r.REVIEW_PATHS)
+          for path in r.PRODUCTION_PATHS:
+            assert Path(path).read_bytes()==subprocess.check_output(['git','show',r.SOURCE+':'+path]),path
+          assert hashlib.sha256(Path('morphhdl/contracts/native-source-preservation.json').read_bytes()).hexdigest()=='a57316685e1f6343b2ee8af385cf7a04f64523beda6fccf87a6b21fe8da2b8d8'
+          PY
+          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output "$RUNNER_TEMP/pr190/native.json"
+          cmp morphhdl/contracts/native-source-preservation.json "$RUNNER_TEMP/pr190/native.json"
+          git add -A
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'review: register exact PR190 sequential-consumer successor and additive controls [skip ci]'
+          git rev-parse HEAD > "$RUNNER_TEMP/pr190/source-checkpoint.txt"
+      - name: Seal the real committed source checkpoint without changing historical anchors
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util,json,hashlib,re,subprocess,sys
+          from pathlib import Path
+          root=Path.cwd()
+          source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          helper='morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+          contract='morphhdl/contracts/increment-62-wa08-source-overlay.json'
+          spec=importlib.util.spec_from_file_location('original_outer',root/helper)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          review_path='morphhdl/scripts/check-sequential-wire-source-review.py'
+          spec=importlib.util.spec_from_file_location('sequential',root/review_path)
+          r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
+          def git(*a):return subprocess.check_output(['git','--literal-pathspecs',*a],cwd=root)
+          assert git('rev-parse','HEAD').decode().strip()==source
+          old=json.loads((root/contract).read_text())
+          assert old['base']==m.BASE
+          assert old['helper_normalized_sha256']=='14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab'
+          assert hashlib.sha256(m.normalized_helper((root/helper).read_bytes())).hexdigest()==old['helper_normalized_sha256']
+          changed={p.decode() for p in git('diff','--no-renames','--name-only','-z',m.BASE,source).split(b'\0') if p}
+          paths=({p for p in changed if m.governed(p)} | {e['path'] for e in old['files']} |
+                 r.IMPLEMENTATION_PATHS | r.REVIEW_PATHS) - {helper,contract}
+          entries=[]
+          tree=m.tree(root,source)
+          for p in sorted(paths):
+           assert p in tree, 'reviewed source missing: '+p
+           mode,blob=tree[p]
+           raw=git('show',source+':'+p)
+           assert hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()==blob
+           before=m.frozen(root,m.BASE,p)
+           entries.append(dict(path=p,mode=mode,before_sha256=hashlib.sha256(before).hexdigest() if before is not None else None,after_sha256=hashlib.sha256(raw).hexdigest()))
+          for p in r.PRODUCTION_PATHS: assert git('show',source+':'+p)==git('show',r.SOURCE+':'+p),p
+          value=dict(schema_version=1,base=m.BASE,final_source_commit=source,helper_normalized_sha256=old['helper_normalized_sha256'],files=entries)
+          raw=(json.dumps(value,indent=2)+'\n').encode()
+          (root/contract).write_bytes(raw)
+          s,n=re.subn(rb'^CONTRACT_SHA256 = "[^"]+"$',b'CONTRACT_SHA256 = "'+hashlib.sha256(raw).hexdigest().encode()+b'"',(root/helper).read_bytes(),count=1,flags=re.M)
+          assert n==1;(root/helper).write_bytes(s)
+          print('sealed sources',len(entries),'source',source,'manifest',hashlib.sha256(raw).hexdigest())
+          PY
+          git add morphhdl/contracts/increment-62-wa08-source-overlay.json morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'review: seal exact PR190 source checkpoint with unchanged WA08 identity checks [skip ci]'
+          git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/pr190/prepared-source.txt"
+      - name: Validate current source and negative controls before publishing Git objects
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-sequential-wire-source-review.py 2>&1 | tee "$RUNNER_TEMP/pr190/current.log"
+          python3 morphhdl/scripts/test-sequential-wire-source-review.py 2>&1 | tee "$RUNNER_TEMP/pr190/mutations.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$RUNNER_TEMP/pr190/native.log"
+          python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$RUNNER_TEMP/pr190/successor.log"
+          MORPHDL_PASSES_BASE_SHA=f5049ae2abfe5a47cd1fac3574ea08d630bd183f MORPHDL_PASSES_HEAD_REF=agent/wa-sequential-wire-consumers bash morphhdl-passes/scripts/check-boundary.sh 2>&1 | tee "$RUNNER_TEMP/pr190/boundary.log"
+          test -z "$(git status --porcelain)"
+      - name: Store verified Git objects without moving any branch
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const branch = 'agent/wa-sequential-wire-consumers';
-            const oldHead = 'd9c3f574ef7dc036ebdfd8e2078a512c40c5aed9';
-            const allowedHeads = new Set([oldHead, '8120db187de12b62185d55cc2d43324eda9189f8', '85a11a769fc9091cc0e9c3e6a4f9163b8fb3434a', context.sha]);
-            const {owner, repo} = context.repo;
-            const pr = (await github.rest.pulls.get({owner, repo, pull_number: 190})).data;
-            const ref = (await github.rest.git.getRef({owner,repo,ref:`heads/${branch}`})).data;
-            if (pr.state !== 'closed' || pr.head.ref !== branch ||
-                !allowedHeads.has(pr.head.sha) || ref.object.sha !== context.sha)
-              throw new Error('PR190 state/live branch changed; refusing cancellation');
-            const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo,
-              {owner, repo, branch, per_page: 100});
-            const receipt = {control_sha: context.sha, original_sha: oldHead, snapshot: runs.map(r =>
-              ({id:r.id, name:r.name, head_sha:r.head_sha, status:r.status, conclusion:r.conclusion})), requested:[], verified:[]};
-            fs.mkdirSync(`${process.env.RUNNER_TEMP}/pr190`, {recursive:true});
-            const output = `${process.env.RUNNER_TEMP}/pr190/cancellation.json`;
-            fs.writeFileSync(output, JSON.stringify(receipt, null, 2));
-            for (const run of runs) {
-              if (run.id === context.runId || run.head_branch !== branch ||
-                  run.head_repository?.full_name !== `${owner}/${repo}` ||
-                  !allowedHeads.has(run.head_sha) || run.status === 'completed') continue;
-              try {
-                await github.rest.actions.cancelWorkflowRun({owner,repo,run_id:run.id});
-                receipt.requested.push(run.id);
-              } catch (error) {
-                const live = (await github.rest.actions.getWorkflowRun({owner,repo,run_id:run.id})).data;
-                if (live.status !== 'completed') throw error;
-              }
-              fs.writeFileSync(output, JSON.stringify(receipt, null, 2));
+            const cp = require('child_process');
+            const git = (...args) => cp.execFileSync('git', ['--literal-pathspecs', ...args], {maxBuffer: 8*1024*1024});
+            const {owner,repo}=context.repo;
+            const branch='agent/wa-sequential-wire-consumers';
+            const pr=(await github.rest.pulls.get({owner,repo,pull_number:190})).data;
+            const ref=(await github.rest.git.getRef({owner,repo,ref:`heads/${branch}`})).data;
+            if(pr.state!=='closed' || pr.head.ref!==branch || ref.object.sha!==context.sha)
+              throw new Error('PR190/live branch changed; refusing publication');
+            const commits=git('rev-list','--reverse',`${context.sha}..HEAD`).toString().trim().split('\n');
+            if(commits.length!==2) throw new Error('Unexpected prepared commit chain');
+            const published=[];
+            function identity(header,name) {
+              const match=header.match(new RegExp(`^${name} (.+) <([^>]+)> ([0-9]+) \\+0000$`,'m'));
+              if(!match) throw new Error('Expected UTC Git identity');
+              return {name:match[1],email:match[2],date:new Date(Number(match[3])*1000).toISOString()};
             }
-            for (let attempt=0; attempt<12; attempt++) {
-              receipt.verified = [];
-              for (const id of receipt.requested) {
-                const live = (await github.rest.actions.getWorkflowRun({owner,repo,run_id:id})).data;
-                receipt.verified.push({id,status:live.status,conclusion:live.conclusion});
+            for(const sha of commits) {
+              const raw=git('cat-file','commit',sha).toString();
+              const offset=raw.indexOf('\n\n');
+              const header=raw.slice(0,offset),message=raw.slice(offset+2);
+              const parent=header.match(/^parent (\w+)$/m)[1];
+              const expectedTree=header.match(/^tree (\w+)$/m)[1];
+              const baseTree=git('rev-parse',`${parent}^{tree}`).toString().trim();
+              const paths=git('diff','--no-renames','--name-only','-z',parent,sha).toString().split('\0').filter(Boolean);
+              const entries=[];
+              for(const path of paths) {
+                const treeLine=git('ls-tree','-z',sha,'--',path).toString();
+                if(!treeLine) { entries.push({path,mode:'100644',type:'blob',sha:null}); continue; }
+                const match=treeLine.match(/^(100644|100755) blob (\w+)\t/);
+                if(!match) throw new Error(`Unreviewed mode/type: ${path}`);
+                const bytes=git('cat-file','blob',match[2]);
+                const blob=(await github.rest.git.createBlob({owner,repo,encoding:'base64',content:bytes.toString('base64')})).data;
+                if(blob.sha!==match[2]) throw new Error(`Blob mismatch: ${path}`);
+                entries.push({path,mode:match[1],type:'blob',sha:blob.sha});
               }
-              fs.writeFileSync(output, JSON.stringify(receipt, null, 2));
-              if (receipt.verified.every(r => r.status === 'completed')) break;
-              await new Promise(resolve => setTimeout(resolve, 5000));
+              const tree=(await github.rest.git.createTree({owner,repo,base_tree:baseTree,tree:entries})).data;
+              if(tree.sha!==expectedTree) throw new Error('Git tree identity mismatch');
+              const commit=(await github.rest.git.createCommit({owner,repo,tree:tree.sha,parents:[parent],message,
+                author:identity(header,'author'),committer:identity(header,'committer')})).data;
+              if(commit.sha!==sha) throw new Error(`Git commit identity mismatch expected=${sha} actual=${commit.sha}`);
+              published.push({sha,tree:tree.sha,parent,files:paths});
             }
-            core.info(JSON.stringify(receipt.verified));
-            if (receipt.verified.some(r => r.status !== 'completed'))
-              throw new Error('Some cancellation requests have not completed');
-      - name: Export exact branch history for source audit
+            fs.writeFileSync(`${process.env.RUNNER_TEMP}/pr190/published-objects.json`,JSON.stringify({transport:context.sha,published},null,2));
+            core.info('Prepared objects stored. No branch, PR state, target, or workflow was updated by this job.');
+      - name: Export exact prepared history and source receipts
         if: always()
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pr190"
-          git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/pr190/source.txt"
-          git bundle create "$RUNNER_TEMP/pr190/source.bundle" HEAD
-          sha256sum "$RUNNER_TEMP/pr190/source.bundle" > "$RUNNER_TEMP/pr190/source.bundle.sha256"
+          git bundle create "$RUNNER_TEMP/pr190/prepared.bundle" HEAD ^"$GITHUB_SHA"
+          sha256sum "$RUNNER_TEMP/pr190/prepared.bundle" > "$RUNNER_TEMP/pr190/prepared.bundle.sha256"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pr190-targeted-control
+          name: pr190-source-materialization
           path: ${{ runner.temp }}/pr190/
-          compression-level: 0
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
