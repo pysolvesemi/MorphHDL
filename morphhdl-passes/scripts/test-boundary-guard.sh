@@ -388,4 +388,17 @@ expect_failure \
     MORPHDL_PASSES_CHANGED_FILES_FILE="${wa10_log_manifest}" \
     "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
+# PR190 is a bounded lane/when successor, never a generic waiver for WA names.
+if [[ -f "${repo_root}/morphhdl/scripts/check-sequential-wire-source-review.py" ]]; then
+  sequential_manifest="${tmp_dir}/sequential.txt"
+  python3 "${repo_root}/morphhdl/scripts/check-sequential-wire-source-review.py" --print-paths > "${sequential_manifest}"
+  expect_success 'exact sequential successor paths require the verified union' \
+    run_checker agent/wa-sequential-wire-consumers "${sequential_manifest}"
+  expect_failure 'similar branch spelling cannot authorize cross-workspace source' \
+    run_checker agent/wa-sequential-wire-consumers-unreviewed "${sequential_manifest}"
+  printf '%s\n' 'core/src/main/scala/spinal/core/Unreviewed.scala' >> "${sequential_manifest}"
+  expect_failure 'sequential branch still rejects unreviewed source' \
+    run_checker agent/wa-sequential-wire-consumers "${sequential_manifest}"
+fi
+
 printf 'MorphHDL pass boundary self-tests passed.\n'

@@ -661,6 +661,38 @@ LANE_WHEN_SUITE_SOURCES = frozenset((
     "morphhdl/src/test/resources/lane-expression/tb_lane_receivers.sv",
 ))
 
+# PR190 adds exact sequential-consumer suites. The frozen lane catalog stays
+# unchanged; only complete authenticated source enrollment selects these cases.
+SEQUENTIAL_WIRE_SUITES = {
+    "core": {"spinal.core.internals.SequentialWireEmitterTests": 6},
+    "morphhdl": {
+        "morphhdl.SequentialWireNativeTests": 18,
+        "morphhdl.examples.SequentialWireRetentionTests": 13,
+    },
+}
+SEQUENTIAL_WIRE_SUITE_SOURCES = frozenset((
+    "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala",
+    "morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala",
+    "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala",
+    "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala",
+    "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala",
+    "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala",
+))
+
+
+def sequential_wire_suite_flag(entries: dict[str, dict], lane_when: bool) -> bool:
+    selected = set(entries).intersection(SEQUENTIAL_WIRE_SUITE_SOURCES)
+    if not selected:
+        return False
+    require(selected == SEQUENTIAL_WIRE_SUITE_SOURCES,
+            "partial sequential-wire suite-source enrollment: " +
+            repr(sorted(SEQUENTIAL_WIRE_SUITE_SOURCES - selected)))
+    require(lane_when, "sequential-wire source requires the verified lane predecessor")
+    require(all(entries[path]["before_sha256"] is None for path in selected),
+            "sequential-wire source has changed its added-source identity")
+    return True
+
+
 # PR188 retains the frozen WA-09/10/11 catalogs and adds exact obligations for
 # native independent-parameter provenance and symbolic legality. XML cannot
 # enroll this successor: only the complete authenticated source cluster can.
@@ -786,7 +818,7 @@ def compare(left: Path, right: Path) -> None:
 def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                         wa09: bool = False, wa10: bool = False,
                         wa11: bool = False, lane_when: bool = False,
-                        pr188: bool = False) -> tuple[dict, dict, dict]:
+                        pr188: bool = False, sequential_wire: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -986,6 +1018,14 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                     total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
+    if sequential_wire:
+        require(lane_when, "sequential-wire suites require the complete lane catalog")
+        for project, exact in SEQUENTIAL_WIRE_SUITES.items():
+            require(not suites[project].intersection(exact), "sequential-wire replaced an inherited suite")
+            tests, total_suites = counts[project]
+            suites[project] |= frozenset(exact)
+            counts[project] = (tests + sum(exact.values()), total_suites + len(exact))
+            extension.setdefault(project, {}).update(exact)
     return counts, suites, extension
 
 
@@ -1115,8 +1155,10 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
                             else (False, False, False, False))
     lane_when = lane_when_suite_flag(entries or {}, (wa08, wa09, wa10, wa11))
     pr188 = independent_parameter_suite_flag(entries or {})
+    sequential_wire = sequential_wire_suite_flag(entries or {}, lane_when)
     counts, suite_inventory, extension = catalog_for_profile(
-        profile, packing, wa08, wa09, wa10, wa11, lane_when=lane_when, pr188=pr188)
+        profile, packing, wa08, wa09, wa10, wa11, lane_when=lane_when, pr188=pr188,
+        sequential_wire=sequential_wire)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))

@@ -2,6 +2,21 @@ name: Native sequential wire consumers
 on:
   push:
     branches: [agent/wa-sequential-wire-consumers]
+    paths:
+      - '.github/workflows/sequential-wire-consumers.yml'
+      - 'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala'
+      - 'core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala'
+      - 'morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala'
+      - 'morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala'
+      - 'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala'
+      - 'morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala'
+      - 'morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala'
+      - 'repro/remaining-wires/build.sbt'
+      - 'repro/remaining-wires/check.py'
+      - 'repro/remaining-wires/project/build.properties'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireRepro.scala'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireTrace.scala'
   pull_request:
     branches: [parameterized-verilog]
     paths:
@@ -12,6 +27,7 @@ on:
       - 'morphhdl-passes/examples/**'
       - 'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala'
       - 'morphhdl/src/test/scala/morphhdl/**'
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read

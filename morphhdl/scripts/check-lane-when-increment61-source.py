@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Authenticate the exact PR187/Increment61 union before inherited projections.
 
-The eight qualified lane compiler files and six merged publication files are
-retained byte-for-byte. Historical checks are separately identified evidence;
+The original eight lane files and six publication files remain anchored. The
+four explicitly reviewed sequential-consumer files have a separate immutable
+source anchor; all other qualified production files remain byte-for-byte. Historical checks are separately identified evidence;
 no historical source or test result substitutes for the current source seal.
 """
 from __future__ import annotations
@@ -58,6 +59,12 @@ def changed(root: Path, before: str, after: str) -> set[str]:
 
 
 def production(path: str) -> bool:
+    if path in {
+        "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala",
+        "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala",
+        "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala",
+    }:
+        return False
     return "/src/main/" in path or path.startswith("morphhdl-passes/examples/")
 
 
@@ -84,6 +91,12 @@ def verify(root: Path = ROOT) -> dict:
     outer.verify(root)  # Complete current Git/index/worktree and source-anchor identity.
     scope = load(root, SCOPE)
     inventory = scope.verify(root)
+    sequential = load(root, "morphhdl/scripts/check-sequential-wire-source-review.py")
+    sequential.verify(root)
+    sequential_production = set(sequential.PRODUCTION_PATHS)
+    require(not sequential_production & set(unique_json(
+        git(root, "show", TARGET + ":" + CONTRACT))["production_paths"]),
+        "sequential repair must not modify Increment 61 publication code")
     allowed = set(inventory["implementation_paths"]) | set(inventory["review_paths"])
     require(changed(root, TARGET, "HEAD") <= allowed, "unreviewed successor path")
     contract_raw = outer.regular(root, CONTRACT)
@@ -96,6 +109,7 @@ def verify(root: Path = ROOT) -> dict:
     expected = target_paths | lane_paths | {SELF, "morphhdl-passes/scripts/test-boundary-guard.sh",
         "morphhdl/scripts/check-increment-61-publication-artifacts.py",
         "morphhdl/scripts/test-increment-61-publication-artifacts.py"}
+    expected |= set(sequential.IMPLEMENTATION_PATHS) | set(sequential.REVIEW_PATHS)
     require(changed(root, BASE, "HEAD") == expected, "complete integration inventory differs")
 
     target_tree = outer.tree(root, TARGET)
@@ -107,12 +121,16 @@ def verify(root: Path = ROOT) -> dict:
     require(len(lane_production) == 8 and not lane_production & target_production,
             "qualified compiler changes overlap or have changed inventory")
     require({p for p in changed(root, BASE, "HEAD") if production(p)} ==
-            target_production | lane_production, "unexpected integrated compiler change")
+            target_production | lane_production | sequential_production, "unexpected integrated compiler change")
     for revision, paths, tree in ((TARGET, target_production, target_tree),
                                   (LANE, lane_production, lane_tree)):
         for path in paths:
-            require(outer.regular(root, path, tree[path][0]) == git(root, "show", revision + ":" + path),
+            current_revision = sequential.SOURCE if path in sequential_production else revision
+            require(outer.regular(root, path, tree[path][0]) == git(root, "show", current_revision + ":" + path),
                     "qualified production bytes changed: " + path)
+    for path in sequential_production:
+        require(outer.regular(root, path) == git(root, "show", sequential.SOURCE + ":" + path),
+                "qualified sequential production bytes changed: " + path)
 
     # Retain all original reviewed documentation/test/publication bytes. Only
     # the registry needs an exact, separately checked union of the two parents.
@@ -137,7 +155,7 @@ def verify(root: Path = ROOT) -> dict:
         require(digest == inherited["files"][path] or path in allowed,
                 "unreviewed formal signature change: " + path)
     return {"target": TARGET, "lane": LANE, "head": git(root, "rev-parse", "HEAD").decode().strip(),
-            "production_files": len(target_production | lane_production),
+            "production_files": len(target_production | lane_production | sequential_production),
             "paths": sorted(expected)}
 
 
@@ -161,7 +179,7 @@ def verify_predecessor(root: Path = ROOT, self_test: bool = False) -> None:
     (output / "source-identity.json").write_text(json.dumps(receipt, indent=2) + "\n")
     (output / ("historical-self-test.log" if self_test else "historical-source-review.log")).write_text(result.stdout)
     print(result.stdout, end="")
-    print("LANE_INCREMENT61_CURRENT_SOURCE_PASS compiler_files=14 signatures=98 head=" + receipt["head"])
+    print("LANE_INCREMENT61_CURRENT_SOURCE_PASS compiler_files=" + str(receipt["production_files"]) + " signatures=98 head=" + receipt["head"])
 
 
 def self_test(root: Path = ROOT) -> None:
