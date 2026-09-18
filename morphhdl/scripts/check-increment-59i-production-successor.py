@@ -42,11 +42,11 @@ INTEGRATION_RECONCILIATIONS = frozenset((
 ))
 # A separately reviewed continuation retains the published seal as its first
 # parent. These are immutable certificates, never moving branch permissions.
-CONTINUATION_PARENT = "c74b34bb1154d1df20bf85aa63e1276388511a02"
-CONTINUATION_PARENT_TREE = "3e29a314d85c6f708fdd78eaeb68098ff136510c"
-CONTINUATION_PARENT_SOURCE = "106fa49a30e3b8513a6b6038b929250305360f8a"
-CONTINUATION_PARENT_MANIFEST = "c009edae6cbae02695ed834579eaa62300e434e749821ad8af1ced692352d18c"
-CONTINUATION_PARENT_HELPER = "c9be9212f628384ac6c30d59c2382009ce681da40c514f4592e1b1a60ae790a7"
+CONTINUATION_PARENT = "969af59a0378fca5b964d04d8f2af49b123dd804"
+CONTINUATION_PARENT_TREE = "86732918d3d071ec0b505c435f9df45f477f26b9"
+CONTINUATION_PARENT_SOURCE = "59a42dbfcd1ea7d95af69d2116e7796c3efdef71"
+CONTINUATION_PARENT_MANIFEST = "ba5181c48a6f6173daa139ce6206bb67b956431165d2593ba8ef98209a4bb3c0"
+CONTINUATION_PARENT_HELPER = "f952c57a2b927a73afefd2418db562be8e917ece1763be54449f67095f8918b1"
 CONTINUATION_TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
 # Keep the original integrated target inventory rooted at the same two
 # historical branches. The immediate predecessor now already contains that
@@ -97,7 +97,7 @@ def previous_certificate() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "ba5181c48a6f6173daa139ce6206bb67b956431165d2593ba8ef98209a4bb3c0"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
