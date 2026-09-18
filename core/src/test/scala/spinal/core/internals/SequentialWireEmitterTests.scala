@@ -26,7 +26,7 @@ class SequentialWireEmitterTests extends AnyFunSuite {
         phases.insert(index, new Phase {
           override def hasNetlistImpact: Boolean = true
           override def impl(pc: PhaseContext): Unit = {
-            val inner: Expression = shape match {
+            val inner: Expression with WidthProvider = shape match {
               case "arithmetic" =>
                 val add = new Operator.UInt.Add
                 add.left = source
@@ -103,7 +103,7 @@ class SequentialWireEmitterTests extends AnyFunSuite {
           val b = in Bits(18 bits)
           val result = out Bits(18 bits)
           result := b
-          def uint(input: Expression, size: Int): ResizeUInt = {
+          def uint(input: Expression with WidthProvider, size: Int): ResizeUInt = {
             val r = new ResizeUInt; r.input = input; r.size = size; r
           }
           def proof(e: Expression) = VerilogEmitterExpressionInlining.directSelectBase(this, e)

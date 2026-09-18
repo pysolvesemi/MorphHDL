@@ -178,7 +178,10 @@ private[examples] final class UnnamedWireAliasNativePhase(
 
     if ((source.component ne candidate.component) || source.parentScope == null)
       Left("WA04-NATIVE-SOURCE-BOUNDARY")
-    else if (!(source.parentScope eq source.rootScopeStatement))
+    // An input is declared in this component, but its assignment root belongs
+    // to the parent. Reading that exact local input is not a hierarchy rewrite.
+    else if (!(source.parentScope eq source.rootScopeStatement) &&
+        !(source.isInput && (source.parentScope eq candidate.component.dslBody)))
       Left("WA04-NATIVE-SOURCE-SCOPE")
     else if (source.isAnalog || source.isInOut)
       Left("WA04-NATIVE-SOURCE-KIND")
