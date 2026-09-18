@@ -27,14 +27,14 @@ jobs:
           set -euo pipefail
           cat .github/recovery/59i-pr189-sync/part-0{1,2,3}.b64 > .github/recovery/59i-pr189-sync/payload.xz.b64
           mkdir -p "$RUNNER_TEMP/59i-pr189-evidence"
-          python3 -B .github/recovery/59i-pr189-sync/stage.py prepare \
+          python3 -B .github/recovery/59i-pr189-sync/corrected.py prepare \
             --repository "$GITHUB_WORKSPACE" \
             --destination "$RUNNER_TEMP/59i-pr189-source" \
             --output "$RUNNER_TEMP/59i-pr189-evidence" \
             2>&1 | tee "$RUNNER_TEMP/59i-pr189-evidence/prepare.log"
       - uses: actions/upload-artifact@v4
         with:
-          name: increment-59i-pr189-sync-trees-ba167f35-${{ github.run_attempt }}
+          name: increment-59i-pr189-sync-trees-f4264188-${{ github.run_attempt }}
           path: ${{ runner.temp }}/59i-pr189-evidence
           if-no-files-found: error
           retention-days: 21
@@ -44,7 +44,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -B .github/recovery/59i-pr189-sync/stage.py publish \
+          python3 -B .github/recovery/59i-pr189-sync/corrected.py publish \
             --repository "$GITHUB_WORKSPACE" \
             --destination "$RUNNER_TEMP/59i-pr189-source" \
             --output "$RUNNER_TEMP/59i-pr189-evidence" \
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-59i-pr189-sync-staged-ba167f35-${{ github.run_attempt }}
+          name: increment-59i-pr189-sync-staged-f4264188-${{ github.run_attempt }}
           path: ${{ runner.temp }}/59i-pr189-evidence
           if-no-files-found: error
           retention-days: 21
