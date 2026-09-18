@@ -1,0 +1,66 @@
+name: Adopt Increment 53d typed-elaboration roadmap
+
+on:
+  push:
+    branches:
+      - agent/increment-53d-typed-elaboration
+    paths:
+      - .github/workflows/increment-53d-typed-roadmap-clean.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-53d-typed-roadmap-clean
+  cancel-in-progress: true
+
+jobs:
+  adopt-roadmap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out clean Increment 53d branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/increment-53d-typed-elaboration
+          fetch-depth: 0
+
+      - name: Copy the approved controlling roadmap and architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/increment-53d-typed-elabint-pivot
+          git checkout origin/agent/increment-53d-typed-elabint-pivot -- \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/typed-elaboration-architecture.md
+          grep -Fq 'Authoritative typed-elaboration architecture from Increment 53d onward' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 53d — Typed elaboration pivot and native StreamWidthAdapter closure' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Increment 54 — Typed StreamFifo depth and structural-domain validation' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Shadow-native-Int production retirement' \
+            docs/morphhdl/parameterized-verilog-todo.md
+          grep -Fq 'Approved production architecture from Increment 53d onward' \
+            docs/morphhdl/typed-elaboration-architecture.md
+          git diff --check
+
+      - name: Publish only permanent policy files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MorphHDL Agent'
+          git config user.email 'morphhdl-agent@users.noreply.github.com'
+          git rm .github/workflows/increment-53d-typed-roadmap-clean.yml
+          git add \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/typed-elaboration-architecture.md
+          git diff --cached --check
+          actual="$(git diff --cached --name-only | sort)"
+          expected="$(printf '%s\n' \
+            docs/morphhdl/parameterized-verilog-todo.md \
+            docs/morphhdl/typed-elaboration-architecture.md | sort)"
+          test "$actual" = "$expected"
+          git commit -m 'Adopt typed elaboration architecture from Increment 53d'
+          git push origin HEAD:agent/increment-53d-typed-elaboration
