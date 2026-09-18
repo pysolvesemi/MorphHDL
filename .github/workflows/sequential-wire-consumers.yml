@@ -1,0 +1,43 @@
+name: Native sequential wire consumers
+on:
+  push:
+    branches: [agent/wa-sequential-wire-consumers]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - name: Install HDL tools
+        run: sudo apt-get update -qq && sudo apt-get install -y iverilog yosys
+      - name: Generate standalone public API reproduction
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/remaining-wires"
+          git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/remaining-wires/source.txt"
+          cd repro/remaining-wires
+          sbt -batch "runMain GenerateRemainingWireRepro $RUNNER_TEMP/remaining-wires/default" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/generation.log"
+          for ppc in 0 1; do
+            iverilog -g2001 -s RemainingWireRepro -PRemainingWireRepro.PPC4=$ppc -o "$RUNNER_TEMP/remaining-wires/ppc$ppc.vvp" "$RUNNER_TEMP/remaining-wires/default/RemainingWireRepro.v"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remaining-wires-evidence
+          path: ${{ runner.temp }}/remaining-wires/
+          if-no-files-found: error
+          retention-days: 14
