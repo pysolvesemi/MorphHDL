@@ -121,6 +121,76 @@ if route_contract:
     if rejected != 16:
         raise SystemExit("boundary route mutation inventory changed")
     print("BOUNDARY_ROUTE_MUTATIONS_PASS controls=16")
+def _validate_increment61_route(text):
+    # The Increment 61 adapter forwards the resolved current branch unchanged
+    # unless it has authenticated that exact historical publication profile.
+    # Follow the complete source -> audit -> enforcement chain, not a token
+    # elsewhere in the workflow which could hide a disconnected input.
+    try:
+        adapter = text.split("        id: audit\n", 1)[1].split(
+            "      - name: Enforce isolated pass paths\n", 1)[0]
+        enforcement = text.split("      - name: Enforce isolated pass paths\n", 1)[1].split(
+            "      - name: Test the boundary guard\n", 1)[0]
+    except IndexError as error:
+        raise ValueError("missing authenticated boundary source routing") from error
+    required_adapter = (
+        "SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}",
+        'audit_root="$GITHUB_WORKSPACE"',
+        'audit_head_ref="$SOURCE_HEAD_REF"',
+        'audit_base_sha="$SOURCE_BASE_SHA"',
+        'if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then',
+        "python3 morphhdl/scripts/check-increment-61-source-review.py\n",
+        'git merge-base --is-ancestor "$integrated" HEAD',
+        'git worktree add --detach "$audit_root" "$audit_source"',
+        '"$audit_root" "$audit_head_ref" "$audit_base_sha" >> "$GITHUB_OUTPUT"',
+    )
+    required_enforcement = (
+        "working-directory: ${{ steps.audit.outputs.root }}",
+        "MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}",
+        "MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}",
+        "run: bash morphhdl-passes/scripts/check-boundary.sh",
+    )
+    for section, tokens in ((adapter, required_adapter), (enforcement, required_enforcement)):
+        for token in tokens:
+            if section.count(token) != 1:
+                raise ValueError("missing/duplicate boundary routing: " + token)
+    if adapter.index(required_adapter[5]) >= adapter.index(required_adapter[7]):
+        raise ValueError("historical boundary projection precedes current source authentication")
+
+def validate_source_routing(text):
+    cdc = '          if [[ "$SOURCE_HEAD_REF" == agent/cdc-independent-parameter-consumers ]]; then\n'
+    legacy = '          elif [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then\n'
+    if text.count(cdc) != 1 or text.count(legacy) != 1:
+        raise ValueError("missing authenticated integration or Increment61 route")
+    before, rest = text.split(cdc, 1)
+    _, after = rest.split(legacy, 1)
+    _validate_increment61_route(before + legacy.replace('elif', 'if', 1) + after)
+
+try:
+    validate_source_routing(workflow)
+except ValueError as error:
+    raise SystemExit(str(error)) from error
+
+# Prove the replacement gate still rejects a broken input, output, working
+# directory, bypassed checker, or unverified historical branch selection.
+routing_mutations = (
+    ("SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}", "SOURCE_HEAD_REF: unrelated"),
+    ('audit_head_ref="$SOURCE_HEAD_REF"', 'audit_head_ref="unrelated"'),
+    ("MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}", "MORPHDL_PASSES_HEAD_REF: unrelated"),
+    ("MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}", "MORPHDL_PASSES_BASE_SHA: unrelated"),
+    ("working-directory: ${{ steps.audit.outputs.root }}", "working-directory: /unrelated"),
+    ("run: bash morphhdl-passes/scripts/check-boundary.sh", "run: true"),
+    ('if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then', 'if true; then'),
+)
+for before, after in routing_mutations:
+    if before not in workflow:
+        raise SystemExit("routing mutation did not alter the actual workflow: " + before)
+    try:
+        validate_source_routing(workflow.replace(before, after, 1))
+    except ValueError:
+        continue
+    raise SystemExit("boundary routing mutation was accepted: " + before)
+print("Boundary source routing: resolved branch chain and 7 rejection controls PASS")
 PY
 
 allowed_manifest="${tmp_dir}/allowed.txt"

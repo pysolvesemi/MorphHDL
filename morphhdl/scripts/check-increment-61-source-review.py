@@ -83,22 +83,38 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
 
 
 def _cdc_successor(root: Path):
-    # The optional successor must authenticate every current byte before the
-    # unchanged historical Increment61 check is allowed to run.
     import importlib.util
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    spec = importlib.util.spec_from_file_location("inc61_cdc_successor", path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError("unable to load the PR189 successor verifier")
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1":
+        raise RuntimeError("PR189 successor source: linked or changed integration checker")
+    spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
+    require(spec is not None and spec.loader is not None, "missing CDC successor checker")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _lane_successor(root: Path):
+    # The current union is authenticated before the unchanged historical
+    # Increment 61 review is replayed. No compiler source is projected away.
+    import importlib.util
+    path = root / "morphhdl/scripts/check-lane-when-increment61-source.py"
+    if not path.exists():
+        return None
+    require(path.is_file() and not path.is_symlink(), "linked lane/61 successor checker")
+    require(sha256(path.read_bytes()) == "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
+            "lane/61 successor checker digest changed")
+    spec = importlib.util.spec_from_file_location("increment61_lane_successor", path)
+    require(spec is not None and spec.loader is not None, "missing lane/61 successor checker")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
 def verify(root: Path = ROOT) -> None:
-    successor = _cdc_successor(root)
+    successor = _cdc_successor(root) or _lane_successor(root)
     if successor is not None:
         successor.verify(root)
         successor.verify_predecessor(root)
@@ -157,7 +173,7 @@ def verify(root: Path = ROOT) -> None:
 
 
 def self_test() -> None:
-    successor = _cdc_successor(ROOT)
+    successor = _cdc_successor(ROOT) or _lane_successor(ROOT)
     if successor is not None:
         successor.verify(ROOT)
         successor.verify_predecessor(ROOT, self_test=True)
@@ -194,9 +210,19 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--print-base", action="store_true")
+    parser.add_argument("--print-regression-base", action="store_true")
     args = parser.parse_args()
     if args.print_base:
         print(load_contract()["base_commit"])
+    elif args.print_regression_base:
+        successor = _cdc_successor(ROOT) or _lane_successor(ROOT)
+        if successor is not None:
+            import contextlib, sys
+            with contextlib.redirect_stdout(sys.stderr):
+                successor.verify(ROOT)
+            print(successor.REGRESSION_BASE if hasattr(successor, "REGRESSION_BASE") else successor.LANE)
+        else:
+            print(load_contract()["integrated_target_commit"])
     elif args.self_test:
         self_test()
     else:

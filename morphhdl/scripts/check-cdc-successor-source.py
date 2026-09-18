@@ -16,11 +16,16 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-TARGET = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
+TARGET = "f5049ae2abfe5a47cd1fac3574ea08d630bd183f"
+PREVIOUS_CDC = "1fb79c663b3db9e6a162fd48c08632c24f63c73e"
+COMMON_BASE = "27af65abbee0d2334d6be7a6e4e2408b8af32fd9"
+REGRESSION_BASE = "5374b958f8f94114b1ed46a3069845d580886da9"
 OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 INC61 = "morphhdl/scripts/check-increment-61-source-review.py"
 INC61_CONTRACT = "morphhdl/contracts/increment-61-source-review.json"
 SUCCESSOR_PATHS = frozenset("""
+.github/workflows/pr189-pr187-integration.yml
+repro/cdc-independent-parameters/prepare_pr187_integration.py
 .github/workflows/cdc-independent-parameter-consumers.yml
 .github/workflows/increment-60b-signedness-authority.yml
 .github/workflows/morphhdl-passes.yml
@@ -93,6 +98,21 @@ def verify(root: Path = ROOT) -> None:
     # Authenticate the full current HEAD/index/worktree BEFORE projecting any
     # historical bytes. This also seals this verifier and the Inc61 adapter.
     load(root, OVERLAY).verify(root)
+    git(root, "merge-base", "--is-ancestor", PREVIOUS_CDC, "HEAD")
+    require(git(root, "merge-base", PREVIOUS_CDC, TARGET).decode().strip() == COMMON_BASE,
+            "qualified parent ancestry changed")
+    def implementation_paths(ref):
+        return {p for p in git(root, "diff", "--name-only", COMMON_BASE, ref).decode().splitlines()
+                if "/src/main/" in p or "/src/test/" in p or
+                (p.startswith("morphhdl-passes/examples/") and p.endswith(".scala"))}
+    cdc_paths, lane_paths = implementation_paths(PREVIOUS_CDC), implementation_paths(TARGET)
+    require(not cdc_paths.intersection(lane_paths), "qualified implementation edits overlap")
+    for ref, paths in ((PREVIOUS_CDC, cdc_paths), (TARGET, lane_paths)):
+        for path in sorted(paths):
+            require(git(root, "ls-tree", "HEAD", "--", path) == git(root, "ls-tree", ref, "--", path),
+                    "qualified implementation mode/blob changed: " + path)
+            require((root / path).read_bytes() == git(root, "show", ref + ":" + path),
+                    "qualified implementation bytes changed: " + path)
     changed = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only", "-z", TARGET, "HEAD").split(b"\0") if p}
     require(changed == SUCCESSOR_PATHS,
             "closed changed-file inventory differs: missing=" + repr(sorted(SUCCESSOR_PATHS - changed)) +
@@ -115,19 +135,19 @@ def verify(root: Path = ROOT) -> None:
 
 
 def verify_predecessor(root: Path = ROOT, self_test: bool = False) -> None:
-    # The historical checker stays byte-for-byte intact in this pinned worktree.
-    # Current source was authenticated separately; predecessor success alone is
-    # never accepted as current-head qualification.
-    with tempfile.TemporaryDirectory(prefix="pr189-inc61-predecessor-") as temporary:
-        checkout = Path(temporary) / "source"
-        git(root, "worktree", "add", "--quiet", "--detach", str(checkout), TARGET)
-        try:
-            command = [sys.executable, str(checkout / INC61)]
-            if self_test:
-                command.append("--self-test")
-            subprocess.run(command, cwd=checkout, check=True, timeout=300)
-        finally:
-            git(root, "worktree", "remove", "--force", str(checkout))
+    # Neither parent's original checker is edited or projected onto current code.
+    # Both historical reviews remain required, after exact current-source checks.
+    for ref in (PREVIOUS_CDC, TARGET):
+        with tempfile.TemporaryDirectory(prefix="pr189-qualified-parent-") as temporary:
+            checkout = Path(temporary) / "source"
+            git(root, "worktree", "add", "--quiet", "--detach", str(checkout), ref)
+            try:
+                command = [sys.executable, str(checkout / INC61)]
+                if self_test:
+                    command.append("--self-test")
+                subprocess.run(command, cwd=checkout, check=True, timeout=600)
+            finally:
+                git(root, "worktree", "remove", "--force", str(checkout))
 
 
 def self_test(root: Path = ROOT) -> None:
@@ -148,6 +168,21 @@ def self_test(root: Path = ROOT) -> None:
                 "morphhdl/contracts/native-source-preservation.json",
                 INC61, INC61_CONTRACT,
                 "repro/cdc-independent-parameters/check_consumers.py",
+                "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+                "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+                "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+                "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+                "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+                "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala",
+                "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala",
+                "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+                "morphhdl/scripts/check-increment-61-publication-artifacts.py",
+                "morphhdl/scripts/test-increment-61-publication-artifacts.py",
+                "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
+                "morphhdl-passes/scripts/test-boundary-guard.sh",
+                ".github/workflows/pr189-pr187-integration.yml",
+                "repro/cdc-independent-parameters/prepare_pr187_integration.py",
+                "morphhdl/scripts/check-cdc-successor-source.py",
             ]
             def rejected(label: str) -> None:
                 nonlocal controls
@@ -184,7 +219,7 @@ def self_test(root: Path = ROOT) -> None:
             verify(checkout)
         finally:
             git(root, "worktree", "remove", "--force", str(checkout))
-    require(controls == 13, "mutation inventory changed")
+    require(controls == 28, "mutation inventory changed")
     print("PR189_SUCCESSOR_MUTATIONS_PASS controls=" + str(controls))
 
 
