@@ -1,0 +1,543 @@
+{
+  "schema_version": 2,
+  "base": "80a3b0977ccabcd83ce06ef97a446edbee8f723a",
+  "offset_format": "utf8-bytes",
+  "files": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala",
+      "change": "modified",
+      "reason": "Treat exact schema-bound runtime captures as external roots of native replay templates after identity/lifetime and non-target checks. Preserve every overlap, scope and native driver check.",
+      "baseline_sha256": "90e74b5333f4d5c0416a74a09867fa1dea36ccba7eb8654d2039401dfa7e5548",
+      "edits": [
+        {
+          "id": "59i-capture-01-01",
+          "reason": "Treat exact schema-bound runtime captures as external roots of native replay templates after identity/lifetime and non-target checks. Preserve every overlap, scope and native driver check.",
+          "before_start": 3641,
+          "before_end": 3718,
+          "after_start": 3641,
+          "after_end": 3791,
+          "before": "      verilog: String, pc: PhaseContext, canonicalOf: Component => Component\n",
+          "after": "      verilog: String, pc: PhaseContext, canonicalOf: Component => Component,\n      captureSchema: Option[TypedBalancedReductionCaptureSchema] = None\n"
+        },
+        {
+          "id": "59i-capture-01-02",
+          "reason": "Treat exact schema-bound runtime captures as external roots of native replay templates after identity/lifetime and non-target checks. Preserve every overlap, scope and native driver check.",
+          "before_start": 4165,
+          "before_end": 4256,
+          "after_start": 4238,
+          "after_end": 5166,
+          "before": "    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet\n",
+          "after": "    // A certified runtime input belongs to the surrounding native scope, not\n    // to each replay template that reads it. Validate identities before names\n    // become the emitter lookup keys; never infer this boundary from syntax.\n    val externalInputs = captureSchema.toVector.flatMap { schema =>\n      schema.validateBindings()\n      require(schema.owner eq component, \"native template captures changed component owner\")\n      schema.hardwareInputs.foreach { input =>\n        require(!blocks.exists(block => block.declarations.exists(_ eq input) ||\n          block.assignments.exists(_.finalTarget eq input)),\n          \"native template cannot claim a captured runtime input as a local target\")\n      }\n      schema.hardwareInputs\n    }\n    val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet ++\n      externalInputs.map(input => requiredName(input, \"certified runtime capture\", None))\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "change": "modified",
+      "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+      "baseline_sha256": "f33b0111a1f3d9c4cd34fcc5ad95a23ef9d438f4dba45a876a277579c09dfcc5",
+      "edits": [
+        {
+          "id": "59i-capture-02-01",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 1853,
+          "before_end": 1912,
+          "after_start": 1853,
+          "after_end": 1970,
+          "before": "      lexicalOwner: ParameterizedStructuralLexicalOwner) {\n",
+          "after": "      lexicalOwner: ParameterizedStructuralLexicalOwner,\n      captureSchema: TypedBalancedReductionCaptureSchema) {\n"
+        },
+        {
+          "id": "59i-capture-02-02",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 11225,
+          "before_end": 11248,
+          "after_start": 11283,
+          "after_end": 11306,
+          "before": "        Some(captures)\n",
+          "after": "        Left(captures)\n"
+        },
+        {
+          "id": "59i-capture-02-03",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 11263,
+          "before_end": 11504,
+          "after_start": 11321,
+          "after_end": 11528,
+          "before": "        // Composite construction and assignment retain their separate narrow\n        // admission; broader captured composite graphs belong to the join.\n        TypedBalancedReductionCallbackPolicy.requireSupported(op, bridge)\n        None\n",
+          "after": "        val captures = TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedCompositeOperator(op)\n        TypedBalancedReductionCallbackPolicy.requireSupportedBridge(bridge)\n        Right(captures)\n"
+        },
+        {
+          "id": "59i-capture-02-04",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 11533,
+          "before_end": 11612,
+          "after_start": 11557,
+          "after_end": 11636,
+          "before": "        case Some(captures) => buildScalar(vector.asInstanceOf[Vec[BaseType]],\n",
+          "after": "        case Left(captures) => buildScalar(vector.asInstanceOf[Vec[BaseType]],\n"
+        },
+        {
+          "id": "59i-capture-02-05",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 11830,
+          "before_end": 11898,
+          "after_start": 11854,
+          "after_end": 11933,
+          "before": "        case None => buildComposite(vector.asInstanceOf[Vec[Data]],\n",
+          "after": "        case Right(captures) => buildComposite(vector.asInstanceOf[Vec[Data]],\n"
+        },
+        {
+          "id": "59i-capture-02-06",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 11999,
+          "before_end": 12082,
+          "after_start": 12034,
+          "after_end": 12127,
+          "before": "          native.asInstanceOf[ElabBalancedReduction.Native[Data]]).asInstanceOf[T]\n",
+          "after": "          native.asInstanceOf[ElabBalancedReduction.Native[Data]], captures).asInstanceOf[T]\n"
+        },
+        {
+          "id": "59i-capture-02-07",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 20424,
+          "before_end": 20564,
+          "after_start": 20469,
+          "after_end": 20617,
+          "before": "    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)\n",
+          "after": "    storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner, schema)\n"
+        },
+        {
+          "id": "59i-capture-02-08",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 20689,
+          "before_end": 20749,
+          "after_start": 20742,
+          "after_end": 20853,
+          "before": "      native: ElabBalancedReduction.Native[Data]): Data = {\n",
+          "after": "      native: ElabBalancedReduction.Native[Data],\n      schema: TypedBalancedReductionCaptureSchema): Data = {\n"
+        },
+        {
+          "id": "59i-capture-02-09",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 21299,
+          "before_end": 21395,
+          "after_start": 21403,
+          "after_end": 21513,
+          "before": "    val certificate = TypedBalancedReductionCompositeReplay.capture(vector, op, bridge, native)\n",
+          "after": "    val certificate = TypedBalancedReductionCompositeReplay.capture(vector, op, bridge, native, Some(schema))\n"
+        },
+        {
+          "id": "59i-capture-02-10",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 22256,
+          "before_end": 22256,
+          "after_start": 22374,
+          "after_end": 22430,
+          "before": "",
+          "after": "      observations += (() => schema.validateBindings())\n"
+        },
+        {
+          "id": "59i-capture-02-11",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 23003,
+          "before_end": 23003,
+          "after_start": 23177,
+          "after_end": 23545,
+          "before": "",
+          "after": "      val protectedCarriers = block.declarations.filter(leaf =>\n        leaf.dontSimplify && leaf.hasTag(noBackendCombMerge))\n      observations += (() => {\n        if (protectedCarriers.exists(leaf => !leaf.dontSimplify || !leaf.hasTag(noBackendCombMerge)))\n          fail(\"CARRIER-POLICY\", \"proved composite intermediates lost their native carrier policy\")\n      })\n"
+        },
+        {
+          "id": "59i-capture-02-12",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 23184,
+          "before_end": 23269,
+          "after_start": 23726,
+          "after_end": 23836,
+          "before": "        0, Vector(left) ++ right.toVector, result, block.declarations, assignments))\n",
+          "after": "        0, Vector(left) ++ right.toVector ++ schema.hardwareInputs, result, block.declarations, assignments))\n"
+        },
+        {
+          "id": "59i-capture-02-13",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 25027,
+          "before_end": 25143,
+          "after_start": 25594,
+          "after_end": 25718,
+          "before": "    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner)\n",
+          "after": "    storage.records += Record(vector, shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner, schema)\n"
+        },
+        {
+          "id": "59i-capture-02-14",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 30191,
+          "before_end": 30242,
+          "after_start": 30766,
+          "after_end": 30845,
+          "before": "      component, blocks, current, pc, canonicalOf)\n",
+          "after": "      component, blocks, current, pc, canonicalOf, Some(record.captureSchema))\n"
+        },
+        {
+          "id": "59i-capture-02-15",
+          "reason": "Route composite operators through the certified capture authority; retain schema freshness, exact native intermediate-carrier policy, and captured-input template boundaries. Bridge algorithms and admission remain separate.",
+          "before_start": 36176,
+          "before_end": 36227,
+          "after_start": 36779,
+          "after_end": 36858,
+          "before": "      component, blocks, current, pc, canonicalOf)\n",
+          "after": "      component, blocks, current, pc, canonicalOf, Some(record.captureSchema))\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala",
+      "change": "modified",
+      "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+      "baseline_sha256": "db37d6540af715b6f535a78891439020fb7196d450dc403af3cde6a9fedc53fb",
+      "edits": [
+        {
+          "id": "59i-capture-03-01",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 1129,
+          "before_end": 1129,
+          "after_start": 1129,
+          "after_end": 1204,
+          "before": "",
+          "after": "  private final case class AssignmentTarget(value: Hardware) extends Value\n"
+        },
+        {
+          "id": "59i-capture-03-02",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 2376,
+          "before_end": 2444,
+          "after_start": 2451,
+          "after_end": 2983,
+          "before": "  def requireSupportedOperator(callback: AnyRef): CaptureSchema = {\n",
+          "after": "  def requireSupportedOperator(callback: AnyRef): CaptureSchema = check(callback, composite = false)\n\n  /** Use the same effect/capture authority for composite operators. Recursive\n    * runtime classes and clone constructors are audited before any callback.\n    * Register bridges retain their separate admission and native graph proof.\n    */\n  def requireSupportedCompositeOperator(callback: AnyRef): CaptureSchema = check(callback, composite = true)\n\n  private def check(callback: AnyRef, composite: Boolean): CaptureSchema = {\n"
+        },
+        {
+          "id": "59i-capture-03-03",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 3926,
+          "before_end": 4001,
+          "after_start": 4465,
+          "after_end": 4653,
+          "before": "    val inspector = new Inspector(cls.getClassLoader, lambda.getImplClass)\n",
+          "after": "    if (composite) TypedBalancedReductionCallbackPolicy.requireSupportedValues(schema.hardwareInputs)\n    val inspector = new Inspector(cls.getClassLoader, lambda.getImplClass, composite)\n"
+        },
+        {
+          "id": "59i-capture-03-04",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 4459,
+          "before_end": 4526,
+          "after_start": 5111,
+          "after_end": 5172,
+          "before": "      case _ => fail(\"operator must return a native scalar value\")\n",
+          "after": "      case _ => fail(\"operator must return native hardware\")\n"
+        },
+        {
+          "id": "59i-capture-03-05",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 4548,
+          "before_end": 4617,
+          "after_start": 5194,
+          "after_end": 5630,
+          "before": "  private final class Inspector(loader: ClassLoader, root: String) {\n",
+          "after": "  private final class Inspector(loader: ClassLoader, root: String, composite: Boolean) {\n    private val composites = if (composite) Some(new TypedBalancedReductionCompositeCallbackPolicy(loader)) else None\n    private def dataName(name: String): Boolean = data(name) || composites.exists(_.dataName(name))\n    private def nativeModule(name: String): Boolean = nativeModules(name) ||\n      (composite && name == \"spinal/core/cloneOf$\")\n"
+        },
+        {
+          "id": "59i-capture-03-06",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 14074,
+          "before_end": 14196,
+          "after_start": 15087,
+          "after_end": 15274,
+          "before": "            if (!(data(value.desc) || Set(\"java/lang/Object\", \"spinal/core/ElabInt\", \"spinal/core/ParameterizedBitCount\",\n",
+          "after": "            if (!(dataName(value.desc) || (composite && value.desc == \"spinal/core/DataPrimitives\") || Set(\"java/lang/Object\", \"spinal/core/ElabInt\", \"spinal/core/ParameterizedBitCount\",\n"
+        },
+        {
+          "id": "59i-capture-03-07",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 14765,
+          "before_end": 14843,
+          "after_start": 15843,
+          "after_end": 15920,
+          "before": "              if (!nativeModules(value.owner)) requirePureModule(value.owner)\n",
+          "after": "              if (!nativeModule(value.owner)) requirePureModule(value.owner)\n"
+        },
+        {
+          "id": "59i-capture-03-08",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 16720,
+          "before_end": 16822,
+          "after_start": 17797,
+          "after_end": 17970,
+          "before": "      def dataType(descriptor: String): Boolean = data.exists(name => descriptor == \"L\" + name + \";\")\n",
+          "after": "      def dataType(descriptor: String): Boolean = descriptor.startsWith(\"L\") && descriptor.endsWith(\";\") &&\n        dataName(descriptor.substring(1, descriptor.length - 1))\n"
+        },
+        {
+          "id": "59i-capture-03-09",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 17186,
+          "before_end": 17186,
+          "after_start": 18334,
+          "after_end": 20368,
+          "before": "",
+          "after": "      if (composite) {\n        // Accessors and static Vec indices preserve, never manufacture, write\n        // permission. A captured/operand record's fields remain read-only.\n        if (receiver.exists(hardware) && composites.exists(_.dataAccessor(call))) return receiver.get\n        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == \"spinal/core/Vec\" &&\n            name == \"apply\" && exact(\"(I)Lspinal/core/Data;\") && args == Vector(Integer) &&\n            receiver.exists(hardware)) return receiver.get\n        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == \"spinal/core/cloneOf$\" &&\n            receiver.contains(Module(call.owner)) && name == \"apply\" &&\n            exact(\"(Lspinal/core/Data;)Lspinal/core/Data;\") && args.size == 1 && args.forall(hardware))\n          return Hardware(writable = true)\n        if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == \"spinal/core/package$\" &&\n            receiver.contains(Module(call.owner)) && name == \"DataPimped\" &&\n            exact(\"(Lspinal/core/Data;)Lspinal/core/DataPimper;\") && args.size == 1 && args.forall(hardware))\n          return AssignmentTarget(args.head.asInstanceOf[Hardware])\n        if (name == \"$colon$eq\" && exact(\"(Lspinal/core/Data;Lspinal/idslplugin/Location;)V\") &&\n            args.size == 2 && hardware(args.head) && args(1) == Location) {\n          if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == \"spinal/core/DataPimper\" &&\n              receiver.exists(_.isInstanceOf[AssignmentTarget])) {\n            if (!receiver.contains(AssignmentTarget(Hardware(writable = true))))\n              fail(\"write to callback argument or captured hardware is forbidden\")\n            return UnitValue\n          }\n          if (receiver.exists(hardware) && composites.exists(_.nativeCall(call, bridge = false))) {\n            if (!receiver.contains(Hardware(writable = true)))\n              fail(\"write to callback argument or captured hardware is forbidden\")\n            return UnitValue\n          }\n        }\n      }\n"
+        },
+        {
+          "id": "59i-capture-03-10",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 17537,
+          "before_end": 17600,
+          "after_start": 20719,
+          "after_end": 21022,
+          "before": "          return Hardware(writable = !Set(\"msb\", \"lsb\")(name))\n",
+          "after": "          // Native self-casts can return the original object. They must not\n          // launder a read-only captured/operand leaf into a fresh write target.\n          return Hardware(writable = !Set(\"msb\", \"lsb\")(name) &&\n            !(composite && Set(\"asBits\", \"asUInt\", \"asSInt\", \"asBool\")(name)))\n"
+        },
+        {
+          "id": "59i-capture-03-11",
+          "reason": "Extend the existing effect interpreter to audited composite accessors, native clone and native assignment while propagating read-only provenance through fields, aliases and helpers. No captured aggregate, host-state or witness permission is added.",
+          "before_start": 23343,
+          "before_end": 23427,
+          "after_start": 26765,
+          "after_end": 26848,
+          "before": "        case Some(Module(owner)) if owner == call.owner && !nativeModules(owner) =>\n",
+          "after": "        case Some(Module(owner)) if owner == call.owner && !nativeModule(owner) =>\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+      "change": "modified",
+      "reason": "Expose only audited final field accessors and reject application-declared native-looking methods instead of trusting an operator/assignment spelling.",
+      "baseline_sha256": "5822a9a4d7bdc6b4535b4312cc45401528e52107291e40a4a83307b512086c80",
+      "edits": [
+        {
+          "id": "59i-capture-04-01",
+          "reason": "Expose only audited final field accessors and reject application-declared native-looking methods instead of trusting an operator/assignment spelling.",
+          "before_start": 7486,
+          "before_end": 7486,
+          "after_start": 7486,
+          "after_end": 7933,
+          "before": "",
+          "after": "  /** Only exact immutable Data-field getters inherit the receiver's access\n    * permission in the effect interpreter. A method name is never authority.\n    */\n  def dataAccessor(call: MethodInsnNode): Boolean =\n    call.getOpcode == Opcodes.INVOKEVIRTUAL && customBundle(call.owner) && {\n      auditBundle(call.owner)\n      dataDescriptor(Type.getReturnType(call.desc).getDescriptor) &&\n        accessor(call.owner, call.name, call.desc)\n    }\n\n"
+        },
+        {
+          "id": "59i-capture-04-02",
+          "reason": "Expose only audited final field accessors and reject application-declared native-looking methods instead of trusting an operator/assignment spelling.",
+          "before_start": 9177,
+          "before_end": 9177,
+          "after_start": 9624,
+          "after_end": 9976,
+          "before": "",
+          "after": "      // A new overload with a native-looking name is still application code.\n      // Exact inherited hooks were checked by auditBundle; never authorize a\n      // method declared on the record solely through the allowlist below.\n      if (read(call.owner).methods.asScala.exists(m => m.name == call.name && m.desc == call.desc))\n        return false\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+      "change": "modified",
+      "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+      "baseline_sha256": "fd767dfbbca20cf2dd407e39ff5a01a451f2c487f135d0da25476bdfe812e325",
+      "edits": [
+        {
+          "id": "59i-capture-05-01",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 12959,
+          "before_end": 13014,
+          "after_start": 12959,
+          "after_end": 13610,
+          "before": "        val value = attach(build(inputs, memo), width)\n",
+          "after": "        val built = build(inputs, memo)\n        // A source operand is already validated by its input/capture evidence.\n        // Reading it must not attach or rewrite even its width metadata.\n        val value = if (key.operand.nonEmpty) built else attach(built, width)\n        // Native inlining must not erase a proved symbolic intermediate and\n        // recreate it later with only its concrete construction width. Match\n        // scalar graph replay's carrier rule; operand/capture roots are reads.\n        if (key.operand.isEmpty && width.parameters.nonEmpty) {\n          value.dontSimplifyIt()\n          value.noBackendCombMerge()\n        }\n"
+        },
+        {
+          "id": "59i-capture-05-02",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 13413,
+          "before_end": 13458,
+          "after_start": 14009,
+          "after_end": 14100,
+          "before": "      private val guards: Vector[() => Unit]\n",
+          "after": "      private val guards: Vector[() => Unit],\n      private val captures: Vector[BaseType]\n"
+        },
+        {
+          "id": "59i-capture-05-03",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 14084,
+          "before_end": 14157,
+          "after_start": 14726,
+          "after_end": 14809,
+          "before": "      val inputs = Vector(left.flatten.toVector, right.flatten.toVector)\n",
+          "after": "      val inputs = Vector(left.flatten.toVector, right.flatten.toVector, captures)\n"
+        },
+        {
+          "id": "59i-capture-05-04",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 14423,
+          "before_end": 14534,
+          "after_start": 15075,
+          "after_end": 15245,
+          "before": "  private def certifyOperator(callback: UnvalidatedBalancedCallback, inputs: Vector[Shape]): OperatorProof = {\n",
+          "after": "  private def certifyOperator(callback: UnvalidatedBalancedCallback, inputs: Vector[Shape],\n      schema: Option[TypedBalancedReductionCaptureSchema]): OperatorProof = {\n"
+        },
+        {
+          "id": "59i-capture-05-05",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 14962,
+          "before_end": 15036,
+          "after_start": 15673,
+          "after_end": 15896,
+          "before": "    val observation = TypedBalancedReductionClosedGraph.observe(callback)\n",
+          "after": "    schema.foreach(_.validateBindings())\n    val captures = schema.toVector.flatMap(_.hardwareInputs)\n    val observation = TypedBalancedReductionClosedGraph.observe(callback.copy(operands = callback.operands ++ captures))\n"
+        },
+        {
+          "id": "59i-capture-05-06",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 15444,
+          "before_end": 15444,
+          "after_start": 16304,
+          "after_end": 16864,
+          "before": "",
+          "after": "    val capturedLeaves = new IdentityHashMap[BaseType, Int]()\n    val capturedEvidence = captures.map(TypedBalancedReductionValueEvidence.input)\n    captures.zipWithIndex.foreach { case (leaf, index) =>\n      // Once native graph identity is shared, capture-vs-pair access cannot be\n      // distinguished. Reject rather than remapping a runtime capture as a lane.\n      if (inputLeaves.containsKey(leaf)) fail(\"CAPTURE-ALIAS\", \"captured hardware aliases an operator operand\")\n      if (!capturedLeaves.containsKey(leaf)) capturedLeaves.put(leaf, index)\n    }\n"
+        },
+        {
+          "id": "59i-capture-05-07",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 15548,
+          "before_end": 15548,
+          "after_start": 16968,
+          "after_end": 17122,
+          "before": "",
+          "after": "    schema.foreach(value => guards += (() => value.validateBindings()))\n    capturedEvidence.foreach(value => guards += (() => value.requireFreshness()))\n"
+        },
+        {
+          "id": "59i-capture-05-08",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 16421,
+          "before_end": 16421,
+          "after_start": 17995,
+          "after_end": 18322,
+          "before": "",
+          "after": "        case leaf: BaseType if capturedLeaves.containsKey(leaf) =>\n          val index = capturedLeaves.get(leaf)\n          val evidence = capturedEvidence(index)\n          new Recipe(kind, evidence.width, Key(leaf.getClass, Some(2 -> index), evidence.width.verilog, Vector.empty),\n            (values, _) => values(2)(index))\n"
+        },
+        {
+          "id": "59i-capture-05-09",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 22314,
+          "before_end": 22381,
+          "after_start": 24215,
+          "after_end": 24309,
+          "before": "      dependencies(output.key).foreach { case (side, leafIndex) =>\n",
+          "after": "      dependencies(output.key).filter(_._1 < inputs.size).foreach { case (side, leafIndex) =>\n"
+        },
+        {
+          "id": "59i-capture-05-10",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 23093,
+          "before_end": 23213,
+          "after_start": 25021,
+          "after_end": 25151,
+          "before": "    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector)\n",
+          "after": "    val proof = new OperatorProof(callback.result, outputs.map(_.width), inputs, outputs, observation, guards.toVector, captures)\n"
+        },
+        {
+          "id": "59i-capture-05-11",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 30606,
+          "before_end": 30696,
+          "after_start": 32544,
+          "after_end": 32886,
+          "before": "      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] = {\n",
+          "after": "      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T]): Certificate[T] =\n    capture(vector, op, bridge, native, None)\n\n  def capture[T <: Data](vector: Vec[T], op: (T, T) => T,\n      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],\n      schema: Option[TypedBalancedReductionCaptureSchema]): Certificate[T] = {\n"
+        },
+        {
+          "id": "59i-capture-05-12",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 30835,
+          "before_end": 30835,
+          "after_start": 33025,
+          "after_end": 33199,
+          "before": "",
+          "after": "    schema.foreach { value =>\n      if (value.callback ne op) fail(\"CAPTURE-CALLBACK\", \"capture schema belongs to a different callback\")\n      value.validateBindings()\n    }\n"
+        },
+        {
+          "id": "59i-capture-05-13",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 33602,
+          "before_end": 33685,
+          "after_start": 35966,
+          "after_end": 36057,
+          "before": "          val proof = certifyOperator(callback, callback.operands.map(evidenceOf))\n",
+          "after": "          val proof = certifyOperator(callback, callback.operands.map(evidenceOf), schema)\n"
+        },
+        {
+          "id": "59i-capture-05-14",
+          "reason": "Replay runtime captures through immutable identity-bound operand slots, reject pair/capture aliasing, preserve exact intermediate typed carriers and read-only root metadata, and keep recursive layouts, widths, closed graphs, native schedules and bridge semantics authoritative.",
+          "before_start": 34324,
+          "before_end": 34398,
+          "after_start": 36696,
+          "after_end": 36914,
+          "before": "      observations += TypedBalancedReductionClosedGraph.observe(callback)\n",
+          "after": "      observations += TypedBalancedReductionClosedGraph.observe(\n        if (callback.operands.size == 2) callback.copy(operands = callback.operands ++ schema.toVector.flatMap(_.hardwareInputs))\n        else callback)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-increment-59h-source-review.py",
+      "change": "modified",
+      "reason": "Compose the complete verified join inventory before historical register/owner subtraction so independently reviewed new callback paths neither leak into the old owner inventory nor acquire unreviewed permissions.",
+      "baseline_sha256": "dce1cdfb667fb51e0ba7d7312d2ff25b4ebe97281f6012a93aae9e8396e0c7ec",
+      "edits": [
+        {
+          "id": "59i-capture-06-01",
+          "reason": "Compose the complete verified join inventory before historical register/owner subtraction so independently reviewed new callback paths neither leak into the old owner inventory nor acquire unreviewed permissions.",
+          "before_start": 9473,
+          "before_end": 9473,
+          "after_start": 9473,
+          "after_end": 9939,
+          "before": "",
+          "after": "    # The join can add production paths disjoint from the register layer. Its\n    # complete exact-source audit must restore those paths before subtraction\n    # of the older register/owner inventories; never just widen their allowlist.\n    register = register_source_review(root)\n    if register is not None:\n        join = register.join_source_review(root)\n        if join is not None:\n            paths = join.inherited_inventory(root, paths, qualification_base)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/test-increment-59h-inherited-source-scope.py",
+      "change": "modified",
+      "reason": "Retain all inherited mutation actions and exact failure matching; recognize the earlier span rejection when the capture successor now audits the mutated production file.",
+      "baseline_sha256": "dac5016cb8779ff42bccf9c01bc4fa702873118a69385ec32d9b4a0213e306b9",
+      "edits": [
+        {
+          "id": "59i-capture-07-01",
+          "reason": "Retain all inherited mutation actions and exact failure matching; recognize the earlier span rejection when the capture successor now audits the mutated production file.",
+          "before_start": 5366,
+          "before_end": 5366,
+          "after_start": 5366,
+          "after_end": 5684,
+          "before": "",
+          "after": "    # New disjoint production spans are checked by the successor before the\n    # older inventory check. Preserve every mutation and require its exact\n    # successor diagnostic rather than accepting an arbitrary rejection.\n    joined_paths = set(getattr(join, \"ALL_PATHS\", join.PATHS)) if join is not None else set()\n"
+        },
+        {
+          "id": "59i-capture-07-02",
+          "reason": "Retain all inherited mutation actions and exact failure matching; recognize the earlier span rejection when the capture successor now audits the mutated production file.",
+          "before_start": 5425,
+          "before_end": 5532,
+          "after_start": 5743,
+          "after_end": 5831,
+          "before": "              \"unreviewed source change outside 59i spans\" if join is not None and path in join.PATHS else\n",
+          "after": "              \"unreviewed source change outside 59i spans\" if path in joined_paths else\n"
+        },
+        {
+          "id": "59i-capture-07-03",
+          "reason": "Retain all inherited mutation actions and exact failure matching; recognize the earlier span rejection when the capture successor now audits the mutated production file.",
+          "before_start": 7042,
+          "before_end": 7194,
+          "after_start": 7341,
+          "after_end": 7672,
+          "before": "         (\"59i\" if join is not None else \"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n",
+          "after": "         \"unreviewed source change outside 59i spans\"\n         if \"morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala\" in joined_paths\n         else (\"59i\" if join is not None else \"59g\" if register is not None else \"59h\") + \" production delta differs from the complete reviewed inventory\"),\n"
+        }
+      ]
+    }
+  ]
+}

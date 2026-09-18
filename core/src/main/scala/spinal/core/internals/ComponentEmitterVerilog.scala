@@ -135,6 +135,8 @@ class ComponentEmitterVerilog(
   }
 
   def emitArchitecture(): Unit = {
+    endModule ++= NativeSymbolicLegality.render(component,
+      name => component.localNamingScope.allocateName(name))
     definitionAttributes ++= emitSyntaxAttributes(component.definition.instanceAttributes)
 
     for(mem <- mems){
@@ -1619,6 +1621,10 @@ end
 
   private lazy val wrappersProvenRedundant =
     VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
+
+  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =
+    VerilogEmitterExpressionInlining.redundantSharedCondition(
+      component, spinalConfig, condition, wrappersProvenRedundant)
 
   def fillExpressionToWrap(): Unit = {
 

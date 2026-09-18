@@ -113,9 +113,28 @@ def source_scope(root: Path):
     return module
 
 
-def failures(path: str, source: str) -> list[str]:
+def effective_markers(root: Path) -> dict:
+    contract = root / "morphhdl/contracts/lane-when-source-scope.json"
+    checker = root / "morphhdl/scripts/check-lane-when-source-scope.py"
+    if not contract.exists() and not checker.exists():
+        return MARKERS
+    spec = importlib.util.spec_from_file_location("wa10_lane_when_review", checker)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("WA10-CONTRACT: missing lane/when successor review")
+    lane = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lane)
+    lane.verify(root)
+    markers = dict(MARKERS)
+    markers[POLICY] = tuple(
+        "target.getTags().forall(_ eq noBackendCombMerge)" if marker == "target.isEmptyOfTag"
+        else marker for marker in MARKERS[POLICY])
+    return markers
+
+
+def failures(path: str, source: str, markers: dict | None = None) -> list[str]:
+    markers = MARKERS if markers is None else markers
     errors = ["WA10-SAFETY-MARKER: " + path + ": " + marker
-              for marker in MARKERS.get(path, ()) if marker not in source]
+              for marker in markers.get(path, ()) if marker not in source]
     if path in (EMITTER, POLICY, COPY, CODEC, NATIVE, CANONICAL):
         # Native fixture writers share source files with phases. Only the real
         # phase/codec/policy belongs to the generic compiler surface.
@@ -137,7 +156,8 @@ def failures(path: str, source: str) -> list[str]:
 def check(root: Path) -> dict[str, str]:
     source_scope(root).verify(root)
     sources = {path: (root / path).read_text() for path in set(MARKERS) | {NATIVE}}
-    errors = [error for path, source in sources.items() for error in failures(path, source)]
+    markers = effective_markers(root)
+    errors = [error for path, source in sources.items() for error in failures(path, source, markers)]
     if errors:
         raise RuntimeError("\n".join(errors))
     return sources
@@ -146,14 +166,15 @@ def check(root: Path) -> dict[str, str]:
 def self_test(root: Path) -> None:
     sources = check(root)
     controls = 0
-    for path, markers in MARKERS.items():
+    current_markers = effective_markers(root)
+    for path, markers in current_markers.items():
         for marker in markers:
-            assert failures(path, sources[path].replace(marker, "WA10_REMOVED")), (path, marker)
+            assert failures(path, sources[path].replace(marker, "WA10_REMOVED"), current_markers), (path, marker)
             controls += 1
     for path in (EMITTER, POLICY, COPY, CODEC, CANONICAL):
         for attack in ('val candidate = "_zz_7"', 'val component = "TimingExpressionExample"',
                        'val text = readString(path)', 'val matcher = Pattern.compile(name)'):
-            assert failures(path, sources[path] + "\n" + attack), (path, attack)
+            assert failures(path, sources[path] + "\n" + attack, current_markers), (path, attack)
             controls += 1
     # A valid predecessor projection is exact, and an unsealed current byte
     # cannot reach the historical marker check: the outer overlay mutation
@@ -163,6 +184,16 @@ def self_test(root: Path) -> None:
     assert "case _: Resize => None" in historical[CODEC]
     assert 'protected_aliases = ("keptAlias", "guardedAlias", "sampledAlias", "conditionalAlias",' in (
         historical[PRODUCTION_CHECKER])
+    if current_markers != MARKERS:
+        # Preserve the predecessor's stricter tag marker as an executable
+        # historical control, not as an assertion about the new layout-only tag.
+        scope = source_scope(root)
+        old = scope.outer_overlay(root).frozen(root.resolve(),
+            "3b547ae5622ae212c17f6e67cc96924127a46a41", POLICY).decode()
+        assert not failures(POLICY, old)
+        for marker in MARKERS[POLICY]:
+            assert failures(POLICY, old.replace(marker, "WA10_REMOVED"))
+            controls += 1
     print("WA10_CURRENT_CONTRACT_MUTATIONS_PASS controls=" + str(controls))
 
 

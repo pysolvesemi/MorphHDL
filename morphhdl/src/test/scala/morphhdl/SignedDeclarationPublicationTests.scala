@@ -203,12 +203,12 @@ final class SignedDeclarationPublicationTests extends AnyFunSuite {
       var input: SInt = null
       val config = Writer.config(root.resolve("identity.v"))
       config.phasesInserters += MorphHdlSignednessAnalysis.install { snapshot =>
-        val printer = new VerilogBase {}
+        val printer = new VerilogBase with VerilogBase.DeclarationPolicyOwner {}
         val policy = new MorphHdlSignedDeclarationPolicy(printer, snapshot)
         printer.bindDeclarationPolicy(policy)
         assert(printer.emitType(input).startsWith("signed "))
         assert(printer.emitExpressionWrap(input, "local_copy").contains("signed "))
-        val foreign = new VerilogBase {}
+        val foreign = new VerilogBase with VerilogBase.DeclarationPolicyOwner {}
         foreign.bindDeclarationPolicy(policy)
         intercept[MorphHdlSignednessException](foreign.emitType(input))
         intercept[MorphHdlSignednessException](snapshot.temporary(input))

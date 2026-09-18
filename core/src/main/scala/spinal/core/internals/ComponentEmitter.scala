@@ -56,6 +56,9 @@ abstract class ComponentEmitter {
   def mergeAsyncProcess: Boolean
   def readedOutputWrapEnable : Boolean = false
 
+  /** Backend-specific proof for this one condition-sharing request. */
+  def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false
+
   val wrappedExpressionToName = mutable.HashMap[Expression, String]()
   val referencesOverrides     = mutable.HashMap[Nameable,Any]()
   var algoIdIncrementalOffset = 0
@@ -384,7 +387,7 @@ abstract class ComponentEmitter {
       })
 
       if(!spinalConfig.inlineConditionalExpression) {
-        for ((c, n) <- whenCondOccurences if n > 1) {
+        for ((c, n) <- whenCondOccurences if n > 1 && !canInlineRepeatedWhenCondition(c)) {
           expressionToWrap += c
         }
       }

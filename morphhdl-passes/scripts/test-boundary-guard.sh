@@ -60,8 +60,137 @@ required_step = """      - name: Resolve boundary source branch
 """
 if required_step not in workflow:
     raise SystemExit("workflow must resolve the merged PR source branch before enforcing the push boundary")
-if "MORPHDL_PASSES_HEAD_REF: ${{ steps.source.outputs.head_ref }}" not in workflow:
-    raise SystemExit("boundary enforcement must consume the resolved source branch")
+def validate_boundary_route(text):
+    direct = "MORPHDL_PASSES_HEAD_REF: ${{ steps.source.outputs.head_ref }}"
+    if "        id: audit\n" not in text:
+        if direct not in text:
+            raise SystemExit("boundary enforcement must consume the resolved source branch")
+        return
+    def step(name):
+        marker = "      - name: " + name + "\n"
+        if text.count(marker) != 1:
+            raise SystemExit("missing or ambiguous boundary step: " + name)
+        return text.split(marker, 1)[1].split("\n      - ", 1)[0]
+    audit = step("Authenticate the Increment 61 integration and resolve historical static audit sources")
+    enforce = step("Enforce isolated pass paths")
+    # Verify the actual resolver and enforcement blocks, not matching strings
+    # elsewhere in the workflow or a decorative source-variable occurrence.
+    required = (
+        "SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}",
+        'audit_root="$GITHUB_WORKSPACE"',
+        'audit_head_ref="$SOURCE_HEAD_REF"',
+        'audit_base_sha="$SOURCE_BASE_SHA"',
+        '\"$audit_root\" \"$audit_head_ref\" \"$audit_base_sha\" >> \"$GITHUB_OUTPUT\"',
+        "working-directory: ${{ steps.audit.outputs.root }}",
+        "MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}",
+        "MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}",
+    )
+    if not all(fragment in audit for fragment in required[:5]) or not all(fragment in enforce for fragment in required[5:]):
+        raise SystemExit("authenticated boundary route must preserve source input and audited outputs")
+    marker = 'if [[ "$SOURCE_HEAD_REF" == agent/cdc-independent-parameter-consumers ]]; then'
+    if audit.count(marker) != 1:
+        raise SystemExit("missing exact PR189 source-authentication route")
+    route = audit.split(marker, 1)[1].split('          elif ', 1)[0]
+    checks = (
+        "python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+        "python3 morphhdl/scripts/check-increment-61-source-review.py",
+        "python3 morphhdl/scripts/check-cdc-successor-source.py --self-test",
+        "python3 morphhdl/scripts/check-native-source-preservation.py",
+        "python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test",
+        'git diff --exit-code "$integrated" HEAD -- morphhdl-passes',
+        'git diff --exit-code "$audit_source" "$integrated" -- morphhdl-passes',
+        "bash morphhdl-passes/scripts/test-boundary-guard.sh",
+    )
+    replay = route.find('git worktree add --detach "$audit_root" "$audit_source"')
+    if replay < 0 or any(route.find(check) < 0 or route.find(check) > replay for check in checks):
+        raise SystemExit("current source checks must all precede frozen pass replay")
+    return required, checks
+
+route_contract = validate_boundary_route(workflow)
+if route_contract:
+    fragments = route_contract[0] + route_contract[1]
+    rejected = 0
+    for fragment in fragments:
+        mutated = workflow.replace(fragment, "REMOVED_BOUNDARY_ROUTE_EDGE", 1)
+        try:
+            validate_boundary_route(mutated)
+        except SystemExit:
+            rejected += 1
+        else:
+            raise SystemExit("boundary route mutation was accepted: " + fragment)
+    if rejected != 16:
+        raise SystemExit("boundary route mutation inventory changed")
+    print("BOUNDARY_ROUTE_MUTATIONS_PASS controls=16")
+def _validate_increment61_route(text):
+    # The Increment 61 adapter forwards the resolved current branch unchanged
+    # unless it has authenticated that exact historical publication profile.
+    # Follow the complete source -> audit -> enforcement chain, not a token
+    # elsewhere in the workflow which could hide a disconnected input.
+    try:
+        adapter = text.split("        id: audit\n", 1)[1].split(
+            "      - name: Enforce isolated pass paths\n", 1)[0]
+        enforcement = text.split("      - name: Enforce isolated pass paths\n", 1)[1].split(
+            "      - name: Test the boundary guard\n", 1)[0]
+    except IndexError as error:
+        raise ValueError("missing authenticated boundary source routing") from error
+    required_adapter = (
+        "SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}",
+        'audit_root="$GITHUB_WORKSPACE"',
+        'audit_head_ref="$SOURCE_HEAD_REF"',
+        'audit_base_sha="$SOURCE_BASE_SHA"',
+        'if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then',
+        "python3 morphhdl/scripts/check-increment-61-source-review.py\n",
+        'git merge-base --is-ancestor "$integrated" HEAD',
+        'git worktree add --detach "$audit_root" "$audit_source"',
+        '"$audit_root" "$audit_head_ref" "$audit_base_sha" >> "$GITHUB_OUTPUT"',
+    )
+    required_enforcement = (
+        "working-directory: ${{ steps.audit.outputs.root }}",
+        "MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}",
+        "MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}",
+        "run: bash morphhdl-passes/scripts/check-boundary.sh",
+    )
+    for section, tokens in ((adapter, required_adapter), (enforcement, required_enforcement)):
+        for token in tokens:
+            if section.count(token) != 1:
+                raise ValueError("missing/duplicate boundary routing: " + token)
+    if adapter.index(required_adapter[5]) >= adapter.index(required_adapter[7]):
+        raise ValueError("historical boundary projection precedes current source authentication")
+
+def validate_source_routing(text):
+    cdc = '          if [[ "$SOURCE_HEAD_REF" == agent/cdc-independent-parameter-consumers ]]; then\n'
+    legacy = '          elif [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then\n'
+    if text.count(cdc) != 1 or text.count(legacy) != 1:
+        raise ValueError("missing authenticated integration or Increment61 route")
+    before, rest = text.split(cdc, 1)
+    _, after = rest.split(legacy, 1)
+    _validate_increment61_route(before + legacy.replace('elif', 'if', 1) + after)
+
+try:
+    validate_source_routing(workflow)
+except ValueError as error:
+    raise SystemExit(str(error)) from error
+
+# Prove the replacement gate still rejects a broken input, output, working
+# directory, bypassed checker, or unverified historical branch selection.
+routing_mutations = (
+    ("SOURCE_HEAD_REF: ${{ steps.source.outputs.head_ref }}", "SOURCE_HEAD_REF: unrelated"),
+    ('audit_head_ref="$SOURCE_HEAD_REF"', 'audit_head_ref="unrelated"'),
+    ("MORPHDL_PASSES_HEAD_REF: ${{ steps.audit.outputs.head_ref }}", "MORPHDL_PASSES_HEAD_REF: unrelated"),
+    ("MORPHDL_PASSES_BASE_SHA: ${{ steps.audit.outputs.base_sha }}", "MORPHDL_PASSES_BASE_SHA: unrelated"),
+    ("working-directory: ${{ steps.audit.outputs.root }}", "working-directory: /unrelated"),
+    ("run: bash morphhdl-passes/scripts/check-boundary.sh", "run: true"),
+    ('if [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then', 'if true; then'),
+)
+for before, after in routing_mutations:
+    if before not in workflow:
+        raise SystemExit("routing mutation did not alter the actual workflow: " + before)
+    try:
+        validate_source_routing(workflow.replace(before, after, 1))
+    except ValueError:
+        continue
+    raise SystemExit("boundary routing mutation was accepted: " + before)
+print("Boundary source routing: resolved branch chain and 7 rejection controls PASS")
 PY
 
 allowed_manifest="${tmp_dir}/allowed.txt"
@@ -145,6 +274,24 @@ fi
 expect_failure \
   'WA-10 branch spelling does not authorize an unenumerated upstream source' \
   run_checker agent/wa-10-general-expression-inlining "${wa09_unreviewed_manifest}"
+
+wa10_log_manifest="${tmp_dir}/wa10-log-repair.txt"
+printf '%s\n' \
+  'morphhdl/src/test/scala/morphhdl/NativeWireCompatibility.scala' \
+  'morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala' \
+  >"${wa10_log_manifest}"
+expect_success \
+  'PR-186 exact diagnostic-capture repair paths require the verified source seal' \
+  run_checker agent/wa-10-inherited-audit-timeout "${wa10_log_manifest}"
+for unrelated_branch in agent/wa-10-general-expression-inlining agent/wa-10-inherited-audit-timeout-other agent/wa-11-symbolic-boolean-width-normalization; do
+  expect_failure \
+    'diagnostic-capture repair does not extend other branch authorizations' \
+    run_checker "${unrelated_branch}" "${wa10_log_manifest}"
+done
+printf '%s\n' 'morphhdl/src/test/scala/morphhdl/UnreviewedProof.scala' >"${tmp_dir}/wa10-log-unreviewed.txt"
+expect_failure \
+  'PR-186 repair branch does not authorize an unenumerated test source' \
+  run_checker agent/wa-10-inherited-audit-timeout "${tmp_dir}/wa10-log-unreviewed.txt"
 
 wa11_manifest="${tmp_dir}/wa11.txt"
 printf '%s\n' \
@@ -300,6 +447,15 @@ expect_failure \
     MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
     MORPHDL_PASSES_HEAD_REF=agent/wa-11-symbolic-boolean-width-normalization \
     MORPHDL_PASSES_CHANGED_FILES_FILE="${tmp_repo}/changed.txt" \
+    "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
+
+printf '%s\n' '- [x] **Increment 63 — Named expressions**' >> "${tmp_repo}/docs/morphhdl/parameterized-verilog-todo.md"
+expect_failure \
+  'PR-186 diagnostic repair requires its source checks even with completed predecessors' \
+  env \
+    MORPHDL_PASSES_REPO_ROOT="${tmp_repo}" \
+    MORPHDL_PASSES_HEAD_REF=agent/wa-10-inherited-audit-timeout \
+    MORPHDL_PASSES_CHANGED_FILES_FILE="${wa10_log_manifest}" \
     "${tmp_repo}/morphhdl-passes/scripts/check-boundary.sh"
 
 printf 'MorphHDL pass boundary self-tests passed.\n'

@@ -6,6 +6,13 @@ import morphhdl.frontend.{AnalyzedFrontendBoolean, AnalyzedFrontendInteger}
   * permit type.  Its input cannot be assembled from public EIE metadata.
   */
 object ExternalAnalyzedFrontendPermitIssuer {
+  def compact(analyzed: morphhdl.frontend.AnalyzedCompactDeclaration): ElabInt = {
+    require(analyzed != null, "compact declaration analysis must not be null")
+    val (source, expression) = analyzed.claim()
+    val permit = ExternalCompilerPermit.analyzedCompactDeclaration(source, expression)
+    ElabInt.fromExpression(ElaborationProductDomain.compactDeclaration(expression, source, permit))
+  }
+
   /** Canonical construction normalization, independent of optional RTL passes.
     * The opaque pair proves that the direct predicate and the integer select
     * came from the same AST. Preserve the established ingress checks before

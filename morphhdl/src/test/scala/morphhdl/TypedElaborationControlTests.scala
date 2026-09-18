@@ -174,14 +174,14 @@ class TypedElaborationControlTests extends AnyFunSuite {
       first + second
     }
     assert(
-      arithmeticError.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
+      arithmeticError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
     )
 
     val booleanError = intercept[ParameterizedVerilogException] {
       (first > 0) && (second > 0)
     }
     assert(
-      booleanError.code == "SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED"
+      booleanError.code == "SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED"
     )
   }
 

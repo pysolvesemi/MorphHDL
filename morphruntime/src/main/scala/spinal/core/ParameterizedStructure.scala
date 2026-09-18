@@ -2677,6 +2677,21 @@ object ParameterizedStructure {
     * one exact typed root. A declaration absent from captured blocks is treated
     * as module-scope only after its JVM identity is found in the component AST.
     */
+  /** Compact publication currently admits only a real module-scope native
+    * declaration. Do not fabricate a finite universe for the older projection
+    * API or let a captured declaration borrow module-scope authority.
+    */
+  private[core] def requireCompactDeclarationOwner(component: Component,
+      declaration: BaseType, root: ElaborationIntegerParameterRoot,
+      role: String, sourceLocation: Option[String]): Unit = {
+    if (component == null || declaration == null || root == null)
+      fail("SPINAL-ELAB-PROJECTION-OBJECT-NULL", s"$role has a null compact publication owner", sourceLocation)
+    if ((declaration.component ne component) || !allStatementsOf(component).exists(_ eq declaration))
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-MISSING", s"$role declaration is absent from its exact native owner", sourceLocation)
+    if (capturedDeclarations(regionsOf(component)).exists(value => value.declaration eq declaration))
+      fail("SPINAL-ELAB-DOMAIN-COMPACT-OWNER-UNSUPPORTED", s"$role needs explicit compact structural-owner projection", sourceLocation)
+  }
+
   private[core] def exactDeclarationDomainOf(
       component: Component,
       declaration: BaseType,
