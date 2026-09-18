@@ -40,7 +40,7 @@ class SequentialWireRetentionTests extends AnyFunSuite {
               assert(predicate.isTypeNode == (kind == "explicit"))
               val expression = predicate.head.asInstanceOf[DataAssignmentStatement].source
               assert(expression.isInstanceOf[Operator.Bool.Not], expression)
-              assert(expression.asInstanceOf[Operator.Bool.Not].input eq inputPort)
+              assert(expression.asInstanceOf[Operator.Bool.Not].source eq inputPort)
             }
             observed = true
           }
@@ -144,8 +144,27 @@ class SequentialWireRetentionTests extends AnyFunSuite {
             assert(consumers.nonEmpty)
             if (shape == "whole-register") assert(consumers.exists(_.finalTarget.isReg))
             else {
+              // .resized first makes a direct clone, then normalization puts
+              // the narrowing Resize on that clone's consumer. This extra
+              // combinational hop hid the original alias from a register-only
+              // source-intent check; assert both links rather than guessing
+              // that the immediate consumer already contains the Resize.
               assert(consumers.forall(_.finalTarget.isComb))
-              assert(consumers.exists(_.source.isInstanceOf[Resize]))
+              assert(consumers.forall(_.source eq alias))
+              val intermediaries = consumers.map(_.finalTarget)
+              var narrowedConsumer = false
+              alias.component.dslBody.walkStatements {
+                case assignment: DataAssignmentStatement
+                    if (shape == "register-slice" && assignment.finalTarget.isReg) ||
+                      (shape == "comb-slice" && assignment.finalTarget.isOutput) =>
+                  assignment.walkDrivingExpressions {
+                    case resize: Resize if resize.size == 13 &&
+                        intermediaries.exists(_ eq resize.input) => narrowedConsumer = true
+                    case _ =>
+                  }
+                case _ =>
+              }
+              assert(narrowedConsumer, "The expected clone-to-slice consumer is missing")
             }
             val reason = new UnnamedWireAliasNativePhase(Some(intent)).retentionReasonFor(pc, alias)
             if (protectedAlias) assert(reason.contains("WA04-NATIVE-SOURCE-INTENT"), reason)
