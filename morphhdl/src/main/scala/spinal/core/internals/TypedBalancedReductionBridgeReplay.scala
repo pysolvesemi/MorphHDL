@@ -13,33 +13,62 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
   private def fail(code: String, detail: String): Nothing =
     throw new IllegalArgumentException(s"MORPH-REDUCE-BALANCED-BRIDGE-$code: $detail")
 
-  private sealed trait Enable {
-    def replay(value: BaseType): Bool
-    def minimumWidth: Int = 1
+  /** The current register-chain driver and the original composite input are
+    * different dependencies, even when both denote the same leaf at step zero.
+    * Preserve that distinction through every later register and odd tail. */
+  private sealed trait ControlInput {
+    def value(current: BaseType, original: Vector[BaseType]): BaseType
+    def width(current: ElaborationIntegerExpression,
+        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression
   }
-  private case object BooleanInput extends Enable {
-    def replay(value: BaseType): Bool = value.asInstanceOf[Bool]
+  private case object CurrentData extends ControlInput {
+    def value(current: BaseType, original: Vector[BaseType]): BaseType = current
+    def width(current: ElaborationIntegerExpression,
+        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression = current
+  }
+  private final case class CompositeInput(index: Int) extends ControlInput {
+    def value(current: BaseType, original: Vector[BaseType]): BaseType = original(index)
+    def width(current: ElaborationIntegerExpression,
+        original: Vector[ElaborationIntegerExpression]): ElaborationIntegerExpression = original(index)
+  }
+
+  private def mergeMinimumWidths(left: Map[ControlInput, Int],
+      right: Map[ControlInput, Int]): Map[ControlInput, Int] =
+    (left.keySet ++ right.keySet).map { input =>
+      input -> left.getOrElse(input, 0).max(right.getOrElse(input, 0))
+    }.toMap
+
+  private sealed trait Enable {
+    def replay(current: BaseType, original: Vector[BaseType]): Bool
+    def minimumWidths: Map[ControlInput, Int]
+  }
+  private final case class BooleanInput(input: ControlInput) extends Enable {
+    val minimumWidths: Map[ControlInput, Int] = Map(input -> 1)
+    def replay(current: BaseType, original: Vector[BaseType]): Bool =
+      input.value(current, original).asInstanceOf[Bool]
   }
   private final case class Constant(value: Boolean) extends Enable {
-    def replay(input: BaseType): Bool = Bool(value)
+    // Preserve the scalar enable grammar's original positive data-width bound.
+    val minimumWidths: Map[ControlInput, Int] = Map(CurrentData -> 1)
+    def replay(current: BaseType, original: Vector[BaseType]): Bool = Bool(value)
   }
-  private final case class Bit(index: Int, high: Boolean) extends Enable {
-    override def minimumWidth: Int = if (high) 1 else index + 1
-    def replay(value: BaseType): Bool = {
-      val bits = value.asInstanceOf[BitVector]
+  private final case class Bit(input: ControlInput, index: Int, high: Boolean) extends Enable {
+    val minimumWidths: Map[ControlInput, Int] = Map(input -> (if (high) 1 else index + 1))
+    def replay(current: BaseType, original: Vector[BaseType]): Bool = {
+      val bits = input.value(current, original).asInstanceOf[BitVector]
       if (high) bits.msb else bits(index)
     }
   }
   private final case class Not(value: Enable) extends Enable {
-    override def minimumWidth: Int = value.minimumWidth
-    def replay(input: BaseType): Bool = !value.replay(input)
+    val minimumWidths: Map[ControlInput, Int] = value.minimumWidths
+    def replay(current: BaseType, original: Vector[BaseType]): Bool = !value.replay(current, original)
   }
   private final case class Binary(operation: Int, left: Enable, right: Enable) extends Enable {
-    override def minimumWidth: Int = left.minimumWidth.max(right.minimumWidth)
-    def replay(input: BaseType): Bool = operation match {
-      case 0 => left.replay(input) && right.replay(input)
-      case 1 => left.replay(input) || right.replay(input)
-      case 2 => left.replay(input) ^ right.replay(input)
+    val minimumWidths: Map[ControlInput, Int] = mergeMinimumWidths(left.minimumWidths, right.minimumWidths)
+    def replay(current: BaseType, original: Vector[BaseType]): Bool = operation match {
+      case 0 => left.replay(current, original) && right.replay(current, original)
+      case 1 => left.replay(current, original) || right.replay(current, original)
+      case 2 => left.replay(current, original) ^ right.replay(current, original)
     }
   }
   private final case class RegisterStep(clock: ClockDomain, initializer: Option[BigInt], enable: Option[Enable])
@@ -48,6 +77,8 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       val nativeResult: BaseType,
       val resultWidth: ElaborationIntegerExpression,
       private val input: Evidence,
+      private val controls: Vector[Evidence],
+      private val inputIndex: Int,
       private val observation: TypedBalancedReductionClosedGraph.Observation,
       private val registers: Vector[RegisterStep],
       private val minimumInitializerWidth: Int,
@@ -58,6 +89,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
 
     def validateFreshness(): Unit = {
       input.requireFreshness()
+      controls.foreach(_.requireFreshness())
       localGuards.foreach(_.apply())
       observation.requireUnchanged()
     }
@@ -67,49 +99,94 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       validateFreshness()
       other.validateFreshness()
       (input.owner eq other.input.owner) && (input.kind eq other.input.kind) &&
-        minimumInitializerWidth == other.minimumInitializerWidth &&
+        inputIndex == other.inputIndex && controls.size == other.controls.size &&
+        controls.zip(other.controls).forall { case (a, b) =>
+          (a.owner eq b.owner) && (a.kind eq b.kind)
+        } && minimumInitializerWidth == other.minimumInitializerWidth &&
         registers.size == other.registers.size &&
         registers.zip(other.registers).forall { case (a, b) =>
           (a.clock eq b.clock) && a.initializer == b.initializer && a.enable == b.enable
         }
     }
 
+    private def scalarReplayOnly(): Unit =
+      if (controls.size != 1 || inputIndex != 0)
+        fail("CONTROL-ARITY", "a composite-control bridge must be replayed with its full recursive input")
+
     def replay(value: BaseType): BaseType = {
+      scalarReplayOnly()
       input.requireReplacement(value)
       replayWithWidth(value, input.width)
     }
 
-    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression): BaseType =
-      replayWithWidthWhen(value, width, None)
+    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression): BaseType = {
+      scalarReplayOnly()
+      replayWithWidthWhen(value, width, Vector(value), Vector(width), None)
+    }
 
     /** A generated template has data semantics only on its exact active COUNT
       * domain. Inactive positive-width placeholders cannot impose a spurious
       * initializer restriction, or excuse an illegal active initializer. */
     def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,
         active: ElaborationBooleanExpression): BaseType = {
+      scalarReplayOnly()
       if (active == null) fail("WIDTH-AUTHORITY", "template activity must retain exact native count authority")
-      replayWithWidthWhen(value, width, Some(active))
+      replayWithWidthWhen(value, width, Vector(value), Vector(width), Some(active))
+    }
+
+    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,
+        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression]): BaseType =
+      replayWithWidthWhen(value, width, controlValues, controlWidths, None)
+
+    def replayWithWidth(value: BaseType, width: ElaborationIntegerExpression,
+        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression],
+        active: ElaborationBooleanExpression): BaseType = {
+      if (active == null) fail("WIDTH-AUTHORITY", "template activity must retain exact native count authority")
+      replayWithWidthWhen(value, width, controlValues, controlWidths, Some(active))
+    }
+
+    private def requireReplacement(evidence: Evidence, candidate: BaseType,
+        width: ElaborationIntegerExpression, label: String): Unit = {
+      evidence.requireFreshness()
+      ElaborationWidthAuthority.requireAuthoritative(width, label,
+        "MORPH-REDUCE-BALANCED-BRIDGE-WIDTH-AUTHORITY")
+      if (candidate == null || (candidate.component ne evidence.owner) ||
+          candidate.getClass != evidence.value.getClass ||
+          (candidate.getTypeObject.asInstanceOf[AnyRef] ne evidence.kind) ||
+          candidate.isAnalog || candidate.hasTag(tagAutoResize) ||
+          BigInt(candidate.getBitsWidth) != width.default ||
+          !ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(candidate)
+            .getOrElse(ElabInt.literal(candidate.getBitsWidth).expression), width))
+        fail("WIDTH", label + " lacks its exact owner, scalar type and symbolic width")
     }
 
     private def replayWithWidthWhen(value: BaseType, width: ElaborationIntegerExpression,
+        controlValues: Vector[BaseType], controlWidths: Vector[ElaborationIntegerExpression],
         active: Option[ElaborationBooleanExpression]): BaseType = {
       validateFreshness()
       if (Component.current ne input.owner)
         fail("OWNER", "bridge replay must remain inside its owning component")
-      ElaborationWidthAuthority.requireAuthoritative(width, "replayed bridge width",
-        "MORPH-REDUCE-BALANCED-BRIDGE-WIDTH-AUTHORITY")
-      val activeMinimum = active.map(ElaborationWidthAuthority.minimumWhen(width, _))
-        .getOrElse(Some(width.minimum))
-      if (activeMinimum.exists(_ < minimumInitializerWidth))
+      if (controlValues == null || controlWidths == null ||
+          controlValues.size != controls.size || controlWidths.size != controls.size ||
+          inputIndex < 0 || inputIndex >= controls.size || (controlValues(inputIndex) ne value))
+        fail("CONTROL-BINDING", "composite controls must preserve their complete recursive leaf order")
+      requireReplacement(input, value, width, "replayed bridge data width")
+      controls.zip(controlValues).zip(controlWidths).zipWithIndex.foreach {
+        case (((evidence, candidate), controlWidth), index) =>
+          requireReplacement(evidence, candidate, controlWidth,
+            "replayed bridge control width " + index)
+      }
+      def minimum(value: ElaborationIntegerExpression): Option[BigInt] =
+        active.map(condition => ElaborationWidthAuthority.minimumWhen(value, condition))
+          .getOrElse(Some(value.minimum))
+      if (minimum(width).exists(_ < minimumInitializerWidth))
         fail("INITIALIZER-WIDTH", "replayed narrower native lane cannot contain the certified initializer width")
-      if (registers.flatMap(_.enable).exists(enable => activeMinimum.exists(_ < enable.minimumWidth)))
-        fail("ENABLE-WIDTH", "replayed narrower native lane cannot contain a certified enable bit")
-      if (value == null || (value.component ne input.owner) ||
-          (value.getTypeObject.asInstanceOf[AnyRef] ne input.kind) || value.isAnalog ||
-          value.hasTag(tagAutoResize) || BigInt(value.getBitsWidth) != width.default ||
-          !ElaborationWidthAuthority.equivalent(ParameterizedWidth.expressionOf(value)
-            .getOrElse(ElabInt.literal(value.getBitsWidth).expression), width))
-        fail("WIDTH", "replayed bridge input lacks its exact certified native shape")
+      registers.flatMap(_.enable).foreach { enable =>
+        enable.minimumWidths.foreach { case (control, required) =>
+          if (minimum(control.width(width, controlWidths)).exists(_ < required))
+            fail("ENABLE-WIDTH", "replayed control lane cannot contain a certified enable bit")
+        }
+      }
       registers.foldLeft(value) { (prior, step) =>
         val context = step.clock.push()
         try {
@@ -117,7 +194,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
           next.setAsDirectionLess()
           next.setAsReg()
           step.enable match {
-            case Some(enable) => when(enable.replay(prior)) { next.assignFrom(prior) }
+            case Some(enable) => when(enable.replay(prior, controlValues)) { next.assignFrom(prior) }
             case None => next.assignFrom(prior)
           }
           step.initializer.foreach { initial =>
@@ -136,14 +213,34 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     }
   }
 
-  def certify(callback: UnvalidatedBalancedCallback, input: Evidence): Proof = {
-    if (callback == null || input == null || callback.operands == null ||
-        callback.operands.size != 1 || callback.result == null)
-      fail("ARITY", "bridge proof needs one exact operand and a scalar result")
-    val source = callback.operands.head match {
-      case value: BaseType => value
-      case _ => fail("TYPE", "bridge operand must be a native scalar")
+  def certify(callback: UnvalidatedBalancedCallback, input: Evidence): Proof =
+    certifyWithControls(callback, input, Vector(input), compositeControls = false)
+
+  def certify(callback: UnvalidatedBalancedCallback, input: Evidence,
+      controls: Vector[Evidence]): Proof =
+    certifyWithControls(callback, input, controls, compositeControls = true)
+
+  private def certifyWithControls(callback: UnvalidatedBalancedCallback, input: Evidence,
+      controls: Vector[Evidence], compositeControls: Boolean): Proof = {
+    if (callback == null || input == null || controls == null || controls.isEmpty ||
+        callback.operands == null || callback.operands.size != controls.size || callback.result == null)
+      fail("ARITY", "bridge proof needs its exact recursive controls and one scalar result")
+    val identities = new IdentityHashMap[BaseType, java.lang.Integer]()
+    controls.zipWithIndex.foreach { case (evidence, index) =>
+      if (evidence == null || identities.put(evidence.value, java.lang.Integer.valueOf(index)) != null)
+        fail("CONTROL-IDENTITY", "bridge controls must be unique live scalar leaves")
+      evidence.requireValue(evidence.value)
     }
+    if (callback.operands.zip(controls).exists {
+        case (value: BaseType, evidence) => value ne evidence.value
+        case _ => true
+      })
+      fail("CONTROL-BINDING", "callback operands changed their recursive composite-leaf order")
+    val source = input.value
+    val inputIndexValue = identities.get(source)
+    if (inputIndexValue == null)
+      fail("CONTROL-BINDING", "bridge data input is absent from its admitted controls")
+    val inputIndex = inputIndexValue.intValue()
     val result = callback.result match {
       case value: BaseType => value
       case _ => fail("TYPE", "bridge result must be a native scalar")
@@ -255,8 +352,18 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     def enable(expression: Expression, driver: BaseType, depth: Int = 0): Enable = {
       if (depth > 512) fail("ENABLE", "local enable graph exceeds its certified depth")
       def child(value: Expression): Enable = enable(value, driver, depth + 1)
+      def admitted(value: BaseType): Int = {
+        val found = identities.get(value)
+        if (found == null) -1 else found.intValue()
+      }
+      def control(value: BaseType): ControlInput = {
+        if (value eq driver) CurrentData
+        else if (compositeControls && admitted(value) >= 0) CompositeInput(admitted(value))
+        else fail("ENABLE", "control must be the current data driver or an admitted original composite leaf")
+      }
       expression match {
-        case value: Bool if value eq driver => BooleanInput
+        case value: Bool if (value eq driver) || (compositeControls && admitted(value) >= 0) =>
+          BooleanInput(control(value))
         case literal: BoolLiteral => Constant(literal.value)
         case value: Bool =>
           local(value, predicate = true)
@@ -271,16 +378,26 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
             case Vector(data: DataAssignmentStatement) => child(data.source)
             case _ => fail("ENABLE", "enable aliases need one complete combinational driver")
           }
-        case access: BitVectorBitAccessFixed if access.source eq driver =>
+        case access: BitVectorBitAccessFixed =>
+          val selected = access.source match {
+            case source: BaseType => control(source)
+            case _ => fail("ENABLE", "enable bit source must be an exact admitted native scalar")
+          }
+          val evidence = selected match {
+            case CurrentData => input
+            case CompositeInput(index) => controls(index)
+          }
+          if ((evidence.kind ne TypeBits) && (evidence.kind ne TypeUInt) && (evidence.kind ne TypeSInt))
+            fail("ENABLE", "enable bit source must remain a native bit vector")
           val high = NativeWidthProvenance.isHighBit(access)
-          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= input.width.minimum))
-            fail("ENABLE-WIDTH", "enable index is outside the smallest certified data width")
-          Bit(if (high) 0 else access.bitId, high)
+          if (access.bitId < 0 || (!high && BigInt(access.bitId) >= evidence.width.minimum))
+            fail("ENABLE-WIDTH", "enable index is outside the smallest certified control width")
+          Bit(selected, if (high) 0 else access.bitId, high)
         case operator: Operator.Bool.Not => Not(child(operator.source))
         case operator: Operator.Bool.And => Binary(0, child(operator.left), child(operator.right))
         case operator: Operator.Bool.Or => Binary(1, child(operator.left), child(operator.right))
         case operator: Operator.Bool.Xor => Binary(2, child(operator.left), child(operator.right))
-        case _ => fail("ENABLE", "enable must be a closed Bool predicate of the register's exact data input")
+        case _ => fail("ENABLE", "enable must be a closed Bool predicate of the current path and admitted composite inputs")
       }
     }
 
@@ -345,7 +462,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     inspect(result)
     if (seen.size != callback.declarations.size || consumed.size != callback.assignments.size)
       fail("UNCONSUMED", "bridge contains local effects outside its result chain")
-    val proof = new Proof(result, input.width, input, observation,
+    val proof = new Proof(result, input.width, input, controls, inputIndex, observation,
       registers.reverse.toVector, minimumInitializerWidth, localGuards.toVector)
     proof.validateFreshness()
     proof
