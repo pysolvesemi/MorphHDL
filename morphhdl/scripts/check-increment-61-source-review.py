@@ -82,7 +82,29 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
+def _lane_successor(root: Path):
+    # The current union is authenticated before the unchanged historical
+    # Increment 61 review is replayed. No compiler source is projected away.
+    import importlib.util
+    path = root / "morphhdl/scripts/check-lane-when-increment61-source.py"
+    if not path.exists():
+        return None
+    require(path.is_file() and not path.is_symlink(), "linked lane/61 successor checker")
+    require(sha256(path.read_bytes()) == "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
+            "lane/61 successor checker digest changed")
+    spec = importlib.util.spec_from_file_location("increment61_lane_successor", path)
+    require(spec is not None and spec.loader is not None, "missing lane/61 successor checker")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def verify(root: Path = ROOT) -> None:
+    successor = _lane_successor(root)
+    if successor is not None:
+        successor.verify(root)
+        successor.verify_predecessor(root)
+        return
     contract = load_contract()
     base = contract["base_commit"]
     integrated = integrated_target_is_ancestor(contract, root)
@@ -137,6 +159,12 @@ def verify(root: Path = ROOT) -> None:
 
 
 def self_test() -> None:
+    successor = _lane_successor(ROOT)
+    if successor is not None:
+        successor.verify(ROOT)
+        successor.verify_predecessor(ROOT, self_test=True)
+        successor.self_test(ROOT)
+        return
     contract = load_contract()
     integrated = integrated_target_is_ancestor(contract, ROOT)
     cases = 0
@@ -168,9 +196,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--print-base", action="store_true")
+    parser.add_argument("--print-regression-base", action="store_true")
     args = parser.parse_args()
     if args.print_base:
         print(load_contract()["base_commit"])
+    elif args.print_regression_base:
+        successor = _lane_successor(ROOT)
+        if successor is not None:
+            successor.verify(ROOT)
+            print(successor.LANE)
+        else:
+            print(load_contract()["integrated_target_commit"])
     elif args.self_test:
         self_test()
     else:

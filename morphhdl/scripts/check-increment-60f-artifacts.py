@@ -646,6 +646,21 @@ WA11_SUITE_SOURCES = {
     "morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala": True,
 }
 
+# Exact additive lane/when suite. The complete source enrollment, never XML
+# presence, enables this profile; all inherited 2,012 tests remain required.
+LANE_WHEN_SUITES = {"morphhdl": {"morphhdl.LaneWhenInliningRegressionTests": 17}}
+LANE_WHEN_SUITE_SOURCES = frozenset((
+    "morphhdl/contracts/lane-when-source-scope.json",
+    "morphhdl/scripts/check-lane-when-source-scope.py",
+    "morphhdl/scripts/check-lane-when-inlining.py",
+    "morphhdl/src/test/scala/morphhdl/LaneWhenInliningRegressionTests.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneConditionCoverageExample.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneReceiverCoverageExample.scala",
+    "morphhdl/src/test/scala/morphhdl/LaneInliningRegressionWriter.scala",
+    "morphhdl/src/test/resources/lane-expression/tb_lane_conditions.sv",
+    "morphhdl/src/test/resources/lane-expression/tb_lane_receivers.sv",
+))
+
 # PR188 retains the frozen WA-09/10/11 catalogs and adds exact obligations for
 # native independent-parameter provenance and symbolic legality. XML cannot
 # enroll this successor: only the complete authenticated source cluster can.
@@ -770,7 +785,8 @@ def compare(left: Path, right: Path) -> None:
 
 def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                         wa09: bool = False, wa10: bool = False,
-                        wa11: bool = False, pr188: bool = False) -> tuple[dict, dict, dict]:
+                        wa11: bool = False, lane_when: bool = False,
+                        pr188: bool = False) -> tuple[dict, dict, dict]:
     features = closure_module().profile_features(profile)
     require(not packing or {"59d", "59e", "59f"}.issubset(features),
             "reviewed packing inventory requires the complete width/composite/callback profile")
@@ -940,6 +956,16 @@ def catalog_for_profile(profile: str, packing: bool = False, wa08: bool = False,
                     total_suites += 1
                 reviewed_counts[name] = expected_count
             counts[project] = (tests, total_suites)
+    if lane_when:
+        require(wa08 and wa09 and wa10 and wa11,
+                "lane/when obligations require the complete reviewed WA-08/09/10/11 catalog")
+        for project, exact in LANE_WHEN_SUITES.items():
+            require(not suites[project].intersection(exact), "lane/when replaced an inherited suite")
+            tests, total_suites = counts[project]
+            suites[project] |= frozenset(exact)
+            counts[project] = (tests + sum(exact.values()), total_suites + len(exact))
+            extension.setdefault(project, {}).update(exact)
+
     if pr188:
         require(wa09 and wa11, "PR188 exact suites require the reviewed WA-09/WA-11 predecessor")
         for project, exact in PR188_SUITES.items():
@@ -1000,6 +1026,18 @@ def successor_suite_flags(entries: dict[str, dict]) -> tuple[bool, bool, bool, b
     return True, True, wa10, bool(selected_wa11)
 
 
+def lane_when_suite_flag(entries: dict[str, dict], flags: tuple[bool, bool, bool, bool]) -> bool:
+    selected = set(entries).intersection(LANE_WHEN_SUITE_SOURCES)
+    if not selected:
+        return False
+    require(selected == LANE_WHEN_SUITE_SOURCES,
+            "partial lane/when suite-source enrollment: " + repr(sorted(LANE_WHEN_SUITE_SOURCES - selected)))
+    require(all(flags), "lane/when suite enrollment requires every inherited WA profile")
+    require(all(entries[path]["before_sha256"] is None for path in selected),
+            "lane/when suite source changed its added-source identity")
+    return True
+
+
 def reviewed_successor_entries(root: Path) -> dict[str, dict] | None:
     ternary = closure_module().boolean_ternary_review(root)
     adapter = getattr(ternary, "wa08_overlay", None)
@@ -1014,6 +1052,13 @@ def reviewed_successor_entries(root: Path) -> dict[str, dict] | None:
 def reviewed_successor_suites(root: Path) -> tuple[bool, bool, bool, bool]:
     entries = reviewed_successor_entries(root)
     return successor_suite_flags(entries) if entries is not None else (False, False, False, False)
+
+
+def reviewed_source_enrollment(root: Path) -> tuple[tuple[bool, bool, bool, bool], bool]:
+    """Retain the lane review API while sharing exact source authentication."""
+    entries = reviewed_successor_entries(root)
+    flags = successor_suite_flags(entries) if entries is not None else (False, False, False, False)
+    return flags, lane_when_suite_flag(entries or {}, flags)
 
 
 def reviewed_wa08_suites(root: Path) -> bool:
@@ -1068,9 +1113,10 @@ def _regression_inventory(root: Path, output: Path, profile: str) -> None:
     entries = reviewed_successor_entries(root)
     wa08, wa09, wa10, wa11 = (successor_suite_flags(entries) if entries is not None
                             else (False, False, False, False))
+    lane_when = lane_when_suite_flag(entries or {}, (wa08, wa09, wa10, wa11))
     pr188 = independent_parameter_suite_flag(entries or {})
     counts, suite_inventory, extension = catalog_for_profile(
-        profile, packing, wa08, wa09, wa10, wa11, pr188)
+        profile, packing, wa08, wa09, wa10, wa11, lane_when=lane_when, pr188=pr188)
     records = {}
     for project, (minimum_tests, minimum_suites) in counts.items():
         reports = sorted((root / project / "target/test-reports").glob("*.xml"))
@@ -2276,6 +2322,69 @@ def self_test() -> None:
             overlay.verify.side_effect = None
             overlay.verify.return_value = reviewed_independent
             validate_wa09_reports()
+            combined_lane = catalog_for_profile(
+                wa09_profile, packing=True, wa08=True, wa09=True,
+                wa10=True, wa11=True, lane_when=True, pr188=True)
+            require(tuple(map(sum, zip(*combined_lane[0].values()))) == (2064, 201),
+                    "combined lane/PR188 catalog lost an inherited obligation")
+            for project, exact in independent[2].items():
+                require(combined_lane[2][project] == {**exact, **LANE_WHEN_SUITES.get(project, {})} and
+                        combined_lane[1][project] == independent[1][project] |
+                            set(LANE_WHEN_SUITES.get(project, {})),
+                        "combined lane/PR188 catalog changed a predecessor suite")
+            combined_records = {entry["path"]: dict(entry) for entry in records.values()}
+            combined_records.update({path: {"path": path, "before_sha256": None}
+                                     for path in LANE_WHEN_SUITE_SOURCES})
+            reviewed_lane = {"files": list(combined_records.values())}
+            overlay.verify.return_value = reviewed_lane
+            write_reports(combined_lane)
+            validate_wa09_reports()
+            for project, exact in LANE_WHEN_SUITES.items():
+                for name, count in exact.items():
+                    path = root / project / "target/test-reports" / (name + ".xml")
+                    original = path.read_bytes()
+                    for delta in (-1, 1):
+                        document = ET.parse(path)
+                        suite = document.getroot()
+                        suite.set("tests", str(count + delta))
+                        if delta < 0:
+                            suite.remove(suite.find("testcase"))
+                        else:
+                            ET.SubElement(suite, "testcase", name="unreviewed-lane-case")
+                        document.write(path)
+                        rejected(validate_wa09_reports, "combined lane/PR188 changed lane cases")
+                        require(not output.exists(), "failed combined inventory retained stale success")
+                        path.write_bytes(original)
+                    for attribute, value in (("name", "synthetic.SubstituteSuite"), ("skipped", "1")):
+                        document = ET.parse(path)
+                        document.getroot().set(attribute, value)
+                        document.write(path)
+                        rejected(validate_wa09_reports, "combined lane/PR188 changed lane " + attribute)
+                        path.write_bytes(original)
+                    path.unlink()
+                    rejected(validate_wa09_reports, "combined lane/PR188 missing lane suite")
+                    path.write_bytes(original)
+            for path in LANE_WHEN_SUITE_SOURCES:
+                overlay.verify.return_value = {"files": [entry for entry in combined_records.values()
+                                                          if entry["path"] != path]}
+                rejected(validate_wa09_reports, "partial combined lane source enrollment " + path)
+                altered = [dict(entry) for entry in combined_records.values()]
+                next(entry for entry in altered if entry["path"] == path)["before_sha256"] = "d" * 64
+                overlay.verify.return_value = {"files": altered}
+                rejected(validate_wa09_reports, "changed combined lane baseline identity " + path)
+            # Losing any PR188 source must not silently fall back to the lane-only catalog.
+            for path in PR188_SUITE_SOURCES:
+                overlay.verify.return_value = {"files": [entry for entry in combined_records.values()
+                                                          if entry["path"] != path]}
+                rejected(validate_wa09_reports, "partial combined PR188 source enrollment " + path)
+            overlay.verify.return_value = reviewed_independent
+            rejected(validate_wa09_reports, "lane XML alone cannot enroll the combined successor")
+            overlay.verify.return_value = reviewed_lane
+            write_reports(independent)
+            rejected(validate_wa09_reports, "source-enrolled combined catalog cannot accept PR188-only XML")
+            write_reports(combined_lane)
+            validate_wa09_reports()
+    print("Combined lane/PR188 inventory requires 2064 tests / 201 suites without dropping either successor PASS")
     print("PR188 inventory requires 2047 tests / 200 suites, including every inherited obligation PASS")
     print("WA-08 inventory retains every inherited suite and requires its exact three-case verified addition PASS")
     print("WA-09 inventory requires exactly 1982 cases / 194 suites: 1115 Morph, 159 pass, 21 core cases PASS")

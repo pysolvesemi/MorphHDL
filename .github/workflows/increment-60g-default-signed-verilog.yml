@@ -2,7 +2,7 @@ name: Increment 60g default signed Verilog
 
 on:
   push:
-    branches: ['agent/increment-60g-*', parameterized-verilog]
+    branches: ['agent/increment-60g-*', agent/lane-when-expression-inlining, parameterized-verilog]
   pull_request:
     branches: [parameterized-verilog]
     paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/**', '.github/workflows/increment-60g-default-signed-verilog.yml']

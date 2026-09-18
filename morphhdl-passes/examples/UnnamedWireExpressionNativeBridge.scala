@@ -43,10 +43,15 @@ import spinal.core.internals._
   * WA-10 shares exact typed capture and native identity substitution with the
   * named/generated slot, including nested pure RHS and register RHS uses.
   */
-private[examples] final class UnnamedWireExpressionNativePhase extends Phase {
+private[examples] final class UnnamedWireExpressionNativePhase(
+    conditionSourceIntent: Option[NativeConditionSourceIntent] = None
+) extends Phase {
+  // Scala default arguments do not retain the historical JVM ()V constructor.
+  def this() = this(None)
+
   // The unnamed and named slots retain separate provenance and canonical pass
   // identities, while sharing one lossless typed capture/writeback authority.
-  private val delegate = new NamedWireExpressionNativePhase(unnamedOnly = true)
+  private val delegate = new NamedWireExpressionNativePhase(unnamedOnly = true, conditionSourceIntent)
   override def hasNetlistImpact: Boolean = true
   override def impl(pc: PhaseContext): Unit = delegate.impl(pc)
 
