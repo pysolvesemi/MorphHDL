@@ -143,3 +143,22 @@ composes additively as well. Original XML failures/errors/skips, suite identity,
 case identity and exact-count checks are unchanged; no count is inferred from a
 failed report to waive a missing test. Existing catalogue self-tests run along
 with 14 new source/catalog negative controls.
+
+## Complete standalone-root scanning
+
+A subsequent local run of the unchanged independent-parameter source controls
+found that `repro/remaining-wires/src/main` was absent from the closed Increment
+54 layering inventory. The repair adds exactly that root as a scanned high-level
+application root. It does not add a low-level exception or change any ownership,
+retirement, build-graph, compiler-isolation, source-extension or forbidden-source
+pattern. The existing all-source retired-sidecar rule gains the matching prefix
+so the new directory receives the same checks as every other high-level root. The layering checker changes only its canonical manifest digest; the
+successor verifier proves that exact one-root policy delta against the immutable
+predecessor. All three standalone Scala sources are included in the live scan.
+
+Seven additional controls reject a retired sidecar, duplicate typed owner,
+unknown extra source root, removal of the enrolled root, promotion to a low-level
+exception, deleted forbidden rule, and removal of Scala from scanning. The two
+layering review files also gain live source-tampering controls (28 total). The
+existing 44 independent-parameter Python source/evidence tests run unchanged in
+targeted preflight, together with the original layering self-test and live audit.

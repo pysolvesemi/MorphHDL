@@ -15,6 +15,7 @@
     "morphruntime/src/main",
     "paramrtl/src/main",
     "repro/independent-parameters/src/main",
+    "repro/remaining-wires/src/main",
     "scalaplugin/src/main",
     "sim/src/main",
     "tester/src/main"
@@ -393,6 +394,7 @@
         "morphruntime/src/main/",
         "paramrtl/src/main/",
         "repro/independent-parameters/src/main/",
+        "repro/remaining-wires/src/main/",
         "scalaplugin/src/main/",
         "sim/src/main/",
         "tester/src/main/"

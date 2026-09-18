@@ -19,6 +19,8 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 OVERLAY_CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 # Exact paths for this repair's review infrastructure; no source root wildcard.
 REVIEW_PATHS = frozenset((
+    'morphhdl/contracts/increment-54-typed-layering-ir.contract',
+    'morphhdl/scripts/check-typed-layering-ir.py',
     # PR190: exact sequential-consumer successor; every path is also byte-sealed.
     '.github/workflows/sequential-source-review-targeted.yml',
     '.github/workflows/sequential-wire-consumers.yml',

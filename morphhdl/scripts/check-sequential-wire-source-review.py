@@ -33,6 +33,8 @@ IMPLEMENTATION_PATHS = frozenset((
     'repro/remaining-wires/src/main/scala/RemainingWireTrace.scala',
 ))
 REVIEW_PATHS = frozenset((
+    'morphhdl/contracts/increment-54-typed-layering-ir.contract',
+    'morphhdl/scripts/check-typed-layering-ir.py',
     '.github/workflows/increment-62-wa08-source-overlay.yml',
     '.github/workflows/sequential-source-review-targeted.yml',
     '.github/workflows/sequential-wire-consumers.yml',
@@ -142,6 +144,32 @@ def safety_failures(path: str, text: str) -> list[str]:
     return errors
 
 
+def verify_layering_successor(root: Path) -> None:
+    """Add exactly one scanned high-level root; retain every other audit rule."""
+    contract = "morphhdl/contracts/increment-54-typed-layering-ir.contract"
+    checker = "morphhdl/scripts/check-typed-layering-ir.py"
+    new_root = "repro/remaining-wires/src/main"
+    before = json.loads(git(root, "show", BASE + ":" + contract))
+    expected = json.loads(json.dumps(before))
+    require(new_root not in expected["production_source_roots"], "root already in predecessor")
+    expected["production_source_roots"] = sorted(expected["production_source_roots"] + [new_root])
+    sidecar = next(rule for rule in expected["forbidden_source_rules"]
+                   if rule["id"] == "obsolete-parameterized-sidecar-symbol")
+    sidecar["path_prefixes"] = sorted(sidecar["path_prefixes"] + [new_root + "/"])
+    current = json.loads((root / contract).read_text())
+    require(current == expected, "layering policy changed beyond the additional scanned root")
+    require(new_root not in current["low_level_source_roots"], "reproducer became an audit exception")
+    def digest(value: dict) -> str:
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
+                                        ensure_ascii=True).encode()).hexdigest()
+    original = git(root, "show", BASE + ":" + checker).decode()
+    marker = 'EXPECTED_CONTRACT_SHA256 = "' + digest(before) + '"'
+    require(original.count(marker) == 1, "missing original layering contract pin")
+    expected_checker = original.replace(marker, 'EXPECTED_CONTRACT_SHA256 = "' + digest(current) + '"')
+    require((root / checker).read_text() == expected_checker,
+            "layering checker changed beyond its exact contract digest")
+
+
 def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root = root.resolve()
     outer = load_outer(root)
@@ -154,6 +182,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
                 "immutable source tree changed")
     require(changed(root, BASE, SOURCE) == IMPLEMENTATION_PATHS,
             "implementation introduction inventory changed")
+    verify_layering_successor(root)
     actual = changed(root, BASE, "HEAD")
     require(actual <= IMPLEMENTATION_PATHS | REVIEW_PATHS,
             "unreviewed successor paths: " + repr(sorted(actual - IMPLEMENTATION_PATHS - REVIEW_PATHS)))
