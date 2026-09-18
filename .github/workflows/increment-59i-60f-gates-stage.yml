@@ -30,7 +30,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/59i-60f-gates-evidence"
-          python3 -B .github/recovery/59i-60f-gates/stage.py prepare \
+          python3 -B .github/recovery/59i-60f-gates/test_secure_artifact.py 2>&1 | tee "$RUNNER_TEMP/59i-60f-gates-evidence/transport-tests.log"
+          python3 -B .github/recovery/59i-60f-gates/secure_artifact.py prepare \
             --repository "$GITHUB_WORKSPACE" \
             --destination "$RUNNER_TEMP/59i-60f-gates-source" \
             --output "$RUNNER_TEMP/59i-60f-gates-evidence" \
@@ -47,7 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          python3 -B .github/recovery/59i-60f-gates/stage.py publish \
+          python3 -B .github/recovery/59i-60f-gates/secure_artifact.py publish \
             --repository "$GITHUB_WORKSPACE" \
             --destination "$RUNNER_TEMP/59i-60f-gates-source" \
             --output "$RUNNER_TEMP/59i-60f-gates-evidence" \
