@@ -22,12 +22,16 @@ concurrency:
   group: increment-60b-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-60b-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b'))
+      || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Signedness authority Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -50,6 +54,7 @@ jobs:
           mkdir -p target/increment-60b
           git archive HEAD | gzip > target/increment-60b/source.tar.gz
           python3 morphhdl/scripts/check-increment-60b-signedness-authority.py
+          python3 -B morphhdl/scripts/test-increment-60b-inherited-source-scope.py
           python3 morphhdl/scripts/check-increment-58-retirement.py
           python3 morphhdl/scripts/check-production-retirement.py
           python3 morphhdl/scripts/check-native-source-preservation.py

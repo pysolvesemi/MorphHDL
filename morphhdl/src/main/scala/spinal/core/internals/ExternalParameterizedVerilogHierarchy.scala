@@ -38,6 +38,22 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       Set(parameter.declarationRoot)
   }
 
+  /** This binding is minted only after compound ports retain the exact same
+    * declaration axes in the parent, actual child and canonical definition.
+    * A schema's legacy declarationRoot is not necessarily the frontend root.
+    */
+  private final case class InheritedAxisBinding(
+      parameter: ElaborationIntegerParameter,
+      root: ElaborationIntegerParameterRoot
+  ) extends BindingExpr {
+    override def render: String = parameter.name
+    override def default: BigInt = parameter.default
+    override def minimum: BigInt = parameter.minimum
+    override def maximum: BigInt = parameter.maximum
+    override def parameters: Vector[ElaborationIntegerParameter] = Vector(parameter)
+    override def parameterRoots: Set[ElaborationIntegerParameterRoot] = Set(root)
+  }
+
   private final case class LiteralBinding(value: BigInt) extends BindingExpr {
     override def render: String = value.toString
     override def default: BigInt = value
@@ -547,7 +563,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
 
     ExternalFormalParameterRegistry.bindingsOf(child).foreach { binding =>
-      if (binding.actual.exactDomain.nonEmpty) {
+      if (ElaborationProductDomain.isRetained(binding.actual)) {
+        ElaborationProductDomain.owner(binding.actual, "compound child formal actual", binding.sourceLocation) {
+          (_, universe) => universe
+        }
+      } else if (binding.actual.exactDomain.nonEmpty) {
         ParameterizedStructure
           .projectedChildEvaluationOf(
             parent,
@@ -634,13 +654,16 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           validateParameterBinding(expression, parameter, instanceName, pc)
           parameter.name -> expression
         } else if (parameterPorts.isEmpty) {
-          val expression = componentOnlyBinding(
+          val expression = inheritedCompoundBinding(
+            parent, child, canonical, actualByName, canonicalPorts,
+            assignments, parameter, instanceName
+          ).getOrElse(componentOnlyBinding(
             canonical = canonical,
             child = child,
             parameter = parameter,
             definitionName = definitionName,
             instanceName = instanceName
-          )
+          ))
           validateParameterBinding(expression, parameter, instanceName, pc)
           parameter.name -> expression
         } else {
@@ -832,23 +855,184 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     }
 
     val bindingMap = bindings.toMap
+    val compoundWidths = canonicalPorts.flatMap { case (name, port) =>
+      // Inherited product-domain ports have already passed the exact owner,
+      // declaration-root and whole-width equivalence proof in
+      // inheritedCompoundBinding. They carry no explicit typed child family
+      // and must not enter the separate finite-table family substitution.
+      ParameterizedWidth.expressionOf(port).filter { width =>
+        width.completedParameterRoots.size > 1 &&
+          !width.parameters.forall(p => bindingMap(p.name).isInstanceOf[InheritedAxisBinding])
+      }.map { _ =>
+        name -> validateTypedCompoundPortConnections(parent, child, canonical, actualByName(name), port,
+          assignments, instanceName, name)
+      }
+    }.toMap
     val ports = canonicalPorts.flatMap { case (name, port) =>
       ParameterizedWidth.expressionOf(port).flatMap { definitionWidth =>
         val expression = ParameterizedWidth.parameterOf(port) match {
           case Some(parameter) => bindingMap(parameter.name)
-          case None =>
+          case None if definitionWidth.parameters.nonEmpty &&
+              definitionWidth.parameters.forall(p => bindingMap(p.name).isInstanceOf[InheritedAxisBinding]) =>
+            // The exact width functions and declaration identities were proved
+            // above. Keep the parent owner's existing width expression rather
+            // than manufacture a differently formatted substitution/range.
+            val connected = distinctBindings(connectionEvidence(
+              parent, child, actualByName(name), assignments,
+              s"inherited compound port '$name' of '$instanceName'"))
+            if (connected.size != 1) fail(
+              "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-CONFLICT",
+              s"inherited compound port '$name' of '$instanceName' has no unique parent width")
+            connected.head
+          case None => compoundWidths.getOrElse(name,
             instantiateDerivedPortWidth(
               definitionWidth,
               bindingMap,
               definitionName,
               instanceName,
               name
-            )
+            ))
         }
         if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
       }
     }
     InstancePlan(definitionName, instanceName, bindings, ports)
+  }
+
+  private final case class CompoundWidthFunction(
+      roots: Vector[ElaborationIntegerParameterRoot],
+      schemas: Vector[ElaborationIntegerParameter],
+      rootValues: Vector[Vector[BigInt]],
+      results: Map[Vector[BigInt], BigInt]) {
+    def at(values: Vector[(ElaborationIntegerParameterRoot, BigInt)]): Option[BigInt] = {
+      val key = roots.map(root => values.find(_._1 eq root).map(_._2))
+      if (key.exists(_.isEmpty)) None else results.get(key.map(_.get))
+    }
+  }
+
+  private def compoundDeclarationFunction(port: BaseType): CompoundWidthFunction = {
+    val role = "typed compound hierarchy port width"
+    val width = ParameterizedWidth.expressionOf(port).getOrElse(
+      ElabInt.literal(port.getBitsWidth).expression)
+    NativePublicationWidth.validate(width, port.component, port, role)
+    if (width.parameters.isEmpty)
+      return CompoundWidthFunction(Vector.empty, Vector.empty, Vector.empty,
+        Map(Vector.empty[BigInt] -> width.default))
+    ElaborationWidthAuthority.ownerEvaluation(width, role, width.sourceLocation) {
+      (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
+        port.component, port, root, universe, role, width.sourceLocation).values
+    } match {
+      case Some(evaluation) =>
+        CompoundWidthFunction(evaluation.roots,
+          evaluation.roots.map(root => width.parameters.find(root.isAuthoritativeSchema).get),
+          evaluation.rootValues, evaluation.results)
+      case None =>
+        val domain = width.exactDomain.get
+        val evaluation = ParameterizedStructure.projectedDeclarationEvaluationOf(
+          port.component, port, width, role, width.sourceLocation).get
+        CompoundWidthFunction(Vector(domain.root), Vector(domain.parameter),
+          Vector(evaluation.rootValues.toVector.sorted),
+          evaluation.results.map { case (key, value) => Vector(key) -> value }.toMap)
+    }
+  }
+
+  /** A complete typed family authorizes substitution of every participating
+    * child declaration, but does not authorize a same-witness parent wire.
+    * Compare finite functions using exact native owner domains before the
+    * separate rendering-only substitution below. No printed algebra is proof.
+    */
+  private def validateTypedCompoundPortConnections(
+      parent: Component, child: Component, canonical: Component,
+      actualPort: BaseType, canonicalPort: BaseType,
+      assignments: Vector[DataAssignmentStatement], instanceName: String, portName: String
+  ): BindingExpr = {
+    val role = s"compound port '$portName' of instance '$instanceName'"
+    def conflict(detail: String): Nothing = fail(
+      "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT", s"$role $detail")
+    val definition = compoundDeclarationFunction(canonicalPort)
+    val actualDefinition = compoundDeclarationFunction(actualPort)
+    val canonicalInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(canonical)
+    val actualInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(child)
+    val slots = definition.schemas.map { schema =>
+      val canonicalSlot = canonicalInventory.filter(_.binding.formal eq schema)
+      val actualSlot = actualInventory.filter(_.binding.formal.name == schema.name)
+      if (canonicalSlot.size != 1 || actualSlot.size != 1 ||
+          actualSlot.head.binding.formal != schema ||
+          !actualDefinition.schemas.exists(_ eq actualSlot.head.binding.formal))
+        conflict("does not map every exact declaration through its complete typed family")
+      actualSlot.head.binding
+    }
+    if (actualDefinition.schemas.size != slots.size)
+      conflict("changed its participating definition declaration inventory")
+    val actuals = slots.map { slot =>
+      val expression = slot.actual
+      if (expression.parameters.isEmpty) {
+        ElaborationWidthAuthority.requireAuthoritative(expression, role,
+          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT")
+        CompoundWidthFunction(Vector.empty, Vector.empty, Vector.empty,
+          Map(Vector.empty[BigInt] -> expression.default))
+      } else {
+        val domain = expression.exactDomain.getOrElse(conflict("lost exact typed actual evidence"))
+        val evaluation = ParameterizedStructure.projectedChildEvaluationOf(
+          parent, child, expression, role, expression.sourceLocation).getOrElse(
+          conflict("lost its exact parent-owned actual evaluation"))
+        CompoundWidthFunction(Vector(domain.root), Vector(domain.parameter),
+          Vector(evaluation.rootValues.toVector.sorted),
+          evaluation.results.map { case (key, value) => Vector(key) -> value }.toMap)
+      }
+    }
+    val axes = actuals.flatMap(value => value.roots.indices.map(index =>
+      (value.roots(index), value.schemas(index), value.rootValues(index))))
+      .foldLeft(Vector.empty[(ElaborationIntegerParameterRoot, ElaborationIntegerParameter, Vector[BigInt])]) {
+        case (known, axis) => known.find(_._1 eq axis._1) match {
+          case Some(previous) =>
+            if ((previous._2 ne axis._2) || previous._3 != axis._3)
+              conflict("has inconsistent exact domains for correlated parent actuals")
+            known
+          case None => known :+ axis
+        }
+      }
+    if (axes.foldLeft(BigInt(1))((size, axis) => size * axis._3.size) >
+        ElaborationExactDomain.MaximumDomainSize)
+      conflict("exceeds the bounded exact parent-domain proof")
+    val keys = axes.foldLeft(Vector(Vector.empty[BigInt])) { (prefixes, axis) =>
+      prefixes.flatMap(prefix => axis._3.map(prefix :+ _))
+    }
+    // Reuse all established direction, full-port and native connection guards.
+    val connections = connectionEvidence(parent, child, actualPort, assignments, role)
+    if (connections.isEmpty) conflict("has no direct parent connection validating its width")
+    val connectedLeaves = if (actualPort.isInput) {
+      assignments.filter(_.finalTarget eq actualPort).map(_.source)
+    } else {
+      assignments.filter(_.source eq actualPort).map(_.finalTarget)
+    }
+    if (connectedLeaves.size != connections.size) conflict("lost its direct parent connection inventory")
+    connectedLeaves.foreach { expression =>
+      val port = expression match {
+        case value: BaseType if value.component eq parent => value
+        case _ => conflict("requires one exact direct parent packed leaf")
+      }
+      val connected = compoundDeclarationFunction(port)
+      if (connected.roots.size != axes.size || axes.exists { axis =>
+          val index = connected.roots.indexWhere(_ eq axis._1)
+          index < 0 || (connected.schemas(index) ne axis._2) ||
+            !axis._3.forall(connected.rootValues(index).contains)
+        }) conflict("is connected through different parent declaration roots or owner domains")
+      keys.foreach { key =>
+        val parentValues = axes.map(_._1).zip(key)
+        val values = actuals.map(_.at(parentValues).getOrElse(
+          conflict("has incomplete actual function evidence")))
+        val canonicalValue = definition.at(definition.roots.zip(values))
+        val actualValue = actualDefinition.at(slots.map(_.formal.declarationRoot).zip(values))
+        if (canonicalValue.isEmpty || actualValue != canonicalValue ||
+            connected.at(parentValues) != canonicalValue)
+          conflict("does not preserve its complete instantiated width function")
+      }
+    }
+    // Reuse the exact proven parent declaration's spelling. Rendering a new
+    // equivalent expression here would create a competing textual range for
+    // that same native net in the ordinary declaration publication pass.
+    connections.head
   }
 
   /** Substitute one definition-side derived packed width with the already
@@ -1066,27 +1250,25 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         component: Component,
         role: String
     ): Vector[FormalBindingEvidence] = {
-      val typed = ExternalFormalParameterRegistry.typedBindingsOf(component)
+      val typed = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
       if (typed.nonEmpty) {
-        if (typed.size != 1) {
+        val selected = typed.filter { value =>
+          if (role == "canonical") value.binding.formal eq parameter
+          else value.binding.formal == parameter
+        }
+        if (selected.size > 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
             s"candidate pulled Vec surface of instance '$instanceName' retains ${typed.size} opaque $role formal capabilities; exactly one is required",
             typed.flatMap(_.binding.sourceLocation).headOption
           )
         }
-        val value = typed.head
-        val schemaMatches =
-          if (role == "canonical") value.binding.formal eq parameter
-          else value.binding.formal == parameter
-        if (schemaMatches)
-          Vector(
+        selected.map { value =>
             FormalBindingEvidence(
               value.binding,
               Some(value.declarationToken)
             )
-          )
-        else Vector.empty
+        }
       } else
         ExternalFormalParameterRegistry
           .bindingsOf(component)
@@ -1306,6 +1488,93 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     AggregateBindingEvidence(present, bindings.toVector, covered.toVector)
   }
 
+  /** Passing the same typed declarations through a component constructor is
+    * an identity binding, not an attempt to solve A+B from a concrete width.
+    * Admit it only on certified compound ports and exact, full parent wires.
+    * Explicit formals retain their existing independent capability protocol.
+    */
+  private def inheritedCompoundBinding(
+      parent: Component,
+      child: Component,
+      canonical: Component,
+      actualByName: Map[String, BaseType],
+      canonicalPorts: Vector[(String, BaseType)],
+      assignments: Vector[DataAssignmentStatement],
+      parameter: ElaborationIntegerParameter,
+      instanceName: String
+  ): Option[BindingExpr] = {
+    if (ExternalFormalParameterRegistry.bindingsOf(canonical).nonEmpty ||
+        ExternalFormalParameterRegistry.bindingsOf(child).nonEmpty ||
+        ExternalFormalParameterRegistry.typedBindingsOf(canonical).nonEmpty ||
+        ExternalFormalParameterRegistry.typedBindingsOf(child).nonEmpty)
+      return None
+    val dependent = canonicalPorts.flatMap { case (name, port) =>
+      ParameterizedWidth.expressionOf(port).filter(_.parameters.exists(_ eq parameter))
+        .map(width => (name, port, width))
+    }
+    if (dependent.isEmpty || dependent.exists(entry => !ElaborationProductDomain.isRetained(entry._3)))
+      return None
+    val role = s"inherited compound parameter '${parameter.name}' of '$instanceName'"
+    def reject(detail: String): Nothing = fail(
+      "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-INHERITED-IDENTITY-MISMATCH",
+      s"$role $detail")
+    if (!componentParameters(parent).exists(_ eq parameter))
+      reject("does not retain its exact schema in the parent")
+    def proof(component: Component, port: BaseType,
+              width: ElaborationIntegerExpression): ElaborationProductDomain.OwnerProof = {
+      if ((port.component ne component) || !ElaborationProductDomain.isRetained(width))
+        reject("does not retain a certified width on its exact native owner")
+      ElaborationProductDomain.owner(width, role, width.sourceLocation) { (root, universe) =>
+        ParameterizedStructure.exactDeclarationDomainOf(
+          component, port, root, universe, role, width.sourceLocation).values
+      }.get
+    }
+    var axis: Option[ElaborationIntegerParameterRoot] = None
+    dependent.foreach { case (name, expectedPort, expectedWidth) =>
+      val expected = proof(canonical, expectedPort, expectedWidth)
+      val index = expected.schemas.indexWhere(_ eq parameter)
+      if (index < 0 || !expected.roots(index).isAuthoritativeSchema(parameter))
+        reject("lost its authoritative declaration axis")
+      val root = expected.roots(index)
+      if (axis.exists(_ ne root)) reject("uses different axes on dependent ports")
+      axis = Some(root)
+      // This first bridge supports full declaration domains. A branch-local
+      // child binding requires a separate joint owner/capability proof.
+      if (expected.rootValues.zip(expected.schemas).exists { case (values, schema) =>
+          BigInt(values.size) != schema.maximum - schema.minimum + 1 ||
+            values.head != schema.minimum || values.last != schema.maximum
+        }) reject("requires full, unprojected declaration domains")
+      val actualPort = actualByName(name)
+      val actualWidth = ParameterizedWidth.expressionOf(actualPort).getOrElse(
+        reject("lost its actual child width"))
+      if (!expected.equivalent(proof(child, actualPort, actualWidth)))
+        reject("canonical and actual child axes or width functions differ")
+      // Reuse the established full-connection checks before recovering the
+      // exact corresponding parent leaf. No names, defaults or slices infer
+      // the roots of a compound expression.
+      val connections = connectionEvidence(parent, child, actualPort, assignments, role)
+      if (connections.isEmpty) reject("has no validating parent connection")
+      val leaves = if (actualPort.isInput) assignments.collect {
+        case assignment if (assignment.target eq actualPort) &&
+            (assignment.finalTarget eq actualPort) => assignment.source
+      } else assignments.collect {
+        case assignment if (assignment.source eq actualPort) &&
+            (assignment.target eq assignment.finalTarget) &&
+            (assignment.finalTarget.component eq parent) => assignment.finalTarget
+      }
+      if (leaves.size != connections.size) reject("has incomplete parent connection evidence")
+      leaves.foreach {
+        case leaf: BitVector if leaf.component eq parent =>
+          val width = ExternalParameterizedHierarchyResizeWidth.expressionOf(parent, leaf)
+            .getOrElse(reject("lost its parent width"))
+          if (!expected.equivalent(proof(parent, leaf, width)))
+            reject("parent and child declaration axes or width functions differ")
+        case _ => reject("requires a direct parent packed leaf")
+      }
+    }
+    Some(InheritedAxisBinding(parameter, axis.get))
+  }
+
   private def componentOnlyBinding(
       canonical: Component,
       child: Component,
@@ -1313,9 +1582,11 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       definitionName: String,
       instanceName: String
   ): BindingExpr = {
-    val canonicalTyped = ExternalFormalParameterRegistry.typedBindingsOf(canonical)
-    val actualTyped = ExternalFormalParameterRegistry.typedBindingsOf(child)
-    val hasTyped = canonicalTyped.nonEmpty || actualTyped.nonEmpty
+    val canonicalInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(canonical)
+    val actualInventory = ExternalFormalParameterRegistry.completeTypedBindingsOf(child)
+    val canonicalTyped = canonicalInventory.filter(_.binding.formal eq parameter)
+    val actualTyped = actualInventory.filter(_.binding.formal == parameter)
+    val hasTyped = canonicalInventory.nonEmpty || actualInventory.nonEmpty
     val (canonicalBindings, actualBindings) =
       if (hasTyped) {
         if (canonicalTyped.size != 1 || actualTyped.size != 1) {
@@ -1442,14 +1713,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         s"formal slot '${parameter.name}' of instance '$instanceName' is retained on only ${portFormals.size} of ${parameterPorts.size} $role packed ports"
       )
     } else {
-      val typedAll = ExternalFormalParameterRegistry.typedBindingsOf(component)
-      if (typedAll.size > 1) {
-        fail(
-          "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
-          s"typed component on the $role side of instance '$instanceName' retains ${typedAll.size} opaque formal capabilities; ElabFormalComponent admits exactly one",
-          typedAll.flatMap(_.binding.sourceLocation).headOption
-        )
-      }
+      val typedAll = ExternalFormalParameterRegistry.completeTypedBindingsOf(component)
       val typed = typedAll.flatMap { value =>
         val schemaMatches =
           if (role == "canonical") value.binding.formal eq parameter

@@ -5,16 +5,72 @@ from __future__ import annotations
 import argparse
 import functools
 import hashlib
+import importlib.util
 import json
 import re
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "2346b3db0698ecf85e1ec04e21df7c728c93b6f15c7ff6248f8868a4a099798e"
+CONTRACT_SHA256 = "84b14f56e54a729a1e83dc8c1bc0902c78f7b758ff3cc4d5f1310d13e4c2c365"
+
+
+def integration_review(root: Path):
+    checker = root / "morphhdl/scripts/check-increment-59i-target-integration.py"
+    manifest = root / "morphhdl/contracts/increment-59i-target-integration.json"
+    if not any(path.exists() or path.is_symlink() for path in (checker, manifest)):
+        return None
+    for path in (checker, manifest):
+        require(path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111,
+                "59i target integration requires a regular reviewer and manifest")
+        relative = path.relative_to(root)
+        require(all(not (root / Path(*relative.parts[:i])).is_symlink()
+                    for i in range(1, len(relative.parts))),
+                "59i target integration reviewer ancestry is linked")
+    raw = checker.read_bytes()
+    pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
+    require(len(re.findall(pattern, raw, re.M)) == 1,
+            "59i target integration reviewer seal is ambiguous")
+    normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(hashlib.sha256(normalized).hexdigest() == "e72cb02d32fb60bab4d323aa7636e80a2c9747c856a68e5a9de18cf7b525ecb2",
+            "59i target integration reviewer changed")
+    # Share only authenticated code and its immutable-object caches. Every
+    # caller still reads the current manifest and verifies live checkout bytes.
+    name = "increment_59i_target_integration_" + hashlib.sha256(raw).hexdigest()
+    module = sys.modules.get(name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(name, checker)
+        require(spec is not None and spec.loader is not None,
+                "cannot load exact 59i target integration reviewer")
+        module = importlib.util.module_from_spec(spec)
+        exec(compile(raw, str(checker), "exec"), module.__dict__)
+        sys.modules[name] = module
+    module.contract(root)
+    return module
+
+
+
+def overlay_target_source(root: Path, integration, path: str, source: bytes) -> bytes:
+    projected = integration.target_source(root, path, source)
+    successor = integration.successor_review(root)
+    if successor is not None and successor.contract(root)["schema_version"] == 3:
+        # Increment 61 has its own retained certificate. Its approved delta is
+        # projected only for this older WA-08 source audit, never for compilation.
+        return successor.increment61_predecessor_source(root, path, projected)
+    return projected
+
+
+def overlay_target_inventory(root: Path, integration, paths: set[str], base: str,
+        full: bool = False) -> set[str]:
+    projected = integration.target_inventory(root, paths, base, full)
+    successor = integration.successor_review(root)
+    if successor is not None and successor.contract(root)["schema_version"] == 3:
+        return successor.increment61_predecessor_inventory(root, projected, base, full)
+    return projected
 
 
 def require(ok: bool, detail: str) -> None:
@@ -38,7 +94,8 @@ def governed(path: str) -> bool:
     return (re.search(r"(?:^|/)src/(?:main|test)/", path) is not None or
             path.startswith(("morphhdl/scripts/", "morphhdl/contracts/",
                              "morphhdl-passes/scripts/", "morphhdl-passes/tests/",
-                             "morphhdl-passes/examples/", ".github/workflows/")) or
+                             "morphhdl-passes/examples/", ".github/workflows/",
+                             "repro/independent-parameters/")) or
             path in ("build.sbt", "build.mill", "morphhdl-passes/build.sbt"))
 
 
@@ -82,7 +139,11 @@ def contract(root: Path) -> dict:
                 (entry["before_sha256"] is None or
                  re.fullmatch(r"[0-9a-f]{64}", entry["before_sha256"]) is not None),
                 "invalid reviewed source entry")
-    require(digest(normalized_helper(regular(root, HELPER))) ==
+    helper = regular(root, HELPER)
+    integration = integration_review(root)
+    if integration is not None:
+        helper = overlay_target_source(root, integration, HELPER, helper)
+    require(digest(normalized_helper(helper)) ==
             value["helper_normalized_sha256"], "sealed overlay helper changed")
     return value
 
@@ -105,6 +166,9 @@ def tree(root: Path, revision: str) -> dict[str, tuple[str, str]]:
 
 def verify(root: Path) -> dict:
     root = root.resolve()
+    integration = integration_review(root)
+    # The inventory projection below runs the complete current integration
+    # verifier once; no cached verification result authorizes this checkout.
     value = contract(root)
     head = git(root, "rev-parse", "HEAD").decode().strip()
     git(root, "merge-base", "--is-ancestor", BASE, head)
@@ -121,14 +185,17 @@ def verify(root: Path) -> dict:
             indexed[path.decode()] = (mode, blob)
     for path, entry in records.items():
         raw = regular(root, path, entry["mode"])
-        require(digest(raw) == entry["after_sha256"],
+        projected = overlay_target_source(root, integration, path, raw) if integration is not None else raw
+        require(digest(projected) == entry["after_sha256"],
                 "unreviewed production delta: current reviewed bytes differ: " + path)
         old = frozen(root, BASE, path)
         require((digest(old) if old is not None else None) == entry["before_sha256"],
                 "immutable baseline bytes differ: " + path)
         expected = (entry["mode"], hashlib.sha1(
             b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest())
-        require(final.get(path) == expected, "immutable final source differs: " + path)
+        historical = (entry["mode"], hashlib.sha1(
+            b"blob " + str(len(projected)).encode() + b"\0" + projected).hexdigest())
+        require(final.get(path) == historical, "immutable final source differs: " + path)
         require(committed.get(path) == indexed.get(path) == expected,
                 "HEAD/index/worktree identity differs: " + path)
     for path in (HELPER, CONTRACT):
@@ -139,6 +206,8 @@ def verify(root: Path) -> dict:
                 "HEAD/index/worktree identity differs: " + path)
     changed = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
                                       "-z", BASE, head).split(b"\0") if p}
+    if integration is not None:
+        changed = overlay_target_inventory(root, integration, changed, BASE, full=True)
     expected = set(records) | {HELPER, CONTRACT}
     require({p for p in changed if governed(p)} == {p for p in expected if governed(p)},
             "unreviewed production delta: governed inventory differs: " +
@@ -187,6 +256,11 @@ def restore_source(root: Path, path: str, source: bytes) -> bytes:
     if entry is None:
         return source
     before = frozen(root.resolve(), BASE, path) or b""
+    if source == before:
+        return before
+    integration = integration_review(root)
+    if integration is not None:
+        source = overlay_target_source(root, integration, path, source)
     require(source == before or digest(source) == entry["after_sha256"],
             "unreviewed bytes cannot enter historical projection: " + path)
     return before
@@ -198,6 +272,9 @@ def restore_text(root: Path, path: str, source: str) -> str:
 
 def inherited_inventory(root: Path, paths: set[str], revision: str) -> set[str]:
     entries = {entry["path"] for entry in verify(root)["files"]}
+    integration = integration_review(root)
+    if integration is not None:
+        paths = overlay_target_inventory(root, integration, paths, revision)
     current = {p.decode() for p in git(root, "diff", "--no-renames", "--name-only",
                                       "-z", revision, "HEAD").split(b"\0") if p}
     # Callers may supply a production-only inventory. Do not introduce test or

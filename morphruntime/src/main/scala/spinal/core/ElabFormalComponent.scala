@@ -6,8 +6,71 @@ package spinal.core
   * child instance retains the caller's exact actual expression through the
   * generic formal registry; no native-Int shadow capture participates.
   */
-private[spinal] object ElabFormalComponent {
+object ElabFormalComponent {
   private val PortableIdentifier = "[A-Za-z_][A-Za-z0-9_]*".r
+
+  /** One named actual and the complete positive domain of its child formal. */
+  final case class Parameter(actual: ElabInt, name: String, minimum: BigInt, maximum: BigInt)
+
+  /** Construct one child with its entire typed formal inventory in one call.
+    * The callback receives definition-side values in the supplied slot order.
+    * It cannot install one slot and subsequently append or replace another.
+    */
+  def parameters[C <: Component](specifications: Seq[Parameter])(
+      constructor: Vector[ElabInt] => C
+  ): C = {
+    if (specifications == null || specifications.isEmpty || specifications.exists(_ == null))
+      fail("SPINAL-ELAB-FORMAL-INVENTORY-INVALID",
+        "typed component construction requires one nonempty complete parameter inventory", None)
+    if (constructor == null)
+      fail("SPINAL-ELAB-FORMAL-CONSTRUCTOR-NULL", "typed component requires a non-null constructor", None)
+    val specs = specifications.toVector
+    if (specs.map(_.name).distinct.size != specs.size)
+      fail("SPINAL-ELAB-FORMAL-INVENTORY-DUPLICATE", "typed inventory contains duplicate formal names", None)
+    val prepared = specs.map { spec =>
+      if (spec.actual == null)
+        fail("SPINAL-ELAB-FORMAL-ACTUAL-NULL", s"typed formal '${spec.name}' requires a non-null actual", None)
+      val code = if (spec.actual.parameters.isEmpty) "SPINAL-ELAB-FORMAL-ACTUAL-LITERAL-INVALID"
+        else "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED"
+      spec.actual.requireAuthoritativeIntegerDomain("typed formal inventory actual", code, requireExactExtrema = false)
+      val actual = spec.actual.projectedExpression("typed formal inventory actual")
+      ElabInt.requireAuthoritativeIntegerDomain(actual, "typed formal inventory actual", code, requireExactExtrema = true)
+      val source = actual.sourceLocation.orElse(Some(s"<typed-formal:${spec.name}>"))
+      if (spec.name == null || !PortableIdentifier.pattern.matcher(spec.name).matches())
+        fail("SPINAL-ELAB-FORMAL-NAME-INVALID", s"typed formal name '${spec.name}' is invalid", source)
+      if (spec.minimum == null || spec.maximum == null || spec.minimum < 1 ||
+          spec.maximum < spec.minimum || spec.maximum > BigInt(Int.MaxValue) ||
+          actual.generateIndex.nonEmpty || actual.minimum < spec.minimum || actual.maximum > spec.maximum ||
+          actual.default < spec.minimum || actual.default > spec.maximum)
+        fail("SPINAL-ELAB-FORMAL-DOMAIN-INVALID",
+          s"typed formal '${spec.name}' actual does not fit its complete positive domain", source)
+      val formal = ElaborationIntegerParameter(spec.name, actual.default, spec.minimum, spec.maximum)
+      (formal, actual, source)
+    }
+    val parent = Option(Component.current).getOrElse {
+      fail("SPINAL-ELAB-FORMAL-PARENT-MISSING", "typed inventory requires an active parent Component", None)
+    }
+    val child = constructor(prepared.map { case (formal, _, source) => ElabInt.directParameter(formal, source) })
+    if (child == null)
+      fail("SPINAL-ELAB-FORMAL-COMPONENT-NULL", "typed inventory constructor returned null", None)
+    if (child.parent ne parent)
+      fail("SPINAL-ELAB-FORMAL-PARENT-MISMATCH", "typed inventory child belongs to a foreign parent", None)
+    // Validate the existing Vec boundary before publishing any new slot. Its
+    // unchanged retention operation is then safe for the complete inventory.
+    val vectors = ParameterizedVec.retainedVectorsOf(child)
+    prepared.foreach { case (formal, actual, _) =>
+      vectors.foreach { vector =>
+        ParameterizedVec.formalBindingsOf(vector).find(_.formal eq formal).foreach { previous =>
+          if (!ElabInt.equivalentExpression(previous.actual, actual))
+            fail("SPINAL-ELAB-VEC-FORMAL-ACTUAL-CONFLICT",
+              s"typed Vec formal '${formal.name}' has a conflicting actual", actual.sourceLocation)
+        }
+      }
+    }
+    ExternalFormalParameterRegistry.retainTypedComponentParameters(child, prepared)
+    prepared.foreach { case (formal, actual, _) => ParameterizedVec.retainComponentFormal(child, formal, actual) }
+    child
+  }
 
   def parameter[C <: Component](
       actual: ElabInt,
@@ -25,18 +88,20 @@ private[spinal] object ElabFormalComponent {
       if (actual.parameters.isEmpty)
         "SPINAL-ELAB-FORMAL-ACTUAL-LITERAL-INVALID"
       else "SPINAL-ELAB-FORMAL-ACTUAL-EXACT-DOMAIN-REQUIRED"
-    actual.requireAuthoritativeIntegerDomain(
-      "typed formal actual",
-      authoredFailureCode,
-      requireExactExtrema = false
-    )
+    val trustedSymbolic = ElaborationProductDomain.isRetained(actual.expression)
+    if (trustedSymbolic) ElaborationProductDomain.requireInteger(actual.expression, "typed formal actual")
+    else actual.requireAuthoritativeIntegerDomain(
+      "typed formal actual", authoredFailureCode, requireExactExtrema = false)
     val expression = actual.projectedExpression("typed formal actual")
-    ElabInt.requireAuthoritativeIntegerDomain(
-      expression,
-      "typed formal actual",
-      authoredFailureCode,
-      requireExactExtrema = true
-    )
+    if (trustedSymbolic) {
+      // Scalar binding itself needs an authentic parent expression, not a joint
+      // value table. A fresh definition-side root below still supplies the
+      // child's structural authority. Keep projected compound bindings closed.
+      ElaborationProductDomain.owner(expression, "typed formal actual", expression.sourceLocation) {
+        (_, universe) => universe
+      }
+    } else ElabInt.requireAuthoritativeIntegerDomain(
+      expression, "typed formal actual", authoredFailureCode, requireExactExtrema = true)
     val source = expression.sourceLocation.orElse(Some(s"<typed-formal:$name>"))
     // A validated parameter-free expression is the literal-authoritative path:
     // the generic formal registry emits that concrete actual directly while the

@@ -19,6 +19,9 @@ concurrency:
   group: morphhdl-external-memory-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Native memory source boundary

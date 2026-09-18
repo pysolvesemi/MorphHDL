@@ -1,0 +1,170 @@
+name: Independent parameter domains
+
+on:
+  push:
+    branches: [parameterized-verilog, agent/independent-parameter-domain-composition]
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - 'core/src/main/scala/spinal/core/ElabInt.scala'
+      - 'core/src/main/scala/spinal/core/NativeSymbolicLegality.scala'
+      - 'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala'
+      - 'morphruntime/**'
+      - 'lib/src/main/scala/spinal/lib/Stream.scala'
+      - 'core/src/main/scala/spinal/core/Elaboration*.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/**'
+      - 'morphhdl/src/test/scala/**'
+      - 'morphhdl/contracts/native-source-preservation.json'
+      - 'morphhdl/contracts/increment-54-typed-layering-ir.contract'
+      - 'morphhdl/scripts/check-typed-layering-ir.py'
+      - 'frontend/**'
+      - 'repro/independent-parameters/**'
+      - '.github/workflows/independent-parameter-domains.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: independent-parameters-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SBT_TEST_PARALLEL: '0'
+  JAVA_TOOL_OPTIONS: '-Xmx2g -XX:ActiveProcessorCount=2'
+  JVM_OPTS: '-Xmx4g -Xss2m -XX:ActiveProcessorCount=2'
+
+jobs:
+  source-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Verify exact source and negative authority controls
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/independent-parameter-source-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD | tee "$evidence/head.txt"
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
+          git diff --check
+          audit_root="$GITHUB_WORKSPACE"
+          if [[ "${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-}}" == agent/increment-61-one-file-per-component ]]; then
+            # Authenticate every current publication change before replaying
+            # the unchanged PR-188 contract at the exact integrated target.
+            # All other source controls and dynamic jobs use the current head.
+            python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$evidence/increment-61-source.log"
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test 2>&1 | tee -a "$evidence/increment-61-source.log"
+            integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+            test "$integrated" = 7f355a859e7e88ca343e1ff82f261fb47b3311d0
+            git merge-base --is-ancestor "$integrated" HEAD
+            printf '%s\n' "$integrated" > "$evidence/inherited-source-head.txt"
+            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-independent-source.XXXXXX")
+            git worktree add --detach "$audit_root" "$integrated"
+            trap 'git worktree remove --force "$audit_root"' EXIT
+          fi
+          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py) 2>&1 | tee "$evidence/source-overlay-live.log"
+          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test) 2>&1 | tee "$evidence/source-overlay-selftest.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$evidence/source-preservation-live.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test 2>&1 | tee "$evidence/source-preservation.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output "$evidence/regenerated-native-manifest.json"
+          cmp morphhdl/contracts/native-source-preservation.json "$evidence/regenerated-native-manifest.json"
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test 2>&1 | tee "$evidence/inherited-inventory-selftest.log"
+          python3 morphhdl/scripts/check-production-retirement.py 2>&1 | tee "$evidence/retirement-live.log"
+          python3 morphhdl/scripts/check-production-retirement.py --self-test 2>&1 | tee "$evidence/retirement.log"
+          python3 morphhdl/scripts/check-typed-layering-ir.py 2>&1 | tee "$evidence/typed-layering-live.log"
+          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test 2>&1 | tee "$evidence/typed-layering.log"
+          cd repro/independent-parameters
+          python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-parameter-source-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/independent-parameter-source-evidence/
+          if-no-files-found: error
+
+  clean-regressions:
+    needs: source-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify pinned tools and clean source compilation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
+          yosys -V
+          yosys -V | grep -Eq '^Yosys 0\.41([ +]|$)'
+          verilator --version
+          iverilog -V
+          java -version
+          python3 repro/independent-parameters/qualify.py --scala '${{ matrix.scala }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-parameter-regressions-${{ matrix.scala }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            independent-parameter-evidence/
+            target/independent-domains-*/
+            morphhdl/target/test-reports/
+            frontend/target/test-reports/
+          if-no-files-found: error
+
+  native-reproducer:
+    needs: source-contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Exact standalone reproducer and byte-for-byte publication
+        run: |
+          set -euo pipefail
+          mkdir -p independent-parameter-evidence
+          git rev-parse HEAD | tee independent-parameter-evidence/head.txt
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
+          cd repro/independent-parameters
+          test "$(cat project/build.properties)" = 'sbt.version=1.10.0'
+          sbt -batch 'runMain repro.IndependentParameterRepro out' 2>&1 | tee ../../independent-parameter-evidence/generation.log
+          sbt -batch 'runMain repro.IndependentParameterRepro out-repeat' 2>&1 | tee ../../independent-parameter-evidence/repeat.log
+          cmp out/RecordWidth.v out-repeat/RecordWidth.v
+          sha256sum out/RecordWidth.v out-repeat/RecordWidth.v | tee ../../independent-parameter-evidence/publication-sha256.txt
+      - name: Same-artifact overrides, every bit, hierarchy, branches and legality
+        run: |
+          set -euo pipefail
+          cd repro/independent-parameters
+          python3 check.py 2>&1 | tee ../../independent-parameter-evidence/native-matrix.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: independent-parameter-native-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            independent-parameter-evidence/
+            repro/independent-parameters/out/
+            repro/independent-parameters/out-repeat/
+            repro/independent-parameters/results/
+          if-no-files-found: error

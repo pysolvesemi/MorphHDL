@@ -11,7 +11,8 @@ private[internals] object NativePublicationWidth {
       roots: Vector[ElaborationIntegerParameterRoot],
       schemas: Vector[ElaborationIntegerParameter],
       rootValues: Vector[Vector[BigInt]],
-      results: Map[Vector[BigInt], BigInt]
+      results: Map[Vector[BigInt], BigInt],
+      product: Option[ElaborationProductDomain.OwnerProof] = None
   )
 
   private def fail(role: String, detail: String,
@@ -34,6 +35,13 @@ private[internals] object NativePublicationWidth {
         "SPINAL-PARAMETERIZED-VERILOG-NATIVE-WIDTH-OWNER-EVIDENCE-MISSING")
       return Evidence(Vector.empty, Vector.empty, Vector.empty,
         Map(Vector.empty[BigInt] -> width.default))
+    }
+    if (ElaborationProductDomain.isRetained(width)) {
+      val owned = ElaborationProductDomain.owner(width, role, width.sourceLocation) {
+        (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
+          component, declaration, root, universe, role, width.sourceLocation).values
+      }.get
+      return Evidence(owned.roots, owned.schemas, owned.rootValues, Map.empty, Some(owned))
     }
     val certified = ElaborationWidthAuthority.ownerEvaluation(width, role, width.sourceLocation) {
       (root, universe) => ParameterizedStructure.exactDeclarationDomainOf(
@@ -89,9 +97,16 @@ private[internals] object NativePublicationWidth {
     val l = evidence(left, component, leftDeclaration, "native resize target width")
     val r = evidence(right, component, rightDeclaration, "native resize source width")
     val nonNegative = if (l.roots.isEmpty) {
-      r.results.values.forall(left.default >= _)
+      r.product.map(value => left.default >= value.maximum)
+        .getOrElse(r.results.values.forall(left.default >= _))
     } else if (r.roots.isEmpty) {
-      l.results.values.forall(_ >= right.default)
+      l.product.map(value => value.minimum >= right.default)
+        .getOrElse(l.results.values.forall(_ >= right.default))
+    } else if (l.product.nonEmpty || r.product.nonEmpty) {
+      (l.product, r.product) match {
+        case (Some(a), Some(b)) if a.sameDomain(b) => a.nonNegativeDifference(b)
+        case _ => return None
+      }
     } else {
       if (l.roots.size != r.roots.size) return None
       val indexes = l.roots.map(root => r.roots.indexWhere(_ eq root))
@@ -117,6 +132,26 @@ private[internals] object NativePublicationWidth {
     val l = evidence(left, component, declaration, "native width freshness")
     if (left eq right) return true
     val r = evidence(right, component, declaration, "native width freshness")
+    equivalentEvidence(l, r)
+  }
+
+  /** A shared native ScopeStatement is not a captured structural-domain proof.
+    * Each side must be validated at its own exact declaration before identity
+    * resize elimination can compare their domains and value functions.
+    */
+  def equivalentAtOwners(left: ElaborationIntegerExpression, leftDeclaration: BaseType,
+                         right: ElaborationIntegerExpression, rightDeclaration: BaseType,
+                         component: Component): Boolean = {
+    val l = evidence(left, component, leftDeclaration, "native source width identity")
+    val r = evidence(right, component, rightDeclaration, "native target width identity")
+    equivalentEvidence(l, r)
+  }
+
+  private def equivalentEvidence(l: Evidence, r: Evidence): Boolean = {
+    if (l.product.nonEmpty || r.product.nonEmpty) return (l.product, r.product) match {
+      case (Some(a), Some(b)) => a.equivalent(b)
+      case _ => false
+    }
     if (l.roots.size != r.roots.size) return false
     val indexes = l.roots.map(root => r.roots.indexWhere(_ eq root))
     if (indexes.exists(_ < 0)) return false

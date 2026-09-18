@@ -1,0 +1,211 @@
+name: Increment 59i exact rollout composition
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-rollout-composition.yml'
+      - 'morphhdl/repair-59i-rollout-composition/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-rollout-composition
+  cancel-in-progress: false
+
+jobs:
+  compose:
+    name: Bind feature and target views to one merged tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      FEATURE_PARENT: ee2e7f2613e54f23158ce1eacae6028409a91ed6
+      TARGET_PARENT: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Verify exact two-parent ancestry
+        id: checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          mkdir -p "$out"
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git merge-base --is-ancestor "$FEATURE_PARENT" HEAD
+          git merge-base --is-ancestor "$TARGET_PARENT" HEAD
+          git rev-parse HEAD > "$out/staging-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/staging-tree.txt"
+          checker=morphhdl/scripts/check-increment-59i-rollout-composition.py
+          contract=morphhdl/contracts/increment-59i-rollout-composition.json
+          if test -e "$checker" || test -L "$checker" || test -e "$contract" || test -L "$contract"; then
+            # Published composition is qualified on this actual committed head.
+            # Do not rerun the one-time constructor over its reviewed output.
+            test -f "$checker" && test ! -L "$checker"
+            test -f "$contract" && test ! -L "$contract"
+            python3 "$checker" | tee "$out/existing-composition.log"
+            cp "$out/staging-head.txt" "$out/composition-head.txt"
+            cp "$out/staging-tree.txt" "$out/composition-tree.txt"
+            echo 'composed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'composed=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare and commit exact bidirectional review
+        if: steps.checkpoint.outputs.composed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+
+          # The widening reviewer is now an immutable BASE->SUCCESSOR audit.
+          # Keep it hash-bound in the composition contract, but do not rewrite
+          # its current-source inventory as the older generator once did.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/repair-59i-rollout-composition/apply.py')
+          text = path.read_text()
+          old = "    patch_parent()\n    patch_widening()\n    patch_rollout()\n"
+          new = ("    patch_parent()\n"
+                 "    # Immutable widening review needs no live-inventory adapter.\n"
+                 "    patch_rollout()\n")
+          if text.count(old) != 1:
+              raise SystemExit('obsolete widening-patch invocation anchor changed')
+          path.write_text(text.replace(old, new, 1))
+          PY
+
+          # 59c is a frozen historical reviewer. In the joined profile it must
+          # hand current bytes to the exact 59h -> 59g -> 59i/60g chain before
+          # applying its own immutable spans. Standalone ordering stays intact.
+          python3 morphhdl/repair-59i-rollout-composition/patch-59c-joined-order.py \
+            | tee "$out/patch-59c-joined-order.log"
+
+          # 60f is frozen historical qualification. Preserve its standalone
+          # current-tree audit, while making its joined mode validate the exact
+          # composition and immutable feature/target native parent views.
+          python3 morphhdl/repair-59i-rollout-composition/patch-60f-native-audit.py \
+            | tee "$out/patch-60f-native-audit.log"
+
+          python3 morphhdl/repair-59i-rollout-composition/run-current.py | tee "$out/application.log"
+          python3 -m py_compile \
+            morphhdl/repair-59i-rollout-composition/apply.py \
+            morphhdl/repair-59i-rollout-composition/run-current.py \
+            morphhdl/repair-59i-rollout-composition/patch-59c-joined-order.py \
+            morphhdl/repair-59i-rollout-composition/patch-60f-native-audit.py \
+            morphhdl/scripts/check-increment-59c-source-review.py \
+            morphhdl/scripts/check-increment-59i-rollout-composition.py \
+            morphhdl/scripts/test-increment-59i-rollout-composition.py \
+            morphhdl/scripts/check-increment-60f-equivalence-closure.py \
+            morphhdl/scripts/check-wa07b-inherited-review.py
+          git diff --check
+          cat > "$out/expected-files.txt" <<'EOF'
+          docs/morphhdl/increment-59i-rollout-composition.md
+          morphhdl/contracts/increment-59i-rollout-composition.json
+          morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py
+          morphhdl/repair-59i-composite-local-enable/promote-reviewed.py
+          morphhdl/repair-59i-rollout-composition/apply.py
+          morphhdl/scripts/check-increment-59c-source-review.py
+          morphhdl/scripts/check-increment-59i-rollout-composition.py
+          morphhdl/scripts/check-increment-59i-source-review.py
+          morphhdl/scripts/check-increment-60f-equivalence-closure.py
+          morphhdl/scripts/check-increment-60g-source-scope.py
+          morphhdl/scripts/check-wa07b-inherited-review.py
+          morphhdl/scripts/test-increment-59i-rollout-composition.py
+          EOF
+          git add -f $(cat "$out/expected-files.txt")
+          git diff --cached --name-only | sort -u > "$out/actual-files.txt"
+          sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: bind exact feature and signed-rollout source views'
+          git rev-parse HEAD > "$out/composition-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/composition-tree.txt"
+          sha256sum $(cat "$out/expected-files.txt") > "$out/composition-sha256.txt"
+
+      - name: Run exact composition and inherited source audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          {
+            python3 morphhdl/scripts/check-increment-59i-target-integration.py
+            python3 morphhdl/scripts/test-increment-59i-target-integration.py
+            python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+            python3 morphhdl/scripts/check-wa10-source-scope.py
+            python3 morphhdl/scripts/check-increment-59i-rollout-composition.py --self-test
+            python3 morphhdl/scripts/test-increment-59i-rollout-composition.py
+            python3 morphhdl/scripts/check-increment-59i-widening-source-review.py
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/test-increment-59i-review-composition.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+          } 2>&1 | tee "$out/source-audits.log"
+
+      - name: Validate immutable native source reviews at both exact parents
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          feature_native=/tmp/59i-rollout-native-feature
+          target_native=/tmp/59i-rollout-native-target
+          rm -rf "$feature_native" "$target_native"
+          cleanup_native_worktrees() {
+            git worktree remove --force "$feature_native" >/dev/null 2>&1 || true
+            git worktree remove --force "$target_native" >/dev/null 2>&1 || true
+          }
+          trap cleanup_native_worktrees EXIT
+          git worktree add --detach "$feature_native" "$FEATURE_PARENT"
+          git worktree add --detach "$target_native" "$TARGET_PARENT"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$out/native-feature-parent.log"
+          (cd "$feature_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$out/overlay-feature-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-native-source-preservation.py) \
+            | tee "$out/native-target-parent.log"
+          (cd "$target_native" && python3 morphhdl/scripts/check-typed-native-source-overlay.py) \
+            | tee "$out/overlay-target-parent.log"
+          cleanup_native_worktrees
+          trap - EXIT
+
+      - name: Publish only from unchanged draft head
+        if: steps.checkpoint.outputs.composed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-rollout-composition"
+          expected=$(cat "$out/staging-head.txt")
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git rev-parse HEAD > "$out/pushed-head.txt"
+
+      - name: Upload exact composition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-rollout-composition
+          path: target/increment-59i-rollout-composition
+          if-no-files-found: error
+          retention-days: 21

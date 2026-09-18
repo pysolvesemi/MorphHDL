@@ -21,6 +21,9 @@ concurrency:
   group: morphhdl-native-streamfifo-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Native StreamFifo source boundary
@@ -30,6 +33,7 @@ jobs:
       - name: Check out complete history
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Prove native overload, pointer wiring and sidecar absence
@@ -55,6 +59,7 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: Install pinned Mill bootstrap
