@@ -42,11 +42,11 @@ INTEGRATION_RECONCILIATIONS = frozenset((
 ))
 # A separately reviewed continuation retains the published seal as its first
 # parent. These are immutable certificates, never moving branch permissions.
-CONTINUATION_PARENT = "37d1629f9b78c4d9cd6646abee9962fdd046e413"
-CONTINUATION_PARENT_TREE = "8d3bd63ada3bdb4ad7db1ed5311260972922c7cb"
-CONTINUATION_PARENT_SOURCE = "8933bb4d8bed35b420f8b14c88636c2d513d7672"
-CONTINUATION_PARENT_MANIFEST = "c64f923ddd7778115a13374505fd90a3a84f04700c8caf77884477f0f2f37ccb"
-CONTINUATION_PARENT_HELPER = "ee3833309ea2306dd34ac07cab18f99384d9e76fb8f3a6da070f2caadfe4e3fa"
+CONTINUATION_PARENT = "f42641880e0645f0c997ecedabd031bf8948bbfa"
+CONTINUATION_PARENT_TREE = "c24dc1b9842849bb10abc3e6ad051fe7f8847172"
+CONTINUATION_PARENT_SOURCE = "7d5a336423fba5b200794045dfd167823590181b"
+CONTINUATION_PARENT_MANIFEST = "279c45f7412a8a4f1844f5ebbe37c6acec40f053cf21d7d624a0bde2f6da3946"
+CONTINUATION_PARENT_HELPER = "c3eff01cc7b0dda2d9d04c288e2ad6942feab0eb100fabd4c4baff76f8c8d5aa"
 CONTINUATION_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 # The immediate sealed predecessor already contains Increment61. The current
 # target delta is exactly 27af65ab..the PR189 merge, including PR187. Its earlier
@@ -88,7 +88,7 @@ def previous_certificate() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "279c45f7412a8a4f1844f5ebbe37c6acec40f053cf21d7d624a0bde2f6da3946"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()

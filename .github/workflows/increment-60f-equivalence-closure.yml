@@ -48,6 +48,7 @@ jobs:
           git archive HEAD | gzip > "$output/source.tar.gz"
           python3 morphhdl/scripts/test-increment-60f-source-budget.py
           python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
+          python3 -B morphhdl/scripts/test-increment-59i-regression-inventory.py
           python3 morphhdl/scripts/test-increment-60f-source-scheduling.py
           python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
           python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
@@ -274,6 +275,11 @@ jobs:
           print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
           PY
 
+          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
+            python3 -B morphhdl/scripts/check-increment-59i-regression-inventory.py prepare \
+              --predecessor "$predecessor" --output "$output/increment-59i-test-inventory.json"
+          fi
+
           (
             cd "$predecessor"
             python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
@@ -300,6 +306,9 @@ jobs:
           total = sum(record["tests"] for record in inherited.values())
           print(f"60f + Increment 61 complete regressions: {total} non-skipped tests")
           PY
+          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
+            python3 -B morphhdl/scripts/check-increment-59i-regression-inventory.py finish --output "$output"
+          fi
       - name: Retain inherited test and solver evidence
         if: always()
         uses: actions/upload-artifact@v4

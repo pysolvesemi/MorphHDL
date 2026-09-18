@@ -79,9 +79,52 @@ def selector(default: int) -> ast.FunctionDef:
 ''').body[0]
 
 
+def restore_reviewed_59h_diagnostics(tree: ast.Module) -> ast.Module:
+    """Reverse only PR189's exact current-before-history rejection routing.
+
+    The complete original AST hash below remains unchanged. Neither timeouts,
+    mutation payloads, exception checks nor any other diagnostic may change.
+    """
+    reviewed = ast.parse('''if label == "changed native printer" and mutation == "suffix" and relative in overlay_paths:
+    expected = "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: " + relative
+elif mutation in ("suffix", "inside") and relative in overlay_paths:
+    expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
+''').body[0]
+    original = ast.parse('''if mutation == "suffix" and relative in overlay_paths:
+    expected = "WA-08 source overlay: unreviewed bytes cannot enter historical projection: " + relative
+''').body[0]
+
+    class RestoreDiagnostics(ast.NodeTransformer):
+        count = 0
+
+        def visit_If(self, node):
+            # Preserve the untouched tail (including all 59d/59f diagnostics).
+            if dump(node.test) == dump(reviewed.test):
+                candidate = copy.deepcopy(node)
+                if len(candidate.orelse) != 1 or not isinstance(candidate.orelse[0], ast.If):
+                    raise AssertionError("unexpected PR189 diagnostic routing")
+                tail = candidate.orelse[0].orelse
+                candidate.orelse[0].orelse = []
+                if dump(candidate) != dump(reviewed):
+                    raise AssertionError("unexpected PR189 diagnostic routing")
+                restored = copy.deepcopy(original)
+                restored.orelse = tail
+                self.count += 1
+                return restored
+            return self.generic_visit(node)
+
+    restorer = RestoreDiagnostics()
+    tree = restorer.visit(tree)
+    if restorer.count != 1:
+        raise AssertionError("expected exactly one reviewed PR189 diagnostic routing")
+    return tree
+
+
 def historical_ast(filename: str, text: str) -> ast.Module:
     default = next(row[2] for row in CASES if row[0] == filename)
     tree = ast.parse(text)
+    if filename == "test-increment-59h-inherited-source-scope.py":
+        tree = restore_reviewed_59h_diagnostics(tree)
     if filename == "test-increment-59g-source-review.py":
         joined = dump(ast.parse("max(600, current_positive_timeout(ROOT))", mode="eval").body)
         unjoined = ast.parse("current_positive_timeout(ROOT)", mode="eval").body
@@ -302,6 +345,37 @@ class InheritedAuditBudgetTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 restored = historical_ast(filename, (SCRIPTS / filename).read_text())
                 self.assertEqual(hashlib.sha256(dump(restored).encode()).hexdigest(), expected)
+
+    def test_reviewed_59h_diagnostic_mutations_do_not_escape_original_fingerprint(self):
+        name, _, _, _, expected = CASES[-1]
+        text = (SCRIPTS / name).read_text()
+        for before, after in (
+            ('label == "changed native printer"', 'label != "changed native printer"'),
+            ('mutation in ("suffix", "inside")', 'mutation in ("suffix", "inside", "anything")'),
+            ('current reviewed bytes differ: ', 'different failure: '),
+            ('unreviewed bytes cannot enter historical projection: ', 'accepted: '),
+            ('elif mutation in ("suffix", "inside")', 'elif True'),
+        ):
+            self.assertIn(before, text)
+            with self.subTest(before=before):
+                changed = text.replace(before, after, 1)
+                try:
+                    value = historical_ast(name, changed)
+                except AssertionError:
+                    continue
+                self.assertNotEqual(hashlib.sha256(dump(value).encode()).hexdigest(), expected)
+
+    def test_duplicate_or_missing_reviewed_diagnostic_route_rejects(self):
+        text = (SCRIPTS / CASES[-1][0]).read_text()
+        for changed in (text.replace('label == "changed native printer"', 'label == "renamed"', 1),
+                        text + '\n' + ast.unparse(ast.parse(text).body[-1]) + '\n'):
+            # Missing route must fail. Appended unrelated statements must either
+            # fail exact normalization or change the whole-module fingerprint.
+            try:
+                value = historical_ast(CASES[-1][0], changed)
+            except AssertionError:
+                continue
+            self.assertNotEqual(hashlib.sha256(dump(value).encode()).hexdigest(), CASES[-1][-1])
 
     def test_selector_mutations_are_rejected(self):
         for filename, _, _, _, _ in CASES:

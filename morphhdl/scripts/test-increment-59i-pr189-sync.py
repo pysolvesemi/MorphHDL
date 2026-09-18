@@ -12,6 +12,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 PARENT = '37d1629f9b78c4d9cd6646abee9962fdd046e413'
 TARGET = 'e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d'
+PREVIOUS = 'f42641880e0645f0c997ecedabd031bf8948bbfa'
 COMMON = '27af65abbee0d2334d6be7a6e4e2408b8af32fd9'
 HELPER = 'morphhdl/scripts/check-increment-59i-production-successor.py'
 CONTRACT = 'morphhdl/contracts/increment-59i-production-successor.json'
@@ -49,17 +50,20 @@ class Sync(unittest.TestCase):
     def verify(self):
         return self.review.verify(self.root)
     def test_exact_merged_target_is_source_parent(self):
-        self.assertEqual(self.review.CONTINUATION_PARENT, PARENT)
+        self.assertEqual(self.review.CONTINUATION_PARENT, PREVIOUS)
+        prior = __import__('json').loads(git(self.root, 'show', PREVIOUS + ':' + CONTRACT))
+        self.assertEqual(git(self.root, 'rev-list', '--parents', '-n', '1', prior['source_commit']).decode().split(),
+            [prior['source_commit'], PARENT, TARGET])
         self.assertEqual(self.review.CONTINUATION_TARGET, TARGET)
         self.assertEqual(git(self.root, 'rev-list', '--parents', '-n', '1', self.value['source_commit']).decode().split(),
-            [self.value['source_commit'], PARENT, TARGET])
+            [self.value['source_commit'], PREVIOUS, TARGET])
     def test_pr189_and_pr187_histories_preserved(self):
         for sha in (TARGET, 'a754a1f2f84b31544a619f8c0456dc23a27e7b88',
                     'f5049ae2abfe5a47cd1fac3574ea08d630bd183f', PARENT):
             git(self.root, 'merge-base', '--is-ancestor', sha, 'HEAD')
     def test_previous_source_seal_bytes_preserved(self):
         self.assertEqual(git(self.root, 'show', self.value['source_commit'] + ':' + CONTRACT),
-                         git(self.root, 'show', PARENT + ':' + CONTRACT))
+                         git(self.root, 'show', PREVIOUS + ':' + CONTRACT))
     def test_target_contracts_preserved_exactly(self):
         for path in ('morphhdl/contracts/increment-61-source-review.json',
                      'morphhdl/contracts/increment-62-wa08-source-overlay.json',

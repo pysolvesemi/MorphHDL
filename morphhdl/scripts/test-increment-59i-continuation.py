@@ -150,9 +150,13 @@ class ContinuationTests(unittest.TestCase):
 
     def test_original_integration_inventory_survives_an_already_integrated_parent(self):
         self.assertEqual(self.review.CONTINUATION_PARENT,
+            'f42641880e0645f0c997ecedabd031bf8948bbfa')
+        sync = json.loads(git(self.root, 'show',
+            self.review.CONTINUATION_PARENT + ':' + CONTRACT))
+        self.assertEqual(sync['previous_seal']['seal_commit'],
             '37d1629f9b78c4d9cd6646abee9962fdd046e413')
         sharded = json.loads(git(self.root, 'show',
-            self.review.CONTINUATION_PARENT + ':' + CONTRACT))
+            sync['previous_seal']['seal_commit'] + ':' + CONTRACT))
         self.assertEqual(sharded['previous_seal']['seal_commit'],
             '969af59a0378fca5b964d04d8f2af49b123dd804')
         immediate = json.loads(git(self.root, 'show',

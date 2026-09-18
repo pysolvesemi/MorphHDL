@@ -85,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "c3eff01cc7b0dda2d9d04c288e2ad6942feab0eb100fabd4c4baff76f8c8d5aa"
+CONTINUATION_HELPER_SHA256 = "fe07b4a07dd2e1d7c31d0dcfeafd5e83eac10ba03ed4a7839db124c2f032e60c"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -128,7 +128,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "b449c9aff9ec8fb735c021a808aaa7c192443a3b8a9fc7298228e832bf223fad":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "7c07c6785673e5677c7a0af71d25fbd33af901407cc3ee67f0777da0a632205f":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")
