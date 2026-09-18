@@ -18,6 +18,21 @@ object TypedBalancedReductionBackend {
   private final case class Body(block: ParameterizedStructuralBlock,
       left: Data, right: Option[Data], result: Data,
       observations: Vector[() => Unit])
+  /** Flatten only the exact structural block's captured statements. Native
+    * register enables keep their assignments inside When bodies; looking only
+    * at the root would discard their drivers from the freshness observation.
+    * No driver is discovered by name, target, or a scan of unrelated source. */
+  private def observedStatements(block: ParameterizedStructuralBlock): Vector[Statement] = {
+    val statements = ArrayBuffer.empty[Statement]
+    block.statements.foreach { statement =>
+      statements += statement
+      statement match {
+        case tree: TreeStatement => tree.walkStatements(statements += _)
+        case _ =>
+      }
+    }
+    statements.toVector
+  }
   private sealed trait Stage {
     def geometry: TypedBalancedReductionStage
     def bodies: Vector[Body]
@@ -603,13 +618,14 @@ object TypedBalancedReductionBackend {
         if (protectedCarriers.exists(leaf => !leaf.dontSimplify || !leaf.hasTag(noBackendCombMerge)))
           fail("CARRIER-POLICY", "proved composite intermediates lost their native carrier policy")
       })
-      val assignments = block.statements.collect { case a: AssignmentStatement => a }
+      val statements = observedStatements(block)
+      val assignments = statements.collect { case a: AssignmentStatement => a }
       // The pair's graph was independently certified before replay. Preserve
       // its conditional primitive inventory through this distinct template;
       // the observer remains a freshness check, not an admission certificate.
       val callback = UnvalidatedBalancedCallback(0,
         Vector(left) ++ right.toVector ++ schema.hardwareInputs,
-        result, block.declarations, assignments, block.statements)
+        result, block.declarations, assignments, statements)
       val observation = if (pair) TypedBalancedReductionClosedGraph.observeCombinational(callback)
         else TypedBalancedReductionClosedGraph.observe(callback)
       observations += (() => observation.requireUnchanged())
@@ -694,10 +710,11 @@ object TypedBalancedReductionBackend {
         if (protectedCarriers.exists(leaf => !leaf.dontSimplify || !leaf.hasTag(noBackendCombMerge)))
           fail("CARRIER-POLICY", "proved widening intermediates lost their native carrier policy")
       })
-      val assignments = block.statements.collect { case a: AssignmentStatement => a }
+      val statements = observedStatements(block)
+      val assignments = statements.collect { case a: AssignmentStatement => a }
       val callback = UnvalidatedBalancedCallback(0,
         Vector(left) ++ right.toVector ++ schema.hardwareInputs,
-        result, block.declarations, assignments, block.statements)
+        result, block.declarations, assignments, statements)
       val observation = if (rightWidths.nonEmpty)
         TypedBalancedReductionClosedGraph.observeCombinational(callback)
         else TypedBalancedReductionClosedGraph.observe(callback)

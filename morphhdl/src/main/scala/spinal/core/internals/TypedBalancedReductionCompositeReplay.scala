@@ -594,6 +594,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       private val observation: TypedBalancedReductionClosedGraph.Observation
   ) {
     val registerCount: Int = leaves.head.registerCount
+    val hasLocalEnables: Boolean = leaves.exists(_.hasLocalEnables)
     def validateFreshness(): Unit = freshOnce(this) {
       input.requireFreshness()
       leaves.foreach(_.validateFreshness())
@@ -626,11 +627,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       if (leaves.forall(_.registerCount == 0)) value
       else {
         val result = cloneShape(nativeResult, widths)
-        result.flatten.toVector.zip(value.flatten.toVector).zip(leaves).zip(widths).foreach {
+        val controls = value.flatten.toVector
+        result.flatten.toVector.zip(controls).zip(leaves).zip(widths).foreach {
           case (((target, source), proof), width) =>
             val replayed = active match {
-              case Some(condition) => proof.replayWithWidth(source, width, condition)
-              case None => proof.replayWithWidth(source, width)
+              case Some(condition) => proof.replayWithWidth(source, width, controls, widths, condition)
+              case None => proof.replayWithWidth(source, width, controls, widths)
             }
             target.assignFrom(replayed)
         }
@@ -646,35 +648,85 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     val observation = TypedBalancedReductionClosedGraph.observe(callback)
     val usedDeclarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val usedAssignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
+    val inputLeaves = new IdentityHashMap[BaseType, java.lang.Integer]()
+    input.evidence.zipWithIndex.foreach { case (evidence, index) =>
+      if (inputLeaves.put(evidence.value, java.lang.Integer.valueOf(index)) != null)
+        fail("BRIDGE-INPUT-ALIAS", "recursive composite inputs cannot share scalar identities")
+    }
+    val owner = input.evidence.head.owner
     val results = callback.result.flatten.toVector
     val leaves = results.zip(input.evidence).map { case (result, evidence) =>
-      val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+      val dataVisited = new IdentityHashMap[Expression, java.lang.Boolean]()
       val declarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
       val assignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
-      def walk(value: Expression): Unit = {
-        if (visited.put(value, java.lang.Boolean.TRUE) != null) return
-        value match {
-          case leaf: BaseType if leaf eq evidence.value =>
-          case leaf: BaseType =>
-            if (!callback.declarations.exists(_ eq leaf))
-              fail("BRIDGE-CROSS-FIELD", "bridge data paths must preserve their exact corresponding input field")
-            declarations.put(leaf, java.lang.Boolean.TRUE)
-            usedDeclarations.put(leaf, java.lang.Boolean.TRUE)
-            callback.assignments.filter(_.finalTarget eq leaf).foreach { assignment =>
-              assignments.put(assignment, java.lang.Boolean.TRUE)
-              usedAssignments.put(assignment, java.lang.Boolean.TRUE)
-              walk(assignment.source)
+      def mark(value: BaseType): Vector[AssignmentStatement] = {
+        if (!callback.declarations.exists(_ eq value))
+          fail("BRIDGE-CROSS-FIELD", "bridge data and local controls must remain inside the callback graph")
+        declarations.put(value, java.lang.Boolean.TRUE)
+        usedDeclarations.put(value, java.lang.Boolean.TRUE)
+        val found = callback.assignments.filter(_.finalTarget eq value)
+        found.foreach { assignment =>
+          assignments.put(assignment, java.lang.Boolean.TRUE)
+          usedAssignments.put(assignment, java.lang.Boolean.TRUE)
+        }
+        found
+      }
+      def condition(assignment: DataAssignmentStatement): Unit = {
+        if (assignment.parentScope ne owner.dslBody) {
+          // ClosedGraph already requires an exact single native When true arm.
+          // A current-chain driver may be registered. An arbitrary registered
+          // peer must still be rejected, even if another data path consumes it.
+          val driver = assignment.source match {
+            case leaf: BaseType => leaf
+            case _ => fail("BRIDGE-CONTROL-DATA", "enabled bridge data must be a full scalar identity path")
+          }
+          val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+          def walkControl(value: Expression): Unit = {
+            if (visited.put(value, java.lang.Boolean.TRUE) != null) return
+            value match {
+              case leaf: BaseType if (leaf eq driver) || inputLeaves.containsKey(leaf) =>
+              case leaf: BaseType =>
+                if (leaf.isReg)
+                  fail("BRIDGE-CONTROL-REGISTER", "a local enable cannot read a registered peer field")
+                mark(leaf).foreach { dependency =>
+                  if (dependency.parentScope ne owner.dslBody)
+                    fail("BRIDGE-CONTROL-SCOPE", "control aliases must be unconditional local combinational nodes")
+                  walkControl(dependency.source)
+                }
+              case expression => expression.foreachExpression(walkControl)
             }
-          case expression => expression.foreachExpression(walk)
+          }
+          assignment.parentScope.parentStatement match {
+            case statement: WhenStatement => walkControl(statement.cond)
+            case _ => fail("BRIDGE-CONTROL-SCOPE", "conditional bridge assignment lost its native When owner")
+          }
         }
       }
-      walk(result)
-      val partition = UnvalidatedBalancedCallback(callback.ordinal, Vector(evidence.value), result,
+      def walkData(value: Expression): Unit = {
+        if (dataVisited.put(value, java.lang.Boolean.TRUE) != null) return
+        value match {
+          case leaf: BaseType if leaf eq evidence.value =>
+          case leaf: BaseType if inputLeaves.containsKey(leaf) =>
+            fail("BRIDGE-CROSS-FIELD", "bridge data paths must preserve their exact corresponding input field")
+          case leaf: BaseType =>
+            mark(leaf).foreach { assignment =>
+              assignment match {
+                case data: DataAssignmentStatement => condition(data)
+                case _ =>
+              }
+              walkData(assignment.source)
+            }
+          case expression => expression.foreachExpression(walkData)
+        }
+      }
+      walkData(result)
+      val controls = input.evidence.map(_.value)
+      val partition = UnvalidatedBalancedCallback(callback.ordinal, controls, result,
         callback.declarations.filter(declarations.containsKey), callback.assignments.filter(assignments.containsKey))
-      TypedBalancedReductionBridgeReplay.certify(partition, evidence)
+      TypedBalancedReductionBridgeReplay.certify(partition, evidence, input.evidence)
     }
     if (usedDeclarations.size != callback.declarations.size || usedAssignments.size != callback.assignments.size)
-      fail("BRIDGE-EFFECT", "bridge contains effects outside its leaf paths")
+      fail("BRIDGE-EFFECT", "bridge contains effects outside its leaf data/control paths")
     if (leaves.isEmpty || leaves.exists(_.registerCount != leaves.head.registerCount))
       fail("BRIDGE-LATENCY", "all composite leaves must advance in lockstep through equal register counts")
     val clocks = callback.declarations.filter(_.isReg).map(_.clockDomain)
