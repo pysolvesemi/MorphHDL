@@ -89,6 +89,7 @@ jobs:
         submodules: recursive
         persist-credentials: false
     - name: Execute unchanged compact and record compiler checks plus all source groups
+      shell: bash
       run: "set -euo pipefail\npython3 - <<'PY'\nimport os,re,subprocess,textwrap\nfrom pathlib import Path\nref='05e8f46b76c39017958b98c36b04475493446cef'\n\
         path='.github/workflows/pr189-compact-timeout.yml'\ndef git(*args):return subprocess.check_output(['git',*args],text=True,timeout=120).strip()\n\
         assert git('rev-parse','HEAD')==os.environ['EXPECTED_HEAD']\nassert git('rev-parse',ref+':'+path)=='4c4d1ed908df6ab4c150d736b7cef57b9918241a'\n\

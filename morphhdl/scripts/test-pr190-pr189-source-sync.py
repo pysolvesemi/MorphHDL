@@ -11,7 +11,51 @@ s=importlib.util.spec_from_file_location('combined_source',ROOT/PATH)
 review=importlib.util.module_from_spec(s);s.loader.exec_module(review)
 
 
+def cdc_shell_contract(source):
+    """The compact job's outer script needs Bash, not container-default sh."""
+    job_marker = "\n  cdc-compact:\n"
+    if source.count(job_marker) != 1:
+        raise AssertionError('Missing or ambiguous compact job')
+    job = source.split(job_marker, 1)[1]
+    # Steps are fixed-indentation YAML in this reviewed workflow. Bound the
+    # check to the exact execution step, so another step cannot supply shell.
+    step_marker = '    - name: Execute unchanged compact and record compiler checks plus all source groups\n'
+    if job.count(step_marker) != 1:
+        raise AssertionError('Missing or ambiguous compact execution step')
+    step = job.split(step_marker, 1)[1].split('\n    - ', 1)[0]
+    shells = [line for line in step.splitlines() if line.lstrip().startswith('shell:')]
+    if shells != ['      shell: bash']:
+        raise AssertionError('Compact execution step must select Bash explicitly')
+
+
+def shell_controls():
+    source = (ROOT/'.github/workflows/sequential-source-review-targeted.yml').read_text()
+    cdc_shell_contract(source)
+    marker = '    - name: Execute unchanged compact and record compiler checks plus all source groups\n'
+    selected = marker + '      shell: bash\n'
+    assert source.count(selected) == 1
+    mutations = (
+        source.replace(selected, marker),
+        source.replace(selected, marker + '      shell: sh\n'),
+        source.replace(selected, marker + '      shell: bash\n      shell: sh\n'),
+    )
+    for mutation in mutations:
+        try:
+            cdc_shell_contract(mutation)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError('Accepted broken container shell configuration')
+    subprocess.run(['bash', '-e', '-o', 'pipefail', '-c',
+                    'set -euo pipefail; values=(compact record); test "${#values[@]}" = 2'], check=True)
+    failed = subprocess.run(['bash', '-e', '-o', 'pipefail', '-c',
+                             'false | cat; exit 0'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert failed.returncode != 0, 'Bash pipeline failures must propagate'
+    print('PR190_CDC_SHELL_CONTROLS_PASS rejected=3 bash_startup=pass pipefail=pass')
+
+
 def main():
+    shell_controls()
     result=review.verify(ROOT)
     paths=sorted(set(result['implementation_paths'])|review.RECONCILED)
     rejected=0
