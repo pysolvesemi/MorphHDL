@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "f1935c800daf1927951d64ea0a182721f1eea59d"
+      "approved_tree": "cb596e268f7ab9c6a4e3b3043779882d8f0dd847"
     },
     {
       "path": "idslpayload/src/main",
@@ -251,9 +251,10 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed width construction and resize overloads without changing ordinary concrete Bits behavior.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
@@ -263,8 +264,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Bits.scala",
         "mode": "100644",
-        "blob": "ee46af0079f4c7867e0d61b4a61b6e819a9c00f9",
-        "sha256": "3d876326a870514f8feabb8127bddff018baa090ed9820de2a4a59d9a3b9c541"
+        "blob": "a4c503d86e86170b2c9abd71dd3256409dc669bb",
+        "sha256": "9c17e0ec277d7b013a74477f676bdeabcb2a6bcc2398df1951c2529b299d8b9e"
       },
       "edits": [
         {
@@ -291,19 +292,42 @@
           ]
         },
         {
+          "id": "bits-native-asbits-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Bits.asBits",
+          "reason": "Keep the existing fresh Bits assignment and record the source width before the native cast clone loses its symbolic geometry.",
+          "baseline_span": {
+            "start": 6471,
+            "end": 6474,
+            "sha256": "85e4aea19de2d285c91b909a8dcd3d895ad511f5c888998471db1734c996c1ee"
+          },
+          "approved_span": {
+            "start": 6696,
+            "end": 6741,
+            "sha256": "e567d8a52f327c273464dde69efa3e4a7d2c77d006273a7fa1d016cc63f71cb7"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(ret, this)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "bits-typed-width-02",
           "kind": "overload",
           "owner": "spinal.core.Bits.resize(ElabInt)",
           "reason": "Add the typed Bits resize overload while routing literal widths through the inherited Int implementation.",
           "baseline_span": {
-            "start": 8470,
-            "end": 8470,
+            "start": 8469,
+            "end": 8469,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8695,
-            "end": 8984,
-            "sha256": "9a68e4e29b7ccc035275c123498ec34d34be9fc8d94ed011c033eea8831d8d25"
+            "start": 8736,
+            "end": 9025,
+            "sha256": "8f646e525b04302036b216389ae9df5e1bb87d95fd3ac106328fe716f9d54b1c"
           },
           "required_exact_text": [
             {
@@ -468,17 +492,18 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "WA-11: authenticated symbolic Boolean/integer conversion normalization",
         "Independent-parameter domain composition corrective repair (2026-09-14)",
         "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Retained 59i review: Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory. Increment 59i additionally retains the internal read-only width query for one exact native leaf; certified callbacks do not inspect mutable registry carriers or runtime values.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElabInt.scala",
         "mode": "100644",
-        "blob": "7c27b11a4156fb9bc6d58ef541c2bfb0751e0b09",
-        "sha256": "f8e28e90edb3841d192e8ea7c81a1bfff514388fd8cd7b11d114fbb7e533f372"
+        "blob": "354eb904053e4b460e20738d1a1c03c1b40b4d66",
+        "sha256": "0317e4d3d2e677ab2e97481ff35b8a70b0fa64c48d08b33f08611371c8a2e11f"
       },
       "edits": []
     },
@@ -1235,20 +1260,38 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Provide a scoped observer interface around actual native clone events and the unchanged inherited Vec zero algorithm. Concrete Vec zero construction remains native; symbolic calls without a backend retain the original unsupported guard. Scope presence alone does not authorize a receiver: the Morph-owned bridge provider must prove exact clone ancestry and immutable owner/geometry/freshness per request. Restore the prior scope in finally; do not retain global clone lineage or implement a replacement zero or reduction algorithm.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+        "mode": "100644",
+        "blob": "2fafdedfc8a1db528bc62cced4e36c4e58dea769",
+        "sha256": "974f2962ccd8f20eef684e71403a05252e242756f0042d339ed407d885ead3f2"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
         "mode": "100644",
-        "blob": "8f80ebeeb44455b58ef3e99ca455b1f4d855942e",
-        "sha256": "f45ed9c60786dc09b999eeb2db96e55988b1fb6201bd0517512d8162d79b7298"
+        "blob": "0cf2db5378c930b23c7fecbea0e864044423881b",
+        "sha256": "548f83ac60ed83ff89a387c6a32bfdd6a0309a5f5c52607464497f54a8f39517"
       },
       "edits": []
     },
@@ -1283,15 +1326,16 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "1083f1067abaf034372ab0bf2520947b6475c492",
-        "sha256": "db959410994b7e9add989eed28546d6441c585e031cb434ea883ca84cda27efb"
+        "blob": "45dee6e75b48a3ee728f27fb6c40754245145b88",
+        "sha256": "92f9d3538e4494b2eef30d1a9dd15a3495daf8b10f839c8bc211079909f7c79c"
       },
       "edits": []
     },
@@ -1300,15 +1344,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own bounded identity-checked recursive Bundle/Vec shape and factorized logical packing evidence, including exact leaf ordering, scalar types, dimension functions, offsets and active-index guards.",
+      "reason": "Retain authoritative recursive Bundle/Vec geometry and exact finite packing. Pure certified leaf-width substitution preserves scalar kinds, field paths, independent dimension identities and capacities, rejects missing or unequal finite copies, and computes logical nested offsets without treating carrier maxima as active depths.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
         "mode": "100644",
-        "blob": "7ebee43d2c51011187481ecc3ee992850b67dc69",
-        "sha256": "71e01420531be00b60ab621fae6e4a0823ffaa50581ff3c4836593416bf3ed1b"
+        "blob": "465c82dad0a7dcd967ce21b1958095b7a95b5bca",
+        "sha256": "3e38be6ef70d3d53814108e20ed231eacf95dda2e6df55dc3a70e2da74d22eee"
       },
       "edits": []
     },
@@ -1330,15 +1375,16 @@
         "Increment 58: legacy adapter and shadow-path retirement",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59f: certified callback graphs and captured inputs"
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof.",
+      "reason": "Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "d2d35b0fc5ef11b84e9a3e1783475c50f570daa5",
-        "sha256": "c20a93e2f582f2b8a12c573258ce23c48730d10f1b583cde2370498e3b292b8b"
+        "blob": "9905eb32f2db1ccdd694a36100bb97e4533f567b",
+        "sha256": "bc3f9ee5ceb5b09b4cc2aaf883e46a0cbc9e93efccb1e5e10547be56a8bcdcb7"
       },
       "edits": []
     },
@@ -1471,9 +1517,10 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed UInt construction and resize while preserving concrete native paths.",
+      "reason": "Preserve ordinary UInt construction, resize and saturation algorithms while recording exact source-relative result/range geometry and the all-ones literal used by native saturation; no arithmetic or runtime branch is replaced.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/UInt.scala",
         "mode": "100644",
@@ -1483,8 +1530,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/UInt.scala",
         "mode": "100644",
-        "blob": "b93a3c1220604ae4aa1ecdc091a66272dd362810",
-        "sha256": "421461775aefe3d004dcf8b1fa62ee90a9a54835c2946395fb521ed5b0d92e03"
+        "blob": "5a34dab3adcb65498ac098ce89b8c9c7fb451de0",
+        "sha256": "515f302e487e892708e467440394faadc9087b49db2a2dfbc0a8c6e39f5b38ca"
       },
       "edits": [
         {
@@ -1511,6 +1558,52 @@
           ]
         },
         {
+          "id": "uint-native-saturation-upper-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native saturation result width and overflow range relative to the exact source width; admission validates the full finite domain.",
+          "baseline_span": {
+            "start": 5420,
+            "end": 5481,
+            "sha256": "e6c5dc8916d49ff5f91367787b4a201819f9eb86d39276ccde8600398c2396d0"
+          },
+          "approved_span": {
+            "start": 5645,
+            "end": 5828,
+            "sha256": "a3bd06413fe7347fb93defecaa45faa97efb61cd32278301f5d740dfa14b943c"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-lower-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native low-bit saturation range with its exact source-relative high bound and fixed zero low bound.",
+          "baseline_span": {
+            "start": 5549,
+            "end": 5573,
+            "sha256": "b1ce34e403cd825e30c56c7bfd5adb59740216f92758cc2b8a281529772340e7"
+          },
+          "approved_span": {
+            "start": 5896,
+            "end": 5993,
+            "sha256": "d2d1b22f9af56da8fa5c2a0c0dfe65addb0eca33033097be18ec14b3bf84b6f3"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "this(getWidth-m-1 downto 0), -m-1, false,",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "uint-typed-width-02",
           "kind": "overload",
           "owner": "spinal.core.UInt.resize(ElabInt)",
@@ -1521,14 +1614,37 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17469,
-            "end": 17811,
+            "start": 17664,
+            "end": 18006,
             "sha256": "cffa94dfaaa7b119a517a8f15819a5b3f3981c1a6ce2a792309103cb98d6b000"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "ParameterizedWidth.validatedResizeWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-allones-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt.setAll",
+          "reason": "Construct the same native maximum-value literal and retain its exact fill geometry on the fresh value; zero-width concrete assignment remains native.",
+          "baseline_span": {
+            "start": 19068,
+            "end": 19076,
+            "sha256": "f735d909bac0d27794dcb79d698fc6886b64819a41c3462d97523031de589de6"
+          },
+          "approved_span": {
+            "start": 19830,
+            "end": 19884,
+            "sha256": "d18109ea74c5ea73e09b503ffd1b0733d8fd7a3f34c4ccb6bbe0c664449ee13a"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainAllOnes(this, U(maxValue))",
               "count": 1
             }
           ]
@@ -1544,9 +1660,11 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1556,8 +1674,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "07d1bca29389bda24a587ea3d145b302fec972df",
-        "sha256": "189a5966d923761b21af5b23cf8eb84529c3b2dfb45cbfba3bd4391f2d6b371c"
+        "blob": "cf35d60f8d3b7316f1c9771ff9252bdbe96a67b5",
+        "sha256": "0702d364e24106cb54488045955c5f118c0c435472120628fedba4d7d05d4fa8"
       },
       "edits": [
         {
@@ -1796,7 +1914,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
           "baseline_span": {
             "start": 4780,
             "end": 4780,
@@ -1804,8 +1922,8 @@
           },
           "approved_span": {
             "start": 7560,
-            "end": 9975,
-            "sha256": "7a80c3125be70e0dcffb2b9b321c4898af2ec3a9ac1cc3eb252a7d703a2067f7"
+            "end": 11505,
+            "sha256": "56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20"
           },
           "required_exact_text": [
             {
@@ -1837,6 +1955,26 @@
               "side": "approved",
               "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
+              "count": 1
             }
           ]
         },
@@ -1851,8 +1989,8 @@
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 10990,
-            "end": 11352,
+            "start": 12520,
+            "end": 12882,
             "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
@@ -1874,8 +2012,8 @@
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 11356,
-            "end": 11829,
+            "start": 12886,
+            "end": 13359,
             "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
@@ -1897,8 +2035,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 12841,
-            "end": 12893,
+            "start": 14371,
+            "end": 14423,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -1920,8 +2058,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13077,
-            "end": 13145,
+            "start": 14607,
+            "end": 14675,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
@@ -1943,8 +2081,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 13660,
-            "end": 14249,
+            "start": 15190,
+            "end": 15779,
             "sha256": "c4e88f58cbda7b88b2fd44a4a5e66b174153b48b37692d3f274aa08a63d33556"
           },
           "required_exact_text": [
@@ -1966,8 +2104,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14582,
-            "end": 14596,
+            "start": 16112,
+            "end": 16126,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -1989,8 +2127,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15462,
-            "end": 15601,
+            "start": 16992,
+            "end": 17131,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -2012,8 +2150,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15885,
-            "end": 15891,
+            "start": 17415,
+            "end": 17421,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -2035,8 +2173,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16100,
-            "end": 16183,
+            "start": 17630,
+            "end": 17713,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -2058,8 +2196,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 16448,
-            "end": 17097,
+            "start": 17978,
+            "end": 18627,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2081,8 +2219,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 17108,
-            "end": 17385,
+            "start": 18638,
+            "end": 18915,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2104,8 +2242,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17393,
-            "end": 17476,
+            "start": 18923,
+            "end": 19006,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2127,8 +2265,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17520,
-            "end": 17679,
+            "start": 19050,
+            "end": 19209,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2150,8 +2288,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17856,
-            "end": 17924,
+            "start": 19386,
+            "end": 19454,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -2173,8 +2311,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 18846,
-            "end": 18921,
+            "start": 20376,
+            "end": 20451,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2196,8 +2334,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19035,
-            "end": 19074,
+            "start": 20565,
+            "end": 20604,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2219,8 +2357,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19172,
-            "end": 19508,
+            "start": 20702,
+            "end": 21038,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -2242,8 +2380,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 19937,
-            "end": 20271,
+            "start": 21467,
+            "end": 21801,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2258,16 +2396,16 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment. Route getZero through scoped native construction observation while keeping the unchanged inherited MultiData zero algorithm. Ordinary symbolic zero calls retain their unsupported guard; a Morph bridge proof must independently authenticate exact native clone ancestry, owner, immutable recursive geometry and fresh unaliased declarations before allowing that native call. Closed bridge graph and replay remain the authority for reset values, register assignments and clocks.",
           "baseline_span": {
             "start": 11577,
             "end": 11638,
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 20288,
-            "end": 22763,
-            "sha256": "9235a8bcaa55a1538b906054eacf9ce6e6520177d49ce0d291474be5fa8dd855"
+            "start": 21818,
+            "end": 24290,
+            "sha256": "1f6be5bd0dd7a43d2608aada17c280ab9dcbfd78f1c7b5908b78237c8e7e013a"
           },
           "required_exact_text": [
             {
@@ -2294,6 +2432,11 @@
               "side": "approved",
               "text": "if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits",
               "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]",
+              "count": 1
             }
           ]
         },
@@ -2308,8 +2451,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 23093,
-            "end": 23195,
+            "start": 24620,
+            "end": 24722,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2331,8 +2474,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 23263,
-            "end": 23406,
+            "start": 24790,
+            "end": 24933,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [

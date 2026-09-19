@@ -119,9 +119,10 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed width construction and resize overloads without changing ordinary concrete Bits behavior.",
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
       "edits": [
         {
           "id": "bits-typed-width-01",
@@ -132,6 +133,19 @@
             {
               "side": "approved",
               "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bits-native-asbits-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Bits.asBits",
+          "reason": "Keep the existing fresh Bits assignment and record the source width before the native cast clone loses its symbolic geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(ret, this)",
               "count": 1
             }
           ]
@@ -247,11 +261,12 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "WA-11: authenticated symbolic Boolean/integer conversion normalization",
         "Independent-parameter domain composition corrective repair (2026-09-14)",
         "PR188: separate symbolic publication provenance from structural proof"
       ],
-      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation.",
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Retained 59i review: Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory. Increment 59i additionally retains the internal read-only width query for one exact native leaf; certified callbacks do not inspect mutable registry carriers or runtime values.",
       "edits": []
     },
     {
@@ -697,15 +712,27 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Provide a scoped observer interface around actual native clone events and the unchanged inherited Vec zero algorithm. Concrete Vec zero construction remains native; symbolic calls without a backend retain the original unsupported guard. Scope presence alone does not authorize a receiver: the Morph-owned bridge provider must prove exact clone ancestry and immutable owner/geometry/freshness per request. Restore the prior scope in finally; do not retain global clone lineage or implement a replacement zero or reduction algorithm.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
       "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction.",
       "edits": []
     },
     {
@@ -734,9 +761,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged.",
       "edits": []
     },
     {
@@ -745,9 +773,10 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own bounded identity-checked recursive Bundle/Vec shape and factorized logical packing evidence, including exact leaf ordering, scalar types, dimension functions, offsets and active-index guards.",
+      "reason": "Retain authoritative recursive Bundle/Vec geometry and exact finite packing. Pure certified leaf-width substitution preserves scalar kinds, field paths, independent dimension identities and capacities, rejects missing or unequal finite copies, and computes logical nested offsets without treating carrier maxima as active depths.",
       "edits": []
     },
     {
@@ -769,9 +798,10 @@
         "Increment 58: legacy adapter and shadow-path retirement",
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59f: certified callback graphs and captured inputs"
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof.",
+      "reason": "Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged.",
       "edits": []
     },
     {
@@ -852,9 +882,10 @@
         "Increment 40: external symbolic width and data-shape retention",
         "Increment 53d: typed StreamWidthAdapter architecture",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "Increment 55: audit concrete compatibility"
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Expose typed UInt construction and resize while preserving concrete native paths.",
+      "reason": "Preserve ordinary UInt construction, resize and saturation algorithms while recording exact source-relative result/range geometry and the all-ones literal used by native saturation; no arithmetic or runtime branch is replaced.",
       "edits": [
         {
           "id": "uint-typed-width-01",
@@ -865,6 +896,32 @@
             {
               "side": "approved",
               "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-upper-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native saturation result width and overflow range relative to the exact source width; admission validates the full finite domain.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-lower-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native low-bit saturation range with its exact source-relative high bound and fixed zero low bound.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "this(getWidth-m-1 downto 0), -m-1, false,",
               "count": 1
             }
           ]
@@ -881,6 +938,19 @@
               "count": 1
             }
           ]
+        },
+        {
+          "id": "uint-native-allones-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt.setAll",
+          "reason": "Construct the same native maximum-value literal and retain its exact fill geometry on the fresh value; zero-width concrete assignment remains native.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainAllOnes(this, U(maxValue))",
+              "count": 1
+            }
+          ]
         }
       ]
     },
@@ -894,9 +964,11 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 55: audit concrete compatibility",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
       "edits": [
         {
           "id": "vec-nested-write-evidence-imports-59c",
@@ -1044,7 +1116,7 @@
           "id": "vec-static-index-assignment-59c",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
-          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked.",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1074,6 +1146,26 @@
             {
               "side": "approved",
               "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
               "count": 1
             }
           ]
@@ -1316,7 +1408,7 @@
           "id": "vec-typed-geometry-25",
           "kind": "mechanical-propagation",
           "owner": "spinal.core.Vec packing, assignment and cloning",
-          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment.",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment. Route getZero through scoped native construction observation while keeping the unchanged inherited MultiData zero algorithm. Ordinary symbolic zero calls retain their unsupported guard; a Morph bridge proof must independently authenticate exact native clone ancestry, owner, immutable recursive geometry and fresh unaliased declarations before allowing that native call. Closed bridge graph and replay remain the authority for reset values, register assignments and clocks.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1341,6 +1433,11 @@
             {
               "side": "approved",
               "text": "if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]",
               "count": 1
             }
           ]

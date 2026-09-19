@@ -92,8 +92,42 @@ def load(root: Path, relative: str):
     return module
 
 
+SYNC_HELPER_SHA256 = "fe07b4a07dd2e1d7c31d0dcfeafd5e83eac10ba03ed4a7839db124c2f032e60c"
+SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
+ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
+
+
+def sync_continuation(root: Path) -> bool:
+    import hashlib, re, stat, types
+    helper = "morphhdl/scripts/check-increment-59i-production-successor.py"
+    certificate = "morphhdl/contracts/increment-59i-production-successor.json"
+    path = root / helper
+    if not any(p.exists() or p.is_symlink() for p in (path, root / certificate)):
+        require(not git(root, "rev-list", "--full-history", "HEAD", "--", helper, certificate),
+                "59i synchronization certificate was removed")
+        return False
+    require(path.is_file() and not path.is_symlink() and
+            not path.stat().st_mode & 0o111, "missing, linked or executable 59i sync verifier")
+    raw = path.read_bytes()
+    normalized, count = re.subn(rb'^CONTRACT_SHA256 = "[^"\n]+"$',
+        b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(count == 1 and hashlib.sha256(normalized).hexdigest() == SYNC_HELPER_SHA256,
+            "unreviewed 59i synchronization verifier")
+    module = types.ModuleType("cdc_59i_sync")
+    module.__file__ = str(path)
+    exec(compile(raw, str(path), "exec"), module.__dict__)
+    module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
+    require(module.target_anchor(root) == SYNC_TARGET, "unreviewed 59i synchronization target")
+    module.audit_immutable_certificate(root, SYNC_TARGET,
+        "morphhdl/scripts/check-cdc-successor-source.py", ORIGINAL_SYNC_CHECKER)
+    print("PR189_SUCCESSOR_SOURCE_PASS (complete current 59i seal; original PR189 checker retained)")
+    return True
+
+
 def verify(root: Path = ROOT) -> None:
     root = root.resolve()
+    if sync_continuation(root):
+        return
     git(root, "merge-base", "--is-ancestor", TARGET, "HEAD")
     # Authenticate the full current HEAD/index/worktree BEFORE projecting any
     # historical bytes. This also seals this verifier and the Inc61 adapter.

@@ -42,6 +42,8 @@ jobs:
   source-contracts:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,8 +52,9 @@ jobs:
       - name: Verify exact source and negative authority controls
         run: |
           set -euo pipefail
-          mkdir -p independent-parameter-evidence
-          git rev-parse HEAD | tee independent-parameter-evidence/head.txt
+          evidence="${RUNNER_TEMP:?}/independent-parameter-source-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD | tee "$evidence/head.txt"
           test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha || github.sha }}'
           git diff --check
           audit_root="$GITHUB_WORKSPACE"
@@ -59,34 +62,34 @@ jobs:
             # Authenticate every current publication change before replaying
             # the unchanged PR-188 contract at the exact integrated target.
             # All other source controls and dynamic jobs use the current head.
-            python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee independent-parameter-evidence/increment-61-source.log
-            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test 2>&1 | tee -a independent-parameter-evidence/increment-61-source.log
+            python3 morphhdl/scripts/check-increment-61-source-review.py 2>&1 | tee "$evidence/increment-61-source.log"
+            python3 morphhdl/scripts/check-increment-61-source-review.py --self-test 2>&1 | tee -a "$evidence/increment-61-source.log"
             integrated=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
             test "$integrated" = 7f355a859e7e88ca343e1ff82f261fb47b3311d0
             git merge-base --is-ancestor "$integrated" HEAD
-            printf '%s\n' "$integrated" > independent-parameter-evidence/inherited-source-head.txt
+            printf '%s\n' "$integrated" > "$evidence/inherited-source-head.txt"
             audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/increment-61-independent-source.XXXXXX")
             git worktree add --detach "$audit_root" "$integrated"
             trap 'git worktree remove --force "$audit_root"' EXIT
           fi
-          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py) 2>&1 | tee independent-parameter-evidence/source-overlay-live.log
-          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test) 2>&1 | tee independent-parameter-evidence/source-overlay-selftest.log
-          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee independent-parameter-evidence/source-preservation-live.log
-          python3 morphhdl/scripts/check-native-source-preservation.py --self-test 2>&1 | tee independent-parameter-evidence/source-preservation.log
-          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output independent-parameter-evidence/regenerated-native-manifest.json
-          cmp morphhdl/contracts/native-source-preservation.json independent-parameter-evidence/regenerated-native-manifest.json
-          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test 2>&1 | tee independent-parameter-evidence/inherited-inventory-selftest.log
-          python3 morphhdl/scripts/check-production-retirement.py 2>&1 | tee independent-parameter-evidence/retirement-live.log
-          python3 morphhdl/scripts/check-production-retirement.py --self-test 2>&1 | tee independent-parameter-evidence/retirement.log
-          python3 morphhdl/scripts/check-typed-layering-ir.py 2>&1 | tee independent-parameter-evidence/typed-layering-live.log
-          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test 2>&1 | tee independent-parameter-evidence/typed-layering.log
+          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py) 2>&1 | tee "$evidence/source-overlay-live.log"
+          (cd "$audit_root"; python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py --self-test) 2>&1 | tee "$evidence/source-overlay-selftest.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$evidence/source-preservation-live.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test 2>&1 | tee "$evidence/source-preservation.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output "$evidence/regenerated-native-manifest.json"
+          cmp morphhdl/contracts/native-source-preservation.json "$evidence/regenerated-native-manifest.json"
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test 2>&1 | tee "$evidence/inherited-inventory-selftest.log"
+          python3 morphhdl/scripts/check-production-retirement.py 2>&1 | tee "$evidence/retirement-live.log"
+          python3 morphhdl/scripts/check-production-retirement.py --self-test 2>&1 | tee "$evidence/retirement.log"
+          python3 morphhdl/scripts/check-typed-layering-ir.py 2>&1 | tee "$evidence/typed-layering-live.log"
+          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test 2>&1 | tee "$evidence/typed-layering.log"
           cd repro/independent-parameters
           python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: independent-parameter-source-${{ github.event.pull_request.head.sha || github.sha }}
-          path: independent-parameter-evidence/
+          path: ${{ runner.temp }}/independent-parameter-source-evidence/
           if-no-files-found: error
 
   clean-regressions:

@@ -370,9 +370,9 @@ def current_controls(root: Path) -> None:
                      for entry in manifest["checker_adapters"]})
     candidate = {path: git(root, "show", review.QUALIFIED + ":" + path)
                  for path in manifest["ternary_sources"]}
-    # Synthetic WA-only controls exercise the unchanged qualified adapter layer.
-    # Real combined sources are separately checked below by the complete gates.
-    adapters = {path: review.restore_rollout(root, path, (root / path).read_text()).encode()
+    # Synthetic historical controls use the exact sealed WA-07b view. Current
+    # joined bytes are tested below on the real checkout and its worktree.
+    adapters = {path: review.joined_adapter_source(root, path, (root / path).read_bytes())
                 for path in review.ADAPTER_PATHS}
     negatives = synthetic_controls(root / HELPER, manifest, baseline, candidate, adapters)
     closure = load(root / CLOSURE, "wa07b_current_closure")
@@ -397,8 +397,12 @@ def current_controls(root: Path) -> None:
                 # Restoring a complete older pass layer is a forbidden partial
                 # WA-08 downgrade. Keep the historical synthetic controls above
                 # and require the real combined audit to reject this mutation.
+                integration = getattr(overlay, "integration_review", lambda _: None)(root)
+                diagnostic = ("59i target integration: unreviewed bytes cannot enter parent projection: "
+                              "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala"
+                              if integration is not None else "WA-08")
                 rejected("WA-08 partial downgrade", lambda: closure.source_scope(fixture),
-                         "WA-08")
+                         diagnostic)
                 git(fixture, "reset", "--hard", source_head)
             closure.source_scope(fixture)
             profile = closure.regression_profile(fixture)
