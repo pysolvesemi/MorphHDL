@@ -160,6 +160,15 @@ class Pr190IntegrationTests(unittest.TestCase):
         spec.loader.exec_module(module)
         self.reject(lambda: module.verify(self.root))
 
+    def test_sync_route_authenticates_reviewer_before_executing_it(self):
+        path = self.root / PATH
+        path.write_bytes(path.read_bytes() + b'\nraise AssertionError("unreviewed code executed")\n')
+        spec = importlib.util.spec_from_file_location('pr190_changed_reviewer',
+            self.root / 'morphhdl/scripts/check-pr190-pr189-source-sync.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.reject(lambda: module.verify(self.root))
+
     def commit_tree(self, tree, parents):
         args = ['commit-tree', tree]
         for parent in parents:

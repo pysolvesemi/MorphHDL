@@ -117,7 +117,24 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     successor = root / 'morphhdl/scripts/check-increment-59i-production-successor.py'
     certificate = root / 'morphhdl/contracts/increment-59i-production-successor.json'
     if any(p.exists() or p.is_symlink() for p in (successor, certificate)):
-        current = load(root, 'morphhdl/scripts/check-increment-59i-pr190-integration.py').verify(root)
+        import types
+        relative = Path('morphhdl/scripts/check-increment-59i-pr190-integration.py')
+        path = root / relative
+        require(path.is_file() and not path.stat().st_mode & 0o111 and
+            all(not root.joinpath(*relative.parts[:i]).is_symlink()
+                for i in range(1, len(relative.parts) + 1)),
+            'missing, linked or executable current 59i integration reviewer')
+        raw = path.read_bytes()
+        require(hashlib.sha256(raw).hexdigest() ==
+            'db3dccc0b5e7aa80cf2348ddc77cb18407b2170668ea640890ff5e3c467566f2',
+            'current 59i integration reviewer changed')
+        key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
+        if key not in sys.modules:
+            module = types.ModuleType(key)
+            module.__file__ = str(path)
+            exec(compile(raw, str(path), 'exec'), module.__dict__)
+            sys.modules[key] = module
+        current = sys.modules[key].verify(root)
         # The current review authenticates the complete merge before this
         # compatibility result exposes the original PR190 obligation sets.
         sequential = load(root, 'morphhdl/scripts/check-sequential-wire-source-review.py')
