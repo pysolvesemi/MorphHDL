@@ -5,7 +5,7 @@
   "feature_branch": "agent/increment-59i-combined-reduction-closure",
   "target_branch": "parameterized-verilog",
   "target_snapshot": "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
-  "local_source_head_at_mapping": "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+  "local_source_head_at_mapping": "58fb59773a2deebba0251b5b626c19a22453f0a4",
   "includes_uncommitted_final_source": true,
   "final_implementation_head": null,
   "planning_only": true,
@@ -38,7 +38,7 @@
       "dispatch_inputs": {
         "mode": "checks"
       },
-      "matched_path_count": 154,
+      "matched_path_count": 155,
       "matched_path_examples": [
         "core/src/main/scala/spinal/core/Bits.scala",
         "core/src/main/scala/spinal/core/ElabInt.scala",
@@ -126,7 +126,7 @@
       "workflow_sha256": "ac58516e51fba2552dcdd8ec23828638c57191394b319f056483157fa497d190",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 13,
+      "matched_path_count": 14,
       "matched_path_examples": [
         ".github/workflows/increment-59b-inherited-source-scope.yml",
         "morphhdl/contracts/increment-55-native-change-review.json",
@@ -153,7 +153,7 @@
       "workflow_sha256": "54c1a8b144b3e3724bcac84d0dd217defe4bf2105accb2eb88526ed6d08ef9c1",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-59b-operator-replay.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -217,7 +217,7 @@
       "workflow_sha256": "4e1b21f540d2c18f99353a90a47d1ecde35660ab9263cb5058e59300aced8aac",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-59b-reduce-balanced-tree.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -281,7 +281,7 @@
       "workflow_sha256": "2466e8aa3c144db640e47f90aa719b7801b2b28f5dcd68abec12543f58f298e3",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 89,
+      "matched_path_count": 90,
       "matched_path_examples": [
         ".github/workflows/increment-59c-named-field-vectors.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -345,7 +345,7 @@
       "workflow_sha256": "a09f0e569fe7d34dcdc34a98d09ff2026a0c3220f4d715b40d0c23da0c3e5fe9",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 225,
+      "matched_path_count": 226,
       "matched_path_examples": [
         ".github/workflows/increment-59e-composite-reduction.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -409,7 +409,7 @@
       "workflow_sha256": "c8fdf4bb12f22ae461f504eb8ab876c243efa5f8b810044216eef5d2ee875e68",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 153,
+      "matched_path_count": 154,
       "matched_path_examples": [
         ".github/workflows/increment-59g-register-bridges.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -473,7 +473,7 @@
       "workflow_sha256": "f8a46c8930dcf3d5b354d04e87e7701e2a3aef1360a2c74d52f69fe85a8aedfd",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 130,
+      "matched_path_count": 131,
       "matched_path_examples": [
         ".github/workflows/increment-59i-combined-closure.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -635,7 +635,7 @@
       "workflow_sha256": "d8efa5ebf43ea97d159262adc83effb1ebf7b27ec7cd1ad6f5ff11da2515f584",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 158,
+      "matched_path_count": 159,
       "matched_path_examples": [
         ".github/workflows/increment-59i-inherited-source-qualification.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -678,10 +678,10 @@
       "workflow": "increment-59i-local-enable-committed-head.yml",
       "path": ".github/workflows/increment-59i-local-enable-committed-head.yml",
       "name": "Increment 59i committed-head local-enable qualification",
-      "workflow_sha256": "3538080cc468a0f1b5dfc4724d76d62bb1f924658b8a85f680c6f8f5de1de3e9",
+      "workflow_sha256": "f7f3a17475e3aafe25ea92efa9f60852de763ab714deaa3bfbe69edb02ab0ffe",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -731,7 +731,7 @@
       "workflow_sha256": "690e3c86848e32edcc445b6eeb76040bb742007b8622b45d09d707f7f20078b2",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 211,
+      "matched_path_count": 212,
       "matched_path_examples": [
         ".github/workflows/increment-60a-sint-baseline.yml",
         "morphhdl/contracts/increment-55-native-change-review.json",
@@ -774,7 +774,7 @@
       "workflow_sha256": "271f89ba4ab7f733832ab945e6708f6f8992ef5d4f7f9714ab9c29095e3f1d84",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 211,
+      "matched_path_count": 212,
       "matched_path_examples": [
         ".github/workflows/increment-60b-signedness-authority.yml",
         "morphhdl/contracts/increment-55-native-change-review.json",
@@ -806,7 +806,7 @@
       "workflow_sha256": "d4e13f9b00de0376ebbbb9c63c9fa669402ed88321818fca2bcd88c17662e5e3",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-60c-signed-declarations.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -838,7 +838,7 @@
       "workflow_sha256": "3dde143f03067690032f277761c65a0378c80bf68438f54d49e5bc6703f24880",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-60d-pure-sint-casts.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -870,7 +870,7 @@
       "workflow_sha256": "85bf540dfcfc8a1876fdf8ea6b05a32cf0abfb266c504e44fbe013f0cb3467fe",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-60e-signedness-boundaries.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -902,7 +902,7 @@
       "workflow_sha256": "9cc3fd08901e297ed554720fd4208eee3da6a0ceefbb08a4139fc7c41217677f",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 220,
+      "matched_path_count": 221,
       "matched_path_examples": [
         ".github/workflows/increment-60f-equivalence-closure.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -960,7 +960,7 @@
       "workflow_sha256": "1b072410cf78eed9917426b42cf2747b161c3c8ef568ba83cbf32a7f0f84c231",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 240,
+      "matched_path_count": 241,
       "matched_path_examples": [
         ".github/workflows/increment-60g-default-signed-verilog.yml",
         "core/src/main/scala/spinal/core/Bits.scala",
@@ -1103,7 +1103,7 @@
       "workflow_sha256": "a0a3bbdad88d98046b3547d731b7673826dabb418092df7eea53a4ef8b391c4d",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1301,7 +1301,7 @@
       "workflow_sha256": "c4ff6a32b5ab017ac14b8b99dc19cb1b0eb95f453b372c166f437fc7fd0c9168",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1342,7 +1342,7 @@
       "workflow_sha256": "6a8d4e7aeda6462ac0c1cb9107d2ce9c04e3abaacccb271236f0ff0ddd4b84d2",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1383,7 +1383,7 @@
       "workflow_sha256": "02566ddebe7507f4819a4e160b4f06454589660b7a451d09673606cb2c7f4ba1",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1415,7 +1415,7 @@
       "workflow_sha256": "df0b9cb0418ee9e4e877be45dc61a1aa19dda2f2e70ec5ba2c1d27764f9354e9",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1456,7 +1456,7 @@
       "workflow_sha256": "e04b8050f5668916372cc1671fe5f54b21ef519dfb1cf0ee52d8734f548e0920",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1497,7 +1497,7 @@
       "workflow_sha256": "fe9b5db44c56c9f7a912e3c7ae785dad8f16e7864aa08ffcd28cb504f7ad0822",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1538,7 +1538,7 @@
       "workflow_sha256": "6b917aa2e947cbd66c799b5dbc0a7f1754b29b693bb13267fafc026017c1e0c3",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1570,7 +1570,7 @@
       "workflow_sha256": "32f3d6e51bf075847aaa69cc4c1c7aa22b3ab896c515d1bb11242d8e69ffd0fc",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1602,7 +1602,7 @@
       "workflow_sha256": "6349bea72dfde1ffa545f0f9f6376ecbbb404d1135b48abe5fb5d1e3e3859da9",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1643,7 +1643,7 @@
       "workflow_sha256": "52cf59a4ee80fcd2258b84333bcd8a96528c3459fb16f7693388044dc9451fd2",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1684,7 +1684,7 @@
       "workflow_sha256": "e403cfcf3fdb79f47517f166811a9365b41c4b07d5208527cca4718c1d3b79f6",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1725,7 +1725,7 @@
       "workflow_sha256": "552774885881977b8a9f17e93470b03e2e19b1a65c7c983eb3f757e179c1014e",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1766,7 +1766,7 @@
       "workflow_sha256": "5de554c7531664abab6f812bbe89cde58a78e6724795ab5ec311ec7b2f4c3597",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1807,7 +1807,7 @@
       "workflow_sha256": "71788103552458e92d93d8a412866ebf9fe9c8a0d24a6b68836c29a7d33dbb5d",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1848,7 +1848,7 @@
       "workflow_sha256": "90fcefb003bd52abef68de23fc2adc157c5dcab10c1e713b00fe54de29576267",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1875,7 +1875,7 @@
       "workflow_sha256": "09b7cf42456b7b25938608e7a8f4482042dd03f524c57a07b3f72606082992b9",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1916,7 +1916,7 @@
       "workflow_sha256": "90a54dfe3942dad53ac01188578052c4557cf34994d82b4df42a92f0c30033e0",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1957,7 +1957,7 @@
       "workflow_sha256": "084727e3a918abf3f8964f2bcc8db300ca21f961ccb9fa1963941df743aebbfb",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -1998,7 +1998,7 @@
       "workflow_sha256": "f6dbc168c87cabed8bfacf26cac9f2c78f3677ad0d50c5a7f62904bef76f9b7c",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -2030,7 +2030,7 @@
       "workflow_sha256": "7192f17fd765a909b4b619bcc4b989042e0dd0970c0c38bd8bcc65388ad0e691",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",
@@ -2071,7 +2071,7 @@
       "workflow_sha256": "f03852f102d715d075cd16adde06bfb6aa79ff317c608c3a701f9a3077cd23a1",
       "dispatch_supported_by_source": true,
       "dispatch_inputs": {},
-      "matched_path_count": 333,
+      "matched_path_count": 334,
       "matched_path_examples": [
         ".github/workflows/increment-59b-closed-graph.yml",
         ".github/workflows/increment-59b-inherited-source-scope.yml",

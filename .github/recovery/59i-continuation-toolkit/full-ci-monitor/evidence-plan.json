@@ -170,11 +170,10 @@
   "feature": "agent/increment-59i-combined-reduction-closure",
   "final_qualification_pass": false,
   "historical_results_count_as_final": false,
-  "manifest_sha256": "f5e9fa6ae9c61760160eb138c86ded7d681efb9aa9b7f687626b1782274a3786",
-  "planning_head": "cb093b5aa235760f2c3149f4327324976aa0495b",
+  "manifest_sha256": "b6fa4738d459f90222692f998e239bb920b365dab0325bd546f3a1728add82a4",
+  "planning_head": "58fb59773a2deebba0251b5b626c19a22453f0a4",
   "repository": "pysolvesemi/MorphHDL",
   "schema": 1,
-  "stale_definition_note": "Planning snapshot only: local-enable include-hidden-files source edit requires dispatcher-manifest and evidence-plan regeneration after final commit.",
   "target": "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
   "workflows": [
     {
@@ -2833,7 +2832,7 @@
         "Supplement:6 native cases/24 candidate comparisons,320 cycles,1 emitted root-enable mutant rejected;4 publication profiles including actual split child modules. Its formal field must remain not-run.",
         "Inspect mutation lineage hashes and retained SAT witness/log artifacts. Do not treat normalized-mutant counterexamples alone as a hardware pass."
       ],
-      "definition_sha256": "3538080cc468a0f1b5dfc4724d76d62bb1f924658b8a85f680c6f8f5de1de3e9",
+      "definition_sha256": "f7f3a17475e3aafe25ea92efa9f60852de763ab714deaa3bfbe69edb02ab0ffe",
       "jobs": [
         {
           "allowed_skip_reason": null,

@@ -94,7 +94,13 @@ def main():
                   + result.stderr.decode(errors='replace'))
     out.mkdir(parents=True)
     archive = out / 'exact-source.bundle'
-    stage.git(repo, 'bundle', 'create', str(archive), seal, '^' + stage.BASE)
+    # Git bundles need an advertised ref; a bare commit SHA produces an empty
+    # bundle even when rev-list contains unpublished commits. HEAD is already
+    # required to be the exact seal, including on a detached checkout.
+    stage.require_clean(repo, seal)
+    stage.git(repo, 'bundle', 'create', str(archive), 'HEAD', '^' + stage.BASE)
+    stage.require(stage.git(repo, 'bundle', 'list-heads', str(archive)).decode().splitlines()
+                  == [seal + ' HEAD'], 'bundle advertised head differs from seal')
     stage.git(repo, 'bundle', 'verify', str(archive))
     raw = archive.read_bytes()
     compressed = lzma.compress(raw, preset=9)

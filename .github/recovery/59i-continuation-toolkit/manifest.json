@@ -2,8 +2,8 @@
   {
     "local": "59i-current-state.md",
     "remote": ".github/recovery/59i-continuation-toolkit/59i-current-state.md",
-    "bytes": 18181,
-    "sha256": "4b296450a67a85cb9e3584ff8321edc41be91bd6dc0372942ec9f45d9033d6d9"
+    "bytes": 22436,
+    "sha256": "0ae7634dd789fc1a0a124747d120bfe84e1e6c83fe357b2283139f91f63d6b6e"
   },
   {
     "local": "59i-finite-state-proof-soundness-review.md",
@@ -15,7 +15,13 @@
     "local": "59i-full-ci-workflow-map.json",
     "remote": ".github/recovery/59i-continuation-toolkit/59i-full-ci-workflow-map.json",
     "bytes": 80304,
-    "sha256": "1b8c82352aec018dc53e37e66870f766237ab7c70d346a8e9bd791cf34339ab4"
+    "sha256": "c43c60b51cfaaa9feea7a936a129f8870b55f618d5d6d92377ea99d9035cf4ca"
+  },
+  {
+    "local": "59i-publication-resume.md",
+    "remote": ".github/recovery/59i-continuation-toolkit/59i-publication-resume.md",
+    "bytes": 5002,
+    "sha256": "63c649c46f16c5a1f5d384adf0984fc29c4219033d8f6ce81417a4a34100751b"
   },
   {
     "local": "CHECKER-DIAGNOSTIC-V2-REVIEW.md",
@@ -120,10 +126,28 @@
     "sha256": "5134ddefc54f8048d1ec6ecbcd02d61145d50e670c3f332cdcda008d5e4341e3"
   },
   {
+    "local": "evidence/545134a4-fresh-github-metadata.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/545134a4-fresh-github-metadata.json",
+    "bytes": 15919,
+    "sha256": "24fc9fe65099e9968a601fd305f10eceb11f57c0f53577f5029c419fad64ebc4"
+  },
+  {
+    "local": "evidence/545134a4-fresh-success-verification.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/545134a4-fresh-success-verification.json",
+    "bytes": 71522,
+    "sha256": "e5cacfe883c7821291415714491b4d118ac294cbf1813fdc0ba42c61ab682308"
+  },
+  {
     "local": "evidence/59i-finite-state-independent-structural-review.json",
     "remote": ".github/recovery/59i-continuation-toolkit/evidence/59i-finite-state-independent-structural-review.json",
     "bytes": 638,
     "sha256": "74f18addc5bfa520093ad5562b0068a69c5d4b80c30ca6584baf969ed75fa4eb"
+  },
+  {
+    "local": "evidence/59i-publication-restoration-smoke/reconstruction.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/59i-publication-restoration-smoke/reconstruction.json",
+    "bytes": 822,
+    "sha256": "3f9d4b8831dc0fa69d1d9af13e751d918fc65f909b56b8bfdf0b9c77f974e6c0"
   },
   {
     "local": "evidence/6a858-checker-failed-verification.json",
@@ -159,7 +183,7 @@
     "local": "full-ci-controller/dispatch-manifest.json",
     "remote": ".github/recovery/59i-continuation-toolkit/full-ci-controller/dispatch-manifest.json",
     "bytes": 88023,
-    "sha256": "f5e9fa6ae9c61760160eb138c86ded7d681efb9aa9b7f687626b1782274a3786"
+    "sha256": "b6fa4738d459f90222692f998e239bb920b365dab0325bd546f3a1728add82a4"
   },
   {
     "local": "full-ci-controller/dispatch.py",
@@ -194,8 +218,8 @@
   {
     "local": "full-ci-monitor/evidence-plan.json",
     "remote": ".github/recovery/59i-continuation-toolkit/full-ci-monitor/evidence-plan.json",
-    "bytes": 301949,
-    "sha256": "bf8e1b54b754da6b3627a162f2f8540cff877eec2d92fce12959f96ce50fcd30"
+    "bytes": 301769,
+    "sha256": "4ad83fa5a8b564f6a8a59aa87f4dd69601fd34bb7807f80ba704eae4c67afc14"
   },
   {
     "local": "full-ci-monitor/monitor.py",
@@ -218,8 +242,8 @@
   {
     "local": "publication-controller/build.py",
     "remote": ".github/recovery/59i-continuation-toolkit/publication-controller/build.py",
-    "bytes": 7051,
-    "sha256": "632f6b027dac4cd6708acafb0304b57665c48aedd5b67252ffa674e9430d1120"
+    "bytes": 7493,
+    "sha256": "5e7c6f22d1d590cd82362cccb7e7d6867022e9f5f72ad1c31beb19fb026eaa7b"
   },
   {
     "local": "publication-controller/review-receipt.json",
@@ -250,6 +274,12 @@
     "remote": ".github/recovery/59i-continuation-toolkit/seal-545134a4-dryrun.json",
     "bytes": 6101,
     "sha256": "9f2b66bd891ae007d5579285e15e05caf9fc1199feb281754b1004fba1d1823e"
+  },
+  {
+    "local": "seal-545134a4-staged.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/seal-545134a4-staged.json",
+    "bytes": 6191,
+    "sha256": "b2ee361d723ae3fad72b4be1d38b522fe2e59bb6d363690be4695559e67cb66e"
   },
   {
     "local": "seal-86f6-dryrun.json",

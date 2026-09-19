@@ -1,5 +1,53 @@
 # Active Increment 59i continuation
 
+## Current publication checkpoint (supersedes older active-run entries)
+
+Fresh run35449602915 passed both Scala lanes and its actual artifacts passed
+independent success-mode inspection. See `59i-publication-resume.md` and
+`evidence/545134a4-fresh-success-verification.json`:138cases/10suites perScala,
+all10619retained files perlane, complete boundedproofs and realmutants,
+124originalRTL identical A/B/acrossScala. Supplemental formal remains not-run.
+Source545134a42dd200c5cee679db5dde0fea0acb15c9 was sealed by exacttwofile
+child58fb59773a2deebba0251b5b626c19a22453f0a4,tree5ae0ef04c0dc730e49cbb499f2eca6d65b4bf60f.
+The production source verifier passes322files. This is not committed-head
+runtime qualification. PR remains draft90b and targete0e9 until reviewed
+publication. Controller `publication-controller-ready-v2` preserves12exact
+unpublishedcommits and1423runtimebyteidentities. Builder repaired Git bundle
+advertisement to exact verifiedHEAD; no source/seal/runtime change.
+Full-CI dispatcher/monitor definitions were refreshed locally; no fullCIrun.
+Publication restoration passed all12rawcommits/runtimeidentities and the original
+308-filepredecessoraudit. Subsequent21sourcegates remain pending at this
+checkpoint. Follow the newest publication resume record and live receipts.
+
+## Latest checkpoint: 2026-09-19 14:44 UTC
+
+Narrow run35445223818 passed and was independently verified in success mode by
+verify-local-enable-checker-diagnostic-v3.py. Artifact10586375472 ZIP SHA256
+bf150eb3760f6a1c2f63ad9193a87cbabe6e5675a3e8000546f4f341787316a7;
+receipt evidence/545134a4-checker-success-verification.json;
+extraction evidence/545134a4-checker-verified/. All10930 retained files passed,
+including COUNT5 priority, main96cases/192comparisons,1024bit+16baseline proofs,
+two main real mutants, supplemental6cases/24comparisons/one real mutant and
+124unchangedRTL. Supplemental formal reports not-run; do not infer otherwise.
+The original cb093 nested artifact remains incomplete by64hidden records.
+
+Fresh dual-Scala full diagnostic run35449602915 is now in_progress.
+Controller c1d7534b1c62469a0d1138fa35d50ab09d974ecc,
+tree9ca9a7c160cff88d1e9565fb481599104254c988, parent7d2b34f2.
+Eight prepared files promoted unchanged from inactive next-development; six
+actual changed blobs because retain.py and expected-suites.json were identical.
+Remote/source/local blob identities and exact tree delta verified before
+nonforce recovery-ref update. No feature/target/source/seal/TODO/PRmetadata
+change. No new narrow dispatch. Automation updated and still hourly/enabled.
+
+Next: inspect run35449602915; while active end quietly. On completion download
+both artifacts, verify with verify-local-enable-diagnostic-successor-v2.py and
+controller-development-v6, exact545134a4source/cab84063tree/e522d80achecker.
+Require138cases/10suites eachScala, complete hidden inventory, fresh A/B and
+crossScala equality, all hardware/mutations. Only then seal,21source gates,
+exact preserved-history publication, committed-head local-enable qualification,
+full final-head CI and merge. Earlier active-run entries below are history.
+
 Continue the existing authorized PR177 work. User instruction: fix remaining
 local-enable requirement first, then full final-implementation-head CI, then
 TODO completion and merge. No force push, no new development branch, no broad
@@ -148,3 +196,9 @@ Fresh full diagnosticv6preparedinactive incontroller-development-v6/:11preserved
 Current545134a4seal dryrun passed, catalogue846260ee4f99965c38224fe32a426a5ac474c67cb561f499b8097fbe3c8a9863,322source/93targetrecords(289/90preserved),zeroremoved; no repositorybytes/indexchanged. Narrowcontrollercontroller-checker-diagnostic-545134a4/has14publishfiles; actualnarrowbundle113996bytesSHA65c033ddfbcad4583c664c38aae3f14e2215ea25d08818a1029752ad76e25105,compressedSHA2bcac920ba36d9f7698c2fe5d5f6cee4186fd512b2eb4d97949db9ec71ddd3cf. Fullinactivev6bundlehasitsownseparatelypinnedpackencodingabove; both reproduceexact545134a4source. Freshisolatednarrowreconstruction passedall11preservedcommits and308-filefrozenpredecessoraudit, sourceauthentication andstrictAST/YAML/Bashguards. HDLsolvernotrunlocally.
 
 LatestPR/ref/commentrefreshstilldraftopenunmerged90bfeature,e0e9target,0a617recovery; no newcommentsafter12UTC andno newerrecoveryrun. Publishingthenewnarrowcontrolleralonewillallocateonereplacementrun; do nottriggerfullinactiveworkflowyet.
+
+## Replacement targeted run allocated; hourly continuation refreshed
+
+Run 35445223818 is in_progress on recovery controller 7d2b34f23993c7e97d1cb432756bfdad2f18b0d1, tree d1afff16b21d717bc90b9185f39aeeef04aebb2b, parent 0a617e36. Forty reviewed recovery files published with exactly one active workflow; source 545134a4 is preserved in its authenticated bundle. The 51-file continuation toolkit includes new finite-proof source/verifier reviews and versioned inspectors. No inactive full diagnostic was dispatched and no feature/target ref, source seal, TODO or PR metadata changed.
+
+Existing hourly automation Continue 59i CI (6aae834192c8819195f25e56cdc525f7) successfully updated to run35445223818/source545134a4/controller7d2b34; enabled and FREQ=HOURLY;INTERVAL=1 verified. Temporary interactive coordination prefix removed. Retain original cadence, no duplicate task. Future iterations inspect artifacts and continue the already-authorized failed-first work. Do not minute-poll this active run. The concrete continuation prompt is durable in the automation; source/recovery toolkit is durable at the exact controller commit.
