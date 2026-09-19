@@ -3279,7 +3279,7 @@
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionDeclarationFilterTests.scala": "8835ef5187b21f0182808f54c396943b413892869420afe29ca1666716e5487b",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildArtifactWriter.scala": "e6d175e86ed694655a89ed9f0201d5e9364badb8e67ee445bd134ce14257e773",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala": "8fae8a49ea3c6e5eacd64e3eac887fe53f9aa5345ae0a6b6c07350ae8ad276fd",
-    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionLocalEnableCombinedArtifactWriter.scala": "188a56a222aad7387b4250356a0104039a6ac751a7e7f3dcbf379d484cd14c6a",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionLocalEnableCombinedArtifactWriter.scala": "13573bc2e722949bf68e68eb2276fa369bc2eaf944fb16a8c7cb92e0880b3cda",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionMuxWidthTests.scala": "5b6762eef7467684748257cdbdc2c269976d7e826103966ce265c2bce8b757cb",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala": "c13aeb456bf8e305087b2c3e6baff124cb83ee69d2b2149ec0a8827d506a2515",
     "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedCloneShapeTests.scala": "da9b67e693ce95dac03aa57a285d9ea6a0951e6a8a2b1b045e3aa62e7593cc0f",

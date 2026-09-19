@@ -89,7 +89,9 @@ final class LocalEnableCombinedChild(uw: HdlInt, sw: HdlInt, tw: HdlInt,
       // One root-local control dominates every nested Vec lane. The shared
       // assignment is still checked independently for every typed leaf.
       val samples = RegNextWhen(v.samples, v.saturated(0))
-      samples.init(samples.getZero)
+      // Vec also inherits IndexedSeq.init; select the native Data initializer
+      // explicitly so Scala does not treat the zero vector as a lane index.
+      DataPimped(samples).init(samples.getZero)
       r.samples := samples
       r
     }
