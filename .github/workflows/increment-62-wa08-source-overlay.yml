@@ -5,6 +5,7 @@ on:
     branches: [parameterized-verilog]
   push:
     branches: [parameterized-verilog]
+  workflow_call:
   workflow_dispatch:
 
 permissions:

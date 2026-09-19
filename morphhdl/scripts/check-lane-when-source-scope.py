@@ -19,6 +19,26 @@ OVERLAY = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 OVERLAY_CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 # Exact paths for this repair's review infrastructure; no source root wildcard.
 REVIEW_PATHS = frozenset((
+    'morphhdl/contracts/increment-54-typed-layering-ir.contract',
+    'morphhdl/scripts/check-typed-layering-ir.py',
+    # PR190: exact sequential-consumer successor; every path is also byte-sealed.
+    '.github/workflows/sequential-source-review-targeted.yml',
+    '.github/workflows/sequential-wire-consumers.yml',
+    'core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala',
+    'docs/morphhdl/sequential-wire-source-review.md',
+    'morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala',
+    'morphhdl/scripts/check-sequential-wire-source-review.py',
+    'morphhdl/scripts/test-sequential-wire-source-review.py',
+    'morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala',
+    'repro/remaining-wires/README.md',
+    'repro/remaining-wires/build.sbt',
+    'repro/remaining-wires/check.py',
+    'repro/remaining-wires/project/build.properties',
+    'repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala',
+    'repro/remaining-wires/src/main/scala/RemainingWireRepro.scala',
+    'repro/remaining-wires/src/main/scala/RemainingWireTrace.scala',
+
     '.github/workflows/increment-61-one-file-per-component.yml',
     'morphhdl/scripts/check-increment-61-publication-artifacts.py',
     'morphhdl/scripts/test-increment-61-publication-artifacts.py',
@@ -170,6 +190,19 @@ def verify(root: Path) -> dict:
         require(path in entries, "unsealed production path: " + path)
         errors = safety_failures(path, outer.regular(root, path).decode())
         require(not errors, path + ": " + repr(errors))
+    # The original lane introduction is immutable. The separately enumerated
+    # sequential successor must retain its qualified compiler/test identities.
+    spec = importlib.util.spec_from_file_location("sequential_source_scope",
+        root / "morphhdl/scripts/check-sequential-wire-source-review.py")
+    require(spec is not None and spec.loader is not None, "missing sequential source reviewer")
+    successor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(successor)
+    result = successor.verify(root, sealed)
+    if (root / "morphhdl/scripts/check-pr190-pr189-source-sync.py").exists():
+        # The combined source proof has already authenticated every admitted
+        # path; branch spelling alone still grants no cross-workspace access.
+        value = dict(value)
+        value["review_paths"] = sorted(set(value["review_paths"]) | set(result["paths"]))
     return value
 
 
@@ -180,7 +213,7 @@ def main() -> None:
     args = parser.parse_args()
     value = verify(args.repo_root)
     if args.print_paths:
-        print("\n".join(sorted(set(value["implementation_paths"]) | REVIEW_PATHS)))
+        print("\n".join(sorted(set(value["implementation_paths"]) | set(value["review_paths"]))))
     else:
         print("LANE_WHEN_SOURCE_SCOPE_PASS implementation_paths=" + str(len(value["implementation_paths"])) +
               " review_paths=" + str(len(REVIEW_PATHS)))

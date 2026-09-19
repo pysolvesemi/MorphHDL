@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = 'morphhdl/contracts/increment-59i-regression-inventory.json'
 HELPER = 'morphhdl/scripts/check-increment-59i-production-successor.py'
 VERIFIER_SHA256 = 'bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f'
-CONTRACT_SHA256 = '554f9b0709b67d8ae84f39b996586a4771d570982e9de244f2074abe14265ab8'
+CONTRACT_SHA256 = '338e26e122d657349e254e19ff452fbd94f839b774268bbaecb93ea002e6027f'
 
 
 def require(ok, message):
@@ -124,6 +124,12 @@ def prepare(root, predecessor, output):
     for name,count in value['increment61'].items():
         require(len(copied_expected['morphhdl'].pop(name)) == count, 'changed Increment61 obligations')
     copied = reports(predecessor, copied_expected)
+    # Before projecting any report, preserve PR190's original/copy identity
+    # requirement for every suite, including all 37 sequential testcases.
+    for project, suites in copied.items():
+        for name, (path, _) in suites.items():
+            require(path.read_bytes() == observed[project][name][0].read_bytes(),
+                    'copied report differs from original: ' + project + '/' + name)
     for project, suites in copied.items():
         old = value['historical_counts'][project]
         require(set(old) <= set(suites), 'lost historical suite: '+project)

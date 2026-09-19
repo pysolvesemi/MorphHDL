@@ -418,6 +418,14 @@
       ]
     },
     "core": {
+      "spinal.core.internals.SequentialWireEmitterTests": [
+        "direct select-base proof is exact in native kind width and metadata",
+        "disabled policy keeps historical late carriers",
+        "late arithmetic select base is not mistaken for a direct exact alias",
+        "late narrow select base is not mistaken for a direct exact alias",
+        "late shared identity-sized unsigned carriers inline at sequential slices",
+        "late tagged select base is not mistaken for a direct exact alias"
+      ],
       "spinal.core.internals.SpinalVerilogPhasePlanTests": [
         "the baseline flow preserves transformation and inserter hooks",
         "the baseline global-data finalizer rejects state leaked by an inserted phase",
@@ -1232,6 +1240,26 @@
         "the concrete generic callback is not restricted to hardware data",
         "two elements invoke one operator and bridge at level zero"
       ],
+      "morphhdl.SequentialWireNativeTests": [
+        "debug condition remains a named identity for register consumers",
+        "debug direct alias remains a named identity for register consumers",
+        "dontSimplify condition remains a named identity for register consumers",
+        "dontSimplify direct alias remains a named identity for register consumers",
+        "explicit lookalike condition remains a named identity for register consumers",
+        "explicit lookalike direct alias remains a named identity for register consumers",
+        "frozen condition remains a named identity for register consumers",
+        "frozen direct alias remains a named identity for register consumers",
+        "keep condition remains a named identity for register consumers",
+        "keep direct alias remains a named identity for register consumers",
+        "named source and arithmetic slice bases survive while direct register slices simplify",
+        "shared predicate over register pre-edge value inlines into condition and register RHS",
+        "unknown tag condition remains a named identity for register consumers",
+        "unknown tag direct alias remains a named identity for register consumers",
+        "unprotected controls really remove both generated identities on the same graph",
+        "unsupported switch consumers retain the condition helper rather than being partially rewritten",
+        "vital condition remains a named identity for register consumers",
+        "vital direct alias remains a named identity for register consumers"
+      ],
       "morphhdl.SpinalEnumLocalParameterTests": [
         "MorphVerilog replaces global enum macros with SCREAMING_SNAKE_CASE enum-qualified module-local parameters",
         "MorphVerilog splits camel-case, acronym and digit boundaries in enum names",
@@ -1357,6 +1385,21 @@
         "an exact direct receiver supplies its fence with the historical native emitter",
         "arithmetic right shift and case equality are not mislabeled as logical operators",
         "fixed resize and subtraction preserve authoritative native widths in capture"
+      ],
+      "morphhdl.examples.SequentialWireRetentionTests": [
+        "comb-slice honors captured vital=false independent of immediate consumer kind",
+        "comb-slice honors captured vital=true independent of immediate consumer kind",
+        "explicit receiver is retained with its exact native reason",
+        "explicit-declaration receiver is retained with its exact native reason",
+        "keep receiver is retained with its exact native reason",
+        "partial receiver is retained with its exact native reason",
+        "register-slice honors captured vital=false independent of immediate consumer kind",
+        "register-slice honors captured vital=true independent of immediate consumer kind",
+        "safe sequential condition has no native retention diagnostic",
+        "switch receiver is retained with its exact native reason",
+        "vital receiver is retained with its exact native reason",
+        "whole-register honors captured vital=false independent of immediate consumer kind",
+        "whole-register honors captured vital=true independent of immediate consumer kind"
       ],
       "morphhdl.integration.ExternalSpinalVerilogBaselineTests": [
         "external boundary does not bypass inherited native validation",
@@ -3038,6 +3081,7 @@
     "core/src/test/scala/landa/TypeTests.scala": "a382f1dc6977527e8ccc7bb54fbfee59b6dc18362fcfa1f571d01d4da15402d3",
     "core/src/test/scala/landa/WriteReadChecks.scala": "e0f80553c941e4bf5e6267cbec106487197748ea4bb77af2ac83cca0a0e6757c",
     "core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala": "04a686cfc4b61f8c1252620638a4781c1a9c6d5c5f0363c89959702f26d377f2",
+    "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala": "a43ab3257d39b10dd13f34a91edbd0c6a79fcc6e0b13e060da45dfce3e0a2503",
     "core/src/test/scala/spinal/core/internals/SpinalVerilogPhasePlanTests.scala": "b3b934e3948f1f116efe2d6c71c14d2f5395b089fe9c39d5de4e36b29d0443f5",
     "core/src/test/scala/spinal/core/internals/ValidationParityInventoryWriter.scala": "c76963bde1a0d880c0578f588f2bcfa4ee93bd5e444eeaa4eb406fa665468f96",
     "core/src/test/scala/spinal/core/internals/ValidationPhaseInventory.scala": "44ad935f87d807a2020d22f0deaad15df98e7267bdee6e36a602432731db12c4",
@@ -3146,6 +3190,7 @@
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
+    "morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala": "de38a993fe0c5017e17c56e608b05d1e5a037433beeb95ec335c157d53bf6ce6",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala": "e7da32b0ea6aeb453fead0e5c7cba27ade392cea041abfd2a1ff3b1072502498",
     "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala": "d09715fded789a95797d480e685cc059796947c747346c7055ab39d5d0619ed3",
     "morphhdl/src/test/scala/morphhdl/SignednessCompatibilityTests.scala": "e689e64573c4a3b803388b27f36a8fb7a22c54deba54cf15ae62a7f851bf047a",
@@ -3172,6 +3217,7 @@
     "morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala": "69fa3081097de7dd33445219dc182d3aefcc8ceab5750b233692a0761c672564",
     "morphhdl/src/test/scala/morphhdl/examples/LaneWhenInliningArtifactWriter.scala": "54798833f16c85a3c7a217044114e28f27cc0e720f5b11f8ffd9db091964acc4",
     "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala": "a690c384cbde0f069a6f2d9aaede2640de2e6ddd2c7030907ff846f15bf38488",
+    "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala": "a582f9329dbcc9bba0a948127b1a2b39d3f70ac72256fc2193b865b784b1225c",
     "morphhdl/src/test/scala/morphhdl/integration/ExternalSpinalVerilogBaselineTests.scala": "2bca867319486d0a0523471ada21cd86a619a7b63aa972e868351ef5b37e6da2",
     "morphhdl/src/test/scala/nativeapplication/BalancedBridgeNativeOracle.scala": "2d0a489a349ca2f0bb8a3dbd35c8ab3046208357ec2a9d1efac92363212f44e2",
     "morphhdl/src/test/scala/nativeapplication/BalancedCombinedNativeOracle.scala": "088af3993837968d9c85587d20f8d9396d5bf0b51d2b3b1c41dc64cb894a15f9",

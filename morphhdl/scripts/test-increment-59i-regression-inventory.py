@@ -55,8 +55,8 @@ class Preservation(unittest.TestCase):
     def test_contract_hash_and_complete_inventory(self):
         raw=(ROOT/M.CONTRACT).read_bytes();self.assertEqual(hashlib.sha256(raw).hexdigest(),M.CONTRACT_SHA256)
         v=json.loads(raw)
-        self.assertEqual(sum(len(c) for p in v['projects'].values() for c in p.values()),2270)
-        self.assertEqual(sum(len(p) for p in v['projects'].values()),227)
+        self.assertEqual(sum(len(c) for p in v['projects'].values() for c in p.values()),2307)
+        self.assertEqual(sum(len(p) for p in v['projects'].values()),230)
         self.assertEqual(sum(sum(p.values()) for p in v['historical_counts'].values()),2064)
         for project,suites in v['historical_counts'].items():
             self.assertTrue(set(suites)<=set(v['projects'][project]))
