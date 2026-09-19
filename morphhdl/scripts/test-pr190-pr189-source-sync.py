@@ -54,8 +54,145 @@ def shell_controls():
     print('PR190_CDC_SHELL_CONTROLS_PASS rejected=3 bash_startup=pass pipefail=pass')
 
 
+def ci_gate_controls():
+    """Synthetic negative controls; never compiler/HDL qualification results."""
+    import copy
+    import xml.etree.ElementTree as ET
+    from unittest.mock import patch
+
+    rejected = 0
+    def reject(action, label):
+        nonlocal rejected
+        try:
+            action()
+        except (RuntimeError, ValueError, ET.ParseError, OSError):
+            rejected += 1
+        else:
+            raise AssertionError('Accepted CI/report mutation: ' + label)
+
+    with tempfile.TemporaryDirectory(prefix='pr190-ci-catalog-controls-') as td:
+        fixture = Path(td)
+        # Exact workflow deltas: same original command graph and checks, with
+        # only the reviewed route, additive core suite, receipt steps and calls.
+        paths = (review.PASS_WORKFLOW, review.REGRESSION_WORKFLOW, review.TARGETED_WORKFLOW)
+        expected = {}
+        for path in paths:
+            original = review.git(ROOT, 'show', review.CI_GATE_BASE + ':' + path).decode()
+            expected[path] = review.ci_gate_workflow(path, original)
+            target = fixture/path;target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(expected[path])
+        class Catalog:
+            SEQUENTIAL_WIRE_SUITES = review.SEQUENTIAL_REPORTS
+        def fixture_git(root,*args): return review.git(ROOT,*args)
+        with patch.object(review,'git',side_effect=fixture_git) as mocked_git, patch.object(review,'load',return_value=Catalog):
+            # Avoid recursive use of the patched function in this isolated fixture.
+            real_git = subprocess.check_output
+            mocked_git.side_effect=lambda root,*args: real_git(['git','--literal-pathspecs',*args],cwd=ROOT)
+            review.verify_ci_gate_successor(fixture)
+            mutations = (
+                (review.PASS_WORKFLOW, 'python3 morphhdl/scripts/check-pr190-pr189-source-sync.py', 'true'),
+                (review.PASS_WORKFLOW, 'python3 morphhdl/scripts/test-sequential-wire-source-review.py', 'true'),
+                (review.PASS_WORKFLOW, 'audit_source='+review.STATIC_BASE, 'audit_source=HEAD'),
+                (review.PASS_WORKFLOW, 'python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test', 'true'),
+                (review.REGRESSION_WORKFLOW, ' spinal.core.internals.SequentialWireEmitterTests', ''),
+                (review.REGRESSION_WORKFLOW, '--project-regressions', '--print-base'),
+                (review.REGRESSION_WORKFLOW, '--combine-regressions', '--print-base'),
+                (review.REGRESSION_WORKFLOW, 'morph/test', 'morph/testOnly MissingSuite'),
+                (review.TARGETED_WORKFLOW, 'needs: [failed-pass-workflow, failed-regression-workflow]', 'needs: source-preflight'),
+                (review.TARGETED_WORKFLOW, 'uses: ./.github/workflows/morphhdl-passes.yml', 'uses: ./.github/workflows/sequential-wire-consumers.yml'),
+                (review.TARGETED_WORKFLOW, 'pull-requests: read', 'pull-requests: write'),
+            )
+            for path, old, new in mutations:
+                assert old in expected[path], (path,old)
+                file=fixture/path
+                file.write_text(expected[path].replace(old,new,1))
+                try:reject(lambda:review.verify_ci_gate_successor(fixture),path+': '+old)
+                finally:file.write_text(expected[path])
+            review.verify_ci_gate_successor(fixture)
+
+        name='spinal.core.internals.SequentialWireEmitterTests'
+        def xml(name=name,count=6):
+            suite=ET.Element('testsuite',name=name,tests=str(count),failures='0',errors='0',skipped='0')
+            for index in range(count):ET.SubElement(suite,'testcase',name='case '+str(index))
+            return suite
+        report=fixture/'suite.xml'
+        valid=xml();report.write_bytes(ET.tostring(valid))
+        review.sequential_report_record(report,name,6)
+        mutations=[]
+        for key in ('failures','errors','skipped'):
+            value=xml();value.set(key,'1');mutations.append((key,value))
+        for tag in ('failure','error','skipped'):
+            value=xml();ET.SubElement(value[0],tag);mutations.append(('nested '+tag,value))
+        value=xml();value.set('name','wrong-suite');mutations.append(('suite name',value))
+        value=xml();value.set('tests','5');mutations.append(('count',value))
+        value=xml();value.remove(value[0]);mutations.append(('missing testcase',value))
+        value=xml();value[0].set('name',value[1].get('name'));mutations.append(('duplicate case',value))
+        value=xml();value[0].attrib.pop('name');mutations.append(('unnamed case',value))
+        value=xml();value.tag='testsuites';mutations.append(('aggregate root',value))
+        for label,value in mutations:
+            report.write_bytes(ET.tostring(value))
+            reject(lambda:review.sequential_report_record(report,name,6),label)
+        report.write_bytes(b'<malformed')
+        reject(lambda:review.sequential_report_record(report,name,6),'malformed XML')
+        report.unlink()
+        reject(lambda:review.sequential_report_record(report,name,6),'missing XML')
+        real=fixture/'real.xml';real.write_bytes(ET.tostring(valid));report.symlink_to(real)
+        reject(lambda:review.sequential_report_record(report,name,6),'linked XML');report.unlink()
+        # Whole extension: mandatory projects/counts and actual case identities.
+        for project,suites in review.SEQUENTIAL_REPORTS.items():
+            for suite,count in suites.items():
+                file=fixture/project/'target/test-reports'/('TEST-'+suite+'.xml')
+                file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(ET.tostring(xml(suite,count)))
+        receipt=review.sequential_report_inventory(fixture,'fixture-not-a-qualified-source')
+        base={p:{'tests':2,'suites':['original.a','original.b'],'skipped':0} for p in review.SEQUENTIAL_REPORTS}
+        good=review.merge_sequential_inventory(base,receipt)
+        assert sum(x['tests'] for x in good.values())==41
+        assert sum(x['tests'] for x in base.values())==4, 'merge mutated predecessor receipt'
+        for project in review.SEQUENTIAL_REPORTS:
+            for kind in ('missing','count','skip','suite','report'):
+                value=copy.deepcopy(receipt)
+                if kind=='missing':del value['projects'][project]
+                elif kind=='count':value['projects'][project]['tests']-=1
+                elif kind=='skip':value['projects'][project]['skipped']=1
+                elif kind=='suite':value['projects'][project]['suites'].append('unexpected')
+                else:value['projects'][project]['reports'].pop(next(iter(review.SEQUENTIAL_REPORTS[project])))
+                reject(lambda:review.merge_sequential_inventory(base,value),project+' '+kind)
+            for kind in ('overlap','skip','duplicate','missing'):
+                value=copy.deepcopy(base)
+                if kind=='overlap':value[project]['suites'].append(next(iter(review.SEQUENTIAL_REPORTS[project])))
+                elif kind=='skip':value[project]['skipped']=1
+                elif kind=='duplicate':value[project]['suites'].append('original.a')
+                else:del value[project]
+                reject(lambda:review.merge_sequential_inventory(value,receipt),'inherited '+project+' '+kind)
+        emitter=fixture/'core/target/test-reports'/('TEST-'+name+'.xml')
+        emitter.unlink()
+        reject(lambda:review.sequential_report_inventory(fixture,'fixture'),'omitted selective core suite')
+    with tempfile.TemporaryDirectory(prefix='pr190-complete-xml-controls-') as td:
+        fixture = Path(td)
+        for project in review.REGRESSION_PROJECTS:
+            report = fixture/project/'target/test-reports/TEST-original.xml'
+            report.parent.mkdir(parents=True)
+            report.write_bytes(ET.tostring(xml('original', 2)))
+        complete = review.actual_regression_summary(fixture)
+        assert set(complete) == set(review.REGRESSION_PROJECTS)
+        assert sum(row['tests'] for row in complete.values()) == 16
+        for project in review.REGRESSION_PROJECTS:
+            report = fixture/project/'target/test-reports/TEST-original.xml'
+            original = report.read_bytes()
+            report.unlink()
+            try:reject(lambda:review.actual_regression_summary(fixture), 'missing original project '+project)
+            finally:report.write_bytes(original)
+        report = fixture/'core/target/test-reports/TEST-original.xml'
+        mutated=xml('original',2);ET.SubElement(mutated[0],'skipped')
+        report.write_bytes(ET.tostring(mutated))
+        reject(lambda:review.actual_regression_summary(fixture), 'hidden inherited skipped case')
+    assert rejected==54,rejected
+    print('PR190_CI_GATE_CONTROLS_PASS rejected='+str(rejected)+' synthetic_only=true')
+
+
 def main():
     shell_controls()
+    ci_gate_controls()
     result=review.verify(ROOT)
     paths=sorted(set(result['implementation_paths'])|review.RECONCILED)
     rejected=0

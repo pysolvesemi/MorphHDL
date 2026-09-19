@@ -8,6 +8,7 @@ on:
     branches: [parameterized-verilog]
     paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -154,7 +155,7 @@ jobs:
           sbt -batch "++${{ matrix.scala }}" \
             idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
             frontend/test verilogBackend/test morph/test \
-            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests' \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' \
             > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
       - name: Run the inherited isolated pass workspace suites
         shell: bash
@@ -263,6 +264,11 @@ jobs:
           print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
           PY
 
+          # Authenticate and validate all 37 added tests before removing only
+          # their copied reports from the frozen predecessor catalog.
+          python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
+            --project-regressions "$predecessor" "$output/sequential-test-inventory.json"
+
           (
             cd "$predecessor"
             python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
@@ -289,6 +295,10 @@ jobs:
           total = sum(record["tests"] for record in inherited.values())
           print(f"60f + Increment 61 complete regressions: {total} non-skipped tests")
           PY
+          # Add validated new suites back to the already checked old + Inc61
+          # inventory. The original current-head XML is never edited.
+          python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
+            --combine-regressions "$complete_inventory" "$output/sequential-test-inventory.json"
       - name: Retain inherited test and solver evidence
         if: always()
         uses: actions/upload-artifact@v4
