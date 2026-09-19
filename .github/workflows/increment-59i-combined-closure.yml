@@ -199,7 +199,8 @@ jobs:
           assert len(combined) == 1, ('missing/duplicated combined suite', combined)
           suite = ET.parse(combined[0]).getroot()
           assert int(suite.get('tests', '0')) == 17, suite.attrib
-          counts = {'TypedBalancedReductionCompositeStaticRedirectTests': 7,
+          counts = {'TypedBalancedReductionCompositeLocalEnableTests': 31,
+                    'TypedBalancedReductionCompositeStaticRedirectTests': 7,
                     'ParameterizedVerilogStructuralLexicalTests': 6,
                     'TypedBalancedReductionDeclarationFilterTests': 6,
                     'TypedBalancedReductionNestedResultTests': 8,

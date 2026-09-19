@@ -4,9 +4,19 @@ on:
   push:
     branches: ['agent/increment-59i-combined-reduction-closure']
     paths:
+      - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala'
+      - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala'
       - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala'
       - 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala'
       - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableArtifactWriter.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionLocalEnableCombinedArtifactWriter.scala'
+      - 'morphhdl/src/test/scala/nativeapplication/BalancedCompositeLocalEnableNativeOracle.scala'
+      - 'morphhdl/src/test/scala/nativeapplication/BalancedLocalEnableCombinedNativeOracle.scala'
+      - 'morphhdl/scripts/check-increment-59i-composite-local-enable.py'
+      - 'morphhdl/scripts/check-increment-59i-local-enable-combined.py'
+      - 'morphhdl/scripts/check-increment-59i-local-enable-results.py'
+      - 'morphhdl/scripts/test-increment-59i-local-enable-results.py'
       - 'morphhdl/contracts/increment-59i-local-enable-review.json'
       - 'morphhdl/scripts/check-increment-59i-local-enable-source-review.py'
       - 'morphhdl/scripts/test-increment-59i-local-enable-source-review.py'
@@ -61,9 +71,13 @@ jobs:
             tee "$out/local-enable-review.log"
           python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py | \
             tee "$out/local-enable-review-tests.log"
+          python3 morphhdl/scripts/test-increment-59i-local-enable-successor.py | tee "$out/successor-tests.log"
+          python3 morphhdl/scripts/test-increment-59i-local-enable-results.py | tee "$out/results-checker-tests.log"
           python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
           python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/native-overlay.log"
           sha256sum \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala \
             morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala \
             morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala \
@@ -71,6 +85,7 @@ jobs:
             morphhdl/scripts/check-increment-59i-local-enable-source-review.py \
             > "$out/source-sha256.txt"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: increment-59i-local-enable-committed-source
           path: target/increment-59i-local-enable-committed
@@ -109,6 +124,7 @@ jobs:
           mkdir -p "$out/tmp"
           git rev-parse HEAD > "$out/head.txt"
           git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+          git ls-files --stage > "$out/tracked-before.txt"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
           test "$version" = '1.10.0'
           base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
@@ -134,24 +150,44 @@ jobs:
           tail -n 140 "$out/tests.log"
           grep -q 'All tests passed' "$out/tests.log"
           ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
-          mkdir -p "$out/test-reports" "$out/generated-verilog"
-          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
-          find "$out/tmp" -type f -name '*.v' -exec cp {} "$out/generated-verilog/" \; 2>/dev/null || true
-          python3 - <<'PY'
-          from pathlib import Path
-          import os, xml.etree.ElementTree as ET
-          out = Path('target') / ('increment-59i-local-enable-committed-' + os.environ['SCALA_VERSION'])
-          reports = list((out / 'test-reports').glob('*.xml'))
-          assert reports, 'no JUnit reports'
-          totals = dict(tests=0, failures=0, errors=0, skipped=0)
-          names = []
-          for path in reports:
-              root = ET.parse(path).getroot(); names.append(root.get('name', path.stem))
-              for key in totals: totals[key] += int(root.get(key, '0'))
-          assert totals['failures'] == totals['errors'] == totals['skipped'] == 0, totals
-          assert any('TypedBalancedReductionCompositeLocalEnableTests' in name for name in names), names
-          (out / 'test-summary.txt').write_text(''.join(f'{key}={value}\n' for key, value in totals.items()))
-          PY
+      - name: Generate and qualify independent native local-enable hardware
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-committed-$SCALA_VERSION"
+          java -Xmx4G -Djava.io.tmpdir="$out/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeLocalEnableArtifactWriter $out/hardware-A" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeLocalEnableArtifactWriter $out/hardware-B" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionLocalEnableCombinedArtifactWriter $out/hardware-A/combined" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionLocalEnableCombinedArtifactWriter $out/hardware-B/combined" \
+            > "$out/hardware-generation.log" 2>&1 || { tail -n 240 "$out/hardware-generation.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-59i-local-enable-results.py determinism \
+            --output "$out" | tee "$out/determinism.log"
+          python3 morphhdl/scripts/check-increment-59i-composite-local-enable.py \
+            --artifacts "$out/hardware-A" --output "$out/hardware-checks" | tee "$out/hardware-checks.log"
+          python3 morphhdl/scripts/check-increment-59i-local-enable-combined.py \
+            --artifacts "$out/hardware-A/combined" --output "$out/hardware-A/combined/checks" | tee "$out/combined-checks.log"
+          python3 morphhdl/scripts/check-increment-59i-local-enable-results.py unchanged \
+            --output "$out" | tee "$out/unchanged-rtl.log"
+      - name: Retain exact test identities and verify unchanged compiled source
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-committed-$SCALA_VERSION"
+          mkdir -p "$out"
+          python3 morphhdl/scripts/check-increment-59i-local-enable-results.py reports \
+            --source "$GITHUB_WORKSPACE" --output "$out" | tee "$out/report-inventory.log"
+          test "$(git rev-parse HEAD)" = "$(cat "$out/head.txt")"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$(cat "$out/tree.txt")"
+          git ls-files --stage > "$out/tracked-after.txt"
+          cmp "$out/tracked-before.txt" "$out/tracked-after.txt"
+          git diff --exit-code
+          git diff --cached --exit-code
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -177,6 +213,8 @@ jobs:
           b=evidence/increment-59i-local-enable-committed-2.13.12
           cmp "$a/head.txt" "$b/head.txt"
           cmp "$a/tree.txt" "$b/tree.txt"
+          cmp "$a/rtl-inventory.json" "$b/rtl-inventory.json"
+          cmp "$a/test-results.json" "$b/test-results.json"
           grep -q '^failures=0$' "$a/test-summary.txt"
           grep -q '^failures=0$' "$b/test-summary.txt"
           grep -q '^errors=0$' "$a/test-summary.txt"

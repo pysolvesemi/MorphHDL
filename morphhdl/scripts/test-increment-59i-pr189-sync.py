@@ -144,4 +144,22 @@ class Sync(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.review.target_source(self.root,INC61,b'unreviewed')
 
-if __name__=='__main__':unittest.main(verbosity=2)
+if __name__ == '__main__':
+    if __import__('json').loads((ROOT / CONTRACT).read_bytes()).get('schema_version') == 4:
+        # Keep every original exact-merge assertion on its certified schema-3
+        # source. The pinned router authenticates the whole current schema-4
+        # checkout before and after that unchanged historical suite.
+        relative = Path('morphhdl/scripts/test-increment-59i-continuation.py')
+        path = ROOT / relative
+        if any(ROOT.joinpath(*relative.parts[:index]).is_symlink()
+                for index in range(1, len(relative.parts) + 1)) or not path.is_file() or path.stat().st_mode & 0o111:
+            raise RuntimeError('PR189 historical router must be a regular non-executable file')
+        raw = path.read_bytes()
+        if hashlib.sha256(raw).hexdigest() != '04ad2544a5b339032e4da9fbf69de59ad8b25282e00af221e565b883bbc34afa':
+            raise RuntimeError('PR189 historical router changed')
+        route = types.ModuleType('authenticated_pr189_historical_route')
+        route.__file__ = str(path)
+        exec(compile(raw, str(path), 'exec'), route.__dict__)
+        route.run_schema4_historical_continuation('pr189')
+    else:
+        unittest.main(verbosity=2)

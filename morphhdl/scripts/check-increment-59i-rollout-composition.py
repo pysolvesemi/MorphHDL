@@ -19,6 +19,7 @@ COMBINED_BASE = "71efa81bf56e8483f7837519b2e44cdeba908439"
 CONTRACT = "morphhdl/contracts/increment-59i-rollout-composition.json"
 CONTRACT_SHA256 = "3eda911201658d435d98c1f957fa1554ed8626f6e70473eb3a0698327021d7a8"
 LOCAL_ENABLE_CHECKER = "morphhdl/scripts/check-increment-59i-local-enable-source-review.py"
+LOCAL_ENABLE_CHECKER_SHA256 = "9eae73368f94431e46fd4587b2a84ed2db749c1281191499fe90a89d363aeede"
 
 
 def integration_review(root: Path):
@@ -38,7 +39,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "64a3008dd981bc3d84b784fcf00c43b484d7b4ccb3a3a49203463c57bf9c8c19",
+    require(hashlib.sha256(normalized).hexdigest() == "d713d3c7006a6f3395cb38754f539825d27da331bc8e3065a854eb5985c8d26e",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
@@ -135,15 +136,32 @@ def load_contract(root: Path) -> dict:
 def local_enable_review(root: Path):
     source = root / LOCAL_ENABLE_CHECKER
     if not (source.exists() or source.is_symlink()):
+        # Absence is historical only when HEAD has never contained this layer.
+        # Deleting a mandatory current reviewer cannot restore legacy rights.
+        history = run(root, "git", "log", "--full-history", "-1", "--format=%H",
+                      "HEAD", "--", LOCAL_ENABLE_CHECKER).stdout
+        require(not history.strip(), "59i local-enable successor reviewer was removed")
         return None
-    require(source.is_file() and not source.is_symlink() and
-            not source.stat().st_mode & 0o111,
+    relative = Path(LOCAL_ENABLE_CHECKER)
+    require(all(not root.joinpath(*relative.parts[:index]).is_symlink()
+                for index in range(1, len(relative.parts) + 1)),
+            "linked 59i local-enable successor reviewer")
+    require(source.is_file() and not source.stat().st_mode & 0o111,
             "missing regular 59i local-enable successor reviewer")
-    spec = importlib.util.spec_from_file_location("increment_59i_local_enable_successor", source)
-    require(spec is not None and spec.loader is not None,
-            "cannot load 59i local-enable successor reviewer")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    raw = source.read_bytes()
+    require(digest(raw) == LOCAL_ENABLE_CHECKER_SHA256,
+            "59i local-enable successor reviewer changed")
+    name = "increment_59i_local_enable_successor_" + digest(raw)
+    module = sys.modules.get(name)
+    if module is None:
+        spec = importlib.util.spec_from_file_location(name, source)
+        require(spec is not None and spec.loader is not None,
+                "cannot load 59i local-enable successor reviewer")
+        module = importlib.util.module_from_spec(spec)
+        exec(compile(raw, str(source), "exec"), module.__dict__)
+        sys.modules[name] = module
+    # Re-read the pinned manifest on every call; cached code grants no authority.
+    module.load_contract(root)
     return module
 
 

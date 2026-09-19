@@ -6,6 +6,8 @@ retains the published predecessor certificate, authenticates its immutable sourc
 and the integrated target in isolated Git checkouts, then binds a separately
 reviewed cumulative source manifest. Every new seal changes only that manifest
 and this module's one manifest-hash placeholder. No result is RTL qualification.
+Schema 4 also preserves an exact development merge and admits only linear
+reviewed source descendants while replaying the published schema-3 audit.
 """
 from __future__ import annotations
 
@@ -72,23 +74,44 @@ CONTINUATION_RECONCILIATIONS = frozenset((
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
 ))
 
+# The local-enable development lineage is fixed separately from its subsequent
+# source review. Neither a branch name nor an arbitrary merge grants authority.
+LOCAL_ENABLE_PARENT = "90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6"
+LOCAL_ENABLE_PARENT_TREE = "1b8bf66047a28b836d61f6b168d28dd3b8f95cb2"
+LOCAL_ENABLE_PARENT_SOURCE = "1ed8930326497aa43a98c2491468d4cb75e59f3a"
+LOCAL_ENABLE_PARENT_MANIFEST = "99dd143a0cc54898051e21adb58d311671af97642c6a77e52554f5d86b85125b"
+LOCAL_ENABLE_PARENT_HELPER = "fe07b4a07dd2e1d7c31d0dcfeafd5e83eac10ba03ed4a7839db124c2f032e60c"
+LOCAL_ENABLE_CHECKPOINT = "d76fbd5f84869ac56186b36f35dfc3c480a80cbb"
+LOCAL_ENABLE_CHECKPOINT_TREE = "5df50314aa7ae3bad916b157b69a87a278c391ba"
+LOCAL_ENABLE_PROTOTYPE = "1931c0aa82860d81a9a651ffa06b920840ddea1e"
+
 
 def integration_parameters(schema: int) -> tuple[str, str, frozenset]:
-    if schema == 3:
+    if schema in (3, 4):
         return CONTINUATION_TARGET, CONTINUATION_COMMON, CONTINUATION_RECONCILIATIONS
     return INTEGRATION_TARGET, INTEGRATION_BASE, INTEGRATION_RECONCILIATIONS
 
 
-def previous_certificate() -> dict:
+def previous_certificate(schema: int = 3) -> dict:
+    if schema == 4:
+        return {"seal_commit": LOCAL_ENABLE_PARENT, "seal_tree": LOCAL_ENABLE_PARENT_TREE,
+            "source_commit": LOCAL_ENABLE_PARENT_SOURCE,
+            "contract_sha256": LOCAL_ENABLE_PARENT_MANIFEST,
+            "helper_normalized_sha256": LOCAL_ENABLE_PARENT_HELPER}
     return {"seal_commit": CONTINUATION_PARENT, "seal_tree": CONTINUATION_PARENT_TREE,
         "source_commit": CONTINUATION_PARENT_SOURCE,
         "contract_sha256": CONTINUATION_PARENT_MANIFEST,
         "helper_normalized_sha256": CONTINUATION_PARENT_HELPER}
 
+
+def development_checkpoint() -> dict:
+    return {"commit": LOCAL_ENABLE_CHECKPOINT, "tree": LOCAL_ENABLE_CHECKPOINT_TREE,
+        "parents": [LOCAL_ENABLE_PARENT, LOCAL_ENABLE_PROTOTYPE]}
+
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "99dd143a0cc54898051e21adb58d311671af97642c6a77e52554f5d86b85125b"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -220,10 +243,17 @@ def validate_contract(value: dict) -> dict:
         (type(value.get("schema_version")) is int and value["schema_version"] == 2 and
          set(value) == keys | {"target_integration"}) or
         (type(value.get("schema_version")) is int and value["schema_version"] == 3 and
-         set(value) == keys | {"target_integration", "previous_seal"})), "invalid manifest schema")
+         set(value) == keys | {"target_integration", "previous_seal"}) or
+        (type(value.get("schema_version")) is int and value["schema_version"] == 4 and
+         set(value) == keys | {"target_integration", "previous_seal", "development_checkpoint"})),
+        "invalid manifest schema")
     require(value["predecessor"] == BASE, "immutable predecessor changed")
-    if value["schema_version"] == 3:
-        require(value["previous_seal"] == previous_certificate(), "previous source seal identity changed")
+    if value["schema_version"] in (3, 4):
+        require(value["previous_seal"] == previous_certificate(value["schema_version"]),
+            "previous source seal identity changed")
+    if value["schema_version"] == 4:
+        require(value["development_checkpoint"] == development_checkpoint(),
+            "development checkpoint identity changed")
     if value["schema_version"] >= 2:
         validate_target_integration(value["target_integration"], value["schema_version"])
     for key in ("predecessor_tree", "source_commit", "source_tree"):
@@ -337,8 +367,8 @@ def validate_target_integration(value: dict, schema: int = 2) -> None:
 def verify_target_integration(root: Path, value: dict) -> None:
     target = value["target_integration"]
     target_commit, common_base, _ = integration_parameters(value["schema_version"])
-    scope_parent = CONTINUATION_INTEGRATION_PARENT if value["schema_version"] == 3 else BASE
-    if value["schema_version"] == 3:
+    scope_parent = CONTINUATION_INTEGRATION_PARENT if value["schema_version"] in (3, 4) else BASE
+    if value["schema_version"] in (3, 4):
         git(root, "merge-base", "--is-ancestor", scope_parent, CONTINUATION_PARENT)
         git(root, "merge-base", "--is-ancestor", CONTINUATION_COMMON, CONTINUATION_PARENT)
         git(root, "merge-base", "--is-ancestor", CONTINUATION_COMMON, CONTINUATION_TARGET)
@@ -552,19 +582,21 @@ def audit_immutable_certificate(root: Path, commit: str, checker: str, expected:
 
 
 def verify_previous_certificate(root: Path, value: dict) -> None:
-    require(value["previous_seal"] == previous_certificate(), "previous source seal identity changed")
-    require(git(root, "rev-parse", CONTINUATION_PARENT + "^{tree}").decode().strip() ==
-        CONTINUATION_PARENT_TREE, "previous seal tree changed")
-    require(git(root, "rev-list", "--parents", "-n", "1", CONTINUATION_PARENT).decode().split() ==
-        [CONTINUATION_PARENT, CONTINUATION_PARENT_SOURCE], "previous seal topology changed")
-    raw = frozen(root, CONTINUATION_PARENT, CONTRACT)
-    require(raw is not None and digest(raw) == CONTINUATION_PARENT_MANIFEST,
+    certificate = previous_certificate(value["schema_version"])
+    require(value["previous_seal"] == certificate, "previous source seal identity changed")
+    parent = certificate["seal_commit"]
+    require(git(root, "rev-parse", parent + "^{tree}").decode().strip() ==
+        certificate["seal_tree"], "previous seal tree changed")
+    require(git(root, "rev-list", "--parents", "-n", "1", parent).decode().split() ==
+        [parent, certificate["source_commit"]], "previous seal topology changed")
+    raw = frozen(root, parent, CONTRACT)
+    require(raw is not None and digest(raw) == certificate["contract_sha256"],
         "previous immutable manifest changed")
     require(frozen(root, value["source_commit"], CONTRACT) == raw,
         "unsealed continuation must preserve its predecessor certificate bytes")
     require(CONTRACT not in tree(root, CONTINUATION_TARGET), "target carries an unrelated 59i seal")
-    audit_immutable_certificate(root, CONTINUATION_PARENT, HELPER,
-        CONTINUATION_PARENT_HELPER, normalized=True)
+    audit_immutable_certificate(root, parent, HELPER,
+        certificate["helper_normalized_sha256"], normalized=True)
     certificate = frozen(root, CONTINUATION_TARGET, "morphhdl/contracts/increment-61-source-review.json")
     require(certificate is not None and digest(certificate) == CONTINUATION_61_CONTRACT,
         "immutable Increment 61 contract changed")
@@ -572,6 +604,31 @@ def verify_previous_certificate(root: Path, value: dict) -> None:
         "immutable Increment 61 predecessor changed")
     audit_immutable_certificate(root, CONTINUATION_TARGET,
         "morphhdl/scripts/check-increment-61-source-review.py", CONTINUATION_61_HELPER)
+
+
+def verify_development_history(root: Path, value: dict) -> None:
+    """Preserve the saved merge and its certificate throughout source development."""
+    require(value["development_checkpoint"] == development_checkpoint(),
+        "development checkpoint identity changed")
+    checkpoint = LOCAL_ENABLE_CHECKPOINT
+    require(git(root, "rev-parse", checkpoint + "^{tree}").decode().strip() ==
+        LOCAL_ENABLE_CHECKPOINT_TREE, "development checkpoint tree changed")
+    require(git(root, "rev-list", "--parents", "-n", "1", checkpoint).decode().split() ==
+        [checkpoint, LOCAL_ENABLE_PARENT, LOCAL_ENABLE_PROTOTYPE],
+        "development checkpoint topology changed")
+    git(root, "merge-base", "--is-ancestor", checkpoint, value["source_commit"])
+    original = tree(root, LOCAL_ENABLE_PARENT).get(CONTRACT)
+    require(original is not None, "published predecessor certificate is missing")
+    current = value["source_commit"]
+    while True:
+        require(tree(root, current).get(CONTRACT) == original,
+            "development history changed its published predecessor certificate")
+        if current == checkpoint:
+            break
+        parents = git(root, "rev-list", "--parents", "-n", "1", current).decode().split()
+        require(len(parents) == 2 and parents[0] == current,
+            "development source must be a linear descendant of the saved checkpoint")
+        current = parents[1]
 
 
 def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> None:
@@ -583,12 +640,16 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
         require(parents == [source, BASE, INTEGRATION_TARGET],
             "source must join the exact predecessor and reviewed target in order")
         verify_target_integration(root, value)
-    else:
+    elif value["schema_version"] == 3:
         require(parents == [source, CONTINUATION_PARENT, CONTINUATION_TARGET],
             "continuation must join the published seal and exact reviewed target in order")
         verify_previous_certificate(root, value)
         verify_target_integration(root, value)
-    if value["schema_version"] != 3:
+    else:
+        verify_development_history(root, value)
+        verify_previous_certificate(root, value)
+        verify_target_integration(root, value)
+    if value["schema_version"] not in (3, 4):
         require(not git(root, "rev-list", "--full-history", BASE + ".." + source, "--", CONTRACT),
             "source history already contains a successor seal")
     # A normal GitHub integration merge places the reviewed feature in its
@@ -624,7 +685,7 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
         "first seal must be one direct child of the immutable source")
     require(tree(root, seal) == expected and changed(root, source, seal) == {HELPER, CONTRACT},
         "first seal differs from immutable source plus exact seal")
-    history_base = source if value["schema_version"] == 3 else BASE
+    history_base = source if value["schema_version"] in (3, 4) else BASE
     history = git(root, "rev-list", "--full-history", history_base + ".." + head, "--", CONTRACT).decode().splitlines()
     require(bool(history), "immutable first seal is missing")
     for commit in history:
@@ -713,13 +774,13 @@ def verify(root: Path) -> dict:
         require(git(root, "rev-parse", commit + "^{tree}").decode().strip() == value[key + "_tree"],
             "immutable " + key + " tree changed")
     before_tree, source_tree, committed = tree(root, BASE), tree(root, source), tree(root, head)
-    require(CONTRACT not in before_tree and (value["schema_version"] == 3 or CONTRACT not in source_tree),
+    require(CONTRACT not in before_tree and (value["schema_version"] in (3, 4) or CONTRACT not in source_tree),
         "source or predecessor already contains successor seal")
     require(source_tree.get(HELPER, (None,))[0] == "100644",
         "immutable source helper must be regular and non-executable")
     records = {entry["path"]: entry for entry in value["files"]}
     source_delta = changed(root, BASE, source)
-    if value["schema_version"] == 3:
+    if value["schema_version"] in (3, 4):
         require(CONTRACT in source_delta, "continuation lost its prior certificate")
         source_delta.remove(CONTRACT)
     require(set(records) == source_delta, "complete successor delta inventory changed")
@@ -762,7 +823,7 @@ def target_anchor(root: Path) -> str | None:
 def target_source(root: Path, path: str, source: bytes) -> bytes:
     """Project only authenticated current bytes to the pinned refreshed target."""
     value = _projection_contract(root)
-    require(value["schema_version"] >= 2, "target refresh projection requires schema 2 or 3")
+    require(value["schema_version"] >= 2, "target refresh projection requires schema 2, 3 or 4")
     before = frozen(root, integration_parameters(value["schema_version"])[0], path) or b""
     if source == before:
         return before
@@ -783,7 +844,7 @@ def target_source(root: Path, path: str, source: bytes) -> bytes:
 def target_inventory(root: Path, paths: set[str], qualification_base: str,
         full: bool = False) -> set[str]:
     value = verify(root)
-    require(value["schema_version"] >= 2, "target refresh inventory requires schema 2 or 3")
+    require(value["schema_version"] >= 2, "target refresh inventory requires schema 2, 3 or 4")
     target_commit = integration_parameters(value["schema_version"])[0]
     entries = changed(root, target_commit, value["source_commit"]) | {
         HELPER, CONTRACT, COMPLETION_TODO, COMPLETION_RECORD}
@@ -802,7 +863,7 @@ def increment61_predecessor_source(root: Path, path: str, source: bytes) -> byte
     The complete verify() authenticates both certificates and the live tree;
     each projection additionally authenticates its manifest and exact input.
     """
-    require(_projection_contract(root)["schema_version"] == 3, "Increment 61 predecessor requires schema 3")
+    require(_projection_contract(root)["schema_version"] in (3, 4), "Increment 61 predecessor requires schema 3 or 4")
     current = frozen(root, CONTINUATION_TARGET, path) or b""
     previous = frozen(root, CONTINUATION_61_BASE, path) or b""
     require(source in (current, previous), "unreviewed bytes cannot enter Increment 61 predecessor projection: " + path)
@@ -811,7 +872,7 @@ def increment61_predecessor_source(root: Path, path: str, source: bytes) -> byte
 
 def increment61_predecessor_inventory(root: Path, paths: set[str], qualification_base: str,
         full: bool = False) -> set[str]:
-    require(verify(root)["schema_version"] == 3, "Increment 61 predecessor requires schema 3")
+    require(verify(root)["schema_version"] in (3, 4), "Increment 61 predecessor requires schema 3 or 4")
     entries = changed(root, CONTINUATION_61_BASE, CONTINUATION_TARGET)
     current = changed(root, qualification_base, CONTINUATION_TARGET)
     previous = changed(root, qualification_base, CONTINUATION_61_BASE)

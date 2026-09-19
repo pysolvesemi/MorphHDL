@@ -85,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "fe07b4a07dd2e1d7c31d0dcfeafd5e83eac10ba03ed4a7839db124c2f032e60c"
+CONTINUATION_HELPER_SHA256 = "bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -108,7 +108,7 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     module.__file__ = str(file)
     exec(compile(raw, str(file), "exec"), module.__dict__)
     value = module.verify(root)
-    require(value["schema_version"] == 3 and
+    require(value["schema_version"] in (3, 4) and
             module.target_anchor(root) == "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
             "unreviewed Increment 61 continuation target")
     # The original contract still authenticates its exact reviewed inventory;
@@ -128,7 +128,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "7c07c6785673e5677c7a0af71d25fbd33af901407cc3ee67f0777da0a632205f":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "12bd255c1a6eea7801e4b15a7d50ab8b887b7a7ffdda2b297dcfd728e5e9bf78":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")

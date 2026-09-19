@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -433,5 +434,68 @@ class ContinuationTests(unittest.TestCase):
         self.reject('HEAD/index identity differs')
 
 
+def run_schema4_historical_continuation(suite: str = "continuation") -> None:
+    """Run every original schema-3 assertion on its exact certified source.
+
+    Schema 4 has a different, separately tested development topology. It cannot
+    satisfy schema 3's two-parent-source assertions. Keep that original suite
+    byte-for-byte in its published checkout and additionally test the current
+    schema-4 verifier; no historical negative is relaxed or skipped.
+    """
+    helper = ROOT / HELPER
+    relative = Path(HELPER)
+    if any(ROOT.joinpath(*relative.parts[:index]).is_symlink()
+            for index in range(1, len(relative.parts) + 1)) or not helper.is_file() or helper.stat().st_mode & 0o111:
+        raise RuntimeError('continuation routing requires a regular current successor verifier')
+    raw = helper.read_bytes()
+    pattern = rb'^CONTRACT_SHA256 = "[^"\n]+"$'
+    if len(re.findall(pattern, raw, re.M)) != 1:
+        raise RuntimeError('continuation routing found an ambiguous current verifier seal')
+    normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    if hashlib.sha256(normalized).hexdigest() != 'bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f':
+        raise RuntimeError('continuation routing refuses an unauthenticated current verifier')
+    review = types.ModuleType('reviewed_schema4_continuation_route')
+    review.__file__ = str(helper)
+    exec(compile(raw, str(helper), 'exec'), review.__dict__)
+    value = review.verify(ROOT)
+    if value['schema_version'] != 4:
+        raise RuntimeError('schema-4 continuation route changed schema')
+    anchor = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
+    originals = {
+        'continuation': ('morphhdl/scripts/test-increment-59i-continuation.py',
+            '0c67499379f1e8d514a3cae7e72e329d9c75966e9c63e2f2708c4ea4f93f7e1b'),
+        'pr189': ('morphhdl/scripts/test-increment-59i-pr189-sync.py',
+            'ad89c3f15ba036652835aff2ac88ddac63a21ac35b3556883a030f6f3d358a3c'),
+    }
+    if suite not in originals:
+        raise RuntimeError('unknown immutable schema-3 test suite')
+    test, expected_hash = originals[suite]
+    original = review.frozen(ROOT, anchor, test)
+    if original is None or hashlib.sha256(original).hexdigest() != expected_hash:
+        raise RuntimeError('immutable schema-3 continuation suite changed')
+    print('Current schema-4 source authenticated; replaying unchanged ' + test + ' at ' + anchor,
+          flush=True)
+    with tempfile.TemporaryDirectory(prefix='59i-schema3-continuation-route-') as directory:
+        checkout = Path(directory) / 'source'
+        git(ROOT, 'worktree', 'add', '--detach', str(checkout), anchor)
+        try:
+            if (checkout / test).read_bytes() != original:
+                raise RuntimeError('schema-3 continuation checkout differs from its authenticated test bytes')
+            subprocess.run([sys.executable, '-B', test, '-v'], cwd=checkout,
+                env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
+            review.verify_checkout(checkout, review.tree(checkout, anchor))
+        finally:
+            git(ROOT, 'worktree', 'remove', '--force', str(checkout))
+    print('Original schema-3 ' + suite + ' assertions passed', flush=True)
+    if suite == 'continuation':
+        print('Exercising current schema-4 lifecycle controls', flush=True)
+        subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-local-enable-successor.py', '-v'],
+            cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
+    review.verify(ROOT)
+
+
 if __name__ == '__main__':
-    unittest.main(verbosity=2)
+    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') == 4:
+        run_schema4_historical_continuation()
+    else:
+        unittest.main(verbosity=2)

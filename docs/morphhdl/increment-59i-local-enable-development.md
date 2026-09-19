@@ -1,18 +1,34 @@
 # Increment 59i: composite local-enable development candidate
 
-## Status — 18 September 2026
+## Status — 19 September 2026
 
-This is **uncompiled, unsealed development source**, based on published audit
-seal `37d1629f9b78c4d9cd6646abee9962fdd046e413`. It is not an accepted source
-certificate, a passing CI result, or completion of Increment 59i. The existing
-committed-head local-enable gate is unchanged and must continue to reject this
-candidate until the required review contract/checker/tests are implemented and
-its legitimate successor certificate is issued. Do not add an unconditional
-success reviewer or promote older CI results to this source.
+This is development source for the remaining composite local-enable requirement
+of PR #177. The published qualified parent is
+`90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6`; its target includes the merged PR #189
+and PR #187 at `e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d`.
+The preserved development merge `d76fbd5f84869ac56186b36f35dfc3c480a80cbb`
+retains both the qualified parent and the earlier prototype history.
 
-The integrated target remains `27af65ab`; live target `f5049ae2` also still needs
-reconciliation. The active audit run `35331945529` continues on its own unchanged
-`37d1629f` source, not this development candidate.
+The initial development diagnostic, run `35421115525`, executed 128 tests in ten
+suites on each Scala version: 124 passed and four public-emitter fixtures failed
+before emission because they disabled `headerWithRepoHash`. Successor
+`38e80295d8ec0268f752adf43c4cb22e442ce498` repairs that fixture configuration;
+the production configuration guard and all four reset/publication cases remain.
+Its targeted replacement, run `35427383974`, passed all 128 cases in ten
+suites on both Scala versions. Downloaded ZIP digests, every real XML testcase
+identity, zero failure/error/skip counts, and before/after source inventories
+were verified. Each artifact retained 24 files. This validates the fixture-only
+source; later runtime and hardware additions require their own execution.
+Source and run identities are separate from the recovery controller identity.
+
+Subsequent development preserves whole-record native enable scopes and rejects
+controls from nested Vec lanes that can be absent under legal overrides. The
+mandatory local-enable review contract, checker and checker regressions now
+exist. Their source-review checks do not establish Scala or hardware correctness.
+A legitimate successor seal and the mandatory committed-head qualification are
+still required before this remaining failed requirement is considered passed.
+Full final-head CI follows only after that qualification; the increment remains
+unchecked until every applicable gate passes.
 
 ## Native dependency model
 
@@ -64,28 +80,53 @@ When bodies in the freshness observation while preserving the existing pair
 versus tail observation modes and all capture operands. It neither searches for
 missing drivers elsewhere nor invents a new admission rule.
 
-## Tests and remaining qualification
+## Shared scopes and nested control activity
 
-`TypedBalancedReductionCompositeLocalEnableTests.scala` contains 21 test cases
-(including loop-expanded cases). They use the actual native capture/replay
-APIs and compare original/current/peer operand identities before normalization.
-They cover independent field widths, odd tails, two-register composite chains,
-behavior inequivalence, peer bounds, stale controls, reset mutation, external
-reads, operand inventories, and the preserved scalar API restriction. The
-public fixtures cover SYNC/high/rising and ASYNC/low/falling reset/edge profiles
-in consolidated and one-file-per-component modes.
+An ordinary `RegNextWhen(record, record.valid)` has one native `When` scope
+containing assignments to multiple scalar fields. Its complete closed callback
+owns that scope. Each scalar proof authenticates a projection with the original
+flattened operand order, exact result identity, a declaration/statement subset,
+and every original driver and initializer of each selected declaration. The
+proof retains the complete observation, so sibling mutation is still detected.
+The scalar certification entry point retains its original strict behavior.
 
-**These Scala tests have not been compiled or run in this continuation.**
-Remaining work includes both Scala lanes, the complete reset/polarity/enable
-profile matrix, nested-inner-Vec and generated-child combinations, independent
-simulation/formal references, functional mutations, and all requirements in the
-59i roadmap. This development subset is not the complete local-enable closure.
-The existing mandatory review contract, checker and checker regression suite
-are still required. No source-review hash was repinned to disguise those gaps.
+A control dependency must exist whenever its result field exists. Bridge
+control reads use the same nested-dimension dominance check already required
+for operator data reads. An always-present result cannot depend on an optional
+inner lane, and equal witness sizes do not equate independent dimensions.
+Inactive transport lanes being zero-filled is not authority to admit such reads.
 
-Provenance: the anchored code transformations in the repository's retained
-`morphhdl/repair-59i-composite-local-enable/apply.py` and `fix-generated.py` were
-used as an **unqualified starting prototype**, then corrected for distinct
-current/original dependency roles, legal own-chain register controls, and the
-current publication observer. Their obsolete baseline pins and publication
-scripts were not used to assert that the current source was qualified.
+Equal register counts establish structural pipeline depth. Independently enabled
+fields can stall separately; `latencyFor` does not promise fixed transaction
+latency when local enables are present.
+
+## Authored tests and qualification scope
+
+`TypedBalancedReductionCompositeLocalEnableTests.scala` contains 31 cases,
+including loop-expanded cases. They exercise native capture/replay APIs and
+compare original/current/peer identities before normalization. Coverage includes
+independent field widths, odd tails, two-register chains, behavior inequivalence,
+control bounds, stale controls, reset mutation, foreign/registered peers, operand
+inventories, preserved scalar restrictions, nested active dependencies, widening
+sum/product bridges, and shared whole-record enables in both publication modes.
+The added cases require real execution; source inspection is not a passing test.
+
+The independent hardware fixtures use ordinary concrete Spinal references and
+wiring-only interface adapters. Qualification includes reset polarity/edge and
+global-enable behavior, original/current control discrimination, parameter
+overrides, split/consolidated publication, nested generated children, field and
+packed profiles, widening, captures, saturation, actual RTL mutations, strict
+Verilog-2001, lint/synthesis, and explicitly bounded formal comparisons. Record
+actual executed counts and scope from the resulting receipts; authored matrices
+are not evidence that those cases passed.
+
+The local review contract records exact reversible source spans and preserves
+the qualified predecessor. Schema-4 successor history retains the original
+certificates and preserved development merge. Historical schema-3 tests execute
+unchanged against their authenticated immutable source, while current source
+checks and new successor tests separately validate the current revision. Scala
+and hardware compilation always use the actual candidate source.
+
+Provenance: retained historical repair scripts supplied an unqualified starting
+prototype. Their obsolete baseline pins and publication scripts are not used to
+assert qualification of this implementation.
