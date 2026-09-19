@@ -1,0 +1,58 @@
+{
+  "continuation_review_paths": [
+    ".github/workflows/increment-59i-local-enable-committed-head.yml",
+    "morphhdl/scripts/check-cdc-successor-source.py",
+    "morphhdl/scripts/check-increment-59i-local-enable-source-review.py",
+    "morphhdl/scripts/check-increment-59i-pr190-integration.py",
+    "morphhdl/scripts/check-increment-59i-production-successor.py",
+    "morphhdl/scripts/check-increment-59i-regression-inventory.py",
+    "morphhdl/scripts/check-increment-59i-rollout-composition.py",
+    "morphhdl/scripts/check-increment-59i-target-integration.py",
+    "morphhdl/scripts/check-increment-59i-widening-source-review.py",
+    "morphhdl/scripts/check-increment-60b-signedness-authority.py",
+    "morphhdl/scripts/check-increment-61-source-review.py",
+    "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+    "morphhdl/scripts/check-pr190-pr189-source-sync.py",
+    "morphhdl/scripts/test-increment-59i-continuation.py",
+    "morphhdl/scripts/test-increment-59i-pr190-integration.py"
+  ],
+  "helper_normalized_sha256": "44cddecca2f07d3ea00b8bcbb1d66d502e5fc1ea564b1ee3762f95479d6c015c",
+  "historical_records_removed_by_exact_base_reversion": [],
+  "manifest_sha256": "ee52b48dec8bd07079232dc2838c46a3349b1035f3b7e486dffe4d730c504edf",
+  "qualification": "Source identity and history only; no hardware or CI qualification",
+  "required_seal_delta": [
+    "morphhdl/contracts/increment-59i-production-successor.json",
+    "morphhdl/scripts/check-increment-59i-production-successor.py"
+  ],
+  "schema_version": 5,
+  "source_commit": "8c634b150c778607b280dd6831095dd6e474a4c1",
+  "source_records": 345,
+  "source_records_preserved": 330,
+  "source_records_refreshed": [
+    ".github/workflows/increment-59i-local-enable-committed-head.yml",
+    "morphhdl/scripts/check-cdc-successor-source.py",
+    "morphhdl/scripts/check-increment-59i-local-enable-source-review.py",
+    "morphhdl/scripts/check-increment-59i-pr190-integration.py",
+    "morphhdl/scripts/check-increment-59i-production-successor.py",
+    "morphhdl/scripts/check-increment-59i-regression-inventory.py",
+    "morphhdl/scripts/check-increment-59i-rollout-composition.py",
+    "morphhdl/scripts/check-increment-59i-target-integration.py",
+    "morphhdl/scripts/check-increment-59i-widening-source-review.py",
+    "morphhdl/scripts/check-increment-60b-signedness-authority.py",
+    "morphhdl/scripts/check-increment-61-source-review.py",
+    "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+    "morphhdl/scripts/check-pr190-pr189-source-sync.py",
+    "morphhdl/scripts/test-increment-59i-continuation.py",
+    "morphhdl/scripts/test-increment-59i-pr190-integration.py"
+  ],
+  "source_tree": "cd967ca043f7863d296ece4217464c1e0c45a892",
+  "state": "VALIDATED_DRY_RUN; no repository bytes or index changed",
+  "target_records": 40,
+  "target_records_preserved": 36,
+  "target_records_refreshed": [
+    "morphhdl/scripts/check-cdc-successor-source.py",
+    "morphhdl/scripts/check-increment-61-source-review.py",
+    "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+    "morphhdl/scripts/check-pr190-pr189-source-sync.py"
+  ]
+}

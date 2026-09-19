@@ -1,42 +1,22 @@
 {
-  "bundle_sha256": "9402b601a2736a91df1a2492e37ac85d553b2912ac476c9b08e51f48921d2aa0",
-  "changed_blob_objects": 115,
+  "bundle_sha256": "40ac2ff1d6a0602f95fa904091af4c4c8d794e371b99f2e9733571bdec0e3aa7",
+  "changed_blob_objects": 29,
   "commits": [
-    "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
-    "1931c0aa82860d81a9a651ffa06b920840ddea1e",
-    "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
-    "38e80295d8ec0268f752adf43c4cb22e442ce498",
-    "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb",
-    "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
-    "a3ffe64779a4947777782ae1efbbea17d5016d17",
-    "cb093b5aa235760f2c3149f4327324976aa0495b",
-    "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
-    "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
-    "545134a42dd200c5cee679db5dde0fea0acb15c9",
-    "58fb59773a2deebba0251b5b626c19a22453f0a4",
-    "ccec54986c70077e361f291cd322f0aa547aee15",
-    "40a001a8877dd5b357ecc444574e2aa0527c6d56",
-    "99aacc05a783b9dc51aaeabd4e1395de385cab28",
-    "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1"
+    "a44e08786bfa603a437245718d60a5631af6cb05",
+    "8c634b150c778607b280dd6831095dd6e474a4c1",
+    "268cdc63ca5b12177e01b8715688a6e001dff06f"
   ],
   "controller_files": [
     "stage.py",
     "payload.json",
-    "part-01.b64",
-    "part-02.b64",
-    "part-03.b64",
-    "part-04.b64",
-    "part-05.b64",
-    "part-06.b64",
-    "part-07.b64",
-    "part-08.b64"
+    "part-01.b64"
   ],
-  "payload_sha256": "8952fe5491e4d99ca2093e805393191335a97f474f3908c682c3d1f02fdcabac",
+  "payload_sha256": "a431600775d4cbb0d54fefd92be01ef7fdcb7b7950d3c51a20316024cc440858",
   "recovery_directory": ".github/recovery/59i-local-enable-publication",
   "refs_updated": false,
   "remote_calls": false,
   "runtime_files": 1847,
-  "seal": "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1",
-  "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28",
+  "seal": "268cdc63ca5b12177e01b8715688a6e001dff06f",
+  "source": "8c634b150c778607b280dd6831095dd6e474a4c1",
   "workflow": ".github/workflows/increment-59i-local-enable-publication-stage.yml"
 }

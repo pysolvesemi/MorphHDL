@@ -1,0 +1,75 @@
+name: Stage exact 59i local-enable source and failed-first qualification
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-local-enable-publication-stage.yml
+      - .github/recovery/59i-local-enable-publication/**
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: increment-59i-local-enable-exact-publication
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Reconstruct sealed source, require passed runtime diagnostic, and run source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-local-enable-publication/stage.py prepare \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-exact-publication-source" \
+            --output "$GITHUB_WORKSPACE/59i-staging-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-source-and-tree-requests-${{ github.run_attempt }}
+          path: 59i-staging-evidence/
+          if-no-files-found: error
+          retention-days: 21
+      - name: Await connector-created trees and stage exact history without ref updates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-local-enable-publication/stage.py commits \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-exact-publication-source" \
+            --output "$GITHUB_WORKSPACE/59i-staging-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-exact-commit-staging-${{ github.run_attempt }}
+          path: 59i-staging-evidence/
+          if-no-files-found: error
+          retention-days: 21
+      - name: Await reviewed feature fast-forward and dispatch only failed local-enable requirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-local-enable-publication/stage.py dispatch \
+            --repository "$GITHUB_WORKSPACE" \
+            --destination "$RUNNER_TEMP/59i-exact-publication-source" \
+            --output "$GITHUB_WORKSPACE/59i-staging-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-failed-first-dispatch-${{ github.run_attempt }}
+          path: 59i-staging-evidence/
+          if-no-files-found: error
+          retention-days: 21

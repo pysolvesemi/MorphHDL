@@ -1,0 +1,15 @@
+{
+  "full_ci": false,
+  "preserved_commits": [
+    "a44e08786bfa603a437245718d60a5631af6cb05",
+    "8c634b150c778607b280dd6831095dd6e474a4c1",
+    "268cdc63ca5b12177e01b8715688a6e001dff06f"
+  ],
+  "preserved_target_history": "Existing immutable target commits are prerequisites, never recreated.",
+  "refs_updated": false,
+  "seal": "268cdc63ca5b12177e01b8715688a6e001dff06f",
+  "seal_tree": "9c78547d73fdf08a8c9fbb7f1d836ba4af2c1ad4",
+  "source": "8c634b150c778607b280dd6831095dd6e474a4c1",
+  "target": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+  "target_tree": "ebe59eecbc8f550d265e78c717fb093603329055"
+}

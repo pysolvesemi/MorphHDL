@@ -1,0 +1,35 @@
+{
+  "failed_run": 35468824371,
+  "artifacts": [
+    {
+      "artifact_id": 10592381618,
+      "sha256": "b6cc68344bf73bcdcfce44ba460b50113fa8d0cfd6191b5b24088f7766aa7b44",
+      "head": "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1",
+      "files": 9
+    },
+    {
+      "artifact_id": 10592262047,
+      "sha256": "1f78103c016002658e37926a2e0853a85c0eaf6865053f955c094515a9e06385",
+      "head": "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1",
+      "files": 14
+    },
+    {
+      "artifact_id": 10591937680,
+      "sha256": "f29f6d1a81257254c8337a3e0f9b09d627233bfd5f23c56c5e4aeee683d046ee",
+      "head": "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1",
+      "files": 9
+    }
+  ],
+  "source_gate": "passed; runtime never started",
+  "workflow_changes": "only temporary path setup, reuse and receipt",
+  "bash_blocks": 5,
+  "long_socket_bytes": 127,
+  "repaired_socket_bytes": 65,
+  "socket_runtime_verification": "pending CI; local AF_UNIX socket creation unavailable",
+  "historical_merge_parents": [
+    "58fb59773a2deebba0251b5b626c19a22453f0a4",
+    "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
+  ],
+  "provisional_seal_rejected": "5c3b39416",
+  "hdl_or_tests_changed": false
+}

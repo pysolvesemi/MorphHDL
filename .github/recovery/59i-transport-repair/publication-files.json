@@ -1,0 +1,128 @@
+[
+  {
+    "remote_path": ".github/workflows/increment-59i-local-enable-publication-stage.yml",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/stage.yml",
+    "sha256": "dfa19d86f29b21b7f9ebfa2a454e726a547a9f93092d22dcacf29e950ab774d5",
+    "size": 2820
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/stage.py",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/stage.py",
+    "sha256": "6985932ff0c42d2364aea61d3488738e4f9e5306435dbaeac2f5529bca71fdf9",
+    "size": 22940
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/payload.json",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/payload.json",
+    "sha256": "a431600775d4cbb0d54fefd92be01ef7fdcb7b7950d3c51a20316024cc440858",
+    "size": 279524
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/part-01.b64",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/part-01.b64",
+    "sha256": "eac7ed5c1177972e12286ce6304acae7f72acce2145019f154c6309d366aff20",
+    "size": 29240
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/build-receipt.json",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/build-receipt.json",
+    "sha256": "ba2efc1f6619d4fa47721ff71bab8a0c72bf081c08a83c0dbcb25352ca1b95e9",
+    "size": 796
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/local-seal-check.log",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport-ready/local-seal-check.log",
+    "sha256": "6df7113edb1f8cb7af662bc9257531b80c41dbb766422a220f6883ca5843cb97",
+    "size": 40
+  },
+  {
+    "remote_path": ".github/recovery/59i-local-enable-publication/continuation.md",
+    "local_path": "/workspace/scratch/68d458e0e937/59i-transport-continuation.md",
+    "sha256": "cf5afb23d6a0a5e36045ed7c4d63d66556ac1f2f9967f227033131458ae93906",
+    "size": 5868
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/verify-local-enable-committed.py",
+    "local_path": "/workspace/scratch/68d458e0e937/verify-local-enable-committed.py",
+    "sha256": "868d4af43f95748935e39ddfef819ee474b9442f034c54db34142d11a73f6d4a",
+    "size": 11077
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/verify-local-enable-diagnostic-v5.py",
+    "local_path": "/workspace/scratch/68d458e0e937/verify-local-enable-diagnostic-v5.py",
+    "sha256": "2176aa1200a37ce68d344caa39e6a510959f0181f77460707afbc11fc650e4f5",
+    "size": 53574
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/build-local-enable-transport-seal.py",
+    "local_path": "/workspace/scratch/68d458e0e937/build-local-enable-transport-seal.py",
+    "sha256": "252cde218112d841796af70f755ab057ac4c1b857738b9730b4a321f37b7642a",
+    "size": 14510
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/59i-transport-reviewed-reasons.json",
+    "local_path": "/workspace/scratch/68d458e0e937/59i-transport-reviewed-reasons.json",
+    "sha256": "9df3d33c40c82a509fb4b185e1772640286de42abfbedcc537d2cf880fda1951",
+    "size": 4217
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/controller/build.py",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport/build.py",
+    "sha256": "6cfbb060609f58df4a026626d69731ae0a0d7ecea0e23c3d0568627a958e7532",
+    "size": 7776
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/controller/stage.py",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport/stage.py",
+    "sha256": "6985932ff0c42d2364aea61d3488738e4f9e5306435dbaeac2f5529bca71fdf9",
+    "size": 22940
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/controller/stage.yml",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport/stage.yml",
+    "sha256": "dfa19d86f29b21b7f9ebfa2a454e726a547a9f93092d22dcacf29e950ab774d5",
+    "size": 2820
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/controller/validate.py",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport/validate.py",
+    "sha256": "fe750ab9ef37967725b430376e7dc479cd4f0ffb91af0de8f1c2447c86d19c75",
+    "size": 2262
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/controller/test_ref_identity.py",
+    "local_path": "/workspace/scratch/68d458e0e937/publication-controller-transport/test_ref_identity.py",
+    "sha256": "98920870a1a81654ddf99876334963668213001c74261190456cd53a134922ff",
+    "size": 1710
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/failure-and-repair-review.json",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/failure-and-repair-review.json",
+    "sha256": "dbb110d1b97a0b328779bcd5e6dc33a8c196dc9711f0814cf7572f6c17c5a681",
+    "size": 1170
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/seal-dryrun.json",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/seal-dryrun.json",
+    "sha256": "a9111cf9c583fff1387ec0e386f804b85021f33349acc34bceae1ae9169cbcef",
+    "size": 3138
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/seal-staged.json",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/seal-staged.json",
+    "sha256": "687567a6fd711d70f755ac6bc4c5dafed35bb2a863429e8f5beeff9fa4400cb2",
+    "size": 3228
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/current-integration-tests.log",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/current-integration-tests.log",
+    "sha256": "abd93253d84a9fa272abf7a5da79a673231cedc445bb7d7b3a5ebc3c782ec6ef",
+    "size": 2236
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/restoration/reconstruction.json",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/restoration/reconstruction.json",
+    "sha256": "62f95fe1b4971dcbb62f91619f8b2e0a984259fde8309e1ca50578d362457c50",
+    "size": 610
+  }
+]

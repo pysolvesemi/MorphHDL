@@ -1,60 +1,85 @@
-# 59i PR190 publication continuation — 2026-09-19
+# 59i committed-head startup repair
 
-This supersedes the pending-diagnostic portion of the 8c5e7735 toolkit handoff.
-The reviewed source remains 99aacc05a783b9dc51aaeabd4e1395de385cab28.
-Actual legitimate seal: 9de3fd243a28a6d1e6ba385bc2d746b57e337fc1; tree
-e5c16951aa2538c21bb0299df36df353363b666e. It changes only the production
-manifest and helper hash slot, with [skip ci]. No feature ref was moved during
-seal creation. Preserve all history and concurrent work.
-The actual production verifier passed all 345 source records. The new payload
-preserves 16 exact unpublished commits, 1,847 regular runtime/checker files and
-one pinned gitlink, all matching diagnostic sourceccec. Payload SHA256:
-8952fe5491e4d99ca2093e805393191335a97f474f3908c682c3d1f02fdcabac.
-Bundle SHA256: 9402b601a2736a91df1a2492e37ac85d553b2912ac476c9b08e51f48921d2aa0.
-The new payload is publication-controller-pr190-ready/ in the original scratch.
+Continue PR177 in pysolvesemi/MorphHDL on the existing feature
+agent/increment-59i-combined-reduction-closure, target parameterized-verilog.
+This checkpoint supersedes the old publication handoff at400fb3b8.
 
-Diagnostic 35458181915 attempt 1 succeeded, both jobs 105937100299 (2.12.18)
-and 105937100112 (2.13.12). Both downloaded ZIPs matched API SHA256:
-10590444368 = ef9fa69e0943bd4aa81e05a9fe1e3438958cba0b12d9bbe1cbe9b3498055c2f3;
-10590349124 = 13a87ca3a91b765a5c78c6bb70ff9d1d950ef4fe7a51c06d0fd625b3f956e256.
-The exact original payload matched the controller at 5f2d416138ace882dd8465a41b4187211f368ccc.
-The immutable toolkit manifest authenticated all 120 local files. The original
-verify-local-enable-pr190-diagnostic.py passed in success mode, with distinct
-fresh extraction paths: 138 tests/10 suites per lane, all 10,621 retained file
-hashes per lane, 124 original RTL files identical across Scala, native checks,
-32 bounded 18-step cases, 1,024 output-bit plus 16 baseline obligations, and
-actual 2 main/1 supplemental mutations. Supplemental formal stays not-run;
-no induction claim. See diagnostic-verification.json for the complete receipt.
+The old staging35465640896 succeeded and published seal9de3fd243a28a6d1e6ba385bc2d746b57e337fc1.
+Committed-head run35468824371 then failed: source review succeeded, but both
+Scala lanes stopped before compilation because SBT's Unix-domain socket path
+was127bytes. No XML tests, hardware generation or hardware proofs ran.
+All three original ZIP digests and head identities were independently checked;
+see failure-and-repair-review.json. Do not rerun this unrepaired head.
 
-The staging controller's only correction is to use the direct target ref
-as authoritative instead of rejecting stale PR base.sha=e0e9. Exact TARGET=4b8a86
-is still mandatory; all head/ref/PR branch/state/draft checks remain.
-Eight adversarial ref/PR mutations were rejected by test_ref_identity.py.
-The original 25 source gates remain identical. No runtime/source gate changed.
+Repair lineage (all exact, [skip ci]):
+1. a44e08786bfa603a437245718d60a5631af6cb05 shortens the per-Scala JVM temporary
+   directory to /tmp/59i-$SCALA_VERSION and retains/authenticates tmp-path.txt.
+2. 8c634b150c778607b280dd6831095dd6e474a4c1 corrects the historical merge-parent
+   metadata, advances every dependent reviewer pin, and adds an independent
+   Git-parent assertion to the existing integration controls.
+3. 268cdc63ca5b12177e01b8715688a6e001dff06f is the exact two-file production seal,
+   tree9c78547d73fdf08a8c9fbb7f1d836ba4af2c1ad4.
 
-Next: inspect the staging run on the publication commit containing this file.
-When source-and-tree-requests appears, hash-check the downloaded ZIP and
-independently verify all 25 commands/zero returncodes/log hashes, exact payload,
-source/seal, raw history and tree requests. Then create the exact connector
-trees in listed order, checking every returned SHA. Do not move feature yet.
-After exact-commit-staging appears, independently verify its digest, commits,
-trees and ordered parents. Refresh real refs and PR. Non-force fast-forward
-only agent/increment-59i-combined-reduction-closure from 90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6
-to the legitimate seal. Complete both handoffs in the same monitoring iteration
-when available (each wait is 60 minutes). The controller dispatches ONLY the
-mandatory committed-head local-enable workflow. Never retry stale controllers.
+Manifest SHA256ee52b48dec8bd07079232dc2838c46a3349b1035f3b7e486dffe4d730c504edf,
+normalized helper44cddecca2f07d3ea00b8bcbb1d66d502e5fc1ea564b1ee3762f95479d6c015c.
+All345 source records remain (330 exact reuse,15 reviewed updates), all40
+current target records remain (36 exact reuse), zero historical records removed.
+The original9de3 certificate is replayed independently, preserving its complete
+58fb/schema4 and older certificate chain. Actual PR190 merge parents remain
+58fb59773a2deebba0251b5b626c19a22453f0a4 and4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097.
+The rejected unpublished provisional seal5c3b39416 remains in its original
+local worktree for diagnosis; do not publish it. No published history was rewritten.
 
-Keep PR177 draft and roadmap unchecked. Verify the committed-head source job,
-both Scala lanes, cross-Scala job and their actual retained evidence using a
-separate reviewed inspector (diagnostic metadata is not final qualification).
-Only then refresh the full-CI map/manifest/evidence plan on the exact seal and
-run all applicable final-head CI, preserving existing exclusions/prerequisites
-and reusing active/successful same-head runs. Toolkit versioned full-CI tools
-expect 53 workflows,150 required jobs,2 intentional skipped publishers,
-95 artifacts,2307 tests/230 suites. Full-CI dispatch also currently checks
-PR base.sha; review that against fresh actual ref data before publication.
-No full CI, roadmap completion, or merge has occurred at this checkpoint.
+The workflow differs only in temporary-path setup and reuse. All test identities,
+proof bounds, mutations, deterministic generation, source checks and timeouts
+remain unchanged. The calculated socket path becomes65bytes; actual SBT/Scala
+execution is pending CI. Local socket creation is unavailable in this runtime.
+All14 current integration tests passed, including the new independent parent
+assertion. The publication builder verifies1847 runtime/build/resource/hardware
+checker files and one gitlink equal the successful fresh diagnostic35458181915
+at sourceccec54986c70077e361f291cd322f0aa547aee15. Diagnostic evidence is preserved
+in the earlier publication commit400fb3b8; it is not committed-head qualification.
 
-Source checkout: /workspace/scratch/68d458e0e937/59i-dev.
-Fresh independent evidence: /workspace/scratch/b64c9bb7f729/ccec-verified.
-Do not publish provisional fixture seals or old fixture controllers.
+The new publication controller retains all25 mandatory source commands,
+budgets, runtime equality checks, exact raw commit metadata and explicit
+connector ref handoff. Only its published BASE9de3 and current helper identity
+advance. Exact bundle SHA25640ac2ff1d6a0602f95fa904091af4c4c8d794e371b99f2e9733571bdec0e3aa7.
+
+Next: identify the staging run on the recovery commit containing this checkpoint.
+After25 source commands pass, download the source-and-tree-requests artifact,
+compare its ZIP SHA256 with the Actions artifact API, and independently verify
+the payload, source/seal, exact three-commit history, command/returncode/log hashes,
+and tree requests. Create only the requested exact trees in order with the GitHub
+connector. Do not advance feature until exact-commit-staging receipts have been
+downloaded, hash-checked and compared to every exact commit/tree/ordered parent.
+Refresh live refs and PR, then non-force fast-forward feature from9de3 to268cdc63.
+Complete both actionable handoffs within the controller's60minute windows.
+If it times out, diagnose and refresh all live state before any retry; never
+duplicate a run or weaken a gate. The controller alone dispatches only the
+mandatory increment-59i-local-enable-committed-head.yml gate on the repaired head.
+
+After dispatch, monitor every hour through the existing automation
+6aae834192c8819195f25e56cdc525f7. Keep PR draft and TODO unchecked. Require source,
+both Scala lanes and cross-Scala jobs to pass on the exact repaired head. Use
+verify-local-enable-committed.py with fresh raw run/jobs JSON, the source ZIP and
+both Scala ZIPs plus independently fetched digests, a new extraction directory,
+and the exact source repository. The inspector shares only pinned hardware
+validation functions from verify-local-enable-diagnostic-v5.py; it explicitly
+rejects diagnostic run metadata. It requires138 actual tests/10suites each,
+124 original deterministic RTL files,192 main native comparisons,32 bounded
+18-step cases/1024 output-bit+16 baseline obligations,24 supplemental comparisons,
+2 main+1 supplemental actual mutants, exact compiled index and cross-Scala
+identity. Supplemental formal remains not-run; no unbounded proof is claimed.
+
+Only after actual committed-head qualification succeeds may full final-head CI
+run. Refresh the versioned full-ci-controller-pr190, full-ci-monitor-pr190 and
+build_59i_pr190_ci_mapping.py from the preserved120-file continuation toolkit at
+8c5e7735827a847ebb24499e3ed74cc1321ac9d9. Preserve53 applicable workflows,
+150 required jobs,2 intentional publisher skips,95 artifacts,2307 tests/230suites.
+Fix the dispatcher PR base.sha freshness check using the authoritative live
+target ref, while retaining exact target/head/PR guards. Reuse active/successful
+same-head runs, preserve uncertain dispatch journals and retry only concretely
+diagnosed failed jobs. Complete/merge only after every required final-head gate
+and retained evidence passes. Report actual Scala/generated-Verilog then;
+the current transport repair itself has no generated-Verilog effect. Avoid
+duplicate broad postmerge CI. Do not message others or create a new increment.
