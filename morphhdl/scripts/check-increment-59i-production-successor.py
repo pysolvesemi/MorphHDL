@@ -87,11 +87,11 @@ LOCAL_ENABLE_CHECKPOINT = "d76fbd5f84869ac56186b36f35dfc3c480a80cbb"
 LOCAL_ENABLE_CHECKPOINT_TREE = "5df50314aa7ae3bad916b157b69a87a278c391ba"
 LOCAL_ENABLE_PROTOTYPE = "1931c0aa82860d81a9a651ffa06b920840ddea1e"
 
-PR190_PARENT = "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1"
-PR190_PARENT_TREE = "e5c16951aa2538c21bb0299df36df353363b666e"
-PR190_PARENT_SOURCE = "99aacc05a783b9dc51aaeabd4e1395de385cab28"
-PR190_PARENT_MANIFEST = "8748c74e631d0de7bbd57f38eceabdf2b5f93176dad78f3fd31585d2e307dab4"
-PR190_PARENT_HELPER = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
+PR190_PARENT = "474480ba3890ed1c6dc8b8ab330086a87a962eb9"
+PR190_PARENT_TREE = "bc0e7eb3d014f6fdce83e2506dc7ad9bf7c52438"
+PR190_PARENT_SOURCE = "7babffa1effe84a99cced712cea38eaf455cd4bc"
+PR190_PARENT_MANIFEST = "5f029c025f25a8568ce04562f02b16f1c8bc7ffafafd32eb0a1ef0628841a0d1"
+PR190_PARENT_HELPER = "c85cd5a5ccfdbdf64feb5fd5f89be79b08cba01f09a6b490f2dd3dc16cec6838"
 PR190_INTEGRATION_PARENT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 PR190_TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 PR190_TARGET_TREE = "ebe59eecbc8f550d265e78c717fb093603329055"
@@ -167,12 +167,12 @@ def development_checkpoint() -> dict:
 
 def pr190_checkpoint() -> dict:
     return {"commit": PR190_CHECKPOINT, "tree": PR190_CHECKPOINT_TREE,
-        "parents": [PR190_PARENT, PR190_TARGET]}
+        "parents": [PR190_INTEGRATION_PARENT, PR190_TARGET]}
 
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "5f029c025f25a8568ce04562f02b16f1c8bc7ffafafd32eb0a1ef0628841a0d1"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()

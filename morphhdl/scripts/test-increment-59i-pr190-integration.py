@@ -63,6 +63,15 @@ class Pr190IntegrationTests(unittest.TestCase):
         self.assertEqual(self.result['target_records'], 40)
         self.assertEqual((self.result['expected_testcases'], self.result['expected_suites']), (2307, 230))
         self.assertEqual(self.value['previous_seal'], self.production.previous_certificate(5))
+        # A later source certificate is not a parent of the historical merge.
+        # Compare retained metadata with Git itself, independently of the
+        # production helper which constructs the expected checkpoint object.
+        self.assertEqual(self.value['target_checkpoint'], {
+            'commit': review.CHECKPOINT,
+            'tree': git(self.root, 'rev-parse', review.CHECKPOINT + '^{tree}').decode().strip(),
+            'parents': git(self.root, 'rev-list', '--parents', '-n', '1',
+                review.CHECKPOINT).decode().split()[1:],
+        })
 
     def test_sequential_and_reduction_bodies_reject_live_edits_after_warm_pass(self):
         for path in (
