@@ -1,0 +1,98 @@
+[
+  {
+    "path": "verify-59i-transport-staging.py",
+    "remote_path": ".github/recovery/59i-transport-repair/verify-59i-transport-staging.py",
+    "sha256": "19b011abbee15130c4851b559937af3c40d215ed3dcca89c4954498421e103ad",
+    "size": 4961
+  },
+  {
+    "path": "59i-transport-planning.md",
+    "remote_path": ".github/recovery/59i-transport-repair/59i-transport-planning.md",
+    "sha256": "c958045dd6aeb32c173b16ee8fda5bc2233a9b1f1dd31f898eb8e6b9f8daacf4",
+    "size": 3060
+  },
+  {
+    "path": "build_59i_transport_ci_mapping.py",
+    "remote_path": ".github/recovery/59i-transport-repair/build_59i_transport_ci_mapping.py",
+    "sha256": "5280b208fcc5a31b03d519314397ffe3a0fd8896b323ae74cfa40d896a9ee686",
+    "size": 5601
+  },
+  {
+    "path": "59i-transport-full-ci-workflow-map.json",
+    "remote_path": ".github/recovery/59i-transport-repair/59i-transport-full-ci-workflow-map.json",
+    "sha256": "12e78e47157d39a19d9a818e837949df91b35ed1dccd3adb534ac2a500ba6709",
+    "size": 81172
+  },
+  {
+    "path": "full-ci-controller-transport/dispatch-manifest.json",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/dispatch-manifest.json",
+    "sha256": "eaa757e4df5fc65f1084abb0c4d6848b8a38c344472745ca123376919969ed49",
+    "size": 88871
+  },
+  {
+    "path": "full-ci-controller-transport/workflow.template.yml",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/workflow.template.yml",
+    "sha256": "cd0a4bc5f77e9c0cae72dc621c471925ef6b57ace768755d98c565f04129f81d",
+    "size": 1915
+  },
+  {
+    "path": "full-ci-controller-transport/dispatch.py",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/dispatch.py",
+    "sha256": "ad3fca93deb5cc908596ddfd40c28fce52805f8bad1daad4b63615ab3c79c094",
+    "size": 27196
+  },
+  {
+    "path": "full-ci-controller-transport/test_dispatch.py",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/test_dispatch.py",
+    "sha256": "05b7c1ef409f8e73913c61aa20b8b5c04e57235519daec20d0c2a4a45eca4587",
+    "size": 7988
+  },
+  {
+    "path": "full-ci-controller-transport/historical-run-identities.json",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/historical-run-identities.json",
+    "sha256": "52ee1c2ba6b4e950e3b67493e770c9e11b959a78455a62439812eb399336e8cb",
+    "size": 4617
+  },
+  {
+    "path": "full-ci-controller-transport/REVIEW.md",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-controller-transport/REVIEW.md",
+    "sha256": "83abd559116b68b6352521577e8de578fc4806f833477b7d7f24702c6eb99210",
+    "size": 6430
+  },
+  {
+    "path": "full-ci-monitor-transport/evidence-plan.json",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-monitor-transport/evidence-plan.json",
+    "sha256": "4ba23b9089140399ca2e605313224b562fd2acc9ea31bf26b7e8d935985f4bac",
+    "size": 305570
+  },
+  {
+    "path": "full-ci-monitor-transport/workflow-map-build.log",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-monitor-transport/workflow-map-build.log",
+    "sha256": "b6a49a2e6aad02eb2838cdc2491560c7de18be72e92cde8a1755af027e9e423b",
+    "size": 2040
+  },
+  {
+    "path": "full-ci-monitor-transport/validation.log",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-monitor-transport/validation.log",
+    "sha256": "3dfb6df039e73a72b39245dfb5882ce3e26c7dbb52ae58c41843e2749d0722e3",
+    "size": 198
+  },
+  {
+    "path": "full-ci-monitor-transport/monitor.py",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-monitor-transport/monitor.py",
+    "sha256": "f96b696883fc9915c300c8f23c1313b5f999bbdf015124031936530b31bcd674",
+    "size": 28340
+  },
+  {
+    "path": "full-ci-monitor-transport/REVIEW.md",
+    "remote_path": ".github/recovery/59i-transport-repair/full-ci-monitor-transport/REVIEW.md",
+    "sha256": "86c1fd3f64b6f48ca100b00438552620e15bf2970943f21e6706511e09a40abb",
+    "size": 7183
+  },
+  {
+    "path": "evidence/committed-35468824371/full-ci-dispatch-controls.log",
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/committed-35468824371/full-ci-dispatch-controls.log",
+    "sha256": "0f86708cf3de8c7da2e73b5a8a9286551519be2fb163c075f1312a6cdd68a23d",
+    "size": 1837
+  }
+]
