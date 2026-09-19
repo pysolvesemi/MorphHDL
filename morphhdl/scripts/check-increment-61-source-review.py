@@ -85,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f"
+CONTINUATION_HELPER_SHA256 = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -108,9 +108,18 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     module.__file__ = str(file)
     exec(compile(raw, str(file), "exec"), module.__dict__)
     value = module.verify(root)
-    require(value["schema_version"] in (3, 4) and
-            module.target_anchor(root) == "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
+    require(value["schema_version"] in (3, 4, 5) and
+            module.target_anchor(root) == (module.PR190_TARGET if value["schema_version"] == 5
+                else "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"),
             "unreviewed Increment 61 continuation target")
+    if value["schema_version"] == 5:
+        import importlib.util
+        path = root / 'morphhdl/scripts/check-increment-59i-pr190-integration.py'
+        spec = importlib.util.spec_from_file_location('increment61_pr190_current_review', path)
+        require(spec is not None and spec.loader is not None, 'missing current PR190 review')
+        current = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(current)
+        current.verify(root)
     # The original contract still authenticates its exact reviewed inventory;
     # the outer certificate authenticates every current byte, mode and parent.
     require((root / "morphhdl/contracts/increment-61-source-review.json").read_bytes() == module.frozen(root, module.CONTINUATION_TARGET,
@@ -128,7 +137,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "0d604bca1899802d2ca8159390720e95c7902c33ed9356eb0335718320937073":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "2944d6adc5b47b2d3645ffea77df3e4450dba1e7f3faf0b4ea8d29ee22584d8c":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")

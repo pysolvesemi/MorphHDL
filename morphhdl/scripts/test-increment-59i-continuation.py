@@ -452,14 +452,14 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     if len(re.findall(pattern, raw, re.M)) != 1:
         raise RuntimeError('continuation routing found an ambiguous current verifier seal')
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    if hashlib.sha256(normalized).hexdigest() != 'bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f':
+    if hashlib.sha256(normalized).hexdigest() != 'b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377':
         raise RuntimeError('continuation routing refuses an unauthenticated current verifier')
     review = types.ModuleType('reviewed_schema4_continuation_route')
     review.__file__ = str(helper)
     exec(compile(raw, str(helper), 'exec'), review.__dict__)
     value = review.verify(ROOT)
-    if value['schema_version'] != 4:
-        raise RuntimeError('schema-4 continuation route changed schema')
+    if value['schema_version'] not in (4, 5):
+        raise RuntimeError('continuation route changed schema')
     anchor = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
     originals = {
         'continuation': ('morphhdl/scripts/test-increment-59i-continuation.py',
@@ -473,7 +473,7 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     original = review.frozen(ROOT, anchor, test)
     if original is None or hashlib.sha256(original).hexdigest() != expected_hash:
         raise RuntimeError('immutable schema-3 continuation suite changed')
-    print('Current schema-4 source authenticated; replaying unchanged ' + test + ' at ' + anchor,
+    print('Current schema-' + str(value['schema_version']) + ' source authenticated; replaying unchanged ' + test + ' at ' + anchor,
           flush=True)
     with tempfile.TemporaryDirectory(prefix='59i-schema3-continuation-route-') as directory:
         checkout = Path(directory) / 'source'
@@ -491,11 +491,14 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
         print('Exercising current schema-4 lifecycle controls', flush=True)
         subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-local-enable-successor.py', '-v'],
             cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
+        if value['schema_version'] == 5:
+            subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-pr190-integration.py', '-v'],
+                cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
     review.verify(ROOT)
 
 
 if __name__ == '__main__':
-    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') == 4:
+    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5):
         run_schema4_historical_continuation()
     else:
         unittest.main(verbosity=2)

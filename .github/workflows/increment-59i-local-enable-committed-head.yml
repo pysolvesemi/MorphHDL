@@ -72,6 +72,10 @@ jobs:
           python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py | \
             tee "$out/local-enable-review-tests.log"
           python3 morphhdl/scripts/test-increment-59i-local-enable-successor.py | tee "$out/successor-tests.log"
+          python3 morphhdl/scripts/check-increment-59i-pr190-integration.py | tee "$out/pr190-source.log"
+          python3 morphhdl/scripts/test-increment-59i-pr190-integration.py | tee "$out/pr190-integration-tests.log"
+          python3 morphhdl/scripts/test-pr190-pr189-source-sync.py | tee "$out/pr190-sync-tests.log"
+          python3 morphhdl/scripts/test-sequential-wire-source-review.py | tee "$out/sequential-review-tests.log"
           python3 morphhdl/scripts/test-increment-59i-local-enable-results.py | tee "$out/results-checker-tests.log"
           python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
           python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/native-overlay.log"

@@ -29,7 +29,7 @@ TEST = "morphhdl/scripts/test-increment-59i-local-enable-source-review.py"
 CONTRACT_SHA256 = "d886bc65b410f971a5e4d009ea63b5d630caf449a6ed40b2411ef196775bd81d"
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-SUCCESSOR_HELPER_SHA256 = "bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f"
+SUCCESSOR_HELPER_SHA256 = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
 BASE_CONTRACT_SHA256 = "99dd143a0cc54898051e21adb58d311671af97642c6a77e52554f5d86b85125b"
 QUALIFICATION = "source-review-only; hardware and final-head qualification remain independent mandatory gates"
 PATHS = (
@@ -222,7 +222,7 @@ def verify_committed_identity(root: Path, paths=PATHS) -> None:
 
 def verify(root: Path) -> dict[str, dict]:
     root = root.resolve()
-    source_review(root, complete=True)
+    successor = source_review(root, complete=True)
     entries = load_contract(root)
     head = git(root, "rev-parse", "HEAD").decode().strip()
     git(root, "merge-base", "--is-ancestor", PRESERVED_DEVELOPMENT, head)
@@ -234,7 +234,13 @@ def verify(root: Path) -> dict[str, dict]:
         "published predecessor certificate changed")
     delta = {path.decode() for path in git(root, "diff", "--no-renames", "--name-only", "-z", BASE, head).split(b"\0")
         if path and re.search(rb"(?:^|/)src/main/", path)}
-    require(delta == PRODUCTION_PATHS, "complete local-enable production delta changed: " + repr(sorted(delta)))
+    expected = set(PRODUCTION_PATHS)
+    if successor.contract(root)['schema_version'] == 5:
+        # Every additional target body is independently bound to the exact
+        # PR190 merge; it cannot become a local-enable review exception.
+        expected |= {path for path in successor.changed(root, successor.PR190_COMMON,
+            successor.PR190_TARGET) if re.search(r'(?:^|/)src/main/', path)}
+    require(delta == expected, "complete local-enable production delta changed: " + repr(sorted(delta)))
     verify_committed_identity(root, (*PATHS, CONTRACT, CHECKER, TEST))
     for path, entry in entries.items():
         restore_reviewed(entry, frozen(root, BASE, path), regular(root, path))

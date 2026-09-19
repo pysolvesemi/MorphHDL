@@ -114,6 +114,33 @@ def verify_layering(root: Path) -> None:
 
 def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root=root.resolve()
+    successor = root / 'morphhdl/scripts/check-increment-59i-production-successor.py'
+    certificate = root / 'morphhdl/contracts/increment-59i-production-successor.json'
+    if any(p.exists() or p.is_symlink() for p in (successor, certificate)):
+        current = load(root, 'morphhdl/scripts/check-increment-59i-pr190-integration.py').verify(root)
+        # The current review authenticates the complete merge before this
+        # compatibility result exposes the original PR190 obligation sets.
+        sequential = load(root, 'morphhdl/scripts/check-sequential-wire-source-review.py')
+        implementation = lambda p: '/src/main/' in p or '/src/test/' in p or (
+            p.startswith('morphhdl-passes/examples/') and p.endswith('.scala'))
+        a = {p for p in changed(root, BASE, LEFT) if implementation(p)}
+        b = {p for p in changed(root, BASE, TARGET) if implementation(p)}
+        require(not a & b, 'qualified compiler/test deltas unexpectedly overlap')
+        for path in sequential.PRODUCTION_PATHS:
+            require((root/path).read_bytes() == git(root, 'show', LEFT+':'+path),
+                'sequential compiler changed: '+path)
+            require(not sequential.safety_failures(path, (root/path).read_text()),
+                'sequential safety proof changed')
+        verify_layering(root)
+        return dict(current, base=BASE, source=LEFT, lane=LEFT,
+            production_files=len(a|b), production_paths=sorted(sequential.PRODUCTION_PATHS),
+            implementation_paths=sorted(a|b), review_paths=sorted(RECONCILED),
+            paths=sorted(changed(root, BASE, 'HEAD')), left_implementation_files=len(a),
+            target_implementation_files=len(b), formal_signatures=98)
+    require(not git(root, 'rev-list', '--full-history', 'HEAD', '--',
+        'morphhdl/scripts/check-increment-59i-production-successor.py',
+        'morphhdl/contracts/increment-59i-production-successor.json'),
+        '59i integration certificate was removed')
     normalized=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$', b'CONTRACT_SHA256 = "MANIFEST_HASH"',
                       (root/OUTER).read_bytes(), count=1, flags=re.M)
     require(hashlib.sha256(normalized).hexdigest()=="14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",

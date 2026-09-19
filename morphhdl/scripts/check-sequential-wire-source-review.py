@@ -181,7 +181,10 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     outer = load_outer(root)
     # Before any projection, authenticate every governed source in current
     # HEAD, index and worktree, including ignored additions and gitlinks.
-    seal = sealed if sealed is not None else outer.verify(root)
+    try:
+        seal = sealed if sealed is not None else outer.verify(root)
+    except RuntimeError as error:
+        raise RuntimeError('SEQUENTIAL-WIRE-SOURCE: current source authentication failed: ' + str(error)) from error
     sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
     if sync_path.exists():
         spec = importlib.util.spec_from_file_location("sequential_cdc_sync", sync_path)
