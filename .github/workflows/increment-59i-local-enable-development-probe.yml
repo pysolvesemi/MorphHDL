@@ -1,0 +1,121 @@
+name: Increment 59i local-enable development compiler probe
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-local-enable-development-probe.yml
+      - .github/recovery/59i-local-enable-probe-20260919/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-local-enable-development-probe-20260919
+  cancel-in-progress: false
+
+jobs:
+  development:
+    name: Development only Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      SCALA_VERSION: ${{ matrix.scala }}
+      PROBE_SOURCE: ${{ runner.temp }}/59i-local-enable-source
+      PROBE_OUT: ${{ runner.temp }}/59i-local-enable-evidence
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Authenticate parent and reproduce exact development tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROBE_OUT"
+          python3 -B .github/recovery/59i-local-enable-probe-20260919/prepare.py 2>&1 | tee "$PROBE_OUT/prepare.log"
+          git -C "$PROBE_SOURCE" submodule update --init --recursive
+      - name: Compile and test the full local-enable reduction slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PROBE_SOURCE"
+          mkdir -p "$PROBE_OUT/tmp"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = 1.10.0
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$PROBE_OUT/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$PROBE_OUT/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          p = Path(os.environ['PROBE_OUT'])
+          expected = (p/'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((p/'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$PROBE_OUT/repositories"
+          java -Xmx4G -Djava.io.tmpdir="$PROBE_OUT/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$PROBE_OUT/repositories" -Dsbt.override.build.repos=true \
+            -jar "$PROBE_OUT/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionPublicationTests spinal.core.internals.TypedBalancedReductionWideningPublicationTests' \
+            > "$PROBE_OUT/tests.log" 2>&1 || { tail -n 420 "$PROBE_OUT/tests.log"; exit 1; }
+          tail -n 140 "$PROBE_OUT/tests.log"
+          grep -q 'All tests passed' "$PROBE_OUT/tests.log"
+      - name: Preserve actual reports and unchanged source even on failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$PROBE_OUT"
+          if test -f "$PROBE_OUT/head.txt"; then
+            test "$(git -C "$PROBE_SOURCE" rev-parse HEAD)" = "$(cat "$PROBE_OUT/head.txt")"
+            git -C "$PROBE_SOURCE" ls-files --stage > "$PROBE_OUT/tracked-after.txt"
+            cmp "$PROBE_OUT/tracked-before.txt" "$PROBE_OUT/tracked-after.txt"
+            git -C "$PROBE_SOURCE" diff --exit-code
+            git -C "$PROBE_SOURCE" diff --cached --exit-code
+            python3 - <<'PY'
+          import json, os, shutil, xml.etree.ElementTree as ET
+          from pathlib import Path
+          root, out = Path(os.environ['PROBE_SOURCE']), Path(os.environ['PROBE_OUT'])
+          rows = []
+          for source in sorted((root/'morphhdl/target/test-reports').glob('*.xml')):
+              destination = out/'reports'/source.name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+              tree = ET.parse(source).getroot()
+              rows.append(dict(suite=tree.get('name'), tests=len(tree.findall('testcase')),
+                  failures=len(tree.findall('.//failure')), errors=len(tree.findall('.//error')),
+                  skipped=len(tree.findall('.//skipped'))))
+          (out/'actual-test-results.json').write_text(json.dumps(dict(development_only=True,
+              qualification=False, scala=os.environ['SCALA_VERSION'], suites=rows), indent=2)+'\n')
+          PY
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-development-20260919-${{ matrix.scala }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/59i-local-enable-evidence/*.log
+            ${{ runner.temp }}/59i-local-enable-evidence/*.txt
+            ${{ runner.temp }}/59i-local-enable-evidence/*.json
+            ${{ runner.temp }}/59i-local-enable-evidence/*.patch
+            ${{ runner.temp }}/59i-local-enable-evidence/reports
+          if-no-files-found: error
+          retention-days: 21
