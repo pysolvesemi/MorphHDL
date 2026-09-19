@@ -23,7 +23,10 @@ import urllib.request
 
 REPO = 'pysolvesemi/MorphHDL'
 BASE = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
-TARGET = 'e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d'
+TARGET = '4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097'
+TARGET_TREE = 'ebe59eecbc8f550d265e78c717fb093603329055'
+DIAGNOSTIC_SOURCE = 'ccec54986c70077e361f291cd322f0aa547aee15'
+SOURCE_HELPER_SHA256 = 'b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377'
 FEATURE = 'agent/increment-59i-combined-reduction-closure'
 TARGET_BRANCH = 'parameterized-verilog'
 WORKFLOW = 'increment-59i-local-enable-committed-head.yml'
@@ -31,6 +34,10 @@ CONTRACT = 'morphhdl/contracts/increment-59i-production-successor.json'
 HELPER = 'morphhdl/scripts/check-increment-59i-production-successor.py'
 CHECKS = [
     ['check-increment-59i-production-successor.py'],
+    ['check-increment-59i-pr190-integration.py'],
+    ['test-increment-59i-pr190-integration.py'],
+    ['test-pr190-pr189-source-sync.py'],
+    ['test-sequential-wire-source-review.py'],
     ['check-increment-59i-local-enable-source-review.py', '--self-test'],
     ['test-increment-59i-local-enable-source-review.py'],
     ['test-increment-59i-local-enable-successor.py'],
@@ -84,11 +91,12 @@ def git(root, *args, input=None):
 
 def runtime_paths(root, ref):
     paths = git(root, 'ls-tree', '-r', '--name-only', ref).decode().splitlines()
-    return {path for path in paths if path.endswith('.scala') or path in ('build.sbt', '.gitmodules')
+    return {path for path in paths if '/src/main/' in path or '/src/test/' in path
+        or path.endswith(('.scala', '.sbt')) or path in ('build.sc', '.gitmodules')
         or path.startswith('project/') or path in (
             'morphhdl/scripts/check-increment-59i-composite-local-enable.py',
             'morphhdl/scripts/check-increment-59i-local-enable-combined.py',
-            'morphhdl/scripts/check-increment-59i-local-enable-results.py')}
+            'morphhdl/scripts/check-increment-59i-local-enable-results.py')} - set(runtime_gitlinks(root, ref))
 
 
 def runtime_gitlinks(root, ref):
@@ -142,6 +150,7 @@ def load(here):
             and value['target'] == TARGET and value['feature'] == FEATURE
             and value['workflow'] == WORKFLOW, 'wrong immutable publication scope')
     require(value['checks'] == CHECKS, 'source gate inventory changed')
+    require(value['diagnostic']['source_sha'] == DIAGNOSTIC_SOURCE, 'wrong PR190 diagnostic source')
     require(value['commits'] and value['commits'][-1]['sha'] == value['seal'], 'seal not final commit')
     require(value['commits'][-1]['parents'] == [value['source']], 'seal must directly follow source')
     for item in value['commits']:
@@ -196,8 +205,10 @@ class Remote:
         require(self.api('GET', '/git/ref/heads/' + TARGET_BRANCH)['object']['sha'] == TARGET, 'target changed')
         pr = self.api('GET', '/pulls/177')
         require(pr['state'] == 'open' and pr['draft'] and not pr['merged'] and pr['head']['sha'] == head
-                and pr['head']['ref'] == FEATURE and pr['base']['sha'] == TARGET
+                and pr['head']['ref'] == FEATURE
                 and pr['base']['ref'] == TARGET_BRANCH, 'PR identity or draft state changed')
+        # PR base.sha can lag the branch after a target merge. The direct
+        # target-ref GET above is authoritative and still pins exact TARGET.
 
     def diagnostic(self):
         expected = self.value['diagnostic']
@@ -251,9 +262,11 @@ def reconstruct(repository, root, out, here, value):
         result = subprocess.run([sys.executable, '-B', HELPER], cwd=root, stdout=log,
                                 stderr=subprocess.STDOUT, timeout=1200)
     require(result.returncode == 0, 'qualified parent source check failed')
+    require(git(root, 'rev-parse', TARGET + '^{tree}').decode().strip() == TARGET_TREE,
+            'required immutable target history is unavailable')
     git(root, 'bundle', 'verify', str(archive))
     git(root, 'fetch', '--no-tags', str(archive), value['seal'])
-    commits = git(root, 'rev-list', '--reverse', '--topo-order', value['seal'], '^' + BASE).decode().splitlines()
+    commits = git(root, 'rev-list', '--reverse', '--topo-order', value['seal'], '^' + BASE, '^' + TARGET).decode().splitlines()
     require(commits == [item['sha'] for item in value['commits']], 'history inventory differs')
     for item in value['commits']:
         require(git(root, 'cat-file', 'commit', item['sha']) == item['raw'].encode(), 'raw history differs')
@@ -274,9 +287,17 @@ def reconstruct(repository, root, out, here, value):
                 and digest(git(root, 'show', value['seal'] + ':' + path)) == expected,
                 'qualified diagnostic runtime changed: ' + path)
     git(root, 'reset', '--hard', value['seal'])
+    raw_helper = (root / HELPER).read_bytes()
+    normalized, count = re.subn(rb'^CONTRACT_SHA256 = "[^"\n]+"$',
+        b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw_helper, flags=re.M)
+    require(count == 1 and digest(normalized) == SOURCE_HELPER_SHA256,
+            'unreviewed current schema5 source verifier')
+    require(json.loads((root / CONTRACT).read_bytes())['schema_version'] == 5,
+            'wrong current source lifecycle')
     require_clean(root, value['seal'])
     write_json(out / 'reconstruction.json', dict(source=value['source'], seal=value['seal'],
-               seal_tree=value['commits'][-1]['tree'], preserved_commits=commits,
+               seal_tree=value['commits'][-1]['tree'], preserved_commits=commits, target=TARGET, target_tree=TARGET_TREE,
+               preserved_target_history='Existing immutable target commits are prerequisites, never recreated.',
                refs_updated=False, full_ci=False))
 
 

@@ -1,7 +1,6 @@
 {
-  "bundle_sha256": "9402b601a2736a91df1a2492e37ac85d553b2912ac476c9b08e51f48921d2aa0",
-  "changed_blob_objects": 115,
-  "commits": [
+  "full_ci": false,
+  "preserved_commits": [
     "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
     "1931c0aa82860d81a9a651ffa06b920840ddea1e",
     "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
@@ -19,24 +18,11 @@
     "99aacc05a783b9dc51aaeabd4e1395de385cab28",
     "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1"
   ],
-  "controller_files": [
-    "stage.py",
-    "payload.json",
-    "part-01.b64",
-    "part-02.b64",
-    "part-03.b64",
-    "part-04.b64",
-    "part-05.b64",
-    "part-06.b64",
-    "part-07.b64",
-    "part-08.b64"
-  ],
-  "payload_sha256": "8952fe5491e4d99ca2093e805393191335a97f474f3908c682c3d1f02fdcabac",
-  "recovery_directory": ".github/recovery/59i-local-enable-publication",
+  "preserved_target_history": "Existing immutable target commits are prerequisites, never recreated.",
   "refs_updated": false,
-  "remote_calls": false,
-  "runtime_files": 1847,
   "seal": "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1",
+  "seal_tree": "e5c16951aa2538c21bb0299df36df353363b666e",
   "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28",
-  "workflow": ".github/workflows/increment-59i-local-enable-publication-stage.yml"
+  "target": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+  "target_tree": "ebe59eecbc8f550d265e78c717fb093603329055"
 }
