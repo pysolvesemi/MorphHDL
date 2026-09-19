@@ -9,6 +9,7 @@ reference. Semantic candidate mutations must produce a functional mismatch.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import itertools
 import json
@@ -45,14 +46,12 @@ def validate(manifest: dict) -> None:
     require(set(manifest) == {"schema", "scope", "candidates", "mutations", "cases"}
             and manifest["schema"] == 1 and manifest["scope"] == SCOPE, "wrong manifest schema/scope")
     candidates, cases, mutations = (manifest[k] for k in ("candidates", "cases", "mutations"))
-    candidate_keys = {"profile", "split", "mutation", "module", "file"}
-    require(all(set(c) == candidate_keys for c in candidates + mutations), "wrong candidate fields")
+    candidate_keys = {"profile", "split", "module", "file"}
+    require(all(set(c) == candidate_keys for c in candidates), "wrong candidate fields")
     require(len(candidates) == 16 and {(c["profile"], c["split"]) for c in candidates} ==
             set(itertools.product(PROFILES, (False, True))), "incomplete emission/profile matrix")
-    require(all(type(c["split"]) is bool and c["mutation"] == "none" for c in candidates),
-            "non-Boolean split mode or mutated positive candidate")
-    require(len(mutations) == 2 and {c["mutation"] for c in mutations} == {"enable-identity", "reset-value"}
-            and all(c["profile"] == "sync_high_rising" and c["split"] is False for c in mutations),
+    require(all(type(c["split"]) is bool for c in candidates), "non-Boolean split mode")
+    require(mutations == ["enable-identity", "reset-value"],
             "missing semantic enable/reset mutation")
     case_keys = {"id", "profile", "asynchronous", "reset_low", "falling", "enable_low",
                  "uw", "sw", "bw", "count", "module", "file"}
@@ -67,9 +66,9 @@ def validate(manifest: dict) -> None:
                               ("enable_low", case["profile"].endswith("_falling"))):
             require(type(case[key]) is bool and case[key] == expected, f"wrong {key} profile")
     for key in ("module", "file"):
-        entries = candidates + mutations + cases
+        entries = candidates + cases
         require(len({c[key] for c in entries}) == len(entries), f"reused {key}")
-    require(all(IDENTIFIER.fullmatch(c["module"]) for c in candidates + mutations + cases),
+    require(all(IDENTIFIER.fullmatch(c["module"]) for c in candidates + cases),
             "invalid module identity")
     require(len({c["id"] for c in cases}) == len(cases), "reused case ID")
 
@@ -86,7 +85,7 @@ def instances(case: dict, candidates: list[dict]) -> list[str]:
         for field, width in ports(case).items():
             lines.append(f"wire [{width - 1}:0] {prefix}_{field};")
             bindings.append(f".result_{field}({prefix}_{field})")
-        params = "" if index == 0 else " #(" + ", ".join(
+        params = "" if index == 0 or entry.get("concrete", False) else " #(" + ", ".join(
             f".{name.upper()}({case[name]})" for name in ("uw", "sw", "bw", "count")) + ")"
         lines.append(f"{entry['module']}{params} {prefix}_dut(" + ", ".join(bindings) + ");")
     return lines
@@ -143,6 +142,9 @@ def bench(case: dict, candidates: list[dict]) -> str:
     for field, bits in ports(case).items():
         lines.append(f"reg [{bits - 1}:0] previous_{field};")
     lines += ["task compare; begin", "checks = checks + 1;"]
+    for field in ports(case):
+        lines += [f"if ((^g_{field}) === 1'bx) begin",
+                  f'$display("{FAIL} unknown-native sample=%0d field={field}", sample); $finish; end']
     for index in range(len(candidates)):
         for field in ports(case):
             lines += [f"if (g_{field} !== c{index}_{field}) begin",
@@ -207,6 +209,137 @@ def run(args: list[str], log: Path) -> str:
 
 def quoted(path: Path) -> str:
     return '"' + str(path).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def actual_rtl_mutations(root: Path, case: dict, candidate: dict) -> tuple[dict, list[dict]]:
+    """Change one connection in the actual candidate's specialized RTL graph.
+
+    Signal names are never mutation anchors. The anchors are the complete
+    output-register identities, register widths, arithmetic result, original
+    reset value and actual D/enable cone. Missing or ambiguous anchors fail.
+    The untouched normalized counterpart is returned for positive native
+    verification before either mutation is allowed to count as evidence.
+    """
+    require(case["profile"] == candidate["profile"] == "sync_high_rising" and
+            tuple(case[k] for k in ("uw", "sw", "bw", "count")) == (5, 7, 3, 2),
+            "mutation anchors require the selected two-leaf synchronous profile")
+    work = root / "actual-rtl-mutations"
+    work.mkdir(parents=True, exist_ok=True)
+    source = checked_file(root, candidate["file"])
+    width = sum(ports(case).values()) * case["count"]
+    wrapper = work / "specialized.v"
+    lines = ["module mutation_source(input wire clk, reset, enable,",
+             f"input wire [{width - 1}:0] values,",
+             ",\n".join(f"output wire [{bits - 1}:0] result_{field}" for field, bits in ports(case).items()) + ");"]
+    params = ", ".join(f".{name.upper()}({case[name]})" for name in ("uw", "sw", "bw", "count"))
+    bindings = [f".{name}({name})" for name in ("clk", "reset", "enable", "values")]
+    bindings += [f".result_{field}(result_{field})" for field in ports(case)]
+    lines += [f"{candidate['module']} #({params}) dut(" + ", ".join(bindings) + ");", "endmodule", ""]
+    wrapper.write_text("\n".join(lines))
+    original = work / "original.json"
+    extraction = work / "extract.ys"
+    extraction.write_text("read_verilog " + quoted(source) + " " + quoted(wrapper) +
+        "\nhierarchy -check -top mutation_source\nproc\nflatten\nhierarchy -check -top mutation_source\n"
+        "opt_expr\nopt_clean\ncheck -assert\nwrite_json " +
+        quoted(original) + "\n")
+    run(["yosys", "-Q", "-T", "-s", str(extraction)], work / "extract.log")
+    document = json.loads(original.read_text())
+    require(set(document["modules"]) == {"mutation_source"}, "mutation graph was not fully specialized/flattened")
+    module = document["modules"]["mutation_source"]
+    cells = module["cells"]
+    drivers = {}
+    for name, cell in cells.items():
+        for port, direction in cell["port_directions"].items():
+            if direction == "output":
+                for bit in cell["connections"][port]:
+                    if isinstance(bit, int):
+                        require(bit not in drivers, "ambiguous actual RTL bit driver")
+                        drivers[bit] = name
+
+    def cone(bits: list) -> set[str]:
+        result = set()
+        def visit(bit):
+            if bit not in drivers or drivers[bit] in result:
+                return
+            name = drivers[bit]
+            cell = cells[name]
+            result.add(name)
+            if cell["type"] == "$dff":
+                return
+            for port, direction in cell["port_directions"].items():
+                if direction == "input":
+                    for child in cell["connections"][port]:
+                        visit(child)
+        for bit in bits:
+            visit(bit)
+        return result
+
+    def only(values: list, label: str):
+        require(len(values) == 1, "missing or ambiguous emitted RTL mutation anchor: " + label)
+        return values[0]
+
+    def output_register(field: str) -> str:
+        return only([name for name, cell in cells.items() if cell["type"] == "$dff" and
+                     cell["connections"]["Q"] == module["ports"]["result_" + field]["bits"]], field + " output register")
+
+    unsigned_last = output_register("unsigned")
+    unsigned_first = only([name for name, cell in cells.items() if cell["type"] == "$dff" and
+                           len(cell["connections"]["Q"]) == case["uw"] and name != unsigned_last],
+                          "unsigned first register")
+    first_cone = cone(cells[unsigned_first]["connections"]["D"])
+    add = only([name for name in first_cone if cells[name]["type"] == "$add" and
+                len(cells[name]["connections"]["Y"]) == case["uw"]], "original unsigned sum")
+    original_msb = cells[add]["connections"]["Y"][-1]
+    current_msb = cells[unsigned_first]["connections"]["Q"][-1]
+    require(isinstance(original_msb, int) and isinstance(current_msb, int) and original_msb != current_msb,
+            "original and current controls must be distinct actual signal bits")
+    unsigned_cone = cone(cells[unsigned_last]["connections"]["D"])
+    enable_anchor = only([(name, port, index) for name in unsigned_cone
+                          if cells[name]["type"] == "$xor" and len(cells[name]["connections"]["Y"]) == 1
+                          for port in ("A", "B") for index, bit in enumerate(cells[name]["connections"][port])
+                          if bit == original_msb], "original unsigned MSB in second-register enable XOR")
+    signed_last = output_register("signed")
+    signed_cone = cone(cells[signed_last]["connections"]["D"])
+    reset_bits = [str(((1 << case["sw"]) - 2) >> i & 1) for i in range(case["sw"])]
+    reset_anchor = only([(name, "B", 0) for name in signed_cone if cells[name]["type"] == "$mux" and
+                         cells[name]["connections"]["S"] == module["ports"]["reset"]["bits"] and
+                         cells[name]["connections"]["B"] == reset_bits], "signed second-register reset -2")
+
+    def emit(doc: dict, role: str) -> dict:
+        path = work / (role + ".json")
+        path.write_text(json.dumps(doc, sort_keys=True) + "\n")
+        name = "LocalEnableActualRtl_" + role.replace("-", "_")
+        rtl = work / (name + ".v")
+        script = work / (role + ".ys")
+        script.write_text("read_json " + quoted(path) + "\nrename mutation_source " + name +
+                          "\ncheck -assert\nwrite_verilog -noattr " + quoted(rtl) + "\n")
+        run(["yosys", "-Q", "-T", "-s", str(script)], work / (role + ".log"))
+        return {"module": name, "file": str(rtl.relative_to(root)), "concrete": True,
+                "netlist_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+    baseline = emit(document, "unmutated")
+    mutants = []
+    for label, anchor, replacement in (("enable-identity", enable_anchor, current_msb),
+                                        ("reset-value", reset_anchor, "1")):
+        changed = copy.deepcopy(document)
+        name, port, index = anchor
+        before = cells[name]["connections"][port][index]
+        require(before != replacement, "mutation must change an actual connection")
+        changed["modules"]["mutation_source"]["cells"][name]["connections"][port][index] = replacement
+        # Check the entire graph differs only at this one authorized bit binding.
+        restored = copy.deepcopy(changed)
+        restored["modules"]["mutation_source"]["cells"][name]["connections"][port][index] = before
+        require(restored == document and changed != document, "mutation modified more than one connection")
+        mutant = emit(changed, label)
+        mutant.update(mutation=label, witness={"cell": name, "port": port, "index": index,
+            "before": before, "after": replacement, "changed_connections": 1,
+            "emitted_source": str(source.relative_to(root)),
+            "emitted_source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+            "original_netlist_sha256": baseline["netlist_sha256"],
+            "mutated_netlist_sha256": mutant["netlist_sha256"]})
+        require(mutant["netlist_sha256"] != baseline["netlist_sha256"], "mutation netlist hash unchanged")
+        mutants.append(mutant)
+    return baseline, mutants
 
 
 def formal_setup(paths: list[Path]) -> str:
@@ -310,11 +443,17 @@ def main() -> None:
         results.append(result)
     anchor = next(c for c in manifest["cases"] if c["profile"] == "sync_high_rising"
                   and tuple(c[k] for k in ("uw", "sw", "bw", "count")) == (5, 7, 3, 2))
+    candidate = next(c for c in manifest["candidates"] if c["profile"] == anchor["profile"] and not c["split"])
+    baseline, mutant_entries = actual_rtl_mutations(root, anchor, candidate)
+    baseline_work = output / "normalized-unmutated"
+    normalized = simulate(root, baseline_work, anchor, [baseline], False)
+    normalized.update(strict_tools_and_formal(root, baseline_work, anchor, [baseline]))
     mutations = []
-    for mutant in manifest["mutations"]:
+    for mutant in mutant_entries:
         work = output / ("mutation-" + mutant["mutation"])
         result = simulate(root, work, anchor, [mutant], True)
         result.update(strict_tools_and_formal(root, work, anchor, [mutant], mutation=True))
+        result["mutation_witness"] = mutant["witness"]
         mutations.append(result)
     receipt = {"schema": 1, "scope": SCOPE, "result": "pass", "native_cases": len(results),
                "candidate_comparisons": 2 * len(results), "cycles_per_case": 384,
@@ -324,7 +463,7 @@ def main() -> None:
                           "after_reset": "unconstrained input, reset, and global enable",
                           "async": "async2sync edge model; raw RTL asynchronous timing covered by simulation",
                           "unbounded_induction": "not-run"},
-               "results": results, "mutations": mutations}
+               "results": results, "normalized_unmutated": normalized, "mutations": mutations}
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(f"{PASS}: {2 * len(results)} native comparisons; {len(mutations)} semantic mutations rejected")
 

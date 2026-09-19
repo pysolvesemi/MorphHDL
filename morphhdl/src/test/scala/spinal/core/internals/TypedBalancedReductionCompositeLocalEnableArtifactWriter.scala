@@ -17,12 +17,12 @@ final case class LocalEnableHardwareRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) e
 
 /** The public parameterized path, with two registers per field and bridge row.
   * A second register's enable can read its current data, its original self and
-  * original peers simultaneously. Mutations are emitted hardware, never an
-  * alternate expected-value model in the testbench.
+  * original peers simultaneously. The callback is capture-free; qualification
+  * mutations are applied to this emitted RTL by the hardware verifier.
   */
 final class BalancedCompositeLocalEnableHardware(uw: HdlInt, sw: HdlInt, bw: HdlInt,
     count: HdlInt, asynchronous: Boolean, resetLow: Boolean, falling: Boolean,
-    moduleName: String, mutation: String = "none") extends Component {
+    moduleName: String) extends Component {
   setDefinitionName(moduleName)
   val clk = in(Bool()).setName("clk")
   val reset = in(Bool()).setName("reset")
@@ -50,14 +50,10 @@ final class BalancedCompositeLocalEnableHardware(uw: HdlInt, sw: HdlInt, bw: Hdl
         val b = RegNext(value.bitsValue) init B(2)
         val f = RegNext(value.valid) init True
         val r = cloneOf(value)
-        // The enable-identity mutant deliberately conflates original self with
-        // the current data driver. Original peer fields remain unregistered.
-        val originalU = if (mutation == "enable-identity") u else value.unsigned
-        val originalF = if (mutation == "enable-identity") f else value.valid
-        r.unsigned := RegNextWhen(u, u(0) ^ originalU.msb ^ value.valid) init U(3)
-        r.signed := RegNextWhen(s, s.msb ^ value.unsigned(0)) init S(if (mutation == "reset-value") -1 else -2)
+        r.unsigned := RegNextWhen(u, u(0) ^ value.unsigned.msb ^ value.valid) init U(3)
+        r.signed := RegNextWhen(s, s.msb ^ value.unsigned(0)) init S(-2)
         r.bitsValue := RegNextWhen(b, b.msb ^ value.signed(0)) init B(1)
-        r.valid := RegNextWhen(f, f ^ originalF ^ value.bitsValue(0)) init False
+        r.valid := RegNextWhen(f, f ^ value.valid ^ value.bitsValue(0)) init False
         r
       })
   }
@@ -74,17 +70,17 @@ object TypedBalancedReductionCompositeLocalEnableArtifactWriter {
     value
   }
   private def emitCandidate(root: Path, profile: String, asynchronous: Boolean,
-      resetLow: Boolean, falling: Boolean, split: Boolean, mutation: String): String = {
-    val name = "LocalEnableCandidate_" + profile + "_" + (if (split) "split" else "single") + "_" + mutation.replace('-', '_')
+      resetLow: Boolean, falling: Boolean, split: Boolean): String = {
+    val name = "LocalEnableCandidate_" + profile + "_" + (if (split) "split" else "single")
     val directory = root.resolve("candidate/" + name)
     MorphVerilog(config(directory, name, split)) {
       new BalancedCompositeLocalEnableHardware(HdlInt.param("UW", 5, 3, 8),
         HdlInt.param("SW", 7, 3, 8), HdlInt.param("BW", 3, 2, 8),
-        HdlInt.param("COUNT", 1, 1, 5), asynchronous, resetLow, falling, name, mutation)
+        HdlInt.param("COUNT", 1, 1, 5), asynchronous, resetLow, falling, name)
     }
     val file = directory.resolve(name + ".v")
     require(Files.isRegularFile(file), "missing local-enable parameterized RTL")
-    s"""{"profile":${quote(profile)},"split":$split,"mutation":${quote(mutation)},"module":${quote(name)},"file":${quote(relative(root, file))}}"""
+    s"""{"profile":${quote(profile)},"split":$split,"module":${quote(name)},"file":${quote(relative(root, file))}}"""
   }
 
   def main(args: Array[String]): Unit = {
@@ -95,10 +91,7 @@ object TypedBalancedReductionCompositeLocalEnableArtifactWriter {
       yield ((if (async) "async" else "sync") + "_" + (if (low) "low" else "high") + "_" +
         (if (falling) "falling" else "rising"), async, low, falling)
     val candidates = for ((profile, async, low, falling) <- profiles; split <- Vector(false, true))
-      yield emitCandidate(root, profile, async, low, falling, split, "none")
-    val mutations = Vector("enable-identity", "reset-value").map { mutation =>
-      emitCandidate(root, "sync_high_rising", false, false, false, false, mutation)
-    }
+      yield emitCandidate(root, profile, async, low, falling, split)
     val cases = for ((profile, async, low, falling) <- profiles;
       (uw, sw, bw) <- Vector((3, 4, 2), (5, 7, 3), (8, 3, 6)); count <- Vector(1, 2, 3, 5)) yield {
       val id = s"${profile}_u${uw}_s${sw}_b${bw}_n$count"
@@ -111,7 +104,7 @@ object TypedBalancedReductionCompositeLocalEnableArtifactWriter {
       require(Files.isRegularFile(file), "missing independently elaborated native local-enable RTL")
       s"""{"id":${quote(id)},"profile":${quote(profile)},"asynchronous":$async,"reset_low":$low,"falling":$falling,"enable_low":$falling,"uw":$uw,"sw":$sw,"bw":$bw,"count":$count,"module":${quote(name)},"file":${quote(relative(root, file))}}"""
     }
-    val manifest = s"""{"schema":1,"scope":"59i-local-enable-native-hardware","candidates":[${candidates.mkString(",")}],"mutations":[${mutations.mkString(",")}],"cases":[${cases.mkString(",")}]}
+    val manifest = s"""{"schema":1,"scope":"59i-local-enable-native-hardware","candidates":[${candidates.mkString(",")}],"mutations":["enable-identity","reset-value"],"cases":[${cases.mkString(",")}]}
 """
     Files.write(root.resolve("manifest.json"), manifest.getBytes(StandardCharsets.UTF_8))
   }
