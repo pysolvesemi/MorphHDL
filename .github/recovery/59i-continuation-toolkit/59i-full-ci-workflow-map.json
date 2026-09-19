@@ -1,0 +1,2186 @@
+{
+  "schema": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 177,
+  "feature_branch": "agent/increment-59i-combined-reduction-closure",
+  "target_branch": "parameterized-verilog",
+  "target_snapshot": "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
+  "local_source_head_at_mapping": "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+  "includes_uncommitted_final_source": true,
+  "final_implementation_head": null,
+  "planning_only": true,
+  "remote_ci_dispatched": false,
+  "sequence": [
+    "Finish failed local-enable diagnostic replacement already recorded at run35427383974 on fixture-only source.",
+    "Seal final implementation and pass increment-59i-local-enable-committed-head.yml on its exact commit.",
+    "Only after remaining failed requirement passes, qualify all applicable workflows below at final implementation commit; retain existing successful same-source run rather than duplicate.",
+    "After all applicable final-head checks pass, update TODO and complete PR; do not manually dispatch duplicate broad post-merge CI."
+  ],
+  "refresh_before_dispatch": [
+    "Refresh PR head/target and compare workflow hashes after source seal.",
+    "Query actual runs/attempts on final head and reuse same-source in-progress or successful runs.",
+    "Do not promote earlier-source passes to final-head success.",
+    "Do not dispatch excluded legacy or repair/promotion workflows merely because workflow_dispatch exists."
+  ],
+  "expected_inventory": {
+    "test_cases": 2270,
+    "suites": 227,
+    "local_enable_cases": 31,
+    "basis": "source-derived expected inventory, not executed Scala results"
+  },
+  "applicable_workflows": [
+    {
+      "workflow": "cdc-independent-parameter-consumers.yml",
+      "path": ".github/workflows/cdc-independent-parameter-consumers.yml",
+      "name": "CDC independent parameter consumers",
+      "workflow_sha256": "17826c3b19bb02e526f28d9923862d5bf300f79c239c151fc01624349ca71060",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {
+        "mode": "checks"
+      },
+      "matched_path_count": 154,
+      "matched_path_examples": [
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala",
+        "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala"
+      ],
+      "jobs": [
+        {
+          "id": "repair-reviewed-source",
+          "name": "Pinned PR189 source-review repair and failed source gates",
+          "needs": [],
+          "if": "(github.event_name == 'workflow_dispatch' && inputs.mode == 'source-repair' && github.ref_name == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'pr189-source-repair-v1' && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:source-repair:{0}', github.event.pull_request.head.sha))",
+          "matrix": {},
+          "timeout_minutes": 60
+        },
+        {
+          "id": "source-preflight",
+          "name": "Current-head source audit preflight",
+          "needs": [],
+          "if": "(github.event_name != 'pull_request_review' && (github.event_name != 'workflow_dispatch' || inputs.mode != 'source-repair') && (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'pr189-targeted-ci-v1')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:checks:{0}', github.event.pull_request.head.sha))",
+          "matrix": {},
+          "timeout_minutes": 30
+        },
+        {
+          "id": "baseline-probe",
+          "name": "Historical baseline reproduction (448dfdf; not feature qualification)",
+          "needs": "source-preflight",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 90
+        },
+        {
+          "id": "record-consumers",
+          "name": "Current-head ports, BlackBox and UInt consumers",
+          "needs": "source-preflight",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-preflight",
+        "baseline-probe",
+        "record-consumers"
+      ],
+      "intentionally_skipped_jobs": {
+        "repair-reviewed-source": "PR189 repair is not part of59i qualification."
+      }
+    },
+    {
+      "workflow": "increment-59b-closed-graph.yml",
+      "path": ".github/workflows/increment-59b-closed-graph.yml",
+      "name": "Increment 59b closed callback graphs",
+      "workflow_sha256": "260232dc94fb6b7ad6bf387f3c56ac110774faed258c4ea29684f1f5de0d67a0",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 74,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Closed graphs Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 30
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59b-inherited-source-scope.yml",
+      "path": ".github/workflows/increment-59b-inherited-source-scope.yml",
+      "name": "Increment 59b inherited source-scope controls",
+      "workflow_sha256": "ac58516e51fba2552dcdd8ec23828638c57191394b319f056483157fa497d190",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 13,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        "morphhdl/contracts/increment-55-native-change-review.json",
+        "morphhdl/contracts/increment-59i-capture-review.json"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "validate",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {},
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59b-operator-replay.yml",
+      "path": ".github/workflows/increment-59b-operator-replay.yml",
+      "name": "Increment 59b native operator replay formal proof",
+      "workflow_sha256": "54c1a8b144b3e3724bcac84d0dd217defe4bf2105accb2eb88526ed6d08ef9c1",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-operator-replay.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "concrete-native-replay",
+          "name": "Concrete replay formal Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59b')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 35
+        }
+      ],
+      "required_jobs": [
+        "concrete-native-replay"
+      ]
+    },
+    {
+      "workflow": "increment-59b-publication.yml",
+      "path": ".github/workflows/increment-59b-publication.yml",
+      "name": "Increment 59b parameterized balanced publication",
+      "workflow_sha256": "eefdeb26a1a379437cc3d71de4fd32a7dfe2e0443fb06554b6a8e376b4ce5f38",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 76,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-publication.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Parameterized publication Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 35
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59b-reduce-balanced-tree.yml",
+      "path": ".github/workflows/increment-59b-reduce-balanced-tree.yml",
+      "name": "Increment 59b native replay and oracle checkpoint",
+      "workflow_sha256": "4e1b21f540d2c18f99353a90a47d1ecde35660ab9263cb5058e59300aced8aac",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-reduce-balanced-tree.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "capture-and-native-oracle",
+          "name": "Native replay and oracle Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59b')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 35
+        }
+      ],
+      "required_jobs": [
+        "capture-and-native-oracle"
+      ]
+    },
+    {
+      "workflow": "increment-59b-stage-replay.yml",
+      "path": ".github/workflows/increment-59b-stage-replay.yml",
+      "name": "Increment 59b whole-stage native replay",
+      "workflow_sha256": "0ca39f1e4e841c3045c6197cde3fe18c12e876a34ec4d64d9267687b4987c3f9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 76,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-stage-replay.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Whole-stage replay Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59c-named-field-vectors.yml",
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+      "name": "Increment 59c named field vectors",
+      "workflow_sha256": "2466e8aa3c144db640e47f90aa719b7801b2b28f5dcd68abec12543f58f298e3",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 89,
+      "matched_path_examples": [
+        ".github/workflows/increment-59c-named-field-vectors.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Named field vectors Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-59d-widening.yml",
+      "path": ".github/workflows/increment-59d-widening.yml",
+      "name": "Increment 59d generic scalar width and widening qualification",
+      "workflow_sha256": "89a77aace38ffb7b517a176f80b15abd1eb0a2101f5066995de43e7a0d6e1b50",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 79,
+      "matched_path_examples": [
+        ".github/workflows/increment-59d-widening.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Symbolic widening Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') || github.ref_name == 'parameterized-verilog' || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 240
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59e-composite-reduction.yml",
+      "path": ".github/workflows/increment-59e-composite-reduction.yml",
+      "name": "Increment 59e composite balanced reductions",
+      "workflow_sha256": "a09f0e569fe7d34dcdc34a98d09ff2026a0c3220f4d715b40d0c23da0c3e5fe9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 225,
+      "matched_path_examples": [
+        ".github/workflows/increment-59e-composite-reduction.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Composite reductions Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 60
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-59f-callback-graphs.yml",
+      "path": ".github/workflows/increment-59f-callback-graphs.yml",
+      "name": "Increment 59f certified callback graphs",
+      "workflow_sha256": "c4f8cbf6bec0115113442c2f56be90a74effc5d1ca8240d4046ee56c3766a708",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 81,
+      "matched_path_examples": [
+        ".github/workflows/increment-59f-callback-graphs.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Safe callback graphs Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59f-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59g-register-bridges.yml",
+      "path": ".github/workflows/increment-59g-register-bridges.yml",
+      "name": "Increment 59g native register bridge qualification",
+      "workflow_sha256": "c8fdf4bb12f22ae461f504eb8ab876c243efa5f8b810044216eef5d2ee875e68",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 153,
+      "matched_path_examples": [
+        ".github/workflows/increment-59g-register-bridges.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Native register bridges Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-59h-nested-owners.yml",
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "name": "Increment 59h nested typed reduction owners",
+      "workflow_sha256": "b2468fb8b6cc5c3fdca06717c30fc2bb11a2dd80d95e2e34c7316be1f41d28cc",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 83,
+      "matched_path_examples": [
+        ".github/workflows/increment-59h-nested-owners.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "validate",
+          "name": "Nested reduction owners Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59h-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') || github.ref == 'refs/heads/parameterized-verilog' || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        }
+      ],
+      "required_jobs": [
+        "validate"
+      ]
+    },
+    {
+      "workflow": "increment-59i-combined-closure.yml",
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "name": "Increment 59i composite integration qualification",
+      "workflow_sha256": "f8a46c8930dcf3d5b354d04e87e7701e2a3aef1360a2c74d52f69fe85a8aedfd",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 130,
+      "matched_path_examples": [
+        ".github/workflows/increment-59i-combined-closure.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "integration",
+          "name": "Composite integration Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 240
+        },
+        {
+          "id": "determinism",
+          "name": "Cross-Scala composite integration RTL determinism",
+          "needs": "integration",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "integration",
+        "determinism"
+      ]
+    },
+    {
+      "workflow": "increment-59i-composite-saturation.yml",
+      "path": ".github/workflows/increment-59i-composite-saturation.yml",
+      "name": "Increment 59i composite saturation checkpoint",
+      "workflow_sha256": "3f7c2773a42d073ff3f140fca3d677d8d1935f584fea52d734445a6938f2f327",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 2,
+      "matched_path_examples": [
+        ".github/workflows/increment-59i-composite-saturation.yml",
+        "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Composite saturation Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        },
+        {
+          "id": "determinism",
+          "name": "Composite saturation cross-Scala identity",
+          "needs": "qualify",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "qualify",
+        "determinism"
+      ]
+    },
+    {
+      "workflow": "increment-59i-generated-child-combination-v3.yml",
+      "path": ".github/workflows/increment-59i-generated-child-combination-v3.yml",
+      "name": "Increment 59i generated-child combination v3",
+      "workflow_sha256": "5ffe64d15070670257595e92787d7475917c043a3b794b9a8eb2f300144f6a4c",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 2,
+      "matched_path_examples": [
+        ".github/workflows/increment-59i-generated-child-combination-v3.yml",
+        "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala"
+      ],
+      "jobs": [
+        {
+          "id": "scala",
+          "name": "Generated-child v3 Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        },
+        {
+          "id": "cross-scala",
+          "name": "Generated-child cross-Scala RTL identity",
+          "needs": "scala",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "scala",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-59i-generated-child-combination.yml",
+      "path": ".github/workflows/increment-59i-generated-child-combination.yml",
+      "name": "Increment 59i generated-child combination",
+      "workflow_sha256": "d2dd422e4a2c20c390fe886a3077801dc9cbd26b6ab3f2cd26f224063269e46e",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 3,
+      "matched_path_examples": [
+        ".github/workflows/increment-59i-generated-child-combination.yml",
+        "morphhdl/contracts/native-source-preservation.json",
+        "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionGeneratedChildCombinationTests.scala"
+      ],
+      "jobs": [
+        {
+          "id": "scala",
+          "name": "Generated-child Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 150
+        },
+        {
+          "id": "cross-scala",
+          "name": "Generated-child cross-Scala RTL identity",
+          "needs": "scala",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "scala",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-59i-inherited-source-qualification.yml",
+      "path": ".github/workflows/increment-59i-inherited-source-qualification.yml",
+      "name": "Increment 59i inherited exact-source qualification",
+      "workflow_sha256": "d8efa5ebf43ea97d159262adc83effb1ebf7b27ec7cd1ad6f5ff11da2515f584",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 158,
+      "matched_path_examples": [
+        ".github/workflows/increment-59i-inherited-source-qualification.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "source",
+          "name": "inherited source (${{ matrix.shard }})",
+          "needs": [],
+          "if": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure'",
+          "matrix": {
+            "shard": [
+              "composition",
+              "59h",
+              "wa07b",
+              "60f",
+              "59f-59c"
+            ]
+          },
+          "timeout_minutes": 240
+        },
+        {
+          "id": "complete",
+          "name": "source",
+          "needs": [
+            "source"
+          ],
+          "if": "always() && (github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {},
+          "timeout_minutes": 30
+        }
+      ],
+      "required_jobs": [
+        "source",
+        "complete"
+      ]
+    },
+    {
+      "workflow": "increment-59i-local-enable-committed-head.yml",
+      "path": ".github/workflows/increment-59i-local-enable-committed-head.yml",
+      "name": "Increment 59i committed-head local-enable qualification",
+      "workflow_sha256": "3538080cc468a0f1b5dfc4724d76d62bb1f924658b8a85f680c6f8f5de1de3e9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source",
+          "name": "Exact committed source and review",
+          "needs": [],
+          "if": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure'",
+          "matrix": {},
+          "timeout_minutes": 45
+        },
+        {
+          "id": "scala",
+          "name": "Committed local-enable Scala ${{ matrix.scala }}",
+          "needs": "source",
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 150
+        },
+        {
+          "id": "cross-scala",
+          "name": "Committed local-enable cross-Scala identity",
+          "needs": "scala",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "source",
+        "scala",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-60a-sint-baseline.yml",
+      "path": ".github/workflows/increment-60a-sint-baseline.yml",
+      "name": "Increment 60a SInt baseline capture",
+      "workflow_sha256": "690e3c86848e32edcc445b6eeb76040bb742007b8622b45d09d707f7f20078b2",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 211,
+      "matched_path_examples": [
+        ".github/workflows/increment-60a-sint-baseline.yml",
+        "morphhdl/contracts/increment-55-native-change-review.json",
+        "morphhdl/contracts/increment-59i-capture-review.json"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "SInt baseline Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 30
+        },
+        {
+          "id": "seal",
+          "name": "Seal qualified baseline only on its implementation branch",
+          "needs": "qualify",
+          "if": "github.event_name == 'push' && startsWith(github.ref, 'refs/heads/agent/increment-60a-')",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ],
+      "intentionally_skipped_jobs": {
+        "seal": "One-time60a seal publishes only on60a feature-branch push; excluded on59i PR and manual qualification."
+      }
+    },
+    {
+      "workflow": "increment-60b-signedness-authority.yml",
+      "path": ".github/workflows/increment-60b-signedness-authority.yml",
+      "name": "Increment 60b typed signedness authority",
+      "workflow_sha256": "271f89ba4ab7f733832ab945e6708f6f8992ef5d4f7f9714ab9c29095e3f1d84",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 211,
+      "matched_path_examples": [
+        ".github/workflows/increment-60b-signedness-authority.yml",
+        "morphhdl/contracts/increment-55-native-change-review.json",
+        "morphhdl/contracts/increment-59i-capture-review.json"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Signedness authority Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-60b-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 45
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-60c-signed-declarations.yml",
+      "path": ".github/workflows/increment-60c-signed-declarations.yml",
+      "name": "Increment 60c signed declarations",
+      "workflow_sha256": "d4e13f9b00de0376ebbbb9c63c9fa669402ed88321818fca2bcd88c17662e5e3",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-60c-signed-declarations.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Signed declarations Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 35
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-60d-pure-sint-casts.yml",
+      "path": ".github/workflows/increment-60d-pure-sint-casts.yml",
+      "name": "Increment 60d pure SInt casts",
+      "workflow_sha256": "3dde143f03067690032f277761c65a0378c80bf68438f54d49e5bc6703f24880",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-60d-pure-sint-casts.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Pure SInt casts Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 35
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-60e-signedness-boundaries.yml",
+      "path": ".github/workflows/increment-60e-signedness-boundaries.yml",
+      "name": "Increment 60e signedness boundaries",
+      "workflow_sha256": "85bf540dfcfc8a1876fdf8ea6b05a32cf0abfb266c504e44fbe013f0cb3467fe",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-60e-signedness-boundaries.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Signedness boundaries Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 40
+        }
+      ],
+      "required_jobs": [
+        "qualify"
+      ]
+    },
+    {
+      "workflow": "increment-60f-equivalence-closure.yml",
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "name": "Increment 60f equivalence closure",
+      "workflow_sha256": "9cc3fd08901e297ed554720fd4208eee3da6a0ceefbb08a4139fc7c41217677f",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 220,
+      "matched_path_examples": [
+        ".github/workflows/increment-60f-equivalence-closure.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Signedness closure Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        },
+        {
+          "id": "regressions",
+          "name": "All inherited regressions Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "name": "Cross-Scala deterministic signedness artifacts",
+          "needs": [
+            "qualify",
+            "regressions"
+          ],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        }
+      ],
+      "required_jobs": [
+        "qualify",
+        "regressions",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-60g-default-signed-verilog.yml",
+      "path": ".github/workflows/increment-60g-default-signed-verilog.yml",
+      "name": "Increment 60g default signed Verilog",
+      "workflow_sha256": "1b072410cf78eed9917426b42cf2747b161c3c8ef568ba83cbf32a7f0f84c231",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 240,
+      "matched_path_examples": [
+        ".github/workflows/increment-60g-default-signed-verilog.yml",
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "source",
+          "name": "Exact rollout source and inherited source gates",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 60
+        },
+        {
+          "id": "qualify",
+          "name": "Default signed publication Scala ${{ matrix.scala }}",
+          "needs": "source",
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        },
+        {
+          "id": "cross-scala",
+          "name": "Cross-Scala actual default RTL bytes",
+          "needs": [
+            "source",
+            "qualify"
+          ],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "source",
+        "qualify",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-61-compatibility-matrix.yml",
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "name": "Increment 61 per-component compatibility matrix",
+      "workflow_sha256": "69cb6d500a543cd08244ac5960f2a35caca32c17490891a5edf5e893db07336f",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 2,
+      "matched_path_examples": [
+        "morphhdl/scripts/check-increment-61-source-review.py",
+        "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "Compatibility and tools Scala ${{ matrix.scala }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "name": "Cross-Scala compatibility publication bytes",
+          "needs": "qualify",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 20
+        }
+      ],
+      "required_jobs": [
+        "qualify",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-61-one-file-per-component.yml",
+      "path": ".github/workflows/increment-61-one-file-per-component.yml",
+      "name": "Increment 61 one-file-per-component publication",
+      "workflow_sha256": "09ba99381423de8db83df55f2d104c7b10a87bfe677359dd9b12a34f25d74134",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 9,
+      "matched_path_examples": [
+        ".github/workflows/increment-59c-named-field-vectors.yml",
+        ".github/workflows/increment-59g-register-bridges.yml",
+        ".github/workflows/increment-60c-signed-declarations.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source",
+          "name": "Exact source and inherited audit composition",
+          "needs": [],
+          "if": "github.event_name != 'pull_request_review' || (github.event.review.state == 'commented' &&\n github.event.review.user.login == github.repository_owner &&\n github.event.pull_request.head.repo.full_name == github.repository &&\n github.event.pull_request.base.ref == 'parameterized-verilog' &&\n github.event.pull_request.head.ref == 'agent/lane-when-expression-inlining' &&\n github.event.review.commit_id == github.event.pull_request.head.sha &&\n github.event.review.body == format('/qualify-increment61 {0}', github.event.pull_request.head.sha))",
+          "matrix": {},
+          "timeout_minutes": 30
+        },
+        {
+          "id": "publication",
+          "name": "Publication, tools and equivalence Scala ${{ matrix.scala }}",
+          "needs": "source",
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "name": "Cross-Scala generated-byte determinism",
+          "needs": "publication",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 20
+        }
+      ],
+      "required_jobs": [
+        "source",
+        "publication",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "increment-62-wa08-source-overlay.yml",
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "name": "Increment 62 WA-08 inherited workflow closure",
+      "workflow_sha256": "a0a3bbdad88d98046b3547d731b7673826dabb418092df7eea53a4ef8b391c4d",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-overlay",
+          "name": "source-overlay",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        },
+        {
+          "id": "production",
+          "name": "production",
+          "needs": "source-overlay",
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 360
+        },
+        {
+          "id": "cross-scala",
+          "name": "cross-scala",
+          "needs": "production",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "source-overlay",
+        "production",
+        "cross-scala"
+      ]
+    },
+    {
+      "workflow": "independent-parameter-domains.yml",
+      "path": ".github/workflows/independent-parameter-domains.yml",
+      "name": "Independent parameter domains",
+      "workflow_sha256": "55794b6778500eebe5f46cbc473055e189bf0d014d8fd6af64225c706a297acd",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 72,
+      "matched_path_examples": [
+        ".github/workflows/independent-parameter-domains.yml",
+        "core/src/main/scala/spinal/core/ElabInt.scala",
+        "frontend/src/main/scala/morphhdl/frontend/HdlInt.scala"
+      ],
+      "jobs": [
+        {
+          "id": "source-contracts",
+          "name": "source-contracts",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 20
+        },
+        {
+          "id": "clean-regressions",
+          "name": "clean-regressions",
+          "needs": "source-contracts",
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        },
+        {
+          "id": "native-reproducer",
+          "name": "native-reproducer",
+          "needs": "source-contracts",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-contracts",
+        "clean-regressions",
+        "native-reproducer"
+      ]
+    },
+    {
+      "workflow": "lane-when-expression-diagnostic.yml",
+      "path": ".github/workflows/lane-when-expression-diagnostic.yml",
+      "name": "Lane and when expression inlining qualification",
+      "workflow_sha256": "23f3ac98376d252a6787bed0d0479bb2070c61ce360061fd9c8efb996e70f679",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 29,
+      "matched_path_examples": [
+        "core/src/main/scala/spinal/core/Bits.scala",
+        "core/src/main/scala/spinal/core/ElabInt.scala",
+        "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala"
+      ],
+      "jobs": [
+        {
+          "id": "qualify",
+          "name": "qualify",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 60
+        },
+        {
+          "id": "cross-scala",
+          "name": "cross-scala",
+          "needs": "qualify",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "compatibility",
+          "name": "Lane Binary source and concrete parity Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 300
+        },
+        {
+          "id": "sbt-full",
+          "name": "Lane SBT full suite Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 360
+        },
+        {
+          "id": "mill-full",
+          "name": "Lane Mill affected full suite Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 360
+        },
+        {
+          "id": "qualification",
+          "name": "Lane complete exact-head qualification",
+          "needs": [
+            "qualify",
+            "cross-scala",
+            "compatibility",
+            "sbt-full",
+            "mill-full"
+          ],
+          "if": "always()",
+          "matrix": {},
+          "timeout_minutes": 10
+        }
+      ],
+      "required_jobs": [
+        "qualify",
+        "cross-scala",
+        "compatibility",
+        "sbt-full",
+        "mill-full",
+        "qualification"
+      ]
+    },
+    {
+      "workflow": "morphhdl-baseline.yml",
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "name": "MorphHDL baseline",
+      "workflow_sha256": "c4ff6a32b5ab017ac14b8b99dc19cb1b0eb95f453b372c166f437fc7fd0c9168",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "contracts",
+          "name": "Strict Verilog-2001 contracts",
+          "needs": "compile",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "compile",
+          "name": "Compile Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "contracts",
+        "compile"
+      ]
+    },
+    {
+      "workflow": "morphhdl-enum-localparams.yml",
+      "path": ".github/workflows/morphhdl-enum-localparams.yml",
+      "name": "MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence",
+      "workflow_sha256": "6a8d4e7aeda6462ac0c1cb9107d2ce9c04e3abaacccb271236f0ff0ddd4b84d2",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "MorphHDL-only SCREAMING_SNAKE_CASE enum source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "contracts",
+          "name": "SCREAMING_SNAKE_CASE enum formal-equivalence proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 75
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-external-boundary.yml",
+      "path": ".github/workflows/morphhdl-external-boundary.yml",
+      "name": "MorphHDL external SpinalHDL boundary",
+      "workflow_sha256": "02566ddebe7507f4819a4e160b4f06454589660b7a451d09673606cb2c7f4ba1",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "baseline-proof",
+          "name": "Baseline API proof Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 60
+        }
+      ],
+      "required_jobs": [
+        "baseline-proof"
+      ]
+    },
+    {
+      "workflow": "morphhdl-external-formalization.yml",
+      "path": ".github/workflows/morphhdl-external-formalization.yml",
+      "name": "MorphHDL external native Int formalization",
+      "workflow_sha256": "df0b9cb0418ee9e4e877be45dc61a1aa19dda2f2e70ec5ba2c1d27764f9354e9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native Int formalization source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native Int formalization proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-external-memory.yml",
+      "path": ".github/workflows/morphhdl-external-memory.yml",
+      "name": "MorphHDL external native memory",
+      "workflow_sha256": "e04b8050f5668916372cc1671fe5f54b21ef519dfb1cf0ee52d8734f548e0920",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native memory source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "contracts",
+          "name": "External native-memory proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 60
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-external-structural-process.yml",
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "name": "MorphHDL external structural and process capture",
+      "workflow_sha256": "fe9b5db44c56c9f7a912e3c7ae785dad8f16e7864aa08ffcd28cb504f7ad0822",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Structural/process source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "contracts",
+          "name": "External structural/process proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 60
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-external-symbolic-width.yml",
+      "path": ".github/workflows/morphhdl-external-symbolic-width.yml",
+      "name": "MorphHDL external symbolic width",
+      "workflow_sha256": "6b917aa2e947cbd66c799b5dbc0a7f1754b29b693bb13267fafc026017c1e0c3",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "proof",
+          "name": "External width proof Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 45
+        }
+      ],
+      "required_jobs": [
+        "proof"
+      ]
+    },
+    {
+      "workflow": "morphhdl-mill.yml",
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "name": "MorphHDL Mill",
+      "workflow_sha256": "32f3d6e51bf075847aaa69cc4c1c7aa22b3ab896c515d1bb11242d8e69ffd0fc",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "test",
+          "name": "Test Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 30
+        }
+      ],
+      "required_jobs": [
+        "test"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-axi4-slave-factory-formal-equivalence.yml",
+      "path": ".github/workflows/morphhdl-native-axi4-slave-factory-formal-equivalence.yml",
+      "name": "MorphHDL native AXI4 Slave Factory formal equivalence",
+      "workflow_sha256": "6349bea72dfde1ffa545f0f9f6376ecbbb404d1135b48abe5fb5d1e3e3859da9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native AXI4 formal source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "formal-equivalence",
+          "name": "Concrete-witness formal proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "formal-equivalence"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-axi4-slave-factory-offsets.yml",
+      "path": ".github/workflows/morphhdl-native-axi4-slave-factory-offsets.yml",
+      "name": "MorphHDL native AXI4 Slave Factory parameterized offsets",
+      "workflow_sha256": "52cf59a4ee80fcd2258b84333bcd8a96528c3459fb16f7693388044dc9451fd2",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Real native AXI4 factory and audited native-source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native AXI4 factory proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-int-nested-control-flow.yml",
+      "path": ".github/workflows/morphhdl-native-int-nested-control-flow.yml",
+      "name": "MorphHDL native Int nested symbolic control flow",
+      "workflow_sha256": "e403cfcf3fdb79f47517f166811a9365b41c4b07d5208527cca4718c1d3b79f6",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native Int nested-control source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native Int nested-control proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-int-shadow-expressions.yml",
+      "path": ".github/workflows/morphhdl-native-int-shadow-expressions.yml",
+      "name": "MorphHDL native Int shadow expressions",
+      "workflow_sha256": "552774885881977b8a9f17e93470b03e2e19b1a65c7c983eb3f757e179c1014e",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native Int expression source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native Int expression proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-int-shadow-provenance.yml",
+      "path": ".github/workflows/morphhdl-native-int-shadow-provenance.yml",
+      "name": "MorphHDL native Int shadow provenance",
+      "workflow_sha256": "5de554c7531664abab6f812bbe89cde58a78e6724795ab5ec311ec7b2f4c3597",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native Int shadow source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native Int shadow proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-int-symbolic-conditionals.yml",
+      "path": ".github/workflows/morphhdl-native-int-symbolic-conditionals.yml",
+      "name": "MorphHDL native Int symbolic conditionals",
+      "workflow_sha256": "71788103552458e92d93d8a412866ebf9fe9c8a0d24a6b68836c29a7d33dbb5d",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native Int conditional source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Native Int conditional proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-source-guard.yml",
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "name": "MorphHDL native source guard",
+      "workflow_sha256": "90fcefb003bd52abef68de23fc2adc157c5dcab10c1e713b00fe54de29576267",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "guard",
+          "name": "Native source preservation and typed overlay",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        }
+      ],
+      "required_jobs": [
+        "guard"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-stream-width-adapter.yml",
+      "path": ".github/workflows/morphhdl-native-stream-width-adapter.yml",
+      "name": "MorphHDL native StreamWidthAdapter parameterization",
+      "workflow_sha256": "09b7cf42456b7b25938608e7a8f4482042dd03f524c57a07b3f72606082992b9",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Typed native StreamWidthAdapter source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 15
+        },
+        {
+          "id": "contracts",
+          "name": "Typed native StreamWidthAdapter proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 180
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-streamfifo-formal-equivalence.yml",
+      "path": ".github/workflows/morphhdl-native-streamfifo-formal-equivalence.yml",
+      "name": "MorphHDL native StreamFifo formal equivalence",
+      "workflow_sha256": "90a54dfe3942dad53ac01188578052c4557cf34994d82b4df42a92f0c30033e0",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native StreamFifo source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "formal-equivalence",
+          "name": "Concrete-witness formal proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "formal-equivalence"
+      ]
+    },
+    {
+      "workflow": "morphhdl-native-streamfifo-structure.yml",
+      "path": ".github/workflows/morphhdl-native-streamfifo-structure.yml",
+      "name": "MorphHDL native StreamFifo parameter structure",
+      "workflow_sha256": "084727e3a918abf3f8964f2bcc8db300ca21f961ccb9fa1963941df743aebbfb",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-boundary",
+          "name": "Native StreamFifo source boundary",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "contracts",
+          "name": "Native StreamFifo proof Scala ${{ matrix.scala_version }}",
+          "needs": "source-boundary",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 90
+        }
+      ],
+      "required_jobs": [
+        "source-boundary",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "morphhdl-streamfifocc-proof.yml",
+      "path": ".github/workflows/morphhdl-streamfifocc-proof.yml",
+      "name": "MorphHDL StreamFifoCC CDC and formal proof",
+      "workflow_sha256": "f6dbc168c87cabed8bfacf26cac9f2c78f3677ad0d50c5a7f62904bef76f9b7c",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "proof",
+          "name": "StreamFifoCC CDC and formal Scala ${{ matrix.scala_version }}",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "proof"
+      ]
+    },
+    {
+      "workflow": "morphhdl-typed-elaboration-values.yml",
+      "path": ".github/workflows/morphhdl-typed-elaboration-values.yml",
+      "name": "MorphHDL typed elaboration values",
+      "workflow_sha256": "7192f17fd765a909b4b619bcc4b989042e0dd0970c0c38bd8bcc65388ad0e691",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "source-contract",
+          "name": "Typed architecture source contract",
+          "needs": [],
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 10
+        },
+        {
+          "id": "contracts",
+          "name": "Typed elaboration contracts Scala ${{ matrix.scala_version }}",
+          "needs": "source-contract",
+          "if": "true",
+          "matrix": {
+            "scala_version": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        }
+      ],
+      "required_jobs": [
+        "source-contract",
+        "contracts"
+      ]
+    },
+    {
+      "workflow": "wa11-symbolic-boolean-width.yml",
+      "path": ".github/workflows/wa11-symbolic-boolean-width.yml",
+      "name": "WA-11 symbolic Boolean integer normalization",
+      "workflow_sha256": "f03852f102d715d075cd16adde06bfb6aa79ff317c608c3a701f9a3077cd23a1",
+      "dispatch_supported_by_source": true,
+      "dispatch_inputs": {},
+      "matched_path_count": 333,
+      "matched_path_examples": [
+        ".github/workflows/increment-59b-closed-graph.yml",
+        ".github/workflows/increment-59b-inherited-source-scope.yml",
+        ".github/workflows/increment-59b-operator-replay.yml"
+      ],
+      "jobs": [
+        {
+          "id": "normalization",
+          "name": "normalization",
+          "needs": [],
+          "if": "true",
+          "matrix": {
+            "scala": [
+              "2.12.18",
+              "2.13.12"
+            ]
+          },
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "name": "cross-scala",
+          "needs": "normalization",
+          "if": "true",
+          "matrix": {},
+          "timeout_minutes": 360
+        }
+      ],
+      "required_jobs": [
+        "normalization",
+        "cross-scala"
+      ]
+    }
+  ],
+  "excluded_pr_workflows": [
+    {
+      "workflow": "increment-53d-typed-streamwidthadapter.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "source-contract": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53d-typed-streamwidthadapter-clean'"
+      }
+    },
+    {
+      "workflow": "increment-53e-typed-streamfifo.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "source-contract": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53e-typed-streamfifo-clean'"
+      }
+    },
+    {
+      "workflow": "increment-53f-typed-primitives.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "source-contract": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53f-typed-primitives'"
+      }
+    },
+    {
+      "workflow": "increment-53g-production-retirement.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "source-contract": "github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/increment-53g-')"
+      }
+    },
+    {
+      "workflow": "increment-54-typed-layering-ir.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "source-contract": "github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/increment-54-')"
+      }
+    },
+    {
+      "workflow": "increment-55-concrete-compatibility-audit.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-56-native-typed-library-surface.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-57-broad-native-library-migration.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-57a-typed-streamfifocc.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-57b-streamfifocc-payload-width-formal.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-58-legacy-retirement.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-59-typed-blackbox-generics.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "increment-59a-recursive-verilog-module.yml",
+      "reason": "Immutable-base route emits run=false for PR because this workflow already exists at target e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d. Historical obligations execute through inherited gates."
+    },
+    {
+      "workflow": "morphhdl-passes.yml",
+      "reason": "Explicit root-job PR branch predicates exclude agent/increment-59i-combined-reduction-closure.",
+      "root_job_conditions": {
+        "boundary": "${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' || github.head_ref == 'agent/increment-61-one-file-per-component' }}",
+        "contracts": "${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' || github.head_ref == 'agent/increment-61-one-file-per-component' }}"
+      }
+    }
+  ]
+}

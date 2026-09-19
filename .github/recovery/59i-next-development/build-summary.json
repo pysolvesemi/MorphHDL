@@ -1,0 +1,30 @@
+{
+  "head": "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
+  "tree": "4ade045ae6d8debdf933a1d965a934a686276e6e",
+  "parent": "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
+  "source_sealed": false,
+  "qualification": false,
+  "full_ci": false,
+  "cases": 138,
+  "suites": 10,
+  "scala": [
+    "2.12.18",
+    "2.13.12"
+  ],
+  "preserved_commits": 10,
+  "changed_paths": 33,
+  "bundle_bytes": 109638,
+  "payload_bytes": 144784,
+  "publish_files": [
+    "probe.yml",
+    "prepare.py",
+    "retain.py",
+    "expected-suites.json",
+    "part-01.b64",
+    "part-02.b64",
+    "part-03.b64",
+    "part-04.b64"
+  ],
+  "bundle_sha256": "d2d99ac7f0d7d984e14074702117c33a4bf08c680c44554d6a766f0b676d924a",
+  "compressed_sha256": "c39092c056610b52904ba1d19426a1e8580766156135a71d0328c965db25b17b"
+}

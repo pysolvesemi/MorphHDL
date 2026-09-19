@@ -1,0 +1,128 @@
+name: Increment 59i local-enable development compiler probe
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-local-enable-development-probe.yml
+      - .github/recovery/59i-local-enable-probe-20260919/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-local-enable-development-probe-20260919
+  cancel-in-progress: false
+
+jobs:
+  development:
+    name: Development only Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PROBE_SOURCE: 59i-local-enable-source
+      PROBE_OUT: 59i-local-enable-evidence
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Authenticate parent and reproduce exact development tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p "$PROBE_OUT"
+          python3 -B .github/recovery/59i-local-enable-probe-20260919/prepare.py 2>&1 | tee "$PROBE_OUT/prepare.log"
+          git -C "$PROBE_SOURCE" submodule update --init --recursive
+      - name: Compile and test the full local-enable reduction slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          probe_source="$PWD/$PROBE_SOURCE"
+          probe_out="$PWD/$PROBE_OUT"
+          probe_tools="$PWD/59i-local-enable-tools"
+          mkdir -p "$probe_tools/tmp"
+          cd "$probe_source"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = 1.10.0
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$probe_tools/sbt-launch.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base.sha1" -o "$probe_tools/sbt-launch.jar.sha1"
+          python3 - <<'PY'
+          import hashlib, os, re
+          from pathlib import Path
+          p = Path(os.environ['GITHUB_WORKSPACE'])/'59i-local-enable-tools'
+          expected = (p/'sbt-launch.jar.sha1').read_text().strip().lower()
+          assert re.fullmatch('[0-9a-f]{40}', expected)
+          assert hashlib.sha1((p/'sbt-launch.jar').read_bytes()).hexdigest() == expected
+          PY
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$probe_tools/repositories"
+          java -Xmx4G -Djava.io.tmpdir="$probe_tools/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$probe_tools/repositories" -Dsbt.override.build.repos=true \
+            -jar "$probe_tools/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionPublicationTests spinal.core.internals.TypedBalancedReductionWideningPublicationTests' \
+            > "$probe_out/tests.log" 2>&1 || { tail -n 420 "$probe_out/tests.log"; exit 1; }
+          tail -n 140 "$probe_out/tests.log"
+          grep -q 'All tests passed' "$probe_out/tests.log"
+      - name: Generate local-enable RTL and execute native comparisons and mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          probe_source="$PWD/$PROBE_SOURCE"
+          probe_out="$PWD/$PROBE_OUT"
+          probe_tools="$PWD/59i-local-enable-tools"
+          cd "$probe_source"
+          java -Xmx4G -Djava.io.tmpdir="$probe_tools/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$probe_tools/repositories" -Dsbt.override.build.repos=true \
+            -jar "$probe_tools/sbt-launch.jar" "++$SCALA_VERSION" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeLocalEnableArtifactWriter $probe_out/hardware-A" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeLocalEnableArtifactWriter $probe_out/hardware-B" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionLocalEnableCombinedArtifactWriter $probe_out/hardware-A/combined" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionLocalEnableCombinedArtifactWriter $probe_out/hardware-B/combined" \
+            > "$probe_out/hardware-generation.log" 2>&1 || { tail -n 300 "$probe_out/hardware-generation.log"; exit 1; }
+          python3 -B morphhdl/scripts/check-increment-59i-local-enable-results.py determinism \
+            --output "$probe_out" | tee "$probe_out/determinism.log"
+          python3 -B morphhdl/scripts/check-increment-59i-composite-local-enable.py \
+            --artifacts "$probe_out/hardware-A" --output "$probe_out/hardware-checks" | tee "$probe_out/hardware-checks.log"
+          python3 -B morphhdl/scripts/check-increment-59i-local-enable-combined.py \
+            --artifacts "$probe_out/hardware-A/combined" --output "$probe_out/hardware-A/combined/checks" | tee "$probe_out/combined-checks.log"
+          python3 -B morphhdl/scripts/check-increment-59i-local-enable-results.py unchanged \
+            --output "$probe_out" | tee "$probe_out/unchanged-rtl.log"
+      - name: Preserve and verify reports and source even on failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p "$PROBE_OUT"
+          python3 -B .github/recovery/59i-local-enable-probe-20260919/retain.py 2>&1 | tee "$PROBE_OUT/retention.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-local-enable-development-20260919-${{ matrix.scala }}-${{ github.run_attempt }}
+          path: ${{ env.PROBE_OUT }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 21

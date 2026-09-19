@@ -1,0 +1,32 @@
+{
+  "prepared_only": true,
+  "remote_writes": false,
+  "dev_checkout_edits": false,
+  "validated_at": "2026-09-19T09:39:58.898251+00:00",
+  "static_validation": "PASS: Python AST, workflow YAML, shell syntax, 8 exact raw commit/API-body round trips, unknown-metadata rejection",
+  "unpublished_commits": [
+    "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
+    "1931c0aa82860d81a9a651ffa06b920840ddea1e",
+    "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+    "38e80295d8ec0268f752adf43c4cb22e442ce498",
+    "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb",
+    "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+    "a3ffe64779a4947777782ae1efbbea17d5016d17",
+    "cb093b5aa235760f2c3149f4327324976aa0495b"
+  ],
+  "remote_object_probe": {
+    "qualified90b_exists": true,
+    "all_listed_commits_returned404": true
+  },
+  "pending": [
+    "real source/seal parameterization",
+    "successful expanded runtime diagnostic",
+    "full reconstruction smoke test of actual sealed bundle",
+    "remote source gates and exact-object SHA verification"
+  ],
+  "review_fixes": [
+    "Offline reconstruction remains network-free; prepare initializes and verifies pinned submodules before current source gates",
+    "Runtime path sets and gitlink sets compared in diagnostic and seal, so additions and deletions fail closed",
+    "No shorter aggregate timeout around three routers with existing authenticated 3600-second subprocess limits; production budgets unchanged"
+  ]
+}

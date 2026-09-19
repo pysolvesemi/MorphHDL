@@ -1,0 +1,53 @@
+name: Increment 59i final CI dispatcher
+on:
+  push:
+    branches: ['recovery/increment-59i-history-20260914']
+    paths: ['.github/recovery/59i-full-ci/**', '.github/workflows/increment-59i-full-ci-controller.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: write
+concurrency:
+  group: increment-59i-final-ci-dispatch
+  cancel-in-progress: false
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      SOURCE_SHA: '@SOURCE_SHA@'
+      SEAL_SHA: '@SEAL_SHA@'
+      LOCAL_ENABLE_RUN: '@LOCAL_ENABLE_RUN@'
+      CONTROLLER_MODE: '@CONTROLLER_MODE@'
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: '@SEAL_SHA@'
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Verify all failed-first replacements and dispatch missing final-head workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/59i-full-ci/dispatch.py run \
+            --repo-root "$GITHUB_WORKSPACE/qualification" \
+            --manifest "$GITHUB_WORKSPACE/controller/.github/recovery/59i-full-ci/dispatch-manifest.json" \
+            --source-sha "$SOURCE_SHA" --seal-sha "$SEAL_SHA" \
+            --local-enable-run "$LOCAL_ENABLE_RUN" --mode "$CONTROLLER_MODE" \
+            --output "$GITHUB_WORKSPACE/full-ci-receipts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-full-ci-dispatch-${{ env.SEAL_SHA }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: full-ci-receipts/
+          if-no-files-found: error
+          retention-days: 30
