@@ -8,7 +8,7 @@ from pathlib import Path
 import shutil
 import xml.etree.ElementTree as ET
 
-from prepare import BASE, HEAD, TREE, PATCH_SHA256, BUNDLE_SHA256, git, paths, require
+from prepare import BASE, HEAD, TREE, PATCH_SHA256, BUNDLE_SHA256, PAYLOAD, git, paths, require
 
 
 def retain():
@@ -16,7 +16,7 @@ def retain():
     out.mkdir(parents=True, exist_ok=True)
     errors, rows = [], []
     result = dict(development_only=True, qualification=False, full_ci=False,
-                  scala=os.environ['SCALA_VERSION'], development_head=HEAD,
+                  source_sealed=False, scala=os.environ['SCALA_VERSION'], development_head=HEAD,
                   suites=rows, evidence_errors=errors, successful=False)
     expected = json.loads((Path(__file__).parent / 'expected-suites.json').read_text())
     # Copy raw XML before any identity check can fail; diagnostic failures must retain it.
@@ -25,10 +25,13 @@ def retain():
     found = {}
     for source in sources:
         try:
-            require(not source.is_symlink(), 'linked report: ' + source.name)
+            require(source.is_file() and not source.is_symlink(), 'linked or nonregular report: ' + source.name)
             shutil.copyfile(source, out / 'reports' / source.name)
             document = ET.parse(source).getroot()
+            require(document.tag == 'testsuite', 'unexpected XML root: ' + source.name)
             suite = document.get('name')
+            require(isinstance(suite, str) and source.name == 'TEST-' + suite + '.xml',
+                    'report filename differs from suite identity: ' + source.name)
             require(suite not in found, 'duplicate report suite: ' + str(suite))
             cases = document.findall('testcase')
             found[suite] = [case.get('name') for case in cases]
@@ -36,6 +39,12 @@ def retain():
                              failures=len(document.findall('.//failure')),
                              errors=len(document.findall('.//error')),
                              skipped=len(document.findall('.//skipped'))))
+            require(all(case.get('classname') == suite for case in cases),
+                    'testcase class differs from suite identity: ' + str(suite))
+            require(int(document.get('tests', '-1')) == len(cases),
+                    'suite testcase total differs: ' + str(suite))
+            require(all(document.get(key) == '0' for key in ('failures', 'errors', 'skipped')),
+                    'missing or nonpassing XML outcome counters: ' + str(suite))
         except Exception as error:
             errors.append(str(error))
     try:
@@ -57,10 +66,14 @@ def retain():
         require((out / 'tree.txt').read_text().strip() == TREE, 'incorrect tree receipt')
         identity = json.loads((out / 'development-identity.json').read_text())
         require(identity['development_only'] is True and identity['qualification'] is False and
-                identity['full_ci'] is False and identity['development_head'] == HEAD and
+                identity['full_ci'] is False and identity['source_sealed'] is False and
+                identity['development_head'] == HEAD and
                 identity['source_tree'] == TREE and identity['qualified_parent'] == BASE and
                 identity['patch_sha256'] == PATCH_SHA256 and identity['bundle_sha256'] == BUNDLE_SHA256,
                 'development identity receipt differs')
+        require(identity['continuations'] == PAYLOAD['continuations'] and
+                identity['changed_paths'] == PAYLOAD['paths'] and identity['audit_inputs_included'] is True,
+                'development continuation receipt differs')
         require(hashlib.sha256((out / 'development.patch').read_bytes()).hexdigest() == PATCH_SHA256,
                 'retained patch differs')
         require(hashlib.sha256((out / 'development.bundle').read_bytes()).hexdigest() == BUNDLE_SHA256,

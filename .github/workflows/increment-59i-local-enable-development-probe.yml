@@ -1,4 +1,4 @@
-name: Increment 59i local-enable development compiler probe
+name: Increment 59i local-enable unsealed source diagnostic cb093b5a
 
 on:
   push:
@@ -121,7 +121,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-59i-local-enable-development-20260919-${{ matrix.scala }}-${{ github.run_attempt }}
+          name: increment-59i-local-enable-development-cb093b5a-${{ matrix.scala }}-${{ github.run_attempt }}
           path: ${{ env.PROBE_OUT }}/
           if-no-files-found: error
           retention-days: 21
