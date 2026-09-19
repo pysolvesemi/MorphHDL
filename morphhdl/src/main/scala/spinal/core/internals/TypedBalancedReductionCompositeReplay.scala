@@ -173,6 +173,19 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     }
   }
 
+  /** A finite carrier includes leaves absent at smaller logical Vec depths.
+    * Every data or control dependency must be present whenever its destination
+    * is present; zero-filled inactive transport lanes are not native values. */
+  private def requireActiveDependency(
+      destination: Vector[(Int, ElaborationIntegerExpression)],
+      source: Vector[(Int, ElaborationIntegerExpression)]): Unit =
+    source.foreach { case (sourceIndex, sourceDepth) =>
+      if (BigInt(sourceIndex) >= sourceDepth.minimum && !destination.exists {
+          case (targetIndex, targetDepth) => targetIndex >= sourceIndex && sameWidth(targetDepth, sourceDepth)
+        })
+        fail("INACTIVE-DEPENDENCY", "a live result field can read a nested Vec lane outside its logical depth")
+    }
+
   private def scalar(kind: AnyRef): BaseType = {
     if (kind eq TypeBool) Bool()
     else if (kind eq TypeBits) Bits()
@@ -570,12 +583,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     outputs.zipWithIndex.foreach { case (output, index) =>
       val active = inputs.head.leafDimensions(index)
       dependencies(output.key).filter(_._1 < inputs.size).foreach { case (side, leafIndex) =>
-        inputs(side).leafDimensions(leafIndex).foreach { case (sourceIndex, sourceDepth) =>
-          if (BigInt(sourceIndex) >= sourceDepth.minimum && !active.exists {
-              case (targetIndex, targetDepth) => targetIndex >= sourceIndex && sameWidth(targetDepth, sourceDepth)
-            })
-            fail("INACTIVE-DEPENDENCY", "a live result field can read a nested Vec lane outside its logical depth")
-        }
+        requireActiveDependency(active, inputs(side).leafDimensions(leafIndex))
       }
     }
     outputs.zip(inputs.head.evidence).foreach { case (output, expected) =>
@@ -655,7 +663,7 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     }
     val owner = input.evidence.head.owner
     val results = callback.result.flatten.toVector
-    val leaves = results.zip(input.evidence).map { case (result, evidence) =>
+    val leaves = results.zip(input.evidence).zipWithIndex.map { case ((result, evidence), resultIndex) =>
       val dataVisited = new IdentityHashMap[Expression, java.lang.Boolean]()
       val declarations = new IdentityHashMap[BaseType, java.lang.Boolean]()
       val assignments = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
@@ -684,7 +692,10 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
           def walkControl(value: Expression): Unit = {
             if (visited.put(value, java.lang.Boolean.TRUE) != null) return
             value match {
-              case leaf: BaseType if (leaf eq driver) || inputLeaves.containsKey(leaf) =>
+              case leaf: BaseType if inputLeaves.containsKey(leaf) =>
+                requireActiveDependency(input.leafDimensions(resultIndex),
+                  input.leafDimensions(inputLeaves.get(leaf).intValue()))
+              case leaf: BaseType if leaf eq driver =>
               case leaf: BaseType =>
                 if (leaf.isReg)
                   fail("BRIDGE-CONTROL-REGISTER", "a local enable cannot read a registered peer field")
@@ -723,12 +734,12 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       val controls = input.evidence.map(_.value)
       val partition = UnvalidatedBalancedCallback(callback.ordinal, controls, result,
         callback.declarations.filter(declarations.containsKey), callback.assignments.filter(assignments.containsKey))
-      TypedBalancedReductionBridgeReplay.certify(partition, evidence, input.evidence)
+      TypedBalancedReductionBridgeReplay.certifyProjection(partition, evidence, input.evidence, observation)
     }
     if (usedDeclarations.size != callback.declarations.size || usedAssignments.size != callback.assignments.size)
       fail("BRIDGE-EFFECT", "bridge contains effects outside its leaf data/control paths")
     if (leaves.isEmpty || leaves.exists(_.registerCount != leaves.head.registerCount))
-      fail("BRIDGE-LATENCY", "all composite leaves must advance in lockstep through equal register counts")
+      fail("BRIDGE-LATENCY", "all composite leaves must preserve equal structural register depths")
     val clocks = callback.declarations.filter(_.isReg).map(_.clockDomain)
     if (clocks.nonEmpty && clocks.exists(_ ne clocks.head))
       fail("BRIDGE-CLOCK", "composite registers must share their exact native clock domain")
@@ -759,11 +770,14 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       result.requireFreshness()
     }
     val hasWidening: Boolean = stages.exists(_.operators.exists(_.hasWidening))
+    val hasLocalEnables: Boolean = stages.exists(_.bridges.exists(_.hasLocalEnables))
     def widthSchedule: TypedBalancedReductionCompositeWidthSchedule.WidthSchedule = {
       requireFreshness()
       TypedBalancedReductionCompositeWidthSchedule.widths(captured.plan, inputs.head.widths,
         stages.flatMap(_.operators).headOption)
     }
+    /** Structural register depth. Independent local enables may stall fields
+      * or rows, so this is not a fixed transaction latency when enabled. */
     def latencyFor(count: Int): Int = {
       requireFreshness()
       if (!counts.contains(count)) fail("COUNT", "count is outside the exact captured domain")

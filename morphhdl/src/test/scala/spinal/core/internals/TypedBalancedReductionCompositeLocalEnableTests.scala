@@ -17,6 +17,14 @@ final case class BalancedLocalEnableRecord(uw: HdlInt, sw: HdlInt, bw: HdlInt) e
   val valid = Bool()
 }
 
+final case class BalancedLocalEnableNestedRecord(width: HdlInt, inner: HdlInt,
+    otherInner: HdlInt) extends Bundle {
+  val word = UInt(width bits)
+  val lanes = Vec(UInt(width bits), inner)
+  val flags = Vec(Bool(), inner)
+  val other = Vec(Bool(), otherInner)
+}
+
 private final class BalancedLocalEnablePublic(width: HdlInt, count: HdlInt,
     moduleName: String, asynchronousLow: Boolean) extends Component {
   setDefinitionName(moduleName)
@@ -47,6 +55,35 @@ private final class BalancedLocalEnablePublic(width: HdlInt, count: HdlInt,
         r
       })
     result := reduced
+  }
+}
+
+private final class BalancedSharedLocalEnablePublic(width: HdlInt, count: HdlInt,
+    moduleName: String) extends Component {
+  setDefinitionName(moduleName)
+  val clk = in(Bool()).setName("clk")
+  val reset = in(Bool()).setName("reset")
+  val values = in(Vec(BalancedLocalEnableRecord(width, width, width), count)).setName("values")
+  val result = out(BalancedLocalEnableRecord(width, width, width)).setName("result")
+  val area = new ClockingArea(ClockDomain(clock = clk, reset = reset,
+    config = ClockDomainConfig(resetKind = SYNC, resetActiveLevel = HIGH))) {
+    result := values.reduceBalancedTree(
+      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+        val r = cloneOf(a)
+        r.unsigned := a.unsigned + b.unsigned
+        r.signed := a.signed + b.signed
+        r.bitsValue := a.bitsValue ^ b.bitsValue
+        r.valid := a.valid | b.valid
+        r
+      },
+      (value: BalancedLocalEnableRecord, _: Int) => {
+        val r = RegNextWhen(value, value.valid)
+        r.unsigned.init(U(3))
+        r.signed.init(S(-2))
+        r.bitsValue.init(B(1))
+        r.valid.init(True)
+        r
+      })
   }
 }
 
@@ -125,6 +162,72 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
     }
   }
 
+  for (split <- Vector(false, true)) {
+    test("public whole-record RegNextWhen retains its shared enable scope: split=" + split) {
+      val directory = Files.createTempDirectory("balanced-shared-local-enable-")
+      val top = "BalancedSharedLocalEnable"
+      val config = SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 4096,
+        oneFilePerComponent = split, headerWithDate = false)
+      if (!split) config.netlistFileName = top + ".v"
+      MorphVerilog(config) {
+        new BalancedSharedLocalEnablePublic(HdlInt.param("WIDTH", 3, 3, 5),
+          HdlInt.param("COUNT", 1, 1, 3), top)
+      }
+      val rtl = new String(Files.readAllBytes(directory.resolve(top + ".v")), StandardCharsets.UTF_8)
+      assert(rtl.contains("COUNT") && rtl.contains("WIDTH") && rtl.contains("always"), rtl)
+    }
+  }
+
+  private def sharedEnableCapture(externalWrite: Boolean): Unit = nativeComponent {
+    val width = HdlInt.param("WIDTH", 3, 3, 5)
+    val values = Vec(BalancedLocalEnableRecord(width, width, width), HdlInt.param("COUNT", 1, 1, 3))
+    values.vec.foreach(_.flatten.foreach {
+      case value: UInt => value := 0
+      case value: SInt => value := 0
+      case value: Bits => value := 0
+      case value: Bool => value := False
+    })
+    val foreign = Bool(); foreign := False
+    val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+      (a: BalancedLocalEnableRecord, b: BalancedLocalEnableRecord) => {
+        val r = cloneOf(a)
+        r.unsigned := a.unsigned + b.unsigned
+        r.signed := a.signed + b.signed
+        r.bitsValue := a.bitsValue ^ b.bitsValue
+        r.valid := a.valid | b.valid
+        r
+      },
+      (value: BalancedLocalEnableRecord, _: Int) => {
+        val r = if (externalWrite) {
+          val registers = Reg(cloneOf(value))
+          when(value.valid) {
+            registers := value
+            foreign := value.valid
+          }
+          registers
+        } else RegNextWhen(value, value.valid)
+        r.unsigned.init(U(3)); r.signed.init(S(-2)); r.bitsValue.init(B(1)); r.valid.init(True)
+        r
+      }, native[BalancedLocalEnableRecord])
+    assert(certificate.hasLocalEnables)
+    for (count <- 1 to 3) certificate.replay(values.vec.take(count).toVector)
+    certificate.captured.rows.foreach { row =>
+      assert(row.bridge.statements.count(_.isInstanceOf[WhenStatement]) == 1)
+      val writes = row.bridge.assignments.collect { case data: DataAssignmentStatement if data.finalTarget.isReg => data }
+      assert(writes.size == 4 && writes.map(_.parentScope).distinct.size == 1)
+    }
+    certificate.requireFreshness()
+  }
+
+  test("whole-record RegNextWhen certifies all scalar paths under one native enable") {
+    sharedEnableCapture(externalWrite = false)
+  }
+
+  test("a shared record enable cannot conceal a sibling write to external data") {
+    val error = intercept[Exception] { sharedEnableCapture(externalWrite = true) }
+    assert(details(error).contains("CALLBACK-EXTERNAL-WRITE"), details(error))
+  }
+
   test("external and registered peer controls remain rejected") {
     val width = HdlInt.param("WIDTH", 5, 3, 16)
     val count = HdlInt.param("COUNT", 1, 1, 3)
@@ -186,7 +289,9 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
             r.unsigned := RegNextWhen(value.unsigned, peer) init U(3)
             r.signed := RegNextWhen(value.signed, value.bitsValue(0)) init S(-2)
             r.bitsValue := RegNextWhen(value.bitsValue, value.signed.msb) init B(1)
-            r.valid := RegNextWhen(value.valid, value.unsigned(0)) init False
+            // The peer is a legitimate result path with matching depth; only
+            // its use by a different field's enable is outside the contract.
+            r.valid := peer
             r
           }, native[BalancedLocalEnableRecord])
       })
@@ -277,6 +382,108 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
     }
   }
 
+  private def nestedControls(mode: String): Unit = {
+    val width = HdlInt.param("WIDTH", 3, 1, 5)
+    val inner = HdlInt.param("INNER", 1, 1, 3)
+    val otherInner = HdlInt.param("OTHER_INNER", 1, 1, 3)
+    nativeComponent {
+      val values = Vec(BalancedLocalEnableNestedRecord(width, inner, otherInner),
+        HdlInt.param("COUNT", 1, 1, 3))
+      values.vec.foreach(_.flatten.foreach {
+        case word: UInt => word := 0
+        case flag: Bool => flag := False
+      })
+      val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+        (a: BalancedLocalEnableNestedRecord, b: BalancedLocalEnableNestedRecord) => {
+          val r = cloneOf(a)
+          r.word := a.word ^ b.word
+          r.lanes.vec.indices.foreach(i => r.lanes.vec(i) := a.lanes.vec(i) ^ b.lanes.vec(i))
+          r.flags.vec.indices.foreach(i => r.flags.vec(i) := a.flags.vec(i) | b.flags.vec(i))
+          r.other.vec.indices.foreach(i => r.other.vec(i) := a.other.vec(i) | b.other.vec(i))
+          r
+        },
+        (value: BalancedLocalEnableNestedRecord, _: Int) => {
+          val r = cloneOf(value)
+          r.word := RegNextWhen(value.word, value.flags.vec(if (mode == "root") 2 else 0)) init U(0)
+          r.lanes.vec.indices.foreach { i =>
+            r.lanes.vec(i) := RegNextWhen(value.lanes.vec(i),
+              value.flags.vec(if (mode == "earlier" && i == 0) 2 else i)) init U(0)
+          }
+          r.flags.vec.indices.foreach { i =>
+            r.flags.vec(i) := RegNextWhen(value.flags.vec(i),
+              if (mode == "independent") value.other.vec(i) else value.lanes.vec(i)(0)) init False
+          }
+          r.other.vec.indices.foreach { i =>
+            r.other.vec(i) := RegNextWhen(value.other.vec(i), value.word(0)) init False
+          }
+          r
+        }, native[BalancedLocalEnableNestedRecord])
+      assert(certificate.hasLocalEnables)
+      for (count <- 1 to 3) {
+        val result = certificate.replay(values.vec.take(count).toVector)
+        assert(ParameterizedVec.shapeOf(result.lanes).get.depth.verilog == "INNER")
+        assert(ParameterizedVec.shapeOf(result.other).get.depth.verilog == "OTHER_INNER")
+      }
+      certificate.requireFreshness()
+    }
+  }
+
+  test("nested local controls retain matching logical lanes and independent inner dimensions") {
+    nestedControls("legal")
+  }
+
+  for (mode <- Vector("root", "earlier", "independent")) {
+    test("nested local controls reject an absent peer dependency: " + mode) {
+      val error = intercept[Exception] { nestedControls(mode) }
+      assert(details(error).contains("INACTIVE-DEPENDENCY"), details(error))
+    }
+  }
+
+  test("widening sum and product fields retain local enables through narrow odd tails") {
+    val uw = HdlInt.param("UW", 3, 1, 5).asElabInt
+    val sw = HdlInt.param("SW", 2, 1, 5).asElabInt
+    nativeComponent {
+      val values = Vec(BalancedCompositeWideningValue(uw, uw, sw, sw),
+        HdlInt.param("COUNT", 1, 1, 5))
+      values.vec.foreach(_.flatten.foreach {
+        case value: UInt => value := 0
+        case value: SInt => value := 0
+      })
+      val certificate = TypedBalancedReductionCompositeReplay.capture(values,
+        (a: BalancedCompositeWideningValue, b: BalancedCompositeWideningValue) => {
+          val us = a.unsignedSum +^ b.unsignedSum
+          val up = a.unsignedProduct * b.unsignedProduct
+          val ss = a.signedSum +^ b.signedSum
+          val sp = a.signedProduct * b.signedProduct
+          val r = BalancedCompositeWideningValue(ElabInt.widthOf(us), ElabInt.widthOf(up),
+            ElabInt.widthOf(ss), ElabInt.widthOf(sp))
+          r.unsignedSum := us
+          r.unsignedProduct := up
+          r.signedSum := ss
+          r.signedProduct := sp
+          r
+        },
+        (value: BalancedCompositeWideningValue, _: Int) => {
+          val r = cloneOf(value)
+          r.unsignedSum := RegNextWhen(value.unsignedSum, value.signedProduct.msb) init U(0)
+          r.unsignedProduct := RegNextWhen(value.unsignedProduct, value.signedSum(0)) init U(0)
+          r.signedSum := RegNextWhen(value.signedSum, value.unsignedProduct.msb) init S(0)
+          r.signedProduct := RegNextWhen(value.signedProduct, value.unsignedSum(0)) init S(0)
+          r
+        }, native[BalancedCompositeWideningValue])
+      assert(certificate.hasWidening && certificate.hasLocalEnables)
+      for (count <- 1 to 5) {
+        val result = certificate.replay(values.vec.take(count).toVector)
+        val depth = (BigInt(count) - 1).bitLength
+        assert(result.flatten.map(_.getBitsWidth).toVector ==
+          Vector(3 + depth, 3 * count, 2 + depth, 2 * count))
+        assert(certificate.latencyFor(count) == depth)
+      }
+      assert(certificate.widthSchedule.stages.exists(_.tailPossible))
+      certificate.requireFreshness()
+    }
+  }
+
   /** Construct actual native callbacks without replacing the production proof
     * or using a Python emulation of it. These assertions run before normalizing
     * native graphs, so they can compare the precise operand identities. */
@@ -289,8 +496,8 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
     })
   }
 
-  private def record(inputs: Vector[BaseType])(body: => BaseType): UnvalidatedBalancedCallback = {
-    var result: BaseType = null
+  private def record(inputs: Vector[BaseType])(body: => Data): UnvalidatedBalancedCallback = {
+    var result: Data = null
     val block = ParameterizedStructure.captureBlock(Component.current, None) { result = body }
     val statements = ArrayBuffer.empty[Statement]
     block.statements.foreach { statement =>
@@ -342,6 +549,47 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
   private def rejected(code: String)(body: => Any): Unit = {
     val error = intercept[IllegalArgumentException](body)
     assert(error.getMessage.contains(code), error.getMessage)
+  }
+
+  test("shared-scope projections preserve initializers and reject stale sibling writes") {
+    nativeComponent {
+      val source = inputs()
+      val evidence = source.map(TypedBalancedReductionValueEvidence.input)
+      val callback = record(source) {
+        val result = new Bundle {
+          val word = Reg(UInt(5 bits)) init U(0)
+          val peer = Reg(Bits(3 bits)) init B(0)
+        }
+        when(source(2).asInstanceOf[Bool]) {
+          result.word := source(0).asInstanceOf[UInt]
+          result.peer := source(1).asInstanceOf[Bits]
+        }
+        result
+      }
+      val whole = TypedBalancedReductionClosedGraph.observe(callback)
+      val leaf = callback.result.flatten.collectFirst { case value: UInt if value.isReg => value }.get
+      val declarations = callback.declarations.filter(_.getTypeObject == TypeUInt)
+      val assignments = callback.assignments.filter(a => declarations.exists(_ eq a.finalTarget))
+      val projected = UnvalidatedBalancedCallback(callback.ordinal, source, leaf, declarations, assignments)
+      // The scalar API still requires a complete standalone native scope.
+      rejected("GRAPH-ASSIGNMENT-SHAPE") {
+        TypedBalancedReductionBridgeReplay.certify(projected, evidence(0), evidence)
+      }
+      val proof = TypedBalancedReductionBridgeReplay.certifyProjection(projected, evidence(0), evidence, whole)
+      proof.validateFreshness()
+      rejected("GRAPH-PROJECTION") {
+        whole.requireProjection(projected.copy(assignments = assignments.filterNot(_.isInstanceOf[InitAssignmentStatement])))
+      }
+      rejected("GRAPH-PROJECTION") { whole.requireProjection(projected.copy(operands = source.reverse)) }
+      val sibling = callback.assignments.collectFirst {
+        case data: DataAssignmentStatement if data.finalTarget.isReg && (data.finalTarget ne leaf) => data
+      }.get
+      val saved = sibling.source
+      sibling.source = BitsLiteral(0, 3)
+      rejected("GRAPH-CHANGED") { proof.validateFreshness() }
+      sibling.source = saved
+      proof.validateFreshness()
+    }
   }
 
   for (original <- Vector(false, true)) {

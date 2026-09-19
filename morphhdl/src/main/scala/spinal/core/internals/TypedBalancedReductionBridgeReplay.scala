@@ -220,8 +220,18 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       controls: Vector[Evidence]): Proof =
     certifyWithControls(callback, input, controls, compositeControls = true)
 
+  /** The complete composite callback owns shared native enable scopes. Its
+    * authenticated observation retains every sibling write while the scalar
+    * proof below still consumes exactly its own data/control path. */
+  def certifyProjection(callback: UnvalidatedBalancedCallback, input: Evidence,
+      controls: Vector[Evidence], observation: TypedBalancedReductionClosedGraph.Observation): Proof = {
+    if (observation == null) fail("PROJECTION", "a composite bridge projection needs its closed whole callback")
+    certifyWithControls(callback, input, controls, compositeControls = true, enclosing = Some(observation))
+  }
+
   private def certifyWithControls(callback: UnvalidatedBalancedCallback, input: Evidence,
-      controls: Vector[Evidence], compositeControls: Boolean): Proof = {
+      controls: Vector[Evidence], compositeControls: Boolean,
+      enclosing: Option[TypedBalancedReductionClosedGraph.Observation] = None): Proof = {
     if (callback == null || input == null || controls == null || controls.isEmpty ||
         callback.operands == null || callback.operands.size != controls.size || callback.result == null)
       fail("ARITY", "bridge proof needs its exact recursive controls and one scalar result")
@@ -248,7 +258,10 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     input.requireValue(source)
     if (Component.current ne input.owner)
       fail("OWNER", "bridge certification requires its active owning component")
-    val observation = TypedBalancedReductionClosedGraph.observe(callback)
+    val observation = enclosing match {
+      case Some(whole) => whole.requireProjection(callback); whole
+      case None => TypedBalancedReductionClosedGraph.observe(callback)
+    }
     val seen = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val consumed = new IdentityHashMap[AssignmentStatement, java.lang.Boolean]()
     val initializerNodes = new IdentityHashMap[BaseType, BigInt]()

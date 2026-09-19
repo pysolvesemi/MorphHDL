@@ -86,6 +86,35 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     val nodeCount: Int = frozen.nodes.size
     val registerCount: Int = callback.declarations.count(_.isReg)
 
+    /** Authenticate one scalar result path against this already closed whole
+      * callback. A shared native When belongs to the whole record, so its
+      * sibling writes remain covered by this observation, not reinterpreted as
+      * effects outside a scalar partition. Every selected declaration keeps
+      * all of its original drivers, including initializers. */
+    def requireProjection(projected: UnvalidatedBalancedCallback): Unit = {
+      requireUnchanged()
+      if (combinationalScopes || projected == null || projected.ordinal != callback.ordinal ||
+          projected.operands == null || projected.operands.exists(_ == null) ||
+          projected.declarations == null || projected.assignments == null ||
+          projected.statements == null || !projected.result.isInstanceOf[BaseType])
+        fail("PROJECTION", "a bridge projection requires its exact closed callback and one scalar result")
+      val originalInputs = callback.operands.flatMap(_.flatten)
+      val projectedInputs = projected.operands.flatMap(_.flatten)
+      if (originalInputs.size != projectedInputs.size ||
+          originalInputs.zip(projectedInputs).exists { case (a, b) => a ne b } ||
+          !callback.result.flatten.exists(_ eq projected.result))
+        fail("PROJECTION", "a bridge projection changed its exact recursive inputs or result identity")
+      val selected = identitySet(projected.declarations, "projected declarations")
+      identitySet(projected.assignments, "projected assignments")
+      if (projected.declarations.exists(value => !callback.declarations.exists(_ eq value)) ||
+          projected.statements.exists(value => !callback.statements.exists(_ eq value)))
+        fail("PROJECTION", "a bridge projection contains effects absent from the closed callback")
+      val expected = callback.assignments.filter(value => selected.containsKey(value.finalTarget))
+      if (expected.size != projected.assignments.size ||
+          expected.zip(projected.assignments).exists { case (a, b) => a ne b })
+        fail("PROJECTION", "a bridge projection must preserve every driver and initializer of its selected declarations")
+    }
+
     /** Recheck in-place children, literals and initializers, not merely the
       * top-level assignment source pointer. Must run before normalization.
       */
