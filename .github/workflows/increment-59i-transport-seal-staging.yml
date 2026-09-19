@@ -1,0 +1,134 @@
+name: Increment 59i transport seal object staging
+
+on:
+  push:
+    branches: ['recovery/increment-59i-history-20260914']
+    paths:
+      - '.github/recovery/59i-transport-seal/**'
+      - '.github/workflows/increment-59i-transport-seal-staging.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-transport-seal-staging
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    name: Create exact sealed commit object without moving refs
+    if: github.repository == 'pysolvesemi/MorphHDL'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      SOURCE: 7babffa1effe84a99cced712cea38eaf455cd4bc
+      SOURCE_TREE: b44e0f014155cd9a9b74e89d5ba4c1140db0738e
+      SOURCE_PARENT: 9de3fd243a28a6d1e6ba385bc2d746b57e337fc1
+      TARGET: 4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097
+      CONTRACT_SHA256: 5f029c025f25a8568ce04562f02b16f1c8bc7ffafafd32eb0a1ef0628841a0d1
+      CONTRACT_XZ_SHA256: 6d525ee20e787356db9b3e6a5a87423b46d11f73b97507e5cd9b2e4b94261ec7
+      CONTRACT_XZ_SIZE: '562680'
+      CONTRACT_SIZE: '4330171'
+      CONTRACT_BLOB: 8dd723bd4f1dc180865130566022cec51e71f072
+      HELPER_SHA256: 1239779234633b45c80cf2bc1cf0203d24f705ff0f622802bc1124c48fdb060e
+      HELPER_SIZE: '55197'
+      HELPER_BLOB: ed463460052188ca721a9de27177b7d9ec3d80ee
+      SEALED_TREE: bc0e7eb3d014f6fdce83e2506dc7ad9bf7c52438
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify payload and create exact Git objects
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          payload=.github/recovery/59i-transport-seal
+          out="$RUNNER_TEMP/59i-transport-seal"
+          mkdir -p "$out"
+
+          test "$(sha256sum "$payload/manifest.json.xz" | cut -d' ' -f1)" = "$CONTRACT_XZ_SHA256"
+          test "$(wc -c < "$payload/manifest.json.xz")" = "$CONTRACT_XZ_SIZE"
+          xz -dc "$payload/manifest.json.xz" > "$out/manifest.json"
+          cp "$payload/production-successor.py" "$out/production-successor.py"
+          test "$(sha256sum "$out/manifest.json" | cut -d' ' -f1)" = "$CONTRACT_SHA256"
+          test "$(wc -c < "$out/manifest.json")" = "$CONTRACT_SIZE"
+          test "$(sha256sum "$out/production-successor.py" | cut -d' ' -f1)" = "$HELPER_SHA256"
+          test "$(wc -c < "$out/production-successor.py")" = "$HELPER_SIZE"
+
+          api="https://api.github.com/repos/$GITHUB_REPOSITORY"
+          auth=(-H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28')
+          curl --silent --show-error --fail-with-body "${auth[@]}" "$api/git/commits/$SOURCE" > "$out/source.json"
+          test "$(jq -r .tree.sha "$out/source.json")" = "$SOURCE_TREE"
+          test "$(jq -r '.parents | length' "$out/source.json")" = 1
+          test "$(jq -r '.parents[0].sha' "$out/source.json")" = "$SOURCE_PARENT"
+
+          create_blob() {
+            local input=$1 expected=$2 prefix=$3
+            base64 -w0 "$input" | jq -Rs '{encoding:"base64",content:.}' > "$out/$prefix-request.json"
+            curl --silent --show-error --fail-with-body "${auth[@]}" -X POST \
+              "$api/git/blobs" --data-binary "@$out/$prefix-request.json" > "$out/$prefix-response.json"
+            test "$(jq -r .sha "$out/$prefix-response.json")" = "$expected"
+          }
+          create_blob "$out/manifest.json" "$CONTRACT_BLOB" contract-blob
+          create_blob "$out/production-successor.py" "$HELPER_BLOB" helper-blob
+
+          jq -n --arg base "$SOURCE_TREE" --arg contract "$CONTRACT_BLOB" --arg helper "$HELPER_BLOB" \
+            '{base_tree:$base,tree:[
+              {path:"morphhdl/contracts/increment-59i-production-successor.json",mode:"100644",type:"blob",sha:$contract},
+              {path:"morphhdl/scripts/check-increment-59i-production-successor.py",mode:"100644",type:"blob",sha:$helper}
+            ]}' > "$out/tree-request.json"
+          curl --silent --show-error --fail-with-body "${auth[@]}" -X POST \
+            "$api/git/trees" --data-binary "@$out/tree-request.json" > "$out/tree-response.json"
+          test "$(jq -r .sha "$out/tree-response.json")" = "$SEALED_TREE"
+
+          jq -n --arg message 'review(59i): seal committed-head transport repair [skip ci]' \
+            --arg tree "$SEALED_TREE" --arg parent "$SOURCE" \
+            '{message:$message,tree:$tree,parents:[$parent]}' > "$out/commit-request.json"
+          curl --silent --show-error --fail-with-body "${auth[@]}" -X POST \
+            "$api/git/commits" --data-binary "@$out/commit-request.json" > "$out/commit-response.json"
+          seal=$(jq -r .sha "$out/commit-response.json")
+          test "$seal" != null
+          curl --silent --show-error --fail-with-body "${auth[@]}" "$api/git/commits/$seal" > "$out/seal.json"
+          test "$(jq -r .tree.sha "$out/seal.json")" = "$SEALED_TREE"
+          test "$(jq -r '.parents | length' "$out/seal.json")" = 1
+          test "$(jq -r '.parents[0].sha' "$out/seal.json")" = "$SOURCE"
+          test "$(jq -r .message "$out/seal.json")" = 'review(59i): seal committed-head transport repair [skip ci]'
+
+          curl --silent --show-error --fail-with-body "${auth[@]}" \
+            "$api/git/ref/heads/agent/increment-59i-combined-reduction-closure" > "$out/feature-ref.json"
+          curl --silent --show-error --fail-with-body "${auth[@]}" \
+            "$api/git/ref/heads/parameterized-verilog" > "$out/target-ref.json"
+          curl --silent --show-error --fail-with-body "${auth[@]}" "$api/pulls/177" > "$out/pr.json"
+          test "$(jq -r .object.sha "$out/feature-ref.json")" = "$SOURCE_PARENT"
+          test "$(jq -r .object.sha "$out/target-ref.json")" = "$TARGET"
+          test "$(jq -r .head.sha "$out/pr.json")" = "$SOURCE_PARENT"
+          test "$(jq -r .base.ref "$out/pr.json")" = parameterized-verilog
+          test "$(jq -r .state "$out/pr.json")" = open
+          test "$(jq -r .draft "$out/pr.json")" = true
+
+          jq -n --arg controller "$GITHUB_SHA" --arg run "$GITHUB_RUN_ID" \
+            --arg source "$SOURCE" --arg source_tree "$SOURCE_TREE" \
+            --arg seal "$seal" --arg sealed_tree "$SEALED_TREE" \
+            --arg feature "$(jq -r .object.sha "$out/feature-ref.json")" \
+            --arg target "$(jq -r .object.sha "$out/target-ref.json")" \
+            --arg contract_sha256 "$CONTRACT_SHA256" --arg contract_blob "$CONTRACT_BLOB" \
+            --arg helper_sha256 "$HELPER_SHA256" --arg helper_blob "$HELPER_BLOB" \
+            '{controller:$controller,run_id:$run,source_commit:$source,source_tree:$source_tree,
+              seal_commit:$seal,seal_tree:$sealed_tree,observed_feature_ref:$feature,
+              observed_target_ref:$target,contract_sha256:$contract_sha256,
+              contract_blob:$contract_blob,helper_sha256:$helper_sha256,helper_blob:$helper_blob,
+              ref_updated:false,next_action:"Independently verify this receipt, then non-force fast-forward only the existing feature ref."}' \
+            > "$out/receipt.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-transport-seal-staging
+          path: ${{ runner.temp }}/59i-transport-seal
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 21
