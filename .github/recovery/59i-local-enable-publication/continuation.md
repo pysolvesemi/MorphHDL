@@ -1,5 +1,16 @@
 # 59i committed-head startup repair
 
+Staging controller8751e832/run35473408786 failed during actions/checkout auth
+cleanup, before any source check. Recovery ancestor114c765 had mounted a full
+historical source tree at transport/59i-publication-tree-witness; its duplicate
+cocotblib gitlink lacks a corresponding top-level .gitmodules entry. The
+replacement controller removes only that obsolete snapshot. Its exact tree
+b96545aea836689ba430b0e419d8352409204710 remains permanently preserved by
+commit34a93ec7f9cde83e10fd5c47737b324167f54b5e, verified as an ancestor of the
+published feature9de3. The controller, payload, 25 commands, exact source seal
+and mandatory runtime qualification remain byte-identical. Never rerun the
+broken8751 checkout. The new staging run must be resolved from its controller.
+
 Continue PR177 in pysolvesemi/MorphHDL on the existing feature
 agent/increment-59i-combined-reduction-closure, target parameterized-verilog.
 This checkpoint supersedes the old publication handoff at400fb3b8.

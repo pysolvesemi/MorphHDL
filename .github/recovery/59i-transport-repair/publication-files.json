@@ -38,8 +38,8 @@
   {
     "remote_path": ".github/recovery/59i-local-enable-publication/continuation.md",
     "local_path": "/workspace/scratch/68d458e0e937/59i-transport-continuation.md",
-    "sha256": "cf5afb23d6a0a5e36045ed7c4d63d66556ac1f2f9967f227033131458ae93906",
-    "size": 5868
+    "sha256": "9d5a0c1d58abca77206cc9370562f14af76e8b619568f3c3195310b6b3607b4e",
+    "size": 6639
   },
   {
     "remote_path": ".github/recovery/59i-transport-repair/verify-local-enable-committed.py",
@@ -124,5 +124,11 @@
     "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/restoration/reconstruction.json",
     "sha256": "62f95fe1b4971dcbb62f91619f8b2e0a984259fde8309e1ca50578d362457c50",
     "size": 610
+  },
+  {
+    "remote_path": ".github/recovery/59i-transport-repair/evidence/pr190-sync-tests.log",
+    "local_path": "/workspace/scratch/68d458e0e937/evidence/committed-35468824371/pr190-sync-tests.log",
+    "sha256": "23c390d5bbbbfb001a42280bb968efb2a9be8526274f8b38ee1f59ae1040851c",
+    "size": 177
   }
 ]
