@@ -10,18 +10,13 @@ import subprocess
 
 BASE = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
 BASE_TREE = '1b8bf66047a28b836d61f6b168d28dd3b8f95cb2'
-PARENT = 'd76fbd5f84869ac56186b36f35dfc3c480a80cbb'
-TREE = 'c116c4e73abb439ef3d1ddacd35b7b3f6447ec16'
-HEAD = '38e80295d8ec0268f752adf43c4cb22e442ce498'
-COMPRESSED_SHA256 = 'a8cd9a15d6630dfae361d47c136833c4fc31c69c86f513ae5b734dc757eda9a5'
-BUNDLE_SHA256 = 'a49627d040aa564d47c371a935787235369f5599e7c51cc1098bdffc7c5f322f'
-PATCH_SHA256 = 'daa0b048acd9e76470bd8d5c43483a184cb07de95455da713815eab2c28a37a2'
-PATHS = [
- 'docs/morphhdl/increment-59i-local-enable-development.md',
- 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala',
- 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala',
- 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala',
- 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala']
+PARENT = 'c5ecddbf5db0ef56c229b0065d9eef85f8c545cb'
+TREE = '7f93be41567c7c4750691e6d9281c561918bb849'
+HEAD = 'ce8822f5e7038aba5ce33aff69f849d2271e1f2f'
+COMPRESSED_SHA256 = '50e20aca73ff5454f28b5cfbadab26522d8704e52618216788df298075fc860f'
+BUNDLE_SHA256 = '2d772664cc45a35dfc12dc769ea38cbd2f62a88b17d94e085d639913a76e040b'
+PATCH_SHA256 = '840e1268994639c09620d3b7f95efe747ebdd103cc67dc8d5ddcf405af728362'
+PATHS = ['docs/morphhdl/increment-59i-local-enable-development.md', 'morphhdl/scripts/check-increment-59i-composite-local-enable.py', 'morphhdl/scripts/check-increment-59i-local-enable-combined.py', 'morphhdl/scripts/check-increment-59i-local-enable-results.py', 'morphhdl/scripts/test-increment-59i-local-enable-results.py', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala', 'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala', 'morphhdl/src/test/scala/nativeapplication/BalancedCompositeLocalEnableNativeOracle.scala', 'morphhdl/src/test/scala/nativeapplication/BalancedLocalEnableCombinedNativeOracle.scala', 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableArtifactWriter.scala', 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala', 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionLocalEnableCombinedArtifactWriter.scala']
 
 
 def require(ok, why):
@@ -50,7 +45,7 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     require(not root.exists(), 'destination already exists')
     here = Path(__file__).resolve().parent
-    parts = [here / ('part-%02d.b64' % i) for i in (1, 2, 3)]
+    parts = [here / ('part-%02d.b64' % i) for i in range(1, 8)]
     require(all(p.is_file() and not p.is_symlink() for p in parts), 'invalid payload')
     compressed = base64.b64decode(b''.join(p.read_bytes() for p in parts), validate=True)
     require(hashlib.sha256(compressed).hexdigest() == COMPRESSED_SHA256, 'compressed hash differs')
@@ -72,6 +67,7 @@ def main():
     require(git(root, 'rev-parse', HEAD + '^').decode().strip() == PARENT,
             'development parent differs')
     git(root, 'merge-base', '--is-ancestor', BASE, HEAD)
+    git(root, 'merge-base', '--is-ancestor', 'd76fbd5f84869ac56186b36f35dfc3c480a80cbb', HEAD)
     require(git(root, 'diff', '--name-only', BASE, HEAD).decode().splitlines() == PATHS,
             'development scope changed')
     patch = git(root, 'diff', '--binary', '--full-index', BASE, HEAD)
@@ -90,7 +86,8 @@ def main():
     (output / 'development-identity.json').write_text(json.dumps(dict(
         development_only=True, qualification=False, full_ci=False,
         qualified_parent=BASE, development_head=HEAD, source_tree=TREE,
-        preserved_development_head=PARENT, patch_sha256=PATCH_SHA256,
+        preserved_development_head='d76fbd5f84869ac56186b36f35dfc3c480a80cbb',
+        direct_parent=PARENT, patch_sha256=PATCH_SHA256,
         bundle_sha256=BUNDLE_SHA256, remote_refs_written=False), indent=2) + '\n')
     (output / 'path-receipt.json').write_text(json.dumps(dict(
         workspace=str(repository), source=str(root), output=str(output),
