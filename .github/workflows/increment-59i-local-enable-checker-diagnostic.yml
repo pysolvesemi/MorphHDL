@@ -1,0 +1,89 @@
+name: Increment 59i retained-RTL checker diagnostic
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-local-enable-checker-diagnostic.yml
+      - .github/recovery/59i-local-enable-checker-diagnostic/**
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: increment-59i-retained-rtl-checker-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  checker:
+    name: New checkers against retained cb093b5a Scala 2.13 RTL only
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PROBE_SOURCE: 59i-local-enable-checker-source
+      PROBE_OUT: 59i-local-enable-checker-evidence
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: false
+      - name: Reproduce exact unsealed checker source and authenticate frozen predecessor
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p "$PROBE_OUT"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/prepare.py 2>&1 | tee "$PROBE_OUT/prepare.log"
+      - name: Download and authenticate retained failed diagnostic artifact
+        id: input
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/checker.py input 2>&1 | tee "$PROBE_OUT/input-validation.log"
+      - name: Execute exact repaired main checker against retained RTL
+        id: main
+        if: ${{ always() && steps.input.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/checker.py main 2>&1 | tee "$PROBE_OUT/main-checker.log"
+      - name: Execute unchanged supplemental checker against retained RTL
+        id: combined
+        if: ${{ always() && steps.input.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/checker.py combined 2>&1 | tee "$PROBE_OUT/combined-checker.log"
+      - name: Check every original RTL file after both checker attempts
+        if: ${{ always() && steps.input.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/checker.py unchanged 2>&1 | tee "$PROBE_OUT/original-rtl-check.log"
+      - name: Retain exact identities and available diagnostic evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p "$PROBE_OUT"
+          python3 -B .github/recovery/59i-local-enable-checker-diagnostic/checker.py finish 2>&1 | tee "$PROBE_OUT/retention.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-retained-rtl-checker-6a858ead-${{ github.run_attempt }}
+          path: ${{ env.PROBE_OUT }}/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 21

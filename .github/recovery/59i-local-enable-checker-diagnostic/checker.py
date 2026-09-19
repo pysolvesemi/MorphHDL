@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Retained-RTL checker experiment: never compiles Scala or qualifies source."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from prepare import HEAD, TREE, git, paths, require
+
+CONFIG = {'source': '6a858ead678f7ec96e9a421f2b4551bcd62d65d9', 'tree': '48ee0b33c8c88ca030603141a6c734648bb54257', 'source_delta': ['.github/workflows/increment-59i-local-enable-committed-head.yml', 'morphhdl/scripts/check-increment-59i-composite-local-enable.py'], 'main_checker': 'morphhdl/scripts/check-increment-59i-composite-local-enable.py', 'combined_checker': 'morphhdl/scripts/check-increment-59i-local-enable-combined.py', 'results_checker': 'morphhdl/scripts/check-increment-59i-local-enable-results.py', 'checker_hashes': {'morphhdl/scripts/check-increment-59i-composite-local-enable.py': '58ed81a4eba4fa080618ec4cb7a4a8f082155cc6c583034e68dc3862c471bcfd', 'morphhdl/scripts/check-increment-59i-local-enable-combined.py': '0bba1edf5fbf070c55f943dcc28f38b433756d696d0d723a79df73ca3594909a', 'morphhdl/scripts/check-increment-59i-local-enable-results.py': 'b79689d0bf459c9348253dbb7714ae01bed22e83caacf9c072ff99cc937c9397'}, 'missing_input_files': ['hardware-A/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.owners/3019ed781983e85937f8ef76f09c648eaf19bc48fcb9963fcf1ab8f6e9fadf75.owner', 'hardware-A/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.owners/a4a29099275c252bd47450f034ba7e5a6d8b58dd437184039a64f48211feeaa0.owner', 'hardware-A/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.owners/5f6c117ee77d60391418ea8de8d2d9a9c556fce6885f11be89a2cef23385680d.owner', 'hardware-A/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.owners/75bdba8850c38c9ae0ba457cca6b0771e3c01df0ea0ea8837a9300692f64791c.owner', 'hardware-A/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.owners/13f7f4c24b6526bb29666d67a1a6043668a7ca52fdc685de2c6901c878e820ee.owner', 'hardware-A/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.owners/1bea670e8baa2460ba40d0cf92dd39640d81b0d9f2a450519a636de5a961bb96.owner', 'hardware-A/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.owners/2dcf0f1c6e81213a192c79b0e4500abd38186f629f4cc6f5bff6357c9d29c2c7.owner', 'hardware-A/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.owners/c56d104d41bcc3095f5ccad015d6bce07aa2a2e9d777a8919d4206b8729b3a42.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.owners/3b367cbce32c3db2f16031ee2f20dbc7369c30ac9018aa65962b6d59eb0d37c2.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.owners/452efe1834f7d3ef3391c522ecf943ff04e6444900318965de33fe9ae2fd4bc6.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.owners/033bc129de0a88d0161f1a264093a162687cdb3c7d07c82b2730b0f7867c82b0.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.owners/e0184341d80d7ef06314f7dbb2aa63b06f54084a8b11ab7ed36266b6160a0200.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.owners/39ff58ae9f737f9ab317395f0322e399f521324545e33f93201889773625de1c.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.owners/aa3e7750e5bff55c666f76774a4e012619e496cfdec413c6f8c645bbb6722869.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-A/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.owners/19ca9f829ad70d33971287f47ff3e0d4cc110fb71e2f0f38b35fc9816a378f8c.owner', 'hardware-A/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.owners/960e7733dd7b136423e171014c01e9f1d502437318ed907de4afbb6e1e146c87.owner', 'hardware-A/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.manifest', 'hardware-A/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/2fb34dca98debaab4369ac6c785f59ac0be7ccbcb2e486cce540ae742ad5bd13.owner', 'hardware-A/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/5925dc6b658723853f1470efdae41c9516229375089b8b5dc58df2a4e3e7cd64.owner', 'hardware-A/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/dd601c7d1ccf1abbc4e1cf9e29e78b2473d5e644dcb44987ecdc37be1f00b538.owner', 'hardware-A/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.manifest', 'hardware-A/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/32561c05644ae2d61ea16b903f3ea0acdd9308f39deaaf3de3e5c6ede7d692a8.owner', 'hardware-A/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/c05d49dfb45dd11f9be57e6f752b7210cae01d192921be3d9299b47cd9499ab3.owner', 'hardware-A/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/dbc9893e9552c6236adf2d411acb86b534335ab27ae7a827cacf6b9b88a7403b.owner', 'hardware-B/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.owners/3019ed781983e85937f8ef76f09c648eaf19bc48fcb9963fcf1ab8f6e9fadf75.owner', 'hardware-B/candidate/LocalEnableCandidate_async_high_falling_split/.LocalEnableCandidate_async_high_falling_split.morphhdl-one-file-per-component.owners/a4a29099275c252bd47450f034ba7e5a6d8b58dd437184039a64f48211feeaa0.owner', 'hardware-B/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.owners/5f6c117ee77d60391418ea8de8d2d9a9c556fce6885f11be89a2cef23385680d.owner', 'hardware-B/candidate/LocalEnableCandidate_async_high_rising_split/.LocalEnableCandidate_async_high_rising_split.morphhdl-one-file-per-component.owners/75bdba8850c38c9ae0ba457cca6b0771e3c01df0ea0ea8837a9300692f64791c.owner', 'hardware-B/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.owners/13f7f4c24b6526bb29666d67a1a6043668a7ca52fdc685de2c6901c878e820ee.owner', 'hardware-B/candidate/LocalEnableCandidate_async_low_falling_split/.LocalEnableCandidate_async_low_falling_split.morphhdl-one-file-per-component.owners/1bea670e8baa2460ba40d0cf92dd39640d81b0d9f2a450519a636de5a961bb96.owner', 'hardware-B/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.owners/2dcf0f1c6e81213a192c79b0e4500abd38186f629f4cc6f5bff6357c9d29c2c7.owner', 'hardware-B/candidate/LocalEnableCandidate_async_low_rising_split/.LocalEnableCandidate_async_low_rising_split.morphhdl-one-file-per-component.owners/c56d104d41bcc3095f5ccad015d6bce07aa2a2e9d777a8919d4206b8729b3a42.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.owners/3b367cbce32c3db2f16031ee2f20dbc7369c30ac9018aa65962b6d59eb0d37c2.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_high_falling_split/.LocalEnableCandidate_sync_high_falling_split.morphhdl-one-file-per-component.owners/452efe1834f7d3ef3391c522ecf943ff04e6444900318965de33fe9ae2fd4bc6.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.owners/033bc129de0a88d0161f1a264093a162687cdb3c7d07c82b2730b0f7867c82b0.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_high_rising_split/.LocalEnableCandidate_sync_high_rising_split.morphhdl-one-file-per-component.owners/e0184341d80d7ef06314f7dbb2aa63b06f54084a8b11ab7ed36266b6160a0200.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.owners/39ff58ae9f737f9ab317395f0322e399f521324545e33f93201889773625de1c.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_low_falling_split/.LocalEnableCandidate_sync_low_falling_split.morphhdl-one-file-per-component.owners/aa3e7750e5bff55c666f76774a4e012619e496cfdec413c6f8c645bbb6722869.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.manifest', 'hardware-B/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.owners/19ca9f829ad70d33971287f47ff3e0d4cc110fb71e2f0f38b35fc9816a378f8c.owner', 'hardware-B/candidate/LocalEnableCandidate_sync_low_rising_split/.LocalEnableCandidate_sync_low_rising_split.morphhdl-one-file-per-component.owners/960e7733dd7b136423e171014c01e9f1d502437318ed907de4afbb6e1e146c87.owner', 'hardware-B/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.manifest', 'hardware-B/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/2fb34dca98debaab4369ac6c785f59ac0be7ccbcb2e486cce540ae742ad5bd13.owner', 'hardware-B/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/5925dc6b658723853f1470efdae41c9516229375089b8b5dc58df2a4e3e7cd64.owner', 'hardware-B/combined/candidate/LocalEnableCombined_fields_casts_split/.LocalEnableCombined_fields_casts_split.morphhdl-one-file-per-component.owners/dd601c7d1ccf1abbc4e1cf9e29e78b2473d5e644dcb44987ecdc37be1f00b538.owner', 'hardware-B/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.manifest', 'hardware-B/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/32561c05644ae2d61ea16b903f3ea0acdd9308f39deaaf3de3e5c6ede7d692a8.owner', 'hardware-B/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/c05d49dfb45dd11f9be57e6f752b7210cae01d192921be3d9299b47cd9499ab3.owner', 'hardware-B/combined/candidate/LocalEnableCombined_packed_casts_split/.LocalEnableCombined_packed_casts_split.morphhdl-one-file-per-component.owners/dbc9893e9552c6236adf2d411acb86b534335ab27ae7a827cacf6b9b88a7403b.owner']}
+HERE = Path(__file__).resolve().parent
+INPUT_HEAD = 'cb093b5aa235760f2c3149f4327324976aa0495b'
+ARTIFACT_ID = 10583436619
+ARTIFACT_RUN = 35435278904
+ZIP_SHA256 = 'a4589bfd9bf2b604828fe1c5ef6a0350823482278b6163488a5d0377a1f60e16'
+API = 'https://api.github.com/repos/pysolvesemi/MorphHDL/actions/artifacts/' + str(ARTIFACT_ID)
+
+
+def digest(path):
+    h = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def write(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, indent=2) + '\n')
+
+
+def source(root):
+    require(HEAD == CONFIG['source'] and TREE == CONFIG['tree'], 'checker source/controller differs')
+    require(git(root, 'rev-parse', 'HEAD').decode().strip() == HEAD, 'checker checkout head differs')
+    require(git(root, 'rev-parse', 'HEAD^{tree}').decode().strip() == TREE, 'checker checkout tree differs')
+    for path, expected in CONFIG['checker_hashes'].items():
+        file = root / path
+        require(file.is_file() and not file.is_symlink() and digest(file) == expected,
+                'exact checker source hash differs: ' + path)
+    actual_delta = git(root, 'diff', '--name-only', INPUT_HEAD, HEAD).decode().splitlines()
+    require(actual_delta == CONFIG['source_delta'], 'checker source delta differs')
+    require(not any(path.endswith(('.scala', '.sbt', '.sc', '.java', '.v', '.vhd', '.vhdl')) or
+                    path.startswith(('project/', 'morphhdl/src/', 'core/src/', 'frontend/src/', 'lib/src/'))
+                    for path in actual_delta), 'retained-RTL experiment includes generator/build changes')
+    git(root, 'diff', '--exit-code')
+    git(root, 'diff', '--cached', '--exit-code')
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, message, headers, new_url):
+        return None
+
+
+def download(out):
+    token = os.environ['GH_TOKEN']
+    headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json',
+               'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': '59i-retained-rtl-diagnostic'}
+    with urllib.request.urlopen(urllib.request.Request(API, headers=headers), timeout=120) as response:
+        metadata = json.load(response)
+    require(metadata['id'] == ARTIFACT_ID and metadata['workflow_run']['id'] == ARTIFACT_RUN and
+            metadata['name'] == 'increment-59i-local-enable-development-cb093b5a-2.13.12-1' and
+            metadata['digest'] == 'sha256:' + ZIP_SHA256 and metadata['expired'] is False,
+            'retained artifact API identity differs')
+    write(out / 'input-artifact-metadata.json', metadata)
+    opener = urllib.request.build_opener(NoRedirect())
+    try:
+        response = opener.open(urllib.request.Request(API + '/zip', headers=headers), timeout=120)
+    except urllib.error.HTTPError as error:
+        require(error.code in (301, 302, 303, 307, 308), 'artifact download did not return an archive/redirect')
+        location = error.headers['Location']
+        uri = urllib.parse.urlsplit(location)
+        require(uri.scheme == 'https' and uri.hostname and not uri.username and not uri.password and
+                any(uri.hostname.endswith(suffix) for suffix in
+                    ('.blob.core.windows.net', '.amazonaws.com', '.githubusercontent.com')),
+                'artifact redirect is not trusted HTTPS storage')
+        # The GitHub token is never forwarded to the signed storage URL.
+        response = urllib.request.urlopen(urllib.request.Request(location), timeout=180)
+    archive = out / 'retained-cb093b5a-scala-2.13.zip'
+    with response, archive.open('xb') as stream:
+        shutil.copyfileobj(response, stream)
+    require(digest(archive) == ZIP_SHA256, 'retained ZIP digest mismatch')
+    return archive
+
+
+def command(args, root, log):
+    with log.open('w') as stream:
+        result = subprocess.run(args, cwd=root, stdout=stream, stderr=subprocess.STDOUT)
+    if result.returncode:
+        print('\n'.join(log.read_text(errors='replace').splitlines()[-160:]), flush=True)
+    return result.returncode
+
+
+def inputs(root, out):
+    source(root)
+    archive = download(out)
+    summary_path = out / 'retained-input-verification.json'
+    code = command(['python3', '-B', str(HERE / 'verify-local-enable-diagnostic.py'),
+        '--mode', 'failed', '--artifact', '2.13.12', str(archive), ZIP_SHA256,
+        '--extract-root', str(out / 'retained-input'), '--repo-root', str(root),
+        '--controller', str(HERE / 'input-controller'), '--output', str(summary_path)],
+        root, out / 'retained-input-verification.log')
+    require(code == 0, 'retained input evidence verification failed')
+    verified = json.loads(summary_path.read_text())
+    lane = verified['lanes'][0]
+    require(verified['diagnostic_passed'] is False and verified['qualification'] is False and
+            verified['present_file_hashes_valid'] is True and lane['source_head'] == INPUT_HEAD and
+            lane['unit_tests']['passed'] is True and lane['unit_tests']['cases'] == 138 and
+            lane['unit_tests']['suites'] == 10 and len(lane['original_rtl']) == 124,
+            'retained input source/test/RTL evidence differs')
+    require(lane['missing_inventory_files'] == CONFIG['missing_input_files'],
+            'missing upstream publication metadata differs from the inspected failed artifact')
+    prior = out / 'retained-input/2.13.12'
+    for name in ('hardware-A', 'hardware-B'):
+        shutil.copytree(prior / name, out / name)
+    shutil.copyfile(prior / 'rtl-inventory.json', out / 'rtl-inventory.json')
+    require(command(['python3', '-B', str(root / CONFIG['results_checker']), 'determinism',
+                     '--output', str(out)], root, out / 'determinism.log') == 0,
+            'retained original A/B RTL no longer matches')
+    write(out / 'checker-diagnostic-identity.json', dict(
+        checker_source=HEAD, checker_tree=TREE, checker_hashes=CONFIG['checker_hashes'],
+        emitted_rtl_source=INPUT_HEAD, emitted_rtl_scala='2.13.12',
+        artifact_id=ARTIFACT_ID, artifact_run=ARTIFACT_RUN, artifact_zip_sha256=ZIP_SHA256,
+        original_rtl_files=124, missing_input_publication_files=CONFIG['missing_input_files'],
+        diagnostic_only=True, current_source_compiled=False, current_source_rtl_generated=False,
+        source_sealed=False, qualification=False, full_ci=False, remote_refs_written=False))
+    print('RETAINED RTL AUTHENTICATED: checker experiment only; upstream publication metadata remains incomplete')
+
+
+def execute(phase, root, out):
+    source(root)
+    require((out / 'checker-diagnostic-identity.json').is_file(), 'input validation did not complete')
+    if phase == 'main':
+        path = CONFIG['main_checker']
+        args = ['--artifacts', str(out / 'hardware-A'), '--output', str(out / 'hardware-checks')]
+    elif phase == 'combined':
+        path = CONFIG['combined_checker']
+        args = ['--artifacts', str(out / 'hardware-A/combined'), '--output', str(out / 'hardware-A/combined/checks')]
+    else:
+        path = CONFIG['results_checker']
+        args = ['unchanged', '--output', str(out)]
+    code = command(['python3', '-B', str(root / path), *args], root, out / (phase + '-execution.log'))
+    write(out / ('phase-' + phase + '.json'), dict(phase=phase, checker_source=HEAD,
+        checker_sha256=CONFIG['checker_hashes'][path], emitted_rtl_source=INPUT_HEAD,
+        exit_code=code, diagnostic_only=True, qualification=False))
+    source(root)
+    print('checker phase=' + phase + ' exit_code=' + str(code), flush=True)
+    return code
+
+
+def finish(root, out):
+    problems = []
+    try:
+        source(root)
+        after = git(root, 'ls-files', '--stage')
+        (out / 'tracked-after.txt').write_bytes(after)
+        require(after == (out / 'tracked-before.txt').read_bytes(), 'checker source index changed')
+    except Exception as error:
+        problems.append(str(error))
+    phases = {}
+    for name in ('main', 'combined', 'unchanged'):
+        path = out / ('phase-' + name + '.json')
+        phases[name] = json.loads(path.read_text()) if path.is_file() else None
+    passed = not problems and all(value and value['exit_code'] == 0 for value in phases.values())
+    result = dict(scope='retained-rtl-checker-diagnostic', checker_source=HEAD, checker_tree=TREE,
+        emitted_rtl_source=INPUT_HEAD, checker_diagnostic_passed=passed, phases=phases,
+        source_evidence_errors=problems, upstream_publication_evidence_complete=False,
+        missing_input_publication_files=CONFIG['missing_input_files'],
+        current_source_compiled=False, current_source_rtl_generated=False, diagnostic_only=True,
+        source_sealed=False, qualification=False, full_ci=False, remote_refs_written=False)
+    write(out / 'checker-diagnostic-result.json', result)
+    write(out / 'evidence-files.json', [dict(path=p.relative_to(out).as_posix(), bytes=p.stat().st_size,
+        sha256=digest(p)) for p in sorted(out.rglob('*')) if p.is_file() and not p.is_symlink() and
+        p not in (out / 'evidence-files.json', out / 'retention.log')])
+    print(json.dumps({k: v for k, v in result.items() if k != 'missing_input_publication_files'}, indent=2))
+    return 1 if problems else 0
+
+
+if __name__ == '__main__':
+    require(len(sys.argv) == 2 and sys.argv[1] in ('input', 'main', 'combined', 'unchanged', 'finish'),
+            'usage: checker.py input|main|combined|unchanged|finish')
+    _, root, out = paths()
+    out.mkdir(parents=True, exist_ok=True)
+    phase = sys.argv[1]
+    if phase == 'input':
+        inputs(root, out)
+    else:
+        raise SystemExit(finish(root, out) if phase == 'finish' else execute(phase, root, out))
