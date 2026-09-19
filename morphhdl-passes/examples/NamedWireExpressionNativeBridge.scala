@@ -618,7 +618,8 @@ private[examples] final class NamedWireExpressionNativePhase(
       case value: DataAssignmentStatement => value: Statement
     }
     new NamedWireAliasNativePhase().expressionRemovalBlocker(
-      pc, candidate.component, alias, candidate.assignment, dataReceivers
+      pc, candidate.component, alias, candidate.assignment, dataReceivers,
+      allowRegisterRhs = true
     ) match {
       case Some(reason) => return Left("WA10-CONDITION-" + reason)
       case None =>
@@ -744,22 +745,32 @@ private[examples] final class NamedWireExpressionNativePhase(
     var renderedUses = 0
     candidate.useStatements.foreach {
       case when: WhenStatement =>
+        // Only combinational destinations can be blocking writers. A native
+        // register reads the pre-edge value even when the same register is a
+        // dependency of this predicate. Never coalesce its NBA writes into a
+        // combinational process, and never change its clock/reset/init/scope.
         val controlled = ArrayBuffer.empty[BaseType]
+        val registers = ArrayBuffer.empty[BaseType]
         def inspect(scope: ScopeStatement): Unit = scope.walkStatements {
           case assignment: DataAssignmentStatement =>
             val target = assignment.finalTarget
-            if ((target.component ne component) || !target.isComb || target.isAnalog ||
+            if ((target.component ne component) || target.isAnalog ||
                 target.isInputOrInOut || target.parentScope == null ||
                 !(target.parentScope eq target.rootScopeStatement)) unsupported = true
-            if (!contains(controlled, target)) controlled += target
+            if (target.isComb) {
+              if (!contains(controlled, target)) controlled += target
+            } else if (target.isReg && target.clockDomain != null &&
+                (assignment.target eq target)) {
+              if (!contains(registers, target)) registers += target
+            } else unsupported = true
           case _: WhenStatement =>
           case _: BaseType =>
           case _ => unsupported = true
         }
         inspect(when.whenTrue)
         inspect(when.whenFalse)
-        if (unsupported || controlled.isEmpty)
-          return Left("WA10-CONDITION-NONCOMBINATIONAL-CONTROL")
+        if (unsupported || (controlled.isEmpty && registers.isEmpty))
+          return Left("WA10-CONDITION-UNSUPPORTED-CONTROL")
         val controls = ArrayBuffer[TreeStatement](outerControl(when).getOrElse(when))
         var progress = true
         while (progress) {
@@ -775,14 +786,14 @@ private[examples] final class NamedWireExpressionNativePhase(
               }
             }
           }
-          if (controlled.size > 32 || controls.size > 256)
+          if (controlled.size + registers.size > 32 || controls.size > 256)
             return Left("WA10-CONDITION-PROCESS-BUDGET")
         }
         if (dependencies.exists(value => contains(controlled, value)))
           return Left("WA10-CONDITION-BLOCKING-DEPENDENCY")
-        renderedUses += controlled.size * references(when, candidate.alias)
+        renderedUses += (controlled.size + registers.size) * references(when, candidate.alias)
       case assignment: DataAssignmentStatement =>
-        if (dependencies.exists(_ eq assignment.finalTarget))
+        if (assignment.finalTarget.isComb && dependencies.exists(_ eq assignment.finalTarget))
           return Left("WA10-CONDITION-BLOCKING-DEPENDENCY")
         renderedUses += references(assignment, candidate.alias)
       case _ => return Left("WA10-CONDITION-RECEIVER-CONTEXT")
@@ -987,6 +998,11 @@ private[examples] final class NamedWireExpressionNativePhase(
     var selected = false
     statement.walkDrivingExpressions {
       case access: SubAccess if expressionReferences(access.getBitVector, alias) =>
+        selected = true
+      // A narrowing resize also emits a Verilog-2001 select. Keep its real
+      // arithmetic base/name; only proven direct aliases may pass through it.
+      case resize: Resize if resize.input != null && resize.size < resize.input.getWidth &&
+          expressionReferences(resize.input, alias) =>
         selected = true
       case _ =>
     }

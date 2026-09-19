@@ -34,7 +34,7 @@ case "${head_ref}" in
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
   agent/wa-10-*|wa-10-*) is_wa10=true ;;
   agent/wa-11-*|wa-11-*) is_wa11=true ;;
-  agent/lane-when-expression-inlining|parameterized-verilog) is_lane_when=true ;;
+  agent/lane-when-expression-inlining|agent/wa-sequential-wire-consumers|parameterized-verilog) is_lane_when=true ;;
 esac
 
 collect_changed_files() {

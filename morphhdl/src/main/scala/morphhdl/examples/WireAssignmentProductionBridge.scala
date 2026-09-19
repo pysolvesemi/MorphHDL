@@ -124,7 +124,7 @@ private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionS
           "WA-08 production wire-assignment pipeline failed to converge"
         )
 
-      val unnamed = new UnnamedWireAliasNativePhase
+      val unnamed = new UnnamedWireAliasNativePhase(Some(sourceIntent))
       unnamed.impl(pc)
       val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
       named.impl(pc)

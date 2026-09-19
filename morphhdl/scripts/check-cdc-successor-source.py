@@ -94,6 +94,14 @@ def load(root: Path, relative: str):
 
 def verify(root: Path = ROOT) -> None:
     root = root.resolve()
+    sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
+    if sync_path.exists():
+        # Authenticate the complete current union before running any frozen
+        # predecessor review. The original PR189 verifier remains below.
+        sealed = load(root, OVERLAY).verify(root)
+        result = load(root, "morphhdl/scripts/check-pr190-pr189-source-sync.py").verify(root, sealed)
+        print("PR189_SUCCESSOR_SOURCE_PASS combined_PR190 paths=" + str(len(result["paths"])))
+        return
     git(root, "merge-base", "--is-ancestor", TARGET, "HEAD")
     # Authenticate the full current HEAD/index/worktree BEFORE projecting any
     # historical bytes. This also seals this verifier and the Inc61 adapter.

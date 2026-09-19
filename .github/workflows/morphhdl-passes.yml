@@ -16,6 +16,7 @@ on:
       - "morphhdl-passes/**"
       - ".github/workflows/morphhdl-passes.yml"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -32,7 +33,7 @@ jobs:
     name: Pass workspace boundary and static contracts
     if: ${{ github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' || github.head_ref == 'agent/increment-61-one-file-per-component' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out sources
         uses: actions/checkout@v4
@@ -135,6 +136,27 @@ jobs:
             audit_head_ref=agent/lane-when-expression-inlining
             audit_base_sha=27af65abbee0d2334d6be7a6e4e2408b8af32fd9
             printf 'Current PR189 source: %s\nHistorical pass-only static source: %s\n' \
+              "$(git rev-parse HEAD)" "$audit_source"
+          elif [[ "$SOURCE_HEAD_REF" == agent/wa-sequential-wire-consumers ]]; then
+            # Authenticate every current compiler/test byte BEFORE replaying
+            # the immutable legacy syntax/scope contracts. All native/Scala/
+            # simulation/proof jobs below still check out the current head.
+            python3 morphhdl/scripts/check-pr190-pr189-source-sync.py
+            python3 morphhdl/scripts/test-pr190-pr189-source-sync.py
+            python3 morphhdl/scripts/check-sequential-wire-source-review.py
+            python3 morphhdl/scripts/test-sequential-wire-source-review.py
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+            python3 morphhdl-passes/scripts/validate_wire_assignment_equivalence.py --self-test
+            MORPHDL_PASSES_BASE_SHA=e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d MORPHDL_PASSES_HEAD_REF="$SOURCE_HEAD_REF" bash morphhdl-passes/scripts/check-boundary.sh
+            bash morphhdl-passes/scripts/test-boundary-guard.sh
+            audit_source=3990185a2701f652c1a47c8b8f244f9bf0d32974
+            git merge-base --is-ancestor "$audit_source" HEAD
+            audit_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/pr190-pass-static.XXXXXX")
+            git worktree add --detach "$audit_root" "$audit_source"
+            audit_head_ref=agent/lane-when-expression-inlining
+            audit_base_sha=27af65abbee0d2334d6be7a6e4e2408b8af32fd9
+            printf 'Current PR190 source: %s\nHistorical static-only source: %s\n' \
               "$(git rev-parse HEAD)" "$audit_source"
           elif [[ "$SOURCE_HEAD_REF" == agent/increment-61-one-file-per-component ]]; then
             # The complete current publication delta is sealed before applying

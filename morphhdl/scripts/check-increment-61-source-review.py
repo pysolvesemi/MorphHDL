@@ -87,7 +87,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "c33b2d465d283bd2cc5f5088d73c47bb12cced6e83fa66bcb11ef88a508bef31":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")
@@ -104,7 +104,7 @@ def _lane_successor(root: Path):
     if not path.exists():
         return None
     require(path.is_file() and not path.is_symlink(), "linked lane/61 successor checker")
-    require(sha256(path.read_bytes()) == "3b40bb6bdf44de2c8c304626ef3bf200017b90278067922052a3443b4cbfa9d1",
+    require(sha256(path.read_bytes()) == "278fe8a3c02e9661e5a233252fd57705ff9b4094768b7a65994651b6f12839ae",
             "lane/61 successor checker digest changed")
     spec = importlib.util.spec_from_file_location("increment61_lane_successor", path)
     require(spec is not None and spec.loader is not None, "missing lane/61 successor checker")
