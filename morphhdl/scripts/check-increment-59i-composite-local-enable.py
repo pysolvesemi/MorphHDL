@@ -91,14 +91,20 @@ def instances(case: dict, candidates: list[dict]) -> list[str]:
     return lines
 
 
-def miter(case: dict, candidates: list[dict]) -> str:
+def miter(case: dict, candidates: list[dict], bit: tuple[str, int] | None = None) -> str:
     width = sum(ports(case).values()) * case["count"]
     lines = ["module miter(input wire clk, reset, enable,",
              f"input wire [{width - 1}:0] values, output wire bad);"]
     lines += instances(case, candidates)
-    lines += ["assign bad = " + " | ".join(
-        f"(|(g_{field} ^ c{index}_{field}))" for index in range(len(candidates))
-        for field in ports(case)) + ";", "endmodule", ""]
+    if bit is None:
+        comparisons = [f"(|(g_{field} ^ c{index}_{field}))"
+                       for index in range(len(candidates)) for field in ports(case)]
+    else:
+        field, index = bit
+        require(len(candidates) == 1 and field in ports(case) and 0 <= index < ports(case)[field],
+                "invalid native/candidate output-bit obligation")
+        comparisons = [f"(g_{field}[{index}] ^ c0_{field}[{index}])"]
+    lines += ["assign bad = " + " | ".join(comparisons) + ";", "endmodule", ""]
     return "\n".join(lines)
 
 
@@ -345,9 +351,52 @@ def actual_rtl_mutations(root: Path, case: dict, candidate: dict) -> tuple[dict,
 def formal_setup(paths: list[Path]) -> str:
     # async2sync is an active-edge model only. The unmodified emitted RTL also
     # runs strict lint/synthesis and native comparisons between clock edges.
+    # Merge only combinational cells. A full opt/opt_merge could unify the two
+    # DUTs' independent arbitrary initial register values. Each output-bit
+    # obligation retains its entire reachable state and all unconstrained inputs.
     return ("read_verilog " + " ".join(quoted(path) for path in paths) +
             "\nhierarchy -check -top miter\nproc\nflatten\nopt_expr\nopt_clean\n"
-            "async2sync\ndffunmap\ncheck -assert\n")
+            "async2sync\ndffunmap\n"
+            "opt_merge -keepdc t:$add t:$mux t:$logic_not t:$xor t:$or t:$and "
+            "t:$reduce_or t:$logic_and t:$logic_or\nopt_clean -purge\ncheck -assert\n")
+
+
+def bounded_bit_equivalence(root: Path, output: Path, case: dict,
+                            candidates: list[dict], command: str) -> list[dict]:
+    """Prove the original output conjunction without correlating DUT state.
+
+    COUNT=3's three-DUT monolithic 18-step query timed out with 449487 SAT
+    variables. Decomposing its conjunction by candidate and output bit permits
+    dead-cone removal before unrolling. Every bit still uses the full 18 steps,
+    independent unknown initial state, native enabled reset at step 1, and
+    arbitrary data/reset/enable thereafter. No internal equalities are assumed.
+    """
+    for obsolete in ("formal.log", "equivalence.ys", "formal-partitions.json"):
+        (output / obsolete).unlink(missing_ok=True)
+    results = []
+    for candidate_index, candidate in enumerate(candidates):
+        for field, width in ports(case).items():
+            for bit in range(width):
+                work = output / "formal-bits" / f"c{candidate_index}-{field}-{bit}"
+                work.mkdir(parents=True, exist_ok=True)
+                top = work / "miter.v"
+                top.write_text(miter(case, [candidate], (field, bit)))
+                sources = [checked_file(root, entry["file"]) for entry in (case, candidate)] + [top]
+                proof = work / "equivalence.ys"
+                proof.write_text(formal_setup(sources) + command + "-verify\n")
+                log = run(["yosys", "-Q", "-T", "-s", str(proof)], work / "formal.log")
+                require(SAT_PASS in log and SAT_FAIL not in log,
+                        f"bounded native output-bit equivalence failed: {work}")
+                results.append({"candidate": candidate["module"], "field": field, "bit": bit,
+                                "result": "pass-18-steps", "log": str(work / "formal.log"),
+                                "script": str(proof), "miter": str(top)})
+    expected = {(c["module"], field, bit) for c in candidates
+                for field, width in ports(case).items() for bit in range(width)}
+    require(len(results) == len(expected) and
+            {(r["candidate"], r["field"], r["bit"]) for r in results} == expected,
+            "incomplete bounded output-bit proof conjunction")
+    (output / "formal-partitions.json").write_text(json.dumps(results, indent=2) + "\n")
+    return results
 
 
 def require_counterexample(trace: Path) -> None:
@@ -385,17 +434,16 @@ def strict_tools_and_formal(root: Path, output: Path, case: dict, candidates: li
         command = (f"sat -seq 18 -set-def-inputs -set-at 1 reset {int(not case['reset_low'])} "
                    f"-set-at 1 enable {int(not case['enable_low'])} "
                    "-prove bad 0 -prove-skip 1 -timeout 120 ")
-        command += ("-show-inputs -show-outputs -dump_vcd " + quoted(trace)) if mutation else "-verify"
-        proof.write_text(formal_setup(sources) + command + "\n")
-        log = run(["yosys", "-Q", "-T", "-s", str(proof)], output / "formal.log")
         if mutation:
+            command += "-show-inputs -show-outputs -dump_vcd " + quoted(trace)
+            proof.write_text(formal_setup(sources) + command + "\n")
+            log = run(["yosys", "-Q", "-T", "-s", str(proof)], output / "formal.log")
             require(SAT_FAIL in log and SAT_PASS not in log,
                     f"semantic mutant produced no formal mismatch: {output}")
             require_counterexample(trace)
             result["formal"] = "counterexample"
         else:
-            require(SAT_PASS in log and SAT_FAIL not in log,
-                    f"bounded native formal equivalence failed: {output}")
+            result["formal_partitions"] = bounded_bit_equivalence(root, output, case, candidates, command)
             result["formal"] = "pass-18-steps"
     return result
 
@@ -459,6 +507,8 @@ def main() -> None:
                "candidate_comparisons": 2 * len(results), "cycles_per_case": 384,
                "formal": {"kind": "bounded-active-edge-equivalence", "steps": 18,
                           "cases": sum(r["formal"] == "pass-18-steps" for r in results),
+                          "decomposition": "all candidate/output-bit obligations; no state merging or cut assumptions",
+                          "bit_obligations": sum(len(r.get("formal_partitions", [])) for r in results),
                           "initial_state": "unconstrained; enabled native reset at step 1",
                           "after_reset": "unconstrained input, reset, and global enable",
                           "async": "async2sync edge model; raw RTL asynchronous timing covered by simulation",

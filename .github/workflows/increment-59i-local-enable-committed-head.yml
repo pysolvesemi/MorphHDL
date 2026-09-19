@@ -194,6 +194,7 @@ jobs:
           name: increment-59i-local-enable-committed-${{ matrix.scala }}
           path: target/increment-59i-local-enable-committed-${{ matrix.scala }}
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 21
 
   cross-scala:
