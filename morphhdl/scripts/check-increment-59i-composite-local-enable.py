@@ -24,6 +24,7 @@ PASS = "59I-LOCAL-ENABLE-HARDWARE-PASS"
 FAIL = "59I-LOCAL-ENABLE-HARDWARE-MISMATCH"
 SAT_PASS = "SAT proof finished - no model found: SUCCESS!"
 SAT_FAIL = "SAT proof finished - model found: FAIL!"
+FINITE_PASS = "Reached maximum number of time steps -> proved base case for 17 steps: SUCCESS!"
 SHAPES = {(u, s, b, n) for (u, s, b), n in itertools.product(
     ((3, 4, 2), (5, 7, 3), (8, 3, 6)), (1, 2, 3, 5))}
 PROFILES = {f"{kind}_{polarity}_{edge}" for kind, polarity, edge in itertools.product(
@@ -367,19 +368,210 @@ def formal_setup(paths: list[Path]) -> str:
             "t:$_MUX_ t:$_NAND_ t:$_NOR_\nopt_clean -purge\ncheck -assert\nstat\n")
 
 
+def state_correspondence(module: dict) -> list[dict]:
+    """Generate state-equality obligations from the actual output-bit cones.
+
+    Structural matching is only a lemma generator. It proves nothing and does
+    not replace a signal, merge registers, or constrain their initial values.
+    Each generated equality will be proved along with the original output bit.
+    The complete reachable state must pair one-to-one across the two cones.
+    """
+    cells, drivers = module["cells"], {}
+    for name, cell in cells.items():
+        for port, direction in cell["port_directions"].items():
+            if direction == "output":
+                for index, bit in enumerate(cell["connections"][port]):
+                    if isinstance(bit, int):
+                        require(bit not in drivers, "ambiguous state-proof driver")
+                        drivers[bit] = name, port, index
+    registers = {name for name, cell in cells.items() if cell["type"] in ("$_DFF_P_", "$_DFF_N_")}
+    require(all(cell["type"] in ("$_DFF_P_", "$_DFF_N_", "$_NOT_", "$_AND_", "$_OR_",
+                               "$_XOR_", "$_XNOR_", "$_MUX_", "$_NAND_", "$_NOR_")
+                for cell in cells.values()), "unexpected normalized proof cell")
+    initialized = {bit for net in module["netnames"].values()
+                   if "init" in net.get("attributes", {}) for bit in net["bits"]}
+    require(not initialized.intersection(bit for name in registers
+                for bit in cells[name]["connections"]["Q"]), "DUT initial state was constrained")
+    bad = module["ports"]["bad"]["bits"]
+    require(len(bad) == 1, "output-bit proof has a non-scalar property")
+    if bad == ["0"]:
+        require(not registers, "constant output property discarded reachable state")
+        return []
+    require(bad[0] in drivers, "missing original output-bit comparison")
+    name, port, index = drivers[bad[0]]
+    comparison = cells[name]
+    require(comparison["type"] == "$_XOR_" and port == "Y" and index == 0,
+            "output-bit property is not the original native/candidate XOR")
+    visited, pairs = set(), set()
+
+    def pair(left, right):
+        if left == right or (left, right) in visited:
+            return
+        visited.add((left, right))
+        require(left in drivers and right in drivers,
+                f"unmatched actual native/candidate cone: {left}, {right}")
+        ln, lp, li = drivers[left]
+        rn, rp, ri = drivers[right]
+        a, b = cells[ln], cells[rn]
+        require((lp, li, a["type"], a["parameters"], a["port_directions"]) ==
+                (rp, ri, b["type"], b["parameters"], b["port_directions"]),
+                f"incompatible actual native/candidate cone: {ln}, {rn}")
+        if ln in registers:
+            pairs.add((ln, rn))
+        for port, direction in a["port_directions"].items():
+            if direction == "input":
+                x, y = a["connections"][port], b["connections"][port]
+                require(len(x) == len(y), "state proof input width mismatch")
+                for left_bit, right_bit in zip(x, y):
+                    pair(left_bit, right_bit)
+
+    pair(comparison["connections"]["A"][0], comparison["connections"]["B"][0])
+    lefts, rights = {a for a, _ in pairs}, {b for _, b in pairs}
+    require(len(lefts) == len(rights) == len(pairs) and not lefts.intersection(rights)
+            and lefts | rights == registers, "state proof is not a complete independent register pairing")
+    return [{"left": a, "right": b, "left_q": cells[a]["connections"]["Q"],
+             "right_q": cells[b]["connections"]["Q"]} for a, b in sorted(pairs)]
+
+
+def strengthen_state_invariant(document: dict) -> tuple[dict, list[dict]]:
+    """Add each suggested state equality to the property, never the assumptions."""
+    strengthened = copy.deepcopy(document)
+    module = strengthened["modules"]["miter"]
+    pairs = state_correspondence(module)
+    all_bits = [bit for cell in module["cells"].values() for bits in cell["connections"].values()
+                for bit in bits if isinstance(bit, int)]
+    all_bits += [bit for port in module["ports"].values() for bit in port["bits"] if isinstance(bit, int)]
+    all_bits += [bit for net in module["netnames"].values() for bit in net["bits"] if isinstance(bit, int)]
+    next_bit = max(all_bits, default=1) + 1
+    original_bad = module["ports"]["bad"]["bits"][:]
+    property_bit = original_bad[:]
+    for index, relation in enumerate(pairs):
+        mismatch, combined = [next_bit], [next_bit + 1]
+        next_bit += 2
+        for suffix, kind, a, b, y in (
+                ("equal", "$_XOR_", relation["left_q"], relation["right_q"], mismatch),
+                ("property", "$_OR_", property_bit, mismatch, combined)):
+            name = f"$59i_proved_state${index}${suffix}"
+            require(name not in module["cells"], "state proof cell identity collision")
+            module["cells"][name] = {"hide_name": 1, "type": kind, "parameters": {},
+                "attributes": {}, "port_directions": {"A": "input", "B": "input", "Y": "output"},
+                "connections": {"A": a[:], "B": b[:], "Y": y}}
+        property_bit = combined
+    module["ports"]["bad"]["bits"] = property_bit
+    module["netnames"]["bad"]["bits"] = property_bit
+    # Check the construction itself: every original DUT cell and connection is
+    # byte-for-byte unchanged; all input ports and initial-state metadata survive.
+    original = document["modules"]["miter"]
+    require(all(module["cells"][name] == cell for name, cell in original["cells"].items()),
+            "strengthening changed an original cell")
+    require(all(module["ports"][name] == port for name, port in original["ports"].items()
+                if name != "bad"), "strengthening changed a DUT input")
+    require(all(module["netnames"][name] == net for name, net in original["netnames"].items()
+                if name != "bad"), "strengthening changed original signal metadata")
+    return strengthened, pairs
+
+
+def finite_base_command(case: dict) -> str:
+    # Yosys 0.41 starts with seq_len=1, then proves seq_len+inductlen for
+    # inductlen=1..17. Thus the finite base cases cover every step 2..18.
+    # -prove-skip is incompatible with tempinduct; step 1 is initialization only
+    # in this base-only mode. There is no temporal induction-step proof/claim.
+    return ("sat -seq 1 -tempinduct-baseonly -maxsteps 17 -set-def-inputs "
+            f"-set-at 1 reset {int(not case['reset_low'])} "
+            f"-set-at 1 enable {int(not case['enable_low'])} "
+            "-prove bad 0 -timeout 120 -verify\n")
+
+
+def require_finite_base_proof(log: str) -> list[int]:
+    matches = list(re.finditer(r"^Base case for induction length (\d+) proven\.$", log, re.MULTILINE))
+    lengths = [int(match.group(1)) for match in matches]
+    failed_diagnostic = re.search(
+        r"\b(?:TIMEOUT|timed?\s+out|Reached\s+timeout)\b|"
+        r"\b[Ss]kipping\b.*\bbase\b|\b[Bb]ase case.*\b[Ss]kipp", log)
+    require(lengths == list(range(1, 18)) and log.count(FINITE_PASS) == 1
+            and log.index(FINITE_PASS) > matches[-1].end()
+            and SAT_FAIL not in log and "FAIL!" not in log and "ERROR:" not in log
+            and failed_diagnostic is None,
+            "finite state/output proof lacks every successful base case through step 18")
+    return [length + 1 for length in lengths]
+
+
+def prove_bit_equivalence(root: Path, work: Path, case: dict, candidate: dict,
+                          field: str, bit: int) -> dict:
+    """Prove the output bit and its reachable state equalities through step 18.
+
+    The finite base solver reuses a property only after proving the preceding
+    base case. Its loop-free state optimization is sound for this stationary
+    safety property: any later counterexample with repeated complete DUT state
+    has a shorter counterexample already checked. Only step 1 constrains inputs;
+    all subsequent inputs are free, so removing a later loop preserves a legal
+    trace. No initial register equality, internal cutpoint or assumed invariant
+    is introduced. The original two DUTs and their transitions stay intact.
+    """
+    work.mkdir(parents=True, exist_ok=True)
+    for stale in ("finite-proof.json", "state-correspondence.json"):
+        (work / stale).unlink(missing_ok=True)
+    top = work / "miter.v"
+    top.write_text(miter(case, [candidate], (field, bit)))
+    sources = [checked_file(root, entry["file"]) for entry in (case, candidate)] + [top]
+    original_path = work / "normalized-netlist.json"
+    extraction = work / "state-extraction.ys"
+    extraction.write_text(formal_setup(sources) + "write_json " + quoted(original_path) + "\n")
+    run(["yosys", "-Q", "-T", "-s", str(extraction)], work / "state-extraction.log")
+    original = json.loads(original_path.read_text())
+    require(set(original["modules"]) == {"miter"}, "state proof retained unexpected modules")
+    strengthened, pairs = strengthen_state_invariant(original)
+    strengthened_path = work / "strengthened-netlist.json"
+    strengthened_path.write_text(json.dumps(strengthened, sort_keys=True, indent=2) + "\n")
+    correspondence_path = work / "state-correspondence.json"
+    correspondence_path.write_text(json.dumps({
+        "schema": 1, "contract": "All state equalities are additional proved obligations, never assumptions.",
+        "registers": pairs, "original_sha256": hashlib.sha256(original_path.read_bytes()).hexdigest(),
+        "strengthened_sha256": hashlib.sha256(strengthened_path.read_bytes()).hexdigest(),
+        "original_cells": len(original["modules"]["miter"]["cells"]),
+        "preserved_original_cells": len(original["modules"]["miter"]["cells"]),
+        "initial_state": "independent and unconstrained", "obligation_steps": list(range(2, 19))},
+        sort_keys=True, indent=2) + "\n")
+    proof = work / "equivalence.ys"
+    proof.write_text("read_json " + quoted(strengthened_path) +
+                     "\nhierarchy -check -top miter\ncheck -assert\nstat\n" + finite_base_command(case))
+    log_path = work / "formal.log"
+    log = run(["yosys", "-Q", "-T", "-s", str(proof)], log_path)
+    steps = require_finite_base_proof(log)
+    finite_path = work / "finite-proof.json"
+    finite_path.write_text(json.dumps({
+        "schema": 1, "kind": "finite-incremental-base-cases", "result": "pass",
+        "base_lengths": list(range(1, 18)), "proved_steps": steps, "state_relations": len(pairs),
+        "unbounded_induction": "not-run", "reset_step": 1,
+        "after_reset": "unconstrained input, reset, and global enable",
+        "initial_state": "independent and unconstrained",
+        "loop_elimination": "complete-state repetition implies an already checked shorter counterexample",
+        "script_sha256": hashlib.sha256(proof.read_bytes()).hexdigest(),
+        "log_sha256": hashlib.sha256(log_path.read_bytes()).hexdigest(),
+        "state_correspondence_sha256": hashlib.sha256(correspondence_path.read_bytes()).hexdigest()},
+        sort_keys=True, indent=2) + "\n")
+    return {"candidate": candidate["module"], "field": field, "bit": bit,
+            "result": "pass-18-steps", "log": str(log_path), "script": str(proof), "miter": str(top),
+            "normalized_netlist": str(original_path), "strengthened_netlist": str(strengthened_path),
+            "state_correspondence": str(correspondence_path), "finite_proof": str(finite_path),
+            "state_relations": len(pairs), "proved_steps": steps}
+
+
 def bounded_bit_equivalence(root: Path, output: Path, case: dict,
                             candidates: list[dict], command: str) -> list[dict]:
     """Prove the original output conjunction without correlating DUT state.
 
-    COUNT=3's three-DUT monolithic 18-step query timed out with 449487 SAT
-    variables. Decomposing its conjunction by candidate and output bit permits
-    dead-cone removal before unrolling. COUNT=5's first bit query still retained
-    267607 variables; bit-level normalization permits pruning sibling bits of
-    vector cells as well.
+    Per-bit decomposition and bit normalization alone still timed out at COUNT=5.
+    Each bit now proves all structurally matched reachable state equalities too,
+    using the finite incremental base cases instead of one monolithic SAT query.
     Every bit still uses the full 18 steps, independent unknown initial state,
     native enabled reset at step 1, and arbitrary data/reset/enable thereafter.
-    No internal equalities are assumed.
+    No unproved internal equality is assumed or register state merged.
     """
+    expected_command = (f"sat -seq 18 -set-def-inputs -set-at 1 reset {int(not case['reset_low'])} "
+                        f"-set-at 1 enable {int(not case['enable_low'])} "
+                        "-prove bad 0 -prove-skip 1 -timeout 120 ")
+    require(command == expected_command, "bounded proof conditions changed")
     for obsolete in ("formal.log", "equivalence.ys", "formal-partitions.json"):
         (output / obsolete).unlink(missing_ok=True)
     results = []
@@ -387,18 +579,7 @@ def bounded_bit_equivalence(root: Path, output: Path, case: dict,
         for field, width in ports(case).items():
             for bit in range(width):
                 work = output / "formal-bits" / f"c{candidate_index}-{field}-{bit}"
-                work.mkdir(parents=True, exist_ok=True)
-                top = work / "miter.v"
-                top.write_text(miter(case, [candidate], (field, bit)))
-                sources = [checked_file(root, entry["file"]) for entry in (case, candidate)] + [top]
-                proof = work / "equivalence.ys"
-                proof.write_text(formal_setup(sources) + command + "-verify\n")
-                log = run(["yosys", "-Q", "-T", "-s", str(proof)], work / "formal.log")
-                require(SAT_PASS in log and SAT_FAIL not in log,
-                        f"bounded native output-bit equivalence failed: {work}")
-                results.append({"candidate": candidate["module"], "field": field, "bit": bit,
-                                "result": "pass-18-steps", "log": str(work / "formal.log"),
-                                "script": str(proof), "miter": str(top)})
+                results.append(prove_bit_equivalence(root, work, case, candidate, field, bit))
     expected = {(c["module"], field, bit) for c in candidates
                 for field, width in ports(case).items() for bit in range(width)}
     require(len(results) == len(expected) and
@@ -516,7 +697,8 @@ def main() -> None:
                "candidate_comparisons": 2 * len(results), "cycles_per_case": 384,
                "formal": {"kind": "bounded-active-edge-equivalence", "steps": 18,
                           "cases": sum(r["formal"] == "pass-18-steps" for r in results),
-                          "decomposition": "all candidate/output-bit obligations; no state merging or cut assumptions",
+                          "decomposition": "all candidate/output-bit obligations plus proved reachable state equalities",
+                          "method": "finite incremental base cases for steps 2 through 18; no state merging or cut assumptions",
                           "bit_obligations": sum(len(r.get("formal_partitions", [])) for r in results),
                           "initial_state": "unconstrained; enabled native reset at step 1",
                           "after_reset": "unconstrained input, reset, and global enable",
