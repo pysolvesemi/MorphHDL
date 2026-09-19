@@ -125,7 +125,9 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-committed-$SCALA_VERSION"
-          mkdir -p "$out/tmp"
+          tmp="/tmp/59i-$SCALA_VERSION"
+          mkdir -p "$out" "$tmp"
+          printf '%s\n' "$tmp" > "$out/tmp-path.txt"
           git rev-parse HEAD > "$out/head.txt"
           git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
           git ls-files --stage > "$out/tracked-before.txt"
@@ -143,7 +145,7 @@ jobs:
           assert hashlib.sha1((root / 'sbt-launch.jar').read_bytes()).hexdigest() == expected
           PY
           printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
-          java -Xmx4G -Djava.io.tmpdir="$out/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+          java -Xmx4G -Djava.io.tmpdir="$tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
             -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
@@ -159,7 +161,10 @@ jobs:
         run: |
           set -euo pipefail
           out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-committed-$SCALA_VERSION"
-          java -Xmx4G -Djava.io.tmpdir="$out/tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
+          tmp=$(cat "$out/tmp-path.txt")
+          test "$tmp" = "/tmp/59i-$SCALA_VERSION"
+          test -d "$tmp"
+          java -Xmx4G -Djava.io.tmpdir="$tmp" -Dsbt.log.noformat=true -Dsbt.supershell=false \
             -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
             -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
             -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \

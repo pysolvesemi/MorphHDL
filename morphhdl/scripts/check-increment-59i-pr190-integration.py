@@ -20,7 +20,7 @@ import types
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-HELPER_SHA256 = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
+HELPER_SHA256 = "c85cd5a5ccfdbdf64feb5fd5f89be79b08cba01f09a6b490f2dd3dc16cec6838"
 LEFT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 BASE = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"

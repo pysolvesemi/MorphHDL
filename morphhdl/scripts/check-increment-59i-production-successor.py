@@ -87,11 +87,12 @@ LOCAL_ENABLE_CHECKPOINT = "d76fbd5f84869ac56186b36f35dfc3c480a80cbb"
 LOCAL_ENABLE_CHECKPOINT_TREE = "5df50314aa7ae3bad916b157b69a87a278c391ba"
 LOCAL_ENABLE_PROTOTYPE = "1931c0aa82860d81a9a651ffa06b920840ddea1e"
 
-PR190_PARENT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
-PR190_PARENT_TREE = "5ae0ef04c0dc730e49cbb499f2eca6d65b4bf60f"
-PR190_PARENT_SOURCE = "545134a42dd200c5cee679db5dde0fea0acb15c9"
-PR190_PARENT_MANIFEST = "846260ee4f99965c38224fe32a426a5ac474c67cb561f499b8097fbe3c8a9863"
-PR190_PARENT_HELPER = "bf05c8442278b46cbb68a45a72ba051c7501c4eb6a3c1479124249ddeaa99f8f"
+PR190_PARENT = "9de3fd243a28a6d1e6ba385bc2d746b57e337fc1"
+PR190_PARENT_TREE = "e5c16951aa2538c21bb0299df36df353363b666e"
+PR190_PARENT_SOURCE = "99aacc05a783b9dc51aaeabd4e1395de385cab28"
+PR190_PARENT_MANIFEST = "8748c74e631d0de7bbd57f38eceabdf2b5f93176dad78f3fd31585d2e307dab4"
+PR190_PARENT_HELPER = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
+PR190_INTEGRATION_PARENT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 PR190_TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 PR190_TARGET_TREE = "ebe59eecbc8f550d265e78c717fb093603329055"
 PR190_COMMON = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
@@ -171,7 +172,7 @@ def pr190_checkpoint() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "8748c74e631d0de7bbd57f38eceabdf2b5f93176dad78f3fd31585d2e307dab4"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -434,7 +435,7 @@ def verify_target_integration(root: Path, value: dict) -> None:
     target_commit, common_base, _ = integration_parameters(value["schema_version"])
     scope_parent = CONTINUATION_INTEGRATION_PARENT if value["schema_version"] in (3, 4) else BASE
     if value["schema_version"] == 5:
-        scope_parent = PR190_PARENT
+        scope_parent = PR190_INTEGRATION_PARENT
     if value["schema_version"] in (3, 4):
         git(root, "merge-base", "--is-ancestor", scope_parent, CONTINUATION_PARENT)
         git(root, "merge-base", "--is-ancestor", CONTINUATION_COMMON, CONTINUATION_PARENT)
@@ -685,18 +686,18 @@ def verify_pr190_development_history(root: Path, value: dict) -> None:
         require(git(root, "rev-parse", commit + "^{tree}").decode().strip() == expected,
             "PR190 immutable tree changed")
     require(git(root, "rev-list", "--parents", "-n", "1", PR190_CHECKPOINT).decode().split() ==
-        [PR190_CHECKPOINT, PR190_PARENT, PR190_TARGET], "PR190 checkpoint topology changed")
-    require(git(root, "merge-base", "--all", PR190_PARENT, PR190_TARGET).decode().splitlines() ==
+        [PR190_CHECKPOINT, PR190_INTEGRATION_PARENT, PR190_TARGET], "PR190 checkpoint topology changed")
+    require(git(root, "merge-base", "--all", PR190_INTEGRATION_PARENT, PR190_TARGET).decode().splitlines() ==
         [PR190_COMMON], "PR190 merge base changed")
-    git(root, "merge-base", "--is-ancestor", PR190_CHECKPOINT, value["source_commit"])
+    git(root, "merge-base", "--is-ancestor", PR190_PARENT, value["source_commit"])
     original = tree(root, PR190_PARENT).get(CONTRACT)
     current = value["source_commit"]
     while True:
         require(tree(root, current).get(CONTRACT) == original,
             "PR190 development changed the preserved source certificate")
-        require(changed(root, PR190_CHECKPOINT, current) <= PR190_AUDIT_PATHS,
+        require(changed(root, PR190_PARENT, current) <= PR190_AUDIT_PATHS,
             "PR190 review descendant changed runtime or unlisted audit source")
-        if current == PR190_CHECKPOINT:
+        if current == PR190_PARENT:
             break
         parents = git(root, "rev-list", "--parents", "-n", "1", current).decode().split()
         require(len(parents) == 2 and parents[0] == current,

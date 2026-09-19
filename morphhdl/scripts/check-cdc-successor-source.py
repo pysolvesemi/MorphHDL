@@ -92,7 +92,7 @@ def load(root: Path, relative: str):
     return module
 
 
-SYNC_HELPER_SHA256 = "b6d8b5183402b15e5b6c0c0ebc1bc79f54e3a822a913c2f92453cdf050759377"
+SYNC_HELPER_SHA256 = "c85cd5a5ccfdbdf64feb5fd5f89be79b08cba01f09a6b490f2dd3dc16cec6838"
 SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
 
