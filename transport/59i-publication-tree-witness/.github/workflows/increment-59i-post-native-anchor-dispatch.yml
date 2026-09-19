@@ -1,0 +1,37 @@
+name: Increment 59i post-native-anchor full-join dispatch
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - 'morphhdl/contracts/native-source-preservation.json'
+      - '.github/workflows/increment-59i-post-native-anchor-dispatch.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: increment-59i-post-native-anchor-dispatch
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    name: Dispatch exact repaired head
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require the reviewed aggregate tree and dispatch the full join
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "${{ github.ref_name }}" = 'agent/increment-59i-combined-reduction-closure'
+          curl --fail --silent --show-error \
+            -X POST \
+            -H 'Accept: application/vnd.github+json' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/increment-59i-combined-closure.yml/dispatches" \
+            -d '{"ref":"agent/increment-59i-combined-reduction-closure"}'

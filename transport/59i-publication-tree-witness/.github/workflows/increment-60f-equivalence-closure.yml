@@ -1,0 +1,341 @@
+name: Increment 60f equivalence closure
+
+on:
+  push:
+    branches: ['agent/increment-60f-*', parameterized-verilog]
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+  pull_request:
+    branches: [parameterized-verilog]
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: increment-60f-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  qualify:
+    name: Signedness closure Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    # The direct source audit and retained harness each repeat the full joined
+    # traversal (measured 1621.921s once). Leave time for both plus RTL gates.
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compose sealed signedness closure with Increment 61
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f"
+          predecessor="$output/predecessor-source"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/test-increment-60f-source-budget.py
+          python3 morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py
+          python3 morphhdl/scripts/test-increment-60f-source-scheduling.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+          python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --self-test
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+          )
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          for tool in python3 iverilog vvp verilator yosys; do command -v "$tool"; done
+          iverilog -V > "$output/tool-versions.txt" 2>&1
+          verilator --version >> "$output/tool-versions.txt"
+          yosys -V >> "$output/tool-versions.txt"
+      - name: Independently elaborate references, candidates and compatibility corpus twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f"
+          mkdir -p "$output/a/pure/baseline" "$output/b/pure/baseline"
+          sbt -batch "++${{ matrix.scala }}" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/a/boundaries" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/a/pure" \
+            "morph/Test/runMain nativeapplication.SignednessCompatibilityArtifactWriter $output/a/compatibility" \
+            "morph/Test/runMain spinal.core.SignednessBoundaryArtifactWriter $output/b/boundaries" \
+            "morph/Test/runMain nativeapplication.PureSIntCastArtifactWriter $output/b/pure" \
+            "morph/Test/runMain nativeapplication.SignednessCompatibilityArtifactWriter $output/b/compatibility" \
+            > "$output/sbt-generation.log" 2>&1 || { tail -n 250 "$output/sbt-generation.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py snapshot \
+            "$output/a" "$output/b" "$output/rtl-manifest.json" --scala '${{ matrix.scala }}'
+          mkdir -p "$output/cross"
+          cp -a "$output/a" "$output/cross/rtl"
+          cp "$output/rtl-manifest.json" "$output/cross/rtl-manifest.json"
+      - name: Strict V2001 tools, independent equivalence and solver counterexamples
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --skip-source target/increment-60f/a
+      - name: Retain RTL for mandatory cross-Scala byte comparison
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-rtl-${{ matrix.scala }}
+          path: target/increment-60f/cross
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain exact-head qualification and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-evidence-${{ matrix.scala }}
+          path: target/increment-60f
+          if-no-files-found: error
+          retention-days: 30
+
+  regressions:
+    name: All inherited regressions Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SBT_TEST_PARALLEL: '0'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF: '1'
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Require real inherited formal tools and retain each proof workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          mkdir -p "$output/inherited"
+          git rev-parse HEAD > "$output/head.txt"
+          for tool in python3 iverilog vvp verilator yosys sby yices-smt2; do command -v "$tool"; done
+          yosys -Q -T -p 'help abc' > "$output/yosys-abc.txt"
+          cat >> "$GITHUB_ENV" <<EOF
+          MORPHDL_STREAMFIFO_FORMAL_WORKSPACE=$output/inherited/streamfifo
+          MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE=$output/inherited/streamfifocc-formal
+          MORPHDL_STREAMFIFOCC_CDC_WORKSPACE=$output/inherited/streamfifocc-cdc
+          MORPHDL_TYPED_VEC_FORMAL_WORKSPACE=$output/inherited/vec
+          MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE=$output/inherited/primitive
+          MORPHDL_NATIVE_LIBRARY_MIGRATION_FORMAL_WORKSPACE=$output/inherited/library-migration
+          MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE=$output/inherited/axi4
+          EOF
+      - name: Run every inherited MorphHDL suite with formal gates enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          sbt -batch "++${{ matrix.scala }}" \
+            idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
+            frontend/test verilogBackend/test morph/test \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests' \
+            > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
+      - name: Run the inherited isolated pass workspace suites
+        shell: bash
+        working-directory: morphhdl-passes
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          sbt -batch "++${{ matrix.scala }}" test \
+            > "$output/sbt-passes.log" 2>&1 || { tail -n 250 "$output/sbt-passes.log"; exit 1; }
+      - name: Require complete inherited and Increment 61 test inventories
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          predecessor="$output/predecessor-source"
+          successor_inventory="$output/increment-61-test-inventory.json"
+          inherited_inventory="$output/inherited-test-inventory.json"
+          complete_inventory="$output/test-inventory.json"
+
+          # The current Increment 61 bytes are already sealed independently.
+          # Re-run that exact contract before projecting only its two new test
+          # reports out of the frozen 60f inventory.
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          # Use the sealed integrated target, not the pre-WA-08 branch point.
+          # Its unchanged catalog also requires the inherited resize-width suite.
+          base=$(python3 -c 'import json; print(json.load(open("morphhdl/contracts/increment-61-source-review.json"))["integrated_target_commit"])')
+          git merge-base --is-ancestor "$base" HEAD
+          printf '%s\n' "$base" > "$output/inherited-source-head.txt"
+          git worktree add --detach "$predecessor" "$base"
+          trap 'git worktree remove --force "$predecessor"' EXIT
+
+          python3 - "$GITHUB_WORKSPACE" "$predecessor" "$successor_inventory" <<'PY'
+          from pathlib import Path
+          import json
+          import shutil
+          import sys
+          import xml.etree.ElementTree as ET
+
+          current, predecessor, output = map(Path, sys.argv[1:])
+          projects = (
+              "paramrtl",
+              "frontend",
+              "backends/verilog",
+              "morphhdl",
+              "morphir",
+              "morphplugin",
+              "core",
+              "morphhdl-passes",
+          )
+          expected = {
+              "morphhdl.Increment61CompatibilityMatrixTests": 4,
+              "morphhdl.Increment61PerComponentPublicationTests": 16,
+          }
+
+          def require(condition, detail):
+              if not condition:
+                  raise RuntimeError(detail)
+
+          for project in projects:
+              source = current / project / "target/test-reports"
+              target = predecessor / project / "target/test-reports"
+              require(source.is_dir(), f"missing current test reports: {source}")
+              target.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copytree(source, target)
+
+          reports = predecessor / "morphhdl/target/test-reports"
+          observed = {}
+          for name, count in expected.items():
+              path = reports / f"TEST-{name}.xml"
+              require(path.is_file(), f"missing Increment 61 suite report: {path.name}")
+              suite = ET.parse(path).getroot()
+              require(suite.tag == "testsuite" and suite.get("name") == name,
+                      f"wrong Increment 61 suite identity: {path}")
+              require(int(suite.get("tests", "0")) == count,
+                      f"changed Increment 61 test count: {name}")
+              require(all(int(suite.get(key, "0")) == 0
+                          for key in ("failures", "errors", "skipped")),
+                      f"failed or skipped Increment 61 suite: {name}")
+              require(not list(suite.iter("failure")) and
+                      not list(suite.iter("error")) and
+                      not list(suite.iter("skipped")),
+                      f"unsuccessful Increment 61 testcase: {name}")
+              cases = suite.findall("testcase")
+              case_names = [case.get("name") for case in cases]
+              require(len(cases) == count and all(case_names) and
+                      len(set(case_names)) == count,
+                      f"incomplete Increment 61 testcase identities: {name}")
+              observed[name] = count
+              path.unlink()
+
+          remaining = {
+              path.name
+              for path in reports.glob("TEST-morphhdl.Increment61*.xml")
+          }
+          require(not remaining,
+                  "unexpected Increment 61 suite report(s): " + str(sorted(remaining)))
+          output.write_text(json.dumps({
+              "increment": "61",
+              "tests": sum(observed.values()),
+              "suites": sorted(observed),
+              "counts": observed,
+              "skipped": 0,
+          }, indent=2) + "\n")
+          print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
+          PY
+
+          (
+            cd "$predecessor"
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
+              . "$inherited_inventory"
+          )
+
+          python3 - "$inherited_inventory" "$successor_inventory" "$complete_inventory" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+
+          inherited_path, successor_path, output_path = map(Path, sys.argv[1:])
+          inherited = json.loads(inherited_path.read_text())
+          successor = json.loads(successor_path.read_text())
+          morphhdl = inherited["morphhdl"]
+          overlap = set(morphhdl["suites"]) & set(successor["suites"])
+          if overlap:
+              raise RuntimeError("Increment 61 suite overlaps inherited inventory: " + str(sorted(overlap)))
+          morphhdl["tests"] += successor["tests"]
+          morphhdl["suites"] = sorted(morphhdl["suites"] + successor["suites"])
+          if morphhdl["skipped"] != 0 or successor["skipped"] != 0:
+              raise RuntimeError("complete Increment 61 inventory contains skipped tests")
+          output_path.write_text(json.dumps(inherited, indent=2) + "\n")
+          total = sum(record["tests"] for record in inherited.values())
+          print(f"60f + Increment 61 complete regressions: {total} non-skipped tests")
+          PY
+      - name: Retain inherited test and solver evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-60f-regressions-${{ matrix.scala }}
+          path: |
+            target/increment-60f-regressions
+            morphhdl/target/test-reports
+            morphplugin/target/test-reports
+            morphir/target/test-reports
+            paramrtl/target/test-reports
+            frontend/target/test-reports
+            backends/verilog/target/test-reports
+            core/target/test-reports
+            morphhdl-passes/target/test-reports
+            /tmp/morphhdl-typed-adapter-formal-*
+            /tmp/morphhdl-typed-adapter-mutation-*
+          if-no-files-found: error
+          retention-days: 30
+
+  cross-scala:
+    name: Cross-Scala deterministic signedness artifacts
+    needs: [qualify, regressions]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: increment-60f-rtl-*
+          path: target/increment-60f-cross
+      - name: Compare downloaded bytes, manifests and exact commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-increment-60f-artifacts.py compare \
+            target/increment-60f-cross/increment-60f-rtl-2.12.18 \
+            target/increment-60f-cross/increment-60f-rtl-2.13.12

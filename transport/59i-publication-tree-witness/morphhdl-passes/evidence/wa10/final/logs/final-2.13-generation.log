@@ -1,0 +1,1015 @@
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13791 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] compiling 87 Scala sources and 2 Java sources to /workspace/scratch/6b630b856865/MorphHdl/core/target/scala-2.13/classes ...
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/Union.scala:8:16: Implicit definition should have explicit type (inferred T) [quickfixable]
+[warn]   implicit def wrapped[T <: Data](ue: UnionElement[T]) = ue.get()
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/core.scala:379:48: fruitless type test: a value of type String cannot also be a List[Any] (the underlying of List[_])
+[warn]         if (pi.hasNext && !pi.next.isInstanceOf[List[_]]) bldr append pi.next
+[warn]                                                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/Phase.scala:3228:25: non-variable type argument spinal.core.SpinalEnum in type pattern spinal.core.SpinalEnumCraft[spinal.core.SpinalEnum] is unchecked since it is eliminated by erasure
+[warn]                 case d: SpinalEnumCraft[SpinalEnum] => d.init(d.spinalEnum.elements(0))
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/sim/package.scala:735:9: method without a parameter list overrides method getSim in trait SimEquiv defined with a single empty parameter list [quickfixable]
+[warn]     def getSim = bt.encoding.getElement(getBigInt(bt), bt.spinalEnum).asInstanceOf[SpinalEnumElement[T]]
+[warn]         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/AFix.scala:231:5: match may not be exhaustive.
+[warn] It would fail on the following input: SCRAP
+[warn]     roundType match {
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/Data.scala:390:29: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, outWithNull
+[warn]   def dirString(): String = dir match {
+[warn]                             ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/Data.scala:581:16: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, outWithNull
+[warn]           that.dir match {
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/Data.scala:593:9: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, outWithNull
+[warn]         d match {
+[warn]         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/SInt.scala:397:5: match may not be exhaustive.
+[warn] It would fail on the following input: SCRAP
+[warn]     roundType match {
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/UInt.scala:279:5: match may not be exhaustive.
+[warn] It would fail on the following input: SCRAP
+[warn]     roundType match{
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/fiber/AsyncThread.scala:81:5: match may not be exhaustive.
+[warn] It would fail on the following input: false
+[warn]     done match {
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/Phase.scala:1700:31: unreachable code
+[warn]           case e: MemReadSync =>
+[warn]                               ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/Phase.scala:3114:12: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, inout, outWithNull
+[warn]         io.dir match {
+[warn]            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/PhaseVerilog.scala:483:23: match may not be exhaustive.
+[warn] It would fail on the following input: Nil
+[warn]         val newName = IFlist match {
+[warn]                       ^
+[warn] 4 deprecations
+[warn] 83 deprecations (since 2.13.0)
+[warn] 1 deprecation (since 2.13.11)
+[warn] 1 deprecation (since 2.13.2)
+[warn] 70 deprecations (since 2.13.3)
+[warn] 2 deprecations (since 2.13.4)
+[warn] 1 deprecation (since 9)
+[warn] 162 deprecations in total; re-run with -deprecation for details
+[warn] 3 feature warnings; re-run with -feature for details
+[warn] 23 warnings found
+[info] done compiling
+[info] compiling 15 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/core/target/scala-2.13/test-classes ...
+[warn] 1 deprecation
+[warn] 24 deprecations (since 2.13.0)
+[warn] 6 deprecations (since 2.13.3)
+[warn] 31 deprecations in total; re-run with -deprecation for details
+[warn] 1 feature warning; re-run with -feature for details
+[warn] 5 warnings found
+[info] done compiling
+[info] NativePureExpressionCopyTests:
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.182 : Checks and transforms
+[Progress] at 0.224 : Checks and transforms
+[Progress] at 0.250 : Generate Verilog to /tmp/verilog-emitter-inline-3870210177090813601
+[Progress] at 0.250 : Generate Verilog to /tmp/native-pure-expression-copy-16297936607205206125
+[Done] at 0.290
+[Done] at 0.290
+[info] - shared operator edges clone independently while signal identity and widths survive
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.303 : Elaborate components
+[Progress] at 0.303 : Elaborate components
+[Progress] at 0.307 : Checks and transforms
+[Progress] at 0.309 : Generate Verilog to /tmp/native-pure-expression-copy-10074604389670028997
+[Progress] at 0.314 : Checks and transforms
+[Done] at 0.318
+[info] - metadata, unrepresented subclasses, expression cycles and expansion fail closed
+[Progress] at 0.319 : Generate Verilog to /tmp/verilog-emitter-inline-3649707918516795203
+[Done] at 0.326
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.331 : Elaborate components
+[Progress] at 0.343 : Checks and transforms
+[Progress] at 0.347 : Generate Verilog to /tmp/verilog-emitter-inline-6279462396053950310
+[info] VerilogEmitterExpressionInliningTests:
+[info] - the opt-in policy inlines an exact fixed unsigned widening-add tree
+[info] - ordinary Verilog emission retains the historical wrappers
+[Done] at 0.353
+[info] - a truncating root retains its sizing boundary
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.357 : Elaborate components
+[Progress] at 0.366 : Checks and transforms
+[Progress] at 0.369 : Generate Verilog to /tmp/verilog-emitter-inline-16836380228216386290
+[Done] at 0.373
+[info] - same-width modular overflow keeps the original tree while wrappers inline
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.376 : Elaborate components
+[Progress] at 0.386 : Checks and transforms
+[Progress] at 0.388 : Generate Verilog to /tmp/verilog-emitter-inline-2550156326206198747
+[Done] at 0.392
+[info] - signed addition retains emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.394 : Elaborate components
+[Progress] at 0.402 : Checks and transforms
+[Progress] at 0.405 : Generate Verilog to /tmp/verilog-emitter-inline-10592707209914206493
+[Done] at 0.409
+[info] - widening concatenation preserves narrower modular arithmetic without a carrier
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.413 : Elaborate components
+[Progress] at 0.452 : Checks and transforms
+[Progress] at 0.455 : Generate Verilog to /tmp/verilog-emitter-inline-18126661049900818133
+[Done] at 0.461
+[info] - a retained symbolic resize target cannot be treated as its fixed witness
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.465 : Elaborate components
+[Progress] at 0.470 : Checks and transforms
+[Progress] at 0.472 : Generate Verilog to /tmp/verilog-emitter-inline-3224981773566185552
+[Done] at 0.477
+[info] - slice operands retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.479 : Elaborate components
+[Progress] at 0.486 : Checks and transforms
+[Progress] at 0.489 : Generate Verilog to /tmp/verilog-emitter-inline-16370865290073850659
+[Done] at 0.494
+[info] - annotated leaf declarations remain while redundant expression wrappers inline
+[info] - annotated expression wrapper nodes fail the policy closed
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.498 : Elaborate components
+[Progress] at 0.502 : Checks and transforms
+[Progress] at 0.505 : Generate Verilog to /tmp/verilog-emitter-inline-5340216275691968709
+[Warning] 1 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 0.511
+[info] - a shared expression node retains one emitter-created carrier
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.514 : Elaborate components
+[Progress] at 0.519 : Checks and transforms
+[Progress] at 0.520 : Generate Verilog to /tmp/verilog-emitter-inline-8094514092934818261
+[Done] at 0.525
+[info] - an annotated target retains emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.531 : Elaborate components
+[Progress] at 0.538 : Checks and transforms
+[Progress] at 0.541 : Generate Verilog to /tmp/verilog-emitter-inline-11549976502231824891
+[Done] at 0.546
+[info] - partial assignments retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.549 : Elaborate components
+[Progress] at 0.556 : Checks and transforms
+[Progress] at 0.562 : Generate Verilog to /tmp/verilog-emitter-inline-14507003148032496244
+[Done] at 0.567
+[info] - procedural assignments retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.570 : Elaborate components
+[Progress] at 0.574 : Checks and transforms
+[Progress] at 0.576 : Generate Verilog to /tmp/verilog-emitter-inline-8985020752637666613
+[Done] at 0.580
+[info] - initial assignments retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.583 : Elaborate components
+[Progress] at 0.587 : Checks and transforms
+[Progress] at 0.590 : Generate Verilog to /tmp/verilog-emitter-inline-966297966748748073
+[Done] at 0.594
+[info] - multiply-driven targets retain emitter-created boundaries
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.597 : Elaborate components
+[Progress] at 0.600 : Checks and transforms
+[Progress] at 0.604 : Generate Verilog to /tmp/verilog-emitter-inline-10747871360971495768
+[Done] at 0.609
+[info] - literal and widening resize operands inline inside nested comparisons
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.612 : Elaborate components
+[Progress] at 0.621 : Checks and transforms
+[Progress] at 0.625 : Generate Verilog to /tmp/verilog-emitter-inline-4525852360675808828
+[Done] at 0.628
+[info] - same-width subtraction inlines into equality and ternary arms
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.631 : Elaborate components
+[Progress] at 0.637 : Checks and transforms
+[Progress] at 0.645 : Generate Verilog to /tmp/verilog-emitter-inline-15528698144922178715
+[Done] at 0.652
+[info] - conditional register update preserves its final select carrier and state
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.654 : Elaborate components
+[Progress] at 0.658 : Checks and transforms
+[Progress] at 0.661 : Generate Verilog to /tmp/verilog-emitter-inline-2732653370154855471
+[Done] at 0.665
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[info] - a subtraction used as a procedural condition keeps the original comparison width
+[Progress] at 0.668 : Elaborate components
+[Progress] at 0.673 : Checks and transforms
+[Progress] at 0.675 : Generate Verilog to /tmp/verilog-emitter-inline-8556184536775092123
+[Done] at 0.679
+[info] - an exact expression identity may inline only when its receiver width is proven
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.681 : Elaborate components
+[Progress] at 0.687 : Checks and transforms
+[Progress] at 0.691 : Generate Verilog to /tmp/verilog-emitter-inline-536203876851038941
+[Done] at 0.694
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB[info] - an unsupported Boolean sibling does not veto independently sized comparison operands
+
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.697 : Elaborate components
+[Progress] at 0.713 : Checks and transforms
+[Progress] at 0.716 : Generate Verilog to /tmp/verilog-emitter-inline-16196274461889573570
+[Done] at 0.721
+[info] - static disjoint bit receivers inline pure comparison RHS expressions
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.724 : Elaborate components
+[Progress] at 0.727 : Checks and transforms
+[Progress] at 0.729 : Generate Verilog to /tmp/verilog-emitter-inline-7267080166889158681
+[Done] at 0.733
+[info] - static disjoint ranges use each selected receiver width
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.735 : Elaborate components
+[Progress] at 0.745 : Checks and transforms
+[Progress] at 0.750 : Generate Verilog to /tmp/verilog-emitter-inline-10527201139816403756
+[Done] at 0.755
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:35:36
+[Progress] at 0.757 : Elaborate components
+[Progress] at 0.762 : Checks and transforms
+[Progress] at 0.764 : Generate Verilog to /tmp/verilog-emitter-inline-10857214478222315112
+[Done] at 0.769
+[info] - depth cutting does not recreate eligible leaf literal carriers
+[info] Run completed in 1 second, 462 milliseconds.
+[info] Total number of tests run: 27
+[info] Suites: completed 2, aborted 0
+[info] Tests: succeeded 27, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 25 s, completed Sep 12, 2026, 10:35:37 AM
+[info] compiling 4 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphplugin/target/scala-2.13/classes ...
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala:34:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class ClassifiedTrees(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala:41:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class WildcardMembers(
+[warn]                            ^
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] three warnings found
+[info] done compiling
+[info] compiling 6 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/paramrtl/target/scala-2.13/classes ...
+[info] compiling 10 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphruntime/target/scala-2.13/classes ...
+[info] compiling 5 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphir/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] compiling 563 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/lib/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] compiling 2 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/backends/verilog/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib.scala:75:16: Implicit definition should have explicit type (inferred spinal.core.DataPimper[spinal.lib.Fragment[T]]) [quickfixable]
+[warn]   implicit def fragmentFixer[T <: Data](_data: Fragment[T]) = new DataPimper(_data)
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/CrossClock.scala:162:15: non-variable type argument spinal.core.Data in type pattern spinal.lib.BufferCC[spinal.core.Data] is unchecked since it is eliminated by erasure
+[warn]       case c: BufferCC[Data] => {
+[warn]               ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/Utils.scala:713:19: abstract type pattern T is unchecked since it is eliminated by erasure
+[warn]         case bt : T => solveCombDriver(bt)
+[warn]                   ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegInst.scala:94:19: non-variable type argument spinal.core.SpinalEnum in type pattern spinal.core.SpinalEnumCraft[spinal.core.SpinalEnum] is unchecked since it is eliminated by erasure
+[warn]           case t: SpinalEnumCraft[SpinalEnum] => t.init(t.spinalEnum.elements(resetValue.toInt))
+[warn]                   ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:781:25: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val inserterStage = ctrl(0)
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:782:24: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val addressStage = ctrl(0)
+[warn]                        ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:783:21: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val dataStage = ctrl(1)
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:784:20: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val tagStage = ctrl(1)
+[warn]                    ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:785:21: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val prepStage = ctrl(1)
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:786:24: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val processStage = ctrl(2)
+[warn]                        ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1428:25: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val inserterStage = ctrl(0)
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1430:21: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val readStage = ctrl(1)
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1431:24: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val processStage = ctrl(p.readProcessAt)
+[warn]                        ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1527:25: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val inserterStage = ctrl(0)
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1528:22: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val fetchStage = ctrl(0)
+[warn]                      ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1529:21: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val readStage = ctrl(1)
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1530:24: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val processStage = ctrl(2)
+[warn]                        ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1714:25: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val inserterStage = ctrl(0)
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1715:22: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val fetchStage = ctrl(0)
+[warn]                      ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1716:21: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val readStage = ctrl(1)
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1717:27: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val preprocessStage = ctrl(1)
+[warn]                           ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1718:24: reference to ctrl is ambiguous;
+[warn] it is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)
+[warn] In Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.
+[warn] Such references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.
+[warn] Or use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable]
+[warn]     val processStage = ctrl(2)
+[warn]                        ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/sim/BridgeTestbench.scala:11:16: Implicit definition should have explicit type (inferred spinal.lib.bus.tilelink.sim.IdAllocator) [quickfixable]
+[warn]   implicit val idAllocator = new IdAllocator(DebugId.width)
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/sim/BridgeTestbench.scala:12:16: Implicit definition should have explicit type (inferred spinal.lib.bus.tilelink.sim.IdCallback) [quickfixable]
+[warn]   implicit val idCallback = new IdCallback
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/sim/MemoryAgent.scala:19:16: Pattern definition introduces Unit-valued member of MemoryAgent; consider wrapping it in `locally { ... }`.
+[warn]   implicit val _ = sm
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/cpu/riscv/impl/ICache.scala:258:18: Implicit definition should have explicit type (inferred spinal.lib.cpu.riscv.impl.InstructionCacheConfig) [quickfixable]
+[warn]     implicit val p = InstructionCacheConfig(
+[warn]                  ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/cpu/riscv/impl/bench/CoreUut.scala:11:18: Implicit definition should have explicit type (inferred spinal.lib.cpu.riscv.impl.RiscvCoreConfig) [quickfixable]
+[warn]     implicit val toto = p
+[warn]                  ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/misc/pipeline/CtrlLink.scala:147:16: Implicit definition should have explicit type (inferred CtrlApi.this.BundlePimper[T])
+[warn]   implicit def bundlePimper[T <: Bundle](stageable: Payload[T]) = new BundlePimper[T](this (stageable))
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/misc/pipeline/Node.scala:65:16: Implicit definition should have explicit type (inferred NodeBaseApi.this.BundlePimper[T])
+[warn]   implicit def bundlePimper[T <: Bundle](stageable: Payload[T]) = new  BundlePimper[T](this(stageable))
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/misc/test/MultithreadedTester.scala:57:16: Implicit definition should have explicit type (inferred scala.concurrent.ExecutionContextExecutorService) [quickfixable]
+[warn]   implicit val ec = ExecutionContext.fromExecutorService(
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Play.scala:112:20: Implicit definition should have explicit type (inferred spinal.lib.pipeline.Pipeline) [quickfixable]
+[warn]       implicit val pip = new Pipeline
+[warn]                    ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:137:16: Implicit definition should have explicit type (inferred T)
+[warn]   implicit def stageablePiped[T <: Data](stageable: Stageable[T])(implicit key : StageableOffset = StageableOffsetNone) = Stage.this(stageable, key.value)
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:138:16: Implicit definition should have explicit type (inferred AnyRef{def of(key: Any): T})
+[warn]   implicit def stageablePiped2[T <: Data](stageable: Stageable[T]) = new {
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:142:16: Implicit definition should have explicit type (inferred T)
+[warn]   implicit def stageablePiped3[T <: Data](key: Tuple2[Stageable[T], Any]) = Stage.this(key._1, key._2)
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:145:16: Implicit definition should have explicit type (inferred AnyRef{def of(key: Any): spinal.core.Vec[T]})
+[warn]   implicit def stageablePipedVec2[T <: Data](stageable: Stageable[Vec[T]]) = new {
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:148:16: Implicit definition should have explicit type (inferred spinal.core.Vec[T])
+[warn]   implicit def stageablePipedVec3[T <: Data](key: Tuple2[Stageable[Vec[T]], Any]) = Stage.this(key._1, key._2)
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/sim/Stream.scala:90:16: Pattern definition introduces Unit-valued member of StreamDriver; consider wrapping it in `locally { ... }`.
+[warn]   implicit val _ = sm
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/sim/Stream.scala:256:16: Pattern definition introduces Unit-valued member of StreamDriverOoo; consider wrapping it in `locally { ... }`.
+[warn]   implicit val _ = sm
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/bmb/BmbGenerators.scala:184:16: method with a single empty parameter list overrides method getBus in trait InterruptCtrlGeneratorI defined without a parameter list [quickfixable]
+[warn]   override def getBus(): Handle[Nameable] = ctrl
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RamInst.scala:28:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable]
+[warn]   override def readBits: Bits = bus.rdat
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RdFifoInst.scala:18:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable]
+[warn]   override def readBits: Bits = bus.payload
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:23:7: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable]
+[warn]   def readBits: Bits = {
+[warn]       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/VirtualRegInst.scala:7:16: method without a parameter list overrides method readBits in class RegBase defined with a single empty parameter list [quickfixable]
+[warn]   override def readBits: Bits = busif.defaultReadBits
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/WrFifoInst.scala:20:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable]
+[warn]   override def readBits: Bits = bi.defaultReadBits
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciTilelinkFiber.scala:46:17: comparing values of types spinal.core.ClockDomain and spinal.core.fiber.Handle[spinal.core.ClockDomain] using `==` will always yield false
+[warn]       if(ctrlCd == phyCd) {
+[warn]                 ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/generator/ClockDomainGenerator.scala:272:5: multiline expressions might require enclosing parentheses; a value can be silently discarded when Unit is expected
+[warn]     generator
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/Utils.scala:702:32: unreachable code
+[warn]     case e: MemReadSync => body(e)
+[warn]                                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/bmb/Bmb.scala:561:38: match may not be exhaustive.
+[warn]   def resize(dataWidth : Int): Bmb = this match {
+[warn]                                      ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:24:55: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))
+[warn]     override def transformers = MappedConnection.this.userMapping match {
+[warn]                                                       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:34:29: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))
+[warn]       MappedConnection.this.userMapping match {
+[warn]                             ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:48:5: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))
+[warn]     userMapping match {
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:57:5: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))
+[warn]     userMapping match {
+[warn]     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:325:7: Exhaustivity analysis reached max recursion depth, not all missing cases are reported.
+[warn] (Please try with scalac -Ypatmat-exhaust-depth 40 or -Ypatmat-exhaust-depth off.)
+[warn]       accType match {
+[warn]       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:356:7: Exhaustivity analysis reached max recursion depth, not all missing cases are reported.
+[warn] (Please try with scalac -Ypatmat-exhaust-depth 40 or -Ypatmat-exhaust-depth off.)
+[warn]       accType match {
+[warn]       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegInst.scala:320:21: match may not be exhaustive.
+[warn] It would fail on the following inputs: W1CHS, W1I, W1SHS
+[warn]     val ret: Bits = acc match {
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/regif/Block/RegSlice.scala:35:13: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: spinal.lib.bus.regif.Secure forSome x not in (spinal.lib.bus.regif.Secure.CS, spinal.lib.bus.regif.Secure.MS)))
+[warn]       Option(sec) match {
+[warn]             ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/sim/Checker.scala:223:25: match may not be exhaustive.
+[warn] It would fail on the following input: None
+[warn]         inflightC.remove(d.source -> d.address) match {
+[warn]                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/bus/tilelink/sim/Checker.scala:239:21: match may not be exhaustive.
+[warn] It would fail on the following input: None
+[warn]     inflightD.remove(e.sink) match {
+[warn]                     ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/dsptool/FixData.scala:30:26: match may not be exhaustive.
+[warn] It would fail on the following input: SCRAP
+[warn]       val rounded = this.roundType match {
+[warn]                          ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/eda/TimingExtractor.scala:143:49: match may not be exhaustive.
+[warn] It would fail on the following input: None
+[warn]     case bt : BaseType if bt.isComb => bt.getTag(classOf[ClockDomainTag]) match {
+[warn]                                                 ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/io/InOutVecToBits.scala:22:7: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, inout, outWithNull
+[warn]     e.getDirection match {
+[warn]       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/io/InOutVecToBits.scala:36:13: match may not be exhaustive.
+[warn] It would fail on the following inputs: inWithNull, inout, outWithNull
+[warn]         key.getDirection match {
+[warn]             ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/pipeline/Pipeline.scala:171:22: match may not be exhaustive.
+[warn] It would fail on the following input: Some((x: Any forSome x not in Pipeline.this.ConnectionModel))
+[warn]       stageDriver.get(stage) match {
+[warn]                      ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/system/dma/sg/MemoryCore.scala:112:7: match may not be exhaustive.
+[warn] It would fail on the following input: (true, true)
+[warn]       (p.writes(self).absolutePriority, p.writes(other).absolutePriority) match {
+[warn]       ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/lib/src/main/scala/spinal/lib/system/dma/sg/MemoryCore.scala:198:7: match may not be exhaustive.
+[warn] It would fail on the following input: (true, true)
+[warn]       (p.reads(self).absolutePriority, p.reads(other).absolutePriority) match {
+[warn]       ^
+[warn] 28 deprecations
+[warn] 3 deprecations (since 2.13)
+[warn] 372 deprecations (since 2.13.0)
+[warn] 23 deprecations (since 2.13.2)
+[warn] 439 deprecations (since 2.13.3)
+[warn] 1 deprecation (since 2022-12-31)
+[warn] 1 deprecation (since 2026.12.30)
+[warn] 867 deprecations in total; re-run with -deprecation for details
+[warn] 6 feature warnings; re-run with -feature for details
+[warn] 74 warnings found
+[info] done compiling
+[info] compiling 25 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/frontend/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] 2 feature warnings; re-run with -feature for details
+[warn] two warnings found
+[info] done compiling
+[info] compiling 69 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphhdl/target/scala-2.13/classes ...
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala:3422:41: match may not be exhaustive.
+[warn] It would fail on the following inputs: Vector0, Vector1(), Vector2(), Vector3(), Vector4(), Vector5(), Vector6()
+[warn]                 val conditionalOwners = nestedOwners match {
+[warn]                                         ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:90:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class ForwardRewrite(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:94:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreferredSourceRewrite(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:180:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeCandidate(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:190:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeProof(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:141:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeCandidate(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:154:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeProof(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:395:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class CanonicalSnapshot(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala:114:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeCandidate(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala:122:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class NativeProof(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala:2563:30: The outer reference in this type test cannot be checked at run time.
+[warn]     private final case class ModularUIntFacts(
+[warn]                              ^
+[warn] 1 deprecation
+[warn] 24 deprecations (since 2.13.0)
+[warn] 4 deprecations (since 2.13.3)
+[warn] 40 deprecations (since Increment 58)
+[warn] 69 deprecations in total; re-run with -deprecation for details
+[warn] 1 feature warning; re-run with -feature for details
+[warn] 17 warnings found
+[info] done compiling
+[info] compiling 164 Scala sources and 2 Java sources to /workspace/scratch/6b630b856865/MorphHdl/morphhdl/target/scala-2.13/test-classes ...
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedElaborationControlTests.scala:112:11: comparing values of types spinal.core.ElabInt and String using `==` will always yield false
+[warn]     width == "WIDTH"
+[warn]           ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala:71:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeAxi4SlaveFactoryFormalEquivalenceTests.scala:76:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationFormalEquivalenceTests.scala:78:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationFormalEquivalenceTests.scala:83:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedDuts(candidate: Path, concrete: Path)
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCCdcProofTests.scala:81:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class ClockSchedule(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala:138:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class ClockRatio(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala:143:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class Configuration(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala:149:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoCCFormalEquivalenceTests.scala:153:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedDuts(candidate: Path, reference: Path)
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala:162:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala:167:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala:172:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedFormalHelperDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala:177:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedFormalHelperDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala:80:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class Witness(width: Int, depth: Int)
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala:81:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class GeneratedDuts(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecFormalEquivalenceTests.scala:85:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PreparedDuts(candidate: Path, reference: Path)
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala:456:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class PortExpectation(
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala:1550:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class AlgebraAtom(value: String) extends Algebra
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala:1551:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class AlgebraSum(terms: Vector[Algebra]) extends Algebra
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala:1552:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class AlgebraProduct(factors: Vector[Algebra]) extends Algebra
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedParameterizedVecTests.scala:1553:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class AlgebraDifference(left: Algebra, right: Algebra) extends Algebra
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala:291:30: The outer reference in this type test cannot be checked at run time.
+[warn]     private final case class GeneratedDuts(
+[warn]                              ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedPrimitiveClosureFormalEquivalenceTests.scala:296:30: The outer reference in this type test cannot be checked at run time.
+[warn]     private final case class PreparedDuts(candidate: Path, concrete: Path)
+[warn]                              ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/morphhdl/TypedStreamWidthAdapterFormalEquivalenceTests.scala:74:28: The outer reference in this type test cannot be checked at run time.
+[warn]   private final case class Witness(equal: Int, down: Int, up: Int)
+[warn]                            ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/morphhdl/src/test/scala/spinal/lib/CounterSingleAuthorityParityTests.scala:148:30: The outer reference in this type test cannot be checked at run time.
+[warn]     private final case class BranchDriver(target: String, arithmetic: String)
+[warn]                              ^
+[warn] 1 deprecation
+[warn] 83 deprecations (since 2.13.0)
+[warn] 3 deprecations (since 2.13.3)
+[warn] 1295 deprecations (since Increment 58)
+[warn] 1382 deprecations in total; re-run with -deprecation for details
+[warn] 1 feature warning; re-run with -feature for details
+[warn] 32 warnings found
+[info] done compiling
+[info] MorphVerilogExpressionInliningTests:
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:44
+[Runtime] Current date : 2026.09.12 10:36:44
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.277 : Checks and transforms
+[Progress] at 0.279 : Checks and transforms
+[Progress] at 0.379 : Generate Verilog to /tmp/morphhdl-single-source-6893247606057657882
+[Progress] at 0.379 : Generate Verilog to /tmp/morphhdl-single-source-13342225049075834770
+[Done] at 0.614
+[Done] at 0.614
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.631 : Elaborate components
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.634 : Elaborate components
+[Progress] at 0.641 : Checks and transforms
+[Progress] at 0.644 : Checks and transforms
+[Progress] at 0.645 : Generate Verilog to /tmp/morphhdl-single-source-16691643014726273271
+[Progress] at 0.646 : Generate Verilog to /tmp/morphhdl-single-source-13664793191574731793
+[Done] at 0.657
+[Done] at 0.657
+[info] - public MorphVerilog inlines the fixed unsigned extended addition tree
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.664 : Elaborate components
+[Progress] at 0.684 : Checks and transforms
+[Progress] at 0.687 : Generate Verilog to /tmp/morphhdl-single-source-10374339672664701510
+[Done] at 0.707
+[info] - explicitly disabled optimization preserves the legacy wrapper structure
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.712 : Elaborate components
+[Progress] at 0.723 : Checks and transforms
+[Progress] at 0.727 : Generate Verilog to /tmp/morph-verilog-expression-inline-5947379707233711746
+[Done] at 0.734
+[info] - ordinary SpinalVerilog remains unchanged
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.739 : Elaborate components
+[Progress] at 0.756 : Checks and transforms
+[Progress] at 0.768 : Generate Verilog to /tmp/morphhdl-single-source-11848888572140652148
+[Done] at 0.789
+[info] - parameter-dependent resize carriers remain while redundant arithmetic wrappers inline
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.792 : Elaborate components
+[Progress] at 0.807 : Checks and transforms
+[Progress] at 0.814 : Generate Verilog to /tmp/morphhdl-single-source-1852096397902062824
+[Done] at 0.832
+[info] - disabled parameter-dependent generation preserves both resize and add wrappers
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.837 : Elaborate components
+[Progress] at 0.854 : Checks and transforms
+[Progress] at 0.865 : Generate Verilog to /tmp/morphhdl-single-source-2912938051375260254
+[Done] at 0.882
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.885 : Elaborate components
+[Progress] at 0.894 : Checks and transforms
+[Progress] at 0.968 : Generate Verilog to /tmp/morphhdl-single-source-15717765942211296845
+[Done] at 0.981
+[info] - an output-register receiver retains its port and unsupported canonical timing context
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 0.984 : Elaborate components
+[Progress] at 0.999 : Checks and transforms
+[Progress] at 1.004 : Generate Verilog to /tmp/morphhdl-single-source-2071069226783357632
+[Done] at 1.013
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.015 : Elaborate components
+[Progress] at 1.021 : Checks and transforms
+[Progress] at 1.025 : Generate Verilog to /tmp/morphhdl-single-source-997914469548328469
+[Done] at 1.036
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.038 : Elaborate components
+[Progress] at 1.046 : Checks and transforms
+[Progress] at 1.050 : Generate Verilog to /tmp/morphhdl-single-source-14616974124797547298
+[Done] at 1.059
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.061 : Elaborate components
+[Progress] at 1.072 : Checks and transforms
+[Progress] at 1.075 : Generate Verilog to /tmp/morphhdl-single-source-10790542421045436945
+[Done] at 1.086
+[info] - repeated public generation is byte deterministic
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.091 : Elaborate components
+[Progress] at 1.100 : Checks and transforms
+[Progress] at 1.103 : Generate Verilog to /tmp/morphhdl-single-source-11219044044756124530
+[Done] at 1.114
+[info] - a fixed native receiver cannot replace a distinct symbolic expression fence
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.119 : Elaborate components
+[Progress] at 1.125 : Checks and transforms
+[Progress] at 1.127 : Generate Verilog to /tmp/morphhdl-single-source-18442749078351953370
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.150 : Elaborate components
+[Progress] at 1.156 : Checks and transforms
+[Progress] at 1.159 : Generate Verilog to /tmp/morphhdl-single-source-4749022109911458814
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[info] - optimization cannot erase a rejected symbolic assignment at an equal default width
+[Progress] at 1.170 : Elaborate components
+[Progress] at 1.182 : Checks and transforms
+[Progress] at 1.297 : Generate Verilog to /tmp/morphhdl-single-source-10824338470485678421
+[Done] at 1.307
+[Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[Runtime] JVM max memory : 5120.0MiB
+[Runtime] Current date : 2026.09.12 10:36:45
+[Progress] at 1.310 : Elaborate components
+[Progress] at 1.319 : Checks and transforms
+[Progress] at 1.333 : Generate Verilog to /tmp/morphhdl-single-source-8670304063012517307
+[Done] at 1.351
+[info] - symbolic source widths preserve retained roots and permit valid shared-width inlining
+[info] - the private emitter marker does not admit unrelated generation flags
+[info] NativeWireExpressionCodecTests:
+[info] - fixed resize and subtraction preserve authoritative native widths in capture
+[info] - arithmetic right shift and case equality are not mislabeled as logical operators
+[info] Run completed in 2 seconds, 88 milliseconds.
+[info] Total number of tests run: 13
+[info] Suites: completed 2, aborted 0
+[info] Tests: succeeded 13, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 69 s (01:09), completed Sep 12, 2026, 10:36:45 AM
+[info] running (fork) TimingExpressionArtifactWriter /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:48
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.370 : Checks and transforms
+[info] [Progress] at 0.505 : Generate Verilog to /tmp/morphhdl-single-source-17241716350127846698
+[info] [Done] at 0.756
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/first/default/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:48
+[info] [Progress] at 0.770 : Elaborate components
+[info] [Progress] at 0.785 : Checks and transforms
+[info] [Progress] at 0.795 : Generate Verilog to /tmp/morphhdl-single-source-13959653014923677966
+[info] [Done] at 0.813
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/first/enabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:48
+[info] [Progress] at 0.816 : Elaborate components
+[info] [Progress] at 0.831 : Checks and transforms
+[info] [Progress] at 0.841 : Generate Verilog to /tmp/morphhdl-single-source-1416940813903176520
+[info] [Done] at 0.864
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/first/disabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:49
+[info] [Progress] at 0.868 : Elaborate components
+[info] [Progress] at 0.887 : Checks and transforms
+[info] [Progress] at 0.895 : Generate Verilog to /tmp/morphhdl-single-source-4007977681919435585
+[info] [Done] at 0.910
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/repeat/default/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:49
+[info] [Progress] at 0.913 : Elaborate components
+[info] [Progress] at 0.925 : Checks and transforms
+[info] [Progress] at 0.934 : Generate Verilog to /tmp/morphhdl-single-source-14797577263347555151
+[info] [Done] at 0.953
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/repeat/enabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:49
+[info] [Progress] at 0.956 : Elaborate components
+[info] [Progress] at 0.971 : Checks and transforms
+[info] [Progress] at 0.977 : Generate Verilog to /tmp/morphhdl-single-source-15936006449087729626
+[info] [Done] at 0.996
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/timing/repeat/disabled/TimingExpressionExample.v
+[success] Total time: 3 s, completed Sep 12, 2026, 10:36:49 AM
+[info] running (fork) morphhdl.examples.GeneralExpressionInliningArtifactWriter /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:50
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.467 : Checks and transforms
+[info] [Progress] at 0.853 : Generate Verilog to /tmp/morphhdl-single-source-8316267632642333820
+[info] [Done] at 1.133
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/first/default/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:51
+[info] [Progress] at 1.150 : Elaborate components
+[info] [Progress] at 1.174 : Checks and transforms
+[info] [Progress] at 1.237 : Generate Verilog to /tmp/morphhdl-single-source-1247516770229951148
+[info] [Done] at 1.276
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/first/enabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:51
+[info] [Progress] at 1.279 : Elaborate components
+[info] [Progress] at 1.294 : Checks and transforms
+[info] [Progress] at 1.304 : Generate Verilog to /tmp/morphhdl-single-source-6192619528255270710
+[info] [Done] at 1.328
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/first/disabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:51
+[info] [Progress] at 1.331 : Elaborate components
+[info] [Progress] at 1.341 : Checks and transforms
+[info] [Progress] at 1.377 : Generate Verilog to /tmp/morphhdl-single-source-13838641683104750393
+[info] [Done] at 1.398
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/repeat/default/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:51
+[info] [Progress] at 1.400 : Elaborate components
+[info] [Progress] at 1.417 : Checks and transforms
+[info] [Progress] at 1.459 : Generate Verilog to /tmp/morphhdl-single-source-1998479137236971127
+[info] [Done] at 1.482
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/repeat/enabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:36:51
+[info] [Progress] at 1.484 : Elaborate components
+[info] [Progress] at 1.494 : Checks and transforms
+[info] [Progress] at 1.501 : Generate Verilog to /tmp/morphhdl-single-source-4651114371628752997
+[info] [Done] at 1.520
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final-2.13/general/repeat/disabled/GeneralExpressionInlining.v
+[success] Total time: 2 s, completed Sep 12, 2026, 10:36:51 AM

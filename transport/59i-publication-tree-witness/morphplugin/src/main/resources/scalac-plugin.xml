@@ -1,0 +1,4 @@
+<plugin>
+  <name>morphhdl</name>
+  <classname>morphhdl.compiler.MorphHdlPlugin</classname>
+</plugin>
