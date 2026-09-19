@@ -1,0 +1,11 @@
+Native approved-change manifest is valid
+  baseline commit : bec73bb9d2ff54897bee66d641b130b66d0db869
+  checked HEAD    : 196f3e1c6ac23996986dd8e8a417adf5adced4d0
+  audited roots   : 7
+  approved paths  : 50
+  reviewed edits  : 237
+Increment 53g production-retirement boundary is valid
+  production sources checked: 815
+  packaged JARs checked: 0
+  retired paths absent: 17
+  negative rules enforced: 6

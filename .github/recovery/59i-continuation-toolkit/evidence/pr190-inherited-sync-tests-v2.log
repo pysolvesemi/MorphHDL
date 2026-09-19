@@ -1,0 +1,3 @@
+PR190_CDC_SHELL_CONTROLS_PASS rejected=3 bash_startup=pass pipefail=pass
+PR190_CI_GATE_CONTROLS_PASS rejected=54 synthetic_only=true
+PR190_PR189_SYNC_MUTATIONS_PASS rejected=48

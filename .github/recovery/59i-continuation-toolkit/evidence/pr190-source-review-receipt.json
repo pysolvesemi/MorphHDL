@@ -1,0 +1,118 @@
+{
+  "controller_reconstruction": "passed exact16unpublishedcommits; original308recordaudit; targethistorypinnedasprerequisite",
+  "current_integration_tests": 14,
+  "diagnostic_source": "ccec54986c70077e361f291cd322f0aa547aee15",
+  "files": [
+    {
+      "bytes": 107,
+      "path": "pr190-schema4-compatibility-tests.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "69aa856c793e35d9283fbe7d1465400c8d7719932ea666d1367bbf8913a0196a"
+    },
+    {
+      "bytes": 2236,
+      "path": "pr190-current-integration-tests-v2.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "4324a14ee1545b35fecb21818307eb0c993dfdcb5a8acd2d50c3c871d98429d6"
+    },
+    {
+      "bytes": 124,
+      "fixture": "196f3e1c6ac23996986dd8e8a417adf5adced4d0",
+      "path": "pr190-local-enable-source-review.log",
+      "sha256": "a3b590ea011fb5731c7b45dd2def014f23ea6788e4e724b93cdde44a79f57bbc",
+      "source": "40a001a8877dd5b357ecc444574e2aa0527c6d56"
+    },
+    {
+      "bytes": 403,
+      "fixture": "196f3e1c6ac23996986dd8e8a417adf5adced4d0",
+      "path": "pr190-native-source-review.log",
+      "sha256": "9aefa098c45032930bf241c04f5c45b199cc9cb90d8ea0131683086d81901f69",
+      "source": "40a001a8877dd5b357ecc444574e2aa0527c6d56"
+    },
+    {
+      "bytes": 177,
+      "path": "pr190-inherited-sync-tests-v2.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "23c390d5bbbbfb001a42280bb968efb2a9be8526274f8b38ee1f59ae1040851c"
+    },
+    {
+      "bytes": 35,
+      "path": "pr190-wa08-overlay-v2.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "9cf0259f0db1bc56f9c518f731285cc071d793d762dccc9d03079eb55131825b"
+    },
+    {
+      "bytes": 52,
+      "path": "pr190-rollout-composition-v2.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "21d5e965dedfcbe63abbb89bd7bdefd06054d4c5588b760246526e237e3335c7"
+    },
+    {
+      "bytes": 1527,
+      "path": "pr190-full-ci-dispatch-controls.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "d22d06fd9325711f27cfcb2c88a5d998136398ff1c5c1bdf2f171915043891d9"
+    },
+    {
+      "bytes": 1234,
+      "path": "pr190-publication-restoration-smoke/reconstruction.json",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "d94dd9787a32cede6c9026de797aa47ab47bbba331453010db780abf6186d091"
+    },
+    {
+      "bytes": 40,
+      "path": "pr190-publication-restoration-smoke/qualified-parent-review.log",
+      "scope": "Current source99 or synthetic controller-only controls; see actual log.",
+      "sha256": "92a8c711dbfb1b493e6871e1279ff6ff60af781555c342c381b5dd578304abcb"
+    },
+    {
+      "bytes": 124,
+      "fixture": "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02",
+      "path": "pr190-local-enable-source-review-v2.log",
+      "sha256": "a3b590ea011fb5731c7b45dd2def014f23ea6788e4e724b93cdde44a79f57bbc",
+      "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28"
+    },
+    {
+      "bytes": 403,
+      "fixture": "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02",
+      "path": "pr190-native-source-review-v2.log",
+      "sha256": "efd18780882b74b70e6ee81c87bc54375b937983fad2b24f39ab474506e6cd8c",
+      "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28"
+    },
+    {
+      "bytes": 210,
+      "fixture": "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02",
+      "path": "pr190-inherited-sequential-tests-v2.log",
+      "sha256": "fdbe32ae6d4fd742949b07c864f26998dc9e9821d712a12924ea6a355c53bae4",
+      "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28"
+    }
+  ],
+  "full_ci_dispatch_controls": 12,
+  "historical_records_removed": 0,
+  "local_enable_span_mutations": 66,
+  "local_enable_span_mutations_scope": "Passed on final source99 at isolated seal a48bc678b4cc2b89eb49a077d53b6580dbbe1a02; earlier source40 logs retained separately.",
+  "pr190_inherited_controls": {
+    "ci_synthetic": 54,
+    "current_source_mutations": 48,
+    "shell": 3
+  },
+  "preserved_schema4_lifecycle_tests": 9,
+  "previous_source_records_retained_by_frozen_seal": 322,
+  "previous_target_records_retained_by_frozen_seal": 93,
+  "provisional_seal_fixture": "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02",
+  "qualification": "source/control review only; diagnostic/committed-head/full CI gates still required",
+  "regular_runtime_and_checker_files": 1847,
+  "runtime_identities": 1845,
+  "separate_gitlinks": 1,
+  "sequential_mutation_suite": {
+    "catalog": 14,
+    "layering": 7,
+    "live": 28,
+    "safety": 58,
+    "status": "passed"
+  },
+  "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28",
+  "source_records": 345,
+  "source_tree": "b8af523e55e53803cd65317652fd104ec12f71c1",
+  "target_records": 40
+}

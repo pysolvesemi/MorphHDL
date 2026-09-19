@@ -1,0 +1,76 @@
+{
+  "changes": [
+    "Exact PR190 target and diagnostic/source-helper pins; old scope is not broadened to a moving branch.",
+    "Bundle and commit inventory exclude existing immutable target ancestry; reconstruction checks exact target tree prerequisites.",
+    "All21previous checks retained plus4current PR190/sequential checks.",
+    "Runtime body set includes all main/test resources and build inputs; the pinned gitlink is checked separately rather than read as a blob."
+  ],
+  "dev_checkout_edits": false,
+  "files": {
+    "build.py": "6cfbb060609f58df4a026626d69731ae0a0d7ecea0e23c3d0568627a958e7532",
+    "stage.py": "02c82758f5e22a9a9bca6866b5ce316f2ccc2dff7450ca62771b7bc7e2f4a444",
+    "stage.yml": "dfa19d86f29b21b7f9ebfa2a454e726a547a9f93092d22dcacf29e950ab774d5",
+    "validate.py": "3c40dc3b45b557fb14ac14419ff4fff34f6000717354d21378ac0a840b4a8310"
+  },
+  "offline_fixture_reconstruction": {
+    "full_ci": false,
+    "preserved_commits": [
+      "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
+      "1931c0aa82860d81a9a651ffa06b920840ddea1e",
+      "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+      "38e80295d8ec0268f752adf43c4cb22e442ce498",
+      "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb",
+      "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+      "a3ffe64779a4947777782ae1efbbea17d5016d17",
+      "cb093b5aa235760f2c3149f4327324976aa0495b",
+      "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
+      "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
+      "545134a42dd200c5cee679db5dde0fea0acb15c9",
+      "58fb59773a2deebba0251b5b626c19a22453f0a4",
+      "ccec54986c70077e361f291cd322f0aa547aee15",
+      "40a001a8877dd5b357ecc444574e2aa0527c6d56",
+      "99aacc05a783b9dc51aaeabd4e1395de385cab28",
+      "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02"
+    ],
+    "preserved_target_history": "Existing immutable target commits are prerequisites, never recreated.",
+    "refs_updated": false,
+    "seal": "a48bc678b4cc2b89eb49a077d53b6580dbbe1a02",
+    "seal_tree": "e5c16951aa2538c21bb0299df36df353363b666e",
+    "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28",
+    "target": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+    "target_tree": "ebe59eecbc8f550d265e78c717fb093603329055"
+  },
+  "pending": [
+    "terminal fresh diagnostic and independent artifact inspection",
+    "legitimate final two-file seal after the diagnostic",
+    "new final-payload build and actual Actions25sourcegates",
+    "exact Git objects, non-force feature update and committed-head local-enable gate"
+  ],
+  "prepared_only": true,
+  "remote_writes": false,
+  "runtime_gitlinks": 1,
+  "runtime_regular_files": 1847,
+  "source": "99aacc05a783b9dc51aaeabd4e1395de385cab28",
+  "source_gates": 25,
+  "source_tree": "b8af523e55e53803cd65317652fd104ec12f71c1",
+  "static_validation": "PASS: Python AST, workflow YAML, shell syntax, 15 exact raw commit/API-body round trips, unknown-metadata rejection",
+  "target": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+  "unpublished_source_commits": [
+    "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
+    "1931c0aa82860d81a9a651ffa06b920840ddea1e",
+    "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+    "38e80295d8ec0268f752adf43c4cb22e442ce498",
+    "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb",
+    "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+    "a3ffe64779a4947777782ae1efbbea17d5016d17",
+    "cb093b5aa235760f2c3149f4327324976aa0495b",
+    "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
+    "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
+    "545134a42dd200c5cee679db5dde0fea0acb15c9",
+    "58fb59773a2deebba0251b5b626c19a22453f0a4",
+    "ccec54986c70077e361f291cd322f0aa547aee15",
+    "40a001a8877dd5b357ecc444574e2aa0527c6d56",
+    "99aacc05a783b9dc51aaeabd4e1395de385cab28"
+  ],
+  "validated_at": "2026-09-19T18:06:28.339075+00:00"
+}
