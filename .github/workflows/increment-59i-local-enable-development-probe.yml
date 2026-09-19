@@ -29,8 +29,6 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       SCALA_VERSION: ${{ matrix.scala }}
-      PROBE_SOURCE: ${{ runner.temp }}/59i-local-enable-source
-      PROBE_OUT: ${{ runner.temp }}/59i-local-enable-evidence
       COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
       COURSIER_CACHE: /sbt/.cache/coursier/v1
       JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
@@ -41,6 +39,10 @@ jobs:
           fetch-depth: 0
           submodules: false
           persist-credentials: false
+      - name: Resolve runner-local development scratch paths
+        shell: bash
+        run: |
+          printf 'PROBE_SOURCE=%s/59i-local-enable-source\nPROBE_OUT=%s/59i-local-enable-evidence\n' "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Authenticate parent and reproduce exact development tree
         shell: bash
         run: |
