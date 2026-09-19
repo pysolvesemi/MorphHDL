@@ -109,7 +109,7 @@ class TypedBalancedReductionCompositeLocalEnableTests extends AnyFunSuite {
       val directory = Files.createTempDirectory("balanced-local-enable-public-" + name + "-")
       val top = "BalancedLocalEnable_" + name
       val config = SpinalConfig(targetDirectory = directory.toString, bitVectorWidthMax = 4096,
-        oneFilePerComponent = split, headerWithDate = false, headerWithRepoHash = false)
+        oneFilePerComponent = split, headerWithDate = false, headerWithRepoHash = true)
       if (!split) config.netlistFileName = top + ".v"
       MorphVerilog(config) {
         new BalancedLocalEnablePublic(HdlInt.param("WIDTH", 5, 3, 16),
