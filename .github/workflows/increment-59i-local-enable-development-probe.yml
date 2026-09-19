@@ -1,4 +1,4 @@
-name: Increment 59i local-enable unsealed source diagnostic cb093b5a
+name: Increment 59i local-enable unsealed source diagnostic 545134a4
 
 on:
   push:
@@ -121,7 +121,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-59i-local-enable-development-cb093b5a-${{ matrix.scala }}-${{ github.run_attempt }}
+          name: increment-59i-local-enable-development-545134a4-${{ matrix.scala }}-${{ github.run_attempt }}
           path: ${{ env.PROBE_OUT }}/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 21
