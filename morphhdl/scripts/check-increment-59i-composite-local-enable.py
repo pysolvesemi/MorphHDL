@@ -354,11 +354,17 @@ def formal_setup(paths: list[Path]) -> str:
     # Merge only combinational cells. A full opt/opt_merge could unify the two
     # DUTs' independent arbitrary initial register values. Each output-bit
     # obligation retains its entire reachable state and all unconstrained inputs.
+    # Map vector cells to bits before the final dead-cone pass: otherwise one
+    # live DFF/mux/add output bit keeps the whole word and its upstream logic.
+    # techmap preserves each state bit; both merge selections exclude every FF.
     return ("read_verilog " + " ".join(quoted(path) for path in paths) +
             "\nhierarchy -check -top miter\nproc\nflatten\nopt_expr\nopt_clean\n"
             "async2sync\ndffunmap\n"
             "opt_merge -keepdc t:$add t:$mux t:$logic_not t:$xor t:$or t:$and "
-            "t:$reduce_or t:$logic_and t:$logic_or\nopt_clean -purge\ncheck -assert\n")
+            "t:$reduce_or t:$logic_and t:$logic_or\nopt_clean -purge\n"
+            "techmap\nopt_expr -keepdc\nopt_clean -purge\n"
+            "opt_merge -keepdc t:$_NOT_ t:$_AND_ t:$_OR_ t:$_XOR_ t:$_XNOR_ "
+            "t:$_MUX_ t:$_NAND_ t:$_NOR_\nopt_clean -purge\ncheck -assert\nstat\n")
 
 
 def bounded_bit_equivalence(root: Path, output: Path, case: dict,
@@ -367,9 +373,12 @@ def bounded_bit_equivalence(root: Path, output: Path, case: dict,
 
     COUNT=3's three-DUT monolithic 18-step query timed out with 449487 SAT
     variables. Decomposing its conjunction by candidate and output bit permits
-    dead-cone removal before unrolling. Every bit still uses the full 18 steps,
-    independent unknown initial state, native enabled reset at step 1, and
-    arbitrary data/reset/enable thereafter. No internal equalities are assumed.
+    dead-cone removal before unrolling. COUNT=5's first bit query still retained
+    267607 variables; bit-level normalization permits pruning sibling bits of
+    vector cells as well.
+    Every bit still uses the full 18 steps, independent unknown initial state,
+    native enabled reset at step 1, and arbitrary data/reset/enable thereafter.
+    No internal equalities are assumed.
     """
     for obsolete in ("formal.log", "equivalence.ys", "formal-partitions.json"):
         (output / obsolete).unlink(missing_ok=True)
