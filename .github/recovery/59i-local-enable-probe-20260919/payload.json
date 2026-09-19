@@ -1,0 +1,410 @@
+{
+  "base": "90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6",
+  "base_tree": "1b8bf66047a28b836d61f6b168d28dd3b8f95cb2",
+  "head": "ccec54986c70077e361f291cd322f0aa547aee15",
+  "tree": "daa5f39b8f6f94a89073f0fad5a160b69df3ebc5",
+  "parent": "58fb59773a2deebba0251b5b626c19a22453f0a4",
+  "preserved_seal": "58fb59773a2deebba0251b5b626c19a22453f0a4",
+  "preserved_seal_tree": "5ae0ef04c0dc730e49cbb499f2eca6d65b4bf60f",
+  "integrated_target": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+  "integrated_target_tree": "ebe59eecbc8f550d265e78c717fb093603329055",
+  "integration_common": "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
+  "checkpoint": "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+  "checkpoint_tree": "5df50314aa7ae3bad916b157b69a87a278c391ba",
+  "checkpoint_parents": [
+    "90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6",
+    "1931c0aa82860d81a9a651ffa06b920840ddea1e"
+  ],
+  "reviewed_audit_source": "a3ffe64779a4947777782ae1efbbea17d5016d17",
+  "bundle_sha256": "37f68cc82a38eec320c2177408e871c7cf8affa6dc1f90d65e3be533bab4bf98",
+  "compressed_sha256": "491ed813ef30aed63211e8679f7e74e54171a9bf5b0f5796df4cd0a05c37c9d4",
+  "patch_sha256": "f099042d5114174631ce5f4beeac4a6cf73f83dad500d579b4ea51accf9209f0",
+  "parts": [
+    "part-01.b64",
+    "part-02.b64",
+    "part-03.b64",
+    "part-04.b64",
+    "part-05.b64",
+    "part-06.b64",
+    "part-07.b64",
+    "part-08.b64",
+    "part-09.b64",
+    "part-10.b64",
+    "part-11.b64"
+  ],
+  "continuations": [
+    {
+      "commit": "34a93ec7f9cde83e10fd5c47737b324167f54b5e",
+      "tree": "b96545aea836689ba430b0e419d8352409204710",
+      "parents": [
+        "37d1629f9b78c4d9cd6646abee9962fdd046e413"
+      ]
+    },
+    {
+      "commit": "1931c0aa82860d81a9a651ffa06b920840ddea1e",
+      "tree": "d9272a2c2c48394c5a6964773853adbfd3ed9fd4",
+      "parents": [
+        "f42641880e0645f0c997ecedabd031bf8948bbfa",
+        "34a93ec7f9cde83e10fd5c47737b324167f54b5e"
+      ]
+    },
+    {
+      "commit": "d76fbd5f84869ac56186b36f35dfc3c480a80cbb",
+      "tree": "5df50314aa7ae3bad916b157b69a87a278c391ba",
+      "parents": [
+        "90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6",
+        "1931c0aa82860d81a9a651ffa06b920840ddea1e"
+      ]
+    },
+    {
+      "commit": "38e80295d8ec0268f752adf43c4cb22e442ce498",
+      "tree": "c116c4e73abb439ef3d1ddacd35b7b3f6447ec16",
+      "parents": [
+        "d76fbd5f84869ac56186b36f35dfc3c480a80cbb"
+      ]
+    },
+    {
+      "commit": "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb",
+      "tree": "19760753d514a2cdf4cf311b82bfe639d4afc9c2",
+      "parents": [
+        "38e80295d8ec0268f752adf43c4cb22e442ce498"
+      ]
+    },
+    {
+      "commit": "ce8822f5e7038aba5ce33aff69f849d2271e1f2f",
+      "tree": "7f93be41567c7c4750691e6d9281c561918bb849",
+      "parents": [
+        "c5ecddbf5db0ef56c229b0065d9eef85f8c545cb"
+      ]
+    },
+    {
+      "commit": "a3ffe64779a4947777782ae1efbbea17d5016d17",
+      "tree": "b5aed915338b0bcd3b69744aa37a98f250012daa",
+      "parents": [
+        "ce8822f5e7038aba5ce33aff69f849d2271e1f2f"
+      ]
+    },
+    {
+      "commit": "cb093b5aa235760f2c3149f4327324976aa0495b",
+      "tree": "d207a118d2ef0260efe2388c7df0b8d5954c2d04",
+      "parents": [
+        "a3ffe64779a4947777782ae1efbbea17d5016d17"
+      ]
+    },
+    {
+      "commit": "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
+      "tree": "48ee0b33c8c88ca030603141a6c734648bb54257",
+      "parents": [
+        "cb093b5aa235760f2c3149f4327324976aa0495b"
+      ]
+    },
+    {
+      "commit": "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
+      "tree": "4ade045ae6d8debdf933a1d965a934a686276e6e",
+      "parents": [
+        "6a858ead678f7ec96e9a421f2b4551bcd62d65d9"
+      ]
+    },
+    {
+      "commit": "545134a42dd200c5cee679db5dde0fea0acb15c9",
+      "tree": "cab84063b2933dd146f2b5ff37aab42f7ea0b191",
+      "parents": [
+        "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602"
+      ]
+    },
+    {
+      "commit": "58fb59773a2deebba0251b5b626c19a22453f0a4",
+      "tree": "5ae0ef04c0dc730e49cbb499f2eca6d65b4bf60f",
+      "parents": [
+        "545134a42dd200c5cee679db5dde0fea0acb15c9"
+      ]
+    },
+    {
+      "commit": "8e2a5a35b43a790137ead7c81b80bb2fda13a8ec",
+      "tree": "5b28382fb5a6acab395f55836173a75bd8e1e61d",
+      "parents": [
+        "f5049ae2abfe5a47cd1fac3574ea08d630bd183f"
+      ]
+    },
+    {
+      "commit": "9325224ffbf0e8309b7fb5ac4cb9ce87692c0175",
+      "tree": "dc5318d0279ec6484f7b516ff2a1d8476e8db3ce",
+      "parents": [
+        "8e2a5a35b43a790137ead7c81b80bb2fda13a8ec"
+      ]
+    },
+    {
+      "commit": "0eeac0468d55e3a82133f8ad77203895340b659e",
+      "tree": "c5e0789a21ba922d1b6aa3a0ee5bba1b9dc0a1d5",
+      "parents": [
+        "9325224ffbf0e8309b7fb5ac4cb9ce87692c0175"
+      ]
+    },
+    {
+      "commit": "ff20584eef5d9733f085aabdfe238d5ab3cb36ee",
+      "tree": "8e0d3ccc9ae627d425a960912c5814bee4fab10b",
+      "parents": [
+        "0eeac0468d55e3a82133f8ad77203895340b659e"
+      ]
+    },
+    {
+      "commit": "050f1425012ced736fa067d6c13e1414c140c098",
+      "tree": "ef02ea9e39c947adff234141cbadcbd1b2faf393",
+      "parents": [
+        "ff20584eef5d9733f085aabdfe238d5ab3cb36ee"
+      ]
+    },
+    {
+      "commit": "2129435ccc825287dbf217c75bf01af6abf40538",
+      "tree": "f7b2fcd1274d4374d73cb7f5884fca1076c683ce",
+      "parents": [
+        "050f1425012ced736fa067d6c13e1414c140c098"
+      ]
+    },
+    {
+      "commit": "91719f13b14c02f246da4176a65228fd1a99d96e",
+      "tree": "5f8a4b27a3328f0f879db81438a7cc0d88b840b0",
+      "parents": [
+        "2129435ccc825287dbf217c75bf01af6abf40538"
+      ]
+    },
+    {
+      "commit": "be095b0793ba349082ef9248dcf394eea04e9033",
+      "tree": "24a60a4f28481c8c07083a3cded2b1b858aa6429",
+      "parents": [
+        "91719f13b14c02f246da4176a65228fd1a99d96e"
+      ]
+    },
+    {
+      "commit": "d9c3f574ef7dc036ebdfd8e2078a512c40c5aed9",
+      "tree": "c062abc4b2be7f932fb7b6efc3d1750276689d43",
+      "parents": [
+        "be095b0793ba349082ef9248dcf394eea04e9033"
+      ]
+    },
+    {
+      "commit": "8120db187de12b62185d55cc2d43324eda9189f8",
+      "tree": "82aef3165f238392aeed7e8ff121645c1dd31463",
+      "parents": [
+        "d9c3f574ef7dc036ebdfd8e2078a512c40c5aed9"
+      ]
+    },
+    {
+      "commit": "85a11a769fc9091cc0e9c3e6a4f9163b8fb3434a",
+      "tree": "8617ad70f4fa603fbf71e2e94408bff363262a24",
+      "parents": [
+        "8120db187de12b62185d55cc2d43324eda9189f8"
+      ]
+    },
+    {
+      "commit": "0ceb4430f56abe70546e78c8683efe01e5f0bf26",
+      "tree": "803454b1757021bd5a98bcd0fcdfe6a31a351ece",
+      "parents": [
+        "85a11a769fc9091cc0e9c3e6a4f9163b8fb3434a"
+      ]
+    },
+    {
+      "commit": "f1e7a1a5ef257e57a6b86a50c964f56c93174ff2",
+      "tree": "f9918676a5f86d9a3b486dadc477925801f16300",
+      "parents": [
+        "0ceb4430f56abe70546e78c8683efe01e5f0bf26"
+      ]
+    },
+    {
+      "commit": "5ef6a52ece26139dcc9a9876595feda11ab285e3",
+      "tree": "6d8df7e4c01ec853b97ea29c5353255e5f59df53",
+      "parents": [
+        "f1e7a1a5ef257e57a6b86a50c964f56c93174ff2"
+      ]
+    },
+    {
+      "commit": "5a2c219f5f909b59d667add1357b7a91a4f61024",
+      "tree": "e918c52be76d94bfbfba91b624f02e28f2adff00",
+      "parents": [
+        "5ef6a52ece26139dcc9a9876595feda11ab285e3"
+      ]
+    },
+    {
+      "commit": "1711ce84705cedf0fdf6cc512e93d443b257acd8",
+      "tree": "d54357f54dae43b7113ea40ae0823530bfd810f7",
+      "parents": [
+        "5a2c219f5f909b59d667add1357b7a91a4f61024"
+      ]
+    },
+    {
+      "commit": "e7edae7167beda47a8a77789f7bd6a5b585c2360",
+      "tree": "b6bde6978821ea6c47055b1e0b84ee41f2dc6915",
+      "parents": [
+        "1711ce84705cedf0fdf6cc512e93d443b257acd8"
+      ]
+    },
+    {
+      "commit": "f10c174e85196eb845852bf051e2c2771fd6acc9",
+      "tree": "152841636039c302ef8aec1205b669feb9736b8c",
+      "parents": [
+        "e7edae7167beda47a8a77789f7bd6a5b585c2360"
+      ]
+    },
+    {
+      "commit": "28b5a04621ed6207b374f37b88fa4f5b4030c0d4",
+      "tree": "d6f1cfe43445ffa198cf35528e1b41b329325bad",
+      "parents": [
+        "f10c174e85196eb845852bf051e2c2771fd6acc9"
+      ]
+    },
+    {
+      "commit": "af255bed590dfe5985981b91b91f7ef165520931",
+      "tree": "8db7d4eaee68163279d1c741a069f9de1ad2f709",
+      "parents": [
+        "28b5a04621ed6207b374f37b88fa4f5b4030c0d4"
+      ]
+    },
+    {
+      "commit": "8491f21cf062988bc41c21e8bdfec846f80f90d8",
+      "tree": "edc797d06e7fda4ecdd05e30cbe1fe896fe26a86",
+      "parents": [
+        "af255bed590dfe5985981b91b91f7ef165520931",
+        "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
+      ]
+    },
+    {
+      "commit": "b4f9d967b12fec54548c47160738c8253bbafc1f",
+      "tree": "f686ed81c4075a2a0d5fcd58600b0ab06c092467",
+      "parents": [
+        "8491f21cf062988bc41c21e8bdfec846f80f90d8"
+      ]
+    },
+    {
+      "commit": "0437d55b76fc4ab9eebf13c000c097519cec49a6",
+      "tree": "13cfb6b13c1ba9d7531b83d477864396ea9f78f1",
+      "parents": [
+        "b4f9d967b12fec54548c47160738c8253bbafc1f"
+      ]
+    },
+    {
+      "commit": "1cc47cc833e3b9032b48f39836300c49dff0d779",
+      "tree": "c14f27cab0834649f56095c0acfa9564f3873f77",
+      "parents": [
+        "0437d55b76fc4ab9eebf13c000c097519cec49a6"
+      ]
+    },
+    {
+      "commit": "92d897d68c331b88878d0258c87606e6d5ef215a",
+      "tree": "9846412c8e08ff925287827a10ce05ac410749f4",
+      "parents": [
+        "1cc47cc833e3b9032b48f39836300c49dff0d779"
+      ]
+    },
+    {
+      "commit": "fb93c66bf8ccba095b0b77d7647df94e5f994b4d",
+      "tree": "184fd90b37a8c3ba7b0ad90b4ff630c8de23db25",
+      "parents": [
+        "92d897d68c331b88878d0258c87606e6d5ef215a"
+      ]
+    },
+    {
+      "commit": "1be82b2fd5f46b0a6ad55c9cadc49fa02c570f6a",
+      "tree": "27423b7a1e74d473fe1558d1fecf7be63f6fba3a",
+      "parents": [
+        "fb93c66bf8ccba095b0b77d7647df94e5f994b4d"
+      ]
+    },
+    {
+      "commit": "f4eaa67184f60147b0b2e3bc108276e43dea70c0",
+      "tree": "ebe59eecbc8f550d265e78c717fb093603329055",
+      "parents": [
+        "1be82b2fd5f46b0a6ad55c9cadc49fa02c570f6a"
+      ]
+    },
+    {
+      "commit": "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097",
+      "tree": "ebe59eecbc8f550d265e78c717fb093603329055",
+      "parents": [
+        "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d",
+        "f4eaa67184f60147b0b2e3bc108276e43dea70c0"
+      ]
+    },
+    {
+      "commit": "ccec54986c70077e361f291cd322f0aa547aee15",
+      "tree": "daa5f39b8f6f94a89073f0fad5a160b69df3ebc5",
+      "parents": [
+        "58fb59773a2deebba0251b5b626c19a22453f0a4",
+        "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
+      ]
+    }
+  ],
+  "paths": [
+    ".github/workflows/increment-59i-combined-closure.yml",
+    ".github/workflows/increment-59i-local-enable-committed-head.yml",
+    ".github/workflows/increment-60f-equivalence-closure.yml",
+    ".github/workflows/increment-62-wa08-source-overlay.yml",
+    ".github/workflows/morphhdl-passes.yml",
+    ".github/workflows/sequential-source-review-targeted.yml",
+    ".github/workflows/sequential-wire-consumers.yml",
+    "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+    "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala",
+    "docs/morphhdl/increment-59i-local-enable-development.md",
+    "docs/morphhdl/increment-59i-pr190-integration-development.md",
+    "docs/morphhdl/pr190-pr189-source-sync.md",
+    "docs/morphhdl/sequential-wire-source-review.md",
+    "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala",
+    "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala",
+    "morphhdl-passes/scripts/check-boundary.sh",
+    "morphhdl-passes/scripts/test-boundary-guard.sh",
+    "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
+    "morphhdl/contracts/increment-54-typed-layering-ir.contract",
+    "morphhdl/contracts/increment-55-native-change-review.json",
+    "morphhdl/contracts/increment-59i-local-enable-review.json",
+    "morphhdl/contracts/increment-59i-production-successor.json",
+    "morphhdl/contracts/increment-59i-regression-inventory.json",
+    "morphhdl/contracts/increment-62-wa08-source-overlay.json",
+    "morphhdl/contracts/lane-when-source-scope.json",
+    "morphhdl/contracts/native-source-preservation.json",
+    "morphhdl/scripts/check-cdc-successor-source.py",
+    "morphhdl/scripts/check-increment-59i-composite-local-enable.py",
+    "morphhdl/scripts/check-increment-59i-local-enable-combined.py",
+    "morphhdl/scripts/check-increment-59i-local-enable-results.py",
+    "morphhdl/scripts/check-increment-59i-local-enable-source-review.py",
+    "morphhdl/scripts/check-increment-59i-production-successor.py",
+    "morphhdl/scripts/check-increment-59i-regression-inventory.py",
+    "morphhdl/scripts/check-increment-59i-rollout-composition.py",
+    "morphhdl/scripts/check-increment-59i-target-integration.py",
+    "morphhdl/scripts/check-increment-59i-widening-source-review.py",
+    "morphhdl/scripts/check-increment-60b-signedness-authority.py",
+    "morphhdl/scripts/check-increment-60f-artifacts.py",
+    "morphhdl/scripts/check-increment-61-source-review.py",
+    "morphhdl/scripts/check-increment-62-wa08-source-overlay.py",
+    "morphhdl/scripts/check-lane-when-increment61-source.py",
+    "morphhdl/scripts/check-lane-when-source-scope.py",
+    "morphhdl/scripts/check-pr190-pr189-source-sync.py",
+    "morphhdl/scripts/check-sequential-wire-source-review.py",
+    "morphhdl/scripts/check-typed-layering-ir.py",
+    "morphhdl/scripts/test-increment-59i-continuation.py",
+    "morphhdl/scripts/test-increment-59i-local-enable-results.py",
+    "morphhdl/scripts/test-increment-59i-local-enable-source-review.py",
+    "morphhdl/scripts/test-increment-59i-local-enable-successor.py",
+    "morphhdl/scripts/test-increment-59i-pr189-sync.py",
+    "morphhdl/scripts/test-increment-59i-regression-inventory.py",
+    "morphhdl/scripts/test-pr190-pr189-source-sync.py",
+    "morphhdl/scripts/test-sequential-wire-source-review.py",
+    "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala",
+    "morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala",
+    "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala",
+    "morphhdl/src/test/scala/nativeapplication/BalancedCompositeLocalEnableNativeOracle.scala",
+    "morphhdl/src/test/scala/nativeapplication/BalancedLocalEnableCombinedNativeOracle.scala",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableArtifactWriter.scala",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala",
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionLocalEnableCombinedArtifactWriter.scala",
+    "repro/remaining-wires/README.md",
+    "repro/remaining-wires/build.sbt",
+    "repro/remaining-wires/check.py",
+    "repro/remaining-wires/project/build.properties",
+    "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala",
+    "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala",
+    "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala"
+  ]
+}

@@ -1,4 +1,4 @@
-name: Increment 59i local-enable unsealed source diagnostic ccec5498
+name: Increment 59i local-enable development compiler probe
 
 on:
   push:
@@ -121,7 +121,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-59i-local-enable-development-ccec5498-${{ matrix.scala }}-${{ github.run_attempt }}
+          name: increment-59i-local-enable-development-20260919-${{ matrix.scala }}-${{ github.run_attempt }}
           path: ${{ env.PROBE_OUT }}/
           include-hidden-files: true
           if-no-files-found: error

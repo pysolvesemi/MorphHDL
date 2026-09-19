@@ -1,0 +1,720 @@
+﻿2026-09-19T17:05:45.8043295Z Current runner version: '2.337.0'
+2026-09-19T17:05:45.8078783Z ##[group]Runner Image Provisioner
+2026-09-19T17:05:45.8080053Z Hosted Compute Agent
+2026-09-19T17:05:45.8081071Z Version: 20260828.587
+2026-09-19T17:05:45.8082357Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-09-19T17:05:45.8083589Z Build Date: 2026-08-28T16:44:25Z
+2026-09-19T17:05:45.8085283Z Worker ID: {fecd8339-b64c-4055-aa38-4496662ca46f}
+2026-09-19T17:05:45.8086487Z Azure Region: eastus
+2026-09-19T17:05:45.8087780Z ##[endgroup]
+2026-09-19T17:05:45.8090121Z ##[group]Operating System
+2026-09-19T17:05:45.8091189Z Ubuntu
+2026-09-19T17:05:45.8092124Z 24.04.5
+2026-09-19T17:05:45.8092922Z LTS
+2026-09-19T17:05:45.8093875Z ##[endgroup]
+2026-09-19T17:05:45.8094855Z ##[group]Runner Image
+2026-09-19T17:05:45.8095792Z Image: ubuntu-24.04
+2026-09-19T17:05:45.8096892Z Version: 20260907.300.1
+2026-09-19T17:05:45.8099216Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260907.300/images/ubuntu/Ubuntu2404-Readme.md
+2026-09-19T17:05:45.8102039Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260907.300
+2026-09-19T17:05:45.8103683Z ##[endgroup]
+2026-09-19T17:05:45.8105784Z ##[group]GITHUB_TOKEN Permissions
+2026-09-19T17:05:45.8109019Z Actions: write
+2026-09-19T17:05:45.8110106Z Contents: write
+2026-09-19T17:05:45.8111086Z Metadata: read
+2026-09-19T17:05:45.8112073Z ##[endgroup]
+2026-09-19T17:05:45.8115067Z Secret source: Actions
+2026-09-19T17:05:45.8116656Z Cache mode: write
+2026-09-19T17:05:45.8118394Z Prepare workflow directory
+2026-09-19T17:05:45.8865818Z Prepare all required actions
+2026-09-19T17:05:45.8939458Z Getting action download info
+2026-09-19T17:05:46.0856242Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-09-19T17:05:46.1965059Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-09-19T17:05:46.4144880Z Complete job name: stage
+2026-09-19T17:05:46.4845876Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-09-19T17:05:46.4854731Z ##[group]Run actions/checkout@v4
+2026-09-19T17:05:46.4855494Z with:
+2026-09-19T17:05:46.4855938Z   fetch-depth: 0
+2026-09-19T17:05:46.4856392Z   submodules: false
+2026-09-19T17:05:46.4856872Z   persist-credentials: false
+2026-09-19T17:05:46.4857707Z   repository: pysolvesemi/MorphHDL
+2026-09-19T17:05:46.4861697Z   token: ***
+2026-09-19T17:05:46.4862191Z   ssh-strict: true
+2026-09-19T17:05:46.4862641Z   ssh-user: git
+2026-09-19T17:05:46.4863065Z   clean: true
+2026-09-19T17:05:46.4863518Z   sparse-checkout-cone-mode: true
+2026-09-19T17:05:46.4864056Z   fetch-tags: false
+2026-09-19T17:05:46.4864510Z   show-progress: true
+2026-09-19T17:05:46.4864998Z   lfs: false
+2026-09-19T17:05:46.4865438Z   set-safe-directory: true
+2026-09-19T17:05:46.4865958Z   allow-unsafe-pr-checkout: false
+2026-09-19T17:05:46.4866768Z env:
+2026-09-19T17:05:46.4867218Z   PYTHONDONTWRITEBYTECODE: 1
+2026-09-19T17:05:46.4871363Z   GH_TOKEN: ***
+2026-09-19T17:05:46.4871817Z ##[endgroup]
+2026-09-19T17:05:46.5903223Z Syncing repository: pysolvesemi/MorphHDL
+2026-09-19T17:05:46.5905793Z ##[group]Getting Git version info
+2026-09-19T17:05:46.5906931Z Working directory is '/home/runner/work/MorphHDL/MorphHDL'
+2026-09-19T17:05:46.5908820Z [command]/usr/bin/git version
+2026-09-19T17:05:46.6020483Z git version 2.55.0
+2026-09-19T17:05:46.6044850Z ##[endgroup]
+2026-09-19T17:05:46.6062388Z Temporarily overriding HOME='/home/runner/work/_temp/560c4e7a-2653-4d79-8681-99f8fee1f7ff' before making global git config changes
+2026-09-19T17:05:46.6064906Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-19T17:05:46.6069041Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/MorphHDL/MorphHDL
+2026-09-19T17:05:46.6133007Z Deleting the contents of '/home/runner/work/MorphHDL/MorphHDL'
+2026-09-19T17:05:46.6136688Z ##[group]Initializing the repository
+2026-09-19T17:05:46.6140895Z [command]/usr/bin/git init /home/runner/work/MorphHDL/MorphHDL
+2026-09-19T17:05:46.6308146Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-09-19T17:05:46.6311101Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-09-19T17:05:46.6315274Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-09-19T17:05:46.6318154Z hint: call:
+2026-09-19T17:05:46.6319882Z hint:
+2026-09-19T17:05:46.6321118Z hint: 	git config --global init.defaultBranch <name>
+2026-09-19T17:05:46.6322241Z hint:
+2026-09-19T17:05:46.6323184Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-09-19T17:05:46.6324732Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-09-19T17:05:46.6325947Z hint:
+2026-09-19T17:05:46.6326677Z hint: 	git branch -m <name>
+2026-09-19T17:05:46.6327730Z hint:
+2026-09-19T17:05:46.6328803Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-09-19T17:05:46.6330842Z Initialized empty Git repository in /home/runner/work/MorphHDL/MorphHDL/.git/
+2026-09-19T17:05:46.6344447Z [command]/usr/bin/git remote add origin https://github.com/pysolvesemi/MorphHDL
+2026-09-19T17:05:46.6397363Z ##[endgroup]
+2026-09-19T17:05:46.6398977Z ##[group]Disabling automatic garbage collection
+2026-09-19T17:05:46.6402346Z [command]/usr/bin/git config --local gc.auto 0
+2026-09-19T17:05:46.6435649Z ##[endgroup]
+2026-09-19T17:05:46.6436810Z ##[group]Setting up auth
+2026-09-19T17:05:46.6444561Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-19T17:05:46.6486816Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-19T17:05:46.6886102Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-19T17:05:46.6922822Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-19T17:05:46.7146666Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-19T17:05:46.7182828Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-19T17:05:46.7409084Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-09-19T17:05:46.7448315Z ##[endgroup]
+2026-09-19T17:05:46.7449188Z ##[group]Fetching the repository
+2026-09-19T17:05:46.7458094Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+2026-09-19T17:05:57.9401204Z From https://github.com/pysolvesemi/MorphHDL
+2026-09-19T17:05:57.9404000Z  * [new branch]          AnalysisUtils_fix          -> origin/AnalysisUtils_fix
+2026-09-19T17:05:57.9406904Z  * [new branch]          MacTxLsoDev                -> origin/MacTxLsoDev
+2026-09-19T17:05:57.9409989Z  * [new branch]          SamplerCC                  -> origin/SamplerCC
+2026-09-19T17:05:57.9412576Z  * [new branch]          add_translate_by           -> origin/add_translate_by
+2026-09-19T17:05:57.9415528Z  * [new branch]          agent/59i-local-enable-failure-diagnostic -> origin/agent/59i-local-enable-failure-diagnostic
+2026-09-19T17:05:57.9419104Z  * [new branch]          agent/59i-probe2           -> origin/agent/59i-probe2
+2026-09-19T17:05:57.9421761Z  * [new branch]          agent/59i-tool-probe       -> origin/agent/59i-tool-probe
+2026-09-19T17:05:57.9424970Z  * [new branch]          agent/60c-resume-validation-kit -> origin/agent/60c-resume-validation-kit
+2026-09-19T17:05:57.9429425Z  * [new branch]          agent/60c-reviewed-function-guard -> origin/agent/60c-reviewed-function-guard
+2026-09-19T17:05:57.9432978Z  * [new branch]          agent/60d-reviewed-patch-publication -> origin/agent/60d-reviewed-patch-publication
+2026-09-19T17:05:57.9436392Z  * [new branch]          agent/60e-reviewed-boundary-publication -> origin/agent/60e-reviewed-boundary-publication
+2026-09-19T17:05:57.9439657Z  * [new branch]          agent/60g-59h-stage-20260907 -> origin/agent/60g-59h-stage-20260907
+2026-09-19T17:05:57.9442172Z  * [new branch]          agent/60g-closeout-stage-20260907 -> origin/agent/60g-closeout-stage-20260907
+2026-09-19T17:05:57.9445555Z  * [new branch]          agent/60g-continue-source-export-20260908 -> origin/agent/60g-continue-source-export-20260908
+2026-09-19T17:05:57.9449515Z  * [new branch]          agent/60g-diagnostic-transfer-20260908 -> origin/agent/60g-diagnostic-transfer-20260908
+2026-09-19T17:05:57.9453027Z  * [new branch]          agent/60g-final-audit-transfer-20260908 -> origin/agent/60g-final-audit-transfer-20260908
+2026-09-19T17:05:57.9456706Z  * [new branch]          agent/60g-inherited-audit-publish-20260907 -> origin/agent/60g-inherited-audit-publish-20260907
+2026-09-19T17:05:57.9460654Z  * [new branch]          agent/60g-observer-reviewed-publication -> origin/agent/60g-observer-reviewed-publication
+2026-09-19T17:05:57.9463894Z  * [new branch]          agent/60g-resume-publish-20260907 -> origin/agent/60g-resume-publish-20260907
+2026-09-19T17:05:57.9466690Z  * [new branch]          agent/60g-resume-source-99b6017 -> origin/agent/60g-resume-source-99b6017
+2026-09-19T17:05:57.9469737Z  * [new branch]          agent/60g-resume-toolchain-226ac -> origin/agent/60g-resume-toolchain-226ac
+2026-09-19T17:05:57.9472854Z  * [new branch]          agent/60g-reviewed-closure-20260907 -> origin/agent/60g-reviewed-closure-20260907
+2026-09-19T17:05:57.9476569Z  * [new branch]          agent/cdc-independent-parameter-consumers -> origin/agent/cdc-independent-parameter-consumers
+2026-09-19T17:05:57.9480533Z  * [new branch]          agent/ci-wa07b-inherited-qualification -> origin/agent/ci-wa07b-inherited-qualification
+2026-09-19T17:05:57.9484329Z  * [new branch]          agent/display-controller-ddr-toolchain-export -> origin/agent/display-controller-ddr-toolchain-export
+2026-09-19T17:05:57.9488505Z  * [new branch]          agent/display-controller-offline-kit-81abd255 -> origin/agent/display-controller-offline-kit-81abd255
+2026-09-19T17:05:57.9492405Z  * [new branch]          agent/display-controller-offline-toolchain -> origin/agent/display-controller-offline-toolchain
+2026-09-19T17:05:57.9496303Z  * [new branch]          agent/display-controller-offline-toolchain-run2 -> origin/agent/display-controller-offline-toolchain-run2
+2026-09-19T17:05:57.9500757Z  * [new branch]          agent/display-controller-offline-toolchain-run3 -> origin/agent/display-controller-offline-toolchain-run3
+2026-09-19T17:05:57.9504618Z  * [new branch]          agent/display-controller-toolchain-base -> origin/agent/display-controller-toolchain-base
+2026-09-19T17:05:57.9508080Z  * [new branch]          agent/dv-p1-01-toolchain-export -> origin/agent/dv-p1-01-toolchain-export
+2026-09-19T17:05:57.9512202Z  * [new branch]          agent/dv-p1-02-noble-toolchain-export-temp -> origin/agent/dv-p1-02-noble-toolchain-export-temp
+2026-09-19T17:05:57.9515896Z  * [new branch]          agent/export-81abd-source  -> origin/agent/export-81abd-source
+2026-09-19T17:05:57.9519102Z  * [new branch]          agent/export-iverilog-toolchain -> origin/agent/export-iverilog-toolchain
+2026-09-19T17:05:57.9522585Z  * [new branch]          agent/export-p1-axis-dv-models -> origin/agent/export-p1-axis-dv-models
+2026-09-19T17:05:57.9525761Z  * [new branch]          agent/export-zipcpu-axis-model -> origin/agent/export-zipcpu-axis-model
+2026-09-19T17:05:57.9528541Z  * [new branch]          agent/fix-59a-postmerge-ci -> origin/agent/fix-59a-postmerge-ci
+2026-09-19T17:05:57.9532029Z  * [new branch]          agent/inc53d-typed-architecture-roadmap-final -> origin/agent/inc53d-typed-architecture-roadmap-final
+2026-09-19T17:05:57.9535701Z  * [new branch]          agent/inc53d-typed-elaboration -> origin/agent/inc53d-typed-elaboration
+2026-09-19T17:05:57.9539278Z  * [new branch]          agent/inc53d-typed-elaboration-roadmap -> origin/agent/inc53d-typed-elaboration-roadmap
+2026-09-19T17:05:57.9542637Z  * [new branch]          agent/inc53d-typed-elaboration-v2 -> origin/agent/inc53d-typed-elaboration-v2
+2026-09-19T17:05:57.9546618Z  * [new branch]          agent/inc59-final          -> origin/agent/inc59-final
+2026-09-19T17:05:57.9550329Z  * [new branch]          agent/inc59-finalizer-v2   -> origin/agent/inc59-finalizer-v2
+2026-09-19T17:05:57.9553721Z  * [new branch]          agent/inc59-finalizer-v3   -> origin/agent/inc59-finalizer-v3
+2026-09-19T17:05:57.9556886Z  * [new branch]          agent/inc59-finalizer-v3-monitor -> origin/agent/inc59-finalizer-v3-monitor
+2026-09-19T17:05:57.9560228Z  * [new branch]          agent/inc59-monitor        -> origin/agent/inc59-monitor
+2026-09-19T17:05:57.9562771Z  * [new branch]          agent/inc59-monitor-results -> origin/agent/inc59-monitor-results
+2026-09-19T17:05:57.9565567Z  * [new branch]          agent/inc59-observer       -> origin/agent/inc59-observer
+2026-09-19T17:05:57.9568134Z  * [new branch]          agent/inc59-supervisor     -> origin/agent/inc59-supervisor
+2026-09-19T17:05:57.9570758Z  * [new branch]          agent/inc59a-completion-record -> origin/agent/inc59a-completion-record
+2026-09-19T17:05:57.9573590Z  * [new branch]          agent/inc59a-completion-result -> origin/agent/inc59a-completion-result
+2026-09-19T17:05:57.9576594Z  * [new branch]          agent/increment-10-integer-comparisons -> origin/agent/increment-10-integer-comparisons
+2026-09-19T17:05:57.9580186Z  * [new branch]          agent/increment-11-conditional-integers -> origin/agent/increment-11-conditional-integers
+2026-09-19T17:05:57.9583660Z  * [new branch]          agent/increment-12-boolean-forwarding -> origin/agent/increment-12-boolean-forwarding
+2026-09-19T17:05:57.9586758Z  * [new branch]          agent/increment-13-boolean-locals -> origin/agent/increment-13-boolean-locals
+2026-09-19T17:05:57.9590101Z  * [new branch]          agent/increment-13-boolean-locals-final -> origin/agent/increment-13-boolean-locals-final
+2026-09-19T17:05:57.9593219Z  * [new branch]          agent/increment-14-generate-case -> origin/agent/increment-14-generate-case
+2026-09-19T17:05:57.9596151Z  * [new branch]          agent/increment-15-runtime-mux -> origin/agent/increment-15-runtime-mux
+2026-09-19T17:05:57.9599626Z  * [new branch]          agent/increment-16-synchronous-register -> origin/agent/increment-16-synchronous-register
+2026-09-19T17:05:57.9603185Z  * [new branch]          agent/increment-17-asynchronous-register -> origin/agent/increment-17-asynchronous-register
+2026-09-19T17:05:57.9607138Z  * [new branch]          agent/increment-18-synchronous-enabled-register -> origin/agent/increment-18-synchronous-enabled-register
+2026-09-19T17:05:57.9611685Z  * [new branch]          agent/increment-19-asynchronous-enabled-register -> origin/agent/increment-19-asynchronous-enabled-register
+2026-09-19T17:05:57.9615893Z  * [new branch]          agent/increment-2-paramrtl-emitter -> origin/agent/increment-2-paramrtl-emitter
+2026-09-19T17:05:57.9619556Z  * [new branch]          agent/increment-20-single-port-memory -> origin/agent/increment-20-single-port-memory
+2026-09-19T17:05:57.9622938Z  * [new branch]          agent/increment-21-portable-address-width -> origin/agent/increment-21-portable-address-width
+2026-09-19T17:05:57.9626158Z  * [new branch]          agent/increment-22-read-enable -> origin/agent/increment-22-read-enable
+2026-09-19T17:05:57.9629023Z  * [new branch]          agent/increment-23-min-max -> origin/agent/increment-23-min-max
+2026-09-19T17:05:57.9631494Z  * [new branch]          agent/increment-24-ceil-log2 -> origin/agent/increment-24-ceil-log2
+2026-09-19T17:05:57.9634431Z  * [new branch]          agent/increment-25-synchronous-counter -> origin/agent/increment-25-synchronous-counter
+2026-09-19T17:05:57.9639352Z  * [new branch]          agent/increment-26-simple-dual-port-memory -> origin/agent/increment-26-simple-dual-port-memory
+2026-09-19T17:05:57.9642955Z  * [new branch]          agent/increment-27-synchronous-stream-fifo -> origin/agent/increment-27-synchronous-stream-fifo
+2026-09-19T17:05:57.9646525Z  * [new branch]          agent/increment-28-stream-m2s-pipe -> origin/agent/increment-28-stream-m2s-pipe
+2026-09-19T17:05:57.9650706Z  * [new branch]          agent/increment-29-single-source-symbolic-width -> origin/agent/increment-29-single-source-symbolic-width
+2026-09-19T17:05:57.9654778Z  * [new branch]          agent/increment-3-param-expressions -> origin/agent/increment-3-param-expressions
+2026-09-19T17:05:57.9658110Z  * [new branch]          agent/increment-30-symbolic-data-shapes -> origin/agent/increment-30-symbolic-data-shapes
+2026-09-19T17:05:57.9661595Z  * [new branch]          agent/increment-31-generic-expressions -> origin/agent/increment-31-generic-expressions
+2026-09-19T17:05:57.9664955Z  * [new branch]          agent/increment-32-hierarchy-binding-final -> origin/agent/increment-32-hierarchy-binding-final
+2026-09-19T17:05:57.9668691Z  * [new branch]          agent/increment-32-hierarchy-parameter-binding -> origin/agent/increment-32-hierarchy-parameter-binding
+2026-09-19T17:05:57.9672359Z  * [new branch]          agent/increment-32-reconstructed-diagnostic -> origin/agent/increment-32-reconstructed-diagnostic
+2026-09-19T17:05:57.9676000Z  * [new branch]          agent/increment-33-structural-generate-control -> origin/agent/increment-33-structural-generate-control
+2026-09-19T17:05:57.9679489Z  * [new branch]          agent/increment-34-generic-processes -> origin/agent/increment-34-generic-processes
+2026-09-19T17:05:57.9683027Z  * [new branch]          agent/increment-35-native-symbolic-memories -> origin/agent/increment-35-native-symbolic-memories
+2026-09-19T17:05:57.9686540Z  * [new branch]          agent/increment-35-read-result-width-fix -> origin/agent/increment-35-read-result-width-fix
+2026-09-19T17:05:57.9690381Z  * [new branch]          agent/increment-36-native-library-reuse -> origin/agent/increment-36-native-library-reuse
+2026-09-19T17:05:57.9693684Z  * [new branch]          agent/increment-37-controller-diagnostics -> origin/agent/increment-37-controller-diagnostics
+2026-09-19T17:05:57.9696842Z  * [new branch]          agent/increment-37-controller-final-2 -> origin/agent/increment-37-controller-final-2
+2026-09-19T17:05:57.9699726Z  * [new branch]          agent/increment-37-final-2 -> origin/agent/increment-37-final-2
+2026-09-19T17:05:57.9702325Z  * [new branch]          agent/increment-37-final-diagnostics -> origin/agent/increment-37-final-diagnostics
+2026-09-19T17:05:57.9705734Z  * [new branch]          agent/increment-37-parameterized-streamfifo-depth -> origin/agent/increment-37-parameterized-streamfifo-depth
+2026-09-19T17:05:57.9709334Z  * [new branch]          agent/increment-38-native-source-guard -> origin/agent/increment-38-native-source-guard
+2026-09-19T17:05:57.9712362Z  * [new branch]          agent/increment-39-external-boundary -> origin/agent/increment-39-external-boundary
+2026-09-19T17:05:57.9714987Z  * [new branch]          agent/increment-4-hierarchy -> origin/agent/increment-4-hierarchy
+2026-09-19T17:05:57.9717975Z  * [new branch]          agent/increment-40-external-symbolic-shapes -> origin/agent/increment-40-external-symbolic-shapes
+2026-09-19T17:05:57.9721346Z  * [new branch]          agent/increment-40-external-symbolic-width -> origin/agent/increment-40-external-symbolic-width
+2026-09-19T17:05:57.9724677Z  * [new branch]          agent/increment-40-post-merge-guard-fix -> origin/agent/increment-40-post-merge-guard-fix
+2026-09-19T17:05:57.9728449Z  * [new branch]          agent/increment-41-external-expression-hierarchy -> origin/agent/increment-41-external-expression-hierarchy
+2026-09-19T17:05:57.9731915Z  * [new branch]          agent/increment-41-post-merge-guard-fix -> origin/agent/increment-41-post-merge-guard-fix
+2026-09-19T17:05:57.9735699Z  * [new branch]          agent/increment-42-external-structural-process-capture -> origin/agent/increment-42-external-structural-process-capture
+2026-09-19T17:05:57.9739548Z  * [new branch]          agent/increment-42-post-merge-guard-fix -> origin/agent/increment-42-post-merge-guard-fix
+2026-09-19T17:05:57.9742569Z  * [new branch]          agent/increment-43-native-memory-reuse -> origin/agent/increment-43-native-memory-reuse
+2026-09-19T17:05:57.9745572Z  * [new branch]          agent/increment-43-post-merge-guard-fix -> origin/agent/increment-43-post-merge-guard-fix
+2026-09-19T17:05:57.9749190Z  * [new branch]          agent/increment-44-native-counter-stream-flow-reuse -> origin/agent/increment-44-native-counter-stream-flow-reuse
+2026-09-19T17:05:57.9752642Z  * [new branch]          agent/increment-44-post-merge-guard-fix -> origin/agent/increment-44-post-merge-guard-fix
+2026-09-19T17:05:57.9755891Z  * [new branch]          agent/increment-45-native-mem-auto-provenance -> origin/agent/increment-45-native-mem-auto-provenance
+2026-09-19T17:05:57.9759337Z  * [new branch]          agent/increment-46-clone-binding-recovery -> origin/agent/increment-46-clone-binding-recovery
+2026-09-19T17:05:57.9762619Z  * [new branch]          agent/increment-46-formal-parameter-identity -> origin/agent/increment-46-formal-parameter-identity
+2026-09-19T17:05:57.9765704Z  * [new branch]          agent/increment-47-completion-repair -> origin/agent/increment-47-completion-repair
+2026-09-19T17:05:57.9769220Z  * [new branch]          agent/increment-47-external-formalization-boundary -> origin/agent/increment-47-external-formalization-boundary
+2026-09-19T17:05:57.9772557Z  * [new branch]          agent/increment-47-recovery-complete -> origin/agent/increment-47-recovery-complete
+2026-09-19T17:05:57.9775295Z  * [new branch]          agent/increment-48-completion -> origin/agent/increment-48-completion
+2026-09-19T17:05:57.9842685Z  * [new branch]          agent/increment-48-natural-symbolic-conditionals -> origin/agent/increment-48-natural-symbolic-conditionals
+2026-09-19T17:05:57.9848579Z  * [new branch]          agent/increment-49-debug-source-export -> origin/agent/increment-49-debug-source-export
+2026-09-19T17:05:57.9853713Z  * [new branch]          agent/increment-49-native-int-provenance -> origin/agent/increment-49-native-int-provenance
+2026-09-19T17:05:57.9859504Z  * [new branch]          agent/increment-49-native-int-provenance-v2 -> origin/agent/increment-49-native-int-provenance-v2
+2026-09-19T17:05:57.9862777Z  * [new branch]          agent/increment-5-generate-for -> origin/agent/increment-5-generate-for
+2026-09-19T17:05:57.9865699Z  * [new branch]          agent/increment-50-native-int-expressions -> origin/agent/increment-50-native-int-expressions
+2026-09-19T17:05:57.9869244Z  * [new branch]          agent/increment-51-native-int-branch-capture -> origin/agent/increment-51-native-int-branch-capture
+2026-09-19T17:05:57.9872254Z  * [new branch]          agent/increment-52-completion-fix -> origin/agent/increment-52-completion-fix
+2026-09-19T17:05:57.9875204Z  * [new branch]          agent/increment-52-nested-control-flow-backup -> origin/agent/increment-52-nested-control-flow-backup
+2026-09-19T17:05:57.9878730Z  * [new branch]          agent/increment-52-nested-control-flow-clean -> origin/agent/increment-52-nested-control-flow-clean
+2026-09-19T17:05:57.9882116Z  * [new branch]          agent/increment-52-nested-symbolic-control-flow -> origin/agent/increment-52-nested-symbolic-control-flow
+2026-09-19T17:05:57.9885628Z  * [new branch]          agent/increment-52-ownership-evidence-diagnostic -> origin/agent/increment-52-ownership-evidence-diagnostic
+2026-09-19T17:05:57.9889060Z  * [new branch]          agent/increment-52-post-merge-closure -> origin/agent/increment-52-post-merge-closure
+2026-09-19T17:05:57.9892022Z  * [new branch]          agent/increment-52-post-merge-diagnostic -> origin/agent/increment-52-post-merge-diagnostic
+2026-09-19T17:05:57.9895302Z  * [new branch]          agent/increment-52-post-merge-overlap-fix -> origin/agent/increment-52-post-merge-overlap-fix
+2026-09-19T17:05:57.9898371Z  * [new branch]          agent/increment-52-rhs-diagnostic -> origin/agent/increment-52-rhs-diagnostic
+2026-09-19T17:05:57.9901214Z  * [new branch]          agent/increment-53-native-streamfifo-clean -> origin/agent/increment-53-native-streamfifo-clean
+2026-09-19T17:05:57.9904301Z  * [new branch]          agent/increment-53-native-streamfifo-final -> origin/agent/increment-53-native-streamfifo-final
+2026-09-19T17:05:57.9907727Z  * [new branch]          agent/increment-53-native-streamfifo-repair -> origin/agent/increment-53-native-streamfifo-repair
+2026-09-19T17:05:57.9911029Z  * [new branch]          agent/increment-53-native-streamfifo-structure -> origin/agent/increment-53-native-streamfifo-structure
+2026-09-19T17:05:57.9914201Z  * [new branch]          agent/increment-53-repair-publisher-temp -> origin/agent/increment-53-repair-publisher-temp
+2026-09-19T17:05:57.9917095Z  * [new branch]          agent/increment-53-source-export-temp -> origin/agent/increment-53-source-export-temp
+2026-09-19T17:05:57.9920510Z  * [new branch]          agent/increment-53a-streamfifo-formal-equivalence -> origin/agent/increment-53a-streamfifo-formal-equivalence
+2026-09-19T17:05:57.9923847Z  * [new branch]          agent/increment-53b-local-enum-parameters -> origin/agent/increment-53b-local-enum-parameters
+2026-09-19T17:05:57.9927072Z  * [new branch]          agent/increment-53b-native-streamwidth-adapter -> origin/agent/increment-53b-native-streamwidth-adapter
+2026-09-19T17:05:57.9930859Z  * [new branch]          agent/increment-53b1-enum-screaming-snake-localparams -> origin/agent/increment-53b1-enum-screaming-snake-localparams
+2026-09-19T17:05:57.9934616Z  * [new branch]          agent/increment-53c-enum-screaming-snake-localparams -> origin/agent/increment-53c-enum-screaming-snake-localparams
+2026-09-19T17:05:57.9938946Z  * [new branch]          agent/increment-53c-native-axi4-slave-factory-offsets -> origin/agent/increment-53c-native-axi4-slave-factory-offsets
+2026-09-19T17:05:57.9942306Z  * [new branch]          agent/increment-53c-reconcile-20260828 -> origin/agent/increment-53c-reconcile-20260828
+2026-09-19T17:05:57.9945437Z  * [new branch]          agent/increment-53d-generic-definition-boundary -> origin/agent/increment-53d-generic-definition-boundary
+2026-09-19T17:05:57.9949186Z  * [new branch]          agent/increment-53d-generic-native-boundary-repair -> origin/agent/increment-53d-generic-native-boundary-repair
+2026-09-19T17:05:57.9953042Z  * [new branch]          agent/increment-53d-generic-native-definition-boundary -> origin/agent/increment-53d-generic-native-definition-boundary
+2026-09-19T17:05:57.9956964Z  * [new branch]          agent/increment-53d-native-streamfifocc-parameterization -> origin/agent/increment-53d-native-streamfifocc-parameterization
+2026-09-19T17:05:57.9960863Z  * [new branch]          agent/increment-53d-native-streamwidth-adapter -> origin/agent/increment-53d-native-streamwidth-adapter
+2026-09-19T17:05:57.9963801Z  * [new branch]          agent/increment-53d-tree-api-probe -> origin/agent/increment-53d-tree-api-probe
+2026-09-19T17:05:57.9966682Z  * [new branch]          agent/increment-53d-typed-architecture-final -> origin/agent/increment-53d-typed-architecture-final
+2026-09-19T17:05:57.9969877Z  * [new branch]          agent/increment-53d-typed-elab-int -> origin/agent/increment-53d-typed-elab-int
+2026-09-19T17:05:57.9972630Z  * [new branch]          agent/increment-53d-typed-elabint-path -> origin/agent/increment-53d-typed-elabint-path
+2026-09-19T17:05:57.9975656Z  * [new branch]          agent/increment-53d-typed-elabint-path-final -> origin/agent/increment-53d-typed-elabint-path-final
+2026-09-19T17:05:57.9978982Z  * [new branch]          agent/increment-53d-typed-elabint-pivot -> origin/agent/increment-53d-typed-elabint-pivot
+2026-09-19T17:05:57.9982339Z  * [new branch]          agent/increment-53d-typed-elabint-streamwidthadapter -> origin/agent/increment-53d-typed-elabint-streamwidthadapter
+2026-09-19T17:05:57.9986362Z  * [new branch]          agent/increment-53d-typed-elabint-streamwidthadapter-v2 -> origin/agent/increment-53d-typed-elabint-streamwidthadapter-v2
+2026-09-19T17:05:57.9990161Z  * [new branch]          agent/increment-53d-typed-elaboration -> origin/agent/increment-53d-typed-elaboration
+2026-09-19T17:05:57.9993338Z  * [new branch]          agent/increment-53d-typed-elaboration-architecture -> origin/agent/increment-53d-typed-elaboration-architecture
+2026-09-19T17:05:57.9997149Z  * [new branch]          agent/increment-53d-typed-elaboration-architecture-pr-base -> origin/agent/increment-53d-typed-elaboration-architecture-pr-base
+2026-09-19T17:05:58.0001322Z  * [new branch]          agent/increment-53d-typed-elaboration-architecture-v2 -> origin/agent/increment-53d-typed-elaboration-architecture-v2
+2026-09-19T17:05:58.0004637Z  * [new branch]          agent/increment-53d-typed-roadmap-clean -> origin/agent/increment-53d-typed-roadmap-clean
+2026-09-19T17:05:58.0007864Z  * [new branch]          agent/increment-53d-typed-streamwidthadapter -> origin/agent/increment-53d-typed-streamwidthadapter
+2026-09-19T17:05:58.0011268Z  * [new branch]          agent/increment-53d-typed-streamwidthadapter-clean -> origin/agent/increment-53d-typed-streamwidthadapter-clean
+2026-09-19T17:05:58.0014267Z  * [new branch]          agent/increment-53e-diagnostics -> origin/agent/increment-53e-diagnostics
+2026-09-19T17:05:58.0017078Z  * [new branch]          agent/increment-53e-generic-domain-equivalence -> origin/agent/increment-53e-generic-domain-equivalence
+2026-09-19T17:05:58.0020619Z  * [new branch]          agent/increment-53e-generic-domain-proof-final -> origin/agent/increment-53e-generic-domain-proof-final
+2026-09-19T17:05:58.0023791Z  * [new branch]          agent/increment-53e-generic-domain-proof-v3 -> origin/agent/increment-53e-generic-domain-proof-v3
+2026-09-19T17:05:58.0027046Z  * [new branch]          agent/increment-53e-generic-domain-proof-v4 -> origin/agent/increment-53e-generic-domain-proof-v4
+2026-09-19T17:05:58.0030582Z  * [new branch]          agent/increment-53e-generic-expression-domain-proof -> origin/agent/increment-53e-generic-expression-domain-proof
+2026-09-19T17:05:58.0033974Z  * [new branch]          agent/increment-53e-generic-expression-proof -> origin/agent/increment-53e-generic-expression-proof
+2026-09-19T17:05:58.0037387Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization -> origin/agent/increment-53e-generic-spinal-parameterization
+2026-09-19T17:05:58.0041407Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v2 -> origin/agent/increment-53e-generic-spinal-parameterization-v2
+2026-09-19T17:05:58.0045246Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v3 -> origin/agent/increment-53e-generic-spinal-parameterization-v3
+2026-09-19T17:05:58.0049372Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v4 -> origin/agent/increment-53e-generic-spinal-parameterization-v4
+2026-09-19T17:05:58.0053247Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v5 -> origin/agent/increment-53e-generic-spinal-parameterization-v5
+2026-09-19T17:05:58.0057049Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v6 -> origin/agent/increment-53e-generic-spinal-parameterization-v6
+2026-09-19T17:05:58.0061146Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v7 -> origin/agent/increment-53e-generic-spinal-parameterization-v7
+2026-09-19T17:05:58.0064995Z  * [new branch]          agent/increment-53e-generic-spinal-parameterization-v8 -> origin/agent/increment-53e-generic-spinal-parameterization-v8
+2026-09-19T17:05:58.0068593Z  * [new branch]          agent/increment-53e-generic-spinalhdl-proof -> origin/agent/increment-53e-generic-spinalhdl-proof
+2026-09-19T17:05:58.0071778Z  * [new branch]          agent/increment-53e-generic-symbolic-proof-v2 -> origin/agent/increment-53e-generic-symbolic-proof-v2
+2026-09-19T17:05:58.0075480Z  * [new branch]          agent/increment-53e-generic-symbolic-width-equivalence -> origin/agent/increment-53e-generic-symbolic-width-equivalence
+2026-09-19T17:05:58.0079085Z  * [new branch]          agent/increment-53e-generic-width-proof -> origin/agent/increment-53e-generic-width-proof
+2026-09-19T17:05:58.0082490Z  * [new branch]          agent/increment-53e-native-streamfifocc-parameterization -> origin/agent/increment-53e-native-streamfifocc-parameterization
+2026-09-19T17:05:58.0085500Z  * [new branch]          agent/increment-53e-pr-open -> origin/agent/increment-53e-pr-open
+2026-09-19T17:05:58.0087822Z  * [new branch]          agent/increment-53e-pr-open-2 -> origin/agent/increment-53e-pr-open-2
+2026-09-19T17:05:58.0090109Z  * [new branch]          agent/increment-53e-pr-open-3 -> origin/agent/increment-53e-pr-open-3
+2026-09-19T17:05:58.0092424Z  * [new branch]          agent/increment-53e-pr-staging -> origin/agent/increment-53e-pr-staging
+2026-09-19T17:05:58.0095337Z  * [new branch]          agent/increment-53e-streamfifo-cc-parameterization -> origin/agent/increment-53e-streamfifo-cc-parameterization
+2026-09-19T17:05:58.0098870Z  * [new branch]          agent/increment-53e-typed-streamfifo-clean -> origin/agent/increment-53e-typed-streamfifo-clean
+2026-09-19T17:05:58.0101749Z  * [new branch]          agent/increment-53f-typed-primitives -> origin/agent/increment-53f-typed-primitives
+2026-09-19T17:05:58.0104641Z  * [new branch]          agent/increment-53g-retire-native-int-shadow -> origin/agent/increment-53g-retire-native-int-shadow
+2026-09-19T17:05:58.0107706Z  * [new branch]          agent/increment-54-typed-layering-ir -> origin/agent/increment-54-typed-layering-ir
+2026-09-19T17:05:58.0110706Z  * [new branch]          agent/increment-55-concrete-compatibility-audit -> origin/agent/increment-55-concrete-compatibility-audit
+2026-09-19T17:05:58.0114231Z  * [new branch]          agent/increment-56-native-typed-library-surface -> origin/agent/increment-56-native-typed-library-surface
+2026-09-19T17:05:58.0117868Z  * [new branch]          agent/increment-57-broad-native-library-migration -> origin/agent/increment-57-broad-native-library-migration
+2026-09-19T17:05:58.0121064Z  * [new branch]          agent/increment-57a-typed-streamfifocc -> origin/agent/increment-57a-typed-streamfifocc
+2026-09-19T17:05:58.0124080Z  * [new branch]          agent/increment-57b-streamfifocc-width-formal -> origin/agent/increment-57b-streamfifocc-width-formal
+2026-09-19T17:05:58.0127045Z  * [new branch]          agent/increment-58-legacy-retirement -> origin/agent/increment-58-legacy-retirement
+2026-09-19T17:05:58.0129740Z  * [new branch]          agent/increment-59-complete -> origin/agent/increment-59-complete
+2026-09-19T17:05:58.0132134Z  * [new branch]          agent/increment-59-completion-safety -> origin/agent/increment-59-completion-safety
+2026-09-19T17:05:58.0134702Z  * [new branch]          agent/increment-59-finalize-work -> origin/agent/increment-59-finalize-work
+2026-09-19T17:05:58.0137659Z  * [new branch]          agent/increment-59-typed-blackbox-generics -> origin/agent/increment-59-typed-blackbox-generics
+2026-09-19T17:05:58.0140761Z  * [new branch]          agent/increment-59a-recursive-verilog-module -> origin/agent/increment-59a-recursive-verilog-module
+2026-09-19T17:05:58.0143858Z  * [new branch]          agent/increment-59b-closed-graph-validation -> origin/agent/increment-59b-closed-graph-validation
+2026-09-19T17:05:58.0147297Z  * [new branch]          agent/increment-59b-parameterized-reduce-balanced-tree -> origin/agent/increment-59b-parameterized-reduce-balanced-tree
+2026-09-19T17:05:58.0150697Z  * [new branch]          agent/increment-59c-named-field-vectors -> origin/agent/increment-59c-named-field-vectors
+2026-09-19T17:05:58.0153412Z  * [new branch]          agent/increment-59d-symbolic-widths -> origin/agent/increment-59d-symbolic-widths
+2026-09-19T17:05:58.0156087Z  * [new branch]          agent/increment-59d-wa07a-scope-fixture -> origin/agent/increment-59d-wa07a-scope-fixture
+2026-09-19T17:05:58.0159387Z  * [new branch]          agent/increment-59e-composite-reductions -> origin/agent/increment-59e-composite-reductions
+2026-09-19T17:05:58.0162440Z  * [new branch]          agent/increment-59f-60g-compatibility-fc34243f -> origin/agent/increment-59f-60g-compatibility-fc34243f
+2026-09-19T17:05:58.0165411Z  * [new branch]          agent/increment-59f-certified-callbacks -> origin/agent/increment-59f-certified-callbacks
+2026-09-19T17:05:58.0168401Z  * [new branch]          agent/increment-59g-doc-candidate-20260907 -> origin/agent/increment-59g-doc-candidate-20260907
+2026-09-19T17:05:58.0171313Z  * [new branch]          agent/increment-59g-doc-closeout-20260907 -> origin/agent/increment-59g-doc-closeout-20260907
+2026-09-19T17:05:58.0174035Z  * [new branch]          agent/increment-59g-register-bridges -> origin/agent/increment-59g-register-bridges
+2026-09-19T17:05:58.0176679Z  * [new branch]          agent/increment-59g-source-validation -> origin/agent/increment-59g-source-validation
+2026-09-19T17:05:58.0179358Z  * [new branch]          agent/increment-59h-closeout -> origin/agent/increment-59h-closeout
+2026-09-19T17:05:58.0181773Z  * [new branch]          agent/increment-59h-completion-record -> origin/agent/increment-59h-completion-record
+2026-09-19T17:05:58.0184332Z  * [new branch]          agent/increment-59h-nested-owners -> origin/agent/increment-59h-nested-owners
+2026-09-19T17:05:58.0187138Z  * [new branch]          agent/increment-59i-combined-reduction-closure -> origin/agent/increment-59i-combined-reduction-closure
+2026-09-19T17:05:58.0190315Z  * [new branch]          agent/increment-59i-generated-child-stage -> origin/agent/increment-59i-generated-child-stage
+2026-09-19T17:05:58.0193037Z  * [new branch]          agent/increment-6-symbolic-frontend -> origin/agent/increment-6-symbolic-frontend
+2026-09-19T17:05:58.0195824Z  * [new branch]          agent/increment-60-sint-signed-roadmap -> origin/agent/increment-60-sint-signed-roadmap
+2026-09-19T17:05:58.0198884Z  * [new branch]          agent/increment-60a-sint-baseline-oracle -> origin/agent/increment-60a-sint-baseline-oracle
+2026-09-19T17:05:58.0201754Z  * [new branch]          agent/increment-60b-signedness-authority -> origin/agent/increment-60b-signedness-authority
+2026-09-19T17:05:58.0204539Z  * [new branch]          agent/increment-60c-signed-declarations -> origin/agent/increment-60c-signed-declarations
+2026-09-19T17:05:58.0207235Z  * [new branch]          agent/increment-60d-pure-sint-casts -> origin/agent/increment-60d-pure-sint-casts
+2026-09-19T17:05:58.0210211Z  * [new branch]          agent/increment-60e-signedness-boundaries -> origin/agent/increment-60e-signedness-boundaries
+2026-09-19T17:05:58.0213070Z  * [new branch]          agent/increment-60f-equivalence-closure -> origin/agent/increment-60f-equivalence-closure
+2026-09-19T17:05:58.0215770Z  * [new branch]          agent/increment-60f-wa07a-ci-contract -> origin/agent/increment-60f-wa07a-ci-contract
+2026-09-19T17:05:58.0218779Z  * [new branch]          agent/increment-60f-wa07b-ci-compatibility -> origin/agent/increment-60f-wa07b-ci-compatibility
+2026-09-19T17:05:58.0221739Z  * [new branch]          agent/increment-60g-default-signed-verilog -> origin/agent/increment-60g-default-signed-verilog
+2026-09-19T17:05:58.0224414Z  * [new branch]          agent/increment-61-closure-scratch -> origin/agent/increment-61-closure-scratch
+2026-09-19T17:05:58.0226696Z  * [new branch]          agent/increment-61-controller -> origin/agent/increment-61-controller
+2026-09-19T17:05:58.0229145Z  * [new branch]          agent/increment-61-full-regression -> origin/agent/increment-61-full-regression
+2026-09-19T17:05:58.0231663Z  * [new branch]          agent/increment-61-full-regression-v2 -> origin/agent/increment-61-full-regression-v2
+2026-09-19T17:05:58.0234392Z  * [new branch]          agent/increment-61-one-file-per-component -> origin/agent/increment-61-one-file-per-component
+2026-09-19T17:05:58.0237038Z  * [new branch]          agent/increment-61-regression-gate -> origin/agent/increment-61-regression-gate
+2026-09-19T17:05:58.0240184Z  * [new branch]          agent/increment-61-regression-gate-active -> origin/agent/increment-61-regression-gate-active
+2026-09-19T17:05:58.0243064Z  * [new branch]          agent/increment-61-regression-gate-actual -> origin/agent/increment-61-regression-gate-actual
+2026-09-19T17:05:58.0245889Z  * [new branch]          agent/increment-61-regression-gate-final -> origin/agent/increment-61-regression-gate-final
+2026-09-19T17:05:58.0248850Z  * [new branch]          agent/increment-61-regression-gate-final2 -> origin/agent/increment-61-regression-gate-final2
+2026-09-19T17:05:58.0251598Z  * [new branch]          agent/increment-61-regression-gate-run -> origin/agent/increment-61-regression-gate-run
+2026-09-19T17:05:58.0254304Z  * [new branch]          agent/increment-61-regression-gate-test -> origin/agent/increment-61-regression-gate-test
+2026-09-19T17:05:58.0256972Z  * [new branch]          agent/increment-61-regression-gate-v2 -> origin/agent/increment-61-regression-gate-v2
+2026-09-19T17:05:58.0259751Z  * [new branch]          agent/increment-7-morph-verilog -> origin/agent/increment-7-morph-verilog
+2026-09-19T17:05:58.0262142Z  * [new branch]          agent/increment-8-integer-frontend -> origin/agent/increment-8-integer-frontend
+2026-09-19T17:05:58.0264582Z  * [new branch]          agent/increment-9-bool-generate-if -> origin/agent/increment-9-bool-generate-if
+2026-09-19T17:05:58.0267553Z  * [new branch]          agent/independent-parameter-domain-composition -> origin/agent/independent-parameter-domain-composition
+2026-09-19T17:05:58.0270426Z  * [new branch]          agent/lane-when-expression-inlining -> origin/agent/lane-when-expression-inlining
+2026-09-19T17:05:58.0273194Z  * [new branch]          agent/native-looking-spinal-library-roadmap -> origin/agent/native-looking-spinal-library-roadmap
+2026-09-19T17:05:58.0276485Z  * [new branch]          agent/native-spinal-source-preservation-roadmap -> origin/agent/native-spinal-source-preservation-roadmap
+2026-09-19T17:05:58.0279479Z  * [new branch]          agent/offline-toolchain-base -> origin/agent/offline-toolchain-base
+2026-09-19T17:05:58.0281681Z  * [new branch]          agent/offline-toolchain-export -> origin/agent/offline-toolchain-export
+2026-09-19T17:05:58.0284003Z  * [new branch]          agent/p1-ddr-read-rtl-01-toolchain -> origin/agent/p1-ddr-read-rtl-01-toolchain
+2026-09-19T17:05:58.0286235Z  * [new branch]          agent/push-display-axis-rtl -> origin/agent/push-display-axis-rtl
+2026-09-19T17:05:58.0288705Z  * [new branch]          agent/readability-passes-roadmap -> origin/agent/readability-passes-roadmap
+2026-09-19T17:05:58.0291546Z  * [new branch]          agent/roadmap-increment-45-native-mem-provenance -> origin/agent/roadmap-increment-45-native-mem-provenance
+2026-09-19T17:05:58.0294465Z  * [new branch]          agent/roadmap-parallel-dependencies -> origin/agent/roadmap-parallel-dependencies
+2026-09-19T17:05:58.0297165Z  * [new branch]          agent/roadmap-typed-elabint-architecture -> origin/agent/roadmap-typed-elabint-architecture
+2026-09-19T17:05:58.0300323Z  * [new branch]          agent/roadmap-typed-elabint-architecture-v2 -> origin/agent/roadmap-typed-elabint-architecture-v2
+2026-09-19T17:05:58.0303300Z  * [new branch]          agent/roadmap-typed-elabint-architecture-v3 -> origin/agent/roadmap-typed-elabint-architecture-v3
+2026-09-19T17:05:58.0306306Z  * [new branch]          agent/roadmap-typed-elabint-architecture-v4 -> origin/agent/roadmap-typed-elabint-architecture-v4
+2026-09-19T17:05:58.0309145Z  * [new branch]          agent/rtl-p1-01-source-archive-temp -> origin/agent/rtl-p1-01-source-archive-temp
+2026-09-19T17:05:58.0311523Z  * [new branch]          agent/rtl-p1-01-toolchain-export -> origin/agent/rtl-p1-01-toolchain-export
+2026-09-19T17:05:58.0313948Z  * [new branch]          agent/rtl-p1-02-offline-cad-tools-v2 -> origin/agent/rtl-p1-02-offline-cad-tools-v2
+2026-09-19T17:05:58.0316378Z  * [new branch]          agent/rtl-p1-02-offline-toolchain -> origin/agent/rtl-p1-02-offline-toolchain
+2026-09-19T17:05:58.0319179Z  * [new branch]          agent/rtl-p1-02-toolchain-export -> origin/agent/rtl-p1-02-toolchain-export
+2026-09-19T17:05:58.0321492Z  * [new branch]          agent/sync-wa-dependencies-pv55 -> origin/agent/sync-wa-dependencies-pv55
+2026-09-19T17:05:58.0324067Z  * [new branch]          agent/typed-elabint-architecture-roadmap -> origin/agent/typed-elabint-architecture-roadmap
+2026-09-19T17:05:58.0326501Z  * [new branch]          agent/typed-elabint-roadmap -> origin/agent/typed-elabint-roadmap
+2026-09-19T17:05:58.0328869Z  * [new branch]          agent/typed-elabint-roadmap-final -> origin/agent/typed-elabint-roadmap-final
+2026-09-19T17:05:58.0331335Z  * [new branch]          agent/typed-elabint-roadmap-final10 -> origin/agent/typed-elabint-roadmap-final10
+2026-09-19T17:05:58.0333816Z  * [new branch]          agent/typed-elabint-roadmap-final2 -> origin/agent/typed-elabint-roadmap-final2
+2026-09-19T17:05:58.0336265Z  * [new branch]          agent/typed-elabint-roadmap-final4 -> origin/agent/typed-elabint-roadmap-final4
+2026-09-19T17:05:58.0339005Z  * [new branch]          agent/typed-elabint-roadmap-final5 -> origin/agent/typed-elabint-roadmap-final5
+2026-09-19T17:05:58.0341470Z  * [new branch]          agent/typed-elabint-roadmap-final6 -> origin/agent/typed-elabint-roadmap-final6
+2026-09-19T17:05:58.0343923Z  * [new branch]          agent/typed-elabint-roadmap-final7 -> origin/agent/typed-elabint-roadmap-final7
+2026-09-19T17:05:58.0346363Z  * [new branch]          agent/typed-elabint-roadmap-final8 -> origin/agent/typed-elabint-roadmap-final8
+2026-09-19T17:05:58.0348946Z  * [new branch]          agent/typed-elabint-roadmap-final9 -> origin/agent/typed-elabint-roadmap-final9
+2026-09-19T17:05:58.0351289Z  * [new branch]          agent/typed-elabint-roadmap-v2 -> origin/agent/typed-elabint-roadmap-v2
+2026-09-19T17:05:58.0353949Z  * [new branch]          agent/typed-elaboration-roadmap-approved -> origin/agent/typed-elaboration-roadmap-approved
+2026-09-19T17:05:58.0356734Z  * [new branch]          agent/typed-elaboration-roadmap-pivot -> origin/agent/typed-elaboration-roadmap-pivot
+2026-09-19T17:05:58.0359861Z  * [new branch]          agent/update-ir-wire-assignment-pass-roadmap -> origin/agent/update-ir-wire-assignment-pass-roadmap
+2026-09-19T17:05:58.0362936Z  * [new branch]          agent/update-pv-roadmap-symbolic-control-flow -> origin/agent/update-pv-roadmap-symbolic-control-flow
+2026-09-19T17:05:58.0365800Z  * [new branch]          agent/wa-01-isolated-ir-pass-workspace -> origin/agent/wa-01-isolated-ir-pass-workspace
+2026-09-19T17:05:58.0368588Z  * [new branch]          agent/wa-01-post-merge-boundary-fix -> origin/agent/wa-01-post-merge-boundary-fix
+2026-09-19T17:05:58.0370958Z  * [new branch]          agent/wa-02-canonical-ir-adapter -> origin/agent/wa-02-canonical-ir-adapter
+2026-09-19T17:05:58.0373342Z  * [new branch]          agent/wa-03-alias-equivalence-gates -> origin/agent/wa-03-alias-equivalence-gates
+2026-09-19T17:05:58.0376049Z  * [new branch]          agent/wa-04-unnamed-simple-wire-elimination -> origin/agent/wa-04-unnamed-simple-wire-elimination
+2026-09-19T17:05:58.0379182Z  * [new branch]          agent/wa-05-named-simple-wire-elimination -> origin/agent/wa-05-named-simple-wire-elimination
+2026-09-19T17:05:58.0381622Z  * [new branch]          agent/wa-06-ordered-pipeline -> origin/agent/wa-06-ordered-pipeline
+2026-09-19T17:05:58.0384232Z  * [new branch]          agent/wa-06a-single-toggle-expression-inlining -> origin/agent/wa-06a-single-toggle-expression-inlining
+2026-09-19T17:05:58.0386890Z  * [new branch]          agent/wa-07-expression-inlining -> origin/agent/wa-07-expression-inlining
+2026-09-19T17:05:58.0389635Z  * [new branch]          agent/wa-07-unified-expression-alias-pass -> origin/agent/wa-07-unified-expression-alias-pass
+2026-09-19T17:05:58.0392416Z  * [new branch]          agent/wa-07-unified-expression-inlining -> origin/agent/wa-07-unified-expression-inlining
+2026-09-19T17:05:58.0394874Z  * [new branch]          agent/wa-07a-clock-model-stage -> origin/agent/wa-07a-clock-model-stage
+2026-09-19T17:05:58.0398008Z  * [new branch]          agent/wa-07a-constant-expression-simplification -> origin/agent/wa-07a-constant-expression-simplification
+2026-09-19T17:05:58.0400686Z  * [new branch]          agent/wa-07a-exact-head-audit -> origin/agent/wa-07a-exact-head-audit
+2026-09-19T17:05:58.0402872Z  * [new branch]          agent/wa-07a-fixture-order-stage -> origin/agent/wa-07a-fixture-order-stage
+2026-09-19T17:05:58.0405056Z  * [new branch]          agent/wa-07a-local-source-kit -> origin/agent/wa-07a-local-source-kit
+2026-09-19T17:05:58.0407291Z  * [new branch]          agent/wa-07a-proof-shard-objects -> origin/agent/wa-07a-proof-shard-objects
+2026-09-19T17:05:58.0409753Z  * [new branch]          agent/wa-07a-proof-shard-transfer -> origin/agent/wa-07a-proof-shard-transfer
+2026-09-19T17:05:58.0411991Z  * [new branch]          agent/wa-07a-runner-path-stage -> origin/agent/wa-07a-runner-path-stage
+2026-09-19T17:05:58.0414098Z  * [new branch]          agent/wa-07b-boolean-ternary -> origin/agent/wa-07b-boolean-ternary
+2026-09-19T17:05:58.0416230Z  * [new branch]          agent/wa-08-production-handoff -> origin/agent/wa-08-production-handoff
+2026-09-19T17:05:58.0418930Z  * [new branch]          agent/wa-08-production-named-alias-fix -> origin/agent/wa-08-production-named-alias-fix
+2026-09-19T17:05:58.0421761Z  * [new branch]          agent/wa-09-named-expression-name-preference -> origin/agent/wa-09-named-expression-name-preference
+2026-09-19T17:05:58.0424895Z  * [new branch]          agent/wa-10-general-expression-inlining -> origin/agent/wa-10-general-expression-inlining
+2026-09-19T17:05:58.0427609Z  * [new branch]          agent/wa-10-inherited-audit-timeout -> origin/agent/wa-10-inherited-audit-timeout
+2026-09-19T17:05:58.0430465Z  * [new branch]          agent/wa-11-symbolic-boolean-width-normalization -> origin/agent/wa-11-symbolic-boolean-width-normalization
+2026-09-19T17:05:58.0433547Z  * [new branch]          agent/wa-roadmap-dependency-sync-pv55 -> origin/agent/wa-roadmap-dependency-sync-pv55
+2026-09-19T17:05:58.0437095Z  * [new branch]          agent/wa-sequential-wire-consumers -> origin/agent/wa-sequential-wire-consumers
+2026-09-19T17:05:58.0439505Z  * [new branch]          analog_prune_fix           -> origin/analog_prune_fix
+2026-09-19T17:05:58.0441118Z  * [new branch]          async                      -> origin/async
+2026-09-19T17:05:58.0442663Z  * [new branch]          axistream-user             -> origin/axistream-user
+2026-09-19T17:05:58.0444260Z  * [new branch]          bmbl2cache                 -> origin/bmbl2cache
+2026-09-19T17:05:58.0445895Z  * [new branch]          cache_throttle             -> origin/cache_throttle
+2026-09-19T17:05:58.0447842Z  * [new branch]          commentRtlEntity           -> origin/commentRtlEntity
+2026-09-19T17:05:58.0449675Z  * [new branch]          compiler_plugin_2.12       -> origin/compiler_plugin_2.12
+2026-09-19T17:05:58.0451488Z  * [new branch]          contributor-guide          -> origin/contributor-guide
+2026-09-19T17:05:58.0453661Z  * [new branch]          copilot/fix-vllm-errors-running-model -> origin/copilot/fix-vllm-errors-running-model
+2026-09-19T17:05:58.0455740Z  * [new branch]          def_1.6.2                  -> origin/def_1.6.2
+2026-09-19T17:05:58.0457236Z  * [new branch]          dev                        -> origin/dev
+2026-09-19T17:05:58.0459723Z  * [new branch]          diagnostic/wa07a-original-abort-evidence-2581 -> origin/diagnostic/wa07a-original-abort-evidence-2581
+2026-09-19T17:05:58.0461988Z  * [new branch]          dma_fix                    -> origin/dma_fix
+2026-09-19T17:05:58.0464104Z  * [new branch]          fix/increment-48-custom-generate-labels -> origin/fix/increment-48-custom-generate-labels
+2026-09-19T17:05:58.0467019Z  * [new branch]          fix/increment-48-structured-conditional-chains -> origin/fix/increment-48-structured-conditional-chains
+2026-09-19T17:05:58.0470406Z  * [new branch]          fix/increment-53b-screaming-snake-enum-localparams -> origin/fix/increment-53b-screaming-snake-enum-localparams
+2026-09-19T17:05:58.0473837Z  * [new branch]          fix/increment-53b-uppercase-formal-equivalence -> origin/fix/increment-53b-uppercase-formal-equivalence
+2026-09-19T17:05:58.0476187Z  * [new branch]          gh-pages                   -> origin/gh-pages
+2026-09-19T17:05:58.0477930Z  * [new branch]          main                       -> origin/main
+2026-09-19T17:05:58.0479418Z  * [new branch]          master                     -> origin/master
+2026-09-19T17:05:58.0480932Z  * [new branch]          naxriscv                   -> origin/naxriscv
+2026-09-19T17:05:58.0482661Z  * [new branch]          parameterized-verilog      -> origin/parameterized-verilog
+2026-09-19T17:05:58.0484348Z  * [new branch]          pcie                       -> origin/pcie
+2026-09-19T17:05:58.0486501Z  * [new branch]          recovery/increment-59i-59g-report-c74b34bb -> origin/recovery/increment-59i-59g-report-c74b34bb
+2026-09-19T17:05:58.0489455Z  * [new branch]          recovery/increment-59i-59g-report-objects -> origin/recovery/increment-59i-59g-report-objects
+2026-09-19T17:05:58.0492214Z  * [new branch]          recovery/increment-59i-60f-gates-90b7fc8f -> origin/recovery/increment-59i-60f-gates-90b7fc8f
+2026-09-19T17:05:58.0494943Z  * [new branch]          recovery/increment-59i-60f-gates-objects -> origin/recovery/increment-59i-60f-gates-objects
+2026-09-19T17:05:58.0498016Z  * [new branch]          recovery/increment-59i-archived-seal-7fa6daa6 -> origin/recovery/increment-59i-archived-seal-7fa6daa6
+2026-09-19T17:05:58.0500935Z  * [new branch]          recovery/increment-59i-audit-io-969af59a -> origin/recovery/increment-59i-audit-io-969af59a
+2026-09-19T17:05:58.0503638Z  * [new branch]          recovery/increment-59i-audit-io-objects -> origin/recovery/increment-59i-audit-io-objects
+2026-09-19T17:05:58.0506679Z  * [new branch]          recovery/increment-59i-audit-shards-37d1629f -> origin/recovery/increment-59i-audit-shards-37d1629f
+2026-09-19T17:05:58.0509801Z  * [new branch]          recovery/increment-59i-audit-shards-objects -> origin/recovery/increment-59i-audit-shards-objects
+2026-09-19T17:05:58.0512837Z  * [new branch]          recovery/increment-59i-failed-baseline-68e0edbe -> origin/recovery/increment-59i-failed-baseline-68e0edbe
+2026-09-19T17:05:58.0515876Z  * [new branch]          recovery/increment-59i-failed-first-ddf61ef2 -> origin/recovery/increment-59i-failed-first-ddf61ef2
+2026-09-19T17:05:58.0518939Z  * [new branch]          recovery/increment-59i-history-20260914 -> origin/recovery/increment-59i-history-20260914
+2026-09-19T17:05:58.0521673Z  * [new branch]          recovery/increment-59i-pr189-sync-f4264188 -> origin/recovery/increment-59i-pr189-sync-f4264188
+2026-09-19T17:05:58.0524456Z  * [new branch]          recovery/increment-59i-pr189-sync-objects -> origin/recovery/increment-59i-pr189-sync-objects
+2026-09-19T17:05:58.0527336Z  * [new branch]          recovery/increment-59i-prepared-tree-846c09a3 -> origin/recovery/increment-59i-prepared-tree-846c09a3
+2026-09-19T17:05:58.0530599Z  * [new branch]          recovery/increment-59i-reviewed-seal-14dc0d2b -> origin/recovery/increment-59i-reviewed-seal-14dc0d2b
+2026-09-19T17:05:58.0533572Z  * [new branch]          recovery/increment-59i-reviewed-seal-1541077c -> origin/recovery/increment-59i-reviewed-seal-1541077c
+2026-09-19T17:05:58.0536544Z  * [new branch]          recovery/increment-59i-reviewed-seal-d3a6c453 -> origin/recovery/increment-59i-reviewed-seal-d3a6c453
+2026-09-19T17:05:58.0539764Z  * [new branch]          recovery/increment-59i-reviewed-seal-f43100e4 -> origin/recovery/increment-59i-reviewed-seal-f43100e4
+2026-09-19T17:05:58.0542071Z  * [new branch]          rom-blackbox               -> origin/rom-blackbox
+2026-09-19T17:05:58.0543605Z  * [new branch]          scala3                     -> origin/scala3
+2026-09-19T17:05:58.0545089Z  * [new branch]          scala3-dev                 -> origin/scala3-dev
+2026-09-19T17:05:58.0546645Z  * [new branch]          scala_2.12                 -> origin/scala_2.12
+2026-09-19T17:05:58.0548539Z  * [new branch]          scala_2.12_dev             -> origin/scala_2.12_dev
+2026-09-19T17:05:58.0550133Z  * [new branch]          scala_2.13                 -> origin/scala_2.13
+2026-09-19T17:05:58.0551683Z  * [new branch]          scala_2.13_dev             -> origin/scala_2.13_dev
+2026-09-19T17:05:58.0553202Z  * [new branch]          snoopy                     -> origin/snoopy
+2026-09-19T17:05:58.0554687Z  * [new branch]          soc_fmax                   -> origin/soc_fmax
+2026-09-19T17:05:58.0556288Z  * [new branch]          switch_emit_rework         -> origin/switch_emit_rework
+2026-09-19T17:05:58.0558132Z  * [new branch]          tilelink                   -> origin/tilelink
+2026-09-19T17:05:58.0560350Z  * [new branch]          validation/display-controller-p1-sanity-00 -> origin/validation/display-controller-p1-sanity-00
+2026-09-19T17:05:58.0563368Z  * [new branch]          validation/display-controller-p1-sanity-ci-base -> origin/validation/display-controller-p1-sanity-ci-base
+2026-09-19T17:05:58.0565757Z  * [new branch]          virtual-thread             -> origin/virtual-thread
+2026-09-19T17:05:58.0568066Z  * [new branch]          wa06-generic-multi-driver-conflict-view -> origin/wa06-generic-multi-driver-conflict-view
+2026-09-19T17:05:58.0570323Z  * [new tag]             inc53d-typed-source-latest -> inc53d-typed-source-latest
+2026-09-19T17:05:58.0572127Z  * [new tag]             morphhdl-baseline-2026-08-12 -> morphhdl-baseline-2026-08-12
+2026-09-19T17:05:58.0573712Z  * [new tag]             v0.10.0                    -> v0.10.0
+2026-09-19T17:05:58.0574990Z  * [new tag]             v0.10.10                   -> v0.10.10
+2026-09-19T17:05:58.0576295Z  * [new tag]             v0.10.11                   -> v0.10.11
+2026-09-19T17:05:58.0577950Z  * [new tag]             v0.10.12                   -> v0.10.12
+2026-09-19T17:05:58.0579295Z  * [new tag]             v0.10.13                   -> v0.10.13
+2026-09-19T17:05:58.0580748Z  * [new tag]             v0.10.14                   -> v0.10.14
+2026-09-19T17:05:58.0582061Z  * [new tag]             v0.10.15                   -> v0.10.15
+2026-09-19T17:05:58.0583363Z  * [new tag]             v0.10.2                    -> v0.10.2
+2026-09-19T17:05:58.0584647Z  * [new tag]             v0.10.3                    -> v0.10.3
+2026-09-19T17:05:58.0585919Z  * [new tag]             v0.10.4                    -> v0.10.4
+2026-09-19T17:05:58.0587186Z  * [new tag]             v0.10.5                    -> v0.10.5
+2026-09-19T17:05:58.0588637Z  * [new tag]             v0.10.6                    -> v0.10.6
+2026-09-19T17:05:58.0589921Z  * [new tag]             v0.10.7                    -> v0.10.7
+2026-09-19T17:05:58.0591228Z  * [new tag]             v0.10.8                    -> v0.10.8
+2026-09-19T17:05:58.0592513Z  * [new tag]             v0.10.9                    -> v0.10.9
+2026-09-19T17:05:58.0593793Z  * [new tag]             v0.11.0                    -> v0.11.0
+2026-09-19T17:05:58.0595089Z  * [new tag]             v0.11.1                    -> v0.11.1
+2026-09-19T17:05:58.0596362Z  * [new tag]             v0.11.2                    -> v0.11.2
+2026-09-19T17:05:58.0597910Z  * [new tag]             v0.11.3                    -> v0.11.3
+2026-09-19T17:05:58.0599236Z  * [new tag]             v0.11.4                    -> v0.11.4
+2026-09-19T17:05:58.0600516Z  * [new tag]             v0.11.5                    -> v0.11.5
+2026-09-19T17:05:58.0601813Z  * [new tag]             v0.11.6                    -> v0.11.6
+2026-09-19T17:05:58.0603104Z  * [new tag]             v0.5.7                     -> v0.5.7
+2026-09-19T17:05:58.0604397Z  * [new tag]             v0.5.8                     -> v0.5.8
+2026-09-19T17:05:58.0605686Z  * [new tag]             v0.6.0                     -> v0.6.0
+2026-09-19T17:05:58.0606963Z  * [new tag]             v0.6.1                     -> v0.6.1
+2026-09-19T17:05:58.0608597Z  * [new tag]             v0.6.2                     -> v0.6.2
+2026-09-19T17:05:58.0609888Z  * [new tag]             v0.6.3                     -> v0.6.3
+2026-09-19T17:05:58.0611337Z  * [new tag]             v0.7.0                     -> v0.7.0
+2026-09-19T17:05:58.0612590Z  * [new tag]             v0.7.1                     -> v0.7.1
+2026-09-19T17:05:58.0613840Z  * [new tag]             v0.7.2                     -> v0.7.2
+2026-09-19T17:05:58.0615105Z  * [new tag]             v0.7.3                     -> v0.7.3
+2026-09-19T17:05:58.0616510Z  * [new tag]             v0.7.4                     -> v0.7.4
+2026-09-19T17:05:58.0618447Z  * [new tag]             v0.7.5                     -> v0.7.5
+2026-09-19T17:05:58.0619745Z  * [new tag]             v0.8.0                     -> v0.8.0
+2026-09-19T17:05:58.0621018Z  * [new tag]             v0.8.1                     -> v0.8.1
+2026-09-19T17:05:58.0622291Z  * [new tag]             v0.8.2                     -> v0.8.2
+2026-09-19T17:05:58.0623585Z  * [new tag]             v0.8.3                     -> v0.8.3
+2026-09-19T17:05:58.0624867Z  * [new tag]             v0.8.4                     -> v0.8.4
+2026-09-19T17:05:58.0626132Z  * [new tag]             v0.8.5                     -> v0.8.5
+2026-09-19T17:05:58.0627389Z  * [new tag]             v0.8.6                     -> v0.8.6
+2026-09-19T17:05:58.0628782Z  * [new tag]             v0.8.7                     -> v0.8.7
+2026-09-19T17:05:58.0630054Z  * [new tag]             v0.8.8                     -> v0.8.8
+2026-09-19T17:05:58.0631338Z  * [new tag]             v0.8.9                     -> v0.8.9
+2026-09-19T17:05:58.0632631Z  * [new tag]             v0.9.0                     -> v0.9.0
+2026-09-19T17:05:58.0633921Z  * [new tag]             v0.9.2                     -> v0.9.2
+2026-09-19T17:05:58.0635179Z  * [new tag]             v0.9.3                     -> v0.9.3
+2026-09-19T17:05:58.0636444Z  * [new tag]             v1.0.0                     -> v1.0.0
+2026-09-19T17:05:58.0637821Z  * [new tag]             v1.0.1                     -> v1.0.1
+2026-09-19T17:05:58.0639277Z  * [new tag]             v1.0.2                     -> v1.0.2
+2026-09-19T17:05:58.0640581Z  * [new tag]             v1.0.3                     -> v1.0.3
+2026-09-19T17:05:58.0641849Z  * [new tag]             v1.0.4                     -> v1.0.4
+2026-09-19T17:05:58.0643122Z  * [new tag]             v1.0.5                     -> v1.0.5
+2026-09-19T17:05:58.0644398Z  * [new tag]             v1.1.0                     -> v1.1.0
+2026-09-19T17:05:58.0645660Z  * [new tag]             v1.1.1                     -> v1.1.1
+2026-09-19T17:05:58.0646925Z  * [new tag]             v1.1.2                     -> v1.1.2
+2026-09-19T17:05:58.0648337Z  * [new tag]             v1.1.3                     -> v1.1.3
+2026-09-19T17:05:58.0649599Z  * [new tag]             v1.1.6                     -> v1.1.6
+2026-09-19T17:05:58.0651093Z  * [new tag]             v1.10.0                    -> v1.10.0
+2026-09-19T17:05:58.0652557Z  * [new tag]             v1.10.1                    -> v1.10.1
+2026-09-19T17:05:58.0653825Z  * [new tag]             v1.10.2                    -> v1.10.2
+2026-09-19T17:05:58.0655128Z  * [new tag]             v1.10.2a                   -> v1.10.2a
+2026-09-19T17:05:58.0656418Z  * [new tag]             v1.11.0                    -> v1.11.0
+2026-09-19T17:05:58.0657944Z  * [new tag]             v1.12.0                    -> v1.12.0
+2026-09-19T17:05:58.0659255Z  * [new tag]             v1.12.1                    -> v1.12.1
+2026-09-19T17:05:58.0660544Z  * [new tag]             v1.12.2                    -> v1.12.2
+2026-09-19T17:05:58.0661835Z  * [new tag]             v1.12.3                    -> v1.12.3
+2026-09-19T17:05:58.0663111Z  * [new tag]             v1.13.0                    -> v1.13.0
+2026-09-19T17:05:58.0664396Z  * [new tag]             v1.14.0                    -> v1.14.0
+2026-09-19T17:05:58.0665661Z  * [new tag]             v1.14.1                    -> v1.14.1
+2026-09-19T17:05:58.0666929Z  * [new tag]             v1.14.2                    -> v1.14.2
+2026-09-19T17:05:58.0668469Z  * [new tag]             v1.2.0                     -> v1.2.0
+2026-09-19T17:05:58.0669774Z  * [new tag]             v1.2.1                     -> v1.2.1
+2026-09-19T17:05:58.0671251Z  * [new tag]             v1.2.2                     -> v1.2.2
+2026-09-19T17:05:58.0672519Z  * [new tag]             v1.3.0                     -> v1.3.0
+2026-09-19T17:05:58.0673786Z  * [new tag]             v1.3.1                     -> v1.3.1
+2026-09-19T17:05:58.0675047Z  * [new tag]             v1.3.2                     -> v1.3.2
+2026-09-19T17:05:58.0676285Z  * [new tag]             v1.3.3                     -> v1.3.3
+2026-09-19T17:05:58.0677810Z  * [new tag]             v1.3.4                     -> v1.3.4
+2026-09-19T17:05:58.0679117Z  * [new tag]             v1.3.5                     -> v1.3.5
+2026-09-19T17:05:58.0680390Z  * [new tag]             v1.3.6                     -> v1.3.6
+2026-09-19T17:05:58.0681640Z  * [new tag]             v1.3.8                     -> v1.3.8
+2026-09-19T17:05:58.0682901Z  * [new tag]             v1.4.0                     -> v1.4.0
+2026-09-19T17:05:58.0684197Z  * [new tag]             v1.4.2                     -> v1.4.2
+2026-09-19T17:05:58.0685486Z  * [new tag]             v1.4.3                     -> v1.4.3
+2026-09-19T17:05:58.0686747Z  * [new tag]             v1.5.0                     -> v1.5.0
+2026-09-19T17:05:58.0688445Z  * [new tag]             v1.6.0                     -> v1.6.0
+2026-09-19T17:05:58.0689735Z  * [new tag]             v1.6.1                     -> v1.6.1
+2026-09-19T17:05:58.0691013Z  * [new tag]             v1.6.2                     -> v1.6.2
+2026-09-19T17:05:58.0692714Z  * [new tag]             v1.6.4                     -> v1.6.4
+2026-09-19T17:05:58.0694051Z  * [new tag]             v1.7.0                     -> v1.7.0
+2026-09-19T17:05:58.0695332Z  * [new tag]             v1.7.1                     -> v1.7.1
+2026-09-19T17:05:58.0696601Z  * [new tag]             v1.7.2                     -> v1.7.2
+2026-09-19T17:05:58.0698178Z  * [new tag]             v1.7.3                     -> v1.7.3
+2026-09-19T17:05:58.0699692Z  * [new tag]             v1.7.3a                    -> v1.7.3a
+2026-09-19T17:05:58.0700990Z  * [new tag]             v1.8.0                     -> v1.8.0
+2026-09-19T17:05:58.0702268Z  * [new tag]             v1.8.0a                    -> v1.8.0a
+2026-09-19T17:05:58.0703551Z  * [new tag]             v1.8.0b                    -> v1.8.0b
+2026-09-19T17:05:58.0704812Z  * [new tag]             v1.8.1                     -> v1.8.1
+2026-09-19T17:05:58.0706121Z  * [new tag]             v1.8.1a                    -> v1.8.1a
+2026-09-19T17:05:58.0707377Z  * [new tag]             v1.8.2                     -> v1.8.2
+2026-09-19T17:05:58.0708801Z  * [new tag]             v1.9.0                     -> v1.9.0
+2026-09-19T17:05:58.0710091Z  * [new tag]             v1.9.1                     -> v1.9.1
+2026-09-19T17:05:58.0711355Z  * [new tag]             v1.9.2                     -> v1.9.2
+2026-09-19T17:05:58.0712632Z  * [new tag]             v1.9.3                     -> v1.9.3
+2026-09-19T17:05:58.0713916Z  * [new tag]             v1.9.4                     -> v1.9.4
+2026-09-19T17:05:58.0716885Z [command]/usr/bin/git branch --list --remote origin/recovery/increment-59i-history-20260914
+2026-09-19T17:05:58.0718858Z   origin/recovery/increment-59i-history-20260914
+2026-09-19T17:05:58.0721613Z [command]/usr/bin/git rev-parse refs/remotes/origin/recovery/increment-59i-history-20260914
+2026-09-19T17:05:58.0723297Z c6a01884b49370d9be66fafb87b6c0b7db06a360
+2026-09-19T17:05:58.0725803Z ##[endgroup]
+2026-09-19T17:05:58.0727090Z ##[group]Determining the checkout info
+2026-09-19T17:05:58.0729197Z ##[endgroup]
+2026-09-19T17:05:58.0730088Z [command]/usr/bin/git sparse-checkout disable
+2026-09-19T17:05:58.0732826Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-09-19T17:05:58.0735749Z ##[group]Checking out the ref
+2026-09-19T17:05:58.0738746Z [command]/usr/bin/git checkout --progress --force -B recovery/increment-59i-history-20260914 refs/remotes/origin/recovery/increment-59i-history-20260914
+2026-09-19T17:05:58.1844369Z Switched to a new branch 'recovery/increment-59i-history-20260914'
+2026-09-19T17:05:58.1849373Z branch 'recovery/increment-59i-history-20260914' set up to track 'origin/recovery/increment-59i-history-20260914'.
+2026-09-19T17:05:58.1873700Z ##[endgroup]
+2026-09-19T17:05:58.1928568Z [command]/usr/bin/git log -1 --format=%H
+2026-09-19T17:05:58.1957022Z c6a01884b49370d9be66fafb87b6c0b7db06a360
+2026-09-19T17:05:58.1966067Z ##[group]Removing auth
+2026-09-19T17:05:58.1970440Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-19T17:05:58.2004202Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-19T17:05:58.2230857Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-19T17:05:58.2261347Z http.https://github.com/.extraheader
+2026-09-19T17:05:58.2270281Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-09-19T17:05:58.2309271Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-19T17:05:58.2544158Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-19T17:05:58.2583837Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-19T17:05:58.2826587Z ##[endgroup]
+2026-09-19T17:05:58.3029474Z ##[group]Run set -euo pipefail
+2026-09-19T17:05:58.3029967Z [36;1mset -euo pipefail[0m
+2026-09-19T17:05:58.3030511Z [36;1mpython3 -B .github/recovery/59i-local-enable-publication/stage.py prepare \[0m
+2026-09-19T17:05:58.3031076Z [36;1m  --repository "$GITHUB_WORKSPACE" \[0m
+2026-09-19T17:05:58.3031568Z [36;1m  --destination "$RUNNER_TEMP/59i-exact-publication-source" \[0m
+2026-09-19T17:05:58.3032085Z [36;1m  --output "$GITHUB_WORKSPACE/59i-staging-evidence"[0m
+2026-09-19T17:05:58.3073301Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-09-19T17:05:58.3073754Z env:
+2026-09-19T17:05:58.3074035Z   PYTHONDONTWRITEBYTECODE: 1
+2026-09-19T17:05:58.3076975Z   GH_TOKEN: ***
+2026-09-19T17:05:58.3077270Z ##[endgroup]
+2026-09-19T17:06:54.0306656Z Traceback (most recent call last):
+2026-09-19T17:06:54.0309725Z   File "/home/runner/work/MorphHDL/MorphHDL/.github/recovery/59i-local-enable-publication/stage.py", line 405, in <module>
+2026-09-19T17:06:54.0319085Z     main()
+2026-09-19T17:06:54.0320057Z   File "/home/runner/work/MorphHDL/MorphHDL/.github/recovery/59i-local-enable-publication/stage.py", line 397, in main
+2026-09-19T17:06:54.0321049Z     prepare(root, out, value, remote)
+2026-09-19T17:06:54.0322012Z   File "/home/runner/work/MorphHDL/MorphHDL/.github/recovery/59i-local-enable-publication/stage.py", line 295, in prepare
+2026-09-19T17:06:54.0322973Z     remote.identity(BASE)
+2026-09-19T17:06:54.0323890Z   File "/home/runner/work/MorphHDL/MorphHDL/.github/recovery/59i-local-enable-publication/stage.py", line 196, in identity
+2026-09-19T17:06:54.0325262Z     require(self.api('GET', '/git/ref/heads/' + TARGET_BRANCH)['object']['sha'] == TARGET, 'target changed')
+2026-09-19T17:06:54.0326661Z   File "/home/runner/work/MorphHDL/MorphHDL/.github/recovery/59i-local-enable-publication/stage.py", line 67, in require
+2026-09-19T17:06:54.0328090Z     raise RuntimeError('59i exact publication: ' + why)
+2026-09-19T17:06:54.0328822Z RuntimeError: 59i exact publication: target changed
+2026-09-19T17:06:54.0484524Z ##[error]Process completed with exit code 1.
+2026-09-19T17:06:54.0588985Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-09-19T17:06:54.0590841Z ##[group]Run actions/upload-artifact@v4
+2026-09-19T17:06:54.0591394Z with:
+2026-09-19T17:06:54.0591691Z   name: increment-59i-local-enable-source-and-tree-requests-1
+2026-09-19T17:06:54.0592066Z   path: 59i-staging-evidence/
+2026-09-19T17:06:54.0592326Z   if-no-files-found: error
+2026-09-19T17:06:54.0592561Z   retention-days: 21
+2026-09-19T17:06:54.0592784Z   compression-level: 6
+2026-09-19T17:06:54.0593003Z   overwrite: false
+2026-09-19T17:06:54.0593223Z   include-hidden-files: false
+2026-09-19T17:06:54.0593467Z env:
+2026-09-19T17:06:54.0593668Z   PYTHONDONTWRITEBYTECODE: 1
+2026-09-19T17:06:54.0596352Z   GH_TOKEN: ***
+2026-09-19T17:06:54.0596603Z ##[endgroup]
+2026-09-19T17:06:54.2265054Z (node:15365) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-09-19T17:06:54.2266831Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-09-19T17:06:54.2326704Z With the provided path, there will be 3 files uploaded
+2026-09-19T17:06:54.2335888Z Artifact name is valid!
+2026-09-19T17:06:54.2336597Z Root directory input is valid!
+2026-09-19T17:06:54.4290844Z Beginning upload of artifact content to blob storage
+2026-09-19T17:06:54.4592493Z (node:15365) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-09-19T17:06:54.5212101Z Uploaded bytes 204048
+2026-09-19T17:06:54.5410389Z Finished uploading artifact content to blob storage!
+2026-09-19T17:06:54.5411264Z SHA256 digest of uploaded artifact zip is e684c9e1468ca59ea72fd80a0fdcbddd1d8ced6865c1a5ea24ea57382c515029
+2026-09-19T17:06:54.5413079Z Finalizing artifact upload
+2026-09-19T17:06:54.7414823Z Artifact increment-59i-local-enable-source-and-tree-requests-1.zip successfully finalized. Artifact ID 10587729745
+2026-09-19T17:06:54.7417032Z Artifact increment-59i-local-enable-source-and-tree-requests-1 has been successfully uploaded! Final size is 204048 bytes. Artifact ID is 10587729745
+2026-09-19T17:06:54.7423393Z Artifact download URL: https://github.com/pysolvesemi/MorphHDL/actions/runs/35456999564/artifacts/10587729745
+2026-09-19T17:06:54.7587291Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-09-19T17:06:54.7589441Z ##[group]Run actions/upload-artifact@v4
+2026-09-19T17:06:54.7589726Z with:
+2026-09-19T17:06:54.7590003Z   name: increment-59i-local-enable-exact-commit-staging-1
+2026-09-19T17:06:54.7590363Z   path: 59i-staging-evidence/
+2026-09-19T17:06:54.7590618Z   if-no-files-found: error
+2026-09-19T17:06:54.7590853Z   retention-days: 21
+2026-09-19T17:06:54.7591075Z   compression-level: 6
+2026-09-19T17:06:54.7591291Z   overwrite: false
+2026-09-19T17:06:54.7591514Z   include-hidden-files: false
+2026-09-19T17:06:54.7591767Z env:
+2026-09-19T17:06:54.7591965Z   PYTHONDONTWRITEBYTECODE: 1
+2026-09-19T17:06:54.7594607Z   GH_TOKEN: ***
+2026-09-19T17:06:54.7594856Z ##[endgroup]
+2026-09-19T17:06:54.9206718Z (node:15377) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-09-19T17:06:54.9207598Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-09-19T17:06:54.9278222Z With the provided path, there will be 3 files uploaded
+2026-09-19T17:06:54.9279118Z Artifact name is valid!
+2026-09-19T17:06:54.9279528Z Root directory input is valid!
+2026-09-19T17:06:55.1075193Z Beginning upload of artifact content to blob storage
+2026-09-19T17:06:55.1409853Z (node:15377) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-09-19T17:06:55.1987629Z Uploaded bytes 204048
+2026-09-19T17:06:55.2171212Z Finished uploading artifact content to blob storage!
+2026-09-19T17:06:55.2172770Z SHA256 digest of uploaded artifact zip is bde408e27c2c28f650be95602c0e9fe1e30bdfa278dbf7b7bea1c8f0f57cbf71
+2026-09-19T17:06:55.2174341Z Finalizing artifact upload
+2026-09-19T17:06:55.4370418Z Artifact increment-59i-local-enable-exact-commit-staging-1.zip successfully finalized. Artifact ID 10587659922
+2026-09-19T17:06:55.4372082Z Artifact increment-59i-local-enable-exact-commit-staging-1 has been successfully uploaded! Final size is 204048 bytes. Artifact ID is 10587659922
+2026-09-19T17:06:55.4377589Z Artifact download URL: https://github.com/pysolvesemi/MorphHDL/actions/runs/35456999564/artifacts/10587659922
+2026-09-19T17:06:55.4529320Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-09-19T17:06:55.4530678Z ##[group]Run actions/upload-artifact@v4
+2026-09-19T17:06:55.4530956Z with:
+2026-09-19T17:06:55.4531245Z   name: increment-59i-local-enable-failed-first-dispatch-1
+2026-09-19T17:06:55.4531608Z   path: 59i-staging-evidence/
+2026-09-19T17:06:55.4531869Z   if-no-files-found: error
+2026-09-19T17:06:55.4532127Z   retention-days: 21
+2026-09-19T17:06:55.4532354Z   compression-level: 6
+2026-09-19T17:06:55.4532575Z   overwrite: false
+2026-09-19T17:06:55.4532804Z   include-hidden-files: false
+2026-09-19T17:06:55.4533042Z env:
+2026-09-19T17:06:55.4533249Z   PYTHONDONTWRITEBYTECODE: 1
+2026-09-19T17:06:55.4535936Z   GH_TOKEN: ***
+2026-09-19T17:06:55.4536195Z ##[endgroup]
+2026-09-19T17:06:55.6199234Z (node:15389) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-09-19T17:06:55.6200568Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-09-19T17:06:55.6338622Z With the provided path, there will be 3 files uploaded
+2026-09-19T17:06:55.6378613Z Artifact name is valid!
+2026-09-19T17:06:55.6379297Z Root directory input is valid!
+2026-09-19T17:06:55.8220973Z Beginning upload of artifact content to blob storage
+2026-09-19T17:06:55.8538024Z (node:15389) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-09-19T17:06:55.9128995Z Uploaded bytes 204048
+2026-09-19T17:06:55.9310069Z Finished uploading artifact content to blob storage!
+2026-09-19T17:06:55.9310959Z SHA256 digest of uploaded artifact zip is e684c9e1468ca59ea72fd80a0fdcbddd1d8ced6865c1a5ea24ea57382c515029
+2026-09-19T17:06:55.9312798Z Finalizing artifact upload
+2026-09-19T17:06:56.1441029Z Artifact increment-59i-local-enable-failed-first-dispatch-1.zip successfully finalized. Artifact ID 10587774818
+2026-09-19T17:06:56.1442557Z Artifact increment-59i-local-enable-failed-first-dispatch-1 has been successfully uploaded! Final size is 204048 bytes. Artifact ID is 10587774818
+2026-09-19T17:06:56.1447902Z Artifact download URL: https://github.com/pysolvesemi/MorphHDL/actions/runs/35456999564/artifacts/10587774818
+2026-09-19T17:06:56.1635509Z Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+2026-09-19T17:06:56.1636793Z Post job cleanup.
+2026-09-19T17:06:56.2498248Z [command]/usr/bin/git version
+2026-09-19T17:06:56.2531456Z git version 2.55.0
+2026-09-19T17:06:56.2569541Z Temporarily overriding HOME='/home/runner/work/_temp/eb8363f2-0312-46bb-9d7f-421d9bd8c5e9' before making global git config changes
+2026-09-19T17:06:56.2571087Z Adding repository directory to the temporary git global config as a safe directory
+2026-09-19T17:06:56.2575072Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/MorphHDL/MorphHDL
+2026-09-19T17:06:56.2616779Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-09-19T17:06:56.2654217Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-09-19T17:06:56.2960583Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-09-19T17:06:56.2998234Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-09-19T17:06:56.3258172Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-09-19T17:06:56.3296178Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-09-19T17:06:56.3732637Z Cleaning up orphan processes
+2026-09-19T17:06:56.4192974Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

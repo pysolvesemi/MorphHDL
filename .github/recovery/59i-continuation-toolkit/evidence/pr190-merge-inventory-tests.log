@@ -1,0 +1,35 @@
+test_contract_hash_and_complete_inventory (__main__.Preservation.test_contract_hash_and_complete_inventory) ... ok
+test_exact_historical_cases_come_from_immutable_source (__main__.Preservation.test_exact_historical_cases_come_from_immutable_source) ... ok
+test_missing_historical_aggregation_rejected (__main__.Preservation.test_missing_historical_aggregation_rejected) ... ok
+test_no_module_cache_may_cache_authorization (__main__.Preservation.test_no_module_cache_may_cache_authorization) ... ok
+test_original_historical_catalog_is_unchanged (__main__.Preservation.test_original_historical_catalog_is_unchanged) ... ok
+test_original_lexical_case_is_restored_byte_for_byte (__main__.Preservation.test_original_lexical_case_is_restored_byte_for_byte) ... ok
+test_source_checked_before_reading_contract_or_reports (__main__.Preservation.test_source_checked_before_reading_contract_or_reports) ... ok
+test_test_payloads_remain_pinned (__main__.Preservation.test_test_payloads_remain_pinned) ... ok
+test_duplicate_suite (__main__.Reports.test_duplicate_suite) ... ok
+test_exact_positive_and_negative_cases (__main__.Reports.test_exact_positive_and_negative_cases) ... ok
+test_foreign_suite (__main__.Reports.test_foreign_suite) ... ok
+test_hidden_error_node (__main__.Reports.test_hidden_error_node) ... ok
+test_hidden_failure_node (__main__.Reports.test_hidden_failure_node) ... ok
+test_hidden_skipped_node (__main__.Reports.test_hidden_skipped_node) ... ok
+test_inconsistent_count (__main__.Reports.test_inconsistent_count) ... ok
+test_linked_report (__main__.Reports.test_linked_report) ... ok
+test_linked_report_parent (__main__.Reports.test_linked_report_parent) ... ok
+test_malformed_xml (__main__.Reports.test_malformed_xml) ... ok
+test_missing_case (__main__.Reports.test_missing_case) ... ok
+test_missing_status (__main__.Reports.test_missing_status) ... ok
+test_missing_suite (__main__.Reports.test_missing_suite) ... ok
+test_same_count_duplicate_case (__main__.Reports.test_same_count_duplicate_case) ... ok
+test_same_count_renamed_case (__main__.Reports.test_same_count_renamed_case) ... ok
+test_suite_error (__main__.Reports.test_suite_error) ... ok
+test_suite_failure (__main__.Reports.test_suite_failure) ... ok
+test_suite_skip (__main__.Reports.test_suite_skip) ... ok
+test_unexpected_case (__main__.Reports.test_unexpected_case) ... ok
+test_wrong_filename (__main__.Reports.test_wrong_filename) ... ok
+test_wrong_owner (__main__.Reports.test_wrong_owner) ... ok
+test_xml_entity (__main__.Reports.test_xml_entity) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 0.043s
+
+OK

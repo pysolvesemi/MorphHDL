@@ -1,5 +1,18 @@
 # Active Increment 59i continuation
 
+## Active PR190 integration (supersedes all older active-run directives)
+
+Read `59i-pr190-resume.md` first. The live target moved to PR190 merge4b8a86e2
+while PR177 metadata still reported e0e9. Staging35456999564 stopped at its
+unchanged target guard before sourcegates/publication. The integrated WIP is
+ccec54986c70077e361f291cd322f0aa547aee15,tree daa5f39b8f6f94a89073f0fad5a160b69df3ebc5,
+ordered parents58fb59773 and4b8a86e2. Source remains UNSEALED. Local exact runtime
+merge review and30inventory controls passed; expected2307cases/230suites.
+New diagnosticcontroller `controller-development-pr190-v1` preserves42commits
+andpassed cleanreconstruction plusfour negative identitycontrols. Its runtime
+CI and the new target/source review still need completion. Do not rerun stale
+staging or relabel prior diagnostic results as qualification of the new merge.
+
 ## Current publication checkpoint (supersedes older active-run entries)
 
 Fresh run35449602915 passed both Scala lanes and its actual artifacts passed

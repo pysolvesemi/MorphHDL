@@ -1,0 +1,14 @@
+{
+  "scope": "local controller reconstruction and rejection checks only",
+  "source": "ccec54986c70077e361f291cd322f0aa547aee15",
+  "tree": "daa5f39b8f6f94a89073f0fad5a160b69df3ebc5",
+  "preserved_commits": 42,
+  "positive": true,
+  "rejected": [
+    "wrong_target",
+    "wrong_preserved_tree",
+    "wrong_common",
+    "missing_history"
+  ],
+  "runtime_executed": false
+}

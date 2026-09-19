@@ -2,8 +2,8 @@
   {
     "local": "59i-current-state.md",
     "remote": ".github/recovery/59i-continuation-toolkit/59i-current-state.md",
-    "bytes": 22436,
-    "sha256": "0ae7634dd789fc1a0a124747d120bfe84e1e6c83fe357b2283139f91f63d6b6e"
+    "bytes": 23301,
+    "sha256": "0b1d0e4ef9a40f45382ec2b6506d2b12312554805cfb1c8f9e67352eab63bac1"
   },
   {
     "local": "59i-finite-state-proof-soundness-review.md",
@@ -16,6 +16,12 @@
     "remote": ".github/recovery/59i-continuation-toolkit/59i-full-ci-workflow-map.json",
     "bytes": 80304,
     "sha256": "c43c60b51cfaaa9feea7a936a129f8870b55f618d5d6d92377ea99d9035cf4ca"
+  },
+  {
+    "local": "59i-pr190-resume.md",
+    "remote": ".github/recovery/59i-continuation-toolkit/59i-pr190-resume.md",
+    "bytes": 5211,
+    "sha256": "bf8724989b5a31f6d23085a70918ea394a95f46c26bbbfd62155375d85054f55"
   },
   {
     "local": "59i-publication-resume.md",
@@ -54,6 +60,12 @@
     "sha256": "86bec41963814bac0b15f09432d0daaa1d1479286c877bd7696836f9a3011e89"
   },
   {
+    "local": "build-local-enable-pr190-diagnostic.py",
+    "remote": ".github/recovery/59i-continuation-toolkit/build-local-enable-pr190-diagnostic.py",
+    "bytes": 8006,
+    "sha256": "5b9234aeedab502fbafe597c09e3feb594da1f244b17b8a761bea94dab363fe2"
+  },
+  {
     "local": "build-local-enable-seal.py",
     "remote": ".github/recovery/59i-continuation-toolkit/build-local-enable-seal.py",
     "bytes": 14190,
@@ -88,6 +100,30 @@
     "remote": ".github/recovery/59i-continuation-toolkit/controller-checker-diagnostic-v3-templates/probe.yml",
     "bytes": 3866,
     "sha256": "16740574f18a93e0f429ac5d51eb2c5582c1a1e7ce2e103230923af399491d69"
+  },
+  {
+    "local": "controller-development-pr190-templates/expected-suites.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/controller-development-pr190-templates/expected-suites.json",
+    "bytes": 11954,
+    "sha256": "59462b16fd5b9281167140c229254b4e294ccd2015f4986b717fb62950fbc2d1"
+  },
+  {
+    "local": "controller-development-pr190-templates/prepare.py",
+    "remote": ".github/recovery/59i-continuation-toolkit/controller-development-pr190-templates/prepare.py",
+    "bytes": 8646,
+    "sha256": "176a0ac9fc28c22cd3c917b73e47a3b425af9d82f6672c5dad35c16fc97476e5"
+  },
+  {
+    "local": "controller-development-pr190-templates/probe.yml",
+    "remote": ".github/recovery/59i-continuation-toolkit/controller-development-pr190-templates/probe.yml",
+    "bytes": 7138,
+    "sha256": "aaa3f632d7a1a5d60587c74b1ec1aa8670fbf217701d7449fdb993656c62b0af"
+  },
+  {
+    "local": "controller-development-pr190-templates/retain.py",
+    "remote": ".github/recovery/59i-continuation-toolkit/controller-development-pr190-templates/retain.py",
+    "bytes": 7220,
+    "sha256": "e23a3d29d75cdc14ae6b7c71a3a1b747dedae352065e232ae2610f893e09e2ca"
   },
   {
     "local": "controller-development-v3/expected-suites.json",
@@ -144,10 +180,22 @@
     "sha256": "74f18addc5bfa520093ad5562b0068a69c5d4b80c30ca6584baf969ed75fa4eb"
   },
   {
+    "local": "evidence/59i-publication-c6a01884-job.log",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/59i-publication-c6a01884-job.log",
+    "bytes": 83463,
+    "sha256": "f0e2f83d064567dceb7f8eca5ff3dd167b7ccb6c813991a84288f5dc68ddc799"
+  },
+  {
     "local": "evidence/59i-publication-restoration-smoke/reconstruction.json",
     "remote": ".github/recovery/59i-continuation-toolkit/evidence/59i-publication-restoration-smoke/reconstruction.json",
     "bytes": 822,
     "sha256": "3f9d4b8831dc0fa69d1d9af13e751d918fc65f909b56b8bfdf0b9c77f974e6c0"
+  },
+  {
+    "local": "evidence/59i-publication-target-moved-verification.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/59i-publication-target-moved-verification.json",
+    "bytes": 1265,
+    "sha256": "23ce14100962584700551f4a3730e24fa0679e59655da83dc5e6366039ac47e3"
   },
   {
     "local": "evidence/6a858-checker-failed-verification.json",
@@ -172,6 +220,24 @@
     "remote": ".github/recovery/59i-continuation-toolkit/evidence/finite-verifier-schema-negative-checks.json",
     "bytes": 690,
     "sha256": "0aaf0b553240295ca60df334c0d91dd6c915d1ab8000c45f482e9546c19ea7b8"
+  },
+  {
+    "local": "evidence/pr190-diagnostic-controller-review.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/pr190-diagnostic-controller-review.json",
+    "bytes": 372,
+    "sha256": "b8f5194a9dd666b6a90fa984b367a25ce5814dbef8c6799f56196a616f9f4691"
+  },
+  {
+    "local": "evidence/pr190-merge-inventory-tests.log",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/pr190-merge-inventory-tests.log",
+    "bytes": 2633,
+    "sha256": "2e861a8c58762e0ae119336820013ce07a7a233e0794609a6762fa2d9176a348"
+  },
+  {
+    "local": "evidence/pr190-merge-runtime-review.json",
+    "remote": ".github/recovery/59i-continuation-toolkit/evidence/pr190-merge-runtime-review.json",
+    "bytes": 257615,
+    "sha256": "4b921e9f0a9a2410afa43efef9f0b202868ac3861d9726acb4af790d2fbb71ca"
   },
   {
     "local": "full-ci-controller/REVIEW.md",
@@ -334,5 +400,11 @@
     "remote": ".github/recovery/59i-continuation-toolkit/verify-local-enable-diagnostic.py",
     "bytes": 36501,
     "sha256": "e9b3192985bf2d7b1309036252b5842eb397253d2a08e225f7a5b5bc8c9d1759"
+  },
+  {
+    "local": "verify-local-enable-pr190-diagnostic.py",
+    "remote": ".github/recovery/59i-continuation-toolkit/verify-local-enable-pr190-diagnostic.py",
+    "bytes": 4620,
+    "sha256": "d750015681e9da6671fce4ec0f0a898898eaa2d8a28f8d2a2959b856cc0915b4"
   }
 ]
