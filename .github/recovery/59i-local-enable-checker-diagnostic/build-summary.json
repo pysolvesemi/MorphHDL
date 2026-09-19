@@ -1,7 +1,7 @@
 {
-  "head": "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
-  "tree": "4ade045ae6d8debdf933a1d965a934a686276e6e",
-  "parent": "6a858ead678f7ec96e9a421f2b4551bcd62d65d9",
+  "head": "545134a42dd200c5cee679db5dde0fea0acb15c9",
+  "tree": "cab84063b2933dd146f2b5ff37aab42f7ea0b191",
+  "parent": "86f6e3d9c7c4dfbd629533668a6f5dfe296bf602",
   "source_sealed": false,
   "qualification": false,
   "full_ci": false,
@@ -11,34 +11,46 @@
     "2.12.18",
     "2.13.12"
   ],
-  "preserved_commits": 10,
+  "preserved_commits": 11,
   "changed_paths": 33,
-  "bundle_bytes": 109638,
-  "payload_bytes": 144784,
+  "bundle_bytes": 113996,
+  "payload_bytes": 150632,
   "publish_files": [
     "probe.yml",
     "prepare.py",
     "checker.py",
     "verify-local-enable-diagnostic.py",
     "RESUME.md",
+    "payload.json",
+    "checker-config.json",
+    "build-summary.json",
     "input-controller/payload.json",
     "input-controller/expected-suites.json",
     "part-01.b64",
     "part-02.b64",
     "part-03.b64",
-    "part-04.b64",
-    "payload.json",
-    "checker-config.json",
-    "build-summary.json"
+    "part-04.b64"
   ],
-  "bundle_sha256": "d2d99ac7f0d7d984e14074702117c33a4bf08c680c44554d6a766f0b676d924a",
-  "compressed_sha256": "c39092c056610b52904ba1d19426a1e8580766156135a71d0328c965db25b17b",
+  "bundle_sha256": "65c033ddfbcad4583c664c38aae3f14e2215ea25d08818a1029752ad76e25105",
+  "compressed_sha256": "2bcac920ba36d9f7698c2fe5d5f6cee4186fd512b2eb4d97949db9ec71ddd3cf",
   "scope": "retained-rtl-checker-diagnostic",
   "checker_hashes": {
-    "morphhdl/scripts/check-increment-59i-composite-local-enable.py": "b41a076012e91c4a95829dabd2db84fe617be9416d36246faf4aba1e7461b8b7",
+    "morphhdl/scripts/check-increment-59i-composite-local-enable.py": "e522d80a10040cc59e9c484e56573b15b85ff8d4041b4fe62d4720cf0b6f3a40",
     "morphhdl/scripts/check-increment-59i-local-enable-combined.py": "0bba1edf5fbf070c55f943dcc28f38b433756d696d0d723a79df73ca3594909a",
     "morphhdl/scripts/check-increment-59i-local-enable-results.py": "b79689d0bf459c9348253dbb7714ae01bed22e83caacf9c072ff99cc937c9397"
   },
+  "proof_helper": "prove_bit_equivalence",
+  "priority_evidence": [
+    "miter.v",
+    "state-extraction.ys",
+    "state-extraction.log",
+    "normalized-netlist.json",
+    "strengthened-netlist.json",
+    "state-correspondence.json",
+    "equivalence.ys",
+    "formal.log",
+    "finite-proof.json"
+  ],
   "emitted_rtl_source": "cb093b5aa235760f2c3149f4327324976aa0495b",
   "emitted_rtl_scala": "2.13.12",
   "input_artifact_id": 10583436619,
@@ -58,7 +70,7 @@
     "candidate_index": 0,
     "field": "unsigned",
     "bit": 0,
-    "previous_run": 35439523361
+    "previous_run": 35443564906
   },
   "remote_workflow": ".github/workflows/increment-59i-local-enable-checker-diagnostic.yml",
   "remote_directory": ".github/recovery/59i-local-enable-checker-diagnostic"

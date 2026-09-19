@@ -1,0 +1,26 @@
+{
+  "scope": "synthetic-schema-negative-checks-only",
+  "solver_executed": false,
+  "qualification": false,
+  "actual_original_cells": 657,
+  "actual_state_relations": 71,
+  "valid_schema_fixture_accepted": true,
+  "rejected_log_cases": [
+    "missing_last_base",
+    "duplicate_base",
+    "early_terminal",
+    "timeout_with_success_markers",
+    "skipped_base_with_success_markers",
+    "old_86f6_timeout"
+  ],
+  "rejected_graph_cases": [
+    "original_cell_modified",
+    "fresh_signal_alias",
+    "property_omits_original_bad",
+    "state_pair_omitted",
+    "state_pair_duplicated",
+    "pair_Q_rebound",
+    "independent_original_FF_init"
+  ],
+  "historical_timeout_promoted": false
+}

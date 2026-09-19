@@ -1,0 +1,19 @@
+{
+  "review_type": "independent structural and finite-semantics review; solver not run",
+  "checker_sha256_at_review": "aeb77f1a8288b396577e7bc84816274381a82235ed9cbb2081eed68aa77f1dbf",
+  "normalized_sha256": "96137a5ea6fa91d3202799da8ed988b2cb87c5c6d4d33c4e1cd5ed8c958aa8ab",
+  "original_cells": 657,
+  "registers": 142,
+  "state_pairs": 71,
+  "added_cells": 142,
+  "fresh_property_bits": [
+    899,
+    1040
+  ],
+  "original_netnames_max": 898,
+  "all_original_cells_inputs_preserved": true,
+  "exact_property_conjunction": true,
+  "fresh_bits_disjoint": true,
+  "introduced_register_init_rejected": true,
+  "initial_attributes": []
+}
