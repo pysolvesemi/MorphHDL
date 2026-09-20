@@ -57,6 +57,7 @@ REVIEW_PATHS = frozenset((
     'morphhdl/scripts/check-pr190-pr189-source-sync.py',
     'morphhdl/scripts/check-lane-when-source-scope.py',
     'morphhdl/scripts/check-cdc-wire-regressions.py',
+    'morphhdl/scripts/check-native-streamfifocc-boundary.sh',
     'morphhdl/scripts/refresh-cdc-wire-source-seal.py',
     'morphhdl-passes/scripts/check-boundary.sh',
     'morphhdl-passes/scripts/test-boundary-guard.sh',
