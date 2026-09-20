@@ -420,12 +420,20 @@ def synthesis(work: Path, top: str, parameter: str, value: int) -> dict:
     report = {}
     for mode in ("disabled", "enabled"):
         script = (f"read_verilog {mode}.v; chparam -set {parameter} {value} {top}; "
-                  f"hierarchy -check -top {top}; synth -top {top}; "
-                  f"tee -o {mode}-synthesis.json stat -json")
+                  f"hierarchy -check -top {top}; synth -top {top}; check -assert; "
+                  f"write_json {mode}-synthesis.json")
         run(work, ["yosys", "-Q", "-p", script], mode + "-synthesis")
-        stats = json.loads((work / (mode + "-synthesis.json")).read_text())
-        module = stats["modules"]["\\" + top]
-        report[mode] = {key: module[key] for key in ("num_cells", "num_wire_bits", "num_wires")}
+        # Netlist JSON is available on the Ubuntu 22.04 Yosys baseline, which
+        # predates stat -json. Derive the same metrics only after mandatory
+        # synthesis and structural checking; unsupported or missing output
+        # remains a hard qualification failure.
+        netlist = json.loads((work / (mode + "-synthesis.json")).read_text())
+        module = netlist["modules"][top]
+        report[mode] = {
+            "num_cells": len(module["cells"]),
+            "num_wire_bits": sum(len(wire["bits"]) for wire in module["netnames"].values()),
+            "num_wires": len(module["netnames"]),
+        }
     return report
 
 
