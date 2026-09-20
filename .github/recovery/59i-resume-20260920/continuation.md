@@ -1,5 +1,51 @@
 # Increment 59i continuation — 20 September 2026
 
+
+## CURRENT CHECKPOINT — repair diagnostic passed; combined count defect found, 20 September 2026 22:05 UTC
+
+Feature and target remain unchanged at `883c5d8f088a0e2eab35592cf171d87792d30bf4`
+and `bbae646ba43e6189c69feb308f8decb9b677b15f`. PR177 remains draft
+and unmerged. No failed workflow was rerun, no full CI was launched and no
+feature ref moved.
+
+Recovery commit `26632b0a52d9bbed9b8cb08be2ada50cb306a19a` corrected only the
+diagnostic's exact runtime suite distribution (BridgeReplay12 and
+CompositeLocalEnable31; total126). Diagnostic
+[35540026293](https://github.com/pysolvesemi/MorphHDL/actions/runs/35540026293)
+then passed both Scala lanes. Original artifacts were downloaded and their API
+SHA256 digests matched exactly:
+
+- Scala2.12 artifact10614811025:
+  `3a59e546a7b0cdca345aea7e53f02f97331dc3c166491180c21bb6fe7c98b79f`.
+- Scala2.13 artifact10614253482:
+  `3a5d79752a7f5b021f6280d5be78c70df660e7a1c2c1047837b848ae8f8cd4d2`.
+
+Both receipts have `completed=true`, all command return codes zero, exact
+baseline JVM ABI success and126 actual passing tests across9 exact suites.
+Patch SHA256 remains
+`e664c4b0f35764cdc5e037925b3a3a171213536de62a3cf245e4b830f93ae258`;
+applied diff SHA256 is
+`63f06aa54c1305255970c02c1fbfa7f1f29a8c91b2e9c4627d9cd53a52cf0267`.
+This is diagnostic evidence only, not source/hardware/merge qualification.
+
+Ten of the16 failed-first workflows now have all required jobs successful:
+local-enable, independent domains, WA08 overlay, both Increment61 workflows,
+60b, CDC, Mill, baseline and59e. Lane and59g retain the diagnosed failures.
+Combined run35527103629 Scala2.13 job106121071216 completed its tests with zero
+test failures, then failed because the workflow still requires6
+`ParameterizedVerilogStructuralLexicalTests` while the authenticated source
+executes7. Scala2.12 is still running. Runs35527114989,35527118755 and
+35527126237 also remain active. Do not duplicate them.
+
+NEXT: preserve the exact combined count failure and add only the exact6→7
+inventory repair with a rejection guard. Build a new bounded runtime-source
+successor lifecycle that chains the published883c5d8f seal; do not weaken or
+reuse schema5's audit-only authorization. The validated eight-file ABI/59g patch
+changes runtime and therefore requires a new reviewed source commit, direct
+seal, source staging and all exact-new-head qualification. Old-head successes
+must not be relabeled. Reconcile active runs before launching any replacement.
+
+
 ## CURRENT CHECKPOINT — compile-specific diagnostic successor, 20 September 2026 19:40 UTC
 
 Feature and target remain unchanged at883c5d8f088a0e2eab35592cf171d87792d30bf4
