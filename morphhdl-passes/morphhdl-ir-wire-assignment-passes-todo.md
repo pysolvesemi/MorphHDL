@@ -1010,3 +1010,249 @@ emission under the same flag, with the above semantic and qualification gates
 satisfied. WA-11 separately completes typed symbolic Boolean/integer width
 normalization before those expressions reach hardware consumers. General signal
 renaming remains future work.
+
+## September 20 CDC report — recursive expression cleanup
+
+New unchecked regressions reported against compiler
+`86242bce51a0469ec3a7468391cbeb914d004731`. The quoted CDC identifiers are
+observations, never matching rules: classify candidates by native/canonical
+identity, provenance, width, signedness, driver, receiver and preservation facts.
+This item extends the existing expression-inlining/fixed-point work; it does
+not introduce a seventh pass or a generated-Verilog text rewriter. Preserve
+historical checked results. Coordinate the generated-condition subcase with
+the existing WA-10 lane/generated-condition follow-up rather than duplicating
+implementation.
+Parameter diagnostic presentation is owned by
+[CDC-LEG-01](../docs/morphhdl/parameterized-verilog-todo.md#september-20-cdc-report--parameter-legality-presentation).
+
+Every reproduction below is complete, product-independent Scala with exact
+commands. `-on` uses the production pipeline; `-off` supplies the same native
+source without the optional passes. Generated names and line suffixes may vary;
+check the corresponding expression graph, not an expected `_zz` spelling.
+Completion requires actual emitted before/after evidence, deterministic repeat
+emission and one-invocation idempotence, parameter overrides, four-state
+simulation, width/signedness controls, formal equivalence and inherited gates.
+
+- [ ] **CDC-WIRE-01 — Recursive unnamed/generated wire-expression cleanup to a fixed point.**
+
+  The report retains this chain (wide shifted carrier, 32-bit slice carrier,
+  Boolean comparison carrier):
+
+  ```verilog
+  assign _zz_m_live_valid_2 = (_zz_m_live_payload >>> live_selected_generation_offset);
+  assign _zz__zz_m_live_valid_3 = _zz_m_live_valid_2[31:0];
+  assign _zz_m_live_valid_3 = (_zz__zz_m_live_valid_3 != active_generation);
+  ```
+
+  Remove eligible aliases, slice wrappers and comparison wires recursively into
+  all receivers. Follow actual receiver references to a fixed point, including
+  simple-identifier consumers and Boolean expressions. Inspect both pre-emission
+  declarations and late emitter-created wrappers so emission does not recreate
+  an eliminated chain.
+
+  **Standalone reproduction:** save this complete source as `/tmp/CdcSliceCompareRepro.scala`.
+  Run the commands below from the MorphHDL repository root; no Display Controller
+  source, Dan IP or parent repository is needed. The temporary SBT setting selects
+  only this fixture for Test compilation and retains the repository's compiler plugins.
+
+  ```scala
+  // Reproduction: CdcSliceCompareRepro
+  package roadmap
+
+  import spinal.core._
+  import spinal.lib._
+  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.frontend.HdlInt
+
+  object CdcSliceCompareRepro extends App {
+    require(args.length == 2, "Expected output-directory and passes-enabled")
+    val config = MorphWireAssignmentPasses(SpinalConfig(
+      targetDirectory = args(0), oneFilePerComponent = true,
+      headerWithDate = false, headerWithRepoHash = true
+    ), enabled = args(1).toBoolean)
+    MorphVerilog(config) {
+      new Component {
+        setDefinitionName("CdcSliceCompareRepro")
+        val dataBits: ElabInt = HdlInt.param("DATA_BITS", 32, 1, 2048).asElabInt
+        val payload = in UInt((dataBits + 57) bits)
+        val activeGeneration = in UInt(32 bits)
+        val enabled, ready = in Bool()
+        val valid, stale, consume = out Bool()
+        val offset = ElabValue.uintLike(dataBits + 7, U(0, 12 bits), "generation_offset")
+        def mismatch: Bool = (payload >> offset).resize(32) =/= activeGeneration
+        valid := enabled && !mismatch
+        stale := enabled && mismatch
+        consume := enabled && (mismatch || ready)
+      }
+    }
+  }
+  ```
+
+  ```sh
+  sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcSliceCompareRepro.scala"))' \
+    'morph/Test/runMain roadmap.CdcSliceCompareRepro /tmp/CdcSliceCompareRepro-on true' \
+    'morph/Test/runMain roadmap.CdcSliceCompareRepro /tmp/CdcSliceCompareRepro-off false'
+  iverilog -g2012 -s CdcSliceCompareRepro -o /tmp/CdcSliceCompareRepro.vvp /tmp/CdcSliceCompareRepro-on/CdcSliceCompareRepro.v
+  ```
+
+  **Expected result:** no removable internal shift/slice/comparison carriers;
+  receivers contain equivalent expressions with exact original truncation.
+  A 32-bit assignment may absorb a low-32 slice through its destination width,
+  but a subsequent comparison does **not** supply that truncation. Do not replace
+  `(shifted[31:0] != generation)` by `(wide_shifted != generation)` without
+  preserving the low-32 semantics. For example, with DATA_BITS=32,
+  payload=`89'h800000000000000000`, activeGeneration=0, enabled=1, ready=0,
+  the discarded bit 32 of the shifted value is one: valid=1, stale=0, consume=0.
+  An untruncated comparison incorrectly reports a mismatch. Include this vector,
+  DATA_BITS=1/32/120/2048, nonzero upper metadata, X/Z, signed-shift controls,
+  shared consumers and protected carriers. Use legal Verilog-2001 expression
+  lowering, not unsupported arbitrary-expression part-select syntax. If a
+  carrier must remain for a proven semantic/backend constraint, record the exact
+  constraint and a negative control rather than blanket-retaining the chain.
+
+  **Additional standalone reproduction for CDC-WIRE-01: Gray-decoder alias/shift/XOR chain.**
+
+  The report retains `_zz_live_read_fill_1 = _zz_live_read_fill`, followed by
+  `>>> 1`, XOR, `>>> 2`, XOR, `>>> 4`, XOR, `>>> 8`, XOR, `>>> 16`, XOR
+  carriers through `_zz_live_read_fill_11`. Inline removable intermediate
+  expressions into their real consumers, revisiting exposed candidates until
+  no eligible unnamed carrier remains. Fanout by itself is not proof of
+  observability; preserve the existing explicit duplication/safety policy and
+  explain any policy that prevents the requested recursive collapse.
+
+  **Standalone reproduction:** save this complete source as `/tmp/CdcGrayChainRepro.scala`.
+  Run the commands below from the MorphHDL repository root; no Display Controller
+  source, Dan IP or parent repository is needed. The temporary SBT setting selects
+  only this fixture for Test compilation and retains the repository's compiler plugins.
+
+  ```scala
+  // Reproduction: CdcGrayChainRepro
+  package roadmap
+
+  import spinal.core._
+  import spinal.lib._
+  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.frontend.HdlInt
+
+  object CdcGrayChainRepro extends App {
+    require(args.length == 2, "Expected output-directory and passes-enabled")
+    val config = MorphWireAssignmentPasses(SpinalConfig(
+      targetDirectory = args(0), oneFilePerComponent = true,
+      headerWithDate = false, headerWithRepoHash = true
+    ), enabled = args(1).toBoolean)
+    MorphVerilog(config) {
+      new Component {
+        setDefinitionName("CdcGrayChainRepro")
+        val depth: ElabInt = HdlInt.param("FIFO_LOG_DEPTH", 3, 2, 16).asElabInt
+        val gray = in Bits((depth + 2) bits)
+        val readCount = in UInt((depth + 2) bits)
+        val decoded, fill = out UInt((depth + 2) bits)
+        decoded := fromGray(gray)
+        fill := fromGray(gray) - readCount
+      }
+    }
+  }
+  ```
+
+  ```sh
+  sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcGrayChainRepro.scala"))' \
+    'morph/Test/runMain roadmap.CdcGrayChainRepro /tmp/CdcGrayChainRepro-on true' \
+    'morph/Test/runMain roadmap.CdcGrayChainRepro /tmp/CdcGrayChainRepro-off false'
+  iverilog -g2012 -s CdcGrayChainRepro -o /tmp/CdcGrayChainRepro.vvp /tmp/CdcGrayChainRepro-on/CdcGrayChainRepro.v
+  ```
+
+  **Expected result:** both public outputs remain and implement the library's
+  exact Gray decode/subtraction without removable intermediate alias, shift or
+  XOR declarations. Preserve parameter-dependent widths and logical versus
+  arithmetic shift semantics. Reproduce FIFO_LOG_DEPTH=2/3/4/16, zero/all-one,
+  every single-bit Gray input, count wrap, X/Z, fanout and protected-node controls.
+  Compare decoded values against an independent prefix-XOR oracle. Record
+  expression growth and deterministic fixed-point termination; do not replace
+  `fromGray` with an application-specific compiler recognizer or assume that
+  reading one generated signal spelling establishes unnamed provenance.
+
+  **Additional standalone reproduction for CDC-WIRE-01: generated write/read `when` predicates.**
+
+  The report retains source-location predicates such as:
+
+  ```verilog
+  assign when_DisplayControllerClockResetCdc_l447 = ((((! _zz_live_write_fill) && s_live_valid) && _zz_when_DisplayControllerClockResetCdc_l447) && (! live_fifo_o_wr_full));
+  assign when_DisplayControllerClockResetCdc_l458 = ((((! _zz_live_write_fill) && _zz_m_live_valid) && (! live_fifo_o_rd_empty)) && ((_zz_when_DisplayControllerClockResetCdc_l458_2 != active_generation) || m_live_ready));
+  ```
+
+  Substitute the pure predicate into every eligible sequential condition/RHS
+  receiver and recursively remove its eligible combinational dependencies.
+  Remove the predicate declaration/assignment only once all references are
+  replaced. Generated condition spelling must not override user keep/debug,
+  explicit naming, CDC attributes, clock/reset ownership or process-order fences.
+
+  **Standalone reproduction:** save this complete source as `/tmp/CdcWhenPredicateRepro.scala`.
+  Run the commands below from the MorphHDL repository root; no Display Controller
+  source, Dan IP or parent repository is needed. The temporary SBT setting selects
+  only this fixture for Test compilation and retains the repository's compiler plugins.
+
+  ```scala
+  // Reproduction: CdcWhenPredicateRepro
+  package roadmap
+
+  import spinal.core._
+  import spinal.lib._
+  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.frontend.HdlInt
+
+  object CdcWhenPredicateRepro extends App {
+    require(args.length == 2, "Expected output-directory and passes-enabled")
+    val config = MorphWireAssignmentPasses(SpinalConfig(
+      targetDirectory = args(0), oneFilePerComponent = true,
+      headerWithDate = false, headerWithRepoHash = true
+    ), enabled = args(1).toBoolean)
+    MorphVerilog(config) {
+      new Component {
+        setDefinitionName("CdcWhenPredicateRepro")
+        val bypass, sourceValid, sourceUp, full = in Bool()
+        val destinationUp, empty, ready = in Bool()
+        val generationBits: ElabInt = HdlInt.param("GENERATION_BITS", 32, 2, 64).asElabInt
+        val recordGeneration, activeGeneration = in UInt(generationBits bits)
+        val writeCount, readCount = out(Reg(UInt(8 bits)) init(0))
+        val writeGray, readGray = out(Reg(Bits(8 bits)) init(0))
+        when(!bypass && sourceValid && sourceUp && !full) {
+          writeCount := writeCount + 1
+          writeGray := toGray(writeCount + 1).asBits
+        }
+        when(!bypass && destinationUp && !empty &&
+            ((recordGeneration =/= activeGeneration) || ready)) {
+          readCount := readCount + 1
+          readGray := toGray(readCount + 1).asBits
+        }
+      }
+    }
+  }
+  ```
+
+  ```sh
+  sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcWhenPredicateRepro.scala"))' \
+    'morph/Test/runMain roadmap.CdcWhenPredicateRepro /tmp/CdcWhenPredicateRepro-on true' \
+    'morph/Test/runMain roadmap.CdcWhenPredicateRepro /tmp/CdcWhenPredicateRepro-off false'
+  iverilog -g2012 -s CdcWhenPredicateRepro -o /tmp/CdcWhenPredicateRepro.vvp /tmp/CdcWhenPredicateRepro-on/CdcWhenPredicateRepro.v
+  ```
+
+  **Expected result:** write/read register-update conditions directly contain
+  the corresponding Boolean expressions; no removable generated `when_*`
+  predicates remain or are recreated by emission. Registers and Gray-state
+  updates remain intact. Check all control-input combinations, equal/unequal
+  generations, reset and successive writes/reads, multiple receiving registers,
+  nested conditions, X/Z, cross-process dependencies and lexical dominance.
+  Include deliberately preserved/generated-looking user names as negative
+  controls. Never inline register drivers or change blocking/nonblocking order
+  to remove a combinational condition wire.
+
+  **Baseline reproductions checked, September 20:** all three exact Scala
+  sources above compiled and generated with the repository's SBT/Scala 2.12.18
+  plugins, both enabled and disabled passes; all six artifacts compiled with
+  Icarus. Enabled emission retained the slice/shift carriers, the Gray
+  alias/shift/XOR chains and the read-side generated condition. The minimal
+  example's write-side condition and comparison expression already inline;
+  retain them as positive controls. The production write-condition report
+  remains part of this same item's receiver/context regression scope. These
+  observations confirm reproducibility, not completion, behavioral equivalence,
+  whole-domain qualification or a compiler repair.

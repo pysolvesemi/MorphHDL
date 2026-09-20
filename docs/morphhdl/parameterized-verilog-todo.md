@@ -1506,3 +1506,86 @@ The planned Increments 64 and 65 additionally require qualified non-overridable
 derived localparams and correctly activation-scoped structural requirements,
 with their bounded support contracts, compatibility gates and actual output
 evidence complete. Planning examples alone do not satisfy those requirements.
+
+## September 20 CDC report — parameter-legality presentation
+
+This is a new, unchecked follow-up reported against compiler
+`86242bce51a0469ec3a7468391cbeb914d004731`. It changes presentation only, not
+parameter domains, legality semantics, guard ownership or fatal termination.
+It does not reopen historical completion checkboxes or gate the existing next
+integration target. Wire-expression issues from the same report are tracked in
+[the existing wire-pass roadmap](../../morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md#september-20-cdc-report--recursive-expression-cleanup).
+
+- [ ] **CDC-LEG-01 — Product-neutral legality labels and user-only fatal messages.**
+
+  Replace native generated `g_morphhdl_parameter_legality_0` with
+  `G_PARAMETER_LEGALITY_0`, applying the same spelling to subsequent deterministic
+  indices. Remove the injected `MorphHDL parameter legality failed: ` prefix:
+  emit `initial $fatal(1, "%s", "LIVE_LANES must be 1 or 4");` for this example.
+  Update the structured emitter rather than rewriting generated text. Preserve
+  component/scope ownership, uniqueness, ordering, the safe literal `%s` format,
+  fatal finish argument and synthesis guard. Simulator-owned file/time/scope
+  reporting is outside this change.
+
+  **Standalone reproduction:** save this complete source as `/tmp/CdcLegalityMessageRepro.scala`.
+  Run the commands below from the MorphHDL repository root; no Display Controller
+  source, Dan IP or parent repository is needed. The temporary SBT setting selects
+  only this fixture for Test compilation and retains the repository's compiler plugins.
+
+  ```scala
+  // Reproduction: CdcLegalityMessageRepro
+  package roadmap
+
+  import spinal.core._
+  import spinal.lib._
+  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.frontend.HdlInt
+
+  object CdcLegalityMessageRepro extends App {
+    require(args.length == 2, "Expected output-directory and passes-enabled")
+    val config = MorphWireAssignmentPasses(SpinalConfig(
+      targetDirectory = args(0), oneFilePerComponent = true,
+      headerWithDate = false, headerWithRepoHash = true
+    ), enabled = args(1).toBoolean)
+    MorphVerilog(config) {
+      new Component {
+        setDefinitionName("CdcLegalityMessageRepro")
+        val lanes: ElabInt = HdlInt.param("LIVE_LANES", 1, 1, 4).asElabInt
+        require(lanes == 1 || lanes == 4, "LIVE_LANES must be 1 or 4")
+        val inputBits = in Bits(lanes bits)
+        val outputBits = out Bits(lanes bits)
+        outputBits := inputBits
+      }
+    }
+  }
+  ```
+
+  ```sh
+  sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcLegalityMessageRepro.scala"))' \
+    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-on true' \
+    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-off false'
+  iverilog -g2012 -s CdcLegalityMessageRepro -o /tmp/CdcLegalityMessageRepro.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v
+  ```
+
+  **Expected emitted form:** the mixed-domain guard is labelled
+  `G_PARAMETER_LEGALITY_0` and its fatal message contains only the user text.
+  Neither lowercase nor `morphhdl` occurs in generated legality labels.
+  Exercise multiple requirements and hierarchy/sibling scopes before closure;
+  do not rename user-authored labels. Both enabled and disabled wire-pass modes
+  must use the requested presentation and deterministic indices.
+
+  **Runtime reproduction:** compile the same artifact with
+  `iverilog -g2012 -s CdcLegalityMessageRepro -P CdcLegalityMessageRepro.LIVE_LANES=2 -o /tmp/cdc-invalid.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v`,
+  then run `vvp /tmp/cdc-invalid.vvp`. It must terminate nonzero and report the
+  user message without the compiler-added prefix. Overrides 1 and 4 must remain
+  legal; override 3 must also fail. Repeat with the `-off` artifact. Preserve
+  quotes, newlines, percent signs and backslashes in further message controls,
+  empty-message/default-message behavior, and synthesis exclusion. These are
+  acceptance obligations, not claims that the requested change is implemented.
+
+  **Baseline reproduction checked, September 20:** the exact source above
+  compiled with the repository's SBT/Scala 2.12.18 plugins and generated in both
+  pass modes; Icarus compiled both artifacts. On the enabled artifact, overrides
+  1/4 exited successfully and 2/3 terminated nonzero with the current prefixed
+  message. The actual label is still `g_morphhdl_parameter_legality_0`.
+  This confirms the reproduction only; the requested presentation remains TODO.
