@@ -1275,6 +1275,217 @@ dependency chain is unchanged and may proceed independently.
   before marking this increment complete. The bounded contract is recorded in
   [`wa09-named-expression-and-name-preference.md`](../../morphhdl-passes/wa09-named-expression-and-name-preference.md).
 
+### Parameter-expression and structural-legality follow-ups (Increments 64 and 65)
+
+**Planning status, 20 September 2026:** the following entries are documentation
+only. Both remain unchecked; their examples describe intended behavior, not
+executed Scala or actual generated Verilog. The current boundaries are recorded
+in [Independent HDL parameters](independent-parameter-domains.md). The planning
+baseline is `4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097`.
+
+**Dependencies and ordering:** both tracks require Increments 59i, 61 and 63
+implemented and merged, retaining the merged PR #188 independent-parameter and
+legality support, PR #189 consumer/compact-timeout fixes and PR #190 wire cleanup.
+They do not add prerequisites to 59i, which remains the first unchecked
+integration target. The recommended sequential order is 59i, then 64, then 65.
+After their common dependencies merge, 64 and 65 may also proceed independently:
+65's standalone scope does not require localparam factoring. Whichever track
+merges second must qualify their combined scope/ownership interactions on the
+latest integrated source, rather than relying on the first track's old results.
+
+- [ ] **Increment 64 — Derived `localparam` support**
+
+  Automatically retain and publish named, parameter-dependent typed calculations
+  as non-overridable module-local constants through the normal MorphVerilog
+  flow. This is distinct from the already-supported enum localparams and direct
+  symbolic expressions. Keep ordinary Scala component source authoritative; do
+  not require raw Verilog, a second parameter declaration API or application
+  rewrites merely to give a derived expression a reusable HDL name.
+
+  **Acceptance example (planned):**
+
+  ```scala
+  import spinal.core._
+
+  class RecordLink(dataBits: ElabInt, generationBits: ElabInt)
+      extends Component {
+    val totalBits: ElabInt = dataBits + generationBits
+    val dataIn  = in Bits(totalBits bits)
+    val dataOut = out Bits(totalBits bits)
+    dataOut := dataIn
+  }
+  ```
+
+  With independently declared `DATA_BITS` and `GENERATION_BITS`, the intended
+  declaration excerpt is below. `TOTAL_BITS` illustrates the source-derived
+  naming policy; this is not a complete module or a generated artifact.
+
+  ```verilog
+  localparam integer TOTAL_BITS = DATA_BITS + GENERATION_BITS;
+  input  wire [TOTAL_BITS-1:0] dataIn;
+  output wire [TOTAL_BITS-1:0] dataOut;
+  assign dataOut = dataIn;
+  ```
+
+  - [ ] Retain the derived expression, exact declaration roots, type and lexical
+    owner before normalization. Obtain naming hints from genuine typed binding
+    metadata, not reparsed source text, equal witnesses or emitted identifiers.
+    Define deterministic source-name conversion, collision handling, anonymous
+    expression fallback and repeated-expression reuse. Names never establish
+    parameter identity or authorize merging distinct declarations.
+  - [ ] Emit a dependency-ordered localparam graph with no cycles, unresolved
+    names or scope escapes. Cover chained calculations such as `HEADER_BITS`,
+    `RECORD_BITS = DATA_BITS + HEADER_BITS` and
+    `STORAGE_BITS = RECORD_BITS * DEPTH`. Derived values must not become public
+    overridable parameters, consume positional parameter slots, or freeze to
+    their defaults. Preserve checked arithmetic, integer sizing, signedness,
+    Boolean normalization and existing legality obligations exactly.
+  - [ ] Qualify complete strict Verilog-2001 modules, including port-width uses,
+    internal declarations, constants, supported helper functions and generate
+    scopes. Choose legal declaration/header ordering without requiring a
+    SystemVerilog-only parameter-list extension. Keep branch-local calculations
+    in a valid owner; never hoist them beyond their domain or expose a child's
+    private localparam as a parent parameter. Preserve canonical child modules,
+    named actuals such as `.WIDTH(TOTAL_BITS)`, external generic bindings and
+    both consolidated and `oneFilePerComponent = true` source ownership.
+  - [ ] Exercise independent same-file overrides, alternate defaults, repeated
+    instances and equal-default/different-root negatives. For the RecordLink
+    fixture, use `DATA_BITS` default/range `32 / 1..2048` and
+    `GENERATION_BITS` `8 / 2..64`; verify at least `(32,8)`, `(64,8)`, `(1,2)`,
+    `(2048,64)` and unequal swapped-value bindings. The first two widths must
+    be 40 and 72, not a default-frozen 40. Cover large compact parameter domains
+    without imposing new Cartesian enumeration merely to name an expression.
+  - [ ] Prove factored output equivalent to independent native concrete
+    references and the direct-expression behavior over the declared test
+    matrix. Detect actual mutations that freeze a default, change an operator,
+    swap a root, lose sign/carry information, break declaration order or bind a
+    derived value to the wrong component. Keep unsupported expressions on the
+    documented direct-expression path or reject them precisely; do not weaken
+    width/domain authority or silently skip the required factoring fixtures.
+
+  Completion requires deterministic repeated and cross-Scala output on Scala
+  2.12.18 and 2.13.12, ordinary concrete SpinalVerilog parity, native library and
+  combined Vec/reduction compatibility, strict parsing, lint, synthesis,
+  simulation, independent specialization equivalence, mutation controls and
+  all applicable inherited/source-audit/final-head gates. Record any native
+  changes in the approved manifest. Publish runnable Scala and actual generated
+  Verilog with source-bound evidence before checking this item. No generated-
+  Verilog text rewriting or replacement library algorithm is permitted.
+
+- [ ] **Increment 65 — Targeted structural-parameter extensions**
+
+  Extend the existing typed structural-capture and native legality machinery,
+  beginning with parameter-dependent `require` inside an optional hardware
+  branch. This is not a proposal to add generate-if from scratch or to accept
+  arbitrary Scala effects. At the planning baseline, mixed branch-scoped
+  obligations reject with
+  `SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED`; a requirement already proved
+  true does not hit that particular rejection. Reproduce the exact source case
+  before implementation and retain the prior rejection as historical evidence.
+
+  **Acceptance example (planned, using the normal compiler plugins):**
+
+  ```scala
+  import spinal.core._
+
+  class OptionalPipeline(width: ElabInt, usePipeline: ElabInt)
+      extends Component {
+    val dataIn  = in Bits(width bits)
+    val dataOut = out Bits(width bits)
+    if (usePipeline == 1) {
+      require(width >= 8, "Pipeline mode requires WIDTH >= 8")
+      dataOut := RegNext(dataIn)
+    } else {
+      dataOut := dataIn
+    }
+  }
+  ```
+
+  Declare `WIDTH` with default 16 and range `1..64`, and `USE_PIPELINE` with
+  default 0 and range `0..1`, as independent HDL parameters. The width rule is
+  this fixture's contract, not an inherent minimum width of a register. The
+  retained obligation must mean `(USE_PIPELINE == 1) implies (WIDTH >= 8)`.
+  Intended diagnostic excerpt inside the native pipeline generate branch:
+
+  ```verilog
+  `ifndef SYNTHESIS
+    if (WIDTH < 8) begin : g_invalid_width
+      initial $fatal(1, "%s", "Pipeline mode requires WIDTH >= 8");
+    end
+  `endif
+  ```
+
+  - [ ] Add exact owner-scoped obligation records carrying the complete branch
+    activation predicate, typed requirement, original message/source location,
+    parameter roots and formal/actual bindings. Participate in capture rollback,
+    retries and cleanup so probe elaboration cannot leak or duplicate an
+    obligation. Do not globalize a branch requirement or discard it because the
+    default selects the other branch. Preserve root identity through projection
+    and publication instead of reconstructing it from names or default values.
+  - [ ] Preserve immediate evaluation of ordinary concrete requirements and
+    existing unconditionally false top-level rejection. Under symbolic owners,
+    classify the complete guarded obligation, not the branch predicate alone:
+    an inactive branch must never report failure, and a condition false only
+    when an optional branch is active must remain activation-guarded. A true
+    requirement needs no diagnostic. Specify and test invalid-default behavior
+    consistently with existing deferred legality where hardware construction
+    is safe; never silently change the requested parameter defaults.
+  - [ ] Qualify `if`/`else`, ordered `else if`, nested typed alternatives and
+    already-supported Boolean match/finite generate-for owners. Preserve the
+    complete enclosing path, loop-index binding and child-instance activation.
+    Cover sibling branches and repeated canonical children with different
+    actuals; obligations must stay with the correct logical owner in both
+    publication modes. Preserve registers, clock/reset/enable semantics,
+    driver/latch checks and zero-cycle bypass versus one-cycle pipeline latency.
+  - [ ] Extend only the bounded multi-root structural/child-binding cases with
+    explicit typed evidence: include a relational branch such as
+    `if (dataBits >= lanes)` with independent parameters and a child receiving
+    both actuals. Prove the activated domain, finite topology and exact bindings
+    through the shared native machinery. Preserve the distinction between
+    symbolic publication, exact/domain proof and structural authority. A
+    deferred `require` is not an assumption permitting unsafe slicing, invalid
+    geometry or unbounded Scala graph construction. Unsupported correlations,
+    arbitrary formal remapping, host mutation and uncertified effects must
+    still fail closed; increasing enumeration limits is not the feature.
+  - [ ] Generate one candidate per declared static topology/publication mode
+    and override that same output at `USE_PIPELINE` in `{0,1}` and `WIDTH` in
+    `{1,4,7,8,16,64}`. Repeat with an enabled default so both capture directions
+    are exercised. Bypass must accept WIDTH=4 without a register or fatal;
+    pipeline WIDTH=4 must terminate with the intended diagnostic; WIDTH=8 and
+    16 must preserve the respective bypass/pipeline behavior. Also cover
+    universally true width domains, concrete parameters, nested constraints,
+    distinct instance inputs and repeated generation after a rejected capture.
+  - [ ] Emit native simulation-only `$fatal`, not `$error`, under
+    `ifndef SYNTHESIS`, retaining literal message escaping and one diagnostic
+    per actual violated obligation. An equivalent fully guarded placement is
+    acceptable only with scope/activation proof. Keep all real hardware outside
+    the diagnostic guard. Require nonzero simulation termination and the exact
+    expected message for invalid overrides; crashes and parser failures are
+    not successful rejection. An invalid synthesis tuple remains invalid even
+    though simulation diagnostics are excluded.
+  - [ ] Prove valid specializations against independently elaborated native
+    concrete references, with explicit initial-state/latency contracts. Add
+    live mutations for a dropped/inverted activation guard, an incorrectly
+    hoisted constraint, lost else priority, stale loop/child binding, duplicate
+    capture and changed pipeline latency. Retain forged/stale root, scope-leak,
+    unsafe-domain and unsupported-host-effect rejection controls. Replace old
+    negative expectations only for the precisely newly qualified surface.
+
+  Completion requires both Scala lanes and both publication modes, strict
+  Verilog-2001 hardware checks with `SYNTHESIS`, separate supported diagnostic
+  language-mode simulation/lint without `SYNTHESIS`, synthesis, independent
+  behavioral/formal qualification, actual mutations, determinism and every
+  applicable inherited/source-audit/final-head gate. Do not present bounded
+  matrices as universal proofs. Update the supported/unsupported matrix and
+  approved native-change manifests; retain ordinary concrete SpinalVerilog
+  behavior. Publish runnable Scala and actual generated Verilog, including the
+  OptionalPipeline case, before checking this item.
+
+The documentation-only CI suppression for this planning update does not waive
+implementation or merge gates. Neither entry authorizes weakening existing
+proofs, changing application RTL, introducing a PROFILE workaround, or removing
+safety diagnostics outside its explicitly qualified replacement surface.
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain
@@ -1290,3 +1501,8 @@ The independent Increment 63 track additionally requires the six-stage
 production wire pipeline and provenance-first direct-alias survivor selection
 to pass its complete final-head qualification without changing these
 parameterized-publication requirements.
+
+The planned Increments 64 and 65 additionally require qualified non-overridable
+derived localparams and correctly activation-scoped structural requirements,
+with their bounded support contracts, compatibility gates and actual output
+evidence complete. Planning examples alone do not satisfy those requirements.
