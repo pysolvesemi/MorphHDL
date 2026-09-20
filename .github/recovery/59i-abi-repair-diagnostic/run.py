@@ -97,11 +97,21 @@ def main():
     assert 'JVMABI_OK:' in (out / 'exact-baseline-abi.log').read_text()
     tests = 'morph/Test/testOnly ' + ' '.join('spinal.core.internals.' + name for name in SUITES)
     run('affected-replay-tests', ['sbt', '-batch', '++' + a.scala, tests])
-    expected = {}
-    for suite in SUITES:
-        source = root / 'morphhdl/src/test/scala/spinal/core/internals' / (suite + '.scala')
-        expected[suite] = len(re.findall(r'^  test\("', source.read_text(), re.M))
-        assert expected[suite] > 0
+    # Use the reviewed runtime inventory. Several suites intentionally create
+    # cases from bounded loops, so counting only literal test("...") calls in
+    # source undercounts their real XML inventory.
+    expected = {
+        'TypedBalancedReductionCaptureTests': 10,
+        'TypedBalancedReductionCaptureSafetyTests': 12,
+        'TypedBalancedReductionStageReplayTests': 23,
+        'TypedBalancedReductionClosedGraphTests': 27,
+        'TypedBalancedReductionBridgeReplayTests': 3,
+        'TypedBalancedReductionCompositeLocalEnableTests': 40,
+        'TypedBalancedReductionCompositeWideningTests': 4,
+        'TypedBalancedReductionCompositeWideningCaptureTests': 4,
+        'TypedBalancedReductionCompositeWideningIdentityTests': 3,
+    }
+    assert set(expected) == set(SUITES) and sum(expected.values()) == 126
     seen = {}
     reports = out / 'test-reports'
     reports.mkdir()
