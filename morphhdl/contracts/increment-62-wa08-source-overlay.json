@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "8c011fb410e91799dc79bfd8f188d08af2a01fed",
+  "final_source_commit": "efbbdc18c76088f54c7c828dc100ed226ab37f48",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -1604,7 +1604,7 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "a9af5fabf09e170e2eaafd0e2aa80a0ab44aa2fbdb7b376c6f68ca2ba8f9cb18"
+      "after_sha256": "d81790c06d67f4a7c4167bcb02e63fa9af1fe0450877eba4cd02f9ef6bb7cb73"
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
@@ -1659,6 +1659,12 @@
       "mode": "100644",
       "before_sha256": null,
       "after_sha256": "9d3cffe430b6ac5323271f40d92eccc53f475e05e8943fe8c3a732db5d71a7da"
+    },
+    {
+      "path": "morphhdl/scripts/check-native-streamfifocc-boundary.sh",
+      "mode": "100755",
+      "before_sha256": "e29df1e91d8dfb87627a48e6c9f399e138a28e7b40df44aa9823d64c4a797618",
+      "after_sha256": "06f4ef95e15adba35ef4c1cb73f0acb7a36e916b5d65313163c7a6b4b37fca70"
     },
     {
       "path": "morphhdl/scripts/check-pr190-pr189-source-sync.py",
