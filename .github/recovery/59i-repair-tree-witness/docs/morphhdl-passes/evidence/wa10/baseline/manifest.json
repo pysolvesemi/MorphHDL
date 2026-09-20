@@ -1,0 +1,18 @@
+{
+  "compiler_commit": "086cb4c642d0182e33bd86fd391f46fc7c0eb2a8",
+  "scala": "2.12.18",
+  "sbt": "1.10.0",
+  "jdk": "11.0.32",
+  "commands": [
+    "sbt \"morph/Test/runMain TimingExpressionArtifactWriter <output>/timing\"",
+    "sbt \"morph/Test/runMain morphhdl.examples.GeneralExpressionInliningArtifactWriter <output>/general\""
+  ],
+  "files": {
+    "general/default/GeneralExpressionInlining.v": "2ece0daec2529adce8f9f44aef833a40ff26d205cf29ccd2ce4f85224961c8a3",
+    "general/disabled/GeneralExpressionInlining.v": "2aae167bf1916b95ababa0a3b19cc366d6d988722c15ee1cb3d591621ffb36fd",
+    "general/enabled/GeneralExpressionInlining.v": "2ece0daec2529adce8f9f44aef833a40ff26d205cf29ccd2ce4f85224961c8a3",
+    "timing/default/TimingExpressionExample.v": "9a8e39defc2613b3bb82091e894b40403c78d44a0c066580a94c93905f35cfcc",
+    "timing/disabled/TimingExpressionExample.v": "f9073c6c85ca347fdeae5438160540546a77fc189880d7edab11024a35e20681",
+    "timing/enabled/TimingExpressionExample.v": "9a8e39defc2613b3bb82091e894b40403c78d44a0c066580a94c93905f35cfcc"
+  }
+}

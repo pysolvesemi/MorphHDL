@@ -1,0 +1,116 @@
+name: PR190 targeted source review
+on:
+  push:
+    branches: [agent/wa-sequential-wire-consumers]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: pr190-targeted-source-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Current source review and additive rejection controls
+        run: |
+          set -euo pipefail
+          mkdir -p target/sequential-source-review
+          git rev-parse HEAD 'HEAD^{tree}' > target/sequential-source-review/source.txt
+          python3 morphhdl/scripts/check-pr190-pr189-source-sync.py 2>&1 | tee target/sequential-source-review/combined.log
+          python3 morphhdl/scripts/test-pr190-pr189-source-sync.py 2>&1 | tee target/sequential-source-review/combined-mutations.log
+          python3 morphhdl/scripts/check-sequential-wire-source-review.py 2>&1 | tee target/sequential-source-review/current.log
+          python3 morphhdl/scripts/test-sequential-wire-source-review.py 2>&1 | tee target/sequential-source-review/mutations.log
+      - name: Native source guard and canonical manifest reproducibility
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --generate-template morphhdl/contracts/increment-55-native-change-review.json --output "$RUNNER_TEMP/native-source-preservation.json"
+          cmp morphhdl/contracts/native-source-preservation.json "$RUNNER_TEMP/native-source-preservation.json"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py --self-test
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-increment-58-retirement.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --check
+          bash morphhdl/scripts/check-native-streamfifocc-width-formal-boundary.sh --check
+      - name: Layering inventory and standalone-source rejection controls
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-typed-layering-ir.py --self-test
+          python3 repro/cdc-independent-parameters/test_layering_root.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+          (cd repro/independent-parameters; python3 -m unittest -v test_check test_qualify test_layering test_symbolic_policy)
+      - name: Original complete regression inventory self-tests
+        run: python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+      - name: Exact branch boundary and inherited rejection tests
+        run: |
+          set -euo pipefail
+          MORPHDL_PASSES_BASE_SHA=e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d MORPHDL_PASSES_HEAD_REF=agent/wa-sequential-wire-consumers bash morphhdl-passes/scripts/check-boundary.sh
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr190-source-review
+          path: target/sequential-source-review/
+          if-no-files-found: error
+          retention-days: 14
+  failed-pass-workflow:
+    needs: source-preflight
+    uses: ./.github/workflows/morphhdl-passes.yml
+  failed-regression-workflow:
+    needs: source-preflight
+    uses: ./.github/workflows/increment-60f-equivalence-closure.yml
+  inherited-wa08:
+    needs: [failed-pass-workflow, failed-regression-workflow]
+    uses: ./.github/workflows/increment-62-wa08-source-overlay.yml
+  sequential-regressions:
+    needs: [inherited-wa08, cdc-compact]
+    uses: ./.github/workflows/sequential-wire-consumers.yml
+
+  cdc-compact:
+    name: Merged PR189 compact timeout, record consumers and affected regressions
+    needs: [failed-pass-workflow, failed-regression-workflow]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      EXPECTED_HEAD: ${{ github.sha }}
+      EVIDENCE: /tmp/pr190-synced-cdc
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: -Xmx2g -XX:ActiveProcessorCount=2
+      JVM_OPTS: -Xmx4g -Xss2m -XX:ActiveProcessorCount=2
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        submodules: recursive
+        persist-credentials: false
+    - name: Execute unchanged compact and record compiler checks plus all source groups
+      shell: bash
+      run: "set -euo pipefail\npython3 - <<'PY'\nimport os,re,subprocess,textwrap\nfrom pathlib import Path\nref='05e8f46b76c39017958b98c36b04475493446cef'\n\
+        path='.github/workflows/pr189-compact-timeout.yml'\ndef git(*args):return subprocess.check_output(['git',*args],text=True,timeout=120).strip()\n\
+        assert git('rev-parse','HEAD')==os.environ['EXPECTED_HEAD']\nassert git('rev-parse',ref+':'+path)=='4c4d1ed908df6ab4c150d736b7cef57b9918241a'\n\
+        source=git('show',ref+':'+path);marker='\\n  full-compact-current:\\n'\nassert source.count(marker)==1\nblocks=re.findall(r'^\
+        \        run: \\|\\n((?:          [^\\n]*\\n|\\n)+)',source.split(marker,1)[1]+'\\n',re.M)\nassert len(blocks)==2\n\
+        evidence=Path(os.environ['EVIDENCE']);evidence.mkdir(parents=True,exist_ok=True)\nfor index,block in enumerate(blocks,1):\n\
+        \    command=textwrap.dedent(block)\n    (evidence/('original-command-'+str(index)+'.sh')).write_text(command)\n   \
+        \ subprocess.run(['bash','-e','-o','pipefail','-c',command],check=True)\nassert git('rev-parse','HEAD')==os.environ['EXPECTED_HEAD']\n\
+        subprocess.run(['git','diff','--exit-code'],check=True)\nsubprocess.run(['git','diff','--cached','--exit-code'],check=True)\n\
+        PY\n"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pr190-synced-cdc-${{ github.sha }}
+        path: /tmp/pr190-synced-cdc/
+        if-no-files-found: error
+        retention-days: 30

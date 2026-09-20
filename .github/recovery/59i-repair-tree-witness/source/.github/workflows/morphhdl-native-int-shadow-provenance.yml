@@ -1,0 +1,55 @@
+name: MorphHDL native Int shadow provenance
+
+# Stable required-check name. Since Increment 53g this workflow proves that
+# native-Int shadow provenance is absent and that the typed replacement builds.
+on:
+  push:
+    branches: [main, parameterized-verilog]
+  pull_request:
+    branches: [main, parameterized-verilog]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-int-shadow-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source-boundary:
+    name: Native Int shadow source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove production and guard-fixture absence
+        run: |
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+
+  contracts:
+    name: Native Int shadow proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Exercise the typed replacement path
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.TypedElaborationValueTests"

@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "base": "80a3b0977ccabcd83ce06ef97a446edbee8f723a",
+  "patch_sha256": "bbbf2a701dc470d75cce40204969632d3756c6a740223ed38fdc1f162dbce112",
+  "patch_bytes": 141830,
+  "chunks": 7,
+  "files": {
+    "docs/morphhdl/increment-59i-composite-captures.md": {
+      "before": null,
+      "after": "65c446e1d1004f62a95f8d2bbeb3cd8f406fffe9ac5d629bf1525c4af8839cb0"
+    },
+    "morphhdl/contracts/increment-59i-capture-review.json": {
+      "before": null,
+      "after": "dc0b3c53221d5d36061870e31c5a63c57ac2ed747ae98a256a209f2cfd898537"
+    },
+    "morphhdl/scripts/check-increment-59h-source-review.py": {
+      "before": "dce1cdfb667fb51e0ba7d7312d2ff25b4ebe97281f6012a93aae9e8396e0c7ec",
+      "after": "186218b70ce82d5a3b5ce6176b649bbe56560c99aaac42cca7b3df94d9cc4175"
+    },
+    "morphhdl/scripts/check-increment-59i-composite-captures.py": {
+      "before": null,
+      "after": "fc7dac59009f3f2593509898de9d22be6f6231f845abec3a99dfdd6fdbf9f4fe"
+    },
+    "morphhdl/scripts/check-increment-59i-source-review.py": {
+      "before": "7f43a465581b67c41402dd4477acb522765f89fc32a10af5921bf52f0e25df3a",
+      "after": "598055a1fe8b7341c12ac4f3461dfd09ff52479ce84103727e560c144c30eadb"
+    },
+    "morphhdl/scripts/test-increment-59h-inherited-source-scope.py": {
+      "before": "dac5016cb8779ff42bccf9c01bc4fa702873118a69385ec32d9b4a0213e306b9",
+      "after": "da3f7cd67dd39523bfd31e4a8a52f0074d748dfdd6ac2976b65812cbfb3dceca"
+    },
+    "morphhdl/scripts/test-increment-59i-capture-review.py": {
+      "before": null,
+      "after": "790c9deb49278c9e562312a12f4c3beb472fa2acb7c032f3ee6b9766d2d2f387"
+    },
+    "morphhdl/scripts/test-increment-59i-composite-captures.py": {
+      "before": null,
+      "after": "3439df349f14a58261c8a4e55a9f1ce27108cfb78d13a94d0a2e008acbd5eacd"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala": {
+      "before": "90e74b5333f4d5c0416a74a09867fa1dea36ccba7eb8654d2039401dfa7e5548",
+      "after": "ddd5a5e6877c0a399b85abfa58bc1a54b4ff313ed9081b144d0e629e45901af7"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala": {
+      "before": "f33b0111a1f3d9c4cd34fcc5ad95a23ef9d438f4dba45a876a277579c09dfcc5",
+      "after": "f9f8c10534946c51676fcdf383d89cc7c3624974620377982688d30ef639d2eb"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala": {
+      "before": "db37d6540af715b6f535a78891439020fb7196d450dc403af3cde6a9fedc53fb",
+      "after": "925e37225709c327e326193966bc43ed9744d8dbb20776ab1b932caf73d20634"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala": {
+      "before": "5822a9a4d7bdc6b4535b4312cc45401528e52107291e40a4a83307b512086c80",
+      "after": "26e4f019b61ebd80ef5fc5344a108df3213efc019b4d925ba4c7d23ed56263a3"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala": {
+      "before": "fd767dfbbca20cf2dd407e39ff5a01a451f2c487f135d0da25476bdfe812e325",
+      "after": "345bf64172d05049749bd95b76f6bfffb1f621da017c4bef07a4edcb25d13ff6"
+    },
+    "morphhdl/src/test/scala/nativeapplication/CompositeCaptureNativeOracle.scala": {
+      "before": null,
+      "after": "bd5d1bb3a7f9903de0a617be5c7d0e35104d3376d5e6f336c02508c4eec7f595"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala": {
+      "before": null,
+      "after": "fa445e12ad08d4f237dfa807fe2cbcbe07623903751484567e1182e2c469ee5f"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureTests.scala": {
+      "before": null,
+      "after": "2c4b203f8d0ecab1d8d70065c8137fc7ca5c87f5d8d035ff4d814b9f62cf9c0a"
+    }
+  }
+}

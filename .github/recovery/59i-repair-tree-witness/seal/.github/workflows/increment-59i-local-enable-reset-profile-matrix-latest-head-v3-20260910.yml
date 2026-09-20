@@ -1,0 +1,189 @@
+name: Increment 59i local-enable reset matrix latest-head v3
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-local-enable-reset-profile-matrix-latest-head-v3-20260910.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-local-enable-reset-profile-matrix-latest-head-v3
+  cancel-in-progress: false
+
+jobs:
+  qualify-latest:
+    name: Latest-head eight-profile qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59i-combined-reduction-closure
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Bind to latest clean remote head and inherited reviews
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          mkdir -p "$out"
+          git fetch origin "$BRANCH"
+          git checkout --detach "origin/$BRANCH"
+          expected=$(git rev-parse HEAD)
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$expected"
+          test -z "$(git status --porcelain)"
+          printf '%s\n' "$expected" > "$out/expected-head.txt"
+
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'callback.assignments ++ callback.statements' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          python3 morphhdl/scripts/check-native-source-preservation.py | tee "$out/native-source.log"
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py | tee "$out/typed-overlay.log"
+          if test -f morphhdl/scripts/check-increment-59i-source-review.py; then
+            python3 morphhdl/scripts/check-increment-59i-source-review.py | tee "$out/increment-59i-source-review.log"
+          fi
+          test -z "$(git status --porcelain)"
+
+      - name: Reuse or stage the exact focused test
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          test_path=morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeResetProfileMatrixTests.scala
+          source_workflow=.github/workflows/increment-59i-local-enable-reset-profile-matrix-promotion-v2-20260910.yml
+          if test -f "$test_path"; then
+            printf 'already-committed\n' | tee "$out/mode.txt"
+          else
+            printf 'stage-exact-test\n' | tee "$out/mode.txt"
+            test -f "$source_workflow"
+            python3 -c 'from pathlib import Path; import textwrap; p=Path(".github/workflows/increment-59i-local-enable-reset-profile-matrix-promotion-v2-20260910.yml").read_text(); a="          package spinal.core.internals\n"; b="\n          SCALA\n"; body=a+p.split(a,1)[1].split(b,1)[0]; Path("morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeResetProfileMatrixTests.scala").write_text(textwrap.dedent(body))'
+          fi
+          test -s "$test_path"
+          grep -q 'profiles.size == 8' "$test_path"
+          grep -q 'RegNextWhen(value.unsigned, value.valid)' "$test_path"
+          grep -q 'RegNextWhen(value.signed, value.flags(0))' "$test_path"
+          git diff --check -- "$test_path"
+          sha256sum "$test_path" > "$out/test-sha256.txt"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          scala="$1"; shift
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$scala" "$@"
+          SH
+          chmod +x "$out/sbt.sh"
+
+      - name: Run both Scala lanes and exact HDL matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          suites='morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeResetProfileMatrixTests spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests'
+          for scala in 2.12.18 2.13.12; do
+            rm -rf "target/increment-59i-local-enable-reset-matrix/$scala"
+            status=0
+            "$out/sbt.sh" "$scala" 'morph/Test/compile' "$suites" > "$out/scala-$scala.log" 2>&1 || status=$?
+            tail -n 500 "$out/scala-$scala.log"
+            test "$status" -eq 0
+            grep -q 'All tests passed' "$out/scala-$scala.log"
+            ! grep -q '\*\*\* FAILED \*\*\*' "$out/scala-$scala.log"
+            src="target/increment-59i-local-enable-reset-matrix/$scala"
+            test "$(find "$src" -type f -name '*.v' | wc -l)" -eq 8
+            rtl_out="$out/rtl-$scala"
+            mkdir -p "$rtl_out"
+            find "$src" -type f -name '*.v' -exec cp {} "$rtl_out/" \;
+            for rtl in "$rtl_out"/*.v; do
+              iverilog -g2001 -tnull "$rtl"
+              yosys -q -p "read_verilog $rtl; hierarchy -auto-top; proc; check"
+            done
+          done
+          diff -ru "$out/rtl-2.12.18" "$out/rtl-2.13.12"
+          sha256sum "$out/rtl-2.12.18"/*.v > "$out/rtl-manifest.sha256"
+
+      - name: Publish qualified source only when newly staged
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-reset-matrix-v3"
+          expected=$(cat "$out/expected-head.txt")
+          test "$(git rev-parse HEAD)" = "$expected"
+          mode=$(cat "$out/mode.txt")
+          test_path=morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeResetProfileMatrixTests.scala
+          doc=docs/morphhdl/increment-59i-local-enable-reset-profile-matrix.md
+
+          if test "$mode" = already-committed; then
+            test -f "$doc"
+            test -z "$(git status --porcelain)"
+            printf '%s\n' "$expected" > "$out/validated-head.txt"
+            exit 0
+          fi
+
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$expected"
+          mkdir -p "$(dirname "$doc")"
+          test_sha=$(sha256sum "$test_path" | awk '{print $1}')
+          rtl_sha=$(sha256sum "$out/rtl-manifest.sha256" | awk '{print $1}')
+          printf '%s\n' \
+            '# Increment 59i composite local-enable reset profile matrix' \
+            '' \
+            'This qualified slice covers all eight combinations of rising/falling clock edge, synchronous/asynchronous reset and active-high/active-low reset polarity.' \
+            '' \
+            'The callback retains symbolic WIDTH and COUNT, native initializers, exact field types, field-local register data, reviewed same-composite enable controls and native balanced-tree topology.' \
+            '' \
+            'Scala 2.12.18 and 2.13.12 generated byte-identical Verilog. Every profile passed strict Icarus Verilog-2001 parsing and Yosys process/check validation.' \
+            '' \
+            "Focused test SHA-256: $test_sha" \
+            "RTL manifest SHA-256: $rtl_sha" \
+            "Qualification parent: $expected" \
+            '' \
+            'This finite slice does not mark the complete 59i join ready, does not alter the roadmap checkbox and does not authorize merging PR #177.' \
+            > "$doc"
+          git diff --check -- "$test_path" "$doc"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$test_path" "$doc"
+          git diff --cached --check
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git commit -m '59i: qualify composite local-enable reset profiles'
+          candidate=$(git rev-parse HEAD)
+          printf '%s\n' "$candidate" > "$out/published-head.txt"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+
+      - name: Upload exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-local-enable-reset-matrix-v3-${{ github.sha }}
+          path: target/increment-59i-local-enable-reset-matrix-v3
+          if-no-files-found: error
+          retention-days: 14

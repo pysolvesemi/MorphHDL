@@ -1,0 +1,2 @@
+# Retain the explicitly reviewed native reduction policy despite the root JSON rule.
+!increment-59b-native-capture-review.json

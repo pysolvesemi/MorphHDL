@@ -1,0 +1,898 @@
+diff --git a/core/src/main/scala/spinal/core/Bits.scala b/core/src/main/scala/spinal/core/Bits.scala
+--- a/core/src/main/scala/spinal/core/Bits.scala
++++ b/core/src/main/scala/spinal/core/Bits.scala
+@@ -158,7 +158,7 @@
+   override def asBits: Bits = {
+     val ret = new Bits()
+     ret := this
+-    ret
++    NativeWidthProvenance.retainResult(ret, this)
+   }
+ 
+   /**
+diff --git a/core/src/main/scala/spinal/core/NativeWidthProvenance.scala b/core/src/main/scala/spinal/core/NativeWidthProvenance.scala
+--- a/core/src/main/scala/spinal/core/NativeWidthProvenance.scala
++++ b/core/src/main/scala/spinal/core/NativeWidthProvenance.scala
+@@ -69,7 +69,7 @@
+         }
+         case None => None
+       }
+-    case value: BitVectorLiteral => constant(value.getWidth)
++    case value: BitVectorLiteral => fillWidthOf(value).orElse(constant(value.getWidth))
+     case _: BoolLiteral => constant(1)
+     case value: CastBitVectorToBitVector => widthOf(value.input)
+     case _: CastBoolToBits => constant(1)
+@@ -95,6 +95,9 @@
+       ParameterizedWidth.resizeExpressionOf(value).orElse(constant(value.size))
+     case _: BitVectorBitAccessFixed => constant(1)
+     case _: BitVectorBitAccessFloating => constant(1)
++    case value: BitVectorRangedAccessFixed =>
++      for (geometry <- rangeOf(value); width <- widthOf(value.source))
++        yield geometry.resultWidth(width)
+     case _ => None
+   }
+ 
+@@ -118,6 +121,163 @@
+ 
+   private[core] def retainCloneShape[T <: Data](source: T, result: T): T =
+     ParameterizedWidth.copyCloneMetadata(source, result)
++
++  private def offset(width: ElaborationIntegerExpression, amount: Int): ElaborationIntegerExpression =
++    if (amount == 0) width
++    else if (amount < 0) ElaborationWidthAuthority.subtract(width, ElabInt.literal(-amount).expression)
++    else ElaborationWidthAuthority.add(width, ElabInt.literal(amount).expression)
++
++  /** Bounds explicitly recorded at a native source-relative construction site.
++    * The flags are never inferred from equality with the default width.
++    */
++  final class RangeGeometry private[NativeWidthProvenance] (
++      val highRelative: Boolean, val highOffset: Int,
++      val lowRelative: Boolean, val lowOffset: Int
++  ) {
++    val key: (Boolean, Int, Boolean, Int) = (highRelative, highOffset, lowRelative, lowOffset)
++    def high(width: ElaborationIntegerExpression): ElaborationIntegerExpression =
++      if (highRelative) offset(width, highOffset) else ElabInt.literal(highOffset).expression
++    def low(width: ElaborationIntegerExpression): ElaborationIntegerExpression =
++      if (lowRelative) offset(width, lowOffset) else ElabInt.literal(lowOffset).expression
++    def resultWidth(width: ElaborationIntegerExpression): ElaborationIntegerExpression =
++      offset(ElaborationWidthAuthority.subtract(high(width), low(width)), 1)
++    def validFor(width: ElaborationIntegerExpression): Boolean =
++      low(width).minimum >= 0 && resultWidth(width).minimum >= 1 &&
++        ElaborationWidthAuthority.subtract(width, high(width)).minimum >= 1
++  }
++  private final case class RangeRecord(
++      access: WeakReference[BitVectorRangedAccessFixed],
++      source: WeakReference[Expression with WidthProvider],
++      hi: Int, lo: Int, sourceWidth: Int,
++      authoritativeWidth: ElaborationIntegerExpression, geometry: RangeGeometry)
++  private val retainedRanges = ArrayBuffer.empty[RangeRecord]
++
++  /** A changed access/source/index no longer carries the original certificate. */
++  def rangeOf(access: BitVectorRangedAccessFixed): Option[RangeGeometry] = synchronized {
++    retainedRanges --= retainedRanges.filter(_.access.get == null)
++    retainedRanges.find(record => (record.access.get eq access) &&
++      (record.source.get eq access.source) && record.source.get != null &&
++      record.hi == access.hi && record.lo == access.lo &&
++      record.source.get.getWidth == record.sourceWidth &&
++      widthOf(access.source).exists(current =>
++        ElaborationWidthAuthority.equivalent(record.authoritativeWidth, current))).map(_.geometry)
++  }
++
++  private[core] def retainRange(access: BitVectorRangedAccessFixed, geometry: RangeGeometry): Unit = synchronized {
++    val width = widthOf(access.source).getOrElse(
++      throw new IllegalArgumentException("SPINAL-NATIVE-RANGE-WIDTH-AUTHORITY: source width is unproved"))
++    require(geometry.validFor(width) && geometry.high(width).default == access.hi &&
++      geometry.low(width).default == access.lo,
++      "SPINAL-NATIVE-RANGE-GEOMETRY: recorded native bounds must match throughout their exact domain")
++    retainedRanges.find(_.access.get eq access) match {
++      case Some(record) => require(rangeOf(access).contains(record.geometry) && record.geometry.key == geometry.key,
++        "SPINAL-NATIVE-RANGE-CONFLICT: exact native range already has different geometry")
++      case None => retainedRanges += RangeRecord(new WeakReference(access), new WeakReference(access.source),
++        access.hi, access.lo, access.source.getWidth, width, geometry)
++    }
++  }
++
++  private[core] def retainRelativeRange[T <: BitVector](source: BitVector, result: T,
++      highOffset: Int, lowRelative: Boolean, lowOffset: Int): T = {
++    if (result.hasOnlyOneStatement) result.head.source match {
++      case access: BitVectorRangedAccessFixed if access.source eq source =>
++        widthOf(source).foreach { width =>
++          val geometry = new RangeGeometry(true, highOffset, lowRelative, lowOffset)
++          if (geometry.validFor(width)) {
++            retainRange(access, geometry)
++            ParameterizedWidth.retainNativeWidth(result, geometry.resultWidth(width))
++          }
++        }
++      case _ =>
++    }
++    result
++  }
++
++  private final case class RelativeWidth(
++      target: WeakReference[BitVector], source: WeakReference[BitVector],
++      amount: Int, width: ElaborationIntegerExpression, targetWidth: Int, sourceWidth: Int)
++  private val relativeWidths = ArrayBuffer.empty[RelativeWidth]
++
++  private[core] def retainRelativeWidth[T <: BitVector](source: BitVector, result: T, amount: Int): T = synchronized {
++    widthOf(source).map(offset(_, amount)).filter(_.minimum >= 1).foreach { width =>
++      require(width.default == result.getBitsWidth,
++        "SPINAL-NATIVE-RESULT-GEOMETRY: native result must match the retained source-relative width")
++      ParameterizedWidth.retainNativeWidth(result, width)
++      relativeWidths --= relativeWidths.filter(_.target.get == null)
++      relativeWidths.find(_.target.get eq result) match {
++        case Some(record) => require((record.source.get eq source) && record.amount == amount &&
++          ElaborationWidthAuthority.equivalent(record.width, width),
++          "SPINAL-NATIVE-RESULT-CONFLICT: exact native result already has different geometry")
++        case None => relativeWidths += RelativeWidth(new WeakReference(result), new WeakReference(source),
++          amount, width, result.getBitsWidth, source.getBitsWidth)
++      }
++    }
++    result
++  }
++
++  final class FillGeometry private[NativeWidthProvenance] (
++      private val relativeSource: Option[WeakReference[BitVector]],
++      val amount: Int, val width: ElaborationIntegerExpression
++  ) {
++    def source: Option[BitVector] = relativeSource.flatMap(value => Option(value.get))
++    def resultWidth(sourceWidth: ElaborationIntegerExpression): ElaborationIntegerExpression =
++      if (relativeSource.nonEmpty) offset(sourceWidth, amount) else width
++  }
++  private final case class FillRecord(literal: WeakReference[BitVectorLiteral],
++      value: BigInt, bits: Int, specified: Boolean,
++      sourceWidth: Option[ElaborationIntegerExpression], geometry: FillGeometry)
++  private val retainedFills = ArrayBuffer.empty[FillRecord]
++
++  def fillOf(literal: BitVectorLiteral): Option[FillGeometry] = synchronized {
++    retainedFills --= retainedFills.filter(_.literal.get == null)
++    retainedFills.find(record => (record.literal.get eq literal) && !literal.hasPoison &&
++      literal.value == record.value && literal.bitCount == record.bits &&
++      literal.hasSpecifiedBitCount == record.specified &&
++      (record.sourceWidth match {
++        case None => record.geometry.source.isEmpty
++        case Some(original) => record.geometry.source.flatMap(widthOf).exists(current =>
++          ElaborationWidthAuthority.equivalent(original, current))
++      })).map(_.geometry)
++  }
++  def fillWidthOf(literal: BitVectorLiteral): Option[ElaborationIntegerExpression] =
++    fillOf(literal).map(_.width)
++
++  private[core] def retainFill(literal: BitVectorLiteral, width: ElaborationIntegerExpression,
++      source: Option[BitVector], amount: Int): Unit = synchronized {
++    require(width.minimum >= 1 && !literal.hasPoison && literal.value == (BigInt(1) << width.default.toInt) - 1 &&
++      literal.getWidth == width.default,
++      "SPINAL-NATIVE-FILL-GEOMETRY: only the exact native all-ones literal may retain fill geometry")
++    val sourceWidth = source.flatMap(widthOf)
++    source.foreach(value => require(sourceWidth.exists(original =>
++      ElaborationWidthAuthority.equivalent(offset(original, amount), width)),
++      "SPINAL-NATIVE-FILL-SOURCE: source-relative fill must retain its exact width transfer"))
++    retainedFills.find(_.literal.get eq literal) match {
++      case Some(record) => require(fillOf(literal).contains(record.geometry) &&
++        record.geometry.source.size == source.size &&
++        record.geometry.source.zip(source).forall { case (a, b) => a eq b } && record.geometry.amount == amount &&
++        ElaborationWidthAuthority.equivalent(record.geometry.width, width),
++        "SPINAL-NATIVE-FILL-CONFLICT: exact native literal already has different geometry")
++      case None => retainedFills += FillRecord(new WeakReference(literal), literal.value,
++        literal.bitCount, literal.hasSpecifiedBitCount, sourceWidth,
++        new FillGeometry(source.map(value => new WeakReference[BitVector](value)), amount, width))
++    }
++  }
++
++  private[core] def retainAllOnes[T <: BitVector](target: BitVector, value: T): T = synchronized {
++    widthOf(target).filter(_.minimum >= 1).foreach { width =>
++      if (value.hasOnlyOneStatement) value.head.source match {
++        case literal: BitVectorLiteral =>
++          val relative = relativeWidths.find(record => (record.target.get eq target) &&
++            record.source.get != null && record.source.get.getBitsWidth == record.sourceWidth &&
++            target.getBitsWidth == record.targetWidth &&
++            ElaborationWidthAuthority.equivalent(record.width, width))
++          retainFill(literal, width, relative.map(_.source.get), relative.map(_.amount).getOrElse(0))
++          ParameterizedWidth.retainNativeWidth(value, width)
++        case _ =>
++      }
++    }
++    value
++  }
+ 
+   private final case class HighBit(
+       access: WeakReference[BitVectorBitAccessFixed],
+diff --git a/core/src/main/scala/spinal/core/UInt.scala b/core/src/main/scala/spinal/core/UInt.scala
+--- a/core/src/main/scala/spinal/core/UInt.scala
++++ b/core/src/main/scala/spinal/core/UInt.scala
+@@ -121,11 +121,13 @@
+     }
+   }
+   private def _sat(m: Int): UInt = {
+-    val ret = UInt(getWidth-m bit)
+-    when(this(getWidth-1 downto getWidth-m).asBits.orR) {
++    val ret = NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)
++    when(NativeWidthProvenance.retainRelativeRange(this,
++      this(getWidth-1 downto getWidth-m), -1, true, -m).asBits.orR) {
+       ret.setAll()
+     }.otherwise {
+-      ret := this(getWidth-m-1 downto 0)
++      ret := NativeWidthProvenance.retainRelativeRange(this,
++        this(getWidth-m-1 downto 0), -m-1, false, 0)
+     }
+     ret
+   }
+@@ -496,7 +498,7 @@
+   override def getZeroUnconstrained: this.type = U(0).asInstanceOf[this.type]
+   override def getAllTrue: this.type = U(maxValue, this.getWidth bits).asInstanceOf[this.type]
+   override def setAll(): this.type = {
+-    this := maxValue
++    this := NativeWidthProvenance.retainAllOnes(this, U(maxValue))
+     this
+   }
+ 
+@@ -558,4 +560,3 @@
+     */
+   def apply(commonBitCount: BitCount) : UInt2D = UInt2D(commonBitCount, commonBitCount)
+ }
+-
+diff --git a/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala b/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+--- a/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
++++ b/morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+@@ -10,6 +10,7 @@
+ import spinal.core.internals.{
+   ExternalParameterizedAutoResize,
+   ExternalParameterizedHighBit,
++  ExternalParameterizedNativeGeometry,
+   ExternalParameterizedNativeResize,
+   MorphHdlCanonicalIrProducer,
+   MorphHdlExternalEnumLocalizer,
+@@ -722,6 +723,7 @@
+     phaseInserters += ExternalParameterizedNativeResize.install _
+     phaseInserters += ExternalParameterizedAutoResize.install _
+     phaseInserters += ExternalParameterizedHighBit.install _
++    phaseInserters += ExternalParameterizedNativeGeometry.install _
+     phaseInserters += TypedBalancedReductionBackend.install _
+     // Resolve the publication default on a private copy, never on the caller's
+     // native configuration or the independent dual-factory witness path.
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeGeometry.scala b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeGeometry.scala
+new file mode 100644
+--- /dev/null
++++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeGeometry.scala
+@@ -0,0 +1,206 @@
++package spinal.core.internals
++
++import java.util.IdentityHashMap
++import java.util.regex.Pattern
++import scala.collection.mutable.ArrayBuffer
++import spinal.core._
++
++/** Publish exact native range and fill geometry retained before Int lowering.
++  * Only a protected direct assignment with its original graph identities can
++  * replace an emitted witness edge. Names locate edges; they are not proof.
++  */
++object ExternalParameterizedNativeGeometry {
++  private object StorageKey
++  private final case class Record(
++      assignment: DataAssignmentStatement,
++      target: BitVector,
++      expression: Expression,
++      source: Option[BitVector],
++      width: ElaborationIntegerExpression,
++      high: Option[ElaborationIntegerExpression],
++      low: Option[ElaborationIntegerExpression],
++      assignmentScope: NativePublicationScope,
++      targetScope: NativePublicationScope,
++      sourceScope: Option[NativePublicationScope],
++      drivers: Vector[AssignmentStatement])
++
++  private final class Storage(val records: Vector[Record]) {
++    val byExpression = new IdentityHashMap[Expression, Record]()
++    records.foreach { record =>
++      if (byExpression.put(record.expression, record) != null)
++        fail("one geometry expression has multiple publication owners")
++    }
++  }
++  private def fail(detail: String): Nothing = throw new ParameterizedVerilogException(
++    "SPINAL-PARAMETERIZED-VERILOG-NATIVE-GEOMETRY-LINEAGE-MISMATCH", detail)
++  private def storage(component: Component): Option[Storage] =
++    component.userCache.get(StorageKey).map(_.asInstanceOf[Storage])
++  private val publicationValidation = new ThreadLocal[IdentityHashMap[Record, java.lang.Boolean]]()
++  private def assignments(component: Component, target: BaseType): Vector[AssignmentStatement] = {
++    val result = ArrayBuffer.empty[AssignmentStatement]
++    component.dslBody.walkStatements {
++      case assignment: AssignmentStatement if assignment.finalTarget eq target => result += assignment
++      case _ =>
++    }
++    result.toVector
++  }
++  private def same[A <: AnyRef](left: Vector[A], right: Vector[A]): Boolean =
++    left.size == right.size && left.zip(right).forall { case (a, b) => a eq b }
++
++  def install(phases: ArrayBuffer[Phase]): Unit = {
++    val boundary = phases.indexWhere(_.isInstanceOf[PhaseRemoveIntermediateUnnameds])
++    require(boundary >= 0, "native geometry requires the unnamed-intermediate boundary")
++    phases.insert(boundary, new PhaseMisc {
++      override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
++        val captured = ArrayBuffer.empty[Record]
++        component.dslBody.walkStatements {
++          case assignment: DataAssignmentStatement => assignment.target match {
++            case target: BitVector if (assignment.finalTarget eq target) && target.isComb &&
++                (target.component eq component) =>
++              val geometry = assignment.source match {
++                case access: BitVectorRangedAccessFixed => access.source match {
++                  case source: BitVector if source.component eq component =>
++                    for {
++                      rule <- NativeWidthProvenance.rangeOf(access)
++                      sourceWidth <- NativeWidthProvenance.widthOf(source)
++                      if sourceWidth.parameters.nonEmpty
++                    } yield (Some(source), rule.resultWidth(sourceWidth),
++                      Some(rule.high(sourceWidth)), Some(rule.low(sourceWidth)))
++                  case _ => None
++                }
++                case literal: BitVectorLiteral =>
++                  NativeWidthProvenance.fillWidthOf(literal).filter(_.parameters.nonEmpty)
++                    .map(width => (None, width, None, None))
++                case _ => None
++              }
++              geometry.foreach { case (source, width, high, low) =>
++                NativePublicationWidth.validate(width, component, target, "native geometry result")
++                source.foreach { value =>
++                  high.foreach(NativePublicationWidth.validate(_, component, value, "native range high"))
++                  low.foreach(NativePublicationWidth.validate(_, component, value, "native range low"))
++                  value.dontSimplifyIt().addTag(noBackendCombMerge)
++                  if (!value.isNamed) value.setWeakName("morphhdl_range_source")
++                }
++                target.dontSimplifyIt().addTag(noBackendCombMerge)
++                if (!target.isNamed) target.setWeakName("morphhdl_geometry")
++                captured += Record(assignment, target, assignment.source, source, width, high, low,
++                  NativePublicationScope.capture(component, assignment.parentScope),
++                  NativePublicationScope.capture(component, target.parentScope),
++                  source.map(value => NativePublicationScope.capture(component, value.parentScope)),
++                  assignments(component, target))
++              }
++            case _ =>
++          }
++          case _ =>
++        }
++        if (captured.nonEmpty) component.userCache.put(StorageKey, new Storage(captured.toVector))
++      }
++    })
++  }
++
++  private def valid(component: Component, record: Record): Boolean = {
++    val current = publicationValidation.get()
++    (current != null && current.containsKey(record)) || validFresh(component, record)
++  }
++
++  private def validFresh(component: Component, record: Record): Boolean = {
++    val currentWidth = record.expression match {
++      case access: BitVectorRangedAccessFixed =>
++        for {
++          rule <- NativeWidthProvenance.rangeOf(access)
++          source <- record.source if access.source eq source
++          sourceWidth <- NativeWidthProvenance.widthOf(source)
++          if record.high.exists(NativePublicationWidth.equivalentAtOwner(
++            rule.high(sourceWidth), _, component, source))
++          if record.low.exists(NativePublicationWidth.equivalentAtOwner(
++            rule.low(sourceWidth), _, component, source))
++        } yield rule.resultWidth(sourceWidth)
++      case literal: BitVectorLiteral => NativeWidthProvenance.fillWidthOf(literal)
++      case _ => None
++    }
++    var targetCount = 0
++    var sourceCount = 0
++    component.dslBody.walkStatements {
++      case value: BaseType =>
++        if (value eq record.target) targetCount += 1
++        if (record.source.exists(_ eq value)) sourceCount += 1
++      case _ =>
++    }
++    targetCount == 1 && (record.source.isEmpty || sourceCount == 1) &&
++      same(assignments(component, record.target), record.drivers) &&
++      record.drivers.exists(_ eq record.assignment) &&
++      record.assignmentScope.matches(record.assignment.parentScope) &&
++      record.targetScope.matches(record.target.parentScope) &&
++      record.source.zip(record.sourceScope).forall { case (source, scope) =>
++        (source.component eq component) && scope.matches(source.parentScope) &&
++          source.dontSimplify && source.hasTag(noBackendCombMerge)
++      } &&
++      (record.assignment.target eq record.target) && (record.assignment.finalTarget eq record.target) &&
++      (record.assignment.source eq record.expression) && (record.target.component eq component) &&
++      record.target.isComb && record.target.dontSimplify && record.target.hasTag(noBackendCombMerge) &&
++      currentWidth.exists(NativePublicationWidth.equivalentAtOwner(_, record.width, component, record.target))
++  }
++
++  private[internals] def widthOf(component: Component, expression: Expression)
++      : Option[ElaborationIntegerExpression] = storage(component)
++    .flatMap(value => Option(value.byExpression.get(expression))).map { record =>
++      if (!valid(component, record)) fail("retained native geometry changed after capture")
++      record.width
++    }
++
++  private[internals] def withPublicationValidation[A](component: Component)(body: => A): A = {
++    val original = storage(component)
++    def check(): Unit = {
++      if (storage(component).orNull ne original.orNull) fail("native geometry storage changed during publication")
++      original.foreach(_.records.foreach { record =>
++        if (!validFresh(component, record)) fail("retained native geometry changed during publication")
++      })
++    }
++    check()
++    val previous = publicationValidation.get()
++    val current = new IdentityHashMap[Record, java.lang.Boolean]()
++    original.foreach(_.records.foreach(record => current.put(record, java.lang.Boolean.TRUE)))
++    publicationValidation.set(current)
++    try {
++      val result = body
++      check()
++      result
++    } finally {
++      if (previous == null) publicationValidation.remove()
++      else publicationValidation.set(previous)
++    }
++  }
++
++  private[internals] def rewrite(component: Component, verilog: String): String = {
++    var lines = verilog.split("\n", -1).toVector
++    storage(component).foreach(_.records.foreach { record =>
++      if (!valid(component, record)) fail("retained native geometry assignment changed after capture")
++      val name = Option(record.target.getName()).filter(_.nonEmpty)
++        .getOrElse(fail("native geometry target has no emitted name"))
++      val (expected, replacement) = record.expression match {
++        case access: BitVectorRangedAccessFixed =>
++          val sourceName = Option(record.source.get.getName()).filter(_.nonEmpty)
++            .getOrElse(fail("native geometry source has no emitted name"))
++          (s"$sourceName[${access.hi} : ${access.lo}]",
++            s"$sourceName[${record.high.get.verilog} : ${record.low.get.verilog}]")
++        case literal: BitVectorLiteral =>
++          val bits = literal.getWidth
++          val witness = if (bits > 4) s"${bits}'h${literal.hexString(bits, false)}"
++            else s"${bits}'b${literal.getBitsStringOn(bits, 'x')}"
++          (witness, "{" + record.width.verilog + "{1'b1}}")
++        case _ => fail("captured native geometry kind changed")
++      }
++      val assignment = ("^(\\s*(?:assign\\s+)?" + Pattern.quote(name) +
++        "\\s*(?:<=|=)\\s*)(.*?)(;\\s*)$").r
++      var matches = 0
++      lines = lines.map {
++        case assignment(prefix, rhs, suffix) if rhs.trim == expected =>
++          matches += 1
++          prefix + replacement + suffix
++        case line => line
++      }
++      if (matches != 1) fail(s"native geometry '$name' has $matches exact emitted witness edges; expected one")
++    })
++    lines.mkString("\n")
++  }
++}
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+--- a/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala
+@@ -73,7 +73,9 @@
+       canonicalOf: Component => Component
+   ): String = ExternalParameterizedHighBit.withPublicationValidation(component) {
+     ExternalParameterizedNativeResize.withPublicationValidation(component) {
+-      rewriteValidated(component, verilog, pc, canonicalOf)
++      ExternalParameterizedNativeGeometry.withPublicationValidation(component) {
++        rewriteValidated(component, verilog, pc, canonicalOf)
++      }
+     }
+   }
+ 
+@@ -149,7 +151,8 @@
+     )
+     val rewrittenResizes = rewriteRetainedResizeAssignments(
+       component,
+-      ExternalParameterizedHighBit.rewrite(component, rewrittenValues),
++      ExternalParameterizedNativeGeometry.rewrite(component,
++        ExternalParameterizedHighBit.rewrite(component, rewrittenValues)),
+       nativeSignedResize = morphhdl.MorphSignedCasts.isEnabled(pc.config)
+     )
+     val rewrittenNormalizedTypedResizes =
+@@ -3280,7 +3283,9 @@
+         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
+         case access: BitVectorBitAccessFixed       => inferFixedBit(access)
+         case _: BitVectorBitAccessFloating         => WidthLiteral(1)
+-        case literal: BitVectorLiteral             => WidthLiteral(literal.getWidth)
++        case literal: BitVectorLiteral             =>
++          ExternalParameterizedNativeGeometry.widthOf(component, literal)
++            .map(retained).getOrElse(WidthLiteral(literal.getWidth))
+         case _: BoolLiteral                        => WidthLiteral(1)
+         case port: MemReadSync =>
+           ParameterizedMemory.metadataOf(port.mem) match {
+@@ -3521,6 +3526,9 @@
+       }
+ 
+       private def inferFixedRange(access: BitVectorRangedAccessFixed): WidthExpr = {
++        ExternalParameterizedNativeGeometry.widthOf(component, access).foreach { width =>
++          return retained(width)
++        }
+         val source = ofExpression(access.source)
+         if (source.isSymbolic && BigInt(access.hi) >= source.minimum) {
+           fail(
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+@@ -91,8 +91,21 @@
+       */
+     def requireUnchanged(): Unit = {
+       val current = inspect(callback, combinationalScopes)
+-      if (current != frozen)
+-        fail("CHANGED", "a captured callback's exact graph changed after observation")
++      if (current != frozen) {
++        val changed = frozen.nodes.zip(current.nodes).collectFirst {
++          case (before, after) if before != after =>
++            val retained = before.native.value match {
++              case leaf: BaseType =>
++                val sources = ArrayBuffer.empty[String]
++                leaf.foreachStatements(assignment => sources += assignment.source.getClass.getName)
++                s"; retained ${ParameterizedWidth.expressionOf(leaf).map(_.verilog)}, drivers ${sources.mkString(",")}, name ${leaf.getName()}"
++              case _ => ""
++            }
++            s"; first changed node ${before.kind.getName}: width ${before.width} -> ${after.width}, " +
++              s"properties ${before.properties} -> ${after.properties}" + retained
++        }.getOrElse("")
++        fail("CHANGED", "a captured callback's exact graph changed after observation" + changed)
++      }
+     }
+   }
+ 
+@@ -344,10 +357,12 @@
+       case literal: BitVectorLiteral =>
+         if (literal.value == null || literal.hasPoison)
+           fail("LITERAL", "poison or uninitialized literal is not closed replay input")
+-        Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount)
++        Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount,
++          NativeWidthProvenance.fillOf(literal).map(identity))
+       case literal: BoolLiteral => Vector(literal.value)
+       case resize: Resize => Vector(resize.size, ParameterizedWidth.resizeExpressionOf(resize).map(identity))
+-      case access: BitVectorRangedAccessFixed => Vector(access.hi, access.lo)
++      case access: BitVectorRangedAccessFixed => Vector(access.hi, access.lo,
++        NativeWidthProvenance.rangeOf(access).map(identity))
+       case access: BitVectorBitAccessFixed => Vector(access.bitId, NativeWidthProvenance.isHighBit(access))
+       case _: Expression => Vector.empty
+     }
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionScalarGraphReplay.scala
+@@ -609,17 +609,31 @@
+           }
+         case native: BitVectorRangedAccessFixed if ranges.contains(native.getClass) =>
+           val hi = native.hi; val lo = native.lo
+-          freeze(native, () => Vector(native.hi, native.lo))
++          val geometry = NativeWidthProvenance.rangeOf(native)
++          freeze(native, () => Vector(native.hi, native.lo,
++            NativeWidthProvenance.rangeOf(native).map(new Identity(_))))
+           val source = child(native.source)
+           if (source.kind ne selectInputKinds(native.getClass)) fail("TYPE", "part access source kind mismatch")
+           val transfer: Vector[Width] => Width = widths => {
+-            if (lo < 0 || hi < lo || BigInt(hi) >= widths.head.minimum)
+-              fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire substituted domain")
+-            lit(hi - lo + 1)
++            geometry match {
++              case Some(proof) =>
++                if (!proof.validFor(widths.head))
++                  fail("SELECT-DOMAIN", "native source-relative part selection must remain nonempty and in range throughout the substituted domain")
++                proof.resultWidth(widths.head)
++              case None =>
++                if (lo < 0 || hi < lo || BigInt(hi) >= widths.head.minimum)
++                  fail("SELECT-DOMAIN", "fixed part selection must stay nonempty and in range for the entire substituted domain")
++                lit(hi - lo + 1)
++            }
+           }
+           val factory = ranges(native.getClass)
+-          make(kind, transfer, native.getClass, Vector(hi, lo), Vector(source)) { (values, _) =>
+-            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]; out.hi = hi; out.lo = lo; out
++          val properties = geometry.map(value => Vector[Any]("source-relative", value.key)).getOrElse(Vector[Any](hi, lo))
++          make(kind, transfer, native.getClass, properties, Vector(source)) { (values, _) =>
++            val out = factory(); out.source = values.head.asInstanceOf[Expression with WidthProvider]
++            out.hi = geometry.map(_.high(widthOf(values.head)).default.toInt).getOrElse(hi)
++            out.lo = geometry.map(_.low(widthOf(values.head)).default.toInt).getOrElse(lo)
++            geometry.foreach(NativeWidthProvenance.retainRange(out, _))
++            out
+           }
+         case native: BitVectorLiteral if native.getClass == classOf[BitsLiteral] ||
+             native.getClass == classOf[UIntLiteral] || native.getClass == classOf[SIntLiteral] =>
+@@ -627,15 +641,38 @@
+           val value = native.value
+           val bits = native.bitCount
+           val specified = native.hasSpecifiedBitCount
+-          freeze(native, () => Vector(native.value, native.poisonMask, native.bitCount, native.hasSpecifiedBitCount))
+-          val width = literalWidth.getOrElse(lit(bits))
+-          val needed = value.bitLength + (if ((kind eq TypeSInt) && value != 0) 1 else 0)
+-          if ((value < 0 && (kind ne TypeSInt)) || width.minimum < needed)
+-            fail("LITERAL-DOMAIN", "constant value must fit its exact native kind and width for every allowed parameter")
+-          make(kind, _ => width, native.getClass, Vector(value, specified, new WidthKey(width)), Vector.empty) { (_, target) =>
+-            if (kind eq TypeBits) BitsLiteral(value, null, target.default.toInt, true)
+-            else if (kind eq TypeUInt) UIntLiteral(value, null, target.default.toInt, true)
+-            else SIntLiteral(value, null, target.default.toInt, true)
++          val fill = NativeWidthProvenance.fillOf(native)
++          freeze(native, () => Vector(native.value, native.poisonMask, native.bitCount, native.hasSpecifiedBitCount,
++            NativeWidthProvenance.fillOf(native).map(new Identity(_))))
++          def literal(at: BigInt, target: Width): BitVectorLiteral = {
++            if (kind eq TypeBits) BitsLiteral(at, null, target.default.toInt, true)
++            else if (kind eq TypeUInt) UIntLiteral(at, null, target.default.toInt, true)
++            else SIntLiteral(at, null, target.default.toInt, true)
++          }
++          fill match {
++            case Some(proof) =>
++              if (kind ne TypeUInt) fail("LITERAL-DOMAIN", "native all-ones fill is certified only for unsigned literals")
++              val dependency = proof.source.map(child).toVector
++              val transfer: Vector[Width] => Width = widths => {
++                val width = if (widths.nonEmpty) proof.resultWidth(widths.head) else proof.width
++                if (width.minimum < 1) fail("LITERAL-DOMAIN", "native fill requires positive width throughout the substituted domain")
++                width
++              }
++              val properties = if (dependency.nonEmpty) Vector[Any]("all-ones", proof.amount)
++                else Vector[Any]("all-ones", new WidthKey(proof.width))
++              make(kind, transfer, native.getClass, properties, dependency) { (values, target) =>
++                val out = literal((BigInt(1) << target.default.toInt) - 1, target)
++                NativeWidthProvenance.retainFill(out, target, values.headOption.map(_.asInstanceOf[BitVector]), proof.amount)
++                out
++              }
++            case None =>
++              val width = literalWidth.getOrElse(lit(bits))
++              val needed = value.bitLength + (if ((kind eq TypeSInt) && value != 0) 1 else 0)
++              if ((value < 0 && (kind ne TypeSInt)) || width.minimum < needed)
++                fail("LITERAL-DOMAIN", "constant value must fit its exact native kind and width for every allowed parameter")
++              make(kind, _ => width, native.getClass, Vector(value, specified, new WidthKey(width)), Vector.empty) { (_, target) =>
++                literal(value, target)
++              }
+           }
+         case native: BoolLiteral if native.getClass == classOf[BoolLiteral] =>
+           val value = native.value
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala
+--- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeCaptureArtifacts.scala
+@@ -57,7 +57,7 @@
+       val base = config(root.resolve("candidate"), name)
+       val shaped = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
+       val configured = signed match {
+-        case "legacy" => shaped
++        case "legacy" => MorphSignedDeclarations.disable(MorphSignedCasts.disable(shaped))
+         case "declarations" => MorphSignedDeclarations.enable(shaped)
+         case "casts" => MorphSignedCasts.enable(shaped)
+       }
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
+--- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeSaturationTests.scala
+@@ -59,6 +59,39 @@
+     val path = root.resolve(layout).resolve(file)
+     require(Files.isRegularFile(path), "saturation candidate was not emitted: " + path)
+     path
++  }
++
++  // Each concrete reference invokes the same native Component through ordinary
++  // SpinalVerilog, without the MorphVerilog reduction backend or publisher.
++  val hardwareCases: Vector[(Int, Int, Int)] = (for {
++    (width, tagWidth) <- Vector((1, 1), (1, 16), (32, 1), (32, 16),
++      (5, 3), (3, 5), (5, 5))
++    count <- Vector(1, 2, 3, 5, 8, 9, 16, 17)
++  } yield (width, tagWidth, count)).toVector
++
++  def main(args: Array[String]): Unit = {
++    require(args.length == 1, "expected saturation hardware artifact directory")
++    val root = Paths.get(args(0)).toAbsolutePath.normalize()
++    Files.createDirectories(root)
++    val candidates = layouts.map { layout =>
++      emit(root.resolve("candidate"), layout)
++      val name = "BalancedSaturatingReduction_" + layout
++      s"""{"layout":"$layout","module":"$name","file":"candidate/$layout/$name.v"}"""
++    }
++    val references = hardwareCases.map { case (width, tagWidth, count) =>
++      val id = s"w${width}_t${tagWidth}_n$count"
++      val name = "NativeSaturatingReduction_" + id
++      val selected = config(root.resolve("native"), name + ".v").copy(headerWithRepoHash = false)
++      SpinalVerilog(selected) {
++        new BalancedSaturatingReduction(HdlInt.literal(width), HdlInt.literal(tagWidth),
++          HdlInt.literal(count), name)
++      }
++      require(Files.isRegularFile(root.resolve("native").resolve(name + ".v")))
++      s"""{"id":"$id","width":$width,"tag_width":$tagWidth,"count":$count,"module":"$name","file":"native/$name.v"}"""
++    }
++    val manifest = s"""{"schema":1,"scope":"59i-composite-saturation-hardware","candidates":[${candidates.mkString(",")}],"cases":[${references.mkString(",")}]}
++"""
++    Files.write(root.resolve("manifest.json"), manifest.getBytes(StandardCharsets.UTF_8))
+   }
+ }
+ 
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala
+new file mode 100644
+--- /dev/null
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNativeGeometryTests.scala
+@@ -0,0 +1,178 @@
++package spinal.core.internals
++
++import java.nio.file.Files
++import morphhdl.frontend.HdlInt
++import org.scalatest.funsuite.AnyFunSuite
++import spinal.core._
++import spinal.lib._
++
++/** Exercise geometry on the actual native +| graph, including exact-node
++  * mutations. No generated-RTL mutation coverage is implied by this suite.
++  */
++class TypedBalancedReductionNativeGeometryTests extends AnyFunSuite {
++  private def elaborate(body: => Unit): Unit =
++    SpinalConfig(targetDirectory = Files.createTempDirectory("native-geometry-").toString,
++      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
++      body
++      val keep = out Bool()
++      keep := False
++    })
++
++  private def capture(operation: (UInt, UInt) => UInt = (a: UInt, b: UInt) => a +| b)
++      : (UnvalidatedBalancedCallback, TypedBalancedReductionScalarGraphReplay.Proof) = {
++    val width = HdlInt.param("WIDTH", 5, 1, 9)
++    val values = Vec(UInt(width bits), HdlInt.param("COUNT", 2, 2, 2))
++    values.foreach(_ := 0)
++    val native: ElabBalancedReduction.Native[UInt] = (elements, operation, bridge) =>
++      new TraversableOnceAnyPimped[UInt](elements).reduceBalancedTree(operation, bridge)
++    val callback = TypedBalancedReductionCapture(values, operation,
++      (value: UInt, _: Int) => value, native).rows.head.operator.get
++    val evidence = callback.operands.map(value =>
++      TypedBalancedReductionValueEvidence.input(value.asInstanceOf[BaseType]))
++    val proof = TypedBalancedReductionScalarGraphReplay.certify(callback, evidence)
++    (callback, proof)
++  }
++
++  private def ranges(callback: UnvalidatedBalancedCallback): Vector[BitVectorRangedAccessFixed] =
++    callback.assignments.map(_.source).collect { case value: BitVectorRangedAccessFixed => value }
++
++  private def fills(callback: UnvalidatedBalancedCallback): Vector[BitVectorLiteral] =
++    callback.assignments.map(_.source).collect {
++      case value: BitVectorLiteral if NativeWidthProvenance.fillOf(value).nonEmpty => value
++    }
++
++  private def stale(proof: TypedBalancedReductionScalarGraphReplay.Proof): Unit = {
++    val error = intercept[IllegalArgumentException](proof.validateFreshness())
++    assert(error.getMessage.contains("STALE"), error.getMessage)
++  }
++
++  test("native saturation retains its independent source-relative slice and fill domains") {
++    elaborate {
++      val (callback, proof) = capture()
++      val width = ParameterizedWidth.expressionOf(callback.operands.head.asInstanceOf[BaseType]).get
++      assert(ElaborationWidthAuthority.equivalent(proof.resultWidth, width))
++      val selected = ranges(callback)
++      assert(selected.size == 2)
++      selected.foreach { access =>
++        val geometry = NativeWidthProvenance.rangeOf(access).get
++        val sourceWidth = NativeWidthProvenance.widthOf(access.source).get
++        assert(geometry.validFor(sourceWidth))
++        assert(geometry.high(sourceWidth).default == access.hi)
++        assert(geometry.low(sourceWidth).default == access.lo)
++      }
++      val literal = fills(callback).head
++      val fill = NativeWidthProvenance.fillOf(literal).get
++      assert(fill.source.nonEmpty)
++      assert(NativeWidthProvenance.fillWidthOf(literal).get eq fill.width)
++      assert(ElaborationWidthAuthority.equivalent(fill.width, width))
++      val other = HdlInt.param("OTHER_WIDTH", 5, 1, 9).bits.expression.get
++      assert(width.default == other.default)
++      assert(!ElaborationWidthAuthority.equivalent(width, other))
++      val widenedOther = ElaborationWidthAuthority.add(other, ElabInt.literal(2).expression)
++      val replayWidth = proof.resultWidthFor(widenedOther, widenedOther)
++      assert(ElaborationWidthAuthority.equivalent(replayWidth, widenedOther))
++      assert(!ElaborationWidthAuthority.equivalent(replayWidth, width))
++      proof.validateFreshness()
++    }
++  }
++
++  test("actual native saturation range mutations invalidate query and scalar freshness") {
++    elaborate {
++      val (callback, proof) = capture()
++      ranges(callback).foreach { access =>
++        val original = NativeWidthProvenance.rangeOf(access).get
++        val hi = access.hi
++        val lo = access.lo
++        access.hi = hi + 1
++        try { assert(NativeWidthProvenance.rangeOf(access).isEmpty); stale(proof) }
++        finally access.hi = hi
++        assert(NativeWidthProvenance.rangeOf(access).contains(original))
++        proof.validateFreshness()
++        access.lo = lo + 1
++        try { assert(NativeWidthProvenance.rangeOf(access).isEmpty); stale(proof) }
++        finally access.lo = lo
++        proof.validateFreshness()
++      }
++    }
++  }
++
++  test("same-default independent source replacement cannot inherit native range geometry") {
++    elaborate {
++      val (callback, proof) = capture()
++      val other = UInt(HdlInt.param("OTHER_WIDTH", 5, 1, 9) bits)
++      other := 0
++      val replacement = other +^ other
++      val access = ranges(callback).head
++      val source = access.source
++      assert(replacement.getBitsWidth == source.getWidth)
++      access.source = replacement
++      try { assert(NativeWidthProvenance.rangeOf(access).isEmpty); stale(proof) }
++      finally access.source = source
++      assert(NativeWidthProvenance.rangeOf(access).nonEmpty)
++      proof.validateFreshness()
++    }
++  }
++
++  test("actual all-ones value and width mutations invalidate exact literal provenance") {
++    elaborate {
++      val (callback, proof) = capture()
++      val literal = fills(callback).head
++      val original = NativeWidthProvenance.fillOf(literal).get
++      val value = literal.value
++      literal.value = value ^ 1
++      try { assert(NativeWidthProvenance.fillOf(literal).isEmpty); stale(proof) }
++      finally literal.value = value
++      assert(NativeWidthProvenance.fillOf(literal).contains(original))
++      proof.validateFreshness()
++      val bits = literal.bitCount
++      literal.bitCount = bits + 1
++      try { assert(NativeWidthProvenance.fillOf(literal).isEmpty); stale(proof) }
++      finally literal.bitCount = bits
++      proof.validateFreshness()
++    }
++  }
++
++  test("independent equal-default width conflicts remain rejected on native saturation operands") {
++    elaborate {
++      val (callback, proof) = capture()
++      val operand = callback.operands.head.asInstanceOf[UInt]
++      val before = ParameterizedWidth.expressionOf(operand).get
++      val other = HdlInt.param("OTHER_WIDTH", 5, 1, 9)
++      assert(before.default == other.bits.expression.get.default)
++      val error = intercept[Exception](ParameterizedWidth.attach(operand, other.bits))
++      assert(error.getMessage.contains("WIDTH-PROVENANCE-CONFLICT"), error.getMessage)
++      assert(ParameterizedWidth.expressionOf(operand).get eq before)
++      proof.validateFreshness()
++    }
++  }
++
++  test("ordinary native zero-width setAll keeps its original concrete behavior") {
++    elaborate {
++      val zero = UInt(0 bits)
++      val result = zero.setAll()
++      assert(result eq zero)
++      assert(zero.getBitsWidth == 0)
++      val assigned = zero.head.source.asInstanceOf[UInt]
++      val literal = assigned.head.source.asInstanceOf[UIntLiteral]
++      assert(literal.value == 0)
++      assert(NativeWidthProvenance.fillOf(literal).isEmpty)
++    }
++  }
++
++  test("ordinary native saturation preserves a legal witness without certifying an invalid symbolic domain") {
++    elaborate {
++      val input = UInt(HdlInt.param("WIDTH", 5, 1, 9) bits)
++      input := 0
++      val result = input.sat(2)
++      assert(result.getBitsWidth == 3)
++      assert(ParameterizedWidth.expressionOf(result).isEmpty)
++    }
++  }
++
++  test("ordinary witness acceptance does not certify saturation outside the full symbolic domain") {
++    elaborate {
++      val error = intercept[IllegalArgumentException](capture((a: UInt, _: UInt) => a.sat(2)))
++      assert(error.getMessage.contains("SELECT-DOMAIN"), error.getMessage)
++    }
++  }
++}
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala
+--- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedResultArtifactWriter.scala
+@@ -2,7 +2,7 @@
+ 
+ import java.nio.charset.StandardCharsets
+ import java.nio.file.{Files, Path, Paths}
+-import morphhdl.{MorphNamedFieldVectors, MorphSignedCasts, MorphVerilog}
++import morphhdl.{MorphNamedFieldVectors, MorphSignedCasts, MorphSignedDeclarations, MorphVerilog}
+ import morphhdl.frontend.HdlInt
+ import nativeapplication.BalancedNestedResultNativeOracle
+ import spinal.core._
+@@ -24,7 +24,8 @@
+     val name = s"BalancedNestedResult_${layout}_${signed}_d$defaultCount"
+     val base = config(path, name)
+     val shaped = if (layout == "fields") MorphNamedFieldVectors.enable(base) else base
+-    val configured = if (signed == "casts") MorphSignedCasts.enable(shaped) else shaped
++    val configured = if (signed == "casts") MorphSignedCasts.enable(shaped)
++      else MorphSignedDeclarations.disable(MorphSignedCasts.disable(shaped))
+     MorphVerilog(configured) {
+       new BalancedCombinedNestedResult(HdlInt.param("U_W", 5, 1, 32),
+         HdlInt.param("S_W", 3, 1, 32), HdlInt.param("TAG_W", 7, 1, 32),

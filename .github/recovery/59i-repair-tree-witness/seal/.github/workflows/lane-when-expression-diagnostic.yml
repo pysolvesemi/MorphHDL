@@ -1,0 +1,413 @@
+name: Lane and when expression inlining qualification
+
+on:
+  push:
+    branches: [agent/lane-when-expression-inlining, parameterized-verilog]
+    paths:
+      - '.github/workflows/lane-when-expression-diagnostic.yml'
+      - 'core/src/main/**'
+      - 'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala'
+      - 'morphhdl/src/main/**'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl-passes/src/main/**'
+      - 'morphhdl/scripts/check-lane-when-inlining.py'
+      - 'morphhdl/src/test/scala/morphhdl/Lane*'
+      - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
+      - 'morphhdl/src/test/resources/lane-expression/**'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/lane-when-expression-diagnostic.yml'
+      - 'core/src/main/**'
+      - 'morphhdl/src/main/**'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl-passes/src/main/**'
+      - 'morphhdl/scripts/check-lane-when-inlining.py'
+      - 'morphhdl/src/test/scala/morphhdl/Lane*'
+      - 'morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala'
+      - 'morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala'
+      - 'morphhdl/src/test/resources/lane-expression/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - name: Install strict compile, four-state simulation, lint, and synthesis tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y iverilog verilator yosys
+      - name: Independently rebuild the unchanged reported compiler baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline="$RUNNER_TEMP/lane-when-baseline"
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate-identity.txt"
+          git worktree add --detach "$baseline" 3b547ae5622ae212c17f6e67cc96924127a46a41
+          for file in GenerateLaneExpressionExample LaneConditionCoverageExample LaneReceiverCoverageExample LaneInliningRegressionWriter; do
+            cp "morphhdl/src/test/scala/morphhdl/$file.scala" "$baseline/morphhdl/src/test/scala/morphhdl/"
+          done
+          cd "$baseline"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/baseline-identity.txt"
+          git diff --exit-code -- core/src/main lib/src/main idslplugin/src/main morphplugin/src/main morphhdl/src/main morphir/src/main morphruntime/src/main frontend/src/main backends/verilog/src/main paramrtl/src/main morphhdl-passes/src morphhdl-passes/examples
+          sbt '++${{ matrix.scala }}' "morph/Test/runMain morphhdl.LaneInliningRegressionWriter $evidence/before" 2>&1 | tee "$evidence/baseline-sbt.log"
+      - name: Compile and test the actual current production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          sbt '++${{ matrix.scala }}' \
+            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.VerilogDeclarationPolicyStorageTests' \
+            'morph/Test/testOnly morphhdl.LaneWhenInliningRegressionTests spinal.core.MorphVerilogExpressionInliningTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.BooleanWidthNormalizationTests' \
+            "morph/Test/runMain morphhdl.LaneInliningRegressionWriter $evidence/after" \
+            "morph/Test/runMain morphhdl.GenerateLaneExpressionExample $evidence/plain" \
+            "morph/Test/runMain spinal.core.internals.LaneExpressionTraceWriter $evidence/trace" \
+            2>&1 | tee "$evidence/candidate-sbt.log"
+          cmp "$evidence/plain/LaneExpressionExample.v" "$evidence/trace/rtl/LaneExpressionExample.v"
+          cmp "$evidence/plain/LaneExpressionExample.v" "$evidence/after/first/default/lane/design.v"
+      - name: Check final RTL, parameter widths, simulations, proofs, and real RTL mutations
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/lane-when-evidence"
+          python3 morphhdl/scripts/check-lane-when-inlining.py \
+            --before "$evidence/before" --after "$evidence/after" --output "$evidence/validation"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lane-when-qualification-${{ matrix.scala }}
+          path: ${{ runner.temp }}/lane-when-evidence/
+          if-no-files-found: error
+          retention-days: 14
+  cross-scala:
+    needs: qualify
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: lane-when-qualification-2.12.18
+          path: scala212
+      - uses: actions/download-artifact@v4
+        with:
+          name: lane-when-qualification-2.13.12
+          path: scala213
+      - name: Require identical exact source identities and all emitted artifacts
+        run: |
+          set -euo pipefail
+          cmp scala212/candidate-identity.txt scala213/candidate-identity.txt
+          cmp scala212/baseline-identity.txt scala213/baseline-identity.txt
+          diff -ru scala212/before scala213/before
+          diff -ru scala212/after scala213/after
+
+  compatibility:
+    name: Lane Binary source and concrete parity Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+        - 2.12.18
+        - 2.13.12
+    steps:
+    - name: Check out exact head with complete history
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
+        submodules: recursive
+    - name: Record and authenticate the exact qualification revision
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$EVIDENCE_DIR"
+        git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE_DIR/source-identity.txt"
+        test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+        python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+        python3 morphhdl/scripts/check-lane-when-source-scope.py
+    - name: Prove JVM compatibility with the selected upstream baseline
+      run: |
+        set -euo pipefail
+        {
+          bash morphhdl/scripts/check-binary-compatibility.sh --scala-version "${{ matrix.scala_version }}"
+        } 2>&1 | tee "$EVIDENCE_DIR/prove-jvm-compatibility-with-the-selected-upstream-baseline.log"
+      shell: bash
+    - name: Prove MorphHDL report ABI against the exact prior increment
+      shell: bash
+      env:
+        BASE_COMMIT: 7f355a859e7e88ca343e1ff82f261fb47b3311d0
+        SCALA_VERSION: ${{ matrix.scala_version }}
+      run: |
+        set -euo pipefail
+        {
+          set -euo pipefail
+          test -n "$BASE_COMMIT"
+          test "$(git rev-parse --verify "$BASE_COMMIT^{commit}")" = "$BASE_COMMIT"
+          compatibility_root="$(mktemp -d /tmp/morphhdl-report-abi.XXXXXX)"
+          baseline_root="$compatibility_root/baseline"
+          cleanup() {
+            status=$?
+            git worktree remove --force "$baseline_root" >/dev/null 2>&1 || true
+            rm -rf -- "$compatibility_root"
+            return "$status"
+          }
+          trap cleanup EXIT
+          git worktree add --quiet --detach "$baseline_root" "$BASE_COMMIT"
+
+          (
+            cd "$baseline_root"
+            sbt -batch "++$SCALA_VERSION" "morph / Compile / packageBin"
+          )
+          sbt -batch "++$SCALA_VERSION" "morph / Compile / packageBin"
+
+          scala_binary="${SCALA_VERSION%.*}"
+          artifact() {
+            root=$1
+            mapfile -t candidates < <(find \
+              "$root/morphhdl/target/scala-$scala_binary" \
+              -maxdepth 1 -type f -name '*.jar' \
+              ! -name '*-tests.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+              | LC_ALL=C sort)
+            test "${#candidates[@]}" = 1
+            printf '%s\n' "${candidates[0]}"
+          }
+          baseline_jar="$(artifact "$baseline_root")"
+          current_jar="$(artifact "$GITHUB_WORKSPACE")"
+          python3 morphhdl/scripts/check-jvm-binary-compatibility.py \
+            --label "morph-report-$SCALA_VERSION" \
+            --baseline "$baseline_jar" \
+            --current "$current_jar"
+        } 2>&1 | tee "$EVIDENCE_DIR/prove-morphhdl-report-abi-against-the-exact-prior-increment.log"
+    - name: Prove source linkage and ordinary SpinalVerilog parity
+      run: |
+        set -euo pipefail
+        {
+          bash morphhdl/scripts/check-concrete-spinalverilog-parity.sh --scala "${{ matrix.scala_version }}"
+        } 2>&1 | tee "$EVIDENCE_DIR/prove-source-linkage-and-ordinary-spinalverilog-parity.log"
+      shell: bash
+    - name: Prove the external inspection boundary against Increment 0
+      run: |
+        set -euo pipefail
+        {
+          bash morphhdl/scripts/check-external-spinal-boundary.sh "${{ matrix.scala_version }}"
+        } 2>&1 | tee "$EVIDENCE_DIR/prove-the-external-inspection-boundary-against-increment-0.log"
+      shell: bash
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lane-compatibility-${{ matrix.scala_version }}
+        path: ${{ env.EVIDENCE_DIR }}
+        if-no-files-found: error
+        retention-days: 14
+    env:
+      EVIDENCE_DIR: /tmp/lane-compatibility-evidence
+      SBT_TEST_PARALLEL: '0'
+  sbt-full:
+    name: Lane SBT full suite Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+        - 2.12.18
+        - 2.13.12
+    steps:
+    - name: Check out exact head
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        submodules: recursive
+        fetch-depth: 0
+    - name: Record and authenticate the exact qualification revision
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$EVIDENCE_DIR"
+        git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE_DIR/source-identity.txt"
+        test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+        python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+        python3 morphhdl/scripts/check-lane-when-source-scope.py
+    - name: Compile every production and test source
+      run: |
+        set -euo pipefail
+        {
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+        } 2>&1 | tee "$EVIDENCE_DIR/compile-every-production-and-test-source.log"
+      shell: bash
+    - name: Run frontend canonical IR MorphHDL and native simulation suites
+      run: |
+        set -euo pipefail
+        {
+          sbt -batch "++${{ matrix.scala_version }}" frontend/test
+          sbt -batch "++${{ matrix.scala_version }}" morphir/test
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamFifoCCTester spinal.lib.SpinalSimStreamWidthAdapterTester"
+        } 2>&1 | tee "$EVIDENCE_DIR/run-frontend-canonical-ir-morphhdl-and-native-simulation-suites.log"
+      shell: bash
+    - name: Package fresh production modules and enforce retirement
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" clean \
+            frontend/package idslplugin/package morphir/package paramrtl/package \
+            morphruntime/package morphplugin/package morph/package verilogBackend/package
+          mapfile -t jars < <(find \
+            frontend idslplugin morphir paramrtl morphruntime morphplugin morphhdl \
+            backends/verilog \
+            -regextype posix-extended -type f \
+            -regex '.*/target/scala-[^/]+/[^/]+\.jar' | LC_ALL=C sort -u)
+          test "${#jars[@]}" -ge 8
+          arguments=()
+          for jar in "${jars[@]}"; do
+            arguments+=(--jar "$jar")
+          done
+          python3 morphhdl/scripts/check-increment-58-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-production-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-typed-layering-ir.py \
+            --require-jar "${arguments[@]}"
+        } 2>&1 | tee "$EVIDENCE_DIR/package-fresh-production-modules-and-enforce-retirement.log"
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lane-sbt-full-${{ matrix.scala_version }}
+        path: ${{ env.EVIDENCE_DIR }}
+        if-no-files-found: error
+        retention-days: 14
+    env:
+      EVIDENCE_DIR: /tmp/lane-sbt-full-evidence
+      SBT_TEST_PARALLEL: '0'
+  mill-full:
+    name: Lane Mill affected full suite Scala ${{ matrix.scala_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      EVIDENCE_DIR: /tmp/lane-mill-full-evidence
+      SBT_TEST_PARALLEL: '0'
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+        - 2.12.18
+        - 2.13.12
+    steps:
+    - name: Check out exact head
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+        fetch-depth: 0
+        submodules: recursive
+    - name: Record and authenticate the exact qualification revision
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "$EVIDENCE_DIR"
+        git rev-parse HEAD 'HEAD^{tree}' > "$EVIDENCE_DIR/source-identity.txt"
+        test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+        python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py
+        python3 morphhdl/scripts/check-lane-when-source-scope.py
+    - name: Install pinned Mill
+      run: |
+        set -euo pipefail
+        {
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+        } 2>&1 | tee "$EVIDENCE_DIR/install-pinned-mill.log"
+      shell: bash
+    - name: Compile and test all affected modules
+      run: |
+        set -euo pipefail
+        {
+          /tmp/mill \
+            core[${{ matrix.scala_version }}].compile \
+            frontend[${{ matrix.scala_version }}].compile \
+            morphir[${{ matrix.scala_version }}].compile \
+            paramrtl[${{ matrix.scala_version }}].compile \
+            morphruntime[${{ matrix.scala_version }}].compile \
+            morph[${{ matrix.scala_version }}].compile \
+            verilogBackend[${{ matrix.scala_version }}].compile
+          /tmp/mill frontend[${{ matrix.scala_version }}].test
+          /tmp/mill morphir[${{ matrix.scala_version }}].test
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.CounterTester \
+            spinal.lib.SpinalSimStreamFifoTester \
+            spinal.lib.SpinalSimStreamFifoCCTester \
+            spinal.lib.SpinalSimStreamWidthAdapterTester
+        } 2>&1 | tee "$EVIDENCE_DIR/compile-and-test-all-affected-modules.log"
+      shell: bash
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: lane-mill-full-${{ matrix.scala_version }}
+        path: ${{ env.EVIDENCE_DIR }}
+        if-no-files-found: error
+        retention-days: 14
+  qualification:
+    name: Lane complete exact-head qualification
+    needs:
+    - qualify
+    - cross-scala
+    - compatibility
+    - sbt-full
+    - mill-full
+    if: always()
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+    - name: Reject missing skipped cancelled or failed required jobs
+      shell: bash
+      env:
+        QUALIFY: ${{ needs.qualify.result }}
+        CROSS_SCALA: ${{ needs.cross-scala.result }}
+        COMPATIBILITY: ${{ needs.compatibility.result }}
+        SBT_FULL: ${{ needs.sbt-full.result }}
+        MILL_FULL: ${{ needs.mill-full.result }}
+      run: |
+        set -euo pipefail
+        for result in "$QUALIFY" "$CROSS_SCALA" "$COMPATIBILITY" "$SBT_FULL" "$MILL_FULL"; do
+          test "$result" = success
+        done
+        printf '%s\n' 'LANE_COMPLETE_QUALIFICATION_PASS'

@@ -1,0 +1,61 @@
+name: MorphHDL native AXI4 Slave Factory formal equivalence
+
+# Stable required-check name. The former AXI4 recognizer proof is replaced by
+# a negative retirement boundary and a typed formal-equivalence proof.
+on:
+  push:
+    branches: [main, parameterized-verilog]
+  pull_request:
+    branches: [main, parameterized-verilog]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-axi4-formal-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source-boundary:
+    name: Native AXI4 formal source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove AXI4 source recognizer and runtime absence
+        run: |
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py
+
+  formal-equivalence:
+    name: Concrete-witness formal proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Verify typed formal toolchain
+        run: |
+          command -v yosys
+          command -v iverilog
+          command -v verilator
+          yosys -V
+      - name: Run retained typed formal equivalence
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests"

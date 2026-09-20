@@ -1,0 +1,440 @@
+
+-- Executing script file `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/checks/general/PPC4-0/equivalence.ys' --
+
+1. Executing Verilog-2005 frontend: /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v
+Parsing Verilog input from `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v' to AST representation.
+Generating RTLIL representation for module `\GeneralExpressionInlining'.
+Successfully finished Verilog frontend.
+Parameter \PPC4 = 0
+
+2. Executing AST frontend in derive mode using pre-parsed AST for module `\GeneralExpressionInlining'.
+Parameter \PPC4 = 0
+Generating RTLIL representation for module `$paramod\GeneralExpressionInlining\PPC4=32'00000000000000000000000000000000'.
+Renaming module \GeneralExpressionInlining to \gold.
+
+3. Executing PROC pass (convert processes to netlists).
+
+3.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+3.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:105$40 in module gold.
+Removed a total of 0 dead cases.
+
+3.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+3.4. Executing PROC_INIT pass (extract init attributes).
+
+3.5. Executing PROC_ARST pass (detect async resets in processes).
+
+3.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~2 debug messages>
+
+3.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:105$40'.
+     1/1: $0\state[11:0]
+
+3.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+3.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\gold.\state' using process `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:105$40'.
+  created $dff cell `$procdff$46' with positive edge clock.
+
+3.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+3.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 2 empty switches in `\gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:105$40'.
+Removing empty process `gold.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:105$40'.
+Cleaned up 2 empty switches.
+
+3.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module gold.
+
+4. Executing MEMORY pass.
+
+4.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+4.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+4.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+4.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+4.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+4.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+Removed 0 unused cells and 21 unused wires.
+<suppressed ~1 debug messages>
+
+4.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+4.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+4.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+
+4.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+4.11. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+5. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gold..
+
+6. Executing ASYNC2SYNC pass.
+
+7. Executing Verilog-2005 frontend: /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v
+Parsing Verilog input from `/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v' to AST representation.
+Generating RTLIL representation for module `\GeneralExpressionInlining'.
+Successfully finished Verilog frontend.
+Parameter \PPC4 = 0
+
+8. Executing AST frontend in derive mode using pre-parsed AST for module `\GeneralExpressionInlining'.
+Parameter \PPC4 = 0
+Generating RTLIL representation for module `$paramod\GeneralExpressionInlining\PPC4=32'00000000000000000000000000000000'.
+Renaming module \GeneralExpressionInlining to \gate.
+
+9. Executing PROC pass (convert processes to netlists).
+
+9.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+9.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 1 switch rules as full_case in process $proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:81$115 in module gate.
+Removed a total of 0 dead cases.
+
+9.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 0 redundant assignments.
+Promoted 0 assignments to connections.
+
+9.4. Executing PROC_INIT pass (extract init attributes).
+
+9.5. Executing PROC_ARST pass (detect async resets in processes).
+
+9.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~2 debug messages>
+
+9.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:81$115'.
+     1/1: $0\state[11:0]
+
+9.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+9.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\gate.\state' using process `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:81$115'.
+  created $dff cell `$procdff$121' with positive edge clock.
+
+9.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+9.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 2 empty switches in `\gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:81$115'.
+Removing empty process `gate.$proc$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:81$115'.
+Cleaned up 2 empty switches.
+
+9.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module gate.
+
+10. Executing MEMORY pass.
+
+10.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+10.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+10.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+10.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+10.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+10.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+Removed 0 unused cells and 22 unused wires.
+<suppressed ~1 debug messages>
+
+10.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+10.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+10.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+
+10.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+10.11. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+11. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \gate..
+
+12. Executing ASYNC2SYNC pass.
+
+13. Executing EQUIV_MAKE pass (creating equiv checking module).
+Presumably equivalent wires: choose_gold (\choose_gold), choose_gate (\choose_gate) -> choose
+Presumably equivalent wires: clk_gold (\clk_gold), clk_gate (\clk_gate) -> clk
+Presumably equivalent wires: constantMux_gold (\constantMux_gold), constantMux_gate (\constantMux_gate) -> constantMux
+Presumably equivalent wires: constantOK_gold (\constantOK_gold), constantOK_gate (\constantOK_gate) -> constantOK
+Presumably equivalent wires: extensionOK_gold (\extensionOK_gold), extensionOK_gate (\extensionOK_gate) -> extensionOK
+Presumably equivalent wires: extensionSum_gold (\extensionSum_gold), extensionSum_gate (\extensionSum_gate) -> extensionSum
+Presumably equivalent wires: guardedResult_gold (\guardedResult_gold), guardedResult_gate (\guardedResult_gate) -> guardedResult
+Presumably equivalent wires: index_gold (\index_gold), index_gate (\index_gate) -> index
+Presumably equivalent wires: keptResult_gold (\keptResult_gold), keptResult_gate (\keptResult_gate) -> keptResult
+Presumably equivalent wires: laneMaskIn_gold (\laneMaskIn_gold), laneMaskIn_gate (\laneMaskIn_gate) -> laneMaskIn
+Presumably equivalent wires: laneMaskOut_gold (\laneMaskIn_gold), laneMaskOut_gate (\laneMaskIn_gate) -> laneMaskOut
+Presumably equivalent wires: load_gold (\load_gold), load_gate (\load_gate) -> load
+Presumably equivalent wires: mixedSigned_gold (\mixedSigned_gold), mixedSigned_gate (\mixedSigned_gate) -> mixedSigned
+Presumably equivalent wires: muxResult_gold (\muxResult_gold), muxResult_gate (\muxResult_gate) -> muxResult
+Presumably equivalent wires: narrow_gold (\narrow_gold), narrow_gate (\narrow_gate) -> narrow
+Presumably equivalent wires: other_gold (\other_gold), other_gate (\other_gate) -> other
+Presumably equivalent wires: registerResult_gold ($auto$rename.cc:418:execute$68_gold), registerResult_gate ($auto$rename.cc:418:execute$131_gate) -> registerResult
+Presumably equivalent wires: reset_gold (\reset_gold), reset_gate (\reset_gate) -> reset
+Presumably equivalent wires: signedA_gold (\signedA_gold), signedA_gate (\signedA_gate) -> signedA
+Presumably equivalent wires: signedB_gold (\signedB_gold), signedB_gate (\signedB_gate) -> signedB
+Presumably equivalent wires: signedExtended_gold ({ $auto$rename.cc:418:execute$55_gold [7] $auto$rename.cc:418:execute$55_gold [7] $auto$rename.cc:418:execute$55_gold [7] $auto$rename.cc:418:execute$55_gold [7] $auto$rename.cc:418:execute$55_gold }), signedExtended_gate ({ $auto$rename.cc:418:execute$125_gate [7] $auto$rename.cc:418:execute$125_gate [7] $auto$rename.cc:418:execute$125_gate [7] $auto$rename.cc:418:execute$125_gate [7] $auto$rename.cc:418:execute$125_gate }) -> signedExtended
+Presumably equivalent wires: signedOK_gold (\signedOK_gold), signedOK_gate (\signedOK_gate) -> signedOK
+Presumably equivalent wires: sliced_gold ($auto$rename.cc:418:execute$56_gold [8:2]), sliced_gate ($auto$rename.cc:418:execute$126_gate [8:2]) -> sliced
+Presumably equivalent wires: subtractionMux_gold (\subtractionMux_gold), subtractionMux_gate (\subtractionMux_gate) -> subtractionMux
+Presumably equivalent wires: subtractionOK_gold (\subtractionOK_gold), subtractionOK_gate (\subtractionOK_gate) -> subtractionOK
+Presumably equivalent wires: total_gold (\total_gold), total_gate (\total_gate) -> total
+Presumably equivalent wires: truncated_gold ($auto$rename.cc:418:execute$62_gold [4:0]), truncated_gate ($auto$rename.cc:418:execute$129_gate [4:0]) -> truncated
+Presumably equivalent wires: unsignedWide_gold (\unsignedWide_gold), unsignedWide_gate (\unsignedWide_gate) -> unsignedWide
+Presumably equivalent wires: widenedAdd_gold ({ 1'0 \wrappedAdd_gold }), widenedAdd_gate ({ 1'0 \widenedAdd_gate [7:0] }) -> widenedAdd
+Presumably equivalent wires: widenedSub_gold ({ 1'0 \wrappedSub_gold }), widenedSub_gate ({ 1'0 \widenedSub_gate [7:0] }) -> widenedSub
+Presumably equivalent wires: word_gold (\word_gold), word_gate (\word_gate) -> word
+Presumably equivalent wires: wrappedAdd_gold (\wrappedAdd_gold), wrappedAdd_gate (\wrappedAdd_gate) -> wrappedAdd
+Presumably equivalent wires: wrappedSub_gold (\wrappedSub_gold), wrappedSub_gate (\wrappedSub_gate) -> wrappedSub
+Changing input B of cell $lt$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v:69$109_gate ($lt): $auto$rename.cc:418:execute$125_gate -> { \signedExtended [11] \signedExtended [6:0] }
+Changing input A of cell $procmux$116_gate ($mux): $auto$rename.cc:418:execute$131_gate -> \registerResult
+Changing input B of cell $lt$/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v:93$34_gold ($lt): $auto$rename.cc:418:execute$55_gold -> { \signedExtended [11] \signedExtended [6:0] }
+Changing input A of cell $procmux$41_gold ($mux): $auto$rename.cc:418:execute$68_gold -> \registerResult
+
+14. Executing HIERARCHY pass (managing design hierarchy).
+
+14.1. Analyzing design hierarchy..
+Top module:  \equiv
+
+14.2. Analyzing design hierarchy..
+Top module:  \equiv
+Removing unused module `\gold'.
+Removing unused module `\gate'.
+Removed 2 unused modules.
+
+15. Executing EQUIV_SIMPLE pass.
+Found 176 unproven $equiv cells (20 groups) in equiv:
+  Trying to prove $equiv for \constantOK: success!
+  Trying to prove $equiv for \extensionOK: success!
+  Trying to prove $equiv for \subtractionOK: success!
+  Trying to prove $equiv for \signedOK: success!
+ Grouping SAT models for \constantMux:
+  Trying to prove $equiv for \constantMux [0]: success!
+  Trying to prove $equiv for \constantMux [1]: success!
+  Trying to prove $equiv for \constantMux [2]: success!
+  Trying to prove $equiv for \constantMux [3]: success!
+  Trying to prove $equiv for \constantMux [4]: success!
+  Trying to prove $equiv for \constantMux [5]: success!
+  Trying to prove $equiv for \constantMux [6]: success!
+  Trying to prove $equiv for \constantMux [7]: success!
+  Trying to prove $equiv for \constantMux [8]: success!
+  Trying to prove $equiv for \constantMux [9]: success!
+  Trying to prove $equiv for \constantMux [10]: success!
+  Trying to prove $equiv for \constantMux [11]: success!
+  Trying to prove $equiv for \constantMux [12]: success!
+  Trying to prove $equiv for \constantMux [13]: success!
+  Trying to prove $equiv for \constantMux [14]: success!
+  Trying to prove $equiv for \constantMux [15]: success!
+ Grouping SAT models for \extensionSum:
+  Trying to prove $equiv for \extensionSum [0]: success!
+  Trying to prove $equiv for \extensionSum [1]: success!
+  Trying to prove $equiv for \extensionSum [2]: success!
+  Trying to prove $equiv for \extensionSum [3]: success!
+  Trying to prove $equiv for \extensionSum [4]: success!
+  Trying to prove $equiv for \extensionSum [5]: success!
+  Trying to prove $equiv for \extensionSum [6]: success!
+  Trying to prove $equiv for \extensionSum [7]: success!
+  Trying to prove $equiv for \extensionSum [8]: success!
+  Trying to prove $equiv for \extensionSum [9]: success!
+  Trying to prove $equiv for \extensionSum [10]: success!
+  Trying to prove $equiv for \extensionSum [11]: success!
+  Trying to prove $equiv for \extensionSum [12]: success!
+  Trying to prove $equiv for \extensionSum [13]: success!
+  Trying to prove $equiv for \extensionSum [14]: success!
+  Trying to prove $equiv for \extensionSum [15]: success!
+  Trying to prove $equiv for \extensionSum [16]: success!
+  Trying to prove $equiv for \extensionSum [17]: success!
+ Grouping SAT models for \muxResult:
+  Trying to prove $equiv for \muxResult [0]: success!
+  Trying to prove $equiv for \muxResult [1]: success!
+  Trying to prove $equiv for \muxResult [2]: success!
+  Trying to prove $equiv for \muxResult [3]: success!
+  Trying to prove $equiv for \muxResult [4]: success!
+  Trying to prove $equiv for \muxResult [5]: success!
+  Trying to prove $equiv for \muxResult [6]: success!
+  Trying to prove $equiv for \muxResult [7]: success!
+  Trying to prove $equiv for \muxResult [8]: success!
+  Trying to prove $equiv for \muxResult [9]: success!
+  Trying to prove $equiv for \muxResult [10]: success!
+  Trying to prove $equiv for \muxResult [11]: success!
+  Trying to prove $equiv for \muxResult [12]: success!
+  Trying to prove $equiv for \muxResult [13]: success!
+  Trying to prove $equiv for \muxResult [14]: success!
+  Trying to prove $equiv for \muxResult [15]: success!
+  Trying to prove $equiv for \muxResult [16]: success!
+  Trying to prove $equiv for \muxResult [17]: success!
+ Grouping SAT models for \subtractionMux:
+  Trying to prove $equiv for \subtractionMux [0]: success!
+  Trying to prove $equiv for \subtractionMux [1]: success!
+  Trying to prove $equiv for \subtractionMux [2]: success!
+  Trying to prove $equiv for \subtractionMux [3]: success!
+  Trying to prove $equiv for \subtractionMux [4]: success!
+  Trying to prove $equiv for \subtractionMux [5]: success!
+  Trying to prove $equiv for \subtractionMux [6]: success!
+  Trying to prove $equiv for \subtractionMux [7]: success!
+  Trying to prove $equiv for \subtractionMux [8]: success!
+  Trying to prove $equiv for \subtractionMux [9]: success!
+  Trying to prove $equiv for \subtractionMux [10]: success!
+  Trying to prove $equiv for \subtractionMux [11]: success!
+  Trying to prove $equiv for \subtractionMux [12]: success!
+ Grouping SAT models for \wrappedAdd:
+  Trying to prove $equiv for \wrappedAdd [0]: success!
+  Trying to prove $equiv for \wrappedAdd [1]: success!
+  Trying to prove $equiv for \wrappedAdd [2]: success!
+  Trying to prove $equiv for \wrappedAdd [3]: success!
+  Trying to prove $equiv for \wrappedAdd [4]: success!
+  Trying to prove $equiv for \wrappedAdd [5]: success!
+  Trying to prove $equiv for \wrappedAdd [6]: success!
+  Trying to prove $equiv for \wrappedAdd [7]: success!
+ Grouping SAT models for \wrappedSub:
+  Trying to prove $equiv for \wrappedSub [0]: success!
+  Trying to prove $equiv for \wrappedSub [1]: success!
+  Trying to prove $equiv for \wrappedSub [2]: success!
+  Trying to prove $equiv for \wrappedSub [3]: success!
+  Trying to prove $equiv for \wrappedSub [4]: success!
+  Trying to prove $equiv for \wrappedSub [5]: success!
+  Trying to prove $equiv for \wrappedSub [6]: success!
+  Trying to prove $equiv for \wrappedSub [7]: success!
+ Grouping SAT models for \widenedAdd:
+  Trying to prove $equiv for \widenedAdd [0]: success!
+  Trying to prove $equiv for \widenedAdd [1]: success!
+  Trying to prove $equiv for \widenedAdd [2]: success!
+  Trying to prove $equiv for \widenedAdd [3]: success!
+  Trying to prove $equiv for \widenedAdd [4]: success!
+  Trying to prove $equiv for \widenedAdd [5]: success!
+  Trying to prove $equiv for \widenedAdd [6]: success!
+  Trying to prove $equiv for \widenedAdd [7]: success!
+  Trying to prove $equiv for \widenedAdd [8]: success!
+ Grouping SAT models for \widenedSub:
+  Trying to prove $equiv for \widenedSub [0]: success!
+  Trying to prove $equiv for \widenedSub [1]: success!
+  Trying to prove $equiv for \widenedSub [2]: success!
+  Trying to prove $equiv for \widenedSub [3]: success!
+  Trying to prove $equiv for \widenedSub [4]: success!
+  Trying to prove $equiv for \widenedSub [5]: success!
+  Trying to prove $equiv for \widenedSub [6]: success!
+  Trying to prove $equiv for \widenedSub [7]: success!
+  Trying to prove $equiv for \widenedSub [8]: success!
+ Grouping SAT models for \signedExtended:
+  Trying to prove $equiv for \signedExtended [0]: success!
+  Trying to prove $equiv for \signedExtended [1]: success!
+  Trying to prove $equiv for \signedExtended [2]: success!
+  Trying to prove $equiv for \signedExtended [3]: success!
+  Trying to prove $equiv for \signedExtended [4]: success!
+  Trying to prove $equiv for \signedExtended [5]: success!
+  Trying to prove $equiv for \signedExtended [6]: success!
+  Trying to prove $equiv for \signedExtended [7]: success!
+  Trying to prove $equiv for \signedExtended [8]: success!
+  Trying to prove $equiv for \signedExtended [9]: success!
+  Trying to prove $equiv for \signedExtended [10]: success!
+  Trying to prove $equiv for \signedExtended [11]: success!
+ Grouping SAT models for \mixedSigned:
+  Trying to prove $equiv for \mixedSigned [0]: success!
+  Trying to prove $equiv for \mixedSigned [1]: success!
+  Trying to prove $equiv for \mixedSigned [2]: success!
+  Trying to prove $equiv for \mixedSigned [3]: success!
+  Trying to prove $equiv for \mixedSigned [4]: success!
+  Trying to prove $equiv for \mixedSigned [5]: success!
+  Trying to prove $equiv for \mixedSigned [6]: success!
+  Trying to prove $equiv for \mixedSigned [7]: success!
+  Trying to prove $equiv for \mixedSigned [8]: success!
+  Trying to prove $equiv for \mixedSigned [9]: success!
+ Grouping SAT models for \truncated:
+  Trying to prove $equiv for \truncated [0]: success!
+  Trying to prove $equiv for \truncated [1]: success!
+  Trying to prove $equiv for \truncated [2]: success!
+  Trying to prove $equiv for \truncated [3]: success!
+  Trying to prove $equiv for \truncated [4]: success!
+ Grouping SAT models for \sliced:
+  Trying to prove $equiv for \sliced [0]: success!
+  Trying to prove $equiv for \sliced [1]: success!
+  Trying to prove $equiv for \sliced [2]: success!
+  Trying to prove $equiv for \sliced [3]: success!
+  Trying to prove $equiv for \sliced [4]: success!
+  Trying to prove $equiv for \sliced [5]: success!
+  Trying to prove $equiv for \sliced [6]: success!
+ Grouping SAT models for \registerResult:
+  Trying to prove $equiv for \registerResult [0]: failed.
+  Trying to prove $equiv for \registerResult [1]: failed.
+  Trying to prove $equiv for \registerResult [2]: failed.
+  Trying to prove $equiv for \registerResult [3]: failed.
+  Trying to prove $equiv for \registerResult [4]: failed.
+  Trying to prove $equiv for \registerResult [5]: failed.
+  Trying to prove $equiv for \registerResult [6]: failed.
+  Trying to prove $equiv for \registerResult [7]: failed.
+  Trying to prove $equiv for \registerResult [8]: failed.
+  Trying to prove $equiv for \registerResult [9]: failed.
+  Trying to prove $equiv for \registerResult [10]: failed.
+  Trying to prove $equiv for \registerResult [11]: failed.
+ Grouping SAT models for \keptResult:
+  Trying to prove $equiv for \keptResult [0]: success!
+  Trying to prove $equiv for \keptResult [1]: success!
+  Trying to prove $equiv for \keptResult [2]: success!
+  Trying to prove $equiv for \keptResult [3]: success!
+  Trying to prove $equiv for \keptResult [4]: success!
+  Trying to prove $equiv for \keptResult [5]: success!
+  Trying to prove $equiv for \keptResult [6]: success!
+  Trying to prove $equiv for \keptResult [7]: success!
+  Trying to prove $equiv for \keptResult [8]: success!
+  Trying to prove $equiv for \keptResult [9]: success!
+  Trying to prove $equiv for \keptResult [10]: success!
+  Trying to prove $equiv for \keptResult [11]: success!
+  Trying to prove $equiv for \keptResult [12]: success!
+ Grouping SAT models for \guardedResult:
+  Trying to prove $equiv for \guardedResult [0]: success!
+  Trying to prove $equiv for \guardedResult [1]: success!
+  Trying to prove $equiv for \guardedResult [2]: success!
+  Trying to prove $equiv for \guardedResult [3]: success!
+  Trying to prove $equiv for \guardedResult [4]: success!
+  Trying to prove $equiv for \guardedResult [5]: success!
+  Trying to prove $equiv for \guardedResult [6]: success!
+  Trying to prove $equiv for \guardedResult [7]: success!
+  Trying to prove $equiv for \guardedResult [8]: success!
+  Trying to prove $equiv for \guardedResult [9]: success!
+  Trying to prove $equiv for \guardedResult [10]: success!
+  Trying to prove $equiv for \guardedResult [11]: success!
+  Trying to prove $equiv for \guardedResult [12]: success!
+  Trying to prove $equiv for \laneMaskOut: success!
+Proved 164 previously unproven $equiv cells.
+
+16. Executing EQUIV_INDUCT pass.
+Found 12 unproven $equiv cells in module equiv:
+  Undef modelling: force def on 24 initial reg values and 96 inputs.
+  Proving existence of base case for step 1. (28996 clauses over 11144 variables)
+  Proving induction step 1. (58759 clauses over 22551 variables)
+  Proof for induction step holds. Entire workset of 12 cells proven!
+Proved 12 previously unproven $equiv cells.
+
+17. Executing EQUIV_STATUS pass.
+Found 176 $equiv cells in equiv:
+  Of those cells 176 are proven and 0 are unproven.
+  Equivalence successfully proven!
+
+End of script. Logfile hash: 28e4f280be, CPU: user 0.12s system 0.02s, MEM: 24.31 MB peak
+Yosys 0.33 (git sha1 2584903a060)
+Time spent: 65% 1x equiv_induct (0 sec), 15% 1x equiv_simple (0 sec), ...

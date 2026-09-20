@@ -1,3 +1,15 @@
 [submodule "tester/src/test/python/cocotblib"]
 	path = tester/src/test/python/cocotblib
 	url = https://github.com/SpinalHDL/CocotbLib.git
+
+[submodule ".github/recovery/59i-repair-tree-witness/docs/tester/src/test/python/cocotblib"]
+	path = .github/recovery/59i-repair-tree-witness/docs/tester/src/test/python/cocotblib
+	url = https://github.com/SpinalHDL/CocotbLib.git
+
+[submodule ".github/recovery/59i-repair-tree-witness/source/tester/src/test/python/cocotblib"]
+	path = .github/recovery/59i-repair-tree-witness/source/tester/src/test/python/cocotblib
+	url = https://github.com/SpinalHDL/CocotbLib.git
+
+[submodule ".github/recovery/59i-repair-tree-witness/seal/tester/src/test/python/cocotblib"]
+	path = .github/recovery/59i-repair-tree-witness/seal/tester/src/test/python/cocotblib
+	url = https://github.com/SpinalHDL/CocotbLib.git

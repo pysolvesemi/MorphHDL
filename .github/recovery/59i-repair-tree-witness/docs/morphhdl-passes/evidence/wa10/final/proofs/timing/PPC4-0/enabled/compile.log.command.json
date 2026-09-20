@@ -1,0 +1,11 @@
+[
+  "iverilog",
+  "-g2001",
+  "-s",
+  "TimingExpressionExampleTb",
+  "-PTimingExpressionExampleTb.PPC4=0",
+  "-o",
+  "/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/checks/timing/PPC4-0/enabled/simulation.vvp",
+  "/workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v",
+  "/workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/tests/wa10/timing_expression_tb.v"
+]
