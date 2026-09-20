@@ -1304,6 +1304,45 @@ object ExternalParameterizedAutoResize {
   private def storageOf(component: Component): Option[Storage] =
     component.userCache.get(StorageKey).map(_.asInstanceOf[Storage])
 
+  /** Captured resize records retain native identities until publication consumes
+    * them. Cleanup must not rewrite an input out from under the exact-lineage
+    * validator, including when that validator still owes a rejection. This is
+    * an ownership query, so it deliberately does not require a validRecord.
+    */
+  private[internals] def retainsWireIdentity(component: Component, alias: BaseType): Boolean = {
+    if (component == null || alias == null) return false
+    def expressionUses(expression: Expression): Boolean = {
+      var found = expression eq alias
+      if (expression != null) expression.walkExpression {
+        case value: BaseType if value eq alias => found = true
+        case _ =>
+      }
+      found
+    }
+    def assignmentUses(assignment: DataAssignmentStatement): Boolean =
+      assignment != null &&
+        (expressionUses(assignment.target) || expressionUses(assignment.source))
+
+    storageOf(component).exists { storage =>
+      val records = storage.byResizeSource.values().iterator()
+      var retained = false
+      while (records.hasNext && !retained) {
+        val record = records.next()
+        retained = (record.target eq alias) || (record.resizeSource eq alias) ||
+          record.typedInput.exists(_ eq alias) ||
+          record.typedResize.exists(expressionUses) ||
+          expressionUses(record.originalSource) ||
+          assignmentUses(record.outer) || assignmentUses(record.sourceDriver)
+      }
+      retained || storage.syntheticBoolean.exists { record =>
+        (record.target eq alias) || (record.resizeSource eq alias) ||
+          (record.bitsSource eq alias) || expressionUses(record.uintCast) ||
+          expressionUses(record.boolCast) || assignmentUses(record.outer) ||
+          assignmentUses(record.sourceDriver) || assignmentUses(record.bitsDriver)
+      }
+    }
+  }
+
   /** Remove all capture records once the publication rewrite has completed. */
   def clearGraph(top: Component): Unit = {
     if (top != null) {

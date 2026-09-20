@@ -238,7 +238,7 @@ class ComponentEmitterVerilog(
             case _ => ""
           }
           val name = component.localNamingScope.allocateName((anonymSignalPrefix + sName).replace('.', '_'))
-          declarations ++= emitExpressionWrap(e, name)
+          declarations ++= emitExpressionWrap(e, name, this)
           wrappedExpressionToName(e) = name
         }
       }
@@ -1620,6 +1620,16 @@ end
   private lazy val wrappersProvenRedundant =
     VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
 
+  private lazy val retainedVecOperationExpressions = {
+    val identities = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    ParameterizedVec.retainedOperationExpressions(component)
+      .foreach(expression => identities.put(expression, java.lang.Boolean.TRUE))
+    identities
+  }
+
+  private[internals] def isRetainedVecOperationExpression(expression: Expression): Boolean =
+    retainedVecOperationExpressions.containsKey(expression)
+
   override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =
     VerilogEmitterExpressionInlining.redundantSharedCondition(
       component, spinalConfig, condition, wrappersProvenRedundant)
@@ -1708,7 +1718,12 @@ end
 
   private val expressionSelectFunctions = mutable.LinkedHashMap[(String, Int, Int), String]()
   private lazy val expressionSelectWidthNamesReserved: Unit =
-    ParameterizedWidth.parametersOf(component).foreach(parameter => component.localNamingScope.lockName(parameter.name))
+    component.dslBody.walkDeclarations {
+      case value: BaseType => ParameterizedWidth.expressionOf(value).foreach { width =>
+        width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))
+      }
+      case _ =>
+    }
 
   /** Verilog-2001 cannot select an arbitrary expression. A function argument
     * evaluates in the full original unsigned width; the function's fixed
@@ -1720,7 +1735,7 @@ end
     if (!wrappersProvenRedundant.containsKey(owner) || source.isInstanceOf[BaseType] ||
         VerilogEmitterExpressionInlining.directSelectBase(component, source).nonEmpty ||
         wrappedExpressionToName.contains(source)) return None
-    NativeWidthProvenance.widthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo).map { width =>
+    NativeWidthProvenance.optionalWidthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo).map { width =>
       // Width parameters may be published after native naming. MorphHDL also
       // reserves the complete module parameter inventory in its pre-emission
       // phase; these exact width names cover direct users of the core opt-in.

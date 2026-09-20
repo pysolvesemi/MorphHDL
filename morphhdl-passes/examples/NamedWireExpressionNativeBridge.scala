@@ -400,7 +400,8 @@ private[examples] final class NamedWireExpressionNativePhase(
   }
 
   private def samePackedBoundary(value: BaseType, alias: BaseType): Boolean =
-    value.getBitsWidth == alias.getBitsWidth &&
+    knownWidth(value).nonEmpty && knownWidth(alias).nonEmpty &&
+      value.getBitsWidth == alias.getBitsWidth &&
       packedSemantics(value).nonEmpty &&
       packedSemantics(value) == packedSemantics(alias) &&
       ((retainedWidth(value), retainedWidth(alias)) match {
@@ -409,9 +410,11 @@ private[examples] final class NamedWireExpressionNativePhase(
         case _                        => false
       })
 
+  private def knownWidth(value: BaseType): Option[ElaborationIntegerExpression] =
+    ParameterizedWidth.expressionOf(value).orElse(NativeWidthProvenance.optionalWidthOf(value))
+
   private def retainedWidth(value: BaseType): Option[ElaborationIntegerExpression] =
-    ParameterizedWidth.expressionOf(value).orElse(NativeWidthProvenance.widthOf(value))
-      .filter(_.parameters.nonEmpty)
+    knownWidth(value).filter(_.parameters.nonEmpty)
 
   /** Follow the actual receiver path. Verilog assignment/arithmetic contexts
     * may widen a nested expression; only self-determined Boolean/selection
@@ -419,7 +422,7 @@ private[examples] final class NamedWireExpressionNativePhase(
     */
   private def symbolicReceiverBoundaries(root: Expression, target: BaseType, alias: BaseType): Boolean = {
     def width(value: Expression): Option[ElaborationIntegerExpression] =
-      NativeWidthProvenance.widthOf(value)
+      NativeWidthProvenance.optionalWidthOf(value)
     def equal(a: ElaborationIntegerExpression, b: ElaborationIntegerExpression): Boolean =
       try ElaborationWidthAuthority.equivalent(a, b) catch { case NonFatal(_) => false }
     var remaining = 256
@@ -667,7 +670,7 @@ private[examples] final class NamedWireExpressionNativePhase(
         value.isAnalog || value.isInOut || value.getBitsWidth <= 0 ||
         (value.getTypeObject != TypeBool && value.getTypeObject != TypeUInt &&
           value.getTypeObject != TypeBits) ||
-        NativeWidthProvenance.widthOf(value).exists(_.minimum < 1)))
+        NativeWidthProvenance.optionalWidthOf(value).exists(_.minimum < 1)))
       return Left("WA10-CONDITION-SOURCE-BOUNDARY")
     if (!conditionScopeWithin(alias.parentScope, candidate.component.dslBody) ||
         candidate.useStatements.exists(statement =>
@@ -1009,6 +1012,7 @@ private[examples] final class NamedWireExpressionNativePhase(
       sourceWidthFamily: Option[ElaborationIntegerExpression],
       sourceWidthType: Option[IntExpr]
   ): Option[PackedType] = {
+    if (knownWidth(value).isEmpty) return None
     val semantics = packedSemantics(value).getOrElse(return None)
     retainedWidth(value) match {
       case None =>

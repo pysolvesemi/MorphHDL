@@ -31,6 +31,15 @@ object VerilogEmitterExpressionInlining {
       case _                      => true
     }
 
+  /** Width composition normally runs inside an elaboration branch. This
+    * optional late proof has no authority to reopen a finished branch: retain
+    * its wrapper when branch-scoped evidence is unavailable. Other metadata,
+    * graph and backend failures must continue to report their original error.
+    */
+  private[internals] def availableWidthEvidence[A](proof: => A): Option[A] = {
+    NativeWidthProvenance.availableEvidence(proof)
+  }
+
   /** A condition may be printed once per split process even when the native
     * expression has only one use. Keep this distinct from arbitrary expression
     * sharing: the ordinary complete sizing proof must already accept the exact
@@ -137,16 +146,47 @@ object VerilogEmitterExpressionInlining {
       case _                                        => -1
     }
 
+    val publicationExpressions = ParameterizedVec.retainedOperationExpressions(component)
+    val publicationIdentities = new IdentityHashMap[Expression, java.lang.Boolean]()
+    publicationExpressions.foreach(publicationIdentities.put(_, java.lang.Boolean.TRUE))
+    val publicationDependencies = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def reachesPublication(expression: Expression): Boolean = {
+      if (publicationIdentities.containsKey(expression)) return true
+      val known = publicationDependencies.get(expression)
+      if (known != null) return known.booleanValue
+      // A cycle supplies no independent scalar proof. Inferred declarations
+      // may delegate their geometry to one driver, so inspect that same edge
+      // before a scalar width query can flatten a publisher-owned Vec shape.
+      publicationDependencies.put(expression, java.lang.Boolean.TRUE)
+      val found = expression match {
+        case value: BitVector if ParameterizedWidth.expressionOf(value).isEmpty &&
+            !value.isFixedWidth && value.hasOnlyOneStatement => value.head match {
+          case assignment: DataAssignmentStatement if (assignment.target eq value) &&
+              (assignment.finalTarget eq value) => reachesPublication(assignment.source)
+          case _ => false
+        }
+        case _: BaseType => false
+        case _ =>
+          var found = false
+          expression.foreachDrivingExpression(child => if (reachesPublication(child)) found = true)
+          found
+      }
+      publicationDependencies.put(expression, java.lang.Boolean.valueOf(found))
+      found
+    }
+
     val widths = new IdentityHashMap[Expression, Option[ElaborationIntegerExpression]]()
     def logicalWidth(expression: Expression): Option[ElaborationIntegerExpression] = {
+      if (reachesPublication(expression)) return None
       if (!widths.containsKey(expression)) widths.put(expression,
-        NativeWidthProvenance.widthOf(expression).filter(value => value.minimum > 0 &&
-          value.default == width(expression)))
+        availableWidthEvidence(NativeWidthProvenance.widthOf(expression)).flatten
+          .filter(value => value.minimum > 0 && value.default == width(expression)))
       widths.get(expression)
     }
     def sameWidth(left: Option[ElaborationIntegerExpression],
                   right: Option[ElaborationIntegerExpression]): Boolean = (left, right) match {
-      case (Some(a), Some(b)) => ElaborationWidthAuthority.equivalent(a, b)
+      case (Some(a), Some(b)) =>
+        availableWidthEvidence(ElaborationWidthAuthority.equivalent(a, b)).contains(true)
       case _ => false
     }
     def fixedWidth(value: Int): Option[ElaborationIntegerExpression] =
@@ -420,6 +460,10 @@ object VerilogEmitterExpressionInlining {
           expandedSize(entry.getKey).toLong * count.intValue <= 256)
         result.put(entry.getKey, java.lang.Boolean.TRUE)
     }
+    // Recorded Vec operations are still owned by the parameterized publisher.
+    // Their witness slices and carrier aliases are generalized after emission;
+    // replacing them by arbitrary-expression functions loses that exact journal.
+    publicationExpressions.foreach(result.remove)
     result
   }
 }

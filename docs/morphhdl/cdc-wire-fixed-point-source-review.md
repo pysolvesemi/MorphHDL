@@ -45,6 +45,26 @@ truncation and X/Z selection semantics. Local naming allocation prevents
 collisions, and functions are cached by authoritative width and range. A
 Morph-owned pre-emission phase reserves published parameter identifiers in the
 same local namespace before allocating helper functions and their arguments.
+Namespace reservation collects retained spellings without prematurely validating
+the identity of separately bound child parameter roots. Optional late width
+queries decline only the two explicit unavailable branch-evidence diagnostics;
+construction-time width validation still fails normally. An unavailable proof
+cannot become a concrete-width fallback. Remaining unsigned expression wrappers
+retain their authoritative symbolic ranges in either signed-declaration mode,
+subject to exact owner, positive-domain and native-witness checks.
+
+Captured Vec operations and their exact slice/cast supporting chains remain
+owned by the Vec publisher. Native cleanup and optional emitter wrapping retain
+those identities and witness ranges until that publisher has validated and
+rewritten them. The planner checks that ownership, including inferred
+single-driver dependencies, before attempting scalar width composition; a
+factorized Vec domain never gains scalar authority or requires Cartesian
+expansion merely for optional cleanup. Captured structural declarations and resize records likewise
+retain native identities, including invalid records whose precise rejection is
+still owed. Identity scans include expression roots and descendants; they do not
+recognize user names or substitute a concrete witness for unknown geometry.
+The codec also retains its historical three-argument JVM constructor, which
+delegates to the conservative capture policy without symbolic-expression opt-in.
 
 Compiler-generated symbolic Gray-code carriers previously used the same
 `dontSimplifyIt` annotation as explicit user preservation. The new
@@ -101,8 +121,31 @@ sequential suite also has one explicitly reviewed case rename for its exact
 arithmetic-slice expectation; its 18-case count is unchanged. The emitter
 suite adds three cases, the native-copy
 suite contributes its three cases to the 60f run, and the new cleanup and
-namespace suites contribute eight and one cases respectively: 15 additional tests
+namespace suites contribute nine and one cases respectively: 16 additional tests
 and three additional suites.
+
+The full-CI follow-up's late-wrapper regression covers Gray decoding and an
+unrelated graph that exceeds the bounded-inlining limit at
+widths 1, 33 and 65, with signed declarations enabled and disabled, independent
+four-state oracles and public-output formal equivalence. Existing captured
+resize and structural-scope negative cases run in both cleanup modes without
+changing their identities or accepted diagnostics. The aggregate compatibility
+case keeps its disabled golden byte-for-byte and checks optimized public/state
+structure plus signed formal/four-state equivalence at widths 1, 8 and 64.
+
+The long-expression stress case uses an independent width-explicit RTL gold.
+The inherited passes-disabled depth wrapper freezes intermediate widths on that
+100-stage graph at width 65, so it is not a valid semantic oracle for this case.
+Both optimized signed-declaration modes must match the independent arithmetic
+and four-state reference. The disabled backend is unchanged by this repair.
+
+Existing WA-10 and remaining-wire artifact validators accept either a retained
+full-width carrier selection or an exact unsigned slice function. They prove
+the original input width, output width, low-bit range, unique driver/function,
+unchanged other register writes and complete arithmetic expression. Twenty
+additional controls reject malformed widths, bodies, slices, drivers and
+arguments. The existing simulation, equivalence and semantic mutation gates
+remain mandatory; emitted DUTs are never rewritten to satisfy these checks.
 
 Only copied reports lose those additions while the frozen catalogue is checked.
 Original XML is unchanged. The final combined inventory must exactly match all
@@ -129,3 +172,20 @@ records implementation scope and review obligations, not a claim that tests or
 CI have passed. After a CI failure, rerun the failing targeted workflows until
 all pass; only then run full CI. Merge requires the applicable full workflows
 passing for the completed implementation.
+
+## Full-CI qualification follow-up
+
+The focused run `35523660578` passed both Scala versions and the cross-Scala
+comparison on `4358ecabd93a358fdd76875bf0a4ac465fc41904`. PR #191 then launched
+the initial full workflow set on that source. The obsolete native Gray-carrier
+guard was repaired without changing its algorithm, width or explicit-protection
+requirements, and targeted run `35526004890` passed the sealed repair head
+`8d3dff47c7722a3321f2e6d77e674bab89087886`.
+
+The remaining initial full-CI failures exposed the scoped-width, captured
+identity, remaining-wrapper range and ABI issues described above, plus checks
+that required eliminated internal aliases or the old slice spelling. Their
+repairs require fresh targeted qualification on the corrected sealed source.
+Initial source-audit stages passed; this follow-up does not waive an audit,
+extend its timeout or reinterpret a failed proof as success. Completion remains
+unchecked until the targeted and final full workflow requirements are met.

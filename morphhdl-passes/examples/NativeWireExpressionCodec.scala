@@ -21,6 +21,14 @@ private[examples] final class NativeWireExpressionCodec(
     predefinedSources: Vector[(BaseType, SymbolId)] = Vector.empty,
     allowTypedSymbolicExpressions: Boolean = false
 ) {
+  // Keep the prior JVM constructor for already-compiled bridge consumers.
+  // Its conservative capture policy predates the symbolic-expression opt-in.
+  def this(
+      scopeId: ScopeId,
+      identifierPrefix: String,
+      predefinedSources: Vector[(BaseType, SymbolId)]
+  ) = this(scopeId, identifierPrefix, predefinedSources, false)
+
   // Store the validated scalar value, not SymbolId itself: SymbolId is an
   // AnyVal and a missing Java-map read can otherwise trigger null unboxing.
   private val sourceIds = new java.util.IdentityHashMap[BaseType, String]()
@@ -280,14 +288,14 @@ private[examples] object NativeWireExpressionCodec {
     (node.isInstanceOf[ResizeUInt] || node.isInstanceOf[ResizeBits]) &&
       node.input != null && node.getTypeObject == node.input.getTypeObject &&
       node.size > 0 && ParameterizedWidth.resizeExpressionOf(node).isEmpty &&
-      NativeWidthProvenance.widthOf(node.input).exists(width =>
+      NativeWidthProvenance.optionalWidthOf(node.input).exists(width =>
         width.minimum >= node.size && width.default == node.input.getWidth &&
           (width.default > node.size || width.maximum == node.size))
 
   def inlineableSelection(node: BitVectorRangedAccessFixed): Boolean =
     node.source != null && (node.source.getTypeObject == TypeUInt ||
       node.source.getTypeObject == TypeBits) && node.lo >= 0 && node.hi >= node.lo &&
-      NativeWidthProvenance.widthOf(node.source).exists(_.minimum > node.hi)
+      NativeWidthProvenance.optionalWidthOf(node.source).exists(_.minimum > node.hi)
 
   /** Symbolic substitution admits only pure operators whose result boundary
     * is represented by native width provenance and the canonical codec.
@@ -302,7 +310,7 @@ private[examples] object NativeWireExpressionCodec {
         val represented = node match {
           case _: Bool => true
           case base: BaseType => (base.getTypeObject == TypeUInt || base.getTypeObject == TypeBits) &&
-            NativeWidthProvenance.widthOf(base).exists(_.minimum > 0)
+            NativeWidthProvenance.optionalWidthOf(base).exists(_.minimum > 0)
           case _: BoolLiteral | _: UIntLiteral | _: BitsLiteral => true
           case _: Operator.Bool.And | _: Operator.Bool.Or | _: Operator.Bool.Xor |
               _: Operator.Bool.Not | _: Operator.Bool.Equal | _: Operator.Bool.NotEqual => true
@@ -315,11 +323,11 @@ private[examples] object NativeWireExpressionCodec {
               _: Operator.UInt.ShiftRightByUInt | _: Operator.Bits.ShiftRightByUInt |
               _: Operator.UInt.ShiftRightByInt | _: Operator.Bits.ShiftRightByInt |
               _: Operator.UInt.ShiftRightByIntFixedWidth | _: Operator.Bits.ShiftRightByIntFixedWidth =>
-            NativeWidthProvenance.widthOf(node).exists(_.minimum > 0)
+            NativeWidthProvenance.optionalWidthOf(node).exists(_.minimum > 0)
           case mux: BinaryMultiplexer =>
             (mux.getTypeObject == TypeUInt || mux.getTypeObject == TypeBits ||
               mux.getTypeObject == TypeBool) &&
-              (mux.getTypeObject == TypeBool || NativeWidthProvenance.widthOf(mux).exists(_.minimum > 0))
+              (mux.getTypeObject == TypeBool || NativeWidthProvenance.optionalWidthOf(mux).exists(_.minimum > 0))
           case resize: Resize => inlineableResize(resize)
           case selection: BitVectorRangedAccessFixed => inlineableSelection(selection)
           case _ => false

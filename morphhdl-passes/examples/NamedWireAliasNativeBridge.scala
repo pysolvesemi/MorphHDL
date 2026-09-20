@@ -214,6 +214,12 @@ private[examples] final class NamedWireAliasNativePhase(
       Some("REFERENCED-METADATA")
     else if (NativeWireAssignmentMetadata.retains(alias))
       Some("REGISTERED-IDENTITY")
+    else if (useStatements.exists {
+        case receiver: DataAssignmentStatement =>
+          NativeWireAssignmentMetadata.retains(receiver.finalTarget)
+        case _ => false
+      })
+      Some("REGISTERED-RECEIVER")
     else if (!useStatements.forall(statement =>
         allowedUse(component, alias, statement) ||
           (allowRegisterRhs && allowedRegisterRhs(component, alias, statement))))
@@ -610,10 +616,13 @@ private[examples] final class NamedWireAliasNativePhase(
       case _                                          => return None
     }
 
-    (ParameterizedWidth.expressionOf(alias).orElse(NativeWidthProvenance.widthOf(alias))
-        .filter(_.parameters.nonEmpty),
-        ParameterizedWidth.expressionOf(source).orElse(NativeWidthProvenance.widthOf(source))
-          .filter(_.parameters.nonEmpty)) match {
+    val aliasWidth = ParameterizedWidth.expressionOf(alias)
+      .orElse(NativeWidthProvenance.optionalWidthOf(alias))
+    val sourceWidth = ParameterizedWidth.expressionOf(source)
+      .orElse(NativeWidthProvenance.optionalWidthOf(source))
+    // An unavailable late symbolic proof is not evidence of a concrete width.
+    if (aliasWidth.isEmpty || sourceWidth.isEmpty) return None
+    (aliasWidth.filter(_.parameters.nonEmpty), sourceWidth.filter(_.parameters.nonEmpty)) match {
       case (None, None) =>
         Some(
           NativeProof(

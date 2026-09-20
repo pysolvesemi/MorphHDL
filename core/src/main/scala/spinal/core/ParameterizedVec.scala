@@ -1028,6 +1028,80 @@ object ParameterizedVec {
     }
   }
 
+  /** Exact native expression identities still owned by retained Vec operation
+    * journals. Their witness ranges and carrier topology are publication
+    * inputs, even when an expression could otherwise be emitted inline.
+    * Inspect only the closed compiler-owned record types, never user objects.
+    */
+  private[spinal] def retainedOperationExpressions(component: Component): Vector[Expression] = {
+    val visited = new IdentityHashMap[AnyRef, java.lang.Boolean]()
+    val expressions = ArrayBuffer.empty[Expression]
+    def once(value: AnyRef)(body: => Unit): Unit =
+      if (visited.put(value, java.lang.Boolean.TRUE) == null) body
+    def expression(value: Expression): Unit = once(value) {
+      expressions += value
+      value.foreachDrivingExpression(expression)
+    }
+    def record(value: Product): Unit = once(value.asInstanceOf[AnyRef]) {
+      value.productIterator.foreach(collect)
+    }
+    def packedSupport(operation: ParameterizedVecPackedAssignment): Unit = {
+      val traced = new IdentityHashMap[Expression, java.lang.Boolean]()
+      def trace(value: Expression): Unit = {
+        if (value == null || traced.put(value, java.lang.Boolean.TRUE) != null) return
+        expression(value)
+        value match {
+          case anchor if (anchor eq operation.carrier) || (anchor eq operation.source) =>
+          case access: BitsRangedAccessFixed => trace(access.source)
+          case access: BitsBitAccessFixed => trace(access.source)
+          case cast: CastBitsToUInt => trace(cast.input)
+          case cast: CastBitsToSInt => trace(cast.input)
+          case cast: CastBitsToEnum => trace(cast.input)
+          case intermediate: BaseType if intermediate.isComb && intermediate.isDirectionLess &&
+              !intermediate.isAnalog && (intermediate.component eq component) &&
+              intermediate.hasOnlyOneStatement => intermediate.head match {
+            case assignment: DataAssignmentStatement if (assignment.target eq intermediate) &&
+                (assignment.parentScope eq component.dslBody) =>
+              collect(assignment)
+              trace(assignment.source)
+            case _ =>
+          }
+          case _ =>
+        }
+      }
+      operation.assignments.foreach(assignment => trace(assignment.source))
+    }
+    def collect(value: Any): Unit = value match {
+      case null =>
+      case value: Expression => expression(value)
+      case value: Data => value.flatten.foreach(expression)
+      case value: DataAssignmentStatement => once(value) {
+        expression(value.target)
+        expression(value.source)
+      }
+      case value: WhenStatement => expression(value.cond)
+      case value: ParameterizedVecPackedAssignment =>
+        record(value)
+        packedSupport(value)
+      case value: ParameterizedVecOperation => record(value.asInstanceOf[Product])
+      case value: ParameterizedVecReadSelect => record(value)
+      case value: ParameterizedVecWriteCondition => record(value)
+      case value: ParameterizedVecDynamicWriteGuard => record(value)
+      case value: ParameterizedVecWriteInvocation => record(value)
+      case value: ParameterizedVecForwardedDynamicWriteGuard => record(value)
+      case value: ParameterizedVecPackedSlice => record(value)
+      case value: ParameterizedVecPackedSourceAlias => record(value)
+      case value: Option[_] => value.foreach(collect)
+      case value: scala.collection.Seq[_] => value.foreach(collect)
+      case _ =>
+    }
+    retainedVectorsOf(component).foreach { vector =>
+      operationsOf(vector).foreach(collect)
+      writeInvocationsOf(vector).foreach(collect)
+    }
+    expressions.toVector
+  }
+
   /** Completed native assignment calls are an independent identity inventory,
     * including parents whose terminal writes belong to another retained Vec.
     */

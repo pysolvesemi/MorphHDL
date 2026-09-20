@@ -286,10 +286,13 @@ private[examples] final class UnnamedWireAliasNativePhase(
       case _                                          => return None
     }
 
-    (ParameterizedWidth.expressionOf(alias).orElse(NativeWidthProvenance.widthOf(alias))
-        .filter(_.parameters.nonEmpty),
-        ParameterizedWidth.expressionOf(source).orElse(NativeWidthProvenance.widthOf(source))
-          .filter(_.parameters.nonEmpty)) match {
+    val aliasWidth = ParameterizedWidth.expressionOf(alias)
+      .orElse(NativeWidthProvenance.optionalWidthOf(alias))
+    val sourceWidth = ParameterizedWidth.expressionOf(source)
+      .orElse(NativeWidthProvenance.optionalWidthOf(source))
+    // An unavailable late symbolic proof is not evidence of a concrete width.
+    if (aliasWidth.isEmpty || sourceWidth.isEmpty) return None
+    (aliasWidth.filter(_.parameters.nonEmpty), sourceWidth.filter(_.parameters.nonEmpty)) match {
       case (None, None) =>
         Some(
           NativeProof(

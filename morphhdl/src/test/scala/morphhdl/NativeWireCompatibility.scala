@@ -69,26 +69,27 @@ private[morphhdl] object NativeWireCompatibility {
     println(s"NATIVE_WIRE_COMPATIBILITY_PASS $label ${bindings.mkString(",")}")
   }
 
-  private final case class Port(direction: String, range: String, name: String)
+  private final case class Port(direction: String, signed: Boolean, range: String, name: String)
   private def ports(source: String, top: String): Vector[Port] = {
     val start = ("(?m)^module " + quoted(top) + "\\b").r.findAllMatchIn(source).toVector
     require(start.size == 1, "one complete test module is required")
     val end = source.indexOf(");", start.head.start)
     require(end >= 0, "missing test module header")
     val header = source.substring(start.head.start, end + 2)
-    val result = ("\\b(input|output)\\s+wire\\s+(\\[[^\\]]+\\]\\s+)?(" + identifier + ")\\s*[,)]").r
-      .findAllMatchIn(header).map(m => Port(m.group(1), Option(m.group(2)).getOrElse(""), m.group(3))).toVector
+    val result = ("\\b(input|output)\\s+wire\\s+(signed\\s+)?(\\[[^\\]]+\\]\\s+)?(" + identifier + ")\\s*[,)]").r
+      .findAllMatchIn(header).map(m => Port(m.group(1), m.group(2) != null,
+        Option(m.group(3)).getOrElse(""), m.group(4))).toVector
     require(result.nonEmpty && result.map(_.name).distinct.size == result.size &&
       "\\b(?:input|output|inout)\\b".r.findAllMatchIn(header).size == result.size,
-      "test requires distinct unsigned ANSI ports")
+      "test requires distinct ANSI wire ports with explicit signedness")
     result
   }
 
   private def simulate(work: Path, candidate: String, reference: String, top: String,
                        bindings: Vector[(String, Int)]): Unit = {
     val candidatePorts = ports(candidate, top)
-    require(candidatePorts.map(p => p.direction -> p.name) ==
-      ports(reference, top).map(p => p.direction -> p.name), "reference interface differs")
+    require(candidatePorts.map(p => (p.direction, p.signed, p.name)) ==
+      ports(reference, top).map(p => (p.direction, p.signed, p.name)), "reference interface differs")
     def renamed(source: String, name: String): String =
       ("(?m)^module " + quoted(top) + "\\b").r.replaceFirstIn(source, "module " + name)
     write(work.resolve("simulation_candidate.v"), renamed(candidate, "CurrentWireCandidate"))
@@ -99,8 +100,9 @@ private[morphhdl] object NativeWireCompatibility {
     val clocked = inputs.exists(_.name == "clk")
     val reset = inputs.exists(_.name == "reset")
     val declarations = candidatePorts.map { p =>
-      if (p.direction == "input") s"reg ${p.range}${p.name};"
-      else s"wire ${p.range}current_${p.name}, reference_${p.name};"
+      val signed = if (p.signed) "signed " else ""
+      if (p.direction == "input") s"reg $signed${p.range}${p.name};"
+      else s"wire $signed${p.range}current_${p.name}, reference_${p.name};"
     }.mkString("\n")
     def instance(source: String, name: String, instanceName: String, prefix: String): String = {
       val selected = bindings.filter(pair => parameterNames(source)(pair._1))

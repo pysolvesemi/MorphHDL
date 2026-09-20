@@ -7,6 +7,7 @@ Yosys performs its module renaming on parsed designs, not generated source text.
 """
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -34,6 +35,178 @@ def compact(value):
 
 def assignments(text):
     return dict(re.findall(r"\bassign\s+(\w+)\s*=\s*([^;]+);", text))
+
+
+def without_comments(text):
+    return re.sub(r"/\*.*?\*/|//[^\n]*", "", text, flags=re.S)
+
+
+def constant_range(value):
+    """Read emitted constant geometry without evaluating arbitrary Python/HDL."""
+    def integer(node):
+        if isinstance(node, ast.Constant) and type(node.value) is int:
+            return node.value
+        if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+            left, right = integer(node.left), integer(node.right)
+            return left + right if isinstance(node.op, ast.Add) else left - right
+        raise AssertionError("nonconstant or unsupported truncation geometry: " + value)
+    parts = value.split(":")
+    require(len(parts) == 2, "invalid truncation range: " + value)
+    try:
+        high, low = [integer(ast.parse(part.strip(), mode="eval").body) for part in parts]
+    except SyntaxError as error:
+        raise AssertionError("invalid truncation geometry: " + value) from error
+    require(high >= low >= 0, "invalid truncation bounds: " + value)
+    return high, low
+
+
+def unsigned_declaration(text, name, kind):
+    # Function-local inputs and commented declarations are not module carriers.
+    module = re.sub(r"\bfunction\b.*?\bendfunction\b", "", without_comments(text), flags=re.S)
+    matches = re.findall(r"^\s*" + kind + r"\s+\[([^\]]+)\]\s+" +
+                         re.escape(name) + r"\s*;", module, flags=re.M)
+    require(len(matches) == 1, f"missing unique unsigned {kind} declaration: {name}")
+    high, low = constant_range(matches[0])
+    require(low == 0, "nonzero carrier declaration base: " + name)
+    return high + 1
+
+
+def validate_register_truncation(before, after, receiver):
+    """Prove one emitted register slice boundary against its disabled graph.
+
+    Accept either a full-width wire selection or a pure Verilog-2001 function.
+    Names carry no authority. Widths come from the original declarations; every
+    modeled source wire must be uniquely driven, unsigned and equally wide.
+    The enabled source itself must be the complete expanded original expression,
+    so a replacement alias or a changed operator cannot hide behind a helper.
+    """
+    before, after = without_comments(before), without_comments(after)
+    width = unsigned_declaration(before, receiver, "reg")
+    require(unsigned_declaration(after, receiver, "reg") == width,
+            "register truncation receiver width changed: " + receiver)
+    writes = lambda text: re.findall(r"\b" + re.escape(receiver) + r"\s*<=\s*([^;]+);", text)
+    old_writes, new_writes = writes(before), writes(after)
+    candidates = [(i, re.fullmatch(r"(\w+)\[([^\]]+)\]", compact(rhs)))
+                  for i, rhs in enumerate(old_writes)]
+    candidates = [(i, match) for i, match in candidates if match is not None]
+    require(len(candidates) == 1 and len(old_writes) == len(new_writes),
+            "missing unique original truncation or changed register writes: " + receiver)
+    index, selected = candidates[0]
+    require(constant_range(selected.group(2)) == (width - 1, 0),
+            "original register source is not an exact low-bit truncation")
+    for i, (old, new) in enumerate(zip(old_writes, new_writes)):
+        require(i == index or compact(old) == compact(new),
+                "other register assignment changed: " + receiver)
+    source_width = unsigned_declaration(before, selected.group(1), "wire")
+    require(source_width > width, "original source is not wider than its receiver")
+    drivers = re.findall(r"\bassign\s+(\w+)\s*=\s*([^;]+);", before)
+    graph = {}
+    for name, rhs in drivers:
+        graph.setdefault(name, []).append(rhs)
+    visits = 0
+
+    def expand(name, active):
+        nonlocal visits
+        if name not in graph:
+            return name
+        visits += 1
+        require(visits <= 256 and name not in active, "cyclic or excessive original truncation graph")
+        require(len(graph[name]) == 1, "multiply driven original truncation carrier: " + name)
+        require(unsigned_declaration(before, name, "wire") == source_width,
+                "original truncation graph crosses a different width or protected boundary: " + name)
+        return re.sub(r"(?<![\w'$])\b[A-Za-z_]\w*\b",
+                      lambda match: expand(match.group(), active | {name}), graph[name][0])
+
+    expected = compact(expand(selected.group(1), set()))
+    rhs = compact(new_writes[index])
+    direct = re.fullmatch(r"(\w+)\[([^\]]+)\]", rhs)
+    if direct is not None:
+        name = direct.group(1)
+        require(constant_range(direct.group(2)) == (width - 1, 0), "wrong carrier truncation slice")
+        require(unsigned_declaration(after, name, "wire") == source_width,
+                "truncation carrier no longer holds the full original width")
+        values = re.findall(r"\bassign\s+" + re.escape(name) + r"\s*=\s*([^;]+);", after)
+        require(len(values) == 1, "missing unique truncation carrier driver")
+        expression = values[0]
+    else:
+        call = re.fullmatch(r"(\w+)\((.+)\)", rhs)
+        require(call is not None, "required final truncation boundary missing")
+        name, expression = call.groups()
+        definitions = [body for body in re.findall(r"\bfunction\b(.*?)\bendfunction\b", after, re.S)
+                       if re.match(r"\s*(?:\[[^\]]+\]\s*)?" + re.escape(name) + r"\s*;", body)]
+        require(len(definitions) == 1, "missing unique truncation function: " + name)
+        function = re.fullmatch(
+            r"\s*\[([^\]]+)\]\s+" + re.escape(name) +
+            r"\s*;\s*input\s+\[([^\]]+)\]\s+(\w+)\s*;\s*begin\s*" +
+            re.escape(name) + r"\s*=\s*(\w+)\s*\[([^\]]+)\]\s*;\s*end\s*", definitions[0])
+        require(function is not None, "truncation function is not a pure unsigned one-input slice")
+        output_range, input_range, argument, returned, slice_range = function.groups()
+        require(constant_range(output_range) == (width - 1, 0), "wrong truncation function output width")
+        require(constant_range(input_range) == (source_width - 1, 0),
+                "truncation function does not accept the full original input width")
+        require(argument == returned and constant_range(slice_range) == (width - 1, 0),
+                "truncation function does not return the exact original low bits")
+    require(compact(expression) == expected, "truncation source differs from the complete original expression")
+    return expression
+
+
+def truncation_self_test():
+    before = """wire [17:0] saved;
+reg [12:0] state;
+assign saved = (left + right);
+always @(posedge clk) begin
+  if (reset) state <= 13'h0;
+  else state <= saved[12:0];
+end
+"""
+    definition = """function [12:0] arbitrary_name;
+input [18-1:0] argument;
+begin arbitrary_name = argument[12:0]; end
+endfunction
+"""
+    after = before.replace("wire [17:0] saved;", definition).replace(
+        "assign saved = (left + right);", "").replace("saved[12:0]", "arbitrary_name((left + right))")
+    validate_register_truncation(before, before, "state")
+    validate_register_truncation(before, after, "state")
+    validate_register_truncation(before, after.replace("arbitrary_name", "other_17").replace(
+        "argument", "full_input"), "state")
+    changes = (
+        ("input [18-1:0]", "input [13-1:0]"),
+        ("input [18-1:0]", "input [19-1:0]"),
+        ("input [18-1:0]", "input signed [18-1:0]"),
+        ("function [12:0]", "function [13:0]"),
+        ("argument[12:0]", "argument[13:1]"),
+        ("argument[12:0]", "argument[11:0]"),
+        ("argument[12:0]", "unrelated[12:0]"),
+        ("argument[12:0]", "argument[12:0] ^ 13'd1"),
+        ("begin arbitrary_name", "begin argument = 0; arbitrary_name"),
+        ("begin arbitrary_name", "input extra; begin arbitrary_name"),
+        ("arbitrary_name((left + right))", "arbitrary_name((left - right))"),
+        ("arbitrary_name((left + right))", "arbitrary_name((left[12:0] + right[12:0]))"),
+        ("arbitrary_name((left + right))", "arbitrary_name(left, right)"),
+        ("arbitrary_name((left + right))", "missing((left + right))"),
+        ("reg [12:0] state", "reg [13:0] state"),
+        ("13'h0", "13'h1"),
+        (definition, definition + definition),
+        (definition, "/*" + definition + "*/"),
+    )
+    for old, new in changes:
+        require(old in after, "missing truncation mutation fixture")
+        try:
+            validate_register_truncation(before, after.replace(old, new, 1), "state")
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("accepted truncation mutation: " + new)
+    for bad_before in (before.replace("(left + right)", "saved"),
+                       before.replace("assign saved", "assign saved = left;\nassign saved")):
+        try:
+            validate_register_truncation(bad_before, after, "state")
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError("accepted ambiguous original truncation graph")
+    print("TRUNCATION_BOUNDARY_CONTROLS_PASS rejected=20")
 
 
 def inventory(text):
@@ -93,13 +266,10 @@ def structure(fixture, before, after):
         rhs = compact(new["io_finalGroup"])
         for expression in ("(io_hTotal-13'h0001)", "(io_vTotal-12'h001)"):
             require(expression in rhs, f"timing: same-width subtraction still wrapped: {rhs}")
-        selected = re.search(r"vSyncEnd\s*<=\s*(\w+)\[11:0\]", after)
-        require(selected is not None, "timing: required final truncation fence missing")
-        receiver = selected.group(1)
-        require(receiver in new, "timing: truncation selects an undriven carrier")
+        expression = validate_register_truncation(before, after, "vSyncEnd")
         for signal in ("io_vActive", "io_vFront", "io_vSync"):
-            require("{2'd0," + signal + "}" in compact(new[receiver]),
-                    f"timing: avoidable extension/add wrapper remains below {receiver}: {new[receiver]}")
+            require("{2'd0," + signal + "}" in compact(expression),
+                    f"timing: avoidable extension/add wrapper remains below truncation: {expression}")
         require(re.search(r"\breg\s+\[11:0\]\s+vSyncEnd\s*;", after), "vSyncEnd register disappeared")
         require("if(io_cfgLoad)" in compact(after), "timing: cfgLoad scope disappeared")
 
@@ -149,6 +319,7 @@ equiv_status -assert
 
 
 def main():
+    truncation_self_test()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifacts", type=Path, help="contains timing/ and general/ artifact writer results")
     parser.add_argument("--baseline", type=Path, help="optional pristine baseline to check exact disabled legacy bytes")

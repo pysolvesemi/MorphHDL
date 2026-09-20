@@ -54,6 +54,7 @@ CDC_LITERAL_CASES = frozenset((
     'shared unnamed expressions above the duplication budget retain their actual identity',
     'shared compiler expression nodes inline while independently protected expression nodes remain',
     'simplified compiler alias nodes reach every receiver while explicit and protected aliases remain',
+    'late unsigned wrappers retain symbolic widths with signed declarations enabled or disabled',
 ))
 CDC_FIXTURES = ('CdcSliceCompareRepro', 'CdcGrayChainRepro',
                 'CdcWhenPredicateRepro', 'CdcWireControls')

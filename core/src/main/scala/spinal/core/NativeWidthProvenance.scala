@@ -9,6 +9,23 @@ import spinal.core.internals._
   * alter width inference, or derive symbolic geometry from an Int witness.
   */
 object NativeWidthProvenance {
+  /** An optional late optimization cannot reopen an elaboration branch after
+    * its captured domain has ended. Missing scoped evidence retains the
+    * original graph; malformed metadata and unrelated compiler errors still
+    * propagate. Construction-time callers continue to use widthOf directly.
+    */
+  def availableEvidence[A](proof: => A): Option[A] = {
+    try Some(proof)
+    catch {
+      case failure: ParameterizedVerilogException
+          if failure.code == "SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION" ||
+            failure.code == "SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED" => None
+    }
+  }
+
+  def optionalWidthOf(expression: Expression): Option[ElaborationIntegerExpression] =
+    availableEvidence(widthOf(expression)).flatten
+
   private val traversal = new ThreadLocal[java.util.IdentityHashMap[
     Expression, Option[ElaborationIntegerExpression]]]()
   private def constant(value: Int): Option[ElaborationIntegerExpression] =

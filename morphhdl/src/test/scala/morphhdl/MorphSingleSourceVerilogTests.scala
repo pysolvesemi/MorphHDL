@@ -275,9 +275,38 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         )
       )
       assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
-      assert(read(output) == read(contractGolden("symbolic_data_shapes.v")))
-
       val verilog = read(output)
+      val disabledConfig = MorphWireAssignmentPasses(
+        SpinalConfig(targetDirectory = directory.toString), enabled = false
+      )
+      disabledConfig.netlistFileName = "symbolic_data_shapes_disabled.v"
+      MorphVerilog(disabledConfig) {
+        SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
+      }
+      val disabled = read(directory.resolve("symbolic_data_shapes_disabled.v"))
+      assert(disabled == read(contractGolden("symbolic_data_shapes.v")))
+
+      // Recursive alias cleanup can remove aggregate leaf carriers. The
+      // public interface and sequential state retain the reviewed contract.
+      def interface(source: String): String = source.take(source.indexOf(");") + 2)
+      def registerDeclarations(source: String): Vector[String] =
+        "(?m)^\\s*reg\\s+[^;]+;\\s*$".r.findAllIn(source)
+          .map(_.replaceAll("\\s+", " ").trim).toVector
+      def sequentialStatements(source: String): Vector[String] =
+        "(?m)^\\s*[A-Za-z_][A-Za-z0-9_$]*\\s*<=\\s*[^;]+;\\s*$".r.findAllIn(source)
+          .map(_.replaceAll("\\s+", " ").trim).toVector
+      assert(interface(verilog) == interface(disabled))
+      assert(registerDeclarations(verilog) == registerDeclarations(disabled))
+      assert(sequentialStatements(verilog) == sequentialStatements(disabled))
+      Vector("bits", "uint", "sint").foreach { leaf =>
+        assert(verilog.contains(s"assign bundle_out_$leaf = bundle_in_$leaf;"), verilog)
+        assert(!verilog.contains(s"internal_payload_$leaf"), verilog)
+      }
+      Vector(1, 8, 64).foreach { width =>
+        NativeWireCompatibility.check(directory, verilog, disabled, "SymbolicDataShapes",
+          Vector("WIDTH" -> width), "aggregate_shapes_" + width)
+      }
+
       val normalizedVerilog = verilog.replaceAll("\\s+", " ")
       assert(normalizedVerilog.contains("module SymbolicDataShapes #("))
       assert(normalizedVerilog.contains("parameter integer WIDTH = 8"))
@@ -299,7 +328,6 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       assert(!normalizedVerilog.matches(".*\\bvec_(in|out)_[0-9]+.*"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] stream_in_payload_sint"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] flow_out_payload_uint"))
-      assert(normalizedVerilog.contains("[WIDTH-1:0] internal_payload_bits"))
       assert(normalizedVerilog.contains("[WIDTH-1:0] payload_register_sint"))
       assert(normalizedVerilog.contains("always @(posedge clk)"))
       assert(!normalizedVerilog.contains("parameterizedDesign"))
