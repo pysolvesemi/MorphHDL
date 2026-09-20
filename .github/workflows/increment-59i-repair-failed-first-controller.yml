@@ -30,7 +30,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: '1'
       GITHUB_TOKEN: ${{ github.token }}
       # Pushes perform read-only planning. Dispatch requires the explicit mode.
-      CONTROLLER_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'plan' }}
+      CONTROLLER_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'dispatch' }}
     steps:
       - uses: actions/checkout@v4
         with:
