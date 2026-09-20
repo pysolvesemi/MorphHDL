@@ -29,7 +29,9 @@ is_wa09=false
 is_wa10=false
 is_wa11=false
 is_lane_when=false
+is_cdc_wire=false
 case "${head_ref}" in
+  agent/wa-cdc-wire-01-fixed-point) is_cdc_wire=true ;;
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
   agent/wa-10-*|wa-10-*) is_wa10=true ;;
@@ -194,6 +196,12 @@ lane_when_cross_workspace_path() {
 
 allowed_path() {
   local path="$1"
+  if [[ "${is_cdc_wire}" == true ]] && [[ "${cdc_wire_scope_verified:-false}" == true ]]; then
+    local reviewed
+    for reviewed in "${cdc_wire_reviewed_paths[@]}"; do
+      [[ "${path}" != "${reviewed}" ]] || return 0
+    done
+  fi
   # Branch spelling alone never admits a path. Authenticate the immutable
   # implementation plus exact successor-review inventory through the full seal.
   if [[ "${is_lane_when}" == true ]] && \
@@ -285,6 +293,15 @@ if [[ -e "${lane_when_scope}" || -e "${lane_when_contract}" ]]; then
   lane_when_paths="$(python3 "${lane_when_scope}" --print-paths)"
   mapfile -t lane_when_reviewed_paths <<< "${lane_when_paths}"
   lane_when_scope_verified=true
+fi
+
+cdc_wire_scope_verified=false
+cdc_wire_reviewed_paths=()
+cdc_wire_scope="morphhdl/scripts/check-cdc-wire-source-review.py"
+if [[ -e "${cdc_wire_scope}" ]]; then
+  cdc_wire_paths="$(python3 "${cdc_wire_scope}" --print-paths)"
+  mapfile -t cdc_wire_reviewed_paths <<< "${cdc_wire_paths}"
+  cdc_wire_scope_verified=true
 fi
 
 if [[ ${#changed_files[@]} -eq 0 ]]; then

@@ -89,7 +89,16 @@ class SequentialWireEmitterTests extends AnyFunSuite {
   for (shape <- Vector("arithmetic", "narrow", "tagged")) {
     test(s"late $shape select base is not mistaken for a direct exact alias") {
       val v = emit(enabled = true, shape = shape)
-      assert(v.contains("assign _zz_"), v)
+      if (shape == "tagged") assert(v.contains("assign _zz_"), v)
+      else {
+        assert(!v.contains("assign _zz_"), v)
+        assert(v.contains("function [12:0] _morphhdl_slice"), v)
+        assert(v.contains("state <= 13'h0;"), v)
+        val enable = "if\\(enable(?:_\\d+)?\\) begin".r.findFirstMatchIn(v)
+        val priority = "if\\(priority(?:_\\d+)?\\) begin".r.findFirstMatchIn(v)
+        assert(enable.nonEmpty && priority.nonEmpty, v)
+        assert(enable.get.start < priority.get.start, v)
+      }
       assert(!v.contains("(source + other)["), v)
     }
   }

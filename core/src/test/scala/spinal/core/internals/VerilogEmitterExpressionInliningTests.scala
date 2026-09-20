@@ -74,7 +74,7 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     assert(verilog.contains("assign total = (_zz_total +"))
   }
 
-  test("a truncating root retains its sizing boundary") {
+  test("a truncating root uses a function with the exact source evaluation width") {
     val verilog = generate("TruncatingUnsigned", enabled = true) {
       new Component {
         setDefinitionName("TruncatingUnsigned")
@@ -84,7 +84,11 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
       }
     }
 
-    assert(wrapperAssignments(verilog).nonEmpty)
+    assert(wrapperAssignments(verilog).isEmpty)
+    assert(verilog.contains("function [15:0] _morphhdl_slice"))
+    assert(verilog.contains("input [18-1:0] value;"))
+    assert(verilog.contains("= value[15:0];"))
+    assert(verilog.contains("_morphhdl_slice(((a + b) + c))"))
   }
 
   test("same-width modular overflow keeps the original tree while wrappers inline") {
@@ -155,7 +159,7 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     assert(wrapperAssignments(verilog).nonEmpty)
   }
 
-  test("slice operands retain emitter-created boundaries") {
+  test("fixed slice operands inline while retaining exact select syntax") {
     val verilog = generate("SliceBoundary", enabled = true) {
       new Component {
         setDefinitionName("SliceBoundary")
@@ -166,7 +170,8 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
       }
     }
 
-    assert(wrapperAssignments(verilog).nonEmpty)
+    assert(wrapperAssignments(verilog).isEmpty)
+    assert(verilog.contains("a[17 : 0]"))
   }
 
   test("annotated leaf declarations remain while redundant expression wrappers inline") {
@@ -191,7 +196,7 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     assert(VerilogEmitterExpressionInlining.isUnannotated(new Operator.UInt.Add))
   }
 
-  test("a shared expression node retains one emitter-created carrier") {
+  test("a shared expression node inlines when every receiving width is proven") {
     val verilog = generate("SharedExpressionBoundary", enabled = true) {
       new Component {
         setDefinitionName("SharedExpressionBoundary")
@@ -213,9 +218,76 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     }
 
     val wrappers = wrapperAssignments(verilog)
-    assert(wrappers.size == 1)
-    assert(verilog.contains("assign first = ("))
-    assert(verilog.contains("assign second = ("))
+    assert(wrappers.isEmpty)
+    assert(verilog.contains("assign first = ((a + b) + c);"))
+    assert(verilog.contains("assign second = ((a + b) + d);"))
+  }
+
+  test("shift then truncate remains an exact function result inside a comparison") {
+    val verilog = generate("ShiftSliceComparison", enabled = true) {
+      new Component {
+        setDefinitionName("ShiftSliceComparison")
+        val payload = in UInt(71 bits)
+        val offset = in UInt(7 bits)
+        val expected = in UInt(23 bits)
+        val mismatch = out Bool()
+        mismatch := (payload >> offset).resize(23) =/= expected
+      }
+    }
+    assert(wrapperAssignments(verilog).isEmpty)
+    assert(verilog.contains("function [22:0] _morphhdl_slice"))
+    assert(verilog.contains("input [71-1:0] value;"))
+    assert(verilog.contains("= value[22:0];"))
+    assert(verilog.contains("(_morphhdl_slice((payload >>> offset)) != expected)"))
+    assert(!verilog.contains(")[22:0]"))
+  }
+
+  test("a shared node with an unproven receiving context retains its carrier everywhere") {
+    val verilog = generate("MixedSharedContexts", enabled = true) {
+      new Component {
+        setDefinitionName("MixedSharedContexts")
+        val a, b, c = in UInt(18 bits)
+        val safe, protectedOutput = out UInt(18 bits)
+        protectedOutput.addTag(PreserveWitness)
+        val carrier = a + b
+        val shared = carrier.head.asInstanceOf[DataAssignmentStatement].source
+        def root(): Expression = {
+          val add = new Operator.UInt.Add
+          add.left = shared.asInstanceOf[Expression with WidthProvider]
+          add.right = c
+          add
+        }
+        DslScopeStack.get.append(DataAssignmentStatement(safe, root()))
+        DslScopeStack.get.append(DataAssignmentStatement(protectedOutput, root()))
+      }
+    }
+    assert(wrapperAssignments(verilog).nonEmpty)
+  }
+
+  test("aggregate shared expression growth retains a carrier even below each root budget") {
+    val verilog = generate("AggregateSharingBudget", enabled = true) {
+      new Component {
+        setDefinitionName("AggregateSharingBudget")
+        val a, b = in UInt(18 bits)
+        val first, second = out UInt(18 bits)
+        var shared: Expression with WidthProvider = a
+        for (_ <- 0 until 70) {
+          val add = new Operator.UInt.Add
+          add.left = shared
+          add.right = b
+          shared = add
+        }
+        def root(): Expression = {
+          val add = new Operator.UInt.Add
+          add.left = shared
+          add.right = a
+          add
+        }
+        DslScopeStack.get.append(DataAssignmentStatement(first, root()))
+        DslScopeStack.get.append(DataAssignmentStatement(second, root()))
+      }
+    }
+    assert(wrapperAssignments(verilog).nonEmpty, verilog)
   }
 
   test("an annotated target retains emitter-created boundaries") {
@@ -334,7 +406,7 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     assert(verilog.contains("assign chosen = (select_1 ? (a - b) : (a + b));"), verilog)
   }
 
-  test("conditional register update preserves its final select carrier and state") {
+  test("conditional register update preserves exact truncation and state without a select carrier") {
     val verilog = generate("RegisterExpressionInline", enabled = true) {
       new Component {
         setDefinitionName("RegisterExpressionInline")
@@ -350,8 +422,8 @@ class VerilogEmitterExpressionInliningTests extends AnyFunSuite {
     }
 
     val wrappers = wrapperAssignments(verilog)
-    assert(wrappers.size == 1, verilog)
-    assert(wrappers.head.contains("(({2'd0, a} + {2'd0, b}) + {2'd0, c})"), verilog)
+    assert(wrappers.isEmpty, verilog)
+    assert(verilog.contains("_morphhdl_slice((({2'd0, a} + {2'd0, b}) + {2'd0, c}))"), verilog)
     assert(verilog.contains("reg        [11:0]   state;"), verilog)
     assert(verilog.contains("always @(posedge clk or posedge reset)"), verilog)
     assert(verilog.contains("if(load) begin"), verilog)

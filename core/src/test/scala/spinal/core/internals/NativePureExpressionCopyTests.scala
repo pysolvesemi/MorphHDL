@@ -65,6 +65,20 @@ class NativePureExpressionCopyTests extends AnyFunSuite {
     }
   }
 
+  test("fixed-width shift copies preserve logical operator class, amount and source geometry") {
+    withNativeInput { input =>
+      val shift = new Operator.UInt.ShiftRightByIntFixedWidth(3)
+      shift.source = input
+      shift.inferredWidth = 8
+      shift.widthWhenNotInferred = 8
+      val copied = NativePureExpressionCopy(shift).get.asInstanceOf[Operator.UInt.ShiftRightByIntFixedWidth]
+      assert(copied ne shift)
+      assert(copied.source eq input)
+      assert(copied.shift == 3 && copied.getWidth == 8)
+      assert(NativeWidthProvenance.widthOf(copied).exists(_.default == 8))
+    }
+  }
+
   test("metadata, unrepresented subclasses, expression cycles and expansion fail closed") {
     withNativeInput { input =>
       object Retain extends SpinalTag

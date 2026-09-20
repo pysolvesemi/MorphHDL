@@ -15,6 +15,7 @@ object NativeWireAssignmentMetadata {
     * Keep the classification closed: arbitrary tags can hide references.
     */
   def isReferenceFreeTag(tag: SpinalTag): Boolean = tag match {
+    case value if spinal.core.ParameterizedExpressionCarrier.isGeometryBoundary(value) => true
     case _: ParameterizedMemoryTag | _: ParameterizedMemoryDepthOverrideTag => true
     case _ => false
   }

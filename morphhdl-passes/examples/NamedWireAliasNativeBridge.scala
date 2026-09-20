@@ -55,8 +55,13 @@ private[examples] final class NamedWireAliasNativePhase(
     // Historical pipelines end after this pass and therefore cannot defer an
     // expression source for a later named-expression stage.  WA-09's six-stage
     // and production pipelines opt in explicitly once that stage is present.
-    deferPreferredExpressionSource: Boolean = false
+    deferPreferredExpressionSource: Boolean = false,
+    sourceIntent: Option[NativeConditionSourceIntent] = None
 ) extends Phase {
+  // Keep the historical Boolean JVM constructor for standalone phase clients.
+  // Missing pre-liveness evidence leaves generated type-node aliases fenced.
+  def this(deferPreferred: Boolean) = this(deferPreferred, None)
+
   private var completed = false
   private var visited = 0
   private var eliminated = Vector.empty[Int]
@@ -246,7 +251,9 @@ private[examples] final class NamedWireAliasNativePhase(
     }
     if (
       !provenanceMatches || !alias.isComb || !alias.isDirectionLess ||
-      alias.isAnalog || alias.isTypeNode || alias.parentScope == null ||
+      alias.isAnalog ||
+      (alias.isTypeNode && !(nameOrigin == NameOrigin.Generated &&
+        sourceIntent.exists(_.permits(alias)))) || alias.parentScope == null ||
       !(alias.parentScope eq alias.rootScopeStatement) ||
       !alias.hasOnlyOneStatement
     ) return None
@@ -397,7 +404,10 @@ private[examples] final class NamedWireAliasNativePhase(
 
     if ((source.component ne candidate.component) || source.parentScope == null)
       Left("WA05-NATIVE-SOURCE-BOUNDARY")
-    else if (!(source.parentScope eq source.rootScopeStatement))
+    else if (!(source.parentScope eq source.rootScopeStatement) &&
+        !(source.isInput && (source.parentScope eq candidate.component.dslBody)))
+      // A local input's assignment root can belong to its parent; observing
+      // the declared input here still substitutes the same local identity.
       Left("WA05-NATIVE-SOURCE-SCOPE")
     else if (source.isAnalog || source.isInOut)
       Left("WA05-NATIVE-SOURCE-KIND")
@@ -426,7 +436,7 @@ private[examples] final class NamedWireAliasNativePhase(
       assignment: DataAssignmentStatement
   ): Boolean =
     !alias.isFrozen() &&
-      alias.isEmptyOfTag &&
+      alias.getTags().forall(ParameterizedExpressionCarrier.isGeometryBoundary) &&
       // Source locations are ubiquitous compiler metadata. They are observable
       // preservation material only when the selected backend configuration
       // will actually emit line comments.
@@ -600,7 +610,10 @@ private[examples] final class NamedWireAliasNativePhase(
       case _                                          => return None
     }
 
-    (ParameterizedWidth.expressionOf(alias), ParameterizedWidth.expressionOf(source)) match {
+    (ParameterizedWidth.expressionOf(alias).orElse(NativeWidthProvenance.widthOf(alias))
+        .filter(_.parameters.nonEmpty),
+        ParameterizedWidth.expressionOf(source).orElse(NativeWidthProvenance.widthOf(source))
+          .filter(_.parameters.nonEmpty)) match {
       case (None, None) =>
         Some(
           NativeProof(
@@ -612,7 +625,8 @@ private[examples] final class NamedWireAliasNativePhase(
             Vector.empty
           )
         )
-      case (Some(left), Some(right)) if left eq right =>
+      case (Some(left), Some(right)) if
+          (try ElaborationWidthAuthority.equivalent(left, right) catch { case _: Exception => false }) =>
         val minimum = left.minimum
         val maximum = left.maximum
         val size = maximum - minimum + 1

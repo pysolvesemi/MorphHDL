@@ -18,7 +18,8 @@ import spinal.core.internals._
 private[examples] final class NativeWireExpressionCodec(
     scopeId: ScopeId,
     identifierPrefix: String,
-    predefinedSources: Vector[(BaseType, SymbolId)] = Vector.empty
+    predefinedSources: Vector[(BaseType, SymbolId)] = Vector.empty,
+    allowTypedSymbolicExpressions: Boolean = false
 ) {
   // Store the validated scalar value, not SymbolId itself: SymbolId is an
   // AnyVal and a missing Java-map read can otherwise trigger null unboxing.
@@ -136,7 +137,8 @@ private[examples] final class NativeWireExpressionCodec(
       // Canonical ShiftRight currently means logical >>. Native SInt right
       // shifts are arithmetic; case-equality likewise has distinct four-state
       // semantics. Keep these nodes until the IR represents those operators.
-      case _: Operator.SInt.ShiftRightByInt | _: Operator.SInt.ShiftRightByUInt => None
+      case _: Operator.SInt.ShiftRightByInt | _: Operator.SInt.ShiftRightByUInt |
+          _: Operator.SInt.ShiftRightByIntFixedWidth => None
       case _: Operator.Bits.EqualSim | _: Operator.UInt.EqualSim |
           _: Operator.SInt.EqualSim => None
 
@@ -158,6 +160,10 @@ private[examples] final class NativeWireExpressionCodec(
         binary(node, RtlBinaryOperator.LessThanOrEqual)
 
       case node: Operator.BitVector.ShiftLeftByInt =>
+        constantBinary(node.source, node.shift, RtlBinaryOperator.ShiftLeft)
+      case node: Operator.BitVector.ShiftRightByIntFixedWidth =>
+        constantBinary(node.source, node.shift, RtlBinaryOperator.ShiftRight)
+      case node: Operator.BitVector.ShiftLeftByIntFixedWidth =>
         constantBinary(node.source, node.shift, RtlBinaryOperator.ShiftLeft)
       case node: Operator.BitVector.ShiftRightByInt =>
         constantBinary(node.source, node.shift, RtlBinaryOperator.ShiftRight)
@@ -186,7 +192,14 @@ private[examples] final class NativeWireExpressionCodec(
       case node: BitVectorRangedAccessFixed
           if node.lo >= 0 && node.hi >= node.lo =>
         capture(node.source, path + ".value").map { source =>
-          RtlExpr.PartSelect(
+          if (allowTypedSymbolicExpressions && NativeWireExpressionCodec.inlineableSelection(node)) {
+            val shifted = if (node.lo == 0) source else RtlExpr.Binary(
+              RtlBinaryOperator.ShiftRight, source,
+              RtlExpr.Literal(BigInt(node.lo), math.max(1, BigInt(node.lo).bitLength)))
+            RtlExpr.Resize(shifted,
+              morphhdl.ir.v1.IntExpr.Literal(BigInt(node.hi - node.lo + 1)),
+              morphhdl.ir.v1.Signedness.Unsigned)
+          } else RtlExpr.PartSelect(
             source,
             morphhdl.ir.v1.IntExpr.Literal(BigInt(node.lo)),
             morphhdl.ir.v1.IntExpr.Literal(BigInt(node.hi - node.lo + 1))
@@ -207,7 +220,8 @@ private[examples] final class NativeWireExpressionCodec(
       // only positive fixed targets with entirely fixed source trees here;
       // never turn a parameter's current witness into a canonical literal.
       case node: Resize if node.size > 0 &&
-          NativeWireExpressionCodec.fixedWidthTree(node) &&
+          (NativeWireExpressionCodec.fixedWidthTree(node) ||
+            (allowTypedSymbolicExpressions && NativeWireExpressionCodec.inlineableResize(node))) &&
           (node.getTypeObject == TypeBits || node.getTypeObject == TypeUInt ||
             node.getTypeObject == TypeSInt) =>
         capture(node.input, path + ".value").map(RtlExpr.Resize(_,
@@ -256,6 +270,69 @@ private[examples] object NativeWireExpressionCodec {
       } finally active.remove(node)
     }
     fixed(value)
+  }
+
+  /** Verilog-2001 lowering owns an exact function argument/result boundary.
+    * These checks use authoritative geometry over the complete domain; the
+    * current elaboration width is never evidence that a select stays in range.
+    */
+  def inlineableResize(node: Resize): Boolean =
+    (node.isInstanceOf[ResizeUInt] || node.isInstanceOf[ResizeBits]) &&
+      node.input != null && node.getTypeObject == node.input.getTypeObject &&
+      node.size > 0 && ParameterizedWidth.resizeExpressionOf(node).isEmpty &&
+      NativeWidthProvenance.widthOf(node.input).exists(width =>
+        width.minimum >= node.size && width.default == node.input.getWidth &&
+          (width.default > node.size || width.maximum == node.size))
+
+  def inlineableSelection(node: BitVectorRangedAccessFixed): Boolean =
+    node.source != null && (node.source.getTypeObject == TypeUInt ||
+      node.source.getTypeObject == TypeBits) && node.lo >= 0 && node.hi >= node.lo &&
+      NativeWidthProvenance.widthOf(node.source).exists(_.minimum > node.hi)
+
+  /** Symbolic substitution admits only pure operators whose result boundary
+    * is represented by native width provenance and the canonical codec.
+    */
+  def symbolicInliningTree(value: Expression): Boolean = {
+    var remaining = 256
+    val active = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    def safe(node: Expression): Boolean = {
+      remaining -= 1
+      if (node == null || remaining < 0 || active.put(node, java.lang.Boolean.TRUE) != null) return false
+      try {
+        val represented = node match {
+          case _: Bool => true
+          case base: BaseType => (base.getTypeObject == TypeUInt || base.getTypeObject == TypeBits) &&
+            NativeWidthProvenance.widthOf(base).exists(_.minimum > 0)
+          case _: BoolLiteral | _: UIntLiteral | _: BitsLiteral => true
+          case _: Operator.Bool.And | _: Operator.Bool.Or | _: Operator.Bool.Xor |
+              _: Operator.Bool.Not | _: Operator.Bool.Equal | _: Operator.Bool.NotEqual => true
+          case _: Operator.UInt.Equal | _: Operator.UInt.NotEqual | _: Operator.UInt.Smaller |
+              _: Operator.UInt.SmallerOrEqual | _: Operator.Bits.Equal | _: Operator.Bits.NotEqual => true
+          case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And |
+              _: Operator.UInt.Or | _: Operator.UInt.Xor | _: Operator.UInt.Not |
+              _: Operator.Bits.And | _: Operator.Bits.Or | _: Operator.Bits.Xor |
+              _: Operator.Bits.Not | _: CastUIntToBits | _: CastBitsToUInt |
+              _: Operator.UInt.ShiftRightByUInt | _: Operator.Bits.ShiftRightByUInt |
+              _: Operator.UInt.ShiftRightByInt | _: Operator.Bits.ShiftRightByInt |
+              _: Operator.UInt.ShiftRightByIntFixedWidth | _: Operator.Bits.ShiftRightByIntFixedWidth =>
+            NativeWidthProvenance.widthOf(node).exists(_.minimum > 0)
+          case mux: BinaryMultiplexer =>
+            (mux.getTypeObject == TypeUInt || mux.getTypeObject == TypeBits ||
+              mux.getTypeObject == TypeBool) &&
+              (mux.getTypeObject == TypeBool || NativeWidthProvenance.widthOf(mux).exists(_.minimum > 0))
+          case resize: Resize => inlineableResize(resize)
+          case selection: BitVectorRangedAccessFixed => inlineableSelection(selection)
+          case _ => false
+        }
+        var children = true
+        node match {
+          case _: BaseType =>
+          case _ => node.foreachDrivingExpression(child => if (!safe(child)) children = false)
+        }
+        represented && children
+      } finally active.remove(node)
+    }
+    safe(value)
   }
 
   /** Recreate the removed wire's native packed boundary before writeback. */

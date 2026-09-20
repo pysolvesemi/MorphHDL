@@ -438,9 +438,9 @@ object toGray {
       // Materialize both native operators through retained packed carriers so
       // neither the shift nor the cast/XOR result freezes to the construction
       // witness before a typed consumer sees it.
-      val shifted = UInt(width bits).dontSimplifyIt()
+      val shifted = ParameterizedExpressionCarrier.retain(UInt(width bits))
       shifted := uint |>> 1
-      val result = Bits(width bits).dontSimplifyIt()
+      val result = ParameterizedExpressionCarrier.retain(Bits(width bits))
       result := shifted.asBits ^ uint.asBits
       result
     }
@@ -470,14 +470,14 @@ object fromGray {
       // Explicit carriers keep every native operator result on the retained
       // packed geometry instead of freezing a witness-width intermediate.
       val maximumWidth = width.maximum
-      var decoded = UInt(width bits).dontSimplifyIt()
+      var decoded = ParameterizedExpressionCarrier.retain(UInt(width bits))
       decoded := gray.asUInt
       var shift = BigInt(1)
       while (shift < maximumWidth) {
         val shiftAmount = shift.toInt
-        val shifted = UInt(width bits).dontSimplifyIt()
+        val shifted = ParameterizedExpressionCarrier.retain(UInt(width bits))
         shifted := decoded |>> shiftAmount
-        val next = UInt(width bits).dontSimplifyIt()
+        val next = ParameterizedExpressionCarrier.retain(UInt(width bits))
         next := decoded ^ shifted
         decoded = next
         shift = shift << 1

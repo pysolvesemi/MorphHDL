@@ -1,0 +1,209 @@
+name: CDC wire-expression fixed point
+
+on:
+  push:
+    branches: [parameterized-verilog, agent/wa-cdc-wire-01-fixed-point]
+    paths:
+      - 'core/src/main/scala/spinal/core/internals/**'
+      - 'core/src/main/scala/spinal/core/NativeWidthProvenance.scala'
+      - 'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala'
+      - 'core/src/test/scala/spinal/core/internals/**'
+      - 'lib/src/main/scala/spinal/lib/Utils.scala'
+      - 'morphhdl-passes/**'
+      - 'morphhdl/src/main/scala/morphhdl/**'
+      - 'morphhdl/src/main/scala/spinal/core/internals/**'
+      - 'morphhdl/src/test/scala/morphhdl/**'
+      - 'morphhdl/src/test/scala/spinal/core/**'
+      - 'morphhdl/scripts/**'
+      - 'morphhdl/contracts/**'
+      - '.github/workflows/cdc-wire-fixed-point.yml'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - 'core/src/main/scala/spinal/core/internals/**'
+      - 'core/src/main/scala/spinal/core/NativeWidthProvenance.scala'
+      - 'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala'
+      - 'core/src/test/scala/spinal/core/internals/**'
+      - 'lib/src/main/scala/spinal/lib/Utils.scala'
+      - 'morphhdl-passes/**'
+      - 'morphhdl/src/main/scala/morphhdl/**'
+      - 'morphhdl/src/main/scala/spinal/core/internals/**'
+      - 'morphhdl/src/test/scala/morphhdl/**'
+      - 'morphhdl/src/test/scala/spinal/core/**'
+      - 'morphhdl/scripts/**'
+      - 'morphhdl/contracts/**'
+      - '.github/workflows/cdc-wire-fixed-point.yml'
+  # Repair commits use [skip ci] and explicitly dispatch this workflow (or the
+  # other failed workflow) at the new head before requesting the full PR suite.
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cdc-wire-fixed-point-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  focused:
+    name: Recursive cleanup, receiver safety and HDL equivalence Scala ${{ matrix.scala }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.cache/coursier
+          key: ${{ runner.os }}-cdc-wire-${{ matrix.scala }}-${{ hashFiles('**/build.sbt', 'project/**') }}
+      - name: Record exact source and install HDL tools
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cdc-wire-evidence"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/cdc-wire-evidence/source.txt"
+          printf '%s\n' '${{ matrix.scala }}' > "$RUNNER_TEMP/cdc-wire-evidence/scala-version.txt"
+          git diff --exit-code
+          git diff --cached --exit-code
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends iverilog yosys
+          java -version > "$RUNNER_TEMP/cdc-wire-evidence/java-version.txt" 2>&1
+          iverilog -V > "$RUNNER_TEMP/cdc-wire-evidence/iverilog-version.txt" 2>&1
+          yosys -V > "$RUNNER_TEMP/cdc-wire-evidence/yosys-version.txt"
+      - name: Authenticate current native source and reviewed overlay
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-cdc-wire-source-review.py --self-test 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/current-source.log"
+          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/native-source.log"
+          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/source-overlay.log"
+          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/report-controls.log"
+      - name: Fixed-point regression and inherited emitter receiver safety
+        id: regression
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
+            'morph/Test/testOnly morphhdl.CdcWireCleanupRegressionTests morphhdl.CdcWireEmitterNamespaceTests morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/regressions.log"
+      - name: Generate enabled, disabled and deterministic-repeat RTL
+        id: generation
+        if: ${{ !cancelled() && steps.regression.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            "morph/Test/runMain morphhdl.examples.CdcWireCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/rtl" \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/generation.log"
+      - name: Verify cleanup shape, four-state semantics and formal equivalence
+        if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/check-cdc-wire-cleanup.py \
+            "$RUNNER_TEMP/cdc-wire-evidence/rtl" \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/qualification.log"
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # Stable per-lane names let a failed-job rerun reuse the successful
+          # other lane's evidence from this same source and workflow run.
+          name: cdc-wire-fixed-point-${{ matrix.scala }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/cdc-wire-evidence/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+  cross-scala:
+    name: Cross-Scala deterministic CDC wire artifacts
+    needs: focused
+    if: ${{ always() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      EVIDENCE_ROOT: ${{ runner.temp }}/cdc-wire-cross-scala
+    steps:
+      - name: Require both current-source qualification lanes
+        run: test '${{ needs.focused.result }}' = success
+      - uses: actions/download-artifact@v4
+        with:
+          name: cdc-wire-fixed-point-2.12.18-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/cdc-wire-cross-scala/2.12.18
+      - uses: actions/download-artifact@v4
+        with:
+          name: cdc-wire-fixed-point-2.13.12-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/cdc-wire-cross-scala/2.13.12
+      - name: Compare exact source identity and all enabled disabled repeat Verilog bytes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, re
+          from pathlib import Path
+          root = Path(os.environ['EVIDENCE_ROOT'])
+          versions = ('2.12.18', '2.13.12')
+          tops = ('CdcSliceCompareRepro', 'CdcGrayChainRepro',
+                  'CdcWhenPredicateRepro', 'CdcWireControls')
+          modes = ('enabled', 'disabled', 'repeat')
+          expected = {mode + '/' + top + '.v' for mode in modes for top in tops}
+          identities, manifests = {}, {}
+          for version in versions:
+              lane = root/version
+              identity = (lane/'source.txt').read_text().splitlines()
+              assert len(identity) == 2 and all(re.fullmatch('[0-9a-f]{40}', item) for item in identity), 'invalid source identity'
+              assert identity[0] == os.environ['EXPECTED_HEAD'], 'stale source evidence'
+              assert (lane/'scala-version.txt').read_text().strip() == version, 'wrong Scala lane'
+              identities[version] = identity
+              rtl = lane/'rtl'
+              files = {str(path.relative_to(rtl)) for mode in modes for path in (rtl/mode).rglob('*.v')}
+              assert files == expected, ('missing or unexpected Verilog artifacts', version, files)
+              manifests[version] = {}
+              for relative in sorted(expected):
+                  path = rtl/relative
+                  assert path.is_file() and not path.is_symlink(), ('missing or linked RTL', relative)
+                  manifests[version][relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+              qualification = json.loads((rtl/'qualification.json').read_text())
+              assert len(qualification['matrix']) == 14 and all(case['four_state'] == 'passed' and case['formal'] == 'passed' for case in qualification['matrix']), 'incomplete lane qualification'
+              assert len(qualification['mutations']) == 2 and all(case['four_state'] == 'rejected' and case['formal'] == 'rejected' for case in qualification['mutations']), 'missing mutation rejection'
+          assert identities[versions[0]] == identities[versions[1]], 'cross-Scala source trees differ'
+          for relative in sorted(expected):
+              assert (root/versions[0]/'rtl'/relative).read_bytes() == (root/versions[1]/'rtl'/relative).read_bytes(), ('cross-Scala Verilog mismatch', relative)
+          report = {'head': os.environ['EXPECTED_HEAD'], 'tree': identities[versions[0]][1],
+                    'scala_versions': list(versions), 'compared_verilog_files': len(expected),
+                    'byte_identical': True, 'sha256': manifests[versions[0]]}
+          (root/'cross-scala.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+          print('CDC_WIRE_CROSS_SCALA_PASS files=' + str(len(expected)) + ' exact_source=true byte_identical=true')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdc-wire-cross-scala-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/cdc-wire-cross-scala/cross-scala.json
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 30

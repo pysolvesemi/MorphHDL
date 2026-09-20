@@ -53,7 +53,7 @@ object NativeWidthProvenance {
   }
 
   private def deriveWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
-    case _: Bool => constant(1)
+    case value if value != null && value.getTypeObject == TypeBool => constant(1)
     case data: BitVector =>
       ParameterizedWidth.expressionOf(data) match {
         case some @ Some(value) if value.exactDomain.nonEmpty => some
@@ -91,6 +91,21 @@ object NativeWidthProvenance {
     case value: Operator.UInt.Not => widthOf(value.source)
     case value: Operator.SInt.Not => widthOf(value.source)
     case value: Operator.SInt.Minus => widthOf(value.source)
+    // Shift amount operands are self-determined; these transfers describe
+    // only the packed result and never use a default-width witness as authority.
+    case value: Operator.BitVector.ShiftRightByUInt => widthOf(value.left)
+    case value: Operator.BitVector.ShiftRightByIntFixedWidth => widthOf(value.source)
+    case value: Operator.BitVector.ShiftLeftByIntFixedWidth => widthOf(value.source)
+    case value: Operator.BitVector.ShiftLeftByUIntFixedWidth => widthOf(value.left)
+    case value: Operator.BitVector.ShiftRightByInt =>
+      widthOf(value.source).map { source =>
+        ElaborationWidthAuthority.maximum(ElabInt.literal(0).expression,
+          ElaborationWidthAuthority.subtract(source, ElabInt.literal(value.shift).expression))
+      }
+    case value: Operator.BitVector.ShiftLeftByInt =>
+      widthOf(value.source).map(ElaborationWidthAuthority.addNative(_, ElabInt.literal(value.shift).expression))
+    case value: BitVectorRangedAccessFixed => constant(value.getWidth)
+    case value: BitVectorRangedAccessFloating => constant(value.size)
     case value: Resize =>
       ParameterizedWidth.resizeExpressionOf(value).orElse(constant(value.size))
     case _: BitVectorBitAccessFixed => constant(1)

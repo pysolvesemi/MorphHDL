@@ -155,7 +155,7 @@ jobs:
           sbt -batch "++${{ matrix.scala }}" \
             idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
             frontend/test verilogBackend/test morph/test \
-            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
             > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
       - name: Run the inherited isolated pass workspace suites
         shell: bash
@@ -264,8 +264,9 @@ jobs:
           print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
           PY
 
-          # Authenticate and validate all 37 added tests before removing only
-          # their copied reports from the frozen predecessor catalog.
+          # Authenticate every sequential and CDC-WIRE addition before
+          # projecting only copied additions out of the frozen catalog.
+          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test
           python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
             --project-regressions "$predecessor" "$output/sequential-test-inventory.json"
 
