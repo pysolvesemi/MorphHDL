@@ -1,6 +1,61 @@
 # Increment 59i continuation — 20 September 2026
 
-## CURRENT CHECKPOINT — 17:29 UTC, 20 September 2026
+## CURRENT CHECKPOINT — failed-first CI launched, 20 September 2026
+
+Feature remains `883c5d8f088a0e2eab35592cf171d87792d30bf4`; target remains
+`bbae646ba43e6189c69feb308f8decb9b677b15f`. PR177 is draft, incomplete and unmerged.
+
+- Source/object staging35522190973 passed; its25 source checks and exact3-commit
+  objects were independently reverified. Do not redo publication.
+- Read-only plan35525939681 passed. Original artifact10608904928 SHA256
+  `9240dc9890a546ca5e1c556f6a015087fa753cc4cfc14451739d6593c3b75bad`
+  matched the exact16-row manifest, with no existing candidate runs.
+- After fresh PR/ref/run guards, recovery commit
+  `6690d4ab6088dd87dc060641b9139d4a0e1d239e` changed only the installed
+  controller's CONTROLLER_MODE fallback from plan to dispatch.
+- Dispatcher [35527058751](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527058751)
+  completed successfully. Its original artifact10610077923 SHA256
+  `3f7ff9cee2d4dff2cefcb8ba3fa292a3c4197a1867c6fbf4dc36e3046fdca543`
+  was independently verified. The prior plan journal was restored exactly;
+  all16 dispatch intents map one-to-one to actual workflow_dispatch runs on
+  the exact candidate, with no duplicate workflow. No hardware pass is claimed.
+- All16 runs were queued/running at the last read. The list below is authoritative
+  for this dispatch, but always re-read latest attempts and jobs.
+- Existing automation `6ab007fe39f881918d2b96dc131e48ba` is enabled hourly in
+  Asia/Kolkata. Old automation `6aae834192c8819195f25e56cdc525f7` stays paused.
+
+| Workflow | Run |
+|---|---:|
+| increment-59i-local-enable-committed-head.yml | [35527087094](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527087094) |
+| lane-when-expression-diagnostic.yml | [35527089532](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527089532) |
+| independent-parameter-domains.yml | [35527091795](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527091795) |
+| increment-62-wa08-source-overlay.yml | [35527094027](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527094027) |
+| increment-61-one-file-per-component.yml | [35527096567](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527096567) |
+| increment-61-compatibility-matrix.yml | [35527099055](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527099055) |
+| increment-60b-signedness-authority.yml | [35527101369](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527101369) |
+| increment-59i-combined-closure.yml | [35527103629](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527103629) |
+| cdc-independent-parameter-consumers.yml | [35527106176](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527106176) |
+| morphhdl-mill.yml | [35527109122](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527109122) |
+| morphhdl-baseline.yml | [35527111981](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527111981) |
+| increment-60f-equivalence-closure.yml | [35527114989](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527114989) |
+| increment-59h-nested-owners.yml | [35527118755](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527118755) |
+| increment-59g-register-bridges.yml | [35527122356](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527122356) |
+| increment-59f-callback-graphs.yml | [35527126237](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527126237) |
+| increment-59e-composite-reduction.yml | [35527129879](https://github.com/pysolvesemi/MorphHDL/actions/runs/35527129879) |
+
+NEXT: inspect these runs/jobs/logs/artifacts. Diagnose any failure and repair
+minimally, then rerun only failed affected work; do not duplicate active or
+successful same-head workflows. Preserve and restore the dispatcher intent
+journal. Its recorded dispatch-requested states now have the exact run identities
+above; a subsequent controller must reconcile, never blindly dispatch again.
+
+Full final-head CI remains gated until all16 workflows,55 required jobs and
+retained evidence pass. Then refresh the53-workflow candidate map and launch
+only missing requirements. Keep all existing test/proof/mutation/artifact gates.
+PR remains draft and TODO unchecked until final acceptance. This continuation
+changes only recovery/CI metadata: no generated-Verilog effect.
+
+## Previous checkpoint — 17:29 UTC, 20 September 2026
 
 This section supersedes the earlier staging instructions retained below.
 
