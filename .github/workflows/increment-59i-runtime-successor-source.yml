@@ -1,0 +1,117 @@
+name: Increment 59i runtime successor source qualification
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-runtime-successor-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-runtime-successor-source
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      EXPECTED_SEAL: 923972aa0964e40a98fc79da5f088a101232b9e9
+      EXPECTED_SOURCE: cdec10fa659e866d58dfbad399aaf0c10f50d313
+      EXPECTED_PARENT: 883c5d8f088a0e2eab35592cf171d87792d30bf4
+      EXPECTED_TARGET: bbae646ba43e6189c69feb308f8decb9b677b15f
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 923972aa0964e40a98fc79da5f088a101232b9e9
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate exact sealed successor and unchanged live refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/59i-runtime-source"
+          mkdir -p "$evidence"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
+          test "$(git rev-parse HEAD^^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse 'HEAD^{tree}')" = 9467b314dd33344dbfabbb342de67e88d5bb588e
+          test "$(git rev-parse 'HEAD^^{tree}')" = f2219f49ef53ea3defc3526b0df76e5a67df4993
+          feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
+          target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
+          test "$feature" = "$EXPECTED_PARENT"
+          test "$target" = "$EXPECTED_TARGET"
+          git rev-parse HEAD HEAD^ HEAD^^ 'HEAD^{tree}' 'HEAD^^{tree}' > "$evidence/identity.txt"
+          printf 'feature=%s\ntarget=%s\n' "$feature" "$target" > "$evidence/live-refs.txt"
+          git diff --name-only "$EXPECTED_PARENT" "$EXPECTED_SOURCE" > "$evidence/runtime-repair-paths.txt"
+          git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
+      - name: Run all 25 retained source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/59i-runtime-source"
+          checks=(
+            'python3 -B morphhdl/scripts/check-increment-59i-production-successor.py'
+            'python3 -B morphhdl/scripts/check-increment-59i-pr190-integration.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-pr190-integration.py'
+            'python3 -B morphhdl/scripts/test-pr190-pr189-source-sync.py'
+            'python3 -B morphhdl/scripts/test-sequential-wire-source-review.py'
+            'python3 -B morphhdl/scripts/check-increment-59i-local-enable-source-review.py --self-test'
+            'python3 -B morphhdl/scripts/test-increment-59i-local-enable-source-review.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-local-enable-successor.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-local-enable-results.py'
+            'python3 -B morphhdl/scripts/check-increment-61-source-review.py'
+            'python3 -B morphhdl/scripts/check-native-source-preservation.py'
+            'python3 -B morphhdl/scripts/check-typed-native-source-overlay.py'
+            'python3 -B morphhdl/scripts/check-increment-59i-target-integration.py'
+            'python3 -B morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
+            'python3 -B morphhdl/scripts/check-wa10-source-scope.py'
+            'python3 -B morphhdl/scripts/check-increment-59i-widening-source-review.py'
+            'python3 -B morphhdl/scripts/check-increment-59i-rollout-composition.py'
+            'python3 -B morphhdl/scripts/check-increment-60b-signedness-authority.py'
+            'python3 -B morphhdl/scripts/check-cdc-successor-source.py'
+            'python3 -B morphhdl/scripts/check-lane-when-source-scope.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-inherited-audit-budgets.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-regression-inventory.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-production-successor.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-continuation.py'
+            'python3 -B morphhdl/scripts/test-increment-59i-pr189-sync.py'
+          )
+          : > "$evidence/results.tsv"
+          failures=0
+          index=0
+          for check in "${checks[@]}"; do
+            index=$((index + 1))
+            log=$(printf '%s/%02d.log' "$evidence" "$index")
+            start=$(date +%s)
+            if bash -e -o pipefail -c "$check" >"$log" 2>&1; then
+              rc=0
+              status=PASS
+            else
+              rc=$?
+              status=FAIL
+              failures=$((failures + 1))
+            fi
+            seconds=$(($(date +%s) - start))
+            printf '%s\t%s\t%s\t%s\n' "$status" "$rc" "$seconds" "$check" | tee -a "$evidence/results.tsv"
+            cat "$log"
+          done
+          test "$index" -eq 25
+          git diff --exit-code
+          git diff --cached --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test "$failures" -eq 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-runtime-successor-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-runtime-source/
+          if-no-files-found: error
+          retention-days: 30
