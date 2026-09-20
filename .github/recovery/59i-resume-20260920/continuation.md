@@ -1,6 +1,51 @@
 # Increment 59i continuation — 20 September 2026
 
 
+## CURRENT CHECKPOINT — sealed runtime successor source qualification, 20 September 2026 23:17 UTC
+
+Feature and target remain unchanged at `883c5d8f088a0e2eab35592cf171d87792d30bf4`
+and `bbae646ba43e6189c69feb308f8decb9b677b15f`. PR177 remains draft and
+unmerged. No old-head failed workflow was retried and no full CI was launched.
+
+The three actionable failed-first defects are now closed in an exact bounded
+source successor: legacy JVM ABI descriptors, the 59g reviewed 120→240 timeout
+guard, and the combined lexical inventory 6→7. Diagnostic run35540026293 passed
+both Scala lanes with exact ABI success and126 focused tests per lane. Local
+source/inventory guards passed: production checker347 files, its26 mutation
+tests, 59g22 tests and combined inventory32 tests.
+
+Exact staged objects:
+- reviewed source `cdec10fa659e866d58dfbad399aaf0c10f50d313`, tree
+  `0322e8103d81e64986a98da5462825a2dea22d2a`, direct parent883c5d8f;
+- direct seal `923972aa0964e40a98fc79da5f088a101232b9e9`, tree
+  `9467b314dd33344dbfabbb342de67e88d5bb588e`;
+- schema6 manifest SHA256
+  `01951e4dccc86629518a144e3ecb339f6c4745617cc3a99b67ceaed19c8ea564`;
+- normalized helper SHA256
+  `d7bea682c4027da0411b6a79a375fc870734785b1a0692ecb723eda953e07223`.
+
+The schema6 lifecycle independently audits the immutable883c5d8f schema5 seal,
+requires one direct source child, fixes the exact11-path repair set and retains
+the complete reversible347-file manifest. The seal changes only the manifest
+and one helper hash slot.
+
+Source run35544093086 rejected only an incorrect controller expression for the
+grandparent tree before executing gates. Recovery commit
+`b67ef12bb1279f1f3d601ccf1f21867aa64146a2` corrected
+`HEAD^^{tree}` to `HEAD~2^{tree}`; no candidate byte changed. Replacement
+[source qualification35544165225](https://github.com/pysolvesemi/MorphHDL/actions/runs/35544165225)
+passed exact head/source/parent/tree and live-ref guards and is running all25
+retained source gates.
+
+NEXT: inspect run35544165225 and digest/content verify its original artifact.
+Only if all25 gates pass and live feature/target refs remain883c5d8f/bbae646b,
+advance the existing feature non-force to923972aa. Then qualify only exact
+new-head requirements; no old-head success transfers to this runtime successor.
+Do not dispatch full CI before failed-first/new-head gates and retained evidence
+pass.
+
+
+
 ## CURRENT CHECKPOINT — repair diagnostic passed; combined count defect found, 20 September 2026 22:05 UTC
 
 Feature and target remain unchanged at `883c5d8f088a0e2eab35592cf171d87792d30bf4`
