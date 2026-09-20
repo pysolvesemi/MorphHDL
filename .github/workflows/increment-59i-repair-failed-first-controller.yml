@@ -1,0 +1,63 @@
+name: Increment 59i repair failed-first dispatcher
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/recovery/59i-repair-failed-first/**
+      - .github/workflows/increment-59i-repair-failed-first-controller.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [plan, dispatch, reconcile]
+        default: plan
+        required: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: increment-59i-repair-failed-first-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      # Pushes perform read-only planning. Dispatch requires the explicit mode.
+      CONTROLLER_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'plan' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 883c5d8f088a0e2eab35592cf171d87792d30bf4
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Run failed-first controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/59i-repair-failed-first/dispatch.py \
+            --repo-root "$GITHUB_WORKSPACE/qualification" \
+            --manifest "$GITHUB_WORKSPACE/controller/.github/recovery/59i-repair-failed-first/dispatch-manifest.json" \
+            --stage-gate "$GITHUB_WORKSPACE/controller/.github/recovery/59i-repair-failed-first/stage-gate.json" \
+            --mode "$CONTROLLER_MODE" \
+            --output "$GITHUB_WORKSPACE/failed-first-receipts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 59i-repair-dispatch-journal-883c5d8f088a-${{ github.run_id }}-${{ github.run_attempt }}
+          path: failed-first-receipts/
+          if-no-files-found: error
+          retention-days: 30
