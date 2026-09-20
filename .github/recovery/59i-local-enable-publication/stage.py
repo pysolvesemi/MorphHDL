@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Stage exact existing 59i history and dispatch only its local-enable gate.
+"""Stage exact existing 59i repair history without ref updates or CI dispatch.
 
 No remote ref mutation is implemented. Blobs and commits are staged with the
 Actions token; the already authorized connector creates exact trees and makes
-one non-force update of the existing feature ref after reviewing receipts.
+any separately authorized feature update after reviewing receipts.
 """
 from __future__ import annotations
 import argparse
@@ -22,11 +22,22 @@ import urllib.error
 import urllib.request
 
 REPO = 'pysolvesemi/MorphHDL'
-BASE = '474480ba3890ed1c6dc8b8ab330086a87a962eb9'
-TARGET = '4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097'
-TARGET_TREE = 'ebe59eecbc8f550d265e78c717fb093603329055'
-DIAGNOSTIC_SOURCE = 'ccec54986c70077e361f291cd322f0aa547aee15'
-SOURCE_HELPER_SHA256 = '31226de9bc5a5818017b01ecdd295e991e23c5752f67137c01dd667208a35227'
+BASE = 'b6f1fefb531ca4cb5aca266628dc29093f6bbafe'
+# Current target is a transport/ref guard, independent of historical audit pins.
+TARGET = 'bbae646ba43e6189c69feb308f8decb9b677b15f'
+TARGET_TREE = 'c2f6e2abd588a131c5e6909173659935c62e77b7'
+DOCS_CHECKPOINT = '771b02d9c5669f7e3a3cc3732b393dd083947ea6'
+DOCS_CHECKPOINT_TREE = '8eab276de28956f977fe4089e00318ea924813f3'
+DIAGNOSTIC_SOURCE = BASE
+REFERENCE_RUN = 35491000802
+REFERENCE_ATTEMPT = 1
+REFERENCE_JOBS = {
+    'Exact committed source and review': 106025794061,
+    'Committed local-enable Scala 2.12.18': 106028583481,
+    'Committed local-enable Scala 2.13.12': 106028583508,
+    'Committed local-enable cross-Scala identity': 106042588737,
+}
+SOURCE_HELPER_SHA256 = 'aadb2209a95947e8d86bf7c6cb34075b4b1f376f8894b809d20a52f56ffa7dbe'
 FEATURE = 'agent/increment-59i-combined-reduction-closure'
 TARGET_BRANCH = 'parameterized-verilog'
 WORKFLOW = 'increment-59i-local-enable-committed-head.yml'
@@ -150,9 +161,18 @@ def load(here):
             and value['target'] == TARGET and value['feature'] == FEATURE
             and value['workflow'] == WORKFLOW, 'wrong immutable publication scope')
     require(value['checks'] == CHECKS, 'source gate inventory changed')
-    require(value['diagnostic']['source_sha'] == DIAGNOSTIC_SOURCE, 'wrong PR190 diagnostic source')
+    require(value['diagnostic'] == dict(source_sha=DIAGNOSTIC_SOURCE, run_id=REFERENCE_RUN,
+        controller_sha=BASE, run_attempt=REFERENCE_ATTEMPT,
+        qualification_scope='historical-runtime-reference-only',
+        runtime_files=value['diagnostic']['runtime_files'],
+        runtime_gitlinks=value['diagnostic']['runtime_gitlinks']), 'wrong committed reference identity')
     require(value['commits'] and value['commits'][-1]['sha'] == value['seal'], 'seal not final commit')
     require(value['commits'][-1]['parents'] == [value['source']], 'seal must directly follow source')
+    require([item['sha'] for item in value['commits']] ==
+        [DOCS_CHECKPOINT, value['source'], value['seal']], 'exact three-commit inventory required')
+    require(value['commits'][0]['tree'] == DOCS_CHECKPOINT_TREE
+        and value['commits'][0]['parents'] == [BASE, TARGET]
+        and value['commits'][1]['parents'] == [DOCS_CHECKPOINT], 'repair checkpoint topology differs')
     for item in value['commits']:
         raw = item['raw'].encode()
         expected = hashlib.sha1(b'commit ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
@@ -165,15 +185,12 @@ def load(here):
 class Remote:
     def __init__(self, value):
         self.value = value
-        self.runs = '/actions/workflows/' + WORKFLOW + '/runs?head_sha=' + value['seal'] + '&event=workflow_dispatch&per_page=100'
-        self.dispatch = '/actions/workflows/' + WORKFLOW + '/dispatches'
         self.reads = {
             '/git/ref/heads/' + FEATURE,
             '/git/ref/heads/' + TARGET_BRANCH,
             '/pulls/177',
             '/actions/runs/' + str(value['diagnostic']['run_id']),
             '/actions/runs/' + str(value['diagnostic']['run_id']) + '/jobs?filter=latest&per_page=100',
-            self.runs,
         } | {'/git/trees/' + item['tree'] for item in value['commits']}
         self.blobs = {item['sha'] for item in value['blobs']}
         self.commit_bodies = [commit_body(item['raw'].encode()) for item in value['commits']]
@@ -187,8 +204,6 @@ class Remote:
                 allowed = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() in self.blobs
         elif method == 'POST' and path == '/git/commits':
             allowed = body in self.commit_bodies
-        elif method == 'POST' and path == self.dispatch:
-            allowed = body == {'ref': FEATURE}
         require(allowed, 'remote operation outside exact allowlist')
         require(os.environ.get('GITHUB_REPOSITORY') == REPO, 'wrong authorized repository')
         request = urllib.request.Request('https://api.github.com/repos/' + REPO + path,
@@ -206,25 +221,33 @@ class Remote:
         pr = self.api('GET', '/pulls/177')
         require(pr['state'] == 'open' and pr['draft'] and not pr['merged'] and pr['head']['sha'] == head
                 and pr['head']['ref'] == FEATURE
-                and pr['base']['ref'] == TARGET_BRANCH, 'PR identity or draft state changed')
+                and pr['head']['repo']['full_name'] == REPO
+                and pr['base']['ref'] == TARGET_BRANCH
+                and pr['base']['repo']['full_name'] == REPO, 'PR identity or draft state changed')
         # PR base.sha can lag the branch after a target merge. The direct
         # target-ref GET above is authoritative and still pins exact TARGET.
 
     def diagnostic(self):
+        # This is genuine historical qualification of BASE. It never qualifies
+        # the new source/seal, whose source gates and final-head CI remain required.
         expected = self.value['diagnostic']
-        run = self.api('GET', '/actions/runs/' + str(expected['run_id']))
-        require(run['id'] == expected['run_id'] and run['head_sha'] == expected['controller_sha']
-                and run['path'] == '.github/workflows/increment-59i-local-enable-development-probe.yml'
+        run = self.api('GET', '/actions/runs/' + str(REFERENCE_RUN))
+        require(run['id'] == REFERENCE_RUN and run['head_sha'] == BASE
+                and run['run_attempt'] == REFERENCE_ATTEMPT
+                and run['path'] == '.github/workflows/' + WORKFLOW
                 and run['status'] == 'completed' and run['conclusion'] == 'success',
-                'expanded runtime diagnostic has not passed')
-        jobs = self.api('GET', '/actions/runs/' + str(expected['run_id']) + '/jobs?filter=latest&per_page=100')
-        require(jobs['total_count'] == len(jobs['jobs']) == 2, 'diagnostic job set differs')
-        require(sorted(item['name'] for item in jobs['jobs']) ==
-                ['Development only Scala 2.12.18', 'Development only Scala 2.13.12'], 'diagnostic Scala lanes differ')
-        require(all(item['status'] == 'completed' and item['conclusion'] == 'success' for item in jobs['jobs']),
-                'diagnostic lane has not passed')
+                'historical committed-head qualification identity/status differs')
+        jobs = self.api('GET', '/actions/runs/' + str(REFERENCE_RUN) + '/jobs?filter=latest&per_page=100')
+        require(jobs['total_count'] == len(jobs['jobs']) == len(REFERENCE_JOBS),
+                'historical committed job set differs')
+        require({item['name']: item['id'] for item in jobs['jobs']} == REFERENCE_JOBS,
+                'historical committed job identities differ')
+        require(all(item['status'] == 'completed' and item['conclusion'] == 'success'
+                    for item in jobs['jobs']), 'historical committed job has not passed')
         return dict(run=run['id'], attempt=run['run_attempt'], controller_sha=run['head_sha'],
-                    source_sha=expected['source_sha'], jobs=[item['id'] for item in jobs['jobs']])
+                    source_sha=expected['source_sha'], jobs=[item['id'] for item in jobs['jobs']],
+                    qualification_scope='historical-runtime-reference-only',
+                    new_head_qualification=False)
 
     def wait_tree(self, sha):
         deadline = time.monotonic() + 3600
@@ -273,6 +296,10 @@ def reconstruct(repository, root, out, here, value):
     git(root, 'merge-base', '--is-ancestor', BASE, value['seal'])
     git(root, 'merge-base', '--is-ancestor', 'd76fbd5f84869ac56186b36f35dfc3c480a80cbb', value['seal'])
     git(root, 'merge-base', '--is-ancestor', value['diagnostic']['source_sha'], value['source'])
+    require(git(root, 'rev-parse', DOCS_CHECKPOINT + '^{tree}').decode().strip() == DOCS_CHECKPOINT_TREE,
+            'docs checkpoint tree differs')
+    require(git(root, 'rev-list', '--parents', '-n', '1', DOCS_CHECKPOINT).decode().split()[1:]
+            == [BASE, TARGET], 'docs checkpoint parents differ')
     require(git(root, 'diff', '--name-only', value['source'], value['seal']).decode().splitlines()
             == sorted([CONTRACT, HELPER]), 'seal delta is not exactly two files')
     expected_paths = set(value['diagnostic']['runtime_files'])
@@ -290,7 +317,8 @@ def reconstruct(repository, root, out, here, value):
     raw_helper = (root / HELPER).read_bytes()
     normalized, count = re.subn(rb'^CONTRACT_SHA256 = "[^"\n]+"$',
         b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw_helper, flags=re.M)
-    require(count == 1 and digest(normalized) == SOURCE_HELPER_SHA256,
+    require(re.fullmatch('[0-9a-f]{64}', SOURCE_HELPER_SHA256) is not None
+            and count == 1 and digest(normalized) == SOURCE_HELPER_SHA256,
             'unreviewed current schema5 source verifier')
     require(json.loads((root / CONTRACT).read_bytes())['schema_version'] == 5,
             'wrong current source lifecycle')
@@ -329,6 +357,8 @@ def prepare(root, out, value, remote):
                    refs_updated=False, full_ci=False)
     for index, command in enumerate(CHECKS):
         name = '%02d-%s.log' % (index + 1, command[0])
+        print('SOURCE_GATE_START %02d/%02d %s' %
+              (index + 1, len(CHECKS), ' '.join(command)), flush=True)
         started = time.monotonic()
         with (out / name).open('wb') as log:
             result = subprocess.run([sys.executable, '-B', 'morphhdl/scripts/' + command[0], *command[1:]],
@@ -338,6 +368,8 @@ def prepare(root, out, value, remote):
         receipt['checks'].append(dict(command=command, returncode=result.returncode, log=name,
             sha256=digest((out / name).read_bytes()), seconds=round(time.monotonic() - started, 3)))
         write_json(out / 'source-checks.json', receipt)
+        print('SOURCE_GATE_END %02d rc=%s seconds=%.3f' %
+              (index + 1, result.returncode, time.monotonic() - started), flush=True)
         require(result.returncode == 0, 'source check failed: ' + command[0])
         require_clean(root, value['seal'])
     remote.identity(BASE)
@@ -369,41 +401,9 @@ def stage_commits(root, out, value, remote):
     print('EXACT_COMMITS_STAGED: connector may now fast-forward existing feature from ' + BASE + ' to ' + value['seal'], flush=True)
 
 
-def dispatch(root, out, value, remote):
-    validate_receipt(root, out, value)
-    receipt = json.loads((out / 'commit-staging.json').read_text())
-    require(receipt['seal'] == value['seal'] and [item['sha'] for item in receipt['commits']]
-            == [item['sha'] for item in value['commits']], 'commit receipt mismatch')
-    deadline = time.monotonic() + 3600
-    while True:
-        head = remote.api('GET', '/git/ref/heads/' + FEATURE)['object']['sha']
-        require(head in (BASE, value['seal']), 'feature moved to unexpected source')
-        if head == value['seal']:
-            break
-        remote.identity(BASE)
-        require(time.monotonic() < deadline, 'connector feature update not available')
-        time.sleep(10)
-    remote.identity(value['seal'])
-    remote.diagnostic()
-    runs = remote.api('GET', remote.runs)
-    require(runs['total_count'] == len(runs['workflow_runs']), 'truncated same-head run inventory')
-    require(all(item['head_sha'] == value['seal'] and item['event'] == 'workflow_dispatch'
-                and item['path'] == '.github/workflows/' + WORKFLOW for item in runs['workflow_runs']), 'foreign run inventory')
-    # Any existing attempt is retained. Failed attempts require explicit diagnosis,
-    # never an automatic rerun disguised as first dispatch.
-    if not runs['workflow_runs']:
-        remote.api('POST', remote.dispatch, {'ref': FEATURE})
-    write_json(out / 'failed-first-dispatch.json', dict(source=value['source'], seal=value['seal'],
-        workflow=WORKFLOW, branch=FEATURE, dispatched=not runs['workflow_runs'],
-        existing_runs=[item['id'] for item in runs['workflow_runs']], full_ci=False,
-        refs_updated_by_controller=False))
-    require_clean(root, value['seal'])
-    print('ONLY_LOCAL_ENABLE_QUALIFICATION_DISPATCHED; full CI remains gated on its success.', flush=True)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('phase', choices=['reconstruct', 'prepare', 'commits', 'dispatch'])
+    parser.add_argument('phase', choices=['reconstruct', 'prepare', 'commits'])
     for name in ('repository', 'destination', 'output'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
@@ -418,8 +418,6 @@ def main():
             prepare(root, out, value, remote)
     elif args.phase == 'commits':
         stage_commits(root, out, value, remote)
-    else:
-        dispatch(root, out, value, remote)
 
 
 if __name__ == '__main__':
