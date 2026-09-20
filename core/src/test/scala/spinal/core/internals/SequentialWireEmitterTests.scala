@@ -31,6 +31,14 @@ class SequentialWireEmitterTests extends AnyFunSuite {
                 val add = new Operator.UInt.Add
                 add.left = source
                 add.right = other
+                // This observer runs after native width inference. Model a
+                // normalized late expression, as production writeback does;
+                // a fresh Widthable otherwise still has inferredWidth = -1.
+                val normalizedWidth = math.max(source.getWidth, other.getWidth)
+                require(normalizedWidth > 0)
+                add.inferredWidth = normalizedWidth
+                add.widthWhenNotInferred = normalizedWidth
+                require(add.getWidth == normalizedWidth)
                 add
               case _ =>
                 val resize = if (shape == "tagged") new TaggedResize else new ResizeUInt
