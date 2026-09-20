@@ -1,5 +1,28 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — compile-specific diagnostic successor, 20 September 2026 19:40 UTC
+
+Feature and target remain unchanged at883c5d8f088a0e2eab35592cf171d87792d30bf4
+andbbae646ba43e6189c69feb308f8decb9b677b15f. PR177 is draft and unmerged.
+
+Diagnostic run35530953278 completed with both Scala lanes failing during Morph
+compilation before ABI or replay tests. The added five-argument capture overload
+was correct, but its existing callback returned `observed.type` from the final
+`ArrayBuffer.+=` expression, so overload selection could not adapt it to
+`UnvalidatedBalancedCallback => Unit`. Both logs identified the same exact line.
+
+The successor repair changes only that callback by adding an explicit terminal
+`()`. Patch SHA256 is
+`e664c4b0f35764cdc5e037925b3a3a171213536de62a3cf245e4b830f93ae258`.
+It applies cleanly to the exact883c5d8f08 candidate and `git diff --check`
+passes. The recovery workflow must rerun only its existing two Scala diagnostic
+lanes. It remains unsealed and cannot qualify or publish source/hardware.
+
+NEXT: inspect the successor diagnostic run and digest-verify both original
+artifacts. If it passes, build the bounded runtime-source successor lifecycle;
+do not weaken schema5, transfer old-head CI credit, rerun the original failed-
+first dispatcher, launch full CI, or advance the feature directly.
+
 ## CURRENT CHECKPOINT — ABI/59g failures; proposed repair probe, 20 September 2026 19:00 UTC
 
 Feature and target remain unchanged at883c5d8f088a0e2eab35592cf171d87792d30bf4

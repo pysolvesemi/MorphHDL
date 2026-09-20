@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 HEAD = '883c5d8f088a0e2eab35592cf171d87792d30bf4'
 BASE = '7f355a859e7e88ca343e1ff82f261fb47b3311d0'
-PATCH_SHA256 = '433837ee1be2bfec9ffb7e3b60d9193cbf63e0a12f0e8e121c23a097e4798718'
+PATCH_SHA256 = 'e664c4b0f35764cdc5e037925b3a3a171213536de62a3cf245e4b830f93ae258'
 SCALA_FILES = (
     'ParameterizedVerilogStructural', 'TypedBalancedReductionBackend',
     'TypedBalancedReductionBridgeReplay', 'TypedBalancedReductionCapture',

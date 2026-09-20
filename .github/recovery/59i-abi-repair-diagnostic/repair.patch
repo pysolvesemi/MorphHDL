@@ -139,7 +139,7 @@ index 5ca9f6c19b..75fb8167f7 100644
      * The observer must not construct RTL or replay the Scala callback. This
      * seam lets the closed-graph validator freeze mutable expression children
 diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
-index 491323732d..dd2e7e6eae 100644
+index 491323732d..95ac7d4db6 100644
 --- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
 +++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
 @@ -82,6 +82,10 @@ private[spinal] object TypedBalancedReductionClosedGraph {
@@ -153,7 +153,13 @@ index 491323732d..dd2e7e6eae 100644
      val ordinal: Int = callback.ordinal
      val nodeCount: Int = frozen.nodes.size
      val registerCount: Int = callback.declarations.count(_.isReg)
-@@ -171,6 +175,11 @@ private[spinal] object TypedBalancedReductionClosedGraph {
+@@ -166,11 +170,17 @@ private[spinal] object TypedBalancedReductionClosedGraph {
+       (callback: UnvalidatedBalancedCallback) => {
+         observed.foreach(_.requireUnchanged())
+         observed += observe(callback)
++        ()
+       })
+     observed.foreach(_.requireUnchanged())
      new ReductionObservation(record, observed.toVector)
    }
  
@@ -215,4 +221,3 @@ index c75da74eb0..6515d57dc6 100644
    def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
        bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
        schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None,
-

@@ -28,7 +28,7 @@ Do not rerun the dispatcher or overwrite its original artifact journal.
 ## Proposed repair
 
 repair.patch SHA256:
-433837ee1be2bfec9ffb7e3b60d9193cbf63e0a12f0e8e121c23a097e4798718
+e664c4b0f35764cdc5e037925b3a3a171213536de62a3cf245e4b830f93ae258
 
 Eight changed paths: seven runtime source files and the59g inventory test.
 The ABI checker, baseline7f355a85, workflows, existing hardware tests and
@@ -47,6 +47,14 @@ immutable source certificates are unchanged.
 Local59g inventory:22 tests passed. git diff --check and exact reverse patch
 application passed. Scala compilation/ABI/runtime tests have NOT yet passed.
 Do not claim generated-Verilog equivalence from this source inspection.
+
+The first diagnostic run35530953278 failed during Morph compilation in both
+Scala lanes. The new five-argument compatibility overload made the existing
+capture callback's final `ArrayBuffer.+=` expression ambiguous: its inferred
+return type was `observed.type`, not `Unit`. The successor patch adds an
+explicit terminal `()` to that existing callback. This is the sole change from
+the first proposed patch; the two-lane diagnostic must still prove compilation,
+the unchanged exact ABI check and all affected replay suites.
 
 ## Diagnostic execution
 
