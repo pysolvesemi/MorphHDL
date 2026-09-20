@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "state": "STAGED_CONTROLLER",
+  "feature_base": "474480ba3890ed1c6dc8b8ab330086a87a962eb9",
+  "source": "1bea280f891717660ca4f332ec6e08754ef59fbd",
+  "seal": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+  "seal_tree": "3da204d0bc088d904c7d3583d38a695a2ebc35b2",
+  "manifest_sha256": "008f378bbe19b7039dd48dad4689c749d963ce3069c45f8879d6dfb5f065674b",
+  "normalized_helper_sha256": "31226de9bc5a5818017b01ecdd295e991e23c5752f67137c01dd667208a35227",
+  "payload_sha256": "845b0b3bf26ddd38ab8968e39bddb04a7193c207eb9cb6b53b47915077026e58",
+  "bundle_sha256": "a36e8fcde3585572176b112e562695a77df7eff9dfa1f472d027f4ab9517aa77",
+  "source_gates_passed": 25,
+  "refs_updated": false,
+  "full_ci": false
+}
