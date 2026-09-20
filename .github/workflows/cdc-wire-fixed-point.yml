@@ -147,7 +147,6 @@ jobs:
     timeout-minutes: 10
     env:
       EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-      EVIDENCE_ROOT: ${{ runner.temp }}/cdc-wire-cross-scala
     steps:
       - name: Require both current-source qualification lanes
         run: test '${{ needs.focused.result }}' = success
@@ -160,6 +159,8 @@ jobs:
           name: cdc-wire-fixed-point-2.13.12-${{ github.event.pull_request.head.sha || github.sha }}
           path: ${{ runner.temp }}/cdc-wire-cross-scala/2.13.12
       - name: Compare exact source identity and all enabled disabled repeat Verilog bytes
+        env:
+          EVIDENCE_ROOT: ${{ runner.temp }}/cdc-wire-cross-scala
         run: |
           set -euo pipefail
           python3 - <<'PY'
