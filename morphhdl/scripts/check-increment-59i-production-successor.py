@@ -87,11 +87,11 @@ LOCAL_ENABLE_CHECKPOINT = "d76fbd5f84869ac56186b36f35dfc3c480a80cbb"
 LOCAL_ENABLE_CHECKPOINT_TREE = "5df50314aa7ae3bad916b157b69a87a278c391ba"
 LOCAL_ENABLE_PROTOTYPE = "1931c0aa82860d81a9a651ffa06b920840ddea1e"
 
-PR190_PARENT = "46a2f635b7232930d047b34b25aea22fed2094cb"
-PR190_PARENT_TREE = "e5cfa2fe90165f6c58c26c41e4dc3c459a4361d4"
-PR190_PARENT_SOURCE = "12a2f48878fd91e2a2fb4b90cfb702138e6bd4b4"
-PR190_PARENT_MANIFEST = "d99eeec43e62a66ccc055d41a450fc3ec0a75bf6031846de47db03af9ddbaf6d"
-PR190_PARENT_HELPER = "0efe97dfed07dbe541a8847cac1f997d9c30505feb5b12df20e0a1835fa150a7"
+PR190_PARENT = "b6f1fefb531ca4cb5aca266628dc29093f6bbafe"
+PR190_PARENT_TREE = "3da204d0bc088d904c7d3583d38a695a2ebc35b2"
+PR190_PARENT_SOURCE = "1bea280f891717660ca4f332ec6e08754ef59fbd"
+PR190_PARENT_MANIFEST = "008f378bbe19b7039dd48dad4689c749d963ce3069c45f8879d6dfb5f065674b"
+PR190_PARENT_HELPER = "31226de9bc5a5818017b01ecdd295e991e23c5752f67137c01dd667208a35227"
 PR190_INTEGRATION_PARENT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 PR190_TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 PR190_TARGET_TREE = "ebe59eecbc8f550d265e78c717fb093603329055"
@@ -99,6 +99,16 @@ PR190_COMMON = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 PR190_CHECKPOINT = "ccec54986c70077e361f291cd322f0aa547aee15"
 PR190_CHECKPOINT_TREE = "daa5f39b8f6f94a89073f0fad5a160b69df3ebc5"
 PR190_TARGET_CHECKER = "cfa38c671546dbfd892416589b53112e50c9588dd0bb48602b3e9b8e7b393001"
+# Preserve the runtime integration above. This later target adds exactly two
+# roadmaps; neither document becomes writable during source development.
+PR190_DOCUMENTATION_TARGET = "bbae646ba43e6189c69feb308f8decb9b677b15f"
+PR190_DOCUMENTATION_TARGET_TREE = "c2f6e2abd588a131c5e6909173659935c62e77b7"
+PR190_DOCUMENTATION_CHECKPOINT = "771b02d9c5669f7e3a3cc3732b393dd083947ea6"
+PR190_DOCUMENTATION_CHECKPOINT_TREE = "8eab276de28956f977fe4089e00318ea924813f3"
+PR190_DOCUMENTATION_PATHS = frozenset((
+    "docs/morphhdl/parameterized-verilog-todo.md",
+    "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md",
+))
 PR190_RECONCILIATIONS = frozenset((
     '.github/workflows/increment-60f-equivalence-closure.yml',
     '.github/workflows/increment-62-wa08-source-overlay.yml',
@@ -114,6 +124,17 @@ PR190_RECONCILIATIONS = frozenset((
 # oracle, or source-review certificate from the previous seal is writable here.
 # Every audit byte below still needs an explicit cumulative manifest record.
 PR190_AUDIT_PATHS = frozenset((
+    '.github/workflows/cdc-independent-parameter-consumers.yml',
+    '.github/workflows/increment-59e-composite-reduction.yml',
+    '.github/workflows/increment-59f-callback-graphs.yml',
+    '.github/workflows/increment-59g-register-bridges.yml',
+    '.github/workflows/increment-59h-nested-owners.yml',
+    '.github/workflows/increment-60f-equivalence-closure.yml',
+    '.github/workflows/increment-61-compatibility-matrix.yml',
+    '.github/workflows/increment-61-one-file-per-component.yml',
+    '.github/workflows/lane-when-expression-diagnostic.yml',
+    '.github/workflows/morphhdl-baseline.yml',
+    '.github/workflows/morphhdl-mill.yml',
     '.github/workflows/increment-59i-local-enable-committed-head.yml',
     'docs/morphhdl/increment-59i-pr190-integration-review.md',
     'morphhdl/scripts/check-increment-59i-production-successor.py',
@@ -131,7 +152,10 @@ PR190_AUDIT_PATHS = frozenset((
     'morphhdl/scripts/check-pr190-pr189-source-sync.py',
     'morphhdl/scripts/check-sequential-wire-source-review.py',
     'morphhdl/scripts/test-increment-59i-continuation.py',
+    'morphhdl/scripts/test-increment-59i-nested-results.py',
     'morphhdl/scripts/test-increment-59i-pr189-sync.py',
+    'morphhdl/scripts/test-increment-60b-inherited-source-scope.py',
+    'morphhdl/scripts/test-increment-62-wa08-source-overlay.py',
 ))
 
 
@@ -172,7 +196,7 @@ def pr190_checkpoint() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "008f378bbe19b7039dd48dad4689c749d963ce3069c45f8879d6dfb5f065674b"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -678,6 +702,43 @@ def verify_previous_certificate(root: Path, value: dict) -> None:
             "morphhdl/scripts/check-pr190-pr189-source-sync.py", PR190_TARGET_CHECKER)
 
 
+def verify_pr190_documentation_checkpoint(root: Path) -> None:
+    """Reconstruct the exact documentation merge without granting doc exceptions."""
+    for commit, expected in (
+            (PR190_DOCUMENTATION_TARGET, PR190_DOCUMENTATION_TARGET_TREE),
+            (PR190_DOCUMENTATION_CHECKPOINT, PR190_DOCUMENTATION_CHECKPOINT_TREE)):
+        require(git(root, "rev-parse", commit + "^{tree}").decode().strip() == expected,
+            "PR190 documentation immutable tree changed")
+    require(git(root, "rev-list", "--parents", "-n", "1",
+        PR190_DOCUMENTATION_CHECKPOINT).decode().split() ==
+        [PR190_DOCUMENTATION_CHECKPOINT, PR190_PARENT, PR190_DOCUMENTATION_TARGET],
+        "PR190 documentation checkpoint topology changed")
+    require(git(root, "merge-base", "--all", PR190_PARENT,
+        PR190_DOCUMENTATION_TARGET).decode().splitlines() == [PR190_TARGET],
+        "PR190 documentation merge base changed")
+    require(changed(root, PR190_TARGET, PR190_DOCUMENTATION_TARGET) == PR190_DOCUMENTATION_PATHS,
+        "PR190 documentation target changed outside the exact roadmaps")
+    require(changed(root, PR190_PARENT, PR190_DOCUMENTATION_CHECKPOINT) == PR190_DOCUMENTATION_PATHS,
+        "PR190 documentation checkpoint changed outside the exact roadmaps")
+    expected_tree = dict(tree(root, PR190_PARENT))
+    for path in sorted(PR190_DOCUMENTATION_PATHS):
+        with tempfile.TemporaryDirectory(prefix="59i-pr190-doc-merge-") as directory:
+            files = []
+            for ref, name in ((PR190_PARENT, "left"), (PR190_TARGET, "base"),
+                    (PR190_DOCUMENTATION_TARGET, "target")):
+                require(tree(root, ref).get(path, (None,))[0] == "100644",
+                    "PR190 documentation source mode changed: " + path)
+                file = Path(directory) / name
+                file.write_bytes(frozen(root, ref, path))
+                files.append(str(file))
+            result = subprocess.run(["git", "merge-file", "-p", *files],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            require(result.returncode == 0, "PR190 documentation merge conflict: " + path)
+            expected_tree[path] = ("100644", blob(result.stdout))
+    require(tree(root, PR190_DOCUMENTATION_CHECKPOINT) == expected_tree,
+        "PR190 documentation checkpoint is not the exact parent merge")
+
+
 def verify_pr190_development_history(root: Path, value: dict) -> None:
     """Bind the exact merge and reject runtime drift even if later restored."""
     require(value["target_checkpoint"] == pr190_checkpoint(), "PR190 checkpoint identity changed")
@@ -689,15 +750,16 @@ def verify_pr190_development_history(root: Path, value: dict) -> None:
         [PR190_CHECKPOINT, PR190_INTEGRATION_PARENT, PR190_TARGET], "PR190 checkpoint topology changed")
     require(git(root, "merge-base", "--all", PR190_INTEGRATION_PARENT, PR190_TARGET).decode().splitlines() ==
         [PR190_COMMON], "PR190 merge base changed")
-    git(root, "merge-base", "--is-ancestor", PR190_PARENT, value["source_commit"])
+    verify_pr190_documentation_checkpoint(root)
+    git(root, "merge-base", "--is-ancestor", PR190_DOCUMENTATION_CHECKPOINT, value["source_commit"])
     original = tree(root, PR190_PARENT).get(CONTRACT)
     current = value["source_commit"]
     while True:
         require(tree(root, current).get(CONTRACT) == original,
             "PR190 development changed the preserved source certificate")
-        require(changed(root, PR190_PARENT, current) <= PR190_AUDIT_PATHS,
+        require(changed(root, PR190_DOCUMENTATION_CHECKPOINT, current) <= PR190_AUDIT_PATHS,
             "PR190 review descendant changed runtime or unlisted audit source")
-        if current == PR190_PARENT:
+        if current == PR190_DOCUMENTATION_CHECKPOINT:
             break
         parents = git(root, "rev-list", "--parents", "-n", "1", current).decode().split()
         require(len(parents) == 2 and parents[0] == current,
@@ -773,7 +835,8 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
             require(integration is None, "sealed route contains more than one integration merge")
             target, feature = ancestry[1:]
             try:
-                target_ceiling = integration_parameters(value["schema_version"])[0] if value["schema_version"] >= 2 else BASE
+                target_ceiling = (PR190_DOCUMENTATION_TARGET if value["schema_version"] == 5 else
+                    integration_parameters(value["schema_version"])[0] if value["schema_version"] >= 2 else BASE)
                 git(root, "merge-base", "--is-ancestor", target, target_ceiling)
             except RuntimeError as error:
                 boundary = "reviewed target refresh" if value["schema_version"] >= 2 else "immutable predecessor"

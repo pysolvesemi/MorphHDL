@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 PATH = 'morphhdl/scripts/check-increment-59i-pr190-integration.py'
@@ -160,6 +161,30 @@ class Pr190IntegrationTests(unittest.TestCase):
             finally:
                 (self.root / path).write_bytes(raw)
 
+    def test_regression_budget_accepts_only_exact_240_minute_job_change(self):
+        relative = '.github/workflows/increment-60f-equivalence-closure.yml'
+        path = self.root / relative
+        original = path.read_bytes()
+        review.verify_ci_and_inventory(self.root, self.production)
+        self.assertEqual(original.count(b'    timeout-minutes: 240\n'), 1)
+        self.assertEqual(original.count(b'    timeout-minutes: 180\n'), 1)
+        mutations = (
+            self.production.frozen(self.root, review.CHECKPOINT, relative),
+            original.replace(b'    timeout-minutes: 240\n', b'    timeout-minutes: 241\n', 1),
+            original.replace(b'    timeout-minutes: 180\n', b'    timeout-minutes: 240\n', 1),
+            original + b'\n# unrelated workflow edit\n',
+            original.replace(b'      fail-fast: false\n', b'      fail-fast: true\n', 1),
+        )
+        try:
+            for index, changed in enumerate(mutations):
+                with self.subTest(mutation=index):
+                    self.assertNotEqual(changed, original)
+                    path.write_bytes(changed)
+                    with self.assertRaisesRegex(RuntimeError, 'combined qualification workflow changed'):
+                        review.verify_ci_and_inventory(self.root, self.production)
+        finally:
+            path.write_bytes(original)
+
     def test_complete_source_routes_reject_removed_certificate(self):
         (self.root / review.CONTRACT).unlink()
         (self.root / review.HELPER).unlink()
@@ -192,6 +217,73 @@ class Pr190IntegrationTests(unittest.TestCase):
         forged = self.commit_tree(source_tree, [self.source, review.TARGET])
         value['source_commit'] = forged
         self.reject(lambda: self.production.verify_pr190_development_history(self.root, value))
+
+    def test_documentation_checkpoint_is_the_exact_two_roadmap_merge(self):
+        self.production.verify_pr190_documentation_checkpoint(self.root)
+        self.assertEqual(self.production.PR190_DOCUMENTATION_PATHS, frozenset((
+            'docs/morphhdl/parameterized-verilog-todo.md',
+            'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md',
+        )))
+        self.assertTrue(self.production.PR190_DOCUMENTATION_PATHS.isdisjoint(
+            self.production.PR190_AUDIT_PATHS))
+        for path in self.production.PR190_DOCUMENTATION_PATHS:
+            self.assertEqual(self.production.tree(self.root, self.source)[path],
+                self.production.tree(self.root, self.production.PR190_DOCUMENTATION_CHECKPOINT)[path])
+
+    def test_documentation_checkpoint_tree_and_parent_forgeries_are_rejected(self):
+        with mock.patch.object(self.production, 'PR190_DOCUMENTATION_CHECKPOINT_TREE', '0' * 40):
+            with self.assertRaisesRegex(RuntimeError, 'documentation immutable tree changed'):
+                self.production.verify_pr190_documentation_checkpoint(self.root)
+        for parents in (
+                [self.production.PR190_DOCUMENTATION_TARGET, self.production.PR190_PARENT],
+                [self.production.PR190_PARENT, review.TARGET],
+                [self.production.PR190_PARENT]):
+            forged = self.commit_tree(self.production.PR190_DOCUMENTATION_CHECKPOINT_TREE, parents)
+            with mock.patch.object(self.production, 'PR190_DOCUMENTATION_CHECKPOINT', forged):
+                with self.assertRaisesRegex(RuntimeError, 'documentation checkpoint topology changed'):
+                    self.production.verify_pr190_documentation_checkpoint(self.root)
+
+    def test_documentation_live_bytes_and_modes_are_still_sealed(self):
+        for relative in self.production.PR190_DOCUMENTATION_PATHS:
+            with self.subTest(path=relative):
+                path = self.root / relative
+                original = path.read_bytes()
+                try:
+                    self.append(relative)
+                    self.reject()
+                    path.write_bytes(original)
+                    path.chmod(0o755)
+                    self.reject()
+                finally:
+                    path.write_bytes(original)
+                    path.chmod(0o644)
+
+    def test_documentation_history_rejects_mode_or_byte_drift_even_if_restored(self):
+        source_tree = git(self.root, 'rev-parse', self.source + '^{tree}').decode().strip()
+        for relative in self.production.PR190_DOCUMENTATION_PATHS:
+            for mode_only in (False, True):
+                with self.subTest(path=relative, mode_only=mode_only):
+                    git(self.root, 'reset', '--hard', self.source)
+                    if mode_only:
+                        git(self.root, 'update-index', '--chmod=+x', relative)
+                    else:
+                        self.append(relative)
+                        git(self.root, 'add', relative)
+                    bad = self.commit_tree(git(self.root, 'write-tree').decode().strip(), [self.source])
+                    restored = self.commit_tree(source_tree, [bad])
+                    with self.assertRaisesRegex(RuntimeError, 'changed runtime or unlisted audit source'):
+                        self.production.verify_pr190_development_history(
+                            self.root, dict(self.value, source_commit=restored))
+
+    def test_exact_documentation_target_integration_is_accepted(self):
+        current_tree = git(self.root, 'rev-parse', self.head + '^{tree}').decode().strip()
+        integrated = self.commit_tree(current_tree,
+            [self.production.PR190_DOCUMENTATION_TARGET, self.head])
+        git(self.root, 'reset', '--hard', integrated)
+        result = review.verify(self.root)
+        self.assertEqual(result['head'], integrated)
+        self.assertEqual(result['target'], review.TARGET)
+        self.assertEqual((result['runtime_files'], result['target_records']), (1845, 40))
 
     def test_runtime_drift_then_restore_in_history_is_rejected(self):
         git(self.root, 'reset', '--hard', self.source)

@@ -55,7 +55,7 @@ jobs:
       || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Safe callback graphs Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:

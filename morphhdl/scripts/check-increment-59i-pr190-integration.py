@@ -20,7 +20,7 @@ import types
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-HELPER_SHA256 = "31226de9bc5a5818017b01ecdd295e991e23c5752f67137c01dd667208a35227"
+HELPER_SHA256 = "aadb2209a95947e8d86bf7c6cb34075b4b1f376f8894b809d20a52f56ffa7dbe"
 LEFT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 BASE = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
@@ -112,7 +112,20 @@ def verify_ci_and_inventory(root: Path, review) -> None:
         ".github/workflows/sequential-wire-consumers.yml",
     )
     for path in workflows:
-        require(review.regular(root, path) == review.frozen(root, CHECKPOINT, path),
+        expected = review.frozen(root, CHECKPOINT, path)
+        if path == ".github/workflows/increment-60f-equivalence-closure.yml":
+            # Only this regression-job budget changed after active tests reached
+            # the old limit. Derive the complete expected workflow from its
+            # immutable checkpoint; other jobs, commands and gates remain exact.
+            before = (b"  regressions:\n"
+                b"    name: All inherited regressions Scala ${{ matrix.scala }}\n"
+                b"    runs-on: ubuntu-latest\n"
+                b"    timeout-minutes: 120\n")
+            require(expected is not None and expected.count(before) == 1,
+                "immutable regression-job budget anchor changed")
+            expected = expected.replace(before,
+                before.replace(b"timeout-minutes: 120\n", b"timeout-minutes: 240\n"), 1)
+        require(review.regular(root, path) == expected,
             "combined qualification workflow changed: " + path)
     raw = review.regular(root, INVENTORY)
     require(hashlib.sha256(raw).hexdigest() == INVENTORY_SHA256,

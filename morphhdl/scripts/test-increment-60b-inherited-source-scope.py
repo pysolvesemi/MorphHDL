@@ -230,9 +230,24 @@ class Inherited60bTests(unittest.TestCase):
         path = '.github/workflows/increment-60b-signedness-authority.yml'
         original = git(self.root, 'show', 'f43100e4899593eb5c9e78537a4dcf6f53f9c30f:' + path)
         current = (self.root / path).read_text()
-        addition = '          python3 -B morphhdl/scripts/test-increment-60b-inherited-source-scope.py\n'
+        addition = '''          python3 -B morphhdl/scripts/test-increment-60b-inherited-source-scope.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py
+          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
+          predecessor=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-base)
+          historical_60b=d0c2d65ed301a7895218a2fe225b2faf4a4bbfe0
+          git merge-base --is-ancestor "$predecessor" HEAD
+          git merge-base --is-ancestor "$historical_60b" HEAD
+          temporary=$(mktemp -d)
+          trap 'git worktree remove --force "$temporary/60b" >/dev/null 2>&1 || true; git worktree remove --force "$temporary/pre-61" >/dev/null 2>&1 || true; rm -rf "$temporary"' EXIT
+          git worktree add --quiet --detach "$temporary/60b" "$historical_60b"
+          (cd "$temporary/60b" && python3 morphhdl/scripts/check-increment-60b-signedness-authority.py)
+          git worktree add --quiet --detach "$temporary/pre-61" "$predecessor"
+          (cd "$temporary/pre-61" && python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only)
+'''
         self.assertEqual(current.count(addition), 1)
-        self.assertEqual(current.replace(addition, '', 1), original)
+        normalized = current.replace('    timeout-minutes: 45\n',
+                                     '    timeout-minutes: 30\n', 1)
+        self.assertEqual(normalized.replace(addition, '', 1), original)
         self.assertNotIn('--without-git-scope', current)
 
     def test_31_frozen_checker_failure_is_not_accepted(self):

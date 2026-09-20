@@ -44,6 +44,8 @@ def main():
         # Current verification above authenticates this outer review. Keep
         # every payload and require the exact owning guard and affected path.
         if path in successor_paths:
+            if path in (successor.COMPLETION_TODO, successor.COMPLETION_RECORD):
+                return "59i production successor: unreviewed completion bytes in projection: " + path
             return "59i production successor: unreviewed bytes cannot enter predecessor projection: " + path
         if path in integration_paths:
             return "59i target integration: unreviewed bytes cannot enter parent projection: " + path

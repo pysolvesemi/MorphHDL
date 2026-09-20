@@ -70,7 +70,6 @@ class NestedResultCheckerTests(unittest.TestCase):
 
     def test_new_review_spans_reject_removed_ownership_and_process_guards(self):
         entries=R.load_contract(ROOT)
-        capture_entries=R.load_capture_contract(ROOT)
         controls={
             'morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala':
                 ('record.published', '!record.lexicalOwner.isModuleScope', 'assignments.forall', 'nestedVectors(record.output)'),
@@ -78,14 +77,18 @@ class NestedResultCheckerTests(unittest.TestCase):
                 ('if (!scopedResult)', 'parsed.operator != "="', 'owners.size == 1', 'Some(name)',
                  'start < assignmentLine', 'lines(start).trim == "always @(*) begin"')}
         for path,tokens in controls.items():
-            baseline=R.baseline_source(ROOT,path);source=(ROOT/path).read_bytes();entry=entries[path]
-            # The current Backend also contains the later capture layer. Reverse
-            # that exact layer first, then exercise the still-sealed nested-result
-            # spans against the source version they review. Capture-layer mutation
-            # coverage remains independent in test-increment-59i-capture-review.py.
-            if path in capture_entries:
-                source=R.restore_reviewed(capture_entries[path],
-                    R.capture_baseline_source(ROOT,path),source)
+            baseline=R.baseline_source(ROOT,path);entry=entries[path]
+            # Rebuild the exact authenticated output of this historical review
+            # from its frozen baseline and explicit spans. The current checkout
+            # has several later authenticated layers; reversing only one of them
+            # would mix unrelated outer edits into this isolated mutation test.
+            chunks=[];previous=0
+            for reviewed in entry['edits']:
+                chunks.extend((baseline[previous:reviewed['before_start']],
+                               reviewed['after'].encode()))
+                previous=reviewed['before_end']
+            chunks.append(baseline[previous:])
+            source=b''.join(chunks)
             self.assertEqual(R.restore_reviewed(entry,baseline,source),baseline)
             edit=next(e for e in entry['edits'] if e['id'].startswith('59i-nested-result-'))
             for token in tokens:

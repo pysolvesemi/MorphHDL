@@ -56,6 +56,7 @@ jobs:
       COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
       COURSIER_CACHE: /sbt/.cache/coursier/v1
       JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v4
         with:

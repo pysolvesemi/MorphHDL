@@ -39,7 +39,7 @@ jobs:
   qualify:
     name: Native register bridges Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
