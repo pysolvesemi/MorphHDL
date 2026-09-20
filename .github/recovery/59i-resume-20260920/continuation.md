@@ -37,6 +37,14 @@ test failures, then failed because the workflow still requires6
 executes7. Scala2.12 is still running. Runs35527114989,35527118755 and
 35527126237 also remain active. Do not duplicate them.
 
+A two-file local-only repair is preserved at
+`.github/recovery/59i-resume-20260920/combined-count-repair.patch` by recovery
+commit `348df15c26358543911032edd206cdabd00c584c`; patch SHA256
+`180559b3e0de8977f773c7cb3f2738c322e93ddacbe5cccfe64a4894f085c13a`.
+It changes only the exact6→7 workflow inventory and adds rejection guards for
+wrong counts or any unrelated workflow byte. All32 regression-inventory tests
+and `git diff --check` passed locally. It is not feature source or CI evidence.
+
 NEXT: preserve the exact combined count failure and add only the exact6→7
 inventory repair with a rejection guard. Build a new bounded runtime-source
 successor lifecycle that chains the published883c5d8f seal; do not weaken or
