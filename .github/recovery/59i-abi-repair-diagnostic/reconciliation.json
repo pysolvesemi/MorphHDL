@@ -1,0 +1,433 @@
+{
+  "schema": 1,
+  "original_journal_artifact": 10610077923,
+  "original_journal_sha256": "3f7ff9cee2d4dff2cefcb8ba3fa292a3c4197a1867c6fbf4dc36e3046fdca543",
+  "candidate": "883c5d8f088a0e2eab35592cf171d87792d30bf4",
+  "manifest_sha256": "e9b461d622f16cacd955103503044704ee7cc73b25e7a58d9a7e2f3ef1c21c40",
+  "observations_recorded_at": "2026-09-20T18:59:45Z",
+  "dispatches_performed": 0,
+  "full_ci": false,
+  "qualification": false,
+  "rows": [
+    {
+      "workflow": "increment-59i-local-enable-committed-head.yml",
+      "run_id": 35527087094,
+      "attempt": 1,
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121024307,
+          "name": "Exact committed source and review",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106124210809,
+          "name": "Committed local-enable Scala 2.13.12",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "id": 106124210843,
+          "name": "Committed local-enable Scala 2.12.18",
+          "status": "queued",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "lane-when-expression-diagnostic.yml",
+      "run_id": 35527089532,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121030452,
+          "name": "qualify (2.12.18)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106121030492,
+          "name": "Lane Mill affected full suite Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121030557,
+          "name": "Lane Mill affected full suite Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121030575,
+          "name": "Lane SBT full suite Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121030583,
+          "name": "Lane SBT full suite Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121030587,
+          "name": "Lane Binary source and concrete parity Scala 2.12.18",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "id": 106121030589,
+          "name": "qualify (2.13.12)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106121030639,
+          "name": "Lane Binary source and concrete parity Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "id": 106121908521,
+          "name": "cross-scala",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "independent-parameter-domains.yml",
+      "run_id": 35527091795,
+      "attempt": 1,
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121037051,
+          "name": "source-contracts",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106122931741,
+          "name": "native-reproducer",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106122931761,
+          "name": "clean-regressions (2.13.12)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106122931806,
+          "name": "clean-regressions (2.12.18)",
+          "status": "queued",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-62-wa08-source-overlay.yml",
+      "run_id": 35527094027,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121044004,
+          "name": "source-overlay",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-61-one-file-per-component.yml",
+      "run_id": 35527096567,
+      "attempt": 1,
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121051181,
+          "name": "Exact source and inherited audit composition",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106123589428,
+          "name": "Publication, tools and equivalence Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106123589460,
+          "name": "Publication, tools and equivalence Scala 2.12.18",
+          "status": "queued",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-61-compatibility-matrix.yml",
+      "run_id": 35527099055,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121057918,
+          "name": "Compatibility and tools Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106121058030,
+          "name": "Compatibility and tools Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-60b-signedness-authority.yml",
+      "run_id": 35527101369,
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 106121064768,
+          "name": "Signedness authority Scala 2.12.18",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106121064846,
+          "name": "Signedness authority Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "increment-59i-combined-closure.yml",
+      "run_id": 35527103629,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121071216,
+          "name": "Composite integration Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121071338,
+          "name": "Composite integration Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "cdc-independent-parameter-consumers.yml",
+      "run_id": 35527106176,
+      "attempt": 1,
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121077777,
+          "name": "Current-head source audit preflight",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 106121078421,
+          "name": "Pinned PR189 source-review repair and failed source gates",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 106123668880,
+          "name": "Current-head ports, BlackBox and UInt consumers",
+          "status": "queued",
+          "conclusion": null
+        },
+        {
+          "id": 106123668985,
+          "name": "Historical baseline reproduction (448dfdf; not feature qualification)",
+          "status": "queued",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "morphhdl-mill.yml",
+      "run_id": 35527109122,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121085728,
+          "name": "Test Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121085825,
+          "name": "Test Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "workflow": "morphhdl-baseline.yml",
+      "run_id": 35527111981,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121093017,
+          "name": "Compile Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121093114,
+          "name": "Compile Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-60f-equivalence-closure.yml",
+      "run_id": 35527114989,
+      "attempt": 1,
+      "status": "queued",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121101052,
+          "name": "All inherited regressions Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121101166,
+          "name": "Signedness closure Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121101213,
+          "name": "Signedness closure Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121101218,
+          "name": "All inherited regressions Scala 2.12.18",
+          "status": "queued",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-59h-nested-owners.yml",
+      "run_id": 35527118755,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121108309,
+          "name": "Nested reduction owners Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121108430,
+          "name": "Nested reduction owners Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-59g-register-bridges.yml",
+      "run_id": 35527122356,
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 106121116281,
+          "name": "Native register bridges Scala 2.12.18",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "id": 106121116433,
+          "name": "Native register bridges Scala 2.13.12",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ]
+    },
+    {
+      "workflow": "increment-59f-callback-graphs.yml",
+      "run_id": 35527126237,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121124637,
+          "name": "Safe callback graphs Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121125481,
+          "name": "Safe callback graphs Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    },
+    {
+      "workflow": "increment-59e-composite-reduction.yml",
+      "run_id": 35527129879,
+      "attempt": 1,
+      "status": "in_progress",
+      "conclusion": null,
+      "jobs": [
+        {
+          "id": 106121135260,
+          "name": "Composite reductions Scala 2.13.12",
+          "status": "in_progress",
+          "conclusion": null
+        },
+        {
+          "id": 106121135418,
+          "name": "Composite reductions Scala 2.12.18",
+          "status": "in_progress",
+          "conclusion": null
+        }
+      ]
+    }
+  ]
+}

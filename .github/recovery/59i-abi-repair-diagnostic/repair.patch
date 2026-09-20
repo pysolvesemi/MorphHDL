@@ -1,0 +1,218 @@
+diff --git a/morphhdl/scripts/test-increment-59g-report-inventory.py b/morphhdl/scripts/test-increment-59g-report-inventory.py
+index c385e324d3..94a34743b4 100644
+--- a/morphhdl/scripts/test-increment-59g-report-inventory.py
++++ b/morphhdl/scripts/test-increment-59g-report-inventory.py
+@@ -22,6 +22,19 @@ EXPECTED = {'TypedBalancedReductionBridgePublicationTests': 3,
+             'TypedBalancedReductionStageReplayTests': 23,
+             'TypedBalancedReductionClosedGraphTests': 27}
+ ENROLLMENT = '          python3 -B morphhdl/scripts/test-increment-59g-report-inventory.py\n'
++OLD_BUDGET = '    timeout-minutes: 120\n'
++REVIEWED_BUDGET = '    timeout-minutes: 240\n'
++
++
++def restore_reviewed_workflow(text: str) -> str:
++    # Only the exact, already reviewed expired-job budget may differ. Preserve
++    # every command, proof, upload setting and rejection gate byte-for-byte.
++    for expected in (ENROLLMENT, REVIEWED_BUDGET,
++                     "'TypedBalancedReductionClosedGraphTests': 27"):
++        if text.count(expected) != 1:
++            raise AssertionError('Expected exactly one reviewed workflow edit: ' + expected)
++    return text.replace(ENROLLMENT, '').replace(REVIEWED_BUDGET, OLD_BUDGET).replace(
++        "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
+ 
+ 
+ def gate(text: str) -> str:
+@@ -155,11 +168,23 @@ class ReportInventoryTests(unittest.TestCase):
+                                        "'TypedBalancedReductionClosedGraphTests': 20")
+         self.assertEqual(ast.dump(ast.parse(normalized)), ast.dump(ast.parse(gate(self.old))))
+ 
+-    def test_entire_workflow_is_preserved_except_count_and_test_enrollment(self):
+-        self.assertEqual(self.workflow.count(ENROLLMENT), 1)
+-        normalized = self.workflow.replace(ENROLLMENT, '').replace(
+-            "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
+-        self.assertEqual(normalized, self.old)
++    def test_entire_workflow_is_preserved_except_three_reviewed_edits(self):
++        self.assertEqual(restore_reviewed_workflow(self.workflow), self.old)
++
++    def test_unreviewed_budget_is_rejected(self):
++        for budget in (0, 120, 239, 241, 360):
++            with self.subTest(budget=budget), self.assertRaises(AssertionError):
++                restore_reviewed_workflow(self.workflow.replace(
++                    REVIEWED_BUDGET, '    timeout-minutes: %d\n' % budget))
++
++    def test_duplicate_budget_is_rejected(self):
++        with self.assertRaises(AssertionError):
++            restore_reviewed_workflow(self.workflow + REVIEWED_BUDGET)
++
++    def test_unrelated_workflow_change_is_not_normalized(self):
++        changed = self.workflow.replace('if-no-files-found: error', 'if-no-files-found: warn')
++        self.assertNotEqual(changed, self.workflow)
++        self.assertNotEqual(restore_reviewed_workflow(changed), self.old)
+ 
+     def test_source_has_each_exact_test_inventory(self):
+         for name, count in EXPECTED.items():
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+index 62ca797c7c..e5b2600df2 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+@@ -95,6 +95,13 @@ private[internals] object ParameterizedVerilogStructural {
+     * ownership analysis as ordinary structural regions. The caller owns the
+     * typed topology; this function owns no HDL operation or reduction logic.
+     */
++  // Keep the pre-capture JVM descriptor for already compiled internal callers.
++  private[internals] def extractNativeTemplates(
++      component: Component, blocks: Vector[ParameterizedStructuralBlock],
++      verilog: String, pc: PhaseContext, canonicalOf: Component => Component
++  ): (String, Vector[String]) =
++    extractNativeTemplates(component, blocks, verilog, pc, canonicalOf, None)
++
+   private[internals] def extractNativeTemplates(
+       component: Component, blocks: Vector[ParameterizedStructuralBlock],
+       verilog: String, pc: PhaseContext, canonicalOf: Component => Component,
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+index 52829523b4..32a3ddc1ea 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala
+@@ -428,6 +428,13 @@ object TypedBalancedReductionBackend {
+ 
+   // Scalar certificates own the changing full/partial/tail lane widths. The
+   // composite path below retains its independent, fixed recursive leaf layout.
++  // Retain the old nested-class JVM accessor with the pre-local-enable policy.
++  private[TypedBalancedReductionBackend] def `spinal$core$internals$TypedBalancedReductionBackend$$buildScalar`(
++      vector: Vec[BaseType], op: (BaseType, BaseType) => BaseType,
++      bridge: (BaseType, Int) => BaseType, native: ElabBalancedReduction.Native[BaseType],
++      schema: TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema): BaseType =
++    buildScalar(vector, op, bridge, native, schema, false)
++
+   private def buildScalar(vector: Vec[BaseType], op: (BaseType, BaseType) => BaseType,
+       bridge: (BaseType, Int) => BaseType,
+       native: ElabBalancedReduction.Native[BaseType],
+@@ -557,6 +564,12 @@ object TypedBalancedReductionBackend {
+     output
+   }
+ 
++  private[TypedBalancedReductionBackend] def `spinal$core$internals$TypedBalancedReductionBackend$$buildComposite`(
++      vector: Vec[Data], op: (Data, Data) => Data,
++      bridge: (Data, Int) => Data, native: ElabBalancedReduction.Native[Data]): Data =
++    buildComposite(vector, op, bridge, native,
++      TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedCompositeOperator(op), false)
++
+   private def buildComposite(vector: Vec[Data], op: (Data, Data) => Data,
+       bridge: (Data, Int) => Data,
+       native: ElabBalancedReduction.Native[Data],
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+index a36e315a8e..636c5463cc 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+@@ -84,6 +84,15 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
+       private val minimumInitializerWidth: Int,
+       private val localGuards: Vector[() => Unit]
+   ) {
++    // Historical scalar proofs have exactly their own input as control lane.
++    private[TypedBalancedReductionBridgeReplay] def this(
++        nativeResult: BaseType, resultWidth: ElaborationIntegerExpression,
++        input: Evidence, observation: TypedBalancedReductionClosedGraph.Observation,
++        registers: Vector[RegisterStep], minimumInitializerWidth: Int,
++        localGuards: Vector[() => Unit]
++    ) = this(nativeResult, resultWidth, input, Vector(input), 0, observation,
++      registers, minimumInitializerWidth, localGuards)
++
+     val registerCount: Int = registers.size
+     val hasLocalEnables: Boolean = registers.exists(_.enable.nonEmpty)
+ 
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
+index 5ca9f6c19b..75fb8167f7 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCapture.scala
+@@ -77,6 +77,13 @@ private[spinal] object TypedBalancedReductionCapture {
+   ): UnvalidatedBalancedReduction[T] =
+     apply(vector, op, levelBridge, native, (_: UnvalidatedBalancedCallback) => ())
+ 
++  // Default arguments do not retain an old JVM descriptor after adding a flag.
++  def apply[T <: Data](
++      vector: Vec[T], op: (T, T) => T, levelBridge: (T, Int) => T,
++      native: ElabBalancedReduction.Native[T], onCallback: UnvalidatedBalancedCallback => Unit
++  ): UnvalidatedBalancedReduction[T] =
++    apply(vector, op, levelBridge, native, onCallback, false)
++
+   /** Observe a completed callback before the native helper invokes another.
+     * The observer must not construct RTL or replay the Scala callback. This
+     * seam lets the closed-graph validator freeze mutable expression children
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+index 491323732d..dd2e7e6eae 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+@@ -82,6 +82,10 @@ private[spinal] object TypedBalancedReductionClosedGraph {
+       private val frozen: Snapshot,
+       private val combinationalScopes: Boolean
+   ) {
++    private[TypedBalancedReductionClosedGraph] def this(
++        callback: UnvalidatedBalancedCallback, frozen: Snapshot
++    ) = this(callback, frozen, false)
++
+     val ordinal: Int = callback.ordinal
+     val nodeCount: Int = frozen.nodes.size
+     val registerCount: Int = callback.declarations.count(_.isReg)
+@@ -171,6 +175,11 @@ private[spinal] object TypedBalancedReductionClosedGraph {
+     new ReductionObservation(record, observed.toVector)
+   }
+ 
++  // Scala exposed this private accessor to nested classes under its mangled
++  // name. Retain that descriptor without widening the accepted graph policy.
++  private[TypedBalancedReductionClosedGraph] def `spinal$core$internals$TypedBalancedReductionClosedGraph$$inspect`(
++      callback: UnvalidatedBalancedCallback): Snapshot = inspect(callback, false)
++
+   private def inspect(callback: UnvalidatedBalancedCallback, combinationalScopes: Boolean): Snapshot = {
+     if (callback == null || callback.result == null || callback.operands == null ||
+         callback.declarations == null || callback.assignments == null ||
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+index 1da8c167a3..694b4a9c91 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+@@ -200,6 +200,11 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+     }
+     value
+   }
++  // Existing bytecode uses the old private accessor; newer code uses the
++  // package-visible entry point. Both retain the same clone/freshness checks.
++  private[TypedBalancedReductionCompositeReplay] def `spinal$core$internals$TypedBalancedReductionCompositeReplay$$cloneShape`(
++      template: Data, widths: Vector[ElaborationIntegerExpression]): Data = cloneShape(template, widths)
++
+   private[internals] def cloneShape(template: Data, widths: Vector[ElaborationIntegerExpression]): Data = {
+     if (template == null || widths == null || template.flatten.size != widths.size)
+       fail("CLONE-SHAPE", "fresh replay clone requires one substituted width for every native leaf")
+@@ -370,7 +375,15 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
+       private val captures: Vector[BaseType],
+       private val leafTransfer: Option[TypedBalancedReductionCompositeLeafReplay.Proof]
+   ) {
+-    private[TypedBalancedReductionCompositeReplay] def operationKey: Any =
++    private[TypedBalancedReductionCompositeReplay] def this(
++        nativeResult: Data, resultWidths: Vector[ElaborationIntegerExpression],
++        inputShapes: Vector[Shape], recipes: Vector[Recipe],
++        observation: TypedBalancedReductionClosedGraph.Observation,
++        guards: Vector[() => Unit]
++    ) = this(nativeResult, resultWidths, inputShapes, recipes, observation,
++      guards, Vector.empty, None)
++
++    private[TypedBalancedReductionCompositeReplay] def operationKey: Vector[Any] =
+       leafTransfer.map(_.operationKey).getOrElse(recipes.map(_.key))
+     val hasWidening: Boolean = leafTransfer.nonEmpty &&
+       resultWidths.zip(inputShapes.head.widths).exists { case (a, b) => !sameWidth(a, b) }
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala
+index c75da74eb0..6515d57dc6 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionStageReplay.scala
+@@ -163,6 +163,12 @@ private[spinal] object TypedBalancedReductionStageReplay {
+       fail("PUBLICATION-UNVALIDATED", "native stage evidence is not post-phase parameterized publication permission")
+   }
+ 
++  // Preserve linkage for callers compiled before the native Vec-zero flag.
++  def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
++      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
++      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema]): Certificate[T] =
++    capture(vector, op, bridge, native, schema, false)
++
+   def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
+       bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+       schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None,
+

@@ -1,0 +1,67 @@
+name: Increment 59i ABI and 59g repair diagnostic
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/recovery/59i-abi-repair-diagnostic/**
+      - .github/workflows/increment-59i-abi-repair-diagnostic.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-abi-repair-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  diagnostic:
+    name: Unsealed ABI repair diagnostic Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      SBT_TEST_PARALLEL: '0'
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 883c5d8f088a0e2eab35592cf171d87792d30bf4
+          path: source
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Diagnose only the proposed failed-job repair, not qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/source"
+          python3 -B controller/.github/recovery/59i-abi-repair-diagnostic/run.py \
+            --root "$GITHUB_WORKSPACE/source" \
+            --output "$GITHUB_WORKSPACE/evidence" \
+            --scala '${{ matrix.scala }}'
+      - name: Retain diagnostic receipt, patch, logs and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 59i-abi-repair-diagnostic-${{ matrix.scala }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/receipt.json
+            evidence/applied.patch
+            evidence/*.log
+            evidence/test-reports/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,6 +1,49 @@
 # Increment 59i continuation — 20 September 2026
 
-## CURRENT CHECKPOINT — failed-first CI launched, 20 September 2026
+## CURRENT CHECKPOINT — ABI/59g failures; proposed repair probe, 20 September 2026 19:00 UTC
+
+Feature and target remain unchanged at883c5d8f088a0e2eab35592cf171d87792d30bf4
+andbbae646ba43e6189c69feb308f8decb9b677b15f. PR177 is still draft and unmerged.
+
+The16 exact-head failed-first workflows are active/partially complete. No full
+CI or retry dispatcher was launched. Live jobs exposed two actionable failures:
+-59g run35527122356, both Scala lanes: the historical whole-workflow comparison
+still expects timeout120, rejecting the approved240-minute job budget.
+-Lane run35527089532, compatibility jobs106121030587 and106121030639:
+13 missing/changed Morph-package JVM descriptors in EACH Scala lane, against
+the unchanged exact prior baseline7f355a859e7e88ca343e1ff82f261fb47b3311d0.
+Both original ABI artifacts were digest/content verified. These are functional
+failures, not retryable infrastructure events.
+
+A proposed8-file repair is preserved under
+`.github/recovery/59i-abi-repair-diagnostic/`, with a recovery-only workflow
+`.github/workflows/increment-59i-abi-repair-diagnostic.yml`. Read its README.
+The publication of this checkpoint launches only that two-Scala diagnostic;
+discover its exact live run by workflow path/recovery head. Do NOT relaunch it
+or the failed-first dispatcher while active. The diagnostic cannot publish,
+dispatch other workflows or qualify source/hardware. It applies the exact
+digest-pinned patch to detached883c5d8f08 and retains logs/receipts. Local59g
+inventory22 tests passed; Scala/ABI/replay results are pending.
+
+The patch restores old ABI overloads/constructors/accessors and Vector return
+type without changing the original ABI checker. It also authenticates the exact
+reviewed59g timeout delta, preserving all remaining workflow bytes. Runtime
+source DOES change: do not describe this as the previous audit-only repair.
+
+NEXT: inspect all existing candidate jobs and the repair diagnostic. Diagnose
+any new failures. Verify diagnostic original artifacts and their API digests.
+Before publishing any new feature source, complete a closed source-successor
+review/seal that retains the883c5d8f08 certificate and every target/predecessor
+audit. Schema5 forbids runtime edits; do not merely relax that audit-only
+allowlist. No883c5d8f08 success qualifies a newly sealed commit. Continue
+failed-first/new-head then full qualification, retaining all acceptance gates.
+
+Original dispatcher artifact10610077923 was re-downloaded/digest-verified;
+all16 intents reconcile one-to-one to the known run IDs. A snapshot is in
+`59i-abi-repair-diagnostic/reconciliation.json`. Preserve the original journal.
+Existing hourly monitor remains active; old monitor stays paused.
+
+## Previous checkpoint — failed-first CI launched, 20 September 2026
 
 Feature remains `883c5d8f088a0e2eab35592cf171d87792d30bf4`; target remains
 `bbae646ba43e6189c69feb308f8decb9b677b15f`. PR177 is draft, incomplete and unmerged.
