@@ -1,0 +1,27 @@
+{
+  "candidate": "883c5d8f088a0e2eab35592cf171d87792d30bf4",
+  "candidate_tree": "f2219f49ef53ea3defc3526b0df76e5a67df4993",
+  "checks_passed": 14,
+  "file_sha256": {
+    "README.md": "0362c6643527654c4f9b9d4c37ca30a09d10cbd6d87bcf23682133cfddf44ede",
+    "dispatch-manifest.json": "e9b461d622f16cacd955103503044704ee7cc73b25e7a58d9a7e2f3ef1c21c40",
+    "dispatch.py": "0506bf9290d068c3b1b9cbe901000a79e27fd97d3d7acf49811623785064a437",
+    "stage-gate.json": "1c7bbf332bb5d05fd2d0e0953949ecdd4347ac19f30c8792e2fd1f76972e0735",
+    "test-results.log": "a42909f80f1f6b1c3a3e3950e5659dc838e6881d1026ac89b30e5cc544aa2397",
+    "test_dispatch.py": "9cf7bbd2e0d60ad3d3e5650279cd9fc03a79198081fe08e50a56d503b1356554",
+    "workflow.template.yml": "47356a65f581fe1cc120e36d33e3fe9bb9b434a8d9ad1aab4045af453eebe5cb"
+  },
+  "manifest_sha256": "e9b461d622f16cacd955103503044704ee7cc73b25e7a58d9a7e2f3ef1c21c40",
+  "offline_only": true,
+  "prior_cancellations": 7,
+  "prior_failures": 8,
+  "remote_calls": 0,
+  "required_jobs": 55,
+  "source": "44313610eb2d72759808f348a552134e97805474",
+  "source_or_hardware_qualification": false,
+  "stage_artifact_unknown": true,
+  "stage_run": 35522190973,
+  "target": "bbae646ba43e6189c69feb308f8decb9b677b15f",
+  "test_returncode": 0,
+  "workflow_count": 16
+}

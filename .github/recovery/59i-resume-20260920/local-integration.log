@@ -1,0 +1,25 @@
+test_combined_ci_or_inventory_mutations_are_rejected (__main__.Pr190IntegrationTests.test_combined_ci_or_inventory_mutations_are_rejected) ... ok
+test_complete_source_routes_reject_removed_certificate (__main__.Pr190IntegrationTests.test_complete_source_routes_reject_removed_certificate) ... ok
+test_current_source_and_runtime_merge_are_complete (__main__.Pr190IntegrationTests.test_current_source_and_runtime_merge_are_complete) ... ok
+test_documentation_checkpoint_is_the_exact_two_roadmap_merge (__main__.Pr190IntegrationTests.test_documentation_checkpoint_is_the_exact_two_roadmap_merge) ... ok
+test_documentation_checkpoint_tree_and_parent_forgeries_are_rejected (__main__.Pr190IntegrationTests.test_documentation_checkpoint_tree_and_parent_forgeries_are_rejected) ... ok
+test_documentation_history_rejects_mode_or_byte_drift_even_if_restored (__main__.Pr190IntegrationTests.test_documentation_history_rejects_mode_or_byte_drift_even_if_restored) ... ok
+test_documentation_live_bytes_and_modes_are_still_sealed (__main__.Pr190IntegrationTests.test_documentation_live_bytes_and_modes_are_still_sealed) ... ok
+test_exact_documentation_target_integration_is_accepted (__main__.Pr190IntegrationTests.test_exact_documentation_target_integration_is_accepted) ... ok
+test_hidden_staged_source_is_rejected (__main__.Pr190IntegrationTests.test_hidden_staged_source_is_rejected) ... ok
+test_ignored_compiler_addition_is_rejected (__main__.Pr190IntegrationTests.test_ignored_compiler_addition_is_rejected) ... ok
+test_linear_audit_descendant_supported_but_extra_merge_rejected (__main__.Pr190IntegrationTests.test_linear_audit_descendant_supported_but_extra_merge_rejected) ... ok
+test_live_mode_and_link_mutations_are_rejected (__main__.Pr190IntegrationTests.test_live_mode_and_link_mutations_are_rejected) ... ok
+test_missing_target_record_and_unlisted_reconciliation_rejected (__main__.Pr190IntegrationTests.test_missing_target_record_and_unlisted_reconciliation_rejected) ... ok
+test_predecessor_and_target_projections_are_exact_and_reject_foreign_bytes (__main__.Pr190IntegrationTests.test_predecessor_and_target_projections_are_exact_and_reject_foreign_bytes) ... ok
+test_regression_budget_accepts_only_exact_240_minute_job_change (__main__.Pr190IntegrationTests.test_regression_budget_accepts_only_exact_240_minute_job_change) ... ok
+test_rewritten_preserved_certificate_is_rejected (__main__.Pr190IntegrationTests.test_rewritten_preserved_certificate_is_rejected) ... ok
+test_runtime_drift_then_restore_in_history_is_rejected (__main__.Pr190IntegrationTests.test_runtime_drift_then_restore_in_history_is_rejected) ... ok
+test_sequential_and_reduction_bodies_reject_live_edits_after_warm_pass (__main__.Pr190IntegrationTests.test_sequential_and_reduction_bodies_reject_live_edits_after_warm_pass) ... ok
+test_sync_route_authenticates_reviewer_before_executing_it (__main__.Pr190IntegrationTests.test_sync_route_authenticates_reviewer_before_executing_it) ... ok
+test_target_and_checkpoint_and_old_certificate_forgery_rejected (__main__.Pr190IntegrationTests.test_target_and_checkpoint_and_old_certificate_forgery_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 248.041s
+
+OK

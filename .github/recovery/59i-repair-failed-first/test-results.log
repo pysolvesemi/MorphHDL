@@ -1,0 +1,19 @@
+test_disappeared_previously_bound_run_is_not_redispatched (__main__.Controls.test_disappeared_previously_bound_run_is_not_redispatched) ... ok
+test_existing_success_and_active_runs_reused (__main__.Controls.test_existing_success_and_active_runs_reused) ... ok
+test_historical_run_status_change_blocks_all_posts (__main__.Controls.test_historical_run_status_change_blocks_all_posts) ... ok
+test_last_workflow_failure_blocks_all_posts (__main__.Controls.test_last_workflow_failure_blocks_all_posts) ... ok
+test_moved_feature_blocks_all_posts (__main__.Controls.test_moved_feature_blocks_all_posts) ... ok
+test_newer_same_head_failure_is_not_hidden_by_older_success (__main__.Controls.test_newer_same_head_failure_is_not_hidden_by_older_success) ... ok
+test_nonterminal_source_stage_rejected (__main__.Controls.test_nonterminal_source_stage_rejected) ... ok
+test_only_sixteen_allowlisted_workflows_and_inputs (__main__.Controls.test_only_sixteen_allowlisted_workflows_and_inputs) ... ok
+test_plan_never_posts (__main__.Controls.test_plan_never_posts) ... ok
+test_reconcile_visible_uncertain_run_without_repeating_it (__main__.Controls.test_reconcile_visible_uncertain_run_without_repeating_it) ... ok
+test_remote_write_allowlist_rejects_ref_pr_and_unlisted_workflow (__main__.Controls.test_remote_write_allowlist_rejects_ref_pr_and_unlisted_workflow) ... ok
+test_skipped_required_job_blocks_all_posts (__main__.Controls.test_skipped_required_job_blocks_all_posts) ... ok
+test_uncertain_post_survives_read_only_plan_and_blocks_redispatch (__main__.Controls.test_uncertain_post_survives_read_only_plan_and_blocks_redispatch) ... ok
+test_unknown_stage_artifact_rejected (__main__.Controls.test_unknown_stage_artifact_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.187s
+
+OK

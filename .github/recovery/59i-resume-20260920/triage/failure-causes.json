@@ -1,0 +1,82 @@
+[
+  {
+    "run": 35499173209,
+    "errors": [
+      "2026-09-20T09:48:19.5810245Z Traceback (most recent call last):",
+      "2026-09-20T09:48:19.5828293Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T09:48:19.5829726Z RuntimeError: 59i production successor: untracked or ignored source addition: morphhdl/scripts/__pycache__/check-increment-62-wa08-source-overlay.cpython-310.pyc",
+      "2026-09-20T09:48:19.6063425Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499171285,
+    "errors": [
+      "2026-09-20T08:31:34.6337499Z Traceback (most recent call last):",
+      "2026-09-20T08:31:34.6357622Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T08:31:34.6358309Z RuntimeError: 59i production successor: unreviewed completion bytes in projection: docs/morphhdl/parameterized-verilog-todo.md",
+      "2026-09-20T08:31:34.6359425Z Traceback (most recent call last):",
+      "2026-09-20T08:31:34.6364477Z AssertionError: ('changed restoration docs/morphhdl/parameterized-verilog-todo.md', RuntimeError('59i production successor: unreviewed completion bytes in projection: docs/morphhdl/parameterized-verilog-todo.md'))",
+      "2026-09-20T08:31:34.7034565Z Traceback (most recent call last):",
+      "2026-09-20T08:31:34.7166913Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499169370,
+    "errors": [
+      "2026-09-20T08:42:22.3830671Z Traceback (most recent call last):",
+      "2026-09-20T08:42:22.3853640Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T08:42:22.3854186Z RuntimeError: 59i production successor: unreviewed completion bytes in projection: docs/morphhdl/parameterized-verilog-todo.md",
+      "2026-09-20T08:42:22.3854885Z Traceback (most recent call last):",
+      "2026-09-20T08:42:22.3857337Z AssertionError: ('changed restoration docs/morphhdl/parameterized-verilog-todo.md', RuntimeError('59i production successor: unreviewed completion bytes in projection: docs/morphhdl/parameterized-verilog-todo.md'))",
+      "2026-09-20T08:42:22.4207872Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499167334,
+    "errors": [
+      "2026-09-20T09:54:49.9627135Z Traceback (most recent call last):",
+      "2026-09-20T09:54:49.9635172Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T09:54:49.9635819Z RuntimeError: 59i production successor: untracked or ignored source addition: morphhdl/scripts/__pycache__/check-increment-61-publication-artifacts.cpython-312.pyc",
+      "2026-09-20T09:54:49.9842462Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499165569,
+    "errors": [
+      "2026-09-20T09:22:00.6865255Z Traceback (most recent call last):",
+      "2026-09-20T09:22:00.6882356Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T09:22:00.6883512Z RuntimeError: 59i production successor: untracked or ignored source addition: morphhdl/scripts/__pycache__/check-increment-59i-pr190-integration.cpython-310.pyc",
+      "2026-09-20T09:22:00.7097575Z ##[error]Process completed with exit code 1.",
+      "2026-09-20T09:22:01.0074543Z ##[error]No files were found with the provided path: target/increment-61-compatibility. No artifacts will be uploaded."
+    ]
+  },
+  {
+    "run": 35499153709,
+    "errors": [
+      "2026-09-20T08:33:27.9540028Z Traceback (most recent call last):",
+      "2026-09-20T08:33:27.9542478Z AssertionError: 'name[1242 chars]tes: 45\\n    strategy:\\n      fail-fast: false[5341 chars]30\\n' != 'name[1242 chars]tes: 30\\n    strategy:\\n      fail-fast: false[4287 chars]30\\n'",
+      "2026-09-20T08:33:27.9737090Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499141350,
+    "errors": [
+      "2026-09-20T10:44:43.8441147Z Traceback (most recent call last):",
+      "2026-09-20T10:44:43.8444132Z     raise RuntimeError(detail)",
+      "2026-09-20T10:44:43.8444601Z RuntimeError: unreviewed source change outside 59i spans: morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala",
+      "2026-09-20T10:44:43.8552630Z ##[error]Process completed with exit code 1."
+    ]
+  },
+  {
+    "run": 35499115467,
+    "errors": [
+      "2026-09-20T08:19:03.4726701Z Traceback (most recent call last):",
+      "2026-09-20T08:19:03.4740890Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T08:19:03.4742150Z RuntimeError: 59i production successor: staged, unstaged or untracked content: ['cdc-source-evidence/head.txt', 'cdc-source-evidence/results.tsv', 'cdc-source-evidence/tree.txt']",
+      "2026-09-20T08:21:08.2379378Z Traceback (most recent call last):",
+      "2026-09-20T08:21:08.2390040Z     raise RuntimeError(\"59i production successor: \" + detail)",
+      "2026-09-20T08:21:08.2390860Z RuntimeError: 59i production successor: staged, unstaged or untracked content: ['cdc-source-evidence/head.txt', 'cdc-source-evidence/results.tsv', 'cdc-source-evidence/tree.txt']",
+      "2026-09-20T08:21:16.2290914Z ##[error]Process completed with exit code 1."
+    ]
+  }
+]

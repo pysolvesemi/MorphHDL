@@ -1,0 +1,755 @@
+{
+  "candidate": "883c5d8f088a0e2eab35592cf171d87792d30bf4",
+  "feature": "agent/increment-59i-combined-reduction-closure",
+  "full_ci": false,
+  "historical_runs": [
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499173209,
+      "workflow": "lane-when-expression-diagnostic.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499171285,
+      "workflow": "independent-parameter-domains.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499169370,
+      "workflow": "increment-62-wa08-source-overlay.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499167334,
+      "workflow": "increment-61-one-file-per-component.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499165569,
+      "workflow": "increment-61-compatibility-matrix.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499153709,
+      "workflow": "increment-60b-signedness-authority.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499141350,
+      "workflow": "increment-59i-combined-closure.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "failure",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499115467,
+      "workflow": "cdc-independent-parameter-consumers.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499191135,
+      "workflow": "morphhdl-mill.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499175068,
+      "workflow": "morphhdl-baseline.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499161822,
+      "workflow": "increment-60f-equivalence-closure.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499139515,
+      "workflow": "increment-59h-nested-owners.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499137471,
+      "workflow": "increment-59g-register-bridges.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499135500,
+      "workflow": "increment-59f-callback-graphs.yml"
+    },
+    {
+      "branch": "agent/increment-59i-combined-reduction-closure",
+      "conclusion": "cancelled",
+      "head": "b6f1fefb531ca4cb5aca266628dc29093f6bbafe",
+      "run_attempt": 1,
+      "run_id": 35499133452,
+      "workflow": "increment-59e-composite-reduction.yml"
+    }
+  ],
+  "pr": 177,
+  "recovery": "recovery/increment-59i-history-20260914",
+  "repository": "pysolvesemi/MorphHDL",
+  "schema": 1,
+  "source": "44313610eb2d72759808f348a552134e97805474",
+  "target": "bbae646ba43e6189c69feb308f8decb9b677b15f",
+  "workflows": [
+    {
+      "all_job_names": [
+        "Exact committed source and review",
+        "Committed local-enable Scala 2.12.18",
+        "Committed local-enable Scala 2.13.12",
+        "Committed local-enable cross-Scala identity"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "source",
+          "if": "github.event_name != 'pull_request' || github.head_ref == 'agent/increment-59i-combined-reduction-closure'",
+          "names": [
+            "Exact committed source and review"
+          ],
+          "timeout_minutes": 45
+        },
+        {
+          "id": "scala",
+          "if": "true",
+          "names": [
+            "Committed local-enable Scala 2.12.18",
+            "Committed local-enable Scala 2.13.12"
+          ],
+          "timeout_minutes": 150
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "Committed local-enable cross-Scala identity"
+          ],
+          "timeout_minutes": 360
+        }
+      ],
+      "path": ".github/workflows/increment-59i-local-enable-committed-head.yml",
+      "required_job_names": [
+        "Exact committed source and review",
+        "Committed local-enable Scala 2.12.18",
+        "Committed local-enable Scala 2.13.12",
+        "Committed local-enable cross-Scala identity"
+      ],
+      "workflow": "increment-59i-local-enable-committed-head.yml",
+      "workflow_sha256": "af61ce0d634c23b738146eef8dcd45c22fc667226f79f54ea849696d3f289369"
+    },
+    {
+      "all_job_names": [
+        "qualify (2.12.18)",
+        "qualify (2.13.12)",
+        "cross-scala",
+        "Lane Binary source and concrete parity Scala 2.12.18",
+        "Lane Binary source and concrete parity Scala 2.13.12",
+        "Lane SBT full suite Scala 2.12.18",
+        "Lane SBT full suite Scala 2.13.12",
+        "Lane Mill affected full suite Scala 2.12.18",
+        "Lane Mill affected full suite Scala 2.13.12",
+        "Lane complete exact-head qualification"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "true",
+          "names": [
+            "qualify (2.12.18)",
+            "qualify (2.13.12)"
+          ],
+          "timeout_minutes": 60
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "cross-scala"
+          ],
+          "timeout_minutes": 10
+        },
+        {
+          "id": "compatibility",
+          "if": "true",
+          "names": [
+            "Lane Binary source and concrete parity Scala 2.12.18",
+            "Lane Binary source and concrete parity Scala 2.13.12"
+          ],
+          "timeout_minutes": 300
+        },
+        {
+          "id": "sbt-full",
+          "if": "true",
+          "names": [
+            "Lane SBT full suite Scala 2.12.18",
+            "Lane SBT full suite Scala 2.13.12"
+          ],
+          "timeout_minutes": 360
+        },
+        {
+          "id": "mill-full",
+          "if": "true",
+          "names": [
+            "Lane Mill affected full suite Scala 2.12.18",
+            "Lane Mill affected full suite Scala 2.13.12"
+          ],
+          "timeout_minutes": 360
+        },
+        {
+          "id": "qualification",
+          "if": "always()",
+          "names": [
+            "Lane complete exact-head qualification"
+          ],
+          "timeout_minutes": 10
+        }
+      ],
+      "path": ".github/workflows/lane-when-expression-diagnostic.yml",
+      "required_job_names": [
+        "qualify (2.12.18)",
+        "qualify (2.13.12)",
+        "cross-scala",
+        "Lane Binary source and concrete parity Scala 2.12.18",
+        "Lane Binary source and concrete parity Scala 2.13.12",
+        "Lane SBT full suite Scala 2.12.18",
+        "Lane SBT full suite Scala 2.13.12",
+        "Lane Mill affected full suite Scala 2.12.18",
+        "Lane Mill affected full suite Scala 2.13.12",
+        "Lane complete exact-head qualification"
+      ],
+      "workflow": "lane-when-expression-diagnostic.yml",
+      "workflow_sha256": "d4537ee2ee5011a975bcc57aa165d3519de3d9898d5e116318b19e3b24478276"
+    },
+    {
+      "all_job_names": [
+        "source-contracts",
+        "clean-regressions (2.12.18)",
+        "clean-regressions (2.13.12)",
+        "native-reproducer"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "source-contracts",
+          "if": "true",
+          "names": [
+            "source-contracts"
+          ],
+          "timeout_minutes": 20
+        },
+        {
+          "id": "clean-regressions",
+          "if": "true",
+          "names": [
+            "clean-regressions (2.12.18)",
+            "clean-regressions (2.13.12)"
+          ],
+          "timeout_minutes": 90
+        },
+        {
+          "id": "native-reproducer",
+          "if": "true",
+          "names": [
+            "native-reproducer"
+          ],
+          "timeout_minutes": 90
+        }
+      ],
+      "path": ".github/workflows/independent-parameter-domains.yml",
+      "required_job_names": [
+        "source-contracts",
+        "clean-regressions (2.12.18)",
+        "clean-regressions (2.13.12)",
+        "native-reproducer"
+      ],
+      "workflow": "independent-parameter-domains.yml",
+      "workflow_sha256": "55794b6778500eebe5f46cbc473055e189bf0d014d8fd6af64225c706a297acd"
+    },
+    {
+      "all_job_names": [
+        "source-overlay",
+        "production (2.12.18)",
+        "production (2.13.12)",
+        "cross-scala"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "source-overlay",
+          "if": "true",
+          "names": [
+            "source-overlay"
+          ],
+          "timeout_minutes": 360
+        },
+        {
+          "id": "production",
+          "if": "true",
+          "names": [
+            "production (2.12.18)",
+            "production (2.13.12)"
+          ],
+          "timeout_minutes": 360
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "cross-scala"
+          ],
+          "timeout_minutes": 360
+        }
+      ],
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "required_job_names": [
+        "source-overlay",
+        "production (2.12.18)",
+        "production (2.13.12)",
+        "cross-scala"
+      ],
+      "workflow": "increment-62-wa08-source-overlay.yml",
+      "workflow_sha256": "250382848e77e10067f1ac5c9af7428e9a7727a1ec0053b6d5c7249e5fcbaa77"
+    },
+    {
+      "all_job_names": [
+        "Exact source and inherited audit composition",
+        "Publication, tools and equivalence Scala 2.12.18",
+        "Publication, tools and equivalence Scala 2.13.12",
+        "Cross-Scala generated-byte determinism"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "source",
+          "if": "github.event_name != 'pull_request_review' || (github.event.review.state == 'commented' &&\n github.event.review.user.login == github.repository_owner &&\n github.event.pull_request.head.repo.full_name == github.repository &&\n github.event.pull_request.base.ref == 'parameterized-verilog' &&\n github.event.pull_request.head.ref == 'agent/lane-when-expression-inlining' &&\n github.event.review.commit_id == github.event.pull_request.head.sha &&\n github.event.review.body == format('/qualify-increment61 {0}', github.event.pull_request.head.sha))",
+          "names": [
+            "Exact source and inherited audit composition"
+          ],
+          "timeout_minutes": 30
+        },
+        {
+          "id": "publication",
+          "if": "true",
+          "names": [
+            "Publication, tools and equivalence Scala 2.12.18",
+            "Publication, tools and equivalence Scala 2.13.12"
+          ],
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "Cross-Scala generated-byte determinism"
+          ],
+          "timeout_minutes": 20
+        }
+      ],
+      "path": ".github/workflows/increment-61-one-file-per-component.yml",
+      "required_job_names": [
+        "Exact source and inherited audit composition",
+        "Publication, tools and equivalence Scala 2.12.18",
+        "Publication, tools and equivalence Scala 2.13.12",
+        "Cross-Scala generated-byte determinism"
+      ],
+      "workflow": "increment-61-one-file-per-component.yml",
+      "workflow_sha256": "bafaa09f8a92165ee32707311957e8283637e9f077274125690a8f8a39949ddd"
+    },
+    {
+      "all_job_names": [
+        "Compatibility and tools Scala 2.12.18",
+        "Compatibility and tools Scala 2.13.12",
+        "Cross-Scala compatibility publication bytes"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "true",
+          "names": [
+            "Compatibility and tools Scala 2.12.18",
+            "Compatibility and tools Scala 2.13.12"
+          ],
+          "timeout_minutes": 120
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "Cross-Scala compatibility publication bytes"
+          ],
+          "timeout_minutes": 20
+        }
+      ],
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "required_job_names": [
+        "Compatibility and tools Scala 2.12.18",
+        "Compatibility and tools Scala 2.13.12",
+        "Cross-Scala compatibility publication bytes"
+      ],
+      "workflow": "increment-61-compatibility-matrix.yml",
+      "workflow_sha256": "06a27f143b7c2ee998dd803fb80a4cec2501241a3710606e0b4bee9a5b101420"
+    },
+    {
+      "all_job_names": [
+        "Signedness authority Scala 2.12.18",
+        "Signedness authority Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-60b-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '60b')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "names": [
+            "Signedness authority Scala 2.12.18",
+            "Signedness authority Scala 2.13.12"
+          ],
+          "timeout_minutes": 45
+        }
+      ],
+      "path": ".github/workflows/increment-60b-signedness-authority.yml",
+      "required_job_names": [
+        "Signedness authority Scala 2.12.18",
+        "Signedness authority Scala 2.13.12"
+      ],
+      "workflow": "increment-60b-signedness-authority.yml",
+      "workflow_sha256": "271f89ba4ab7f733832ab945e6708f6f8992ef5d4f7f9714ab9c29095e3f1d84"
+    },
+    {
+      "all_job_names": [
+        "Composite integration Scala 2.12.18",
+        "Composite integration Scala 2.13.12",
+        "Cross-Scala composite integration RTL determinism"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "integration",
+          "if": "true",
+          "names": [
+            "Composite integration Scala 2.12.18",
+            "Composite integration Scala 2.13.12"
+          ],
+          "timeout_minutes": 240
+        },
+        {
+          "id": "determinism",
+          "if": "true",
+          "names": [
+            "Cross-Scala composite integration RTL determinism"
+          ],
+          "timeout_minutes": 360
+        }
+      ],
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "required_job_names": [
+        "Composite integration Scala 2.12.18",
+        "Composite integration Scala 2.13.12",
+        "Cross-Scala composite integration RTL determinism"
+      ],
+      "workflow": "increment-59i-combined-closure.yml",
+      "workflow_sha256": "f8a46c8930dcf3d5b354d04e87e7701e2a3aef1360a2c74d52f69fe85a8aedfd"
+    },
+    {
+      "all_job_names": [
+        "Pinned PR189 source-review repair and failed source gates",
+        "Current-head source audit preflight",
+        "Historical baseline reproduction (448dfdf; not feature qualification)",
+        "Current-head ports, BlackBox and UInt consumers"
+      ],
+      "inputs": {
+        "mode": "checks"
+      },
+      "jobs": [
+        {
+          "id": "repair-reviewed-source",
+          "if": "(github.event_name == 'workflow_dispatch' && inputs.mode == 'source-repair' && github.ref_name == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'pr189-source-repair-v1' && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'agent/cdc-independent-parameter-consumers' && github.actor == github.repository_owner) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:source-repair:{0}', github.event.pull_request.head.sha))",
+          "names": [
+            "Pinned PR189 source-review repair and failed source gates"
+          ],
+          "timeout_minutes": 60
+        },
+        {
+          "id": "source-preflight",
+          "if": "(github.event_name != 'pull_request_review' && (github.event_name != 'workflow_dispatch' || inputs.mode != 'source-repair') && (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'pr189-targeted-ci-v1')) || (github.event_name == 'pull_request_review' && github.event.action == 'submitted' && github.event.review.state == 'commented' && github.event.review.user.login == github.repository_owner && github.actor == github.repository_owner && github.event.pull_request.number == 189 && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'agent/cdc-independent-parameter-consumers' && github.event.pull_request.base.ref == 'parameterized-verilog' && github.event.review.commit_id == github.event.pull_request.head.sha && github.event.review.body == format('pr189:checks:{0}', github.event.pull_request.head.sha))",
+          "names": [
+            "Current-head source audit preflight"
+          ],
+          "timeout_minutes": 30
+        },
+        {
+          "id": "baseline-probe",
+          "if": "true",
+          "names": [
+            "Historical baseline reproduction (448dfdf; not feature qualification)"
+          ],
+          "timeout_minutes": 90
+        },
+        {
+          "id": "record-consumers",
+          "if": "true",
+          "names": [
+            "Current-head ports, BlackBox and UInt consumers"
+          ],
+          "timeout_minutes": 90
+        }
+      ],
+      "path": ".github/workflows/cdc-independent-parameter-consumers.yml",
+      "required_job_names": [
+        "Current-head source audit preflight",
+        "Historical baseline reproduction (448dfdf; not feature qualification)",
+        "Current-head ports, BlackBox and UInt consumers"
+      ],
+      "workflow": "cdc-independent-parameter-consumers.yml",
+      "workflow_sha256": "e8ff73571304d04bba805b3b3f5e08001f2d0c7d319be890cb98df94462ac693"
+    },
+    {
+      "all_job_names": [
+        "Test Scala 2.12.18",
+        "Test Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "test",
+          "if": "true",
+          "names": [
+            "Test Scala 2.12.18",
+            "Test Scala 2.13.12"
+          ],
+          "timeout_minutes": 120
+        }
+      ],
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "required_job_names": [
+        "Test Scala 2.12.18",
+        "Test Scala 2.13.12"
+      ],
+      "workflow": "morphhdl-mill.yml",
+      "workflow_sha256": "d9d538b7f08215dd9c48999065969eaeb3f6311bce13a564e1774260ec3c82b1"
+    },
+    {
+      "all_job_names": [
+        "Strict Verilog-2001 contracts",
+        "Compile Scala 2.12.18",
+        "Compile Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "contracts",
+          "if": "true",
+          "names": [
+            "Strict Verilog-2001 contracts"
+          ],
+          "timeout_minutes": 15
+        },
+        {
+          "id": "compile",
+          "if": "true",
+          "names": [
+            "Compile Scala 2.12.18",
+            "Compile Scala 2.13.12"
+          ],
+          "timeout_minutes": 240
+        }
+      ],
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "required_job_names": [
+        "Strict Verilog-2001 contracts",
+        "Compile Scala 2.12.18",
+        "Compile Scala 2.13.12"
+      ],
+      "workflow": "morphhdl-baseline.yml",
+      "workflow_sha256": "9af70d6bfe0b554b225604e5677f3766dfee532d0fffab1398ab7187d6a17058"
+    },
+    {
+      "all_job_names": [
+        "Signedness closure Scala 2.12.18",
+        "Signedness closure Scala 2.13.12",
+        "All inherited regressions Scala 2.12.18",
+        "All inherited regressions Scala 2.13.12",
+        "Cross-Scala deterministic signedness artifacts"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "true",
+          "names": [
+            "Signedness closure Scala 2.12.18",
+            "Signedness closure Scala 2.13.12"
+          ],
+          "timeout_minutes": 180
+        },
+        {
+          "id": "regressions",
+          "if": "true",
+          "names": [
+            "All inherited regressions Scala 2.12.18",
+            "All inherited regressions Scala 2.13.12"
+          ],
+          "timeout_minutes": 240
+        },
+        {
+          "id": "cross-scala",
+          "if": "true",
+          "names": [
+            "Cross-Scala deterministic signedness artifacts"
+          ],
+          "timeout_minutes": 10
+        }
+      ],
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "required_job_names": [
+        "Signedness closure Scala 2.12.18",
+        "Signedness closure Scala 2.13.12",
+        "All inherited regressions Scala 2.12.18",
+        "All inherited regressions Scala 2.13.12",
+        "Cross-Scala deterministic signedness artifacts"
+      ],
+      "workflow": "increment-60f-equivalence-closure.yml",
+      "workflow_sha256": "566a23615095b2bacac1e1656c43fcfc40365bacf93c1bf5995869f1ff1c75ac"
+    },
+    {
+      "all_job_names": [
+        "Nested reduction owners Scala 2.12.18",
+        "Nested reduction owners Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "validate",
+          "if": "github.event_name == 'workflow_dispatch' || (github.head_ref || github.ref_name) == 'agent/wa-10-inherited-audit-timeout' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59h-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') || github.ref == 'refs/heads/parameterized-verilog' || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "names": [
+            "Nested reduction owners Scala 2.12.18",
+            "Nested reduction owners Scala 2.13.12"
+          ],
+          "timeout_minutes": 360
+        }
+      ],
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "required_job_names": [
+        "Nested reduction owners Scala 2.12.18",
+        "Nested reduction owners Scala 2.13.12"
+      ],
+      "workflow": "increment-59h-nested-owners.yml",
+      "workflow_sha256": "d674826af3e5c30550a1d604df0bfed84ea044922d79e4b6ca522303170c7808"
+    },
+    {
+      "all_job_names": [
+        "Native register bridges Scala 2.12.18",
+        "Native register bridges Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "true",
+          "names": [
+            "Native register bridges Scala 2.12.18",
+            "Native register bridges Scala 2.13.12"
+          ],
+          "timeout_minutes": 240
+        }
+      ],
+      "path": ".github/workflows/increment-59g-register-bridges.yml",
+      "required_job_names": [
+        "Native register bridges Scala 2.12.18",
+        "Native register bridges Scala 2.13.12"
+      ],
+      "workflow": "increment-59g-register-bridges.yml",
+      "workflow_sha256": "b11e58b4091f4f44a62d4e54517705f6c56b52955ce683ac8f8cb781a6862a0c"
+    },
+    {
+      "all_job_names": [
+        "Safe callback graphs Scala 2.12.18",
+        "Safe callback graphs Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "validate",
+          "if": "github.event_name == 'workflow_dispatch' || startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59g')) || startsWith(github.head_ref || github.ref_name, 'agent/increment-59f-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-60g-') || startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') || (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f')) || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')",
+          "names": [
+            "Safe callback graphs Scala 2.12.18",
+            "Safe callback graphs Scala 2.13.12"
+          ],
+          "timeout_minutes": 360
+        }
+      ],
+      "path": ".github/workflows/increment-59f-callback-graphs.yml",
+      "required_job_names": [
+        "Safe callback graphs Scala 2.12.18",
+        "Safe callback graphs Scala 2.13.12"
+      ],
+      "workflow": "increment-59f-callback-graphs.yml",
+      "workflow_sha256": "851c8e0027f2b5128f88149b7c01b73144697b4b04926963f62086d955c84ebc"
+    },
+    {
+      "all_job_names": [
+        "Composite reductions Scala 2.12.18",
+        "Composite reductions Scala 2.13.12"
+      ],
+      "inputs": {},
+      "jobs": [
+        {
+          "id": "qualify",
+          "if": "true",
+          "names": [
+            "Composite reductions Scala 2.12.18",
+            "Composite reductions Scala 2.13.12"
+          ],
+          "timeout_minutes": 180
+        }
+      ],
+      "path": ".github/workflows/increment-59e-composite-reduction.yml",
+      "required_job_names": [
+        "Composite reductions Scala 2.12.18",
+        "Composite reductions Scala 2.13.12"
+      ],
+      "workflow": "increment-59e-composite-reduction.yml",
+      "workflow_sha256": "b4255fc7e6217849a434fddbb2a7bdbc8c25ec6ad4db547325ae7c08513e9592"
+    }
+  ]
+}

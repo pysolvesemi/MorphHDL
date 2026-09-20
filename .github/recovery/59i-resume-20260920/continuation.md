@@ -1,0 +1,159 @@
+# Increment 59i continuation — 20 September 2026
+
+Continue the existing MorphHDL PR #177 and branch
+`agent/increment-59i-combined-reduction-closure`, targeting `parameterized-verilog`.
+Do not start another increment or development branch. Keep the TODO unchecked
+and PR draft until all applicable final-head qualification succeeds.
+
+## Current identities and execution
+
+- Published feature predecessor: `b6f1fefb531ca4cb5aca266628dc29093f6bbafe`.
+- Live target: `bbae646ba43e6189c69feb308f8decb9b677b15f`.
+- Exact documentation checkpoint: `771b02d9c5669f7e3a3cc3732b393dd083947ea6`.
+  Its ordered parents are the published predecessor and live target;
+  its tree is `8eab276de28956f977fe4089e00318ea924813f3`.
+- Reviewed source: `44313610eb2d72759808f348a552134e97805474`, tree
+  `2008c9ac55f199c50e721f3fdf43c09db72a53e8`.
+- Direct-child candidate seal: `883c5d8f088a0e2eab35592cf171d87792d30bf4`, tree
+  `f2219f49ef53ea3defc3526b0df76e5a67df4993`.
+- Controller commit: `44825913267ab3972cdfded4a885e05b3b22367a` on existing
+  `recovery/increment-59i-history-20260914`.
+- Active source/object staging run: **35522190973**.
+- GitHub connector is already authenticated. Git fetch works; shell push lacks
+  credentials. Use the connector and existing exact-object staging workflow.
+  Do not request credentials. Both remote devboxes were offline.
+
+The candidate is durably preserved as a compressed exact Git bundle in the
+controller commit. It has not yet been assigned to the feature ref. The old
+unpublished `3eae7bb332` repair chain is superseded, not a candidate to publish.
+All published history remains an ancestor. Earlier local checkpoints remain in
+the prior workspace; they need not be replayed or resealed.
+
+The old hourly automation was paused when the user requested takeover here.
+Another chat's active terminal could not be
+terminated: its control handle is unavailable and its PID namespace is separate.
+The user was told that the other chat's Stop button is needed. Its old local
+source gates continued independently. Do not overwrite a moved remote feature
+or publish either competing candidate without reconciliation.
+The replacement automation is enabled hourly in the resumed chat. Keep the old
+automation paused.
+
+## What changed and what passed locally
+
+This is a CI/source-audit repair with **no generated-Verilog effect**:
+
+- CDC evidence now lives outside the clean checkout.
+- Python bytecode writes are disabled in the affected publication/compatibility
+  workflows and globally in the lane diagnostic workflow.
+- Historical nested mutation inputs and exact 60b/WA08 expectations are repaired.
+- Only the seven expired job budgets are extended: Mill 30→120, baseline 90→240,
+  59e 60→180, 59f/59h 180→360, 59g 120→240, 60f regressions 120→240 minutes.
+  No command, proof, mutation, test count or repeat generation was removed.
+- The exact two-roadmap target merge is authenticated independently. The original
+  PR190 runtime target remains fixed; documentation does not gain a writable
+  exception. Exact 60f regression-budget projection preserves every other byte.
+
+On the candidate seal, production source verification passed; all **20** current
+integration controls passed in 248.211 seconds, with unchanged HEAD and clean
+checkout. Log SHA256:
+`48b01014846cffc4b368a9496c68024411a536ae3595f3b57929ec01fb6ce0d8`.
+All **1,847** runtime/build/hardware-checker files and the gitlink match b6f1.
+These local results do not replace the 25 staging gates or new-head hardware CI.
+
+Payload SHA256: `8e0a90896ffdd1573576f536de74a2140543be473592cbfdd9e692c4de19a88a`.
+Git bundle SHA256: `6c91afb35fc781b75b90fe39369b30e549db22c5c2e251b4e282a11f514f951f`.
+Manifest SHA256: `17f8727e14fd4788c7e0f362506cf2542b9f6bcb6bea4e724a0692e9ee393615`.
+Normalized helper SHA256: `aadb2209a95947e8d86bf7c6cb34075b4b1f376f8894b809d20a52f56ffa7dbe`.
+Staging controller SHA256: `fd4359513926fd3575cd20cfb4e69ee991e66467c2708e011783788ef5d21962`.
+
+## Next action: finish source/object staging
+
+Read fresh PR, branch refs, run and jobs. Do not restart active staging.
+Run35522190973 checks all25 source commands, uploads exact blobs and its original
+logs/tree requests, then waits up to an hour for connector-created trees.
+
+When its source artifact appears (the overall run may still be active), download
+`increment-59i-local-enable-source-and-tree-requests-1`, verify the ZIP against
+GitHub's API digest, then verify all25 command identities, zero return codes,
+log hashes, exact source/seal, bundle and ordered raw commit/tree/parent records
+against the pinned payload. Never invent a successful receipt.
+
+Create the three listed trees through `github_create_tree` in order, requiring
+their exact expected SHAs. Do not update the feature yet. If Actions cannot see
+the created trees, the prior recovery-only tree-witness approach is available:
+reference those exact trees under a recovery directory, with corresponding
+nested cocotblib entries in recovery `.gitmodules`. Never merge recovery content
+into the feature or target. Prefer performing the tree handoff during the active
+wait; if it has timed out, diagnose and resume only the failed staging step.
+
+After staging creates exact commit objects, download and independently verify
+`increment-59i-local-enable-exact-commit-staging-1`. Require the three commits
+above with exact trees and ordered parents. Refresh feature/target/PR identity;
+then use `github_update_ref` with `force=false` to advance only the existing
+feature from b6f1 to883c5d8f. If any ref moved, stop that mutation and reconcile.
+
+## Failed-first CI, then full qualification
+
+b6f1 targeted run35491000802 passed. Full dispatcher35498990343 subsequently
+launched/reused53 workflows:38 succeeded,8 failed,7 timed out. These are historical
+facts, not current-candidate qualification. The cancelled artifact tails showed
+active passing work; unfinished tests and downstream proofs remain required.
+
+Run exactly these15 failed/cancelled requirements plus the mandatory new-head
+local-enable workflow, reusing successful or active same-head runs:
+
+| Workflow filename | Prior b6f1 run | Result |
+|---|---:|---|
+| lane-when-expression-diagnostic.yml |35499173209|failure|
+| independent-parameter-domains.yml |35499171285|failure|
+| increment-62-wa08-source-overlay.yml |35499169370|failure|
+| increment-61-one-file-per-component.yml |35499167334|failure|
+| increment-61-compatibility-matrix.yml |35499165569|failure|
+| increment-60b-signedness-authority.yml |35499153709|failure|
+| increment-59i-combined-closure.yml |35499141350|failure|
+| cdc-independent-parameter-consumers.yml |35499115467|failure|
+| morphhdl-mill.yml |35499191135|cancelled|
+| morphhdl-baseline.yml |35499175068|cancelled|
+| increment-60f-equivalence-closure.yml |35499161822|cancelled|
+| increment-59h-nested-owners.yml |35499139515|cancelled|
+| increment-59g-register-bridges.yml |35499137471|cancelled|
+| increment-59f-callback-graphs.yml |35499135500|cancelled|
+| increment-59e-composite-reduction.yml |35499133452|cancelled|
+| increment-59i-local-enable-committed-head.yml |35491000802|historical success; new head required|
+
+Use a durable intent journal before each dispatch and reconcile uncertain POSTs
+before retrying. Diagnose any same-head failure; never retry functional errors
+as infrastructure. Publish dispatch controllers only on the existing recovery
+branch, and never count a controller's success as candidate qualification.
+Prepared controller files live under `.github/recovery/59i-repair-failed-first/`.
+Read their README; the workflow is a stored template, not an installed/active
+dispatcher. Fill the actual successful staging artifact identity before use.
+
+Only after this phase and retained evidence pass, regenerate the full workflow
+map from the actual candidate. The existing complete plan has53 applicable
+workflows,150 required jobs,2 intentional publisher skips,95 expected artifacts,
+and2,307 tests/230 suites. Changes above preserve job and coverage inventory;
+refresh exact workflow hashes. Reuse successful current-head runs; b6f1's other
+38 successes cannot qualify883c5d8f. Verify original artifacts and actual job
+results, both Scala lanes and cross-Scala determinism, bounded proofs and real
+mutations. No skipped/pending/cancelled required job or zero-job result qualifies.
+
+Keep the TODO unchecked until completion. Then record actual Scala and generated
+Verilog, validate all applicable final-head gates, and merge using expected SHA
+and a merge commit (never squash/rebase). Preserve source anchors and avoid
+duplicate broad post-merge CI. Pause monitoring only after verified completion
+or a permanent blocker. If only queued/running, end the scheduled iteration
+quietly without duplicate actions.
+
+## Local recovery paths (if still present)
+
+- Checkout: `/workspace/scratch/8270be305ad2/MorphHDL`.
+- Publication tools: `/workspace/scratch/8270be305ad2/repair-publication`.
+- Exact payload: `/workspace/scratch/8270be305ad2/repair-publication-payload`.
+- Local integration receipts: `/workspace/scratch/8270be305ad2/59i-integration-883c5d8f08`.
+- Triage artifacts: `/workspace/scratch/8270be305ad2/ci-triage`.
+- Prior full-CI toolkit: `/workspace/scratch/b64c9bb7f729/59i-b6f1-auto-ZNBhKt/toolkit`.
+
+The durable controller commit and existing recovery branch are authoritative if
+scratch disappears. The old b6f1 continuation is historical and superseded by
+this handoff.

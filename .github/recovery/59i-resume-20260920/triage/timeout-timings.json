@@ -1,0 +1,1116 @@
+[
+  {
+    "run": 35499191135,
+    "jobs": [
+      {
+        "id": 106047768013,
+        "name": "Test Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 30.05,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.5
+          },
+          {
+            "name": "Check out sources",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Install pinned Mill bootstrap",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends",
+            "status": "cancelled",
+            "duration_min": 29.45
+          },
+          {
+            "name": "Post Check out sources",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047768088,
+        "name": "Test Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 30.066666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.4
+          },
+          {
+            "name": "Check out sources",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Install pinned Mill bootstrap",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends",
+            "status": "cancelled",
+            "duration_min": 29.533333333333335
+          },
+          {
+            "name": "Post Check out sources",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      }
+    ],
+    "log_tail": "SECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n2026-09-20T10:15:25.4883449Z Post job cleanup.\n2026-09-20T10:15:25.4891550Z ##[command]/usr/bin/docker exec  a4031e6750c99f5b5f277924b27c7c0042014248529daaaa82a19a45bde77b88 sh -c \"cat /etc/*release | grep ^ID\"\n2026-09-20T10:15:25.9289813Z [command]/usr/bin/git version\n2026-09-20T10:15:25.9379142Z git version 2.34.1\n2026-09-20T10:15:25.9508727Z Temporarily overriding HOME='/__w/_temp/61405c56-a604-42f3-ad35-05c6b004b254' before making global git config changes\n2026-09-20T10:15:25.9509517Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T10:15:26.0837649Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T10:15:26.0839234Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T10:15:26.0840756Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T10:15:26.0842302Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T10:15:26.0842934Z http.https://github.com/.extraheader\n2026-09-20T10:15:26.0843948Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader\n2026-09-20T10:15:26.0845459Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T10:15:26.0847106Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T10:15:26.0848324Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T10:15:26.2908958Z Stop and remove container: f0bf07986eab4afbb9e6fdaff19b21c6_ghcriospinalhdldockerlatest_076965\n2026-09-20T10:15:26.2913179Z ##[command]/usr/bin/docker rm --force a4031e6750c99f5b5f277924b27c7c0042014248529daaaa82a19a45bde77b88\n2026-09-20T10:15:26.7987856Z a4031e6750c99f5b5f277924b27c7c0042014248529daaaa82a19a45bde77b88\n2026-09-20T10:15:26.8015018Z Remove container network: github_network_63c9258868bc427a85fb0696ea2e75ef\n2026-09-20T10:15:26.8018344Z ##[command]/usr/bin/docker network rm github_network_63c9258868bc427a85fb0696ea2e75ef\n2026-09-20T10:15:27.1643924Z github_network_63c9258868bc427a85fb0696ea2e75ef\n2026-09-20T10:15:27.1710470Z Cleaning up orphan processes\n2026-09-20T10:15:27.1862587Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499175068,
+    "jobs": [
+      {
+        "id": 106047724357,
+        "name": "Compile Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 90.03333333333333,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.3
+          },
+          {
+            "name": "Check out sources",
+            "status": "success",
+            "duration_min": 0.21666666666666667
+          },
+          {
+            "name": "Verify recorded upstream base",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Compile production sources",
+            "status": "success",
+            "duration_min": 2.6
+          },
+          {
+            "name": "Compile test sources",
+            "status": "success",
+            "duration_min": 1.6333333333333333
+          },
+          {
+            "name": "Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends",
+            "status": "cancelled",
+            "duration_min": 85.23333333333333
+          },
+          {
+            "name": "Export live inherited validation phase inventory",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Upload live inherited validation phase inventory",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Generate deterministic contract RTL",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Upload generated contract RTL",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Run concrete code-generation smoke test",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited semantic-check regression",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Post Check out sources",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047724524,
+        "name": "Compile Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 90.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.38333333333333336
+          },
+          {
+            "name": "Check out sources",
+            "status": "success",
+            "duration_min": 0.21666666666666667
+          },
+          {
+            "name": "Verify recorded upstream base",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Compile production sources",
+            "status": "success",
+            "duration_min": 2.533333333333333
+          },
+          {
+            "name": "Compile test sources",
+            "status": "success",
+            "duration_min": 1.6833333333333333
+          },
+          {
+            "name": "Test frontend, native single-source bridge, ParamRTL and Verilog-2001 backends",
+            "status": "cancelled",
+            "duration_min": 85.16666666666667
+          },
+          {
+            "name": "Export live inherited validation phase inventory",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Upload live inherited validation phase inventory",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Generate deterministic contract RTL",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Upload generated contract RTL",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Run concrete code-generation smoke test",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited semantic-check regression",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Post Check out sources",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106067690206,
+        "name": "Strict Verilog-2001 contracts",
+        "status": "skipped",
+        "duration_min": 0,
+        "steps": []
+      }
+    ],
+    "log_tail": "aking global git config changes\n2026-09-20T11:00:58.9408281Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T11:00:58.9411310Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T11:00:58.9448981Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T11:00:58.9469613Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T11:00:58.9998497Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:00:59.0128191Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T11:00:59.0187495Z http.https://github.com/.extraheader\n2026-09-20T11:00:59.0243435Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader\n2026-09-20T11:00:59.0318639Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T11:00:59.0712165Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:00:59.0737515Z http.https://github.com/.extraheader\n2026-09-20T11:00:59.0824312Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:00:59.0899597Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T11:00:59.1138229Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:00:59.1156999Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T11:00:59.1193952Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:00:59.1408044Z Stop and remove container: 410abbf269a04497ba07828198c62142_ghcriospinalhdldockerv120_bdfa70\n2026-09-20T11:00:59.1414498Z ##[command]/usr/bin/docker rm --force 9ca67f391e9b14676463344c2062b99e2dca25749ae6f362906321b001afc3f1\n2026-09-20T11:00:59.4201114Z 9ca67f391e9b14676463344c2062b99e2dca25749ae6f362906321b001afc3f1\n2026-09-20T11:00:59.4231476Z Remove container network: github_network_7bae58c2d7de4184878c47cd1f6834b2\n2026-09-20T11:00:59.4236006Z ##[command]/usr/bin/docker network rm github_network_7bae58c2d7de4184878c47cd1f6834b2\n2026-09-20T11:00:59.5213125Z github_network_7bae58c2d7de4184878c47cd1f6834b2\n2026-09-20T11:00:59.5285748Z Cleaning up orphan processes\n2026-09-20T11:00:59.5569437Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499161822,
+    "jobs": [
+      {
+        "id": 106047688985,
+        "name": "All inherited regressions Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 120.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.38333333333333336
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.18333333333333332
+          },
+          {
+            "name": "Require real inherited formal tools and retain each proof workspace",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run every inherited MorphHDL suite with formal gates enabled",
+            "status": "cancelled",
+            "duration_min": 119.4
+          },
+          {
+            "name": "Run the inherited isolated pass workspace suites",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Require complete inherited and Increment 61 test inventories",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain inherited test and solver evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047689002,
+        "name": "All inherited regressions Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 120.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.26666666666666666
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.21666666666666667
+          },
+          {
+            "name": "Require real inherited formal tools and retain each proof workspace",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run every inherited MorphHDL suite with formal gates enabled",
+            "status": "cancelled",
+            "duration_min": 119.5
+          },
+          {
+            "name": "Run the inherited isolated pass workspace suites",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Require complete inherited and Increment 61 test inventories",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain inherited test and solver evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047689051,
+        "name": "Signedness closure Scala 2.12.18",
+        "status": "success",
+        "duration_min": 101.73333333333333,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.4166666666666667
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.23333333333333334
+          },
+          {
+            "name": "Compose sealed signedness closure with Increment 61",
+            "status": "success",
+            "duration_min": 93.86666666666666
+          },
+          {
+            "name": "Independently elaborate references, candidates and compatibility corpus twice",
+            "status": "success",
+            "duration_min": 3.7333333333333334
+          },
+          {
+            "name": "Strict V2001 tools, independent equivalence and solver counterexamples",
+            "status": "success",
+            "duration_min": 3.3
+          },
+          {
+            "name": "Retain RTL for mandatory cross-Scala byte comparison",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Retain exact-head qualification and failure evidence",
+            "status": "success",
+            "duration_min": 0.05
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047689075,
+        "name": "Signedness closure Scala 2.13.12",
+        "status": "success",
+        "duration_min": 95.68333333333334,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.3
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.23333333333333334
+          },
+          {
+            "name": "Compose sealed signedness closure with Increment 61",
+            "status": "success",
+            "duration_min": 88.5
+          },
+          {
+            "name": "Independently elaborate references, candidates and compatibility corpus twice",
+            "status": "success",
+            "duration_min": 3.4833333333333334
+          },
+          {
+            "name": "Strict V2001 tools, independent equivalence and solver counterexamples",
+            "status": "success",
+            "duration_min": 3.0166666666666666
+          },
+          {
+            "name": "Retain RTL for mandatory cross-Scala byte comparison",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Retain exact-head qualification and failure evidence",
+            "status": "success",
+            "duration_min": 0.05
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106076767141,
+        "name": "Cross-Scala deterministic signedness artifacts",
+        "status": "skipped",
+        "duration_min": -0.016666666666666666,
+        "steps": []
+      }
+    ],
+    "log_tail": "ges\n2026-09-20T10:27:37.6692759Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T10:27:37.6693471Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T10:27:37.6720153Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T10:27:37.6791513Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T10:27:37.6977853Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T10:27:37.7037227Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T10:27:37.7061061Z http.https://github.com/.extraheader\n2026-09-20T10:27:37.7078646Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader\n2026-09-20T10:27:37.7118033Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T10:27:37.7327342Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T10:27:37.7350193Z http.https://github.com/.extraheader\n2026-09-20T10:27:37.7400561Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T10:27:37.7426493Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T10:27:37.7587135Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T10:27:37.7599927Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T10:27:37.7622079Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T10:27:37.7740287Z Stop and remove container: e5cba4d2ce4142e09a975432bca8aeaa_ghcriospinalhdldockerv120_df4136\n2026-09-20T10:27:37.7743808Z ##[command]/usr/bin/docker rm --force acbb59bf385876058976dc27cd590e2ed4547208d544a9978d8d63e81ed80b42\n2026-09-20T10:27:37.9299038Z acbb59bf385876058976dc27cd590e2ed4547208d544a9978d8d63e81ed80b42\n2026-09-20T10:27:37.9325601Z Remove container network: github_network_76eca86ba55447c78b053f0310445133\n2026-09-20T10:27:37.9328543Z ##[command]/usr/bin/docker network rm github_network_76eca86ba55447c78b053f0310445133\n2026-09-20T10:27:38.0410980Z github_network_76eca86ba55447c78b053f0310445133\n2026-09-20T10:27:38.0469049Z Cleaning up orphan processes\n2026-09-20T10:27:38.0633709Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499139515,
+    "jobs": [
+      {
+        "id": 106047628202,
+        "name": "Nested reduction owners Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 180.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.4166666666666667
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.2
+          },
+          {
+            "name": "Preserve exact-head evidence and audit native boundaries",
+            "status": "success",
+            "duration_min": 119.16666666666667
+          },
+          {
+            "name": "Bootstrap repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited and expanded safety tests and repeat independent artifact generation",
+            "status": "cancelled",
+            "duration_min": 60.2
+          },
+          {
+            "name": "Qualify nested branches, loops, hierarchy and register bridges with genuine mutations",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing source and HDL diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact-head evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047628317,
+        "name": "Nested reduction owners Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 180.05,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.31666666666666665
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.2
+          },
+          {
+            "name": "Preserve exact-head evidence and audit native boundaries",
+            "status": "success",
+            "duration_min": 159.45
+          },
+          {
+            "name": "Bootstrap repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited and expanded safety tests and repeat independent artifact generation",
+            "status": "cancelled",
+            "duration_min": 20.016666666666666
+          },
+          {
+            "name": "Qualify nested branches, loops, hierarchy and register bridges with genuine mutations",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing source and HDL diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact-head evidence",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      }
+    ],
+    "log_tail": "6-09-20T11:31:42.6084813Z [command]/usr/bin/git version\n2026-09-20T11:31:42.6107131Z git version 2.34.1\n2026-09-20T11:31:42.6143039Z Temporarily overriding HOME='/__w/_temp/6c2b4f12-237a-402c-b126-233409fe6f28' before making global git config changes\n2026-09-20T11:31:42.6145949Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T11:31:42.6153342Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T11:31:42.6191957Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T11:31:42.6222804Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T11:31:42.6465776Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:31:42.6647309Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T11:31:42.6707736Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T11:31:42.6995288Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:31:42.7069954Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:31:42.7101115Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T11:31:42.7360988Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:31:42.7374068Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T11:31:42.7407436Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:31:42.7531610Z Stop and remove container: 83b8b6e5e77248a392d6797343458260_ghcriospinalhdldockerv120_65cc70\n2026-09-20T11:31:42.7534930Z ##[command]/usr/bin/docker rm --force 3984be6023ca9c3ae4758ce76369eaa5b25ab55d9925a9e08aba5828b50d6990\n2026-09-20T11:31:42.9185745Z 3984be6023ca9c3ae4758ce76369eaa5b25ab55d9925a9e08aba5828b50d6990\n2026-09-20T11:31:42.9206336Z Remove container network: github_network_3b0c9f39f49c404eb7b41d1b0edf3af9\n2026-09-20T11:31:42.9210674Z ##[command]/usr/bin/docker network rm github_network_3b0c9f39f49c404eb7b41d1b0edf3af9\n2026-09-20T11:31:43.0599208Z github_network_3b0c9f39f49c404eb7b41d1b0edf3af9\n2026-09-20T11:31:43.0736963Z Cleaning up orphan processes\n2026-09-20T11:31:43.0914756Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499137471,
+    "jobs": [
+      {
+        "id": 106047622084,
+        "name": "Native register bridges Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 120.08333333333333,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.45
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.23333333333333334
+          },
+          {
+            "name": "Compose frozen register-bridge reviews with Increment 61",
+            "status": "success",
+            "duration_min": 8.566666666666666
+          },
+          {
+            "name": "Bootstrap the repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Test bridge certificates and generate reusable candidates and independent references twice",
+            "status": "cancelled",
+            "duration_min": 110.7
+          },
+          {
+            "name": "Prove reset entry stalls and in-flight resets and require functional mutation counterexamples",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact source generated RTL tests and proof evidence",
+            "status": "success",
+            "duration_min": 0.05
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047622160,
+        "name": "Native register bridges Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 120.08333333333333,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.36666666666666664
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.2
+          },
+          {
+            "name": "Compose frozen register-bridge reviews with Increment 61",
+            "status": "success",
+            "duration_min": 9.083333333333334
+          },
+          {
+            "name": "Bootstrap the repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Test bridge certificates and generate reusable candidates and independent references twice",
+            "status": "cancelled",
+            "duration_min": 110.3
+          },
+          {
+            "name": "Prove reset entry stalls and in-flight resets and require functional mutation counterexamples",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact source generated RTL tests and proof evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      }
+    ],
+    "log_tail": "6-09-20T11:07:48.2730444Z [command]/usr/bin/git version\n2026-09-20T11:07:48.2773550Z git version 2.34.1\n2026-09-20T11:07:48.2859087Z Temporarily overriding HOME='/__w/_temp/f2dace29-1d53-4475-bfba-0802de6604b1' before making global git config changes\n2026-09-20T11:07:48.2860180Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T11:07:48.2861124Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T11:07:48.2916889Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T11:07:48.2987072Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T11:07:48.3284138Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:07:48.3381093Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T11:07:48.3427180Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T11:07:48.3711049Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:07:48.3774075Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:07:48.3819272Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T11:07:48.4077902Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:07:48.4093655Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T11:07:48.4122492Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:07:48.4270411Z Stop and remove container: 7a888fe3e2204af8834240dc7a9603f7_ghcriospinalhdldockerv120_67837f\n2026-09-20T11:07:48.4274531Z ##[command]/usr/bin/docker rm --force 102db967843226d35e86d08e61e459a20c20309ca278d870a3e703b6ae94ba6f\n2026-09-20T11:07:48.6423799Z 102db967843226d35e86d08e61e459a20c20309ca278d870a3e703b6ae94ba6f\n2026-09-20T11:07:48.6450237Z Remove container network: github_network_d73dbdd52cd549c1aebea1a12cc6f162\n2026-09-20T11:07:48.6454017Z ##[command]/usr/bin/docker network rm github_network_d73dbdd52cd549c1aebea1a12cc6f162\n2026-09-20T11:07:48.7498503Z github_network_d73dbdd52cd549c1aebea1a12cc6f162\n2026-09-20T11:07:48.7571144Z Cleaning up orphan processes\n2026-09-20T11:07:48.7818311Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499135500,
+    "jobs": [
+      {
+        "id": 106047616709,
+        "name": "Safe callback graphs Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 180.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.2833333333333333
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.21666666666666667
+          },
+          {
+            "name": "Preserve exact-head evidence and audit native boundaries",
+            "status": "success",
+            "duration_min": 148.03333333333333
+          },
+          {
+            "name": "Bootstrap repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited and expanded safety tests and repeat independent artifact generation",
+            "status": "cancelled",
+            "duration_min": 31.466666666666665
+          },
+          {
+            "name": "Qualify 64 exact callback specializations and three genuine mutation counterexamples",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing source and HDL diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact-head evidence",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047616898,
+        "name": "Safe callback graphs Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 180.06666666666666,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.31666666666666665
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.2
+          },
+          {
+            "name": "Preserve exact-head evidence and audit native boundaries",
+            "status": "success",
+            "duration_min": 148.28333333333333
+          },
+          {
+            "name": "Bootstrap repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run inherited and expanded safety tests and repeat independent artifact generation",
+            "status": "cancelled",
+            "duration_min": 31.183333333333334
+          },
+          {
+            "name": "Qualify 64 exact callback specializations and three genuine mutation counterexamples",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing source and HDL diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain exact-head evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      }
+    ],
+    "log_tail": "6-09-20T11:17:11.8943614Z [command]/usr/bin/git version\n2026-09-20T11:17:11.9032236Z git version 2.34.1\n2026-09-20T11:17:11.9141264Z Temporarily overriding HOME='/__w/_temp/894cab62-028d-4c91-98f5-bbae593471ae' before making global git config changes\n2026-09-20T11:17:11.9155073Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T11:17:11.9180866Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T11:17:11.9270609Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T11:17:11.9366925Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T11:17:11.9774500Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:17:11.9941905Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T11:17:12.0021378Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T11:17:12.0455007Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:17:12.0539008Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:17:12.0607855Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T11:17:12.0877042Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T11:17:12.0898802Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T11:17:12.0934145Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T11:17:12.1118451Z Stop and remove container: 2abef9e3049d431ab42e9d9c8d3fb944_ghcriospinalhdldockerv120_1b4dcc\n2026-09-20T11:17:12.1125401Z ##[command]/usr/bin/docker rm --force f6de3687c487f3a53f7b00d76c4776edcdf18fb38a0271486b47438570bbf1e7\n2026-09-20T11:17:12.3240527Z f6de3687c487f3a53f7b00d76c4776edcdf18fb38a0271486b47438570bbf1e7\n2026-09-20T11:17:12.3270615Z Remove container network: github_network_5d9e4900947d499b849786edbf632b3e\n2026-09-20T11:17:12.3275985Z ##[command]/usr/bin/docker network rm github_network_5d9e4900947d499b849786edbf632b3e\n2026-09-20T11:17:12.4183683Z github_network_5d9e4900947d499b849786edbf632b3e\n2026-09-20T11:17:12.4267244Z Cleaning up orphan processes\n2026-09-20T11:17:12.4645708Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  },
+  {
+    "run": 35499133452,
+    "jobs": [
+      {
+        "id": 106047611193,
+        "name": "Composite reductions Scala 2.12.18",
+        "status": "cancelled",
+        "duration_min": 60.1,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.3333333333333333
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.16666666666666666
+          },
+          {
+            "name": "Preserve source and validate native boundaries",
+            "status": "success",
+            "duration_min": 0.05
+          },
+          {
+            "name": "Bootstrap the repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run composite and inherited safety contracts; generate independent native references twice",
+            "status": "cancelled",
+            "duration_min": 59.416666666666664
+          },
+          {
+            "name": "Prove the reused composite candidate with strict tools and actual RTL mutations",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing tool diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain source-bound proof and mutation evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      },
+      {
+        "id": 106047611350,
+        "name": "Composite reductions Scala 2.13.12",
+        "status": "cancelled",
+        "duration_min": 60.06666666666667,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Initialize containers",
+            "status": "success",
+            "duration_min": 0.2833333333333333
+          },
+          {
+            "name": "Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0.21666666666666667
+          },
+          {
+            "name": "Preserve source and validate native boundaries",
+            "status": "success",
+            "duration_min": 0.06666666666666667
+          },
+          {
+            "name": "Bootstrap the repository-pinned SBT launcher",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Run composite and inherited safety contracts; generate independent native references twice",
+            "status": "cancelled",
+            "duration_min": 59.416666666666664
+          },
+          {
+            "name": "Prove the reused composite candidate with strict tools and actual RTL mutations",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Print failing tool diagnostics",
+            "status": "skipped",
+            "duration_min": 0
+          },
+          {
+            "name": "Retain source-bound proof and mutation evidence",
+            "status": "success",
+            "duration_min": 0.03333333333333333
+          },
+          {
+            "name": "Post Run actions/checkout@v4",
+            "status": "success",
+            "duration_min": 0
+          },
+          {
+            "name": "Stop containers",
+            "status": "success",
+            "duration_min": 0.016666666666666666
+          },
+          {
+            "name": "Complete job",
+            "status": "success",
+            "duration_min": 0
+          }
+        ]
+      }
+    ],
+    "log_tail": "6-09-20T09:17:09.1326128Z [command]/usr/bin/git version\n2026-09-20T09:17:09.1371528Z git version 2.34.1\n2026-09-20T09:17:09.1396358Z Temporarily overriding HOME='/__w/_temp/3af8ed79-c3ae-460c-9d11-b2a7b213f92d' before making global git config changes\n2026-09-20T09:17:09.1397336Z Adding repository directory to the temporary git global config as a safe directory\n2026-09-20T09:17:09.1404161Z [command]/usr/bin/git config --global --add safe.directory /__w/MorphHDL/MorphHDL\n2026-09-20T09:17:09.1450588Z [command]/usr/bin/git config --local --name-only --get-regexp core\\.sshCommand\n2026-09-20T09:17:09.1519541Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'core\\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\"\n2026-09-20T09:17:09.1797587Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T09:17:09.1912022Z [command]/usr/bin/git config --local --name-only --get-regexp http\\.https\\:\\/\\/github\\.com\\/\\.extraheader\n2026-09-20T09:17:09.1923041Z [command]/usr/bin/git submodule foreach --recursive sh -c \"git config --local --name-only --get-regexp 'http\\.https\\:\\/\\/github\\.com\\/\\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\"\n2026-09-20T09:17:09.2271110Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T09:17:09.2326627Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T09:17:09.2362161Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url\n2026-09-20T09:17:09.2569504Z Entering 'tester/src/test/python/cocotblib'\n2026-09-20T09:17:09.2583008Z file:/__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config\tremote.origin.url\n2026-09-20T09:17:09.2611911Z [command]/usr/bin/git config --file /__w/MorphHDL/MorphHDL/.git/modules/tester/src/test/python/cocotblib/config --name-only --get-regexp ^includeIf\\.gitdir:\n2026-09-20T09:17:09.2769792Z Stop and remove container: ba743880d7d64844b565e8070b990de3_ghcriospinalhdldockerv120_2944a2\n2026-09-20T09:17:09.2772905Z ##[command]/usr/bin/docker rm --force f26c2bb2ff03e2f297a577ada2be6a55c4320a3af89cf44eb62fed0848c17725\n2026-09-20T09:17:09.6333840Z f26c2bb2ff03e2f297a577ada2be6a55c4320a3af89cf44eb62fed0848c17725\n2026-09-20T09:17:09.6358020Z Remove container network: github_network_9ab876d5c838447e8a55ce4bf8b32e8d\n2026-09-20T09:17:09.6360860Z ##[command]/usr/bin/docker network rm github_network_9ab876d5c838447e8a55ce4bf8b32e8d\n2026-09-20T09:17:09.8877927Z github_network_9ab876d5c838447e8a55ce4bf8b32e8d\n2026-09-20T09:17:09.8932376Z Cleaning up orphan processes\n2026-09-20T09:17:09.9127059Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/\n"
+  }
+]
