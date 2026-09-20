@@ -1,0 +1,106 @@
+name: Native sequential wire consumers
+on:
+  push:
+    branches: [agent/wa-sequential-wire-consumers]
+    paths:
+      - '.github/workflows/sequential-wire-consumers.yml'
+      - 'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala'
+      - 'core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala'
+      - 'morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala'
+      - 'morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala'
+      - 'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala'
+      - 'morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala'
+      - 'morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala'
+      - 'repro/remaining-wires/build.sbt'
+      - 'repro/remaining-wires/check.py'
+      - 'repro/remaining-wires/project/build.properties'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireRepro.scala'
+      - 'repro/remaining-wires/src/main/scala/RemainingWireTrace.scala'
+  pull_request:
+    branches: [parameterized-verilog]
+    paths:
+      - '.github/workflows/sequential-wire-consumers.yml'
+      - 'repro/remaining-wires/**'
+      - 'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala'
+      - 'core/src/test/scala/spinal/core/internals/*Wire*Tests.scala'
+      - 'morphhdl-passes/examples/**'
+      - 'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala'
+      - 'morphhdl/src/test/scala/morphhdl/**'
+  workflow_call:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-sequential-wire-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  focused:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.cache/coursier
+          key: ${{ runner.os }}-sequential-wire-${{ hashFiles('**/build.sbt', 'project/**') }}
+      - name: Install HDL tools and record exact source
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y iverilog yosys
+          mkdir -p "$RUNNER_TEMP/remaining-wires"
+          git rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/remaining-wires/source.txt"
+          git diff --exit-code
+          git diff --binary f5049ae2abfe5a47cd1fac3574ea08d630bd183f HEAD > "$RUNNER_TEMP/remaining-wires/compiler-and-tests.patch"
+          java -version 2> "$RUNNER_TEMP/remaining-wires/java-version.txt"
+          iverilog -V > "$RUNNER_TEMP/remaining-wires/iverilog-version.txt" 2>&1
+          yosys -V > "$RUNNER_TEMP/remaining-wires/yosys-version.txt"
+      - name: Previously failing late emitter suite
+        id: core
+        run: |
+          set -euo pipefail
+          sbt -batch 'core/Test/testOnly spinal.core.internals.SequentialWireEmitterTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/core-tests.log"
+      - name: Previously failing native sequential suites
+        id: native
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/remaining-wires"
+          sbt -batch 'morph/Test/testOnly morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/native-tests.log"
+      - name: Generate public API matrix using both compiler plugins
+        id: generation
+        if: ${{ !cancelled() && steps.core.outcome == 'success' && steps.native.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          cd repro/remaining-wires
+          sbt -batch "runMain GenerateRemainingWireMatrix $RUNNER_TEMP/remaining-wires/matrix" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/generation.log"
+      - name: Verify shape determinism simulation equivalence and synthesis
+        if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 repro/remaining-wires/check.py "$RUNNER_TEMP/remaining-wires/matrix" 2>&1 | tee "$RUNNER_TEMP/remaining-wires/checks.log"
+      - name: Inherited emitter and combinational regressions
+        if: ${{ !cancelled() && steps.core.outcome == 'success' && steps.native.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          sbt -batch 'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests' 'morph/Test/testOnly morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' 2>&1 | tee "$RUNNER_TEMP/remaining-wires/inherited-tests.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: remaining-wires-evidence
+          path: ${{ runner.temp }}/remaining-wires/
+          if-no-files-found: error
+          retention-days: 14

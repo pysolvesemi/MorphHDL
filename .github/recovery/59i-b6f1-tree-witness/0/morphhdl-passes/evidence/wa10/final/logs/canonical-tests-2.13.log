@@ -1,0 +1,209 @@
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/project
+[info] loading settings for project root from build.sbt ...
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] compiling 1 Scala source to /workspace/scratch/6b630b856865/MorphHdl/project/target/scala-2.12/sbt-1.0/classes ...
+[info] done compiling
+/workspace/scratch/6b630b856865/MorphHdl/build.sbt:200: warning: method sonatypeRepo in class ResolverFunctions is deprecated (since 1.7.0): Use sonatypeOssRepos instead e.g. `resolvers ++= Resolver.sonatypeOssRepos("snapshots")`
+    resolvers += Resolver.sonatypeRepo("public"),
+                          ^
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (14824 settings) ...
+[info] set current project to morphhdl-ir-passes (in build file:/workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/)
+[info] Setting Scala version to 2.13.12 on 15 projects.
+[info] Reapplying settings...
+[info] set current project to morphhdl-ir-passes (in build file:/workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/)
+[info] compiling 5 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphir/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[info] compiling 9 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/target/scala-2.13/classes ...
+[info] done compiling
+[info] compiling 18 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/morphhdl-passes/target/scala-2.13/test-classes ...
+[info] done compiling
+[info] ConstantOperandFixedPointSpec:
+[info] - XOR-with-ones closes newly exposed double inversion in one invocation
+[info] - RHS simplification preserves input declaration order and all surviving metadata
+[info] NamedWireExpressionEliminationPassSpec:
+[info] - named expression pass is disabled by the common flag by default
+[info] - explicit reflected and generated expressions share the proven inlining engine
+[info] - classification uses origin metadata rather than generated-looking name text
+[info] - actual unnamed stays historical and unknown provenance fails closed
+[info] - observed or procedural named expressions fail closed
+[info] - direct aliases remain owned by the direct alias passes
+[info] - execution is deterministic and idempotent
+[info] ConstantOperandSimplificationPassSpec:
+[info] - comparison AND OR and XOR constant operands simplify in both orders
+[info] - Boolean metadata does not authorize Z-changing raw-reference identities
+[info] - raw Z remains safe for annihilating masks and XOR with all ones
+[info] - numeric one is not an all-ones mask for a multi-bit value
+[info] - all-ones masks are checked at the effective enclosing evaluation width
+[info] - signedness changes and differently sized branches are not erased
+[info] - logical identities Booleanize vectors and normalize raw Z instead of returning raw bits
+[info] - zero shifts and equal-type constant mux branches preserve selected values
+[info] - arithmetic and self-cancellation identities remain outside the bounded contract
+[info] - nested rewrites are deterministic and reach an idempotent fixed point
+[info] - parameterized zero masks preserve WIDTH rather than a default binding
+[info] - preservation attributes and procedural drivers are unchanged
+[info] - module names and source paths do not select optimization behavior
+[info] - invalid canonical input fails closed and returns the original design
+[info] UnnamedWireExpressionAlgebraSpec:
+[info] - every canonical pure RHS expression form is cloned into a continuous receiver
+[info] AllPassConfigurationSpec:
+[info] - one public flag disables every wire-assignment pass
+[info] - one public flag enables every wire-assignment pass in the fixed order
+[info] - expression elimination evidence normalizes independently of discovery order
+[info] - constant-expression rewrites are not reported as removed wires
+[info] - rewrite reports sort deterministically without removing repeated-round evidence
+[info] PassContractsSpec:
+[info] - wire-alias passes are disabled by default
+[info] - combined configuration has a fixed unnamed-then-named order
+[info] - pass and symbol identifiers reject ambiguous whitespace
+[info] - elimination reports normalize independently of discovery order
+[info] - changed result requires reported elimination evidence
+[info] - failed result requires an error diagnostic
+[info] - named alias evidence retains the explicit name without renaming anything
+[info] - non-changing results cannot claim eliminated aliases
+[info] UnnamedWireAliasEliminationPassSpec:
+[info] - unnamed elimination is disabled by default
+[info] - eligible unnamed alias is removed by exact symbol identity
+[info] - recursive expression rewriting preserves every reference identity
+[info] - only exact alias identity changes while neighboring symbols remain untouched
+[info] - explicit reflected generated and emitted-name conventions are never unnamed candidates
+[info] - unsafe unnamed alias is retained with deterministic rejection evidence
+[info] - shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain
+[info] - alias chains reach a fixed point and the pass is idempotent
+[info] - all surviving names and metadata remain unchanged
+[info] - invalid canonical input fails closed without a partial rewrite
+[info] - normalized output reports and diagnostics are deterministic
+[info] - component names and source paths do not affect unnamed classification
+[info] ConstantOperandFourStateSpec:
+[info] - actual transformed trees preserve all four states including wide and signed contexts
+[info] - four-state oracle rejects an intentional raw Z identity mutation
+[info] - two-state formal rule proof passes and detects a functional mutation
+[info] BooleanTernarySimplificationPassSpec:
+[info] - both polarities remove the user's compound comparison ternary
+[info] - raw Bool Z and multi-bit conditions retain truth conversion
+[info] - self-determined logical inversion stays one bit in widened signed and symbolic contexts
+[info] - bottom-up traversal visits every supported expression child and nonmatching parents
+[info] - deep nested conditions and inverse muxes reach a deterministic standalone fixed point
+[info] - opposite constants exposed by recursive branch rewrites are handled immediately
+[info] - identity unsigned constant fences are recognized but wider signed or parameter branches are retained
+[info] - all preservation metadata attributes and procedural drivers remain unchanged
+[info] - continuous drivers inside nested represented scopes retain owners and scope structure
+[info] - renamed unrelated components have identical rewrite decisions
+[info] - invalid inputs roll back standalone and pipeline output without rewrite evidence
+[info] - WA-07b exposes a WA-07a double-negation rewrite and the common flag closes both in one invocation
+[info] - WA-07a exposes opposite branches for WA-07b without a second product invocation
+[info] - historical four-stage selection excludes the new ternary rule
+[info] WireAssignmentAllPassPipelineSpec:
+[info] - one enabled flag executes every pass in the fixed production order
+[info] - historical three-stage proof selection retains its original reports
+[info] - historical five-stage proof selection retains its original reports
+[info] - all-pass pipeline reaches an idempotent six-stage fixed point
+[info] - constant simplification operates inside the expression-inlining assignment fence
+[info] - named-expression inlining exposes simplification in the same invocation
+[info] - one disabled flag executes no wire-assignment pass
+[info] WireAliasPassPipelineSpec:
+[info] - ordered pipeline is disabled by default
+[info] - either pass can run independently
+[info] - combined execution has fixed unnamed-then-named order for alias chains and fanout
+[info] - pipeline reports are deterministic and support byte-identical repeated emission
+[info] - combined pipeline reaches idempotent IR at a fixed point
+[info] - invalid canonical input fails closed with atomic rollback
+[info] - surviving names metadata and reference identities remain unchanged
+[info] - component names and source paths do not affect pipeline decisions
+[info] - shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain
+[info] UnnamedWireExpressionSelectionSafetySpec:
+[info] - partial select of an arithmetic RHS retains the unnamed temporary
+[info] - partial select through a direct source part-select is composed without nested selects
+[info] - full-width receiver select is simplified before arithmetic inlining
+[info] - bit select of a multi-bit arithmetic temporary is retained
+[info] - bit zero of a one-bit temporary is simplified as a whole-object use
+[info] - selection through a non-direct alias expression fails closed
+[info] - signed alias full-width part-select keeps unsigned selection semantics
+[info] - signed alias composed part-select keeps unsigned selection semantics
+[info] - signed alias whole-object receiver retains signed assignment semantics
+[info] NamedWireAliasEliminationPassSpec:
+[info] - named elimination is disabled by default
+[info] - eligible explicitly named alias is removed by exact symbol identity
+[info] - recursive expression rewriting preserves every reference identity
+[info] - only exact alias identity changes while neighboring symbols remain untouched
+[info] - source provenance rather than emitted-name spelling selects candidates
+[info] - shorter meaningful direct alias wins by eliminating its removable source first
+[info] - shorter meaningful source wins and the longer alias is removed
+[info] - equal-length meaningful names use a deterministic lexical identity tie-break
+[info] - meaningful underscore name beats generated provenance regardless of length
+[info] - meaningful name beats unnamed provenance through a removable direct chain
+[info] - meaningful name survives independently eligible unnamed expression removal
+[info] - protected direct source remains the anchor even when its name is generated
+[info] - unsafe explicitly named alias is retained with deterministic rejection evidence
+[info] - public hierarchical preservation probe attribute comment and source contracts are retained
+[info] - shared parameterized witness proof contract covers the complete WIDTH and DEPTH domain
+[info] - alias chains reach a fixed point and the pass is idempotent
+[info] - all surviving names and metadata remain unchanged
+[info] - invalid canonical input fails closed without a partial rewrite
+[info] - normalized output reports and diagnostics are deterministic
+[info] - component names and source paths do not affect explicit-name classification
+[info] UnnamedWireExpressionEliminationPassSpec:
+[info] - unnamed expression pass is disabled by the common flag by default
+[info] - binary expression is cloned into every continuous receiver and the temporary is removed
+[info] - literal RHS is an expression and is inlined with the assignment type fence
+[info] - direct reference aliases remain the responsibility of the previous pass
+[info] - assignment to an unnamed temporary inside an always block is retained
+[info] - continuous temporary used by an always-block assignment is retained
+[info] - continuous literal resize and subtraction inline into existing register RHS scopes
+[info] - named and observable expression temporaries are outside the pass
+[info] - self-referential expression is retained
+[info] - repeated execution is deterministic and reaches an idempotent fixed point
+[info] - module names and source paths do not affect expression decisions
+[info] - shared parameterized witness proof contract covers the complete WIDTH domain
+[info] - invalid canonical input fails closed and publishes the original design
+[info] BooleanTernaryFourStateSpec:
+[info] - standalone and complete pipeline preserve all four states against the common pre-pass tree
+[info] - four-state oracle detects raw-Z polarity multi-bit and context-widened complement mutations
+[info] - two-state rule proofs cover standalone and all-five output and reject functional mutations
+[info] - symbolic input and result widths retain their full admitted domain through both proof legs
+[info] CanonicalIrPassAdapterSpec:
+[info] - adapter binds only the versioned post-parameterization canonical stage
+[info] - production adapter binds the validated profile-bearing handoff
+[info] - validated-design compatibility binding remains source and JVM linkable
+[info] - raw canonical designs bind only through the fixture and mutation compatibility API
+[info] - adapter exposes exact declaration driver reference type name and observability facts
+[info] - adapter exposes complete canonical parameter domains without reconstructing them
+[info] - adapter is read-only and retains the complete alias declaration and assignment
+[info] - adapter fails closed with canonical diagnostics when required metadata is unavailable
+[info] - component and source names do not select a special adapter path
+[info] NativeRunnerSourceClosureSpec:
+[info] - native runners compile the complete pass workspace before first emission
+[info] - source-closure guard rejects missing commented late and partial registration
+[info] - historical native report validation rejects false flag claims and incomplete execution evidence
+[info] WireAliasSafetyGateSpec:
+[info] - eligible direct alias proves semantic packed-type equality over the complete domain
+[info] - one mismatching admitted binding rejects otherwise compatible packed types
+[info] - signedness and value semantics are independently exact
+[info] - driver ownership coverage and direct-reference exclusions fail closed
+[info] - every retained observability contract blocks elimination
+[info] - declaration and assignment comments and attributes cannot be discarded
+[info] - clock reset memory inout and instance-boundary sources are excluded
+[info] - bidirectional memory-port and instance-port consumers remain observable
+[info] - clock reset and tri-state control uses fail closed without name inference
+[info] - procedural contexts are rejected until clock and reset roles are explicit
+[info] - replacement is rejected when the direct source is not visible at an alias use
+[info] - continuous dependency cycles are rejected and registered feedback fails closed on control roles
+[info] - exact domain expansion is bounded and fails closed before partial sampling
+[info] - generate-index domains are enumerated completely
+[info] - complex integer and Boolean width algebra is evaluated without structural shortcuts
+[info] - analysis is deterministic under canonical reordering and idempotent on repeat
+[info] - component names and source paths cannot select eligibility
+[info] - non-wire candidates are rejected when assessed directly
+[info] - multiple rejection reasons and reports have stable canonical order
+[info] - a sibling-scope source cannot leak through an outer alias
+[info] Run completed in 6 seconds, 250 milliseconds.
+[info] Total number of tests run: 160
+[info] Suites: completed 18, aborted 0
+[info] Tests: succeeded 160, failed 0, canceled 0, ignored 0, pending 0
+[info] All tests passed.
+[success] Total time: 93 s (01:33), completed Sep 12, 2026, 10:25:33 AM

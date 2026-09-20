@@ -1,0 +1,17 @@
+{
+  "base": "b25e367d99604e61b8f2c895b2c51ca1ab90d423",
+  "files": [
+    {
+      "path": "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeCallbackPolicy.scala",
+      "before_sha256": "817816959781464c3ece3ebefec9a4e1029bf7d0d6e4f1381d04b46e16ef5a6c",
+      "after_sha256": "fa847826bc5efbae047595cbfa548dfa5fdffaffdd709591205d94ea3e61e59f",
+      "edits": [
+        {
+          "id": "reject-scalar-auto-resize",
+          "before": "      return call.desc == \"(I)Lspinal/core/Data;\"\n    if (scalarNames(call.owner) && Set(\"$minus\", \"$times\", \"$less\", \"$less$eq\", \"$greater\", \"$greater$eq\", \"$eq$eq$eq\", \"$eq$div$eq\")(call.name))\n      return !bridge && args.size == 1 && dataDescriptor(args.head.getDescriptor) && dataDescriptor(result.getDescriptor)\n    if (scalarNames(call.owner) && call.name == \"resized\" && args.isEmpty &&\n        dataDescriptor(result.getDescriptor)) return !bridge\n    if (dataName(call.owner)) {\n      if (call.name == \"$colon$eq\" && call.desc == \"(Lspinal/core/Data;Lspinal/idslplugin/Location;)V\") return true\n      if (bridge && call.name == \"setAsReg\" && args.isEmpty && dataDescriptor(result.getDescriptor)) return true\n",
+          "after": "      return call.desc == \"(I)Lspinal/core/Data;\"\n    if (scalarNames(call.owner) && Set(\"$minus\", \"$times\", \"$less\", \"$less$eq\", \"$greater\", \"$greater$eq\", \"$eq$eq$eq\", \"$eq$div$eq\")(call.name))\n      return !bridge && args.size == 1 && dataDescriptor(args.head.getDescriptor) && dataDescriptor(result.getDescriptor)\n    if (dataName(call.owner)) {\n      if (call.name == \"$colon$eq\" && call.desc == \"(Lspinal/core/Data;Lspinal/idslplugin/Location;)V\") return true\n      if (bridge && call.name == \"setAsReg\" && args.isEmpty && dataDescriptor(result.getDescriptor)) return true\n"
+        }
+      ]
+    }
+  ]
+}

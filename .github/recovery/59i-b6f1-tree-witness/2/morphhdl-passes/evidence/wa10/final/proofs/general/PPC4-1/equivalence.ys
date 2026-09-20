@@ -1,0 +1,23 @@
+read_verilog /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v
+chparam -set PPC4 1 GeneralExpressionInlining
+rename GeneralExpressionInlining gold
+proc
+memory
+opt_clean
+async2sync
+rename -hide
+design -stash reference
+read_verilog /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v
+chparam -set PPC4 1 GeneralExpressionInlining
+rename GeneralExpressionInlining gate
+proc
+memory
+opt_clean
+async2sync
+rename -hide
+design -copy-from reference -as gold gold
+equiv_make gold gate equiv
+hierarchy -check -top equiv
+equiv_simple -seq 5
+equiv_induct -undef -seq 5
+equiv_status -assert

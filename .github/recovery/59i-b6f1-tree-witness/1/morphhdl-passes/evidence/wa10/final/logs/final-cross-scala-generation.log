@@ -1,0 +1,173 @@
+[warn] [launcher] could not parse ftp_proxy setting: java.net.MalformedURLException: unknown protocol: socks5h
+[info] welcome to sbt 1.10.0 (Ubuntu Java 11.0.32)
+[info] loading settings for project morphhdl-build from plugin.sbt ...
+[info] loading project definition from /workspace/scratch/6b630b856865/MorphHdl/project
+[info] loading settings for project all from build.sbt ...
+[info] resolving key references (13791 settings) ...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] running (fork) TimingExpressionArtifactWriter /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:11
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.412 : Checks and transforms
+[info] [Progress] at 0.575 : Generate Verilog to /tmp/morphhdl-single-source-15795822231254478725
+[info] [Done] at 0.829
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/default/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:12
+[info] [Progress] at 0.847 : Elaborate components
+[info] [Progress] at 0.870 : Checks and transforms
+[info] [Progress] at 0.885 : Generate Verilog to /tmp/morphhdl-single-source-15161111856772599107
+[info] [Done] at 0.912
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/enabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:12
+[info] [Progress] at 0.914 : Elaborate components
+[info] [Progress] at 0.931 : Checks and transforms
+[info] [Progress] at 0.940 : Generate Verilog to /tmp/morphhdl-single-source-17449550921892135296
+[info] [Done] at 0.964
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/first/disabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:12
+[info] [Progress] at 0.968 : Elaborate components
+[info] [Progress] at 0.985 : Checks and transforms
+[info] [Progress] at 0.995 : Generate Verilog to /tmp/morphhdl-single-source-17720124368510777116
+[info] [Done] at 1.012
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/repeat/default/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:12
+[info] [Progress] at 1.015 : Elaborate components
+[info] [Progress] at 1.029 : Checks and transforms
+[info] [Progress] at 1.037 : Generate Verilog to /tmp/morphhdl-single-source-301082881030197034
+[info] [Done] at 1.061
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/repeat/enabled/TimingExpressionExample.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:12
+[info] [Progress] at 1.063 : Elaborate components
+[info] [Progress] at 1.077 : Checks and transforms
+[info] [Progress] at 1.087 : Generate Verilog to /tmp/morphhdl-single-source-13382714944451754285
+[info] [Done] at 1.108
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/timing/repeat/disabled/TimingExpressionExample.v
+[success] Total time: 5 s, completed Sep 12, 2026, 10:33:12 AM
+[info] running (fork) morphhdl.examples.GeneralExpressionInliningArtifactWriter /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:13
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.409 : Checks and transforms
+[info] [Progress] at 0.734 : Generate Verilog to /tmp/morphhdl-single-source-1410640753263818740
+[info] [Done] at 1.009
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/default/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:14
+[info] [Progress] at 1.028 : Elaborate components
+[info] [Progress] at 1.049 : Checks and transforms
+[info] [Progress] at 1.118 : Generate Verilog to /tmp/morphhdl-single-source-13966585653485221488
+[info] [Done] at 1.165
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/enabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:14
+[info] [Progress] at 1.169 : Elaborate components
+[info] [Progress] at 1.182 : Checks and transforms
+[info] [Progress] at 1.191 : Generate Verilog to /tmp/morphhdl-single-source-7412439555543805650
+[info] [Done] at 1.217
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/first/disabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:14
+[info] [Progress] at 1.220 : Elaborate components
+[info] [Progress] at 1.242 : Checks and transforms
+[info] [Progress] at 1.284 : Generate Verilog to /tmp/morphhdl-single-source-5666665498654600079
+[info] [Done] at 1.308
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/repeat/default/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:14
+[info] [Progress] at 1.310 : Elaborate components
+[info] [Progress] at 1.326 : Checks and transforms
+[info] [Progress] at 1.368 : Generate Verilog to /tmp/morphhdl-single-source-7560295780634476265
+[info] [Done] at 1.389
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/repeat/enabled/GeneralExpressionInlining.v
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:15
+[info] [Progress] at 1.392 : Elaborate components
+[info] [Progress] at 1.407 : Checks and transforms
+[info] [Progress] at 1.416 : Generate Verilog to /tmp/morphhdl-single-source-6398032771642549316
+[info] [Done] at 1.446
+[info] /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/general/repeat/disabled/GeneralExpressionInlining.v
+[success] Total time: 2 s, completed Sep 12, 2026, 10:33:15 AM
+[info] running (fork) NativeExpressionDiagnosticsWriter timing /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/diagnostics/timing
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:16
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.391 : Checks and transforms
+[info] [Progress] at 0.552 : Generate Verilog to /tmp/morphhdl-single-source-15223452501189607716
+[info] [Done] at 0.782
+[success] Total time: 2 s, completed Sep 12, 2026, 10:33:16 AM
+[info] running (fork) NativeExpressionDiagnosticsWriter general /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/final/diagnostics/general
+[info] [Runtime] SpinalHDL dev    git head : 086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+[info] [Runtime] JVM max memory : 5120.0MiB
+[info] [Runtime] Current date : 2026.09.12 10:33:17
+[info] [Progress] at 0.000 : Elaborate components
+[info] [Progress] at 0.398 : Checks and transforms
+[info] [Progress] at 0.759 : Generate Verilog to /tmp/morphhdl-single-source-9789644319782704445
+[info] [Done] at 1.029
+[success] Total time: 2 s, completed Sep 12, 2026, 10:33:18 AM
+[info] Setting Scala version to 2.13.12 on 14 projects.
+[info] Reapplying settings...
+[info] set current project to SpinalHDL-all (in build file:/workspace/scratch/6b630b856865/MorphHdl/)
+[info] compiling 17 Scala sources and 10 Java sources to /workspace/scratch/6b630b856865/MorphHdl/sim/target/scala-2.13/classes ...
+[info] compiling 2 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/idslpayload/target/scala-2.13/classes ...
+[warn] 1 deprecation
+[warn] 3 deprecations (since 2.11.0)
+[warn] 4 deprecations in total; re-run with -deprecation for details
+[warn] three warnings found
+[info] done compiling
+[info] compiling 2 Scala sources to /workspace/scratch/6b630b856865/MorphHdl/idslplugin/target/scala-2.13/classes ...
+[warn] 1 deprecation; re-run with -deprecation for details
+[warn] one warning found
+[info] done compiling
+[warn] 1 deprecation
+[warn] 23 deprecations (since 2.13.0)
+[warn] 24 deprecations in total; re-run with -deprecation for details
+[warn] three warnings found
+[info] /workspace/scratch/6b630b856865/MorphHdl/sim/src/main/java/spinal/sim/DynamicCompiler.java: DynamicCompiler.java uses or overrides a deprecated API.
+[info] /workspace/scratch/6b630b856865/MorphHdl/sim/src/main/java/spinal/sim/DynamicCompiler.java: Recompile with -Xlint:deprecation for details.
+[info] /workspace/scratch/6b630b856865/MorphHdl/sim/src/main/java/spinal/sim/DynamicCompiler.java: DynamicCompiler.java uses unchecked or unsafe operations.
+[info] /workspace/scratch/6b630b856865/MorphHdl/sim/src/main/java/spinal/sim/DynamicCompiler.java: Recompile with -Xlint:unchecked for details.
+[info] done compiling
+[info] compiling 87 Scala sources and 2 Java sources to /workspace/scratch/6b630b856865/MorphHdl/core/target/scala-2.13/classes ...
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/Union.scala:8:16: Implicit definition should have explicit type (inferred T) [quickfixable]
+[warn]   implicit def wrapped[T <: Data](ue: UnionElement[T]) = ue.get()
+[warn]                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/core.scala:379:48: fruitless type test: a value of type String cannot also be a List[Any] (the underlying of List[_])
+[warn]         if (pi.hasNext && !pi.next.isInstanceOf[List[_]]) bldr append pi.next
+[warn]                                                ^
+[warn] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/Phase.scala:3228:25: non-variable type argument spinal.core.SpinalEnum in type pattern spinal.core.SpinalEnumCraft[spinal.core.SpinalEnum] is unchecked since it is eliminated by erasure
+[warn]                 case d: SpinalEnumCraft[SpinalEnum] => d.init(d.spinalEnum.elements(0))
+[warn]                         ^
+[error] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala:129:42: type mismatch;
+[error]  found   : scala.collection.mutable.ArrayBuffer[spinal.core.internals.Expression]
+[error]  required: Seq[spinal.core.internals.Expression]
+[error]         if (proven) publish(wrappers.drop(checkpoint))
+[error]                                          ^
+[error] /workspace/scratch/6b630b856865/MorphHdl/core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala:232:48: type mismatch;
+[error]  found   : scala.collection.mutable.ArrayBuffer[spinal.core.internals.Expression]
+[error]  required: Seq[spinal.core.internals.Expression]
+[error] Error occurred in an application involving default arguments.
+[error]       if (collect(root, contextWidth)) publish(wrappers)
+[error]                                                ^
+[warn] three warnings found
+[error] two errors found
+[error] (core / Compile / compileIncremental) Compilation failed
+[error] Total time: 44 s, completed Sep 12, 2026, 10:34:02 AM

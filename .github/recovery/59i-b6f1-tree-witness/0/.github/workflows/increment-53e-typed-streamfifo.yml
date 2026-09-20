@@ -1,0 +1,540 @@
+name: Increment 53e typed StreamFifo
+
+on:
+  push:
+    branches:
+      - agent/increment-53e-typed-streamfifo-clean
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-53e-typed-streamfifo-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-contract:
+    name: Typed architecture and exact source scope
+    if: github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53e-typed-streamfifo-clean'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact permanent Increment 53e delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin parameterized-verilog
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="$(git merge-base HEAD origin/parameterized-verilog)"
+          fi
+
+          scope=morphhdl/contracts/increment-53e-source-scope.txt
+          test -f "$scope"
+          test "$(cat "$scope")" = "$(sort -u "$scope")"
+          actual="$(git diff --name-only --diff-filter=ACMRTD "$base"...HEAD | sort)"
+          expected="$(cat "$scope")"
+          if [ "$actual" != "$expected" ]; then
+            echo 'Unexpected Increment 53e file inventory' >&2
+            echo '--- expected ---' >&2
+            printf '%s\n' "$expected" >&2
+            echo '--- actual ---' >&2
+            printf '%s\n' "$actual" >&2
+            exit 1
+          fi
+
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          if printf '%s\n' "$actual" | grep -E '(\.tmp$|\.patch(\.gz\.b64)?$|apply-increment-53e|publisher|diagnostic|status\.md$|clean-tree-marker)'; then
+            echo 'Temporary Increment 53e artifact entered the canonical delta' >&2
+            exit 1
+          fi
+          git diff --check "$base"...HEAD
+
+      - name: Verify reviewed typed-native overlay and FIFO ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-typed-native-source-overlay.py
+          python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+          python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-external-memory-boundary.sh
+          python3 - <<'PY'
+          import json
+          import re
+          import subprocess
+          from pathlib import Path
+
+          overlay = json.loads(
+              Path('morphhdl/contracts/typed-native-source-overlay.json').read_text()
+          )
+          assert overlay['base']['commit'] == 'ce7e306f8a0dea685317e37dbe01fb4a743f04eb'
+          entries = overlay['entries']
+          paths = [entry['path'] for entry in entries]
+          assert paths == sorted(set(paths))
+          for entry in entries:
+              path = Path(entry['path'])
+              assert path.is_file(), entry['path']
+              blob = subprocess.check_output(
+                  ['git', 'hash-object', entry['path']], text=True
+              ).strip()
+              assert blob == entry['blob'], entry['path']
+
+          manifest = Path(
+              'docs/morphhdl/increment-53e-typed-native-change-manifest.md'
+          ).read_text()
+          manifest_rows = {}
+          for line in manifest.splitlines():
+              match = re.match(r"\| `([^`]+)` \| `([^`]+)` \|", line)
+              if match:
+                  manifest_rows[match.group(1)] = match.group(2)
+          expected_native = {
+              'core/src/main/scala/spinal/core/ElaborationExactDomain.scala',
+              'core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala',
+              'core/src/main/scala/spinal/core/ElabInt.scala',
+              'core/src/main/scala/spinal/core/Mem.scala',
+              'core/src/main/scala/spinal/core/Misc.scala',
+              'core/src/main/scala/spinal/core/ParameterizedMemory.scala',
+              'core/src/main/scala/spinal/core/ParameterizedWidth.scala',
+              'core/src/main/scala/spinal/core/Vec.scala',
+              'lib/src/main/scala/spinal/lib/Stream.scala',
+          }
+          assert set(manifest_rows) == expected_native
+          overlay_by_path = {entry['path']: entry for entry in entries}
+          for path, classification in manifest_rows.items():
+              assert path in overlay_by_path, path
+              assert overlay_by_path[path]['classification'] == classification, path
+
+          stream = Path('lib/src/main/scala/spinal/lib/Stream.scala').read_text()
+          fifo_start = re.search(r'object\s+StreamFifo\s*\{', stream).start()
+          fifo_end = re.search(
+              r'object\s+StreamFifoLowLatency\s*\{', stream[fifo_start:]
+          ).start() + fifo_start
+          fifo = stream[fifo_start:fifo_end]
+          for token in (
+              'depth: ElabInt',
+              'ElabFormalComponent.parameter',
+              'private[lib] val elabDepth: ElabInt',
+              'val depth: Int = elabDepth.witness',
+              'val elabWithExtraMsb: ElabBool',
+              'val withExtraMsb: Boolean = elabWithExtraMsb.witness',
+              'val depthIsOne: ElabBool',
+              'val depthHasStorage: ElabBool',
+              'Mem(dataType, elabDepth)',
+              'ElabValue.uintLike',
+              'SPINAL-ELAB-STREAMFIFO-FORMAL-SYMBOLIC-DEPTH-UNSUPPORTED',
+              'requireConcreteFormalDepth("StreamFifo.formalFullToEmpty")',
+              'push := (push + 1).resized',
+              'pop := (pop + 1).resized',
+          ):
+              assert token in fifo, token
+          assert re.search(
+              r'def\s+this\s*\(\s*dataType:\s*HardType\[T\]\s*,', fifo
+          )
+          for forbidden in (
+              'ParameterizedMemoryDepth',
+              'ExternalNativeIntFormalComponent',
+              'NativeIntShadow',
+              'rewriteParameterizedStreamFifoDepth',
+              'MorphStreamFifo',
+          ):
+              assert forbidden not in fifo, forbidden
+          assert stream.count('class StreamFifo[T <: Data]') == 1
+
+          shadow = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlNativeIntShadowExpressionComponent.scala'
+          ).read_text()
+          assert 'StreamFifo' not in shadow
+          assert 'endsWith("/lib/src/main/scala/spinal/lib/Stream.scala")' not in shadow
+
+          typed_bridge = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/'
+              'MorphHdlTypedElaborationControlComponent.scala'
+          ).read_text()
+          for forbidden in ('StreamFifo', 'StreamFifoCC'):
+              assert forbidden not in typed_bridge
+
+          carrier = Path('core/src/main/scala/spinal/core/ElabInt.scala').read_text()
+          exact = Path(
+              'core/src/main/scala/spinal/core/ElaborationExactDomain.scala'
+          ).read_text()
+          projection = Path(
+              'core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala'
+          ).read_text()
+          for token in (
+              'def log2Up: ElabInt',
+              'def isPow2: ElabBool',
+              'def toElabInt: ElabInt',
+              'def finiteRangeFromZero',
+              'def evaluateExact',
+              'SPINAL-ELAB-DOMAIN-EVIDENCE-RESULT-OUT-OF-RANGE',
+              'SPINAL-ELAB-DOMAIN-EXACT-CORRELATION-UNSUPPORTED',
+              'SPINAL-ELAB-DOMAIN-PROJECTION-RECERTIFICATION-UNSUPPORTED',
+              'SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION',
+              'SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED',
+          ):
+              assert token in carrier, token
+          for token in (
+              'final case class ElaborationExactDomain',
+              'object ElaborationDomainContext',
+              'constraint.root eq root',
+              'MaximumDomainSize',
+          ):
+              assert token in exact, token
+          for token in (
+              'final class ElaborationProjectionProvenance',
+              'def sameAs',
+              'representative',
+          ):
+              assert token in projection, token
+          for forbidden in (
+              'implicit def elabIntToInt',
+              'implicit def toInt',
+              'implicit def elabBoolToBoolean',
+              'implicit def toBoolean',
+          ):
+              assert forbidden not in carrier, forbidden
+
+          formal_registry = Path(
+              'morphruntime/src/main/scala/spinal/core/'
+              'ExternalFormalParameterRegistry.scala'
+          ).read_text()
+          for token in (
+              'exactDomain = None',
+              'ElabInt.equivalentExpression',
+              'distinctExpressions',
+          ):
+              assert token in formal_registry, token
+
+          control = Path(
+              'morphruntime/src/main/scala/spinal/core/ElabControl.scala'
+          ).read_text()
+          for token in (
+              'ElaborationDomainContext.withAdmitted',
+              'ParameterizedStructure.typedPredicateDomainOf',
+              'ParameterizedStructuralSynthetic.emptyBlock',
+          ):
+              assert token in control, token
+
+          required_tests = {
+              'morphhdl/src/test/scala/morphhdl/ParameterizedStreamFifoDepthTests.scala': (
+                  'Vector(1, 3, 5, 8)',
+                  'lintDepth',
+                  'simulateDepth',
+                  'synthesizeDepth',
+                  'compound bounded depth retains its exact formal actual',
+                  'default depth one still captures the native storage alternative',
+                  'symbolic formal helpers fail closed independently of the default witness',
+              ),
+              'morphhdl/src/test/scala/morphhdl/NativeStreamFifoFormalEquivalenceTests.scala': (
+                  'MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE',
+                  'expectedStatus = "PASS"',
+                  'expectedStatus = "FAIL"',
+              ),
+              'morphhdl/src/test/scala/morphhdl/StreamFifoCompatibilityTests.scala': (
+                  'concrete Int constructor, Int companion and typed literal are byte-identical',
+                  'legacy concrete depth zero retains its native bypass elaboration',
+              ),
+              'morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala': (
+                  'captured singleton domain proves symbolic target and concrete source widths equal',
+              ),
+              'morphhdl/src/test/scala/spinal/core/TypedElaborationPrimitiveTests.scala': (
+                  'typed log2Up projects exact values in each active depth branch',
+                  'finite typed ranges fail closed unless the active branch has one size',
+              ),
+              'morphhdl/src/test/scala/spinal/core/TypedExactDomainControlTests.scala': (
+                  'branch projection inverts the concrete representative',
+                  'synthetic generate',
+                  'same-named exact domains remain isolated',
+              ),
+              'morphhdl/src/test/scala/spinal/core/TypedExactDomainSafetyTests.scala': (
+                  'oversized direct domains are capped before enumeration',
+                  'partial division modulo and pow2 evidence evaluates only admitted values',
+                  'supplied exact results reject null out-of-range and out-of-bounds values',
+                  'derived exact integer results must fit the emitted integer domain',
+                  'branch-partial evidence cannot be downgraded across independent roots',
+                  'full exact evidence cannot be downgraded across independent roots',
+                  'partial Boolean evidence cannot escape into an independent root',
+                  'identity-valued compound widths do not masquerade as direct parameters',
+                  'equal summaries from disjoint projections remain identity-distinct',
+                  'projected expressions cannot be recertified with replacement evidence',
+                  'projected expressions cannot expand beyond their original branch',
+                  'equal exact summaries with different evaluations remain distinct',
+              ),
+              'morphhdl/src/test/scala/spinal/core/TypedProjectionOwnershipTests.scala': (
+                  'fresh nested projection is owned by its exact final declaration path',
+                  'precomputed outer projection cannot construct a differently represented nested owner',
+                  'branch-projected metadata cannot escape to a module-scope declaration',
+                  'case-class expression copy loses exact projection authority',
+              ),
+          }
+          for path, tokens in required_tests.items():
+              value = Path(path).read_text()
+              for token in tokens:
+                  assert token in value, (path, token)
+          PY
+
+  sbt-full:
+    name: SBT complete suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Compile all production and test sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+      - name: Run complete MorphHDL and native StreamFifo simulation suites
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.SpinalSimStreamFifoTester"
+
+  mill-full:
+    name: Mill complete suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - name: Install pinned Mill
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+      - name: Run complete MorphHDL and native StreamFifo simulation suites
+        shell: bash
+        run: |
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.SpinalSimStreamFifoTester
+
+  typed-regressions:
+    name: Exact typed-domain regressions Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Run exact-domain, primitive, compatibility and width-proof contracts
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedElaborationPrimitiveTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.StreamFifoCompatibilityTests"
+
+  streamfifo-v2001:
+    name: StreamFifo V2001 lint, simulation and synthesis Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify strict Verilog-2001 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          verilator --version
+          iverilog -V
+          yosys -V
+      - name: Exercise depths 1, 3, 5 and 8 through lint, simulation and synthesis
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.ParameterizedStreamFifoDepthTests morphhdl.StreamFifoCompatibilityTests"
+
+  formal:
+    name: Sequential StreamFifo equivalence Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Verify pinned formal toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v iverilog
+          command -v vvp
+          command -v verilator
+          yosys_version="$(yosys -V)"
+          sby_help="$(sby -h 2>&1)"
+          sby_sha256="$(sha256sum "$(command -v sby)")"
+          yices_version="$(yices-smt2 --version)"
+          iverilog_version="$(iverilog -V 2>&1)"
+          verilator_version="$(verilator --version)"
+          printf '%s\n' \
+            "$yosys_version" \
+            "$sby_sha256" \
+            "$yices_version" \
+            "$iverilog_version" \
+            "$verilator_version"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          grep -q 'usage: sby' <<<"$sby_help"
+          test -n "$yices_version"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q 'ABC' /tmp/morphhdl-yosys-abc-help.txt
+      - name: Prove all concrete witnesses and live mutation control
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoFormalEquivalenceTests"
+      - name: Retain proof statuses and mutation counterexample
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-53e-streamfifo-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  no-shadow:
+    name: Typed StreamFifo without native-Int shadow Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Disable legacy native-Int shadow registration in this workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path(
+              'morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala'
+          )
+          value = path.read_text()
+          needle = '      new MorphHdlNativeIntShadowExpressionComponent(global),\n'
+          assert value.count(needle) == 1
+          path.write_text(value.replace(needle, '', 1))
+          PY
+          ! grep -q 'new MorphHdlNativeIntShadowExpressionComponent' \
+            morphplugin/src/main/scala/morphhdl/compiler/MorphHdlPlugin.scala
+      - name: Compile and exercise direct typed FIFO witnesses without shadow registration
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly spinal.core.TypedElaborationPrimitiveTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests morphhdl.TypedElaborationControlTests morphhdl.CapturedDomainWidthEquivalenceTests morphhdl.StreamFifoCompatibilityTests morphhdl.ParameterizedStreamFifoDepthTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
+
+  closure:
+    name: Increment 53e canonical closure
+    if: always() && (github.event_name != 'pull_request' || github.head_ref == 'agent/increment-53e-typed-streamfifo-clean')
+    needs:
+      - source-contract
+      - sbt-full
+      - mill-full
+      - typed-regressions
+      - streamfifo-v2001
+      - formal
+      - no-shadow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        shell: bash
+        env:
+          SOURCE: ${{ needs.source-contract.result }}
+          SBT: ${{ needs.sbt-full.result }}
+          MILL: ${{ needs.mill-full.result }}
+          TYPED: ${{ needs.typed-regressions.result }}
+          STREAMFIFO: ${{ needs.streamfifo-v2001.result }}
+          FORMAL: ${{ needs.formal.result }}
+          NO_SHADOW: ${{ needs.no-shadow.result }}
+        run: |
+          set -euo pipefail
+          test "$SOURCE" = success
+          test "$SBT" = success
+          test "$MILL" = success
+          test "$TYPED" = success
+          test "$STREAMFIFO" = success
+          test "$FORMAL" = success
+          test "$NO_SHADOW" = success

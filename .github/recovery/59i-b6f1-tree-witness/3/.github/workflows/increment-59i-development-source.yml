@@ -1,0 +1,47 @@
+name: Increment 59i development source history
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths: ['.github/workflows/increment-59i-development-source.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Preserve only Git source objects and declared refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-development-source"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          git rev-parse refs/remotes/origin/parameterized-verilog > "$output/integration-head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          # The compatibility reviewer checks this independent branch's real
+          # ancestry even when the integration branch still uses the old pass.
+          # Preserve that immutable source history, not a fabricated local ref.
+          qualified=8b28792ff27466b3f9b31df52b8916bc493e8f66
+          git cat-file -e "$qualified^{commit}"
+          git update-ref refs/review/wa07b-qualified "$qualified"
+          git bundle create "$output/source-history.bundle" HEAD refs/remotes/origin/parameterized-verilog refs/review/wa07b-qualified
+          git bundle verify "$output/source-history.bundle" > "$output/verify.log" 2>&1
+          git bundle list-heads "$output/source-history.bundle" > "$output/refs.txt"
+          sha256sum "$output/source-history.bundle" "$output/source.tar.gz" > "$output/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-development-source
+          path: target/increment-59i-development-source
+          if-no-files-found: error
+          retention-days: 7

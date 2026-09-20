@@ -1,0 +1,4074 @@
+{
+  "schema_version": 1,
+  "repository": "pysolvesemi/MorphHDL",
+  "baseline_commit": "bec73bb9d2ff54897bee66d641b130b66d0db869",
+  "files": [
+    {
+      "path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/BaseType.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions"
+      ],
+      "reason": "Retain exact typed result geometry at the native weak-clone and cast construction seams without changing the native graph or concrete width inference.",
+      "edits": [
+        {
+          "id": "basetype-result-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapWithWeakClone",
+          "reason": "Record scalar operator and resize width provenance on the freshly constructed native result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(typeNode, e)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "basetype-result-width-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BaseType.wrapCast",
+          "reason": "Record width-preserving native cast provenance on its freshly constructed result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(result, node)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/BitVector.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/BitVector.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59f: certified callback graphs and captured inputs"
+      ],
+      "reason": "Retain the compatible ElabInt resize overload and mechanically preserve native high-bit, clone and mux width provenance without changing concrete arithmetic or inferred widths.",
+      "edits": [
+        {
+          "id": "bitvector-native-msb-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.msb",
+          "reason": "Retain the exact native msb request before lowering its index to a concrete witness.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainHighBit(this, this(high)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-native-clone-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.clone",
+          "reason": "Copy exact typed metadata after the unchanged native clone width calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.copy(this, res)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-resize-01",
+          "kind": "overload",
+          "owner": "spinal.core.BitVector.resize(ElabInt)",
+          "reason": "Add a concrete typed resize seam that delegates literal widths and fails closed for unsupported symbolic subclasses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-INT-BITVECTOR-RESIZE-SUBTYPE-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bitvector-native-mux-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.BitVector.getMuxType",
+          "reason": "Consume input traversal once and retain the native maximum-input width on the fresh mux clone, with the original auto-resize exclusion and native width calculation preserved.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainMuxType[T](inputs, result)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Bits.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Bits.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Add native symbolic data-shape support (#32)",
+        "Increment 40: external symbolic width and data-shape retention",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Retain typed width construction and resize overloads, and mechanically propagate the exact source width through the unchanged native asBits assignment; ordinary concrete arithmetic and width inference remain authoritative.",
+      "edits": [
+        {
+          "id": "bits-typed-width-01",
+          "kind": "overload",
+          "owner": "spinal.core.BitsFactory.Bits(ParameterizedBitCount)",
+          "reason": "Add the typed Bits factory overload and retain its exact width metadata.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bits-native-asbits-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Bits.asBits",
+          "reason": "Keep the existing fresh Bits assignment and record the source width before the native cast clone loses its symbolic geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainResult(ret, this)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bits-typed-width-02",
+          "kind": "overload",
+          "owner": "spinal.core.Bits.resize(ElabInt)",
+          "reason": "Add the typed Bits resize overload while routing literal widths through the inherited Int implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedResizeWitness",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/BlackBox.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/BlackBox.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 59: typed BlackBox parameter and generic binding"
+      ],
+      "reason": "Accept neutral typed integer and Boolean generic actuals while preserving every inherited concrete BlackBox generic lane.",
+      "edits": [
+        {
+          "id": "blackbox-typed-generics-01",
+          "kind": "overload",
+          "owner": "spinal.core.BlackBox.addGeneric(ElabInt/ElabBool)",
+          "reason": "Validate and retain exact typed integer and Boolean expressions, then delegate only their concrete Int/Boolean witnesses to the inherited native emitters.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case value: ElabInt =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case value: ElabBool =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
+              "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Data.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Data.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility"
+      ],
+      "reason": "Propagate retained typed leaf geometry through the inherited hierarchy pull cloning path.",
+      "edits": [
+        {
+          "id": "data-pull-shape-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Data.pull",
+          "reason": "Use the typed metadata-preserving clone at both sides of the unchanged hierarchy pull algorithm.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "data-pull-shape-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Data.pull",
+          "reason": "Use the typed metadata-preserving clone at both sides of the unchanged hierarchy pull algorithm.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabBalancedReduction.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Neutral scoped callback dispatch with exception-safe restoration and exact symbolic Vec receiver retention; no reduction algorithm or RTL implementation.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElabInt.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "WA-11: authenticated symbolic Boolean/integer conversion normalization",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Provide neutral typed integer and Boolean carriers. Preserve existing single-root coverage, root/schema identity, projection and arithmetic safety checks; route genuinely independent native arithmetic and predicates through private compositional proofs. Validate finished native owner scopes through the same authoritative single-root checker. Existing WA-11 Boolean encoding origins, integer sizing fences and single-root normalization remain intact. Separate native arithmetic/publication dispatch from explicit exact extrema queries. Keep exact/provenance validation and concrete/default width errors; use authenticated safe physical width only with a separate legality obligation. Retained 59i review: Provide the neutral exact elaboration integer and boolean expression carriers used by reviewed native overloads. Width conversion and projection additionally consume private width-composition authority for independently rooted scalar geometry; the general elaboration integer domain contract stays unchanged. WA-11 retains private Boolean encoding origins, normalizes typed round trips, and uses direct integer parameters only for authenticated full-domain 0/1 identity; integer sizing and fresh projection evidence remain mandatory. Increment 59i additionally retains the internal read-only width query for one exact native leaf; certified callbacks do not inspect mutable registry carriers or runtime values.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR189: authentic compact declaration and explicit publication authority"
+      ],
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationProjectionRegistry.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53e: typed StreamFifo depth architecture (#128)"
+      ],
+      "reason": "Retain reviewed projection ownership for exact typed elaboration expressions.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR189: authenticated independent-parameter publication consumers"
+      ],
+      "reason": "Authenticate retained expression identity before and after consumer-specific projection; do not grant finite structural elaboration authority.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ElaborationWidthAuthority.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Independent-parameter domain composition corrective repair (2026-09-14)",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Retain the reviewed finite width-specific evaluator and its identity authority. Also consume private compositional product proofs for large independent packed widths, exact attainable extrema, fixed typed relations, branch projection and conditional widths; never turn rendered expressions, copied summaries, or default tuples into proof authority. Clarify that symbolic publication certificates and the retained finite-table/exact-query paths are distinct; no executable change to this file in the symbolic rework.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ExternalCompilerPermit.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "PR189: authentic compact declaration and explicit publication authority"
+      ],
+      "reason": "Define the narrow compiler-owned permit boundary for external typed elaboration. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)"
+      ],
+      "reason": "Define the narrow structural-predicate permit used by parameter-sensitive native branches.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Mem.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Mem.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 35: native symbolic memories (#40)",
+        "Implement Increment 36 native library reuse (#42)",
+        "Increment 43: native memory reuse with zero Mem.scala changes (#59)",
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility"
+      ],
+      "reason": "Add the typed Mem depth overload and mechanically retain exact address geometry through native port normalization.",
+      "edits": [
+        {
+          "id": "mem-typed-depth-01",
+          "kind": "overload",
+          "owner": "spinal.core.Mem.apply(ElabInt)",
+          "reason": "Add the typed memory-depth factory while literal depths re-enter the inherited Int factory.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedMemory.depthOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Mem.wordTypeLeaves",
+          "reason": "Evaluate HardType once and reuse the inherited flattened leaves for typed metadata.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "wordTypeLeaves.map",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-03",
+          "kind": "signature",
+          "owner": "spinal.core.Mem address geometry",
+          "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SpinalHDL",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-04",
+          "kind": "signature",
+          "owner": "spinal.core.Mem address geometry",
+          "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedMemory.portAddressWidthWitnessOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-05",
+          "kind": "signature",
+          "owner": "spinal.core.Mem address geometry",
+          "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "nativePortA",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-06",
+          "kind": "signature",
+          "owner": "spinal.core.Mem address geometry",
+          "reason": "Expose and retain exact typed address geometry while preserving the ordinary Int addressWidth surface.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedMemory.metadataOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-07",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "address.getWidth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-11",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-12",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "address.getWidth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-13",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-14",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-15",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "addressReq",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-16",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-17",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-18",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "addressReq",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-19",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-20",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-21",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "addressReq",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Misc.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Misc.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 55: audit concrete compatibility",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions"
+      ],
+      "reason": "Keep exact typed log2Up/isPow2 overloads and mechanically retain scalar leaf width provenance through the ordinary cloneOf/HardType construction path.",
+      "edits": [
+        {
+          "id": "misc-typed-math-01",
+          "kind": "overload",
+          "owner": "spinal.core.log2Up.apply(ElabInt)",
+          "reason": "Add the typed log2Up overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "IllegalArgumentException",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "misc-typed-math-02",
+          "kind": "overload",
+          "owner": "spinal.core.isPow2.apply(ElabInt)",
+          "reason": "Add the typed isPow2 overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "IllegalArgumentException",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "misc-native-clone-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.cloneOf.apply(Data)",
+          "reason": "Copy proved typed source geometry to the native clone; ordinary concrete clone behavior remains unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainCloneShape(that, that.clone().asInstanceOf[T])",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "PR188: separate symbolic publication provenance from structural proof",
+        "PR188: one synthesis-guarded fatal for failed symbolic require",
+        "PR189: authentic compact declaration and explicit publication authority"
+      ],
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Provide a scoped observer interface around actual native clone events and the unchanged inherited Vec zero algorithm. Concrete Vec zero construction remains native; symbolic calls without a backend retain the original unsupported guard. Scope presence alone does not authorize a receiver: the Morph-owned bridge provider must prove exact clone ancestry and immutable owner/geometry/freshness per request. Restore the prior scope in finally; do not retain global clone lineage or implement a replacement zero or reduction algorithm.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedMemory.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 35: native symbolic memories (#40)",
+        "Implement Increment 36 native library reuse (#42)",
+        "Increment 37: parameterized StreamFifo depth (#44)",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 54: clean typed layering and canonical IR"
+      ],
+      "reason": "Own typed memory depth and address metadata outside the inherited Mem algorithm.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedVecElementLayout.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Retain authoritative recursive Bundle/Vec geometry and exact finite packing. Pure certified leaf-width substitution preserves scalar kinds, field paths, independent dimension identities and capacities, rejects missing or unequal finite copies, and computes logical nested offsets without treating carrier maxima as active depths.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Add single-source symbolic width bridge (#31)",
+        "Add native symbolic data-shape support (#32)",
+        "Increment 33: structural loops and generate control (#35)",
+        "Increment 35: native symbolic memories (#40)",
+        "Increment 40: external symbolic width and data-shape retention",
+        "Increment 42: external structural and process capture (#55)",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 53g: retire native-Int shadow reconstruction (#130)",
+        "Increment 58: legacy adapter and shadow-path retirement",
+        "Increment 59d: generic symbolic result-width provenance and widening reductions",
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59f: certified callback graphs and captured inputs",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Retain exact typed width/resize/formal metadata while preserving native construction. A private fresh-clone transaction snapshots the original registry entry plus fixed, observed and inferred native widths, clears only unused clone construction observations, and restores exact state without reprojection on rejection; general getWidth and inference behavior remain unchanged.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/SInt.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/SInt.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Add native symbolic data-shape support (#32)",
+        "Increment 40: external symbolic width and data-shape retention",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility"
+      ],
+      "reason": "Expose typed SInt construction and resize while preserving concrete native paths.",
+      "edits": [
+        {
+          "id": "sint-typed-width-01",
+          "kind": "overload",
+          "owner": "spinal.core.SIntFactory.SInt(ParameterizedBitCount)",
+          "reason": "Add the typed SInt factory overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "sint-typed-width-02",
+          "kind": "overload",
+          "owner": "spinal.core.SInt.resize(ElabInt)",
+          "reason": "Add the typed SInt resize overload and retain exact symbolic width metadata.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedResizeWitness",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Trait.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Trait.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 53: permanent native StreamFifo structure repair"
+      ],
+      "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging.",
+      "edits": [
+        {
+          "id": "sync-merge-isolation-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.noBackendSyncMerge",
+          "reason": "Declare the exact backend isolation tag consumed by the native emitter hook.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "noBackendSyncMerge",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/UInt.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/UInt.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Add single-source symbolic width bridge (#31)",
+        "Add native symbolic data-shape support (#32)",
+        "Increment 40: external symbolic width and data-shape retention",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Preserve ordinary UInt construction, resize and saturation algorithms while recording exact source-relative result/range geometry and the all-ones literal used by native saturation; no arithmetic or runtime branch is replaced.",
+      "edits": [
+        {
+          "id": "uint-typed-width-01",
+          "kind": "overload",
+          "owner": "spinal.core.UIntFactory.UInt(ParameterizedBitCount)",
+          "reason": "Add the typed UInt factory overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-upper-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native saturation result width and overflow range relative to the exact source width; admission validates the full finite domain.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainRelativeWidth(this, UInt(getWidth-m bit), -m)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-saturation-lower-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt._sat",
+          "reason": "Record the unchanged native low-bit saturation range with its exact source-relative high bound and fixed zero low bound.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "this(getWidth-m-1 downto 0), -m-1, false,",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-typed-width-02",
+          "kind": "overload",
+          "owner": "spinal.core.UInt.resize(ElabInt)",
+          "reason": "Add the typed UInt resize overload and retain exact symbolic width metadata.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.validatedResizeWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "uint-native-allones-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.UInt.setAll",
+          "reason": "Construct the same native maximum-value literal and retain its exact fill geometry on the fresh value; zero-width concrete assignment remains native.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.retainAllOnes(this, U(maxValue))",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Vec.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Vec.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility",
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "Increment 59i: exact composite static-read identity qualification",
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
+      "edits": [
+        {
+          "id": "vec-nested-write-evidence-imports-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Vec imports",
+          "reason": "Import exact native assignment target and When identities for recursively forwarded write metadata.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Expression",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "WhenStatement",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-01",
+          "kind": "overload",
+          "owner": "spinal.core Vec typed factories",
+          "reason": "Add typed-size Vec factories and share one native carrier construction path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Vec.fill",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-02",
+          "kind": "overload",
+          "owner": "spinal.core Vec typed factories",
+          "reason": "Add typed-size Vec factories and share one native carrier construction path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "setElementsParents",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-03",
+          "kind": "overload",
+          "owner": "spinal.core Vec typed factories",
+          "reason": "Add typed-size Vec factories and share one native carrier construction path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-04",
+          "kind": "overload",
+          "owner": "spinal.core.VecAccessAssign constructors",
+          "reason": "Retain the legacy VecAccessAssign constructor while accepting typed decoder evidence.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elementLeafIndex",
+              "count": 3
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-05",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecAccessAssign assignment",
+          "reason": "Capture typed dynamic-write evidence around the inherited element assignment loop.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "assignNative",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-nested-write-native-target-delegation-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecAccessAssign assignment",
+          "reason": "Preserve the exact native scalar/range target delegation while removing the dead source identity alias and exposing its invocation to metadata capture.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def assignTarget(): Unit = target match",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "a.copyWithTarget(to.asInstanceOf[BitVector])",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-nested-write-forwarding-capture-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecAccessAssign assignment",
+          "reason": "Capture immediate forwarded assignment invocations inside the existing exact native When guard; untyped writes invoke the same native target delegation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.captureWriteInvocations(assignTarget())",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "forwarding += guard -> writes",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "else assignTarget()",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-06",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecAccessAssign assignment",
+          "reason": "Retain exact decoder/source/target snapshots and the recursive invocation tree around the unchanged native assignment loop.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordDynamicWrite",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordWriteInvocation",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-static-index-assignment-59c",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.ParameterizedVecStaticAccessAssign",
+          "reason": "Capture exact static-index scalar assignment/control evidence and any delegated nested write invocations while restoring the prior native composite assignment path after exceptions. The 59h scalar callback preflight accepts this final wrapper only with exact retained native Vec and scalar identities and a fully known previous chain terminating at null; no assignment/source hook or composite flatten is invoked. The 59i composite counterpart accepts only a caller-audited containment snapshot, exact native element and leaf identities, matching retained carrier and leaf counts, and a bounded known previous chain; it never invokes flatten or assignment/source hooks.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "leaf.compositAssignFrom(that, target, kind)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordStaticWrite",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "finally leaf.compositeAssign = active",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private[core] def isCertifiedReadOf(expected: BaseType): Boolean =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(vector.vec(elementIndex).asInstanceOf[AnyRef] eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case wrapped: ParameterizedVecStaticAccessAssign => wrapped.isCertifiedReadOf(expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val leaves = auditedLeaves.get(element)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "(leaves(wrapped.elementLeafIndex) eq expected)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "case previous: ParameterizedVecStaticAccessAssign => inspect(previous, remaining - 1)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "auditedLeaves != null && inspect(this, 64)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-07",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "super.getBitsWidth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "logicalBitsWidthOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.validateStaticIndex",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-11",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.shapeOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-12",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-13",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.validateDynamicAddress",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-14",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-15",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordDynamicAccess",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-16",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "carrierAddress.dontSimplifyIt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-17",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "accessE.compositeAssign",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-18",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordDynamicAccess",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-19",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "indexed-access",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-20",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec indexed access",
+          "reason": "Retain exact logical/carrier geometry and address evidence through native static and dynamic Vec access.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-21",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.requireCompatible",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-22",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "assignNative",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-23",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordWholeAssignment",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-24",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.cloneOf",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-25",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec packing, assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations. Route retained recursive or multi-leaf Vec packing through the exact audited full-carrier helper, preserving scalar and untyped packing and all existing packed-assignment validation. The native-carrier geometry scope suppresses recursive logical witness resizing inside unchanged outer packing and assignment. Route getZero through scoped native construction observation while keeping the unchanged inherited MultiData zero algorithm. Ordinary symbolic zero calls retain their unsupported guard; a Morph bridge proof must independently authenticate exact native clone ancestry, owner, immutable recursive geometry and fresh unaliased declarations before allowing that native call. Closed bridge graph and replay remain the authority for reset values, register assignments and clocks.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.validatePackedAssignment",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "shape.elementLeaves.size > 1 || shape.elementLayout.hasNestedVectors",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.readCompositeBits(this)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.recordPackedRead(this, super.asBits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (ParameterizedVec.usesNativeCarrierGeometry) super.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "NativeVecZeroConstruction.construct(this)(super.getZero).asInstanceOf[this.type]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-26",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.rejectUnsupported",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-typed-geometry-27",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.Vec assignment and cloning",
+          "reason": "Propagate compatible Vec shape through whole assignment, cloning, packing and reviewed fail-closed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.rejectUnsupported",
+              "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/core.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/core.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 53d: typed StreamWidthAdapter architecture"
+      ],
+      "reason": "Expose a parameter-preserving counterpart of widthOf for typed native algorithms.",
+      "edits": [
+        {
+          "id": "widthofexpr-01",
+          "kind": "overload",
+          "owner": "spinal.core.widthOfExpr",
+          "reason": "Add the exact packed-width helper without changing widthOf.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabInt.packedWidthOf",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
+      ],
+      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason.",
+      "edits": [
+        {
+          "id": "component-emitter-lane-condition-sharing-hook",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter.canInlineRepeatedWhenCondition",
+          "reason": "Default false preserves ordinary backends; only the exact Verilog-side proof may decline a condition-sharing wrap request.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def canInlineRepeatedWhenCondition(condition: Expression): Boolean = false",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-emitter-sync-isolation-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter sync grouping",
+          "reason": "Exclude only tagged registers from sync-process merging while retaining the native group key.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "spinalConfig.mergeSyncProcess",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-emitter-lane-condition-sharing-request",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitter repeated when condition planning",
+          "reason": "Conjoin the per-expression backend proof with the unchanged sharing count. No existing mandatory wrapper is removed by this hook.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !canInlineRepeatedWhenCondition(c)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 60c: native signed declarations with casts retained",
+        "Increment 60d: pure-SInt redundant cast elimination",
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof. Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+      "edits": [
+        {
+          "id": "symbolic-legality-native-emission-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
+          "reason": "Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "NativeSymbolicLegality.render(component,",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "component.localNamingScope.allocateName(name)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-depthcut-snapshot",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Record the exact mandatory wrapper identities before unchanged depth cutting, so eligible literal removal can never discard a pre-existing wrapper.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " {\n      val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n      expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-depthcut-and-signed-transport",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "After depth cutting remove only newly added typed-proven literal carriers; retain every nonliteral depth fence and preserve the exact inherited signed declaration unsigned-transport callback.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      // The depth planner visits a whole breadth frontier, including leaves.\n      // A carrier for an eligible sized literal cannot shorten a computation;\n      // avoid recreating it after the typed expression plan has accepted it.\n      // Keep all non-literal depth fences and all pre-existing mandatory wraps.\n      expressionToWrap.retain {\n        case literal: Literal =>\n          requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)\n        case _ => true\n      }\n    }\n    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-3",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-expression-planning",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private lazy val wrappersProvenRedundant =\n    VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)\n\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =\n    VerilogEmitterExpressionInlining.redundantSharedCondition(\n      component, spinalConfig, condition, wrappersProvenRedundant)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-wa10-required-wrapper-filter",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Apply the generation-local typed proof to the existing expression wrapper planning hook; unproven expression identities retain the original materialization path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n      if (!wrappersProvenRedundant.containsKey(that))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-4",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private[spinal] def usesVerilogBase(base: VerilogBase): Boolean = verilogBase eq base\n\n  private def emitSignedOperand(parent: Expression, slot: Int, operand: Expression): String = {\n    val emitted = emitExpression(operand)\n    if (verilogBase.canElideSignedCast(this, parent, slot, operand)) emitted\n    else s\"$$signed($emitted)\"\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(op, 0, op.left)} $vhd ${emitSignedOperand(op, 1, op.right)}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-6",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(op, 0, op.left)}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-7",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{emitSignedOperand(e, 0, e.source)}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-8",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitSignedResize(this, func).getOrElse ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-9",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    val sign = if (verilogBase.literalIsSigned(e)) \"s\" else \"\"\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-10",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "${sign}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-componentemitterverilog-11",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "${sign}",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "WA-10: general typed expression inlining through native capture and structured emission"
+      ],
+      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59: typed BlackBox parameter and generic binding",
+        "PR189: retain authenticated independent parameter roots in BlackBox integer generics"
+      ],
+      "reason": "Retain exact typed BlackBox generic and packed-port expressions by BlackBox object identity while native emitters consume concrete witnesses. PR189 routes integer projection through ElaborationPublicationValue while retaining the existing final-owner and schema checks.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/Phase.scala",
+      "change": "modified",
+      "classification": "platform-integration-hook",
+      "introduced_by": [
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 60g: scheduler-owned registration lifecycle"
+      ],
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
+      "edits": [
+        {
+          "id": "phase-context-execution-evidence",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Read-only monotonic per-context lifecycle evidence allows optional consumers to reject runtime registration without inserting pre-creation phases.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[spinal] def hasStartedPhaseExecution: Boolean = phaseExecutionStarted",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "phase-context-execution-start",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.PhaseContext.doPhase",
+          "reason": "Close registration before invoking even the first custom phase; leave all native phase execution, logging and validation statements intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "phaseExecutionStarted = true",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "spinal-verilog-parameterized-exception-01",
+          "kind": "platform-integration",
+          "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
+          "reason": "Propagate ParameterizedVerilogException before the generic diagnostic retry can replace the first stable typed failure with an unrelated reconstruction error.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case e: ParameterizedVerilogException =>",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "throw e",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/PhaseVerilog.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+      ],
+      "reason": "Supply optional instance-owned declaration-policy storage on the concrete PhaseVerilog emitter, leaving all ordinary emission, construction arguments, process traversal and width behavior unchanged. No new abstract requirements are added to the historical VerilogBase interface.",
+      "edits": [
+        {
+          "id": "verilog-policy-owner-pr187-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.PhaseVerilog",
+          "reason": "Add only the optional storage mixin; it is default-unbound and owned by this concrete emitter, not shared across generations or threads.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "with VerilogBase.DeclarationPolicyOwner ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 60c: native signed declarations with casts retained",
+        "Increment 60d: pure-SInt redundant cast elimination",
+        "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+      ],
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+      "edits": [
+        {
+          "id": "signed-boundary-60e-verilogbase-1",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-2",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-3",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Wrapper",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-4",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Wrapper",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)\n\n  def emitFunctionType(e: BaseType): String = {\n    val prefix = declarationPrefix(e, FunctionResultDeclaration)\n    val range = if (declarationPolicy == null) None else declarationPolicy.functionRange(\n      new DeclarationOccurrence(this, e, FunctionResultDeclaration))\n    prefix + range.getOrElse(emitUnqualifiedType(e))\n  }\n\n  private def emitUnqualifiedType(e: Expression): String =",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "signed-boundary-60e-verilogbase-6",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{\n    val prefix = node match {\n      case memory: Mem[_] => declarationPrefix(memory, MemoryElementDeclaration)\n      case _ => \"\"\n    }\n    prefix + s\"[${node.getWidth - 1}:0]\"\n  }",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "PR190: native sequential condition and exact unsigned direct-select consumers"
+      ],
+      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. Lane/when successor: allow only the singleton noBackendCombMerge tag at a fixed target boundary while retaining that tag and the process structure. Add a separate Bool repeated-condition proof requiring the same approved expression identity, at most 64 source nodes, at most 32 rendered process copies and total expansion at most 256. No name matching or signed/symbolic generalization. PR190 bounded successor: an unannotated identity-sized UInt/Bits Resize may print an existing same-component fixed-width reference as a Verilog select base, including repeated whole-register RHS uses. Require identical native type, positive identical width and no parameterized resize/source metadata at every link; reject signed resizes, arithmetic, casts and changed widths. Existing source declarations, names and protection are retained. This exception neither bypasses registers nor permits arbitrary expression slicing or changes arithmetic context widths. The original expansion budgets and disabled policy are unchanged.",
+      "edits": []
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+      "edits": [
+        {
+          "id": "reduce-balanced-receiver-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.traversableOncePimped",
+          "reason": "Preserve the exact typed Vec receiver before collection conversion; retain historical conversion for every concrete input.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.sourceSeq(that)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Counter.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Counter.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Implement Increment 36 native library reuse (#42)",
+        "Increment 40: external symbolic width and data-shape retention",
+        "Increment 44: native Counter, Stream and Flow reuse (#65)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility"
+      ],
+      "reason": "Add typed Counter overloads and one exact geometry adapter around the authoritative native stepping algorithm, with a reviewed singleton guard that prevents a zero-bit concrete step.",
+      "edits": [
+        {
+          "id": "counter-typed-bounds-01",
+          "kind": "overload",
+          "owner": "spinal.lib.CounterFreeRun.apply(ElabInt)",
+          "reason": "Add the typed free-running Counter overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "stateCount",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-02",
+          "kind": "signature",
+          "owner": "spinal.lib.Counter typed bounds model",
+          "reason": "Define the exact concrete/typed bounds seam used by all reviewed Counter overloads.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-COUNTER-STATE-COUNT-DOMAIN-NONPOSITIVE",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-03",
+          "kind": "overload",
+          "owner": "spinal.lib.Counter typed factories",
+          "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-COUNTER-BOUND-NULL",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-04",
+          "kind": "overload",
+          "owner": "spinal.lib.Counter typed factories",
+          "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "inclusive-range",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-05",
+          "kind": "overload",
+          "owner": "spinal.lib.Counter typed factories",
+          "reason": "Add typed state-count and inclusive-bound Counter factories while literals re-enter concrete factories.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-COUNTER-BOUND-NULL",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-06",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "binary-compatible",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-07",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "counterBounds.startWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabValue.uintLike",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ConcreteAlgorithmControl",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "prepareDecrementStep",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-11",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.valueWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-12",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.prepareDecrementStep",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-13",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.withUpdateTarget",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-14",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.withUpdateTarget",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-15",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; preserve native concrete Both-mode ordering for non-singleton ranges and keep singleton ranges on the compared path because no step bit is representable.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "handleOverflow",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "span > 1",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-16",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.withUpdateTarget",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-17",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.clearValue",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-18",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "counterBounds.stateCountWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-19",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-COUNTER-ORDINAL-DOMAIN-OUT-OF-RANGE",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-20",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Counter stepping algorithm",
+          "reason": "Carry exact bounds through the single native Counter step, wrap, clear, load and ordinal algorithms; concrete Both-mode ordering remains inherited.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "requireTypedInitialValue",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-21",
+          "kind": "overload",
+          "owner": "spinal.lib.DownCounter typed factories",
+          "reason": "Add typed DownCounter factory overloads.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Counter.down",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "counter-typed-bounds-22",
+          "kind": "overload",
+          "owner": "spinal.lib.DownCounter typed factories",
+          "reason": "Add typed DownCounter factory overloads.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Counter.down",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/CrossClock.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57a: typed StreamFifoCC architecture"
+      ],
+      "reason": "Mechanically retain exact symbolic pointer width through the native BufferCC boundary while keeping concrete behavior and reject the Int-only blackbox replacement before it mutates a retained-width synchronizer.",
+      "edits": [
+        {
+          "id": "buffercc-typed-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.BufferCC.apply return clone",
+          "reason": "Detect a retained symbolic packed width before constructing the native synchronizer component.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val typedInput = !widthOfExpr(input).isConcrete",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-typed-width-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.BufferCC.apply return clone",
+          "reason": "Preserve the exact typed output width across the existing return assignment.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.cloneOf(c.io.dataOut)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-typed-width-03",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.BufferCC typed data geometry",
+          "reason": "Detect retained symbolic packed geometry once for the component IO and register construction paths.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private val typedData = !widthOfExpr(dataType).isConcrete",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-typed-width-04",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.BufferCC IO geometry",
+          "reason": "Clone both synchronizer ports with exact packed-width metadata only on the typed path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedWidth.cloneOf(dataType)",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "buffercc-typed-width-05",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.BufferCC register chain",
+          "reason": "Build the native synchronizer register chain from typed clones so every stage retains exact packed width and evaluates its by-name initializer once.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val retainedRegisters = Vector.fill(finalBufferDepth)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val registerInit = init",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "buffercc-blackbox-typed-width-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.lib.PhaseBufferCCBB retained-width replacement guard",
+          "reason": "Reject a retained-width BufferCC before the phase removes native assignments because BufferCCBlackBox still exposes only Int width geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val width = widthOfExpr(c.io.dataIn)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "SPINAL-BUFFER-CC-BLACKBOX-TYPED-WIDTH-UNSUPPORTED",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Flow.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add typed Flow pipeline selection and synchronous queue ingress while retaining the ordinary Boolean register and native StreamFifo algorithms.",
+      "edits": [
+        {
+          "id": "flow-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.m2sPipe(ElabBool)",
+          "reason": "Select either ordinary Boolean Flow register profile from exact typed control without reproducing the register algorithm.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabControl.selectSymbolic",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-abi-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Flow queued occupancy result",
+          "reason": "Share the inherited structural occupancy accessor across concrete and typed overloads so Scala reflection-cache numbering remains binary compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def queuedWithOccupancy",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-abi-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Flow.queueWithOccupancy(Int)",
+          "reason": "Route the concrete helper through the shared result accessor without changing its native FIFO signals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "queuedWithOccupancy(fifo",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy ingress that delegates to the reviewed native StreamFifo implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "flow-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Flow.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability ingress that delegates to the reviewed native StreamFifo implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Stream.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Stream.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Implement Increment 36 native library reuse (#42)",
+        "Increment 37: parameterized StreamFifo depth (#44)",
+        "Increment 44: native Counter, Stream and Flow reuse (#65)",
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Increment 53d: typed StreamWidthAdapter architecture",
+        "Increment 53e: typed StreamFifo depth architecture (#128)",
+        "Increment 53f: typed parameter-sensitive primitive closure (#129)",
+        "Increment 55: audit concrete compatibility",
+        "Increment 57: broad native library migration and proof",
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 57b: typed StreamFifoCC payload-width formal proof",
+        "PR188: separate symbolic publication provenance from structural proof"
+      ],
+      "reason": "Add typed Stream pipeline, synchronous- and cross-clock queue ingress plus StreamFifo, StreamFifoCC and StreamWidthAdapter geometry, including joint StreamFifoCC depth/payload-width memory roles and a width-safe invalid specialization, while mechanically retaining the authoritative native algorithms and concrete output. Keep the existing typed pipeline hardware-construction precondition proof-required using requireStructuralCondition; deferred user requirements must not authorize library structure. No native data-path algorithm change.",
+      "edits": [
+        {
+          "id": "stream-pipeline-control-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.pipelined(ElabBool, ElabBool, ElabBool)",
+          "reason": "Select only complete-domain-legal combinations of the five ordinary Boolean pipeline profiles without duplicating their handshake or storage algorithms. Keep the existing universality requirement through the explicit structural-require API.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "halfRate can be enabled only when m2s and s2m are disabled",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ElabControl.requireStructuralCondition(",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queue(ElabInt)",
+          "reason": "Add typed synchronous queue arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queue(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-queue-01",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queue(ElabInt, ClockDomain, ClockDomain)",
+          "reason": "Add typed cross-clock queue ingress that delegates to the reviewed native StreamFifoCC implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queue(size: ElabInt, pushClock: ClockDomain, popClock: ClockDomain)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-abi-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Stream queued occupancy result",
+          "reason": "Share the inherited structural occupancy accessor across concrete and typed overloads so Scala reflection-cache numbering remains binary compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def queuedWithOccupancy",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-abi-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.Stream.queueWithOccupancy(Int)",
+          "reason": "Route the concrete helper through the shared result accessor without changing its native FIFO signals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "queuedWithOccupancy(fifo",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithOccupancy(ElabInt)",
+          "reason": "Add typed synchronous occupancy-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithOccupancy(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-sync-queue-03",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithAvailability(ElabInt)",
+          "reason": "Add typed synchronous availability-helper arities that delegate to the reviewed native StreamFifo configuration.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithAvailability(size: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-queue-02",
+          "kind": "overload",
+          "owner": "spinal.lib.Stream.queueWithPushOccupancy(ElabInt, ClockDomain, ClockDomain)",
+          "reason": "Add typed cross-clock queue ingress with native push-domain occupancy reporting.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def queueWithPushOccupancy(size: ElabInt, pushClock: ClockDomain, popClock: ClockDomain)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-01",
+          "kind": "overload",
+          "owner": "spinal.lib.StreamFifo typed factories",
+          "reason": "Add typed StreamFifo depth factories while literal depths re-enter the inherited Int constructor.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedStructure.captureEnabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-02",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamFifo typed constructor and IO geometry",
+          "reason": "Retain the source-compatible Int constructor/accessor and exact typed FIFO IO geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth.witness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-03",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamFifo typed constructor and IO geometry",
+          "reason": "Retain the source-compatible Int constructor/accessor and exact typed FIFO IO geometry.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth.isConcrete",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-04",
+          "kind": "overload",
+          "owner": "spinal.lib.StreamFifo.CounterUpDownFmax legacy constructor",
+          "reason": "Restore the legacy BigInt inner-class constructor descriptor over the typed implementation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabInt.fromBigInt",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-05",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo.CounterUpDownFmax state",
+          "reason": "Carry typed FMax state and initialization while concrete values use inherited literals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "initValue.constantBigInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-06",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo.CounterUpDownFmax state",
+          "reason": "Carry typed FMax state and initialization while concrete values use inherited literals.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "initValue.constantBigInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-07",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedStructure.captureEnabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedStructure.captureEnabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "formalOneStageBuffer",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedStructure.captureEnabled",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-11",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-12",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabD",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-13",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabWithExtraMsb.toElabInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-14",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth.isConcrete",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-15",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabWithExtraMsb.toElabInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-16",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "counterWidth.pow2",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-17",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "counterWidth.pow2",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-18",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "depthIsNotPow2.toElabInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-19",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "resized",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-20",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabW",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-21",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabWithExtraMsb",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-22",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabInt.literal",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-23",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-24",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typed_vec_write_target",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-25",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabD",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-26",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typed_storage_pop_index",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-27",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "elabDepth.isConcrete",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-28",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typed_depth_availability",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-29",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo storage algorithm",
+          "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ParameterizedStructure.captureInto",
+              "count": 4
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-30",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "formalStorageConditions",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-31",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typed_formal_last_push_previous_index",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-32",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "concreteFormalHelperAdapter",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-33",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "publishCapturedFormalChecks",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-34",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": ".vec",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-35",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "concreteFormalHelperAdapter",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-36",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "concreteFormalHelperAdapter",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-37",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "concreteFormalHelperAdapter",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-38",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typed_formal_predicate_count",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-39",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "requireSymbolicFormalOwnerCoverage",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-40",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifo formal helpers",
+          "reason": "Adapt the inherited FIFO formal-helper mechanics to exact symbolic owners without changing the concrete algorithms.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-ELAB-STREAMFIFO-FORMAL-DEPTH-DOMAIN-NONPOSITIVE",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-01",
+          "kind": "overload",
+          "owner": "spinal.lib.StreamFifoCC typed factories",
+          "reason": "Add typed StreamFifoCC factories with exact-domain validation, canonicalize only the invalid depth tail by legal-power-of-two bucket, and preserve the ordinary Int construction path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-STREAM-FIFO-CC-DEPTH-EXACT-DOMAIN-REQUIRED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private val TypedPointerWidthMinimum",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private def typedDepthFormalMaximum",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-02",
+          "kind": "overload",
+          "owner": "spinal.lib.StreamFifoCC connected typed factory",
+          "reason": "Connect typed cross-clock push and pop streams through the same native StreamFifoCC instance.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def apply[T <: Data](push : Stream[T], pop : Stream[T], depth: ElabInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-03",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamFifoCC private typed definition constructor",
+          "reason": "Retain exact typed depth behind a package-private definition constructor while moving the inherited buffered-reset default to the public Int auxiliary constructor.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] val elabDepth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-05",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamFifoCC legacy constructor and depth witness",
+          "reason": "Keep the legacy Int constructor descriptor and concrete depth accessor over the retained typed depth.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val depth: Int = elabDepth.witness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-06",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC occupancy geometry",
+          "reason": "Carry exact depth into both native push- and pop-domain occupancy widths.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "out UInt(log2Up(elabDepth + 1) bits)",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-07",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC pointer and full geometry",
+          "reason": "Carry exact pointer width through the native Gray-code full detector without witness-derived slices.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "stream_fifocc_full_mask",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC retained RegNextWhen",
+          "reason": "Preserve exact pointer geometry across the native conditional register operation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def retainedRegNextWhen",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC pointer arithmetic",
+          "reason": "Retain the exact pointer shape after native arithmetic operators.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def retainPointerWidth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC shared Gray encoder carrier",
+          "reason": "Materialize the shared Utils.toGray result through a stable exact pointer carrier without duplicating the codec.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def retainedToGray",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-11",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC shared Gray decoder carrier",
+          "reason": "Materialize the shared Utils.fromGray result through a stable exact pointer carrier without duplicating the codec.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def retainedFromGray",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-12",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC BufferCC child schema, shared algorithm carriers and memory geometry",
+          "reason": "Bind one canonical child WIDTH formal for each kept synchronizer, retain stable shared-algorithm references, mark the projected legal-depth ceiling used for native definition identity, and derive parameterized native Mem role ownership from exact depth or payload width.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def retainedBufferCC",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "private final class BuiltAlgorithm",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "spinal_stream_fifocc_legal_depth_ceiling",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val payloadWidth = widthOfExpr(io.push.payload)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val parameterizedMemoryRoles =",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "!elabDepth.isConcrete || !payloadWidth.isConcrete",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-native-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC shared native CDC algorithm",
+          "reason": "Build the RAM, push/pop clocking areas, Gray crossings, reset topology and aggregate write carrier once, using stable native Mem write roles whenever depth or payload width is symbolic while preserving the historical shorthand only when both are concrete.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val pushCC = new ClockingArea(pushClock) with PushCCMembers",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "withOptionalBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "allowMixedWidth = false",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "new BuiltAlgorithm(",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) null",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "Bits(payloadWidth bits)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (parameterizedMemoryRoles) writeData := io.push.payload.asBits",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (!parameterizedMemoryRoles) {",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-concrete-algorithm-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC concrete algorithm placement",
+          "reason": "Invoke the shared native body directly and restore its inherited root names so the ordinary Int lane remains byte-output compatible.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val built = buildNativeAlgorithm()",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "built.ram.setName(\"ram\")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-13",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC legal structural branch",
+          "reason": "Place the shared authoritative CDC algorithm only under legal power-of-two specializations and capture its exact structural owner.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val algorithm = depthIsLegal generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalAlgorithmOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-invalid-depth-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC invalid-depth structural branch",
+          "reason": "Keep every illegal depth specialization outside the CDC algorithm and drive an event-safe inert aggregate-capable interface under its own captured owner, using a retained exact-width zero carrier when the payload width is symbolic.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val invalidDepth = (!depthIsLegal) generate new Area",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "formalInvalidDepthOwner = ParameterizedStructure.currentOwner",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val popPayloadWidth = widthOfExpr(io.pop.payload)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_inert",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "stream_fifocc_invalid_payload_zero",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (retainedPayloadZero == null)",
+              "count": 2
+            },
+            {
+              "side": "approved",
+              "text": "else io.pop.payload.assignFromBits(retainedPayloadZero)",
+              "count": 2
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-binding-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC typed algorithm names and backing references",
+          "reason": "Give the legal and invalid generated owners stable names and bind the public backing references to the one legal algorithm body.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "algorithm.setName(\"algorithm\")",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ramBacking = algorithm.ram",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-14",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC public member aliases",
+          "reason": "Expose Scala identity aliases to the retained native members without adding hardware.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val ram: Mem[T] = ramBacking",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-15",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC formal depth bounds and concrete assertions",
+          "reason": "Construct exact depth-derived bounds for typed observations while retaining the inherited concrete push-, pop- and global-domain assertions on the Int path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def depthBoundLike",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "def formalAsserts(gclk: ClockDomain)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val popCheckClock",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-18",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC typed formal owner boundary",
+          "reason": "Replace the baseline module-owned push assertion by requiring the legal owner and, only for mixed legal domains, the invalid owner before proving complete typed formal observation coverage.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-STREAM-FIFO-CC-FORMAL-OWNER-MISSING",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "assert(pushCC.pushPtrGray === toGray(pushCC.pushPtr))",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-19",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC typed formal observations",
+          "reason": "Capture branch-local pointer invariants into stable module-scope observation signals for ordinary assertions.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "formal_stream_fifocc_push_checks",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val popCheckClock",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-cc-typed-20",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.StreamFifoCC remaining formal assertion replacement",
+          "reason": "Remove the remaining baseline pop- and global-domain module-owned assertion tail after those invariants move into legality-owner-captured typed observations.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "assert(popCC.popPtrGray === toGray(popCC.popPtr))",
+              "count": 1
+            },
+            {
+              "side": "baseline",
+              "text": "val globalArea = new ClockingArea(gclk)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-41",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamWidthAdapter width geometry",
+          "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabInt.requireSingleSymbolicRoot",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-42",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamWidthAdapter width geometry",
+          "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "factorExpr.constantInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-43",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamWidthAdapter width geometry",
+          "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "factorExpr.constantInt",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "stream-typed-geometry-44",
+          "kind": "signature",
+          "owner": "spinal.lib.StreamWidthAdapter width geometry",
+          "reason": "Retain exact payload-width expressions through the native StreamWidthAdapter factor calculation.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "StreamWidthAdapter",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/Utils.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/Utils.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57a: typed StreamFifoCC architecture",
+        "Increment 59b: native balanced-reduction capture boundary"
+      ],
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
+      "edits": [
+        {
+          "id": "gray-typed-width-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.toGray typed width retention",
+          "reason": "Carry exact packed width across the native shift, XOR and cast operations on the symbolic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val result = Bits(width bits).dontSimplifyIt()",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "gray-typed-width-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.fromGray typed decoder",
+          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SPINAL-FROM-GRAY-WIDTH-EXACT-DOMAIN-REQUIRED",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val maximumWidth = width.maximum",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "gray-typed-width-03",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.fromGray concrete decoder",
+          "reason": "Move the inherited concrete tail into the explicit concrete branch without changing it.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "ret.last := gray.msb",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "reduce-balanced-dispatch-59b",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.TraversableOncePimped.reduceBalancedTree",
+          "reason": "Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabBalancedReduction.reduce[T]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped owner-local buffered reset",
+          "reason": "Build the inherited buffered-reset topology without the global cache so sibling generated owners cannot share one structural child.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withBufferedResetFromUncached",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ResetCtrl.asyncAssertSyncDeassertCreateCd",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "clockdomain-optional-buffered-reset-uncached-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.ClockDomainPimped optional owner-local buffered reset",
+          "reason": "Select the owner-local buffered-reset path only when the existing optional reset control is enabled.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private[lib] def withOptionalBufferedResetFromUncached",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba3/ahblite/AhbLite3SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Route exact typed single-address mappings through the existing delayed AHB-Lite transaction decoder.",
+      "edits": [
+        {
+          "id": "ahb-lite-generic-mapping-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba3.ahblite.AhbLite3SlaveFactory.build",
+          "reason": "Add an ElabIntSingleMapping-only fallback beside the inherited optimized SingleMapping switch.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mapping.hit(addressDelay)",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "axi4-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory typed address policy",
+          "reason": "Expose the word alignment already imposed by the inherited masked read and write addresses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "axi4-lite-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory typed address policy",
+          "reason": "Expose the word alignment already imposed by the inherited masked read and write addresses.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/bram/BRAMSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Route exact typed single-address mappings through the existing one-cycle BRAM read and live write transaction paths.",
+      "edits": [
+        {
+          "id": "bram-generic-mapping-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.bram.BRAMSlaveFactory registered read decoder",
+          "reason": "Add an ElabIntSingleMapping-only fallback against the inherited registered read address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mapping.hit(address)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bram-generic-mapping-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.bram.BRAMSlaveFactory live write decoder",
+          "reason": "Extend the concrete-mapping filter only to ElabIntSingleMapping so unrelated mapping kinds retain their previous behavior.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " || address.isInstanceOf[ElabIntSingleMapping]",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
+      "edits": [
+        {
+          "id": "bus-slave-typed-alignment-policy-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address alignment",
+          "reason": "Default exact typed addresses to full byte decoding while allowing address-normalizing native factories to declare their existing low-bit policy.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "protected def typedAddressAlignmentBytes: Int = 1",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address validation",
+          "reason": "Validate a complete exact typed address domain against the native bus shape before any concrete or symbolic mapping is admitted.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "requireProjectedExactExtrema = true",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-02",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.read(ElabInt)",
+          "reason": "Add typed read arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, readAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-03",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.write(ElabInt)",
+          "reason": "Add typed write arities that validate first, delegate constants to the BigInt overload, and retain symbolic mappings for the existing primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val mapping = validatedTypedAddress(address, writeAddress())",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-04",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onWrite(ElabInt)",
+          "reason": "Add typed write-event arities over the ordinary halt-sensitive primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onWritePrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-05",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.onRead(ElabInt)",
+          "reason": "Add typed read-event arities over the ordinary halt-sensitive primitive path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "onReadPrimitive",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-06",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first write helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed write overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => write(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-07",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory address-first read helper",
+          "reason": "Mechanically forward typed address-first bit mappings to the reviewed typed read overload.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "bitMapping.foreach { case (bitId, that) => read(that, address, bitId) }",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-08",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory.readAndWrite(ElabInt)",
+          "reason": "Compose the typed read/write helper only from the two reviewed typed operations.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "def readAndWrite(that: Data, address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryDelayed read-overlap diagnostic",
+          "reason": "Render either concrete or typed single mappings without changing the inherited double-read overlap check.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case single: ElabIntSingleMapping",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "bus-slave-typed-address-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactoryAddressWrapper typed offsets",
+          "reason": "Retain typed authority through wrapper offset arithmetic so the underlying factory validates every final effective address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "Retain typed authority until after the wrapper offset is applied",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
+      "change": "modified",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping.",
+      "edits": [
+        {
+          "id": "typed-single-address-mapping-01",
+          "kind": "signature",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping",
+          "reason": "Add the exact generic mapping, domain safety checks, symbolic hit expression, offset propagation, and concrete-only operation guards.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "final case class ElabIntSingleMapping(address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "typed-single-address-mapping-02",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping source boundary",
+          "reason": "Record beside the inherited file terminator that the new helper remains generic rather than bus-family-specific.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/tilelink/SlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the native TileLink word-address normalization for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "tilelink-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.tilelink.SlaveFactory typed address policy",
+          "reason": "Expose the data-word alignment already imposed by the inherited shifted address.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "baseline_path": "lib/src/main/scala/spinal/lib/bus/wishbone/WishboneSlaveFactory.scala",
+      "change": "modified",
+      "classification": "mechanical-propagation",
+      "introduced_by": [
+        "Increment 57: broad native library migration and proof"
+      ],
+      "reason": "Declare the effective native Wishbone byte-address alignment for generic typed mappings without changing its transaction decoder.",
+      "edits": [
+        {
+          "id": "wishbone-typed-alignment-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.wishbone.WishboneSlaveFactory typed address policy",
+          "reason": "Derive the low-bit alignment already imposed by configured address granularity and byte-address reconstruction.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "typedAddressAlignmentBytes",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

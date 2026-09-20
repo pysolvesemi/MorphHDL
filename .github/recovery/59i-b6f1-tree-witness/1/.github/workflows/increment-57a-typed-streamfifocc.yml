@@ -1,0 +1,604 @@
+name: Increment 57a typed native StreamFifoCC depth and CDC proof
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-57a-*'
+  pull_request:
+    branches:
+      - parameterized-verilog
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-57a-typed-streamfifocc-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  route:
+    name: Route exact Increment 57a revision
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.route.outputs.run }}
+      base: ${{ steps.route.outputs.base }}
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Select the immutable comparison base
+        id: route
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          run=false
+          base=''
+          workflow=.github/workflows/increment-57a-typed-streamfifocc.yml
+
+          if [[ "$EVENT_NAME" == pull_request ]]; then
+            if ! git cat-file -e "$PR_BASE:$workflow" 2>/dev/null; then
+              base="$PR_BASE"
+              run=true
+            fi
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == agent/increment-57a-* ]]; then
+            git fetch --no-tags origin parameterized-verilog
+            base="$(git rev-parse origin/parameterized-verilog)"
+            git merge-base --is-ancestor "$base" HEAD
+            run=true
+          elif [[ "$EVENT_NAME" == push && "$REF_NAME" == parameterized-verilog ]]; then
+            if [[ ! "$BEFORE" =~ ^[0-9a-f]{40}$ || "$BEFORE" == 0000000000000000000000000000000000000000 ]]; then
+              printf '%s\n' 'parameterized-verilog push has no immutable prior revision' >&2
+              exit 1
+            fi
+            if ! git cat-file -e "$BEFORE:$workflow" 2>/dev/null; then
+              base="$BEFORE"
+              run=true
+            fi
+          fi
+
+          if [[ "$run" == true ]]; then
+            test -n "$base"
+            test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+            git merge-base --is-ancestor "$base" HEAD
+          fi
+          printf 'run=%s\n' "$run" >> "$GITHUB_OUTPUT"
+          printf 'base=%s\n' "$base" >> "$GITHUB_OUTPUT"
+
+  source-contract:
+    name: StreamFifoCC boundary and exact source contract
+    needs: route
+    if: needs.route.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate StreamFifoCC and inherited negative boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -x morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          bash -n morphhdl/scripts/check-native-streamfifocc-boundary.sh
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-streamfifocc-boundary.sh --check
+
+          test -x morphhdl/scripts/check-broad-native-library-migration-boundary.sh
+          bash -n morphhdl/scripts/check-broad-native-library-migration-boundary.sh
+          bash morphhdl/scripts/check-broad-native-library-migration-boundary.sh --self-test
+          bash morphhdl/scripts/check-broad-native-library-migration-boundary.sh --check
+
+          test -x morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+          bash -n morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+          bash morphhdl/scripts/check-native-typed-library-surface-boundary.sh --self-test
+          bash morphhdl/scripts/check-native-typed-library-surface-boundary.sh
+
+          python3 -m py_compile \
+            morphhdl/scripts/check-native-source-preservation.py \
+            morphhdl/scripts/check-production-retirement.py \
+            morphhdl/scripts/check-typed-layering-ir.py
+          python3 morphhdl/scripts/check-native-source-preservation.py
+          python3 morphhdl/scripts/check-production-retirement.py
+          python3 morphhdl/scripts/check-typed-layering-ir.py
+
+          bash -n morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+          bash -n morphhdl/scripts/check-external-formalization-boundary.sh
+          bash -n morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash -n morphhdl/scripts/check-external-memory-boundary.sh
+          bash -n morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          bash -n morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash -n morphhdl/scripts/check-typed-vec-boundary.sh
+          bash -n morphhdl/scripts/check-external-structural-process-boundary.sh
+          bash -n morphhdl-passes/scripts/test-boundary-guard.sh
+          bash -n morphhdl-passes/scripts/check-boundary.sh
+
+          bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
+          bash morphhdl/scripts/check-external-formalization-boundary.sh
+          bash morphhdl/scripts/check-typed-primitive-closure-boundary.sh
+          bash morphhdl/scripts/check-external-memory-boundary.sh
+          bash morphhdl/scripts/check-native-stream-width-adapter-boundary.sh
+          bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
+          bash morphhdl/scripts/check-typed-vec-boundary.sh
+          bash morphhdl/scripts/check-external-structural-process-boundary.sh
+          bash morphhdl-passes/scripts/test-boundary-guard.sh
+
+      - name: Verify the sealed exact Increment 57a delta
+        shell: bash
+        env:
+          BASE_COMMIT: ${{ needs.route.outputs.base }}
+        run: |
+          set -euo pipefail
+          scope=morphhdl/contracts/increment-57a-source-scope.txt
+          sentinel='# INCREMENT-57A-SOURCE-SCOPE-UNSEALED'
+          todo=docs/morphhdl/parameterized-verilog-todo.md
+          test -s "$scope"
+          if grep -Fqx "$sentinel" "$scope"; then
+            printf '%s\n' 'Increment 57a source scope is not sealed' >&2
+            exit 1
+          fi
+          test "$(cat "$scope")" = "$(LC_ALL=C sort -u "$scope")"
+          if grep -Eq '^[[:space:]]*$|^#|^/' "$scope"; then
+            printf '%s\n' \
+              'Increment 57a source scope must contain only repository-relative paths' >&2
+            exit 1
+          fi
+          while IFS= read -r path; do
+            test -e "$path"
+          done < "$scope"
+          test "$(grep -Ec '^- \[( |x)\] \*\*Increment 57a — Typed native StreamFifoCC depth and CDC proof\*\*$' "$todo")" = 1
+          grep -Fqx '  **Dependencies:** Increment 57a implemented and merged.' "$todo"
+
+          base="$BASE_COMMIT"
+          test -n "$base"
+          test "$(git rev-parse --verify "$base^{commit}")" = "$base"
+          git merge-base --is-ancestor "$base" HEAD
+          TODO_PATH="$todo" python3 - <<'PY'
+          import os
+          import subprocess
+
+          base = os.environ["BASE_COMMIT"]
+          path = os.environ["TODO_PATH"]
+          unchecked = "- [ ] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**"
+          checked = unchecked.replace("[ ]", "[x]", 1)
+
+          def blob(revision):
+              return subprocess.run(
+                  ["git", "show", f"{revision}:{path}"],
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  text=True,
+              ).stdout
+
+          before = blob(base)
+          after = blob("HEAD")
+          if unchecked in before or checked in before:
+              valid = before == after or (
+                  before.count(unchecked) == 1
+                  and after.count(checked) == 1
+                  and before.replace(unchecked, checked, 1) == after
+              )
+              if not valid:
+                  raise SystemExit(
+                      "roadmap delta must be empty or exactly the Increment 57a checkbox transition"
+                  )
+          else:
+              old_graph = """- Increments 54 through 58 then form a strict sequential consolidation,
+            compatibility, migration and retirement chain.
+          """
+              new_graph = """- Increments 54 through 57 form the strict consolidation, compatibility and
+            broad-migration chain. Increment 57a follows merged Increment 57 to close the
+            reviewed native `StreamFifoCC` CDC surface; Increment 58 remains blocked until
+            merged Increment 57a establishes typed parity.
+          """
+              old_tail = """- [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+            **Dependencies:** Increment 57 implemented and merged.
+          """
+              new_tail = """- [ ] **Increment 57a — Typed native StreamFifoCC depth and CDC proof**
+
+            **Dependencies:** Increment 57 implemented and merged.
+
+            Migrate the real native `StreamFifoCC` depth path, both companion entry
+            points, and the ordinary `Stream.queue(..., pushClock, popClock)` and
+            `queueWithPushOccupancy` helpers to `ElabInt`. Retain every existing `Int`
+            API and descriptor and keep the native dual-clock Gray-pointer, memory,
+            synchronizer and reset-buffering algorithm as the sole implementation.
+            Preserve the exact legal power-of-two depth subset through the child formal,
+            RAM depth, pointer/address and occupancy widths, Gray-code comparisons and
+            formal helpers. A parameter range may contain non-power-of-two values only
+            when generated structural guards exclude them from the FIFO algorithm and
+            fail closed for those overrides; witness-only legality is not sufficient.
+
+            Prove one deterministic parameterized definition per static reset topology
+            at depths 2, 4, 8 and 16 against independently elaborated ordinary
+            `SpinalVerilog` witnesses under faster-push and faster-pop clock schedules.
+            Require concrete parity, dual-Scala compilation, asynchronous-clock
+            simulation, strict Verilog-2001 lint and synthesis, sequential formal
+            equivalence, a live mutation counterexample and the approved-native-change
+            audit. Clock domains, `withPopBufferedReset`, synchronizer metadata and CDC
+            topology remain static. Do not add a separately authored FIFO, native-`Int`
+            shadow reconstruction, component/source/emitted-name recognition, or a
+            copied CDC algorithm.
+
+          - [ ] **Increment 58 — Legacy adapter and shadow-path retirement**
+
+            **Dependencies:** Increment 57a implemented and merged.
+          """
+              expected = before
+              for old, new, label in (
+                  (old_graph, new_graph, "typed dependency graph"),
+                  (old_tail, new_tail, "Increment 57a roadmap entry"),
+              ):
+                  if expected.count(old) != 1:
+                      raise SystemExit(f"base roadmap has no unique {label} insertion point")
+                  expected = expected.replace(old, new, 1)
+              valid = after == expected or after == expected.replace(unchecked, checked, 1)
+              if not valid:
+                  raise SystemExit(
+                      "roadmap delta must be exactly the reviewed Increment 57a insertion, optionally followed by its checkbox transition"
+                  )
+          PY
+
+          actual="$(git diff --no-renames --name-only --diff-filter=ACMRTD \
+            "$base"...HEAD \
+            | awk '$0 != "docs/morphhdl/parameterized-verilog-todo.md"' \
+            | LC_ALL=C sort -u)"
+          expected="$(cat "$scope")"
+          if [[ "$actual" != "$expected" ]]; then
+            printf '%s\n' 'Unexpected Increment 57a file inventory' >&2
+            printf '%s\n' '--- expected ---' "$expected" >&2
+            printf '%s\n' '--- actual ---' "$actual" >&2
+            exit 1
+          fi
+          git diff --check "$base"...HEAD
+
+  focused-streamfifocc:
+    name: Focused typed StreamFifoCC Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Run frontend typed-ingress tests
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "frontend/testOnly morphhdl.frontend.HdlIntTests morphhdl.frontend.HdlBoolTests"
+
+      - name: Run typed StreamFifoCC and inherited geometry suites
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeStreamFifoCCCdcProofTests morphhdl.NativeLibraryReuseTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.TypedElaborationValueTests spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.HierarchyParameterBindingTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morphplugin/testOnly morphhdl.compiler.MorphHdlTypedElaborationControlComponentTests morphhdl.compiler.MorphHdlFrontendSymbolicEqualitySafetyComponentTests"
+
+  compatibility:
+    name: Binary source and concrete parity Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Prove JVM compatibility with the selected upstream baseline
+        run: >-
+          bash morphhdl/scripts/check-binary-compatibility.sh
+          --scala-version "${{ matrix.scala_version }}"
+
+      - name: Prove source linkage and ordinary SpinalVerilog parity
+        run: >-
+          bash morphhdl/scripts/check-concrete-spinalverilog-parity.sh
+          --scala "${{ matrix.scala_version }}"
+
+  sbt-full:
+    name: SBT full suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Compile every production and test source
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+
+      - name: Run frontend canonical IR MorphHDL and native CDC simulation suites
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" frontend/test
+          sbt -batch "++${{ matrix.scala_version }}" morphir/test
+          sbt -batch "++${{ matrix.scala_version }}" morph/test
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterTester spinal.lib.SpinalSimStreamFifoTester spinal.lib.SpinalSimStreamFifoCCTester spinal.lib.SpinalSimStreamWidthAdapterTester"
+
+      - name: Package production modules and prove retired classes absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          sbt -batch "++${{ matrix.scala_version }}" \
+            frontend/package idslplugin/package morphir/package morphruntime/package morphplugin/package morph/package
+          mapfile -t jars < <(find frontend idslplugin morphir morphruntime morphplugin morphhdl \
+            -regextype posix-extended -type f \
+            -regex '.*/target/scala-[^/]+/[^/]+\.jar' | LC_ALL=C sort -u)
+          test "${#jars[@]}" -ge 6
+          arguments=()
+          for jar in "${jars[@]}"; do
+            arguments+=(--jar "$jar")
+          done
+          python3 morphhdl/scripts/check-production-retirement.py \
+            --require-jar "${arguments[@]}"
+          python3 morphhdl/scripts/check-typed-layering-ir.py \
+            --require-jar "${arguments[@]}"
+
+  mill-full:
+    name: Mill full suite Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install pinned Mill
+        run: |
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/mill
+          chmod +x /tmp/mill
+
+      - name: Run complete frontend canonical IR MorphHDL and native CDC suites
+        run: |
+          /tmp/mill frontend[${{ matrix.scala_version }}].test
+          /tmp/mill morphir[${{ matrix.scala_version }}].test
+          /tmp/mill morph[${{ matrix.scala_version }}].test
+          /tmp/mill tester[${{ matrix.scala_version }}].testOnly \
+            spinal.lib.CounterTester \
+            spinal.lib.SpinalSimStreamFifoTester \
+            spinal.lib.SpinalSimStreamFifoCCTester \
+            spinal.lib.SpinalSimStreamWidthAdapterTester
+
+  v2001-and-formal:
+    name: V2001 CDC and formal gates Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+      MORPHDL_RUN_STREAMFIFOCC_CDC_PROOF: '1'
+      MORPHDL_RUN_STREAMFIFOCC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_VEC_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_TYPED_PRIMITIVE_CLOSURE_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_STREAMFIFO_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_LIBRARY_MIGRATION_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_RUN_NATIVE_AXI4_FORMAL_EQUIVALENCE: '1'
+      MORPHDL_STREAMFIFOCC_CDC_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc-cdc
+      MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifocc
+      MORPHDL_TYPED_VEC_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/vec
+      MORPHDL_TYPED_PRIMITIVE_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/closure
+      MORPHDL_STREAMFIFO_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/streamfifo
+      MORPHDL_NATIVE_LIBRARY_MIGRATION_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/library-migration
+      MORPHDL_NATIVE_AXI4_FORMAL_WORKSPACE: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/axi4
+      MORPHDL_NATIVE_AXI4_ARTIFACT_DIR: ${{ github.workspace }}/formal-artifacts/scala-${{ matrix.scala_version }}/axi4-rtl
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Verify strict and formal toolchains
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v verilator
+          command -v iverilog
+          command -v vvp
+          command -v yosys
+          command -v sby
+          command -v yices-smt2
+          command -v ghdl
+          verilator --version
+          iverilog -V
+          ghdl --version
+          yosys_version="$(yosys -V)"
+          grep -Eq '^Yosys 0\.41([ +]|$)' <<<"$yosys_version"
+          sby_help="$(sby -h 2>&1)"
+          grep -q 'usage: sby' <<<"$sby_help"
+          yosys -Q -p 'help abc' >/tmp/morphhdl-yosys-abc-help.txt 2>&1
+          grep -q ABC /tmp/morphhdl-yosys-abc-help.txt
+
+      - name: Run strict Verilog-2001 contracts and StreamFifoCC CDC proof
+        run: |
+          mkdir -p target/morphhdl/phase-inventory
+          mkdir -p "${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}"
+          mkdir -p "${MORPHDL_STREAMFIFOCC_CDC_WORKSPACE}"
+          mkdir -p "${MORPHDL_STREAMFIFOCC_FORMAL_WORKSPACE}"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "core/Test/runMain spinal.core.internals.ValidationParityInventoryWriter --output ${GITHUB_WORKSPACE}/target/morphhdl/phase-inventory/validation-phase-ids.txt"
+          bash morphhdl/scripts/check-contracts.sh \
+            --require-tools \
+            --live-phase-ids target/morphhdl/phase-inventory/validation-phase-ids.txt
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeStreamFifoCCCdcProofTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests spinal.core.TypedPrimitiveClosureTests morphhdl.TypedParameterizedVecTests morphhdl.NativeLibraryReuseTests"
+
+      - name: Validate representative bus RTL with strict Verilog-2001 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          parameterized="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_parameterized.v"
+          concrete64="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_top.v"
+          concrete36="${MORPHDL_NATIVE_AXI4_ARTIFACT_DIR}/native_axi4_concrete_block.v"
+          test -s "$parameterized"
+          test -s "$concrete64"
+          test -s "$concrete36"
+
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeAxi4SlaveFactoryParameterizedTop \
+            -o /tmp/native_axi4_parameterized_default.vvp \
+            "$parameterized"
+          iverilog -g2001 -Wall -Wimplicit \
+            -P NativeAxi4SlaveFactoryParameterizedTop.OFFSET_WORD=20 \
+            -s NativeAxi4SlaveFactoryParameterizedTop \
+            -o /tmp/native_axi4_parameterized_offset_80.vvp \
+            "$parameterized"
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeConcreteAxi4SlaveFactoryTopOffset64 \
+            -o /tmp/native_axi4_concrete_64.vvp \
+            "$concrete64"
+          iverilog -g2001 -Wall -Wimplicit \
+            -s NativeConcreteAxi4SlaveFactoryTopOffset36 \
+            -o /tmp/native_axi4_concrete_36.vvp \
+            "$concrete36"
+
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeAxi4SlaveFactoryParameterizedTop \
+            "$parameterized"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            -GOFFSET_WORD=20 \
+            --top-module NativeAxi4SlaveFactoryParameterizedTop \
+            "$parameterized"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeConcreteAxi4SlaveFactoryTopOffset64 \
+            "$concrete64"
+          verilator --lint-only --language 1364-2001 -Wall -Wno-fatal \
+            --top-module NativeConcreteAxi4SlaveFactoryTopOffset36 \
+            "$concrete36"
+
+          yosys -q -p "read_verilog -noautowire $parameterized; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $parameterized; chparam -set OFFSET_WORD 20 NativeAxi4SlaveFactoryParameterizedTop; hierarchy -check -top NativeAxi4SlaveFactoryParameterizedTop; proc; opt; check -assert; synth -top NativeAxi4SlaveFactoryParameterizedTop; check -assert"
+          yosys -q -p "read_verilog -noautowire $concrete64; hierarchy -check -top NativeConcreteAxi4SlaveFactoryTopOffset64; proc; opt; check -assert; synth -top NativeConcreteAxi4SlaveFactoryTopOffset64; check -assert"
+          yosys -q -p "read_verilog -noautowire $concrete36; hierarchy -check -top NativeConcreteAxi4SlaveFactoryTopOffset36; proc; opt; check -assert; synth -top NativeConcreteAxi4SlaveFactoryTopOffset36; check -assert"
+
+      - name: Prove StreamFifoCC and inherited typed equivalence with mutation sensitivity
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.NativeStreamFifoCCFormalEquivalenceTests morphhdl.NativeLibraryMigrationFormalEquivalenceTests morphhdl.NativeAxi4SlaveFactoryFormalEquivalenceTests morphhdl.TypedStreamWidthAdapterFormalEquivalenceTests morphhdl.TypedParameterizedVecFormalEquivalenceTests morphhdl.TypedPrimitiveClosureFormalEquivalenceTests morphhdl.NativeStreamFifoFormalEquivalenceTests"
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "tester/testOnly spinal.lib.CounterFormalTester spinal.tester.scalatest.FormalFifoCCTester"
+
+      - name: Retain formal proof statuses mutation counterexamples and strict RTL
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-57a-formal-scala-${{ matrix.scala_version }}
+          path: formal-artifacts/scala-${{ matrix.scala_version }}
+          if-no-files-found: error
+          retention-days: 14
+
+  determinism:
+    name: StreamFifoCC typed and concrete determinism Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Prove byte-identical replay and concrete preservation
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.NativeStreamFifoCCParameterizedTests morphhdl.NativeLibraryReuseTests morphhdl.NativeLibraryMigrationTests morphhdl.NativeAxi4SlaveFactoryParameterizedOffsetTests morphhdl.ExternalHierarchyBoolLiteralBindingTests morphhdl.NativeTypedLibraryCallSurfaceTests'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphVerilogTests -- -z "repeated successful runs are byte-identical"'
+          sbt -batch "++${{ matrix.scala_version }}" \
+            'morph/testOnly morphhdl.MorphSingleSourceVerilogTests morphhdl.StreamFifoCompatibilityTests'
+
+  closure:
+    name: Increment 57a canonical closure
+    if: always() && (needs.route.result != 'success' || needs.route.outputs.run == 'true')
+    needs:
+      - route
+      - source-contract
+      - focused-streamfifocc
+      - compatibility
+      - sbt-full
+      - mill-full
+      - v2001-and-formal
+      - determinism
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every canonical gate
+        env:
+          ROUTE: ${{ needs.route.result }}
+          SOURCE: ${{ needs.source-contract.result }}
+          FOCUSED: ${{ needs.focused-streamfifocc.result }}
+          COMPATIBILITY: ${{ needs.compatibility.result }}
+          SBT: ${{ needs.sbt-full.result }}
+          MILL: ${{ needs.mill-full.result }}
+          V2001_FORMAL: ${{ needs.v2001-and-formal.result }}
+          DETERMINISM: ${{ needs.determinism.result }}
+        run: |
+          test "$ROUTE" = success
+          test "$SOURCE" = success
+          test "$FOCUSED" = success
+          test "$COMPATIBILITY" = success
+          test "$SBT" = success
+          test "$MILL" = success
+          test "$V2001_FORMAL" = success
+          test "$DETERMINISM" = success

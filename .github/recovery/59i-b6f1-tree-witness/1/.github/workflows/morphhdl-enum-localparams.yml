@@ -1,0 +1,119 @@
+name: MorphHDL SCREAMING_SNAKE_CASE module-local SpinalEnum parameters and formal equivalence
+
+# Increment 53b.1 refines Increment 53b enum constants to deterministic
+# SCREAMING_SNAKE_CASE in MorphHDL-owned publication code and formally proves
+# equivalence to the untouched native macro implementation. One-hot encoded
+# values and their _OH_ID bit-index helpers are both retained.
+on:
+  push:
+    branches:
+      - main
+      - parameterized-verilog
+  pull_request:
+    branches:
+      - main
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-enum-localparams-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source-boundary:
+    name: MorphHDL-only SCREAMING_SNAKE_CASE enum source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out complete history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Validate the native-source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f morphhdl/contracts/typed-native-source-overlay.json ]]; then
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          else
+            python3 morphhdl/scripts/check-native-source-preservation.py
+          fi
+          test -f morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'toScreamingSnake(nativeName)' \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'AcronymToWordBoundary' \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'LowerOrDigitToUpperBoundary' \
+            morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala
+          grep -Fq 'INC53B1_AXI4_READ_STATE_WAIT_RESP' \
+            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
+          grep -Fq 'MorphHdlExternalEnumLocalizer.rewrite(pc)' \
+            morphhdl/src/main/scala/morphhdl/MorphVerilog.scala
+          grep -Fq 'equiv_induct -undef -seq 8' \
+            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
+          grep -Fq 'equiv_status -assert' \
+            morphhdl/src/test/scala/morphhdl/SpinalEnumLocalParameterTests.scala
+          if [[ ! -f morphhdl/contracts/typed-native-source-overlay.json && -n "${GITHUB_BASE_REF:-}" ]]; then
+            git fetch --no-tags origin "${GITHUB_BASE_REF}:refs/remotes/origin/${GITHUB_BASE_REF}"
+            changed="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")"
+            if grep -Eq '^(core|lib|idslplugin)/src/main/' <<<"${changed}"; then
+              echo "Increment 53b.1 must not modify native SpinalHDL production sources" >&2
+              grep -E '^(core|lib|idslplugin)/src/main/' <<<"${changed}" >&2
+              exit 1
+            fi
+          fi
+
+  contracts:
+    name: SCREAMING_SNAKE_CASE enum formal-equivalence proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    container:
+      image: ghcr.io/spinalhdl/docker:latest
+    env:
+      XDG_CACHE_HOME: /tmp/morphhdl-cache
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version:
+          - "2.12.18"
+          - "2.13.12"
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Verify formal tool availability
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v yosys
+          yosys -V
+
+      - name: Install pinned Mill bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://repo.maven.apache.org/maven2/com/lihaoyi/mill-dist/1.1.0/mill-dist-1.1.0.exe \
+            --output /tmp/morphhdl-mill
+          chmod +x /tmp/morphhdl-mill
+
+      - name: Validate SCREAMING_SNAKE_CASE enum localization, formal equivalence and inherited publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          /tmp/morphhdl-mill morph[${{ matrix.scala_version }}].testOnly \
+            morphhdl.SpinalEnumLocalParameterTests \
+            morphhdl.MorphSingleSourceVerilogTests \
+            morphhdl.integration.ExternalSpinalVerilogBaselineTests

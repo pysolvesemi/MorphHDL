@@ -1,0 +1,215 @@
+{
+  "baseline": "125eec24465bb8576e517865089c71bf3cb0448a",
+  "baseline_sources": {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala": "040988075fc1944efabbe98dfa606845039df3b56991c7788dca87709057e558",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala": "1946882af38c058829564faa5d0f7967209e8efd1ab8cfe3d26060ec206a2cda",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala": "e8ae9bdd4ae8bfb9ffd168a62a7a77578ae54b14cee3291b199d90899d1a4f1e",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "fa6006e938c2cebbaba7fc8fb918fdf86550d045ed3c6f247d80adcd8982ac35",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala": "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala": "80b78210d7e44f3d4ee435cbaa60c5a183fef926eb560fae86658dd10137d6f5",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala": "79addbe8224703e70b64aa35fcc3bd3f92a170e036261f5df7133eb1efc642a6",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala": "001e523673815bfcff0f179f2fca712e602630e6ea79b7d17eae24de1cd6c3bf",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/adapter/CanonicalIrPassAdapterSpec.scala": "90a475505e7dea1c88f3d7f0c41f73d22a356e6010e22c49638b851c2586e165",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala": "0edbab2e046de569704b3a9f1a75f06f141355bbb05c707d33c798e45630047b",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/PassContractsSpec.scala": "c7de69bec74c59a733c74d12bb4437493c3c5f576076b2fd5ce90c93c2871954",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAliasPassPipelineSpec.scala": "a28b291fd9ce32cdd3ceee2e70d8a63d26e4967fc9a9858f67dcdcc40d4ec9e6",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala": "3df37c00ddb4051d741cca2d6074f01928b30a28e241850e8f9e41bb06990a66",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "08918b89d21191cc02d5809063c14dccba5d47a746736c6ff83a87715618da62",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFixedPointSpec.scala": "13afc88faaa7154ede941f51c100c59201bf8b5299a4053aa145258bcf28edd3",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFourStateSpec.scala": "38a9a28062c30c4acbff31568cbcd162d115e710bd4dd7ff835aa2569fd4d4c2",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandSimplificationPassSpec.scala": "1d854902e57fd4b85d5994f122338ca5e49985df77c684a29ec28c712a131a06",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": "2e9963e8dd58cfa0e3c5cd0bae2199b006754e29e9e7e14e016e43ae772bf492",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala": "060bc771c7490fa475fcb080e603929a8d1fb702b4ad3a2e5a4601ab27b5f75f",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionAlgebraSpec.scala": "dfc344581e4fd0f047aeb081b500ac56e16e80ba9cd30ed8ae79a10ddf46e34a",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPassSpec.scala": "256d049840a79b00be6a0bad35f64d0ab31a49ef3607115f11f8946853463d12",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala": "f161f883ecba691ace077855ef0f86b3f9c64bb464c0142bac4ee9183652af5c"
+  },
+  "checker_adapters": [
+    {
+      "after_sha256": "7060f6c1d445ba90d1bd70a56a84eb2e3bf2be16ea4f69b128a97976f3c263ec",
+      "before_sha256": "ed7a5e325c9614639582e3cf45586cca1ae2ed3515e0ea97aafc78282f332daf",
+      "edits": [
+        {
+          "after": "import importlib.util\n",
+          "after_end": 538,
+          "after_start": 516,
+          "before": "",
+          "before_end": 516,
+          "before_start": 516
+        },
+        {
+          "after": "def boolean_ternary_review(root: Path):\n    \"\"\"An independently sealed pass successor; absence retains historical audits.\"\"\"\n    path = root / \"morphhdl/scripts/check-wa07b-inherited-review.py\"\n    if not (path.exists() or path.is_symlink()):\n        return None\n    require(path.is_file() and not path.is_symlink(), \"missing regular WA-07b inherited reviewer\")\n    spec = importlib.util.spec_from_file_location(\"wa07b_inherited_review\", path)\n    require(spec is not None and spec.loader is not None, \"cannot load WA-07b inherited reviewer\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n",
+          "after_end": 11060,
+          "after_start": 10410,
+          "before": "",
+          "before_end": 10388,
+          "before_start": 10388
+        },
+        {
+          "after": "    ternary = boolean_ternary_review(root)\n    if ternary is not None:\n        source = ternary.restore_adapter(root, path, source)\n",
+          "after_end": 11255,
+          "after_start": 11123,
+          "before": "",
+          "before_end": 10451,
+          "before_start": 10451
+        },
+        {
+          "after": "            current = source.read_text()\n            ternary = boolean_ternary_review(root)\n            if ternary is not None:\n                current = ternary.restore_adapter(root, relative, current)\n            restore_reviewed(entries[relative], baseline_source(root, relative), current.encode())\n",
+          "after_end": 12539,
+          "after_start": 12237,
+          "before": "            restore_reviewed(entries[relative], baseline_source(root, relative), source.read_bytes())\n",
+          "before_end": 11535,
+          "before_start": 11433
+        },
+        {
+          "after": "    paths = production_changes(root, BASE)\n    ternary = boolean_ternary_review(root)\n    if ternary is not None:\n        paths = ternary.inherited_inventory(root, paths, BASE)\n    require_production_inventory(paths)\n",
+          "after_end": 12790,
+          "after_start": 12573,
+          "before": "    require_production_inventory(production_changes(root, BASE))\n",
+          "before_end": 11634,
+          "before_start": 11569
+        }
+      ],
+      "path": "morphhdl/scripts/check-increment-59g-source-review.py"
+    },
+    {
+      "after_sha256": "dce1cdfb667fb51e0ba7d7312d2ff25b4ebe97281f6012a93aae9e8396e0c7ec",
+      "before_sha256": "e896811d5426d54d02002721029a0f21952d0f34b3e94fadd3f6f9de941de5a6",
+      "edits": [
+        {
+          "after": "    reviewer = root / \"morphhdl/scripts/check-wa07b-inherited-review.py\"\n    if reviewer.exists() or reviewer.is_symlink():\n        require(reviewer.is_file() and not reviewer.is_symlink(), \"missing regular WA-07b inherited reviewer\")\n        spec = importlib.util.spec_from_file_location(\"wa07b_owner_review\", reviewer)\n        require(spec is not None and spec.loader is not None, \"cannot load WA-07b inherited reviewer\")\n        ternary = importlib.util.module_from_spec(spec)\n        spec.loader.exec_module(ternary)\n        paths = ternary.inherited_inventory(root, paths, qualification_base)\n",
+          "after_end": 10071,
+          "after_start": 9473,
+          "before": "",
+          "before_end": 9473,
+          "before_start": 9473
+        }
+      ],
+      "path": "morphhdl/scripts/check-increment-59h-source-review.py"
+    },
+    {
+      "after_sha256": "341c12f429852042b5e16e96219127ae36325252ede5918b135a7a49e407fa0a",
+      "before_sha256": "9d6cda8778401908798b94c3334f315b0a95fe42e419dbc425f892ea31eb1b18",
+      "edits": [
+        {
+          "after": "    if profile.endswith(\"-and-wa07b\"):\n        inherited = profile_features(profile[:-len(\"-and-wa07b\")])\n        require(\"wa07a\" in inherited and \"wa07b\" not in inherited,\n                \"WA-07b requires one complete historical WA-07a profile\")\n        return inherited | frozenset((\"wa07b\",))\n",
+          "after_end": 18634,
+          "after_start": 18338,
+          "before": "",
+          "before_end": 18338,
+          "before_start": 18338
+        },
+        {
+          "after": "def boolean_ternary_review(root: Path):\n    \"\"\"An independently sealed pass successor; absence retains historical audits.\"\"\"\n    path = root / \"morphhdl/scripts/check-wa07b-inherited-review.py\"\n    if not (path.exists() or path.is_symlink()):\n        return None\n    require(path.is_file() and not path.is_symlink(), \"missing regular WA-07b inherited reviewer\")\n    spec = importlib.util.spec_from_file_location(\"wa07b_inherited_review\", path)\n    require(spec is not None and spec.loader is not None, \"cannot load WA-07b inherited reviewer\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n",
+          "after_end": 23242,
+          "after_start": 22592,
+          "before": "",
+          "before_end": 22296,
+          "before_start": 22296
+        },
+        {
+          "after": "    ternary = boolean_ternary_review(root)\n    ternary_enabled = ternary.verify(root) if ternary is not None else False\n",
+          "after_end": 23796,
+          "after_start": 23676,
+          "before": "",
+          "before_end": 22730,
+          "before_start": 22730
+        },
+        {
+          "after": "    if ternary_enabled:\n        changed = ternary.inherited_inventory(root, changed, BASE)\n",
+          "after_end": 24580,
+          "after_start": 24489,
+          "before": "",
+          "before_end": 23423,
+          "before_start": 23423
+        },
+        {
+          "after": "        if ternary_enabled:\n            source_bytes = ternary.restore_pass_source(root, path, source_bytes)\n",
+          "after_end": 30385,
+          "after_start": 30276,
+          "before": "",
+          "before_end": 29119,
+          "before_start": 29119
+        },
+        {
+          "after": "    if ternary_enabled:\n        require(\"wa07a\" in profile_features(profile), \"WA-07b cannot replace the inherited WA-07a profile\")\n        profile += \"-and-wa07b\"\n",
+          "after_end": 31939,
+          "after_start": 31775,
+          "before": "",
+          "before_end": 30509,
+          "before_start": 30509
+        }
+      ],
+      "path": "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
+    },
+    {
+      "after_sha256": "4e558659339128eee54643664a0efa2f745c32c5bddf4e5ac52c550a4d1adc9c",
+      "before_sha256": "decc59c1c7c3570f5973f25f53965ca17c66620230b51d17dc58c7235d40cb20",
+      "edits": [
+        {
+          "after": "    if \"wa07b\" in features:\n        require(\"wa07a\" in features, \"WA-07b suite obligations require WA-07a\")\n        reviewed = {'morphhdl.passes.adapter.CanonicalIrPassAdapterSpec': 9, 'morphhdl.passes.api.AllPassConfigurationSpec': 5, 'morphhdl.passes.api.NativeRunnerSourceClosureSpec': 3, 'morphhdl.passes.api.PassContractsSpec': 8, 'morphhdl.passes.pipeline.WireAliasPassPipelineSpec': 9, 'morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec': 6, 'morphhdl.passes.safety.WireAliasSafetyGateSpec': 20, 'morphhdl.passes.transform.BooleanTernaryFourStateSpec': 4, 'morphhdl.passes.transform.BooleanTernarySimplificationPassSpec': 14, 'morphhdl.passes.transform.ConstantOperandFixedPointSpec': 2, 'morphhdl.passes.transform.ConstantOperandFourStateSpec': 3, 'morphhdl.passes.transform.ConstantOperandSimplificationPassSpec': 14, 'morphhdl.passes.transform.NamedWireAliasEliminationPassSpec': 13, 'morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionAlgebraSpec': 1, 'morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec': 12, 'morphhdl.passes.transform.UnnamedWireExpressionSelectionSafetySpec': 9}\n        require(suites[\"morphhdl-passes\"] < set(reviewed),\n                \"WA-07b must preserve every historical pass suite\")\n        suites[\"morphhdl-passes\"] = frozenset(reviewed)\n        counts[\"morphhdl-passes\"] = (sum(reviewed.values()), len(reviewed))\n        extension[\"morphhdl-passes\"] = reviewed\n",
+          "after_end": 27593,
+          "after_start": 26102,
+          "before": "",
+          "before_end": 26102,
+          "before_start": 26102
+        }
+      ],
+      "path": "morphhdl/scripts/check-increment-60f-artifacts.py"
+    }
+  ],
+  "pass_suites": {
+    "morphhdl.passes.adapter.CanonicalIrPassAdapterSpec": 9,
+    "morphhdl.passes.api.AllPassConfigurationSpec": 5,
+    "morphhdl.passes.api.NativeRunnerSourceClosureSpec": 3,
+    "morphhdl.passes.api.PassContractsSpec": 8,
+    "morphhdl.passes.pipeline.WireAliasPassPipelineSpec": 9,
+    "morphhdl.passes.pipeline.WireAssignmentAllPassPipelineSpec": 6,
+    "morphhdl.passes.safety.WireAliasSafetyGateSpec": 20,
+    "morphhdl.passes.transform.BooleanTernaryFourStateSpec": 4,
+    "morphhdl.passes.transform.BooleanTernarySimplificationPassSpec": 14,
+    "morphhdl.passes.transform.ConstantOperandFixedPointSpec": 2,
+    "morphhdl.passes.transform.ConstantOperandFourStateSpec": 3,
+    "morphhdl.passes.transform.ConstantOperandSimplificationPassSpec": 14,
+    "morphhdl.passes.transform.NamedWireAliasEliminationPassSpec": 13,
+    "morphhdl.passes.transform.UnnamedWireAliasEliminationPassSpec": 12,
+    "morphhdl.passes.transform.UnnamedWireExpressionAlgebraSpec": 1,
+    "morphhdl.passes.transform.UnnamedWireExpressionEliminationPassSpec": 12,
+    "morphhdl.passes.transform.UnnamedWireExpressionSelectionSafetySpec": 9
+  },
+  "production_delta": [
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala"
+  ],
+  "qualified_pass_commit": "8b28792ff27466b3f9b31df52b8916bc493e8f66",
+  "schema_version": 1,
+  "ternary_sources": {
+    "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala": "040988075fc1944efabbe98dfa606845039df3b56991c7788dca87709057e558",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala": "4caad5ad946df553b0c6a9649e0a3329abd230783145ece7991b73dabcd0ea8a",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala": "9658543584ac619ff1fb652c2921ddc388e28688effc3fb4f185a5e6e89c5f8a",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": "fa6006e938c2cebbaba7fc8fb918fdf86550d045ed3c6f247d80adcd8982ac35",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala": "e8b53ace5e8ad06d897af541744ca15a8c0fdef12b95968d45ebe777c5fc5e6a",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala": "40a754b3b8029b9cbe047a92e35ef850f644f2b6a941f15cb69786c2b4b30b71",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala": "80b78210d7e44f3d4ee435cbaa60c5a183fef926eb560fae86658dd10137d6f5",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala": "79addbe8224703e70b64aa35fcc3bd3f92a170e036261f5df7133eb1efc642a6",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala": "001e523673815bfcff0f179f2fca712e602630e6ea79b7d17eae24de1cd6c3bf",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/adapter/CanonicalIrPassAdapterSpec.scala": "90a475505e7dea1c88f3d7f0c41f73d22a356e6010e22c49638b851c2586e165",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala": "6c03ec57a44049abc5314144d7efc5583ef247ece30caceddecc80e4cd7167fa",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/NativeRunnerSourceClosureSpec.scala": "4d8bd34a70d51e6124f1d9264c66f8b906cef2f3a38a9999b77d51f058f4609e",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/PassContractsSpec.scala": "c7de69bec74c59a733c74d12bb4437493c3c5f576076b2fd5ce90c93c2871954",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAliasPassPipelineSpec.scala": "a28b291fd9ce32cdd3ceee2e70d8a63d26e4967fc9a9858f67dcdcc40d4ec9e6",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala": "f2d89807c433bba891c4420b0ed7414553f72629859f1cd7cf75d32b892ad590",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": "08918b89d21191cc02d5809063c14dccba5d47a746736c6ff83a87715618da62",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernaryFourStateSpec.scala": "e1565e0cd9523b7b406fbe523803af1257ca957a0cb5caa52e2cbef29f1cf793",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala": "e866bfcea56c7d53fa51b4632949b206198bfbfe4456fad4ba62ceeadd146502",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFixedPointSpec.scala": "13afc88faaa7154ede941f51c100c59201bf8b5299a4053aa145258bcf28edd3",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFourStateSpec.scala": "38a9a28062c30c4acbff31568cbcd162d115e710bd4dd7ff835aa2569fd4d4c2",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandSimplificationPassSpec.scala": "1d854902e57fd4b85d5994f122338ca5e49985df77c684a29ec28c712a131a06",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": "2e9963e8dd58cfa0e3c5cd0bae2199b006754e29e9e7e14e016e43ae772bf492",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala": "060bc771c7490fa475fcb080e603929a8d1fb702b4ad3a2e5a4601ab27b5f75f",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionAlgebraSpec.scala": "dfc344581e4fd0f047aeb081b500ac56e16e80ba9cd30ed8ae79a10ddf46e34a",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPassSpec.scala": "256d049840a79b00be6a0bad35f64d0ab31a49ef3607115f11f8946853463d12",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala": "f161f883ecba691ace077855ef0f86b3f9c64bb464c0142bac4ee9183652af5c"
+  }
+}

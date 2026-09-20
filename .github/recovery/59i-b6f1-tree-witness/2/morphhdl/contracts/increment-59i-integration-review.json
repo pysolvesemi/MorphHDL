@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "integration_base": "64e8fddc432e859b6b532540bee96c5608d46efa",
+  "inherited_contract_sha256": "af633343f73d1e9d54cf68c05ff5e21a8d79c9738fc45af4ddd07f2086aab600",
+  "files": [
+    {
+      "path": "morphhdl/scripts/check-increment-59g-source-review.py",
+      "change": "modified",
+      "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+      "baseline_sha256": "7060f6c1d445ba90d1bd70a56a84eb2e3bf2be16ea4f69b128a97976f3c263ec",
+      "edits": [
+        {
+          "id": "59i-integration-check-increment-59g-source-review-1",
+          "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+          "before_start": 10410,
+          "before_end": 10410,
+          "after_start": 10410,
+          "after_end": 11274,
+          "before": "",
+          "after": "def join_source_review(root: Path):\n    \"\"\"Verify the exact 59i join before exposing the frozen register view.\"\"\"\n    checker = root / \"morphhdl/scripts/check-increment-59i-source-review.py\"\n    contract = root / \"morphhdl/contracts/increment-59i-source-review.json\"\n    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):\n        return None\n    require(checker.is_file() and not checker.is_symlink() and\n            contract.is_file() and not contract.is_symlink(),\n            \"59i source-review checker or contract is missing\")\n    spec = importlib.util.spec_from_file_location(\"combined_59i_review\", checker)\n    require(spec is not None and spec.loader is not None, \"cannot load exact 59i source review\")\n    module = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(module)\n    return module\n\n\n\n"
+        },
+        {
+          "id": "59i-integration-check-increment-59g-source-review-3",
+          "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+          "before_start": 11123,
+          "before_end": 11123,
+          "after_start": 11987,
+          "after_end": 12105,
+          "before": "",
+          "after": "    join = join_source_review(root)\n    if join is not None:\n        source = join.restore_source(root, path, source)\n"
+        },
+        {
+          "id": "59i-integration-check-increment-59g-source-review-5",
+          "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+          "before_start": 11572,
+          "before_end": 11572,
+          "after_start": 12554,
+          "after_end": 12647,
+          "before": "",
+          "after": "    join = join_source_review(root)\n    if join is not None:\n        join.verify_spans(root)\n"
+        },
+        {
+          "id": "59i-integration-check-increment-59g-source-review-7",
+          "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+          "before_start": 12278,
+          "before_end": 12278,
+          "after_start": 13353,
+          "after_end": 13457,
+          "before": "",
+          "after": "            if join is not None:\n                current = join.restore_source(root, relative, current)\n"
+        },
+        {
+          "id": "59i-integration-check-increment-59g-source-review-9",
+          "reason": "Compose exact 59i restoration before the unchanged WA-07b and register audits; retain both full production inventories.",
+          "before_start": 12616,
+          "before_end": 12616,
+          "after_start": 13795,
+          "after_end": 14071,
+          "before": "",
+          "after": "    join = join_source_review(root)\n    if join is not None:\n        # Verify the complete joined source before removing only its delta.\n        # The independent ternary audit below still checks its full inventory.\n        paths = join.inherited_inventory(root, paths, BASE)\n"
+        }
+      ]
+    },
+    {
+      "path": "morphhdl/scripts/check-wa07b-inherited-review.py",
+      "change": "modified",
+      "reason": "Restore only exact 59i checker-successor bytes before the original WA-07b digest and span checks; preserve all committed pass inventories and index checks.",
+      "baseline_sha256": "21edd79fab2de6f37135bda4a6ef4cb3d3efcb04ead2d59163d07235d2f013c6",
+      "edits": [
+        {
+          "id": "59i-integration-check-wa07b-inherited-review-1",
+          "reason": "Restore only exact 59i checker-successor bytes before the original WA-07b digest and span checks; preserve all committed pass inventories and index checks.",
+          "before_start": 567,
+          "before_end": 567,
+          "after_start": 567,
+          "after_end": 589,
+          "before": "",
+          "after": "import importlib.util\n"
+        },
+        {
+          "id": "59i-integration-check-wa07b-inherited-review-3",
+          "reason": "Restore only exact 59i checker-successor bytes before the original WA-07b digest and span checks; preserve all committed pass inventories and index checks.",
+          "before_start": 5668,
+          "before_end": 5668,
+          "after_start": 5690,
+          "after_end": 7189,
+          "before": "",
+          "after": "def joined_adapter_source(root: Path, path: str, source: bytes) -> bytes:\n    \"\"\"Unwrap only an exact, separately reviewed 59i checker successor.\n\n    The frozen WA-07b adapter digests stay authoritative. Already restored\n    adapter bytes need no second unwrap; every other byte sequence must reverse\n    through the full 59i span certificate before the original WA-07b checks.\n    This function cannot authorize pass production or test sources.\n    \"\"\"\n    entry = next((entry for entry in load_contract(root)[\"checker_adapters\"]\n                  if entry[\"path\"] == path), None)\n    if entry is None or digest(source) == entry[\"after_sha256\"]:\n        return source\n    checker = root / \"morphhdl/scripts/check-increment-59i-source-review.py\"\n    contract = root / \"morphhdl/contracts/increment-59i-source-review.json\"\n    if not (checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()):\n        return source  # The unchanged WA-07b digest check must reject it.\n    require(checker.is_file() and not checker.is_symlink() and\n            contract.is_file() and not contract.is_symlink(), \"missing regular 59i successor review\")\n    spec = importlib.util.spec_from_file_location(\"wa07b_join_source_review\", checker)\n    require(spec is not None and spec.loader is not None, \"cannot load 59i successor review\")\n    join = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(join)\n    return join.restore_source(root, path, source.decode()).encode()\n\n\n"
+        },
+        {
+          "id": "59i-integration-check-wa07b-inherited-review-5",
+          "reason": "Restore only exact 59i checker-successor bytes before the original WA-07b digest and span checks; preserve all committed pass inventories and index checks.",
+          "before_start": 5896,
+          "before_end": 5997,
+          "after_start": 7417,
+          "after_end": 7578,
+          "before": "    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path), source.encode()).decode()\n",
+          "after": "    return restore_bytes(entry, frozen_source(root.resolve(), BASE, path),\n                         joined_adapter_source(root, path, source.encode())).decode()\n"
+        },
+        {
+          "id": "59i-integration-check-wa07b-inherited-review-7",
+          "reason": "Restore only exact 59i checker-successor bytes before the original WA-07b digest and span checks; preserve all committed pass inventories and index checks.",
+          "before_start": 10468,
+          "before_end": 10549,
+          "after_start": 12049,
+          "after_end": 12187,
+          "before": "        restore_bytes(entry, frozen_source(root.resolve(), BASE, path), current)\n",
+          "after": "        restore_bytes(entry, frozen_source(root.resolve(), BASE, path),\n                      joined_adapter_source(root, path, current))\n"
+        }
+      ]
+    }
+  ]
+}

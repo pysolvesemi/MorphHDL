@@ -1,0 +1,204 @@
+name: Increment 59i composite local-enable promotion v2
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-composite-local-enable-promote-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-composite-local-enable-promotion-v2
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Reconcile, qualify and publish reviewed local-enable source
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SBT_TEST_PARALLEL: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Establish exact predecessor including signed-Verilog target
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/staging-head.txt"
+          git fetch origin "$TARGET_HEAD"
+          test "$(git rev-parse FETCH_HEAD)" = "$TARGET_HEAD"
+          if ! git merge-base --is-ancestor "$TARGET_HEAD" HEAD; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git merge --no-ff --no-commit -X ours "$TARGET_HEAD"
+            test -z "$(git diff --name-only --diff-filter=U)"
+            mkdir -p morphhdl/repair-59i-composite-widening-publication
+            printf 'target=%s\nstaging=%s\n' "$TARGET_HEAD" "${{ github.sha }}" > \
+              morphhdl/repair-59i-composite-widening-publication/reconciled-target.txt
+            git add morphhdl/repair-59i-composite-widening-publication/reconciled-target.txt
+            git diff --check
+            git commit -m 'Merge reviewed signed-Verilog target into Increment 59i local-enable work'
+          fi
+          git merge-base --is-ancestor "$TARGET_HEAD" HEAD
+          grep -q '"signed"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          grep -q '"unsigned"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          grep -q '"integer"' morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala
+          git rev-parse HEAD > "$out/predecessor-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/predecessor-tree.txt"
+
+      - name: Verify all predecessor source-review layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          {
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60g-default-rollout.py self-test
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/test-increment-59i-review-composition.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$out/predecessor-audits.log"
+
+      - name: Prepare, commit and bind the exact local-enable successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          python3 morphhdl/repair-59i-composite-local-enable/promote-reviewed-ci.py | \
+            tee "$out/preparation.log"
+          git diff --check
+          cat > "$out/expected-files.txt" <<'EOF'
+          docs/morphhdl/increment-59i-composite-local-enables.md
+          morphhdl/contracts/increment-59i-local-enable-review.json
+          morphhdl/scripts/check-increment-59i-local-enable-source-review.py
+          morphhdl/scripts/check-increment-59i-source-review.py
+          morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+          EOF
+          git add $(cat "$out/expected-files.txt")
+          git diff --cached --name-only | sort -u > "$out/actual-files.txt"
+          sort -u "$out/expected-files.txt" > "$out/expected-files.sorted.txt"
+          diff -u "$out/expected-files.sorted.txt" "$out/actual-files.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: promote exact same-composite register-local enable replay'
+          git rev-parse HEAD > "$out/production-head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/production-tree.txt"
+          sha256sum $(cat "$out/expected-files.txt") > "$out/promoted-sha256.txt"
+
+      - name: Run complete composed source and mutation reviews on committed bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          {
+            python3 morphhdl/scripts/check-increment-59i-local-enable-source-review.py --self-test
+            python3 morphhdl/scripts/test-increment-59i-local-enable-source-review.py
+            python3 morphhdl/scripts/check-increment-59i-source-review.py
+            python3 morphhdl/scripts/test-increment-59i-review-composition.py
+            python3 morphhdl/scripts/check-increment-59g-source-review.py
+            python3 morphhdl/scripts/check-increment-59h-source-review.py
+            python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py
+            python3 morphhdl/scripts/check-increment-60g-source-scope.py --self-test
+            python3 morphhdl/scripts/check-increment-60f-equivalence-closure.py --source-only
+            python3 morphhdl/scripts/test-increment-60f-inherited-source-scope.py
+            python3 morphhdl/scripts/test-increment-59f-source-scope.py
+            python3 morphhdl/scripts/test-increment-59c-inherited-source-scope.py
+            python3 morphhdl/scripts/check-wa07b-inherited-review.py
+            python3 morphhdl/scripts/test-wa07b-inherited-review.py
+            python3 morphhdl/scripts/check-increment-60f-artifacts.py self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$out/successor-audits.log"
+
+      - name: Bootstrap exact SBT launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          curl --fail --location --retry 5 --retry-all-errors \
+            "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar" \
+            -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+          cat > "$out/sbt.sh" <<'SH'
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          scala="$1"; shift
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$scala" "$@"
+          SH
+          chmod +x "$out/sbt.sh"
+
+      - name: Compile and test both supported Scala lanes
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          for scala in 2.12.18 2.13.12; do
+            log="$out/tests-$scala.log"
+            "$out/sbt.sh" "$scala" 'morph/Test/compile' \
+              'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests' \
+              > "$log" 2>&1 || { tail -n 360 "$log"; exit 1; }
+            grep -q 'All tests passed' "$log"
+            ! grep -q '\*\*\* FAILED \*\*\*' "$log"
+          done
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+
+      - name: Push guarded production checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-local-enable-v2"
+          expected=$(cat "$out/staging-head.txt")
+          git fetch origin "$BRANCH"
+          test "$(git rev-parse FETCH_HEAD)" = "$expected"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          git rev-parse HEAD > "$out/pushed-head.txt"
+
+      - name: Upload exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-local-enable-promotion-v2
+          path: target/increment-59i-local-enable-v2
+          if-no-files-found: error
+          retention-days: 21

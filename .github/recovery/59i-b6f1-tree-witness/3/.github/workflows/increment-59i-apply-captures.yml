@@ -1,0 +1,116 @@
+name: Increment 59i apply reviewed composite captures
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-apply-captures.yml'
+      - 'morphhdl/repair-59i-captures/**'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-59i-combined-reduction-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply only the reviewed source patch with exact before and after identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import base64, hashlib, json, lzma, subprocess
+          from pathlib import Path
+          payload = Path('morphhdl/repair-59i-captures')
+          raw = (payload / 'metadata.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest() == '0e3198c47a9aad15dc13f69f44596f8a26e7e1e6723a2056cfd5fc55ffb02ff6'
+          meta = json.loads(raw)
+          assert meta['schema'] == 1 and meta['base'] == '80a3b0977ccabcd83ce06ef97a446edbee8f723a'
+          assert subprocess.check_output(['git', 'rev-parse', 'HEAD^'], text=True).strip() == meta['base']
+          assert meta['chunks'] == 7 and len(meta['files']) == 16
+          allowed = {str(payload / ('chunk-' + str(i) + '.txt')) for i in range(meta['chunks'])} | {
+              str(payload / 'metadata.json'), '.github/workflows/increment-59i-apply-captures.yml'}
+          staging = set(subprocess.check_output(['git', 'diff', '--no-renames', '--name-only', meta['base'], 'HEAD'], text=True).splitlines())
+          assert staging == allowed, ('unexpected staging source', staging ^ allowed)
+          encoded = ''.join((payload / ('chunk-' + str(i) + '.txt')).read_text().strip() for i in range(meta['chunks']))
+          patch = lzma.decompress(base64.b64decode(encoded, validate=True))
+          assert len(patch) == meta['patch_bytes'] == 141830
+          assert hashlib.sha256(patch).hexdigest() == meta['patch_sha256'] == 'bbbf2a701dc470d75cce40204969632d3756c6a740223ed38fdc1f162dbce112'
+          output = Path('target/increment-59i-capture-application')
+          output.mkdir(parents=True)
+          patch_path = output / 'reviewed.patch'
+          patch_path.write_bytes(patch)
+          listed = subprocess.check_output(['git', 'apply', '--numstat', '-z', str(patch_path)]).decode().split('\0')
+          actual = [line.split('\t', 2)[2] for line in listed if line]
+          assert len(actual) == len(set(actual)) and set(actual) == set(meta['files'])
+          for relative, identities in meta['files'].items():
+              path = Path(relative)
+              assert relative.startswith(('morphhdl/', 'docs/morphhdl/')) and not relative.startswith('.github/')
+              assert not path.is_absolute() and '..' not in path.parts and not path.is_symlink()
+              assert all(not ancestor.is_symlink() for ancestor in path.parents)
+              before = identities['before']
+              assert (not path.exists()) if before is None else (path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == before), relative
+          subprocess.run(['git', 'apply', '--index', '--check', '--whitespace=error', str(patch_path)], check=True)
+          subprocess.run(['git', 'apply', '--index', '--whitespace=error', str(patch_path)], check=True)
+          for relative, identities in meta['files'].items():
+              path = Path(relative)
+              assert path.is_file() and not path.is_symlink() and not path.stat().st_mode & 0o111
+              assert hashlib.sha256(path.read_bytes()).hexdigest() == identities['after'], relative
+              mode = subprocess.check_output(['git', 'ls-files', '--stage', '--', relative], text=True).split()
+              assert len(mode) == 4 and mode[0] == '100644' and mode[2:] == ['0', relative], relative
+          changed = set(subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines())
+          assert changed == set(meta['files']), ('unexpected applied source', changed ^ set(meta['files']))
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          PYCODE
+      - name: Prepare a clean-index commit for source-review tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-capture-application
+          git rev-parse HEAD > "$output/staging-head.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '59i: certify identity-bound runtime captures in composite reductions' \
+            -m 'Preserve native algorithms, exact captured-input ownership, read-only operand permissions, symbolic carriers and inherited source certificates. The new finite 96-case/six-profile local matrix passes on both Scala versions. Full 59i remains incomplete; this development commit is not merge qualification.'
+      - name: Require current native and inherited reviews including all negative controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-capture-application
+          python3 morphhdl/scripts/check-native-source-preservation.py > "$output/native-review.log" 2>&1 || { cat "$output/native-review.log"; exit 1; }
+          for layer in 59i 59g 59h; do
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-controls.log" 2>&1 || { cat "$output/$layer-controls.log"; exit 1; }
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-review.log" 2>&1 || { cat "$output/$layer-review.log"; exit 1; }
+          done
+          for suite in test-increment-59i-capture-review test-increment-59i-composite-captures test-increment-59i-review-composition test-wa07b-inherited-review test-increment-59h-inherited-source-scope; do
+            python3 "morphhdl/scripts/$suite.py" > "$output/$suite.log" 2>&1 || { cat "$output/$suite.log"; exit 1; }
+          done
+      - name: Publish only to the unchanged development branch without force
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-capture-application
+          branch=agent/increment-59i-combined-reduction-closure
+          original=$(cat "$output/staging-head.txt")
+          remote=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+          test "$remote" = "$original"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > "$output/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$output/tree.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          sha256sum "$output/source.tar.gz" > "$output/sha256.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-capture-application
+          path: target/increment-59i-capture-application
+          if-no-files-found: error
+          retention-days: 14

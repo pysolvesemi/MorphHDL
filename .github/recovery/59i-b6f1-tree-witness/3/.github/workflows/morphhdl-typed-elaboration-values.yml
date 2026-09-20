@@ -1,0 +1,83 @@
+name: MorphHDL typed elaboration values
+
+on:
+  push:
+    branches:
+      - parameterized-verilog
+      - 'agent/increment-53d-*'
+      - 'agent/increment-53e-*'
+  pull_request:
+    branches:
+      - parameterized-verilog
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-typed-elaboration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source-contract:
+    name: Typed architecture source contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Check single-owner typed carrier boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          carrier=core/src/main/scala/spinal/core/ElabInt.scala
+          test -f "$carrier"
+          test ! -e morphruntime/src/main/scala/spinal/core/ElabInt.scala
+          grep -Fq 'final class ElabInt' "$carrier"
+          grep -Fq 'final class ElabBool' "$carrier"
+          grep -Fq 'def isAlwaysTrue' "$carrier"
+          grep -Fq 'def isAlwaysFalse' "$carrier"
+          grep -Fq 'def elabEq' "$carrier"
+          grep -Fq 'def elabNe' "$carrier"
+          grep -Fq 'def constantInt' "$carrier"
+          test "$(grep -Fc 'private[spinal] def witness' "$carrier")" -eq 2
+          ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabInt.*Int' "$carrier"
+          ! grep -Eq 'implicit[[:space:]]+def[[:space:]].*ElabBool.*Boolean' "$carrier"
+          ! grep -Eq 'StreamFifo|StreamFifoCC|StreamWidthAdapter' "$carrier"
+          control=morphruntime/src/main/scala/spinal/core/ElabControl.scala
+          test -f "$control"
+          grep -Fq 'condition.isAlwaysTrue' "$control"
+          grep -Fq 'condition.isAlwaysFalse' "$control"
+          git diff --check
+
+  contracts:
+    name: Typed elaboration contracts Scala ${{ matrix.scala_version }}
+    needs: source-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Compile production and test sources
+        shell: bash
+        run: sbt -batch "++${{ matrix.scala_version }}" compile Test/compile
+
+      - name: Run typed carrier, control-flow, and factory contracts
+        shell: bash
+        run: |
+          sbt -batch "++${{ matrix.scala_version }}" \
+            "morph/testOnly morphhdl.TypedElaborationValueTests morphhdl.TypedElaborationControlTests morphhdl.TypedParameterizedFactoryDirectionTests"

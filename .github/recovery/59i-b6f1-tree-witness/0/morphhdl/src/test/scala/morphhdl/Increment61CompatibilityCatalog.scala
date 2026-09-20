@@ -1,0 +1,299 @@
+package morphhdl
+
+import nativeapplication.{
+  BoundedRecursivePowerFixture,
+  SIntSignedVerilogBaselineFixture,
+  TypedBlackBoxGenericBindingFixture
+}
+import spinal.core._
+import spinal.lib._
+import spinal.core.internals.{
+  BalancedBridgeHardware,
+  BalancedCallbackGraphHardware,
+  BalancedCompositeHardware,
+  BalancedNestedHierarchy,
+  BalancedPublicationHardware,
+  BalancedWideningHardware
+}
+
+import morphhdl.frontend.HdlInt
+
+/** Representative roadmap families which must preserve exact ownership when
+  * parameterized publication is split into one file per canonical component.
+  */
+object Increment61CompatibilityCatalog {
+  final case class CompatibilityCase(
+      id: String,
+      generatedTop: String,
+      toolTop: String,
+      requiredGeneratedModules: Set[String],
+      forbiddenGeneratedModules: Set[String],
+      supportFile: Option[(String, String)],
+      build: () => Component
+  )
+
+  // The catalog admits DEPTH=16. Occupancy and availability can therefore
+  // equal 16, which needs five bits. The inherited four-bit test harness is
+  // deliberately left unchanged: using it here would test an unsupported
+  // domain-crossing resize rather than per-component publication.
+  private final class StreamFifoPublicationHarness(depth: HdlInt) extends Component {
+    setDefinitionName("Increment61StreamFifo")
+    val io = new Bundle {
+      val push = slave Stream(Bits(8 bits))
+      val pop = master Stream(Bits(8 bits))
+      val flush = in Bool()
+      val occupancy = out UInt(5 bits)
+      val availability = out UInt(5 bits)
+    }
+    val fifo = StreamFifo(HardType(Bits(8 bits)), depth.asElabInt)
+    fifo.setName("fifo")
+    fifo.io.push << io.push
+    io.pop << fifo.io.pop
+    fifo.io.flush := io.flush
+    io.occupancy := fifo.io.occupancy.resized
+    io.availability := fifo.io.availability.resized
+  }
+
+  private val SignedExternalStub =
+    """module SIntCastHeavyExternal #(
+      |  parameter integer WIDTH = 8
+      |) (
+      |  input  wire signed [WIDTH-1:0] din,
+      |  output wire signed [WIDTH-1:0] dout
+      |);
+      |  assign dout = din;
+      |endmodule
+      |""".stripMargin
+
+  private val TypedBlackBoxStubs =
+    """module TypedExternalLeaf #(
+      |  parameter LABEL = "typed",
+      |  parameter integer WIDTH = 8,
+      |  parameter integer DEPTH = 4,
+      |  parameter integer DOUBLE_WIDTH = 16,
+      |  parameter integer CONCRETE_ENABLE = 1,
+      |  parameter integer ENABLED = 1
+      |) (
+      |  input  wire [WIDTH-1:0] din,
+      |  output wire [WIDTH-1:0] dout
+      |);
+      |  assign dout = ENABLED ? din : ~din;
+      |endmodule
+      |
+      |module TypedParameterOnlyExternal #(
+      |  parameter integer LATENCY = 2
+      |) (
+      |  input  wire [7:0] din,
+      |  output wire [7:0] dout
+      |);
+      |  assign dout = din ^ {8{LATENCY[0]}};
+      |endmodule
+      |""".stripMargin
+
+  private val RecursiveToolTop =
+    """module Increment61RecursiveToolTop(
+      |  input  wire [7:0] x,
+      |  output wire [7:0] y
+      |);
+      |  BoundedRecursivePower #(.N(5)) dut(.x(x), .y(y));
+      |endmodule
+      |""".stripMargin
+
+  val cases: Vector[CompatibilityCase] = Vector(
+    CompatibilityCase(
+      id = "named-field-access",
+      generatedTop = "NamedFieldVecAccess",
+      toolTop = "NamedFieldVecAccess",
+      requiredGeneratedModules = Set("NamedFieldVecAccess"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Access(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "named-field-nested",
+      generatedTop = "NamedFieldVecNested",
+      toolTop = "NamedFieldVecNested",
+      requiredGeneratedModules = Set("NamedFieldVecNested"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Nested(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17),
+        NamedFieldVecFixture.parameter("INNER", default = 2, maximum = 3)
+      )
+    ),
+    CompatibilityCase(
+      id = "named-field-storage",
+      generatedTop = "NamedFieldVecStorage",
+      toolTop = "NamedFieldVecStorage",
+      requiredGeneratedModules = Set("NamedFieldVecChild", "NamedFieldVecStorage"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Storage(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "named-field-streams",
+      generatedTop = "NamedFieldVecStreams",
+      toolTop = "NamedFieldVecStreams",
+      requiredGeneratedModules = Set("NamedFieldVecStreams"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NamedFieldVecFixture.Streams(
+        NamedFieldVecFixture.parameter("WIDTH", default = 5, maximum = 32),
+        NamedFieldVecFixture.parameter("BLUE_WIDTH", default = 3, maximum = 32),
+        NamedFieldVecFixture.parameter("COUNT", default = 3, maximum = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "stream-fifo",
+      generatedTop = "Increment61StreamFifo",
+      toolTop = "Increment61StreamFifo",
+      requiredGeneratedModules = Set("StreamFifo", "Increment61StreamFifo"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new StreamFifoPublicationHarness(
+        HdlInt.param("DEPTH", default = 5, min = 1, max = 16)
+      )
+    ),
+    CompatibilityCase(
+      id = "stream-fifo-cc",
+      generatedTop = "NativeStreamFifoCCWidthDepth",
+      toolTop = "NativeStreamFifoCCWidthDepth",
+      requiredGeneratedModules = Set(
+        "StreamFifoCCPopToPushBufferCC",
+        "StreamFifoCCPushToPopBufferCC",
+        "StreamFifoCC",
+        "NativeStreamFifoCCWidthDepth"
+      ),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new NativeStreamFifoCCWidthDepthHarness(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("DEPTH", default = 8, min = 2, max = 16)
+      )
+    ),
+    CompatibilityCase(
+      id = "signed-memory-hierarchy",
+      generatedTop = "SIntCastHeavyBaseline",
+      toolTop = "SIntCastHeavyBaseline",
+      requiredGeneratedModules = Set("SIntCastHeavyChild", "SIntCastHeavyBaseline"),
+      forbiddenGeneratedModules = Set("SIntCastHeavyExternal"),
+      supportFile = Some("external.v" -> SignedExternalStub),
+      build = () => SIntSignedVerilogBaselineFixture.parameterized()
+    ),
+    CompatibilityCase(
+      id = "recursive-generate",
+      generatedTop = "BoundedRecursivePower",
+      toolTop = "Increment61RecursiveToolTop",
+      requiredGeneratedModules = Set("BoundedRecursivePower"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = Some("tool-top.v" -> RecursiveToolTop),
+      build = () => BoundedRecursivePowerFixture.parameterized()
+    ),
+    CompatibilityCase(
+      id = "widening-reduction",
+      generatedTop = "BalancedWidening",
+      toolTop = "BalancedWidening",
+      requiredGeneratedModules = Set("BalancedWidening"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedWideningHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 5, min = 1, max = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "composite-reduction",
+      generatedTop = "BalancedCompositePublication",
+      toolTop = "BalancedCompositePublication",
+      requiredGeneratedModules = Set("BalancedCompositePublication"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => {
+        val widths = Vector(
+          "R_W", "G_W", "B_W", "KEY_W", "TAG_W",
+          "COORD_W", "C_W", "U_W", "S_W", "BITS_W"
+        ).map(name => HdlInt.param(name, default = 5, min = 1, max = 32))
+        new BalancedCompositeHardware(
+          widths(0), widths(1), widths(2), widths(3), widths(4),
+          widths(5), widths(6), widths(7), widths(8), widths(9),
+          HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+          "BalancedCompositePublication"
+        )
+      }
+    ),
+    CompatibilityCase(
+      id = "callback-graph-reduction",
+      generatedTop = "BalancedCallbackGraphSplit",
+      toolTop = "BalancedCallbackGraphSplit",
+      requiredGeneratedModules = Set("BalancedCallbackGraphSplit"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedCallbackGraphHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+        "BalancedCallbackGraphSplit"
+      )
+    ),
+    CompatibilityCase(
+      id = "register-bridge-reduction",
+      generatedTop = "BalancedBridgeSplit",
+      toolTop = "BalancedBridgeSplit",
+      requiredGeneratedModules = Set("BalancedBridgeSplit"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedBridgeHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+        "BalancedBridgeSplit",
+        rising = true,
+        asynchronous = false,
+        resetHigh = true,
+        enablePolarity = "HIGH"
+      )
+    ),
+    CompatibilityCase(
+      id = "balanced-reduction",
+      generatedTop = "BalancedPublication",
+      toolTop = "BalancedPublication",
+      requiredGeneratedModules = Set("BalancedPublication"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedPublicationHardware(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17)
+      )
+    ),
+    CompatibilityCase(
+      id = "nested-reduction-hierarchy",
+      generatedTop = "BalancedNestedHierarchy",
+      toolTop = "BalancedNestedHierarchy",
+      requiredGeneratedModules = Set("BalancedNestedFormalChild", "BalancedNestedHierarchy"),
+      forbiddenGeneratedModules = Set.empty,
+      supportFile = None,
+      build = () => new BalancedNestedHierarchy(
+        HdlInt.param("WIDTH", default = 5, min = 1, max = 32),
+        HdlInt.param("COUNT", default = 3, min = 1, max = 17),
+        HdlInt.param("MODE", default = 0, min = 0, max = 2)
+      )
+    ),
+    CompatibilityCase(
+      id = "typed-blackbox",
+      generatedTop = "TypedBlackBoxGenericTop",
+      toolTop = "TypedBlackBoxGenericTop",
+      requiredGeneratedModules = Set("TypedBlackBoxGenericTop"),
+      forbiddenGeneratedModules = Set("TypedExternalLeaf", "TypedParameterOnlyExternal"),
+      supportFile = Some("external.v" -> TypedBlackBoxStubs),
+      build = () => TypedBlackBoxGenericBindingFixture.parameterized()
+    )
+  )
+}

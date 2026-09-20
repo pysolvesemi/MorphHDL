@@ -1,0 +1,102 @@
+name: WA-11 symbolic Boolean integer normalization
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+  push:
+    branches: [parameterized-verilog, 'agent/wa-11-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wa11-${{ github.ref }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  normalization:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Record exact source and run typed construction regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/wa11
+          git rev-parse HEAD > target/wa11/head.txt
+          git archive HEAD | gzip > target/wa11/source.tar.gz
+          sbt -batch ++${{ matrix.scala }} \
+            'frontend/testOnly morphhdl.frontend.HdlBoolTests morphhdl.frontend.AnalyzedFrontendBooleanTests' \
+            'morph/testOnly spinal.core.BooleanWidthNormalizationTests morphhdl.TypedElaborationValueTests spinal.core.TypedExactDomainControlTests spinal.core.TypedExactDomainSafetyTests spinal.core.TypedProjectionOwnershipTests' \
+            "morph/Test/runMain ReproduceBooleanWidth $GITHUB_WORKSPACE/target/wa11/repro" \
+            "morph/Test/runMain ReproduceBooleanWidth $GITHUB_WORKSPACE/target/wa11/repro-repeat" \
+            "morph/Test/runMain nativeapplication.BooleanWidthNormalizationArtifactWriter $GITHUB_WORKSPACE/target/wa11/candidate"
+          cmp target/wa11/repro/BooleanWidthExample.v target/wa11/repro-repeat/BooleanWidthExample.v
+      - name: Generate independent before artifacts using the unchanged compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=086cb4c642d0182e33bd86fd391f46fc7c0eb2a8
+          reference="$RUNNER_TEMP/wa11-reference"
+          git merge-base --is-ancestor "$baseline" HEAD
+          git worktree add --detach "$reference" "$baseline"
+          for fixture in \
+            morphhdl/src/test/scala/spinal/core/BooleanWidthNormalizationTests.scala \
+            morphhdl/src/test/scala/nativeapplication/BooleanWidthNormalizationArtifactWriter.scala \
+            morphhdl/src/test/scala/nativeapplication/ReproduceBooleanWidth.scala; do
+            cp "$fixture" "$reference/$fixture"
+          done
+          (cd "$reference" && sbt -batch ++${{ matrix.scala }} \
+            "morph/Test/runMain ReproduceBooleanWidth $GITHUB_WORKSPACE/target/wa11/before-repro" \
+            "morph/Test/runMain nativeapplication.BooleanWidthNormalizationArtifactWriter $GITHUB_WORKSPACE/target/wa11/reference")
+      - name: Strict Verilog compilation, widths, propagation and deterministic artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/check-wa11-boolean-width.py target/wa11/candidate \
+            --reference-artifacts target/wa11/reference \
+            --reproduction target/wa11/repro/BooleanWidthExample.v \
+            --reference-reproduction target/wa11/before-repro/BooleanWidthExample.v \
+            --report target/wa11/validation.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wa11-${{ matrix.scala }}
+          path: |
+            target/wa11
+            frontend/target/test-reports
+            morphhdl/target/test-reports
+          if-no-files-found: error
+  cross-scala:
+    needs: normalization
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wa11-*
+          path: artifacts
+      - name: Require complete identical production artifact inventories
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          left = Path('artifacts/wa11-2.12.18/target/wa11')
+          right = Path('artifacts/wa11-2.13.12/target/wa11')
+          paths = sorted(p.relative_to(left) for p in left.rglob('*.v'))
+          assert paths and paths == sorted(p.relative_to(right) for p in right.rglob('*.v'))
+          for path in paths:
+              assert (left / path).read_bytes() == (right / path).read_bytes(), path
+          print('WA11_CROSS_SCALA_PASS files=' + str(len(paths)))
+          PY

@@ -1,0 +1,140 @@
+Run starting. Expected test count is: 4
+TypedStreamWidthAdapterFormalEquivalenceTests:
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:50:58
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.436 : Checks and transforms
+[Progress] at 0.686 : Generate Verilog to /tmp/morphhdl-single-source-6428553357342908864
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 0.928
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:50:59
+[Progress] at 0.940 : Elaborate components
+[Progress] at 0.953 : Checks and transforms
+[Progress] at 0.963 : Generate Verilog to /tmp/morphhdl-typed-adapter-formal-4318486754618044848
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 0.971
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:00
+[Progress] at 1.020 : Elaborate components
+[Progress] at 1.032 : Checks and transforms
+[Progress] at 1.043 : Generate Verilog to /tmp/morphhdl-typed-adapter-formal-4318486754618044848
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.052
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:00
+[Progress] at 1.096 : Elaborate components
+[Progress] at 1.109 : Checks and transforms
+[Progress] at 1.119 : Generate Verilog to /tmp/morphhdl-typed-adapter-formal-4318486754618044848
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.129
+- typed native StreamWidthAdapter specializations are sequentially equivalent
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:00
+[Progress] at 1.185 : Elaborate components
+[Progress] at 1.209 : Checks and transforms
+[Progress] at 1.251 : Generate Verilog to /tmp/morphhdl-single-source-16277934108021568551
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.284
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:00
+[Progress] at 1.287 : Elaborate components
+[Progress] at 1.298 : Checks and transforms
+[Progress] at 1.306 : Generate Verilog to /tmp/morphhdl-typed-adapter-mutation-15044287578755931398
+[Warning] 4 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 1.316
+- typed StreamWidthAdapter mutation produces a genuine counterexample
+TypedPrimitiveClosureFormalEquivalenceTests:
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:00
+[Progress] at 1.516 : Elaborate components
+[Progress] at 1.670 : Checks and transforms
+[Progress] at 1.917 : Generate Verilog to /tmp/morphhdl-single-source-15375411516471987256
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.840
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:01
+[Progress] at 2.844 : Elaborate components
+[Progress] at 2.869 : Checks and transforms
+[Progress] at 2.884 : Generate Verilog to /tmp/morphhdl-typed-primitive-formal-7912702398257525794/concrete-w5d1
+[Warning] 10 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.893
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:01
+[Progress] at 2.894 : Elaborate components
+[Progress] at 2.900 : Checks and transforms
+[Progress] at 2.909 : Generate Verilog to /tmp/morphhdl-typed-primitive-formal-7912702398257525794/concrete-w8d3
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.918
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:01
+[Progress] at 2.919 : Elaborate components
+[Progress] at 2.941 : Checks and transforms
+[Progress] at 2.951 : Generate Verilog to /tmp/morphhdl-typed-primitive-formal-7912702398257525794/concrete-w13d5
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.960
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:01
+[Progress] at 2.961 : Elaborate components
+[Progress] at 2.968 : Checks and transforms
+[Progress] at 2.974 : Generate Verilog to /tmp/morphhdl-typed-primitive-formal-7912702398257525794/concrete-w16d8
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 2.985
+- formal witnesses are independent native elaborations sharing one typed definition
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:02
+[Progress] at 3.079 : Elaborate components
+[Progress] at 3.121 : Checks and transforms
+[Progress] at 3.222 : Generate Verilog to /tmp/morphhdl-single-source-1500761591199161992
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.758
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:02
+[Progress] at 3.761 : Elaborate components
+[Progress] at 3.768 : Checks and transforms
+[Progress] at 3.774 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/ci-typed-primitive-formal-final/concrete-w5d1
+[Warning] 10 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.779
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:02
+[Progress] at 3.780 : Elaborate components
+[Progress] at 3.788 : Checks and transforms
+[Progress] at 3.794 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/ci-typed-primitive-formal-final/concrete-w8d3
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.800
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:02
+[Progress] at 3.801 : Elaborate components
+[Progress] at 3.808 : Checks and transforms
+[Progress] at 3.816 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/ci-typed-primitive-formal-final/concrete-w13d5
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.822
+[Runtime] SpinalHDL dev    git head : 43169985ec6886441c95d47d35c8ad4fd866e4c8
+[Runtime] JVM max memory : 3072.0MiB
+[Runtime] Current date : 2026.09.12 12:51:02
+[Progress] at 3.822 : Elaborate components
+[Progress] at 3.827 : Checks and transforms
+[Progress] at 3.832 : Generate Verilog to /workspace/scratch/6b630b856865/MorphHdl/target/wa10-evidence/ci-typed-primitive-formal-final/concrete-w16d8
+[Warning] 7 signals were pruned. You can call printPruned on the backend report to get more informations.
+[Done] at 3.837
+- typed primitive closure is formally equivalent with a genuine mutation control
+Run completed in 7 seconds, 896 milliseconds.
+Total number of tests run: 4
+Suites: completed 2, aborted 0
+Tests: succeeded 4, failed 0, canceled 0, ignored 0, pending 0
+All tests passed.

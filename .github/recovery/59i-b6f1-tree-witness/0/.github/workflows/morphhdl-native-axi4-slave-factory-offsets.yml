@@ -1,0 +1,60 @@
+name: MorphHDL native AXI4 Slave Factory parameterized offsets
+
+# Stable required-check name. Increment 53g retires the file-specific AXI4
+# parser component; this workflow now proves absence plus typed-path health.
+on:
+  push:
+    branches: [main, parameterized-verilog]
+  pull_request:
+    branches: [main, parameterized-verilog]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: morphhdl-native-axi4-factory-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  source-boundary:
+    name: Real native AXI4 factory and audited native-source boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Prove component-specific recognizer retirement
+        run: |
+          python3 morphhdl/scripts/check-production-retirement.py --self-test
+          python3 morphhdl/scripts/check-production-retirement.py
+          if grep -R -n -E '(^|[[:space:]])(class|trait|object)[[:space:]]+Axi4SlaveFactory([[:space:]]|\{|$)' \
+              morphruntime morphplugin morphhdl/src/main; then
+            echo 'MorphHDL must not implement an Axi4SlaveFactory replacement' >&2
+            exit 1
+          fi
+
+  contracts:
+    name: Native AXI4 factory proof Scala ${{ matrix.scala_version }}
+    needs: source-boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    strategy:
+      fail-fast: false
+      matrix:
+        scala_version: ['2.12.18', '2.13.12']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+      - name: Exercise neutral typed expressions and hierarchy
+        run: >-
+          sbt -batch "++${{ matrix.scala_version }}"
+          "morph/testOnly morphhdl.TypedElaborationValueTests morphhdl.HierarchyParameterBindingTests"
