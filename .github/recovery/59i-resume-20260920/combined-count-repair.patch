@@ -1,0 +1,58 @@
+diff --git a/.github/workflows/increment-59i-combined-closure.yml b/.github/workflows/increment-59i-combined-closure.yml
+index 7f45ec1d38..861cbf81ae 100644
+--- a/.github/workflows/increment-59i-combined-closure.yml
++++ b/.github/workflows/increment-59i-combined-closure.yml
+@@ -201,7 +201,7 @@ jobs:
+           assert int(suite.get('tests', '0')) == 17, suite.attrib
+           counts = {'TypedBalancedReductionCompositeLocalEnableTests': 31,
+                     'TypedBalancedReductionCompositeStaticRedirectTests': 7,
+-                    'ParameterizedVerilogStructuralLexicalTests': 6,
++                    'ParameterizedVerilogStructuralLexicalTests': 7,
+                     'TypedBalancedReductionDeclarationFilterTests': 6,
+                     'TypedBalancedReductionNestedResultTests': 8,
+                     'TypedBalancedReductionCompositeCaptureTests': 10,
+diff --git a/morphhdl/scripts/test-increment-59i-regression-inventory.py b/morphhdl/scripts/test-increment-59i-regression-inventory.py
+index 204c118756..89c0e59108 100644
+--- a/morphhdl/scripts/test-increment-59i-regression-inventory.py
++++ b/morphhdl/scripts/test-increment-59i-regression-inventory.py
+@@ -12,9 +12,22 @@ import unittest
+ from unittest.mock import patch
+ import xml.etree.ElementTree as ET
+ ROOT=Path(__file__).resolve().parents[2]
++COMBINED_PARENT='883c5d8f088a0e2eab35592cf171d87792d30bf4'
++COMBINED_WORKFLOW='.github/workflows/increment-59i-combined-closure.yml'
++LEXICAL_OLD="                    'ParameterizedVerilogStructuralLexicalTests': 6,\n"
++LEXICAL_CURRENT="                    'ParameterizedVerilogStructuralLexicalTests': 7,\n"
+ spec=importlib.util.spec_from_file_location('inventory',ROOT/'morphhdl/scripts/check-increment-59i-regression-inventory.py')
+ M=importlib.util.module_from_spec(spec);spec.loader.exec_module(M)
+ 
++def restore_combined_workflow(text):
++    if text.count(LEXICAL_CURRENT) != 1:
++        raise AssertionError('expected one reviewed lexical inventory update')
++    restored=text.replace(LEXICAL_CURRENT,LEXICAL_OLD)
++    old=M.git(ROOT,'show',COMBINED_PARENT+':'+COMBINED_WORKFLOW).decode()
++    if restored != old:
++        raise AssertionError('combined workflow changed outside the reviewed inventory count')
++    return restored
++
+ class Reports(unittest.TestCase):
+     def setUp(self):
+         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+@@ -52,6 +65,17 @@ class Reports(unittest.TestCase):
+     def test_xml_entity(self):self.file.write_bytes(b'<!DOCTYPE x [<!ENTITY q "x">]>'+self.file.read_bytes());self.reject()
+ 
+ class Preservation(unittest.TestCase):
++    def test_combined_workflow_tracks_all_seven_lexical_cases(self):
++        current=(ROOT/COMBINED_WORKFLOW).read_text()
++        self.assertEqual(restore_combined_workflow(current).count(LEXICAL_OLD),1)
++        source=(ROOT/'morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala').read_text()
++        self.assertEqual(source.count('  test("'),7)
++    def test_combined_workflow_rejects_unreviewed_count_or_other_change(self):
++        current=(ROOT/COMBINED_WORKFLOW).read_text()
++        for count in (0,6,8):
++            with self.subTest(count=count),self.assertRaises(AssertionError):
++                restore_combined_workflow(current.replace(LEXICAL_CURRENT,LEXICAL_CURRENT.replace(': 7,',f': {count},')))
++        with self.assertRaises(AssertionError):restore_combined_workflow(current+'\n')
+     def test_contract_hash_and_complete_inventory(self):
+         raw=(ROOT/M.CONTRACT).read_bytes();self.assertEqual(hashlib.sha256(raw).hexdigest(),M.CONTRACT_SHA256)
+         v=json.loads(raw)
