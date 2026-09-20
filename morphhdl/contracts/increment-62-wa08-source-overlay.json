@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "e0572aa99d6938449824d8683fb263f794c60bf3",
+  "final_source_commit": "5e293d14e53a493291de200f6a8d2b4b5ca95f21",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -266,7 +266,7 @@
       "path": "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "1e413e388c8fe26136ff91226a9ee14df281ecf2189d2ec79c31724c524ba107"
+      "after_sha256": "8bc7c436b3e0ec449a6cf24f79d1bc98702e48946cd3fb9aa44bc01bddb4dd09"
     },
     {
       "path": "core/src/test/scala/spinal/core/internals/VerilogDeclarationPolicyStorageTests.scala",
