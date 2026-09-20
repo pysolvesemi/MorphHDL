@@ -22,11 +22,11 @@ import urllib.error
 import urllib.request
 
 REPO = 'pysolvesemi/MorphHDL'
-BASE = '9de3fd243a28a6d1e6ba385bc2d746b57e337fc1'
+BASE = '474480ba3890ed1c6dc8b8ab330086a87a962eb9'
 TARGET = '4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097'
 TARGET_TREE = 'ebe59eecbc8f550d265e78c717fb093603329055'
 DIAGNOSTIC_SOURCE = 'ccec54986c70077e361f291cd322f0aa547aee15'
-SOURCE_HELPER_SHA256 = '44cddecca2f07d3ea00b8bcbb1d66d502e5fc1ea564b1ee3762f95479d6c015c'
+SOURCE_HELPER_SHA256 = '31226de9bc5a5818017b01ecdd295e991e23c5752f67137c01dd667208a35227'
 FEATURE = 'agent/increment-59i-combined-reduction-closure'
 TARGET_BRANCH = 'parameterized-verilog'
 WORKFLOW = 'increment-59i-local-enable-committed-head.yml'
