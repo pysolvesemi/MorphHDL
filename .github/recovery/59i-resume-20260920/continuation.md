@@ -1,5 +1,47 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — 17:29 UTC, 20 September 2026
+
+This section supersedes the earlier staging instructions retained below.
+
+- Source/object staging **35522190973**, attempt 1, finished successfully.
+  Both the 25-source-gate phase and exact-commit staging phase executed and passed.
+- Original source artifact **10609751256**, SHA256
+  `d9e9097dae00671f4c3a4f53e707fe588537b1d73ec7873258c5e5a8121586dd`:
+  verified original ZIP, all 25 command identities, zero return codes and log
+  hashes, exact bundle, raw commits, trees, ordered parents and pinned payload.
+- Final staging artifact **10609766750**, SHA256
+  `17c8982139a046d2af31c47190eb8ebea24dfbe6a4b814c5ebcc2d9ca2f17d56`:
+  verified original ZIP and every source-artifact member byte-for-byte, plus
+  all three exact commit/tree/ordered-parent records and non-force next action.
+- Three connector-created trees matched exactly. Recovery-only tree witnesses
+  with complete nested gitlink metadata were published at `c84b83370be8c3ea61abb277a832f0120590a2e6`.
+- After fresh feature, target and PR guards, the existing feature was advanced
+  **without force** from b6f1 to **883c5d8f088a0e2eab35592cf171d87792d30bf4**.
+  The target remained **bbae646ba43e6189c69feb308f8decb9b677b15f**.
+  Exact three-commit history and target documentation are preserved.
+- Prepared dispatcher: all 14 offline controls passed again. Its stage-gate
+  now contains the actual final artifact proof above. It is installed on the
+  existing recovery branch at `.github/workflows/increment-59i-repair-failed-first-controller.yml`.
+- Read-only **plan run 35525939681**, controller
+  **4bd9dfe56eb54b8dd72805b3b0c0aa8ba4d6edd6**, was queued at last check.
+  **No targeted dispatch or full CI has been launched by this continuation yet.**
+
+NEXT: inspect plan run35525939681 and its digest-verified journal. If successful,
+review all16 rows and reuse any active/successful exact-head runs. Then change
+only the installed workflow CONTROLLER_MODE fallback from `|| 'plan'` to
+`|| 'dispatch'` in a non-skip recovery commit. Do not dispatch twice or install
+another controller. Preserve and restore the intent journal. If the plan fails,
+inspect its actual failure and repair narrowly. When the dispatcher completes,
+verify its journal, reconcile the16 run identities, and update this checkpoint.
+Never count plan/dispatcher success as candidate hardware qualification.
+
+Do not repeat staging, recreate commits, or advance the feature again. PR177
+remains draft and TODO unchecked. Full CI and merge remain gated on failed-first
+qualification and evidence. No generated-Verilog effect from these CI repairs.
+
+## Previous staging handoff — historical, superseded above
+
 Continue the existing MorphHDL PR #177 and branch
 `agent/increment-59i-combined-reduction-closure`, targeting `parameterized-verilog`.
 Do not start another increment or development branch. Keep the TODO unchecked
