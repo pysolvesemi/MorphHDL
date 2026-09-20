@@ -18,9 +18,10 @@ failures, not retryable infrastructure events.
 A proposed8-file repair is preserved under
 `.github/recovery/59i-abi-repair-diagnostic/`, with a recovery-only workflow
 `.github/workflows/increment-59i-abi-repair-diagnostic.yml`. Read its README.
-The publication of this checkpoint launches only that two-Scala diagnostic;
-discover its exact live run by workflow path/recovery head. Do NOT relaunch it
-or the failed-first dispatcher while active. The diagnostic cannot publish,
+Recovery commitab6abd6675262a036dca0d69c5687786afd1fdba launched diagnostic
+[35530953278](https://github.com/pysolvesemi/MorphHDL/actions/runs/35530953278).
+Its Scala2.13.12 job106131320232 and Scala2.12.18 job106131320297 were both
+queued at the last read. Do NOT relaunch it or the failed-first dispatcher while active. The diagnostic cannot publish,
 dispatch other workflows or qualify source/hardware. It applies the exact
 digest-pinned patch to detached883c5d8f08 and retains logs/receipts. Local59g
 inventory22 tests passed; Scala/ABI/replay results are pending.
