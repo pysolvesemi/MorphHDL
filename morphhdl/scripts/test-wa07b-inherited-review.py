@@ -397,10 +397,8 @@ def current_controls(root: Path) -> None:
                 # Restoring a complete older pass layer is a forbidden partial
                 # WA-08 downgrade. Keep the historical synthetic controls above
                 # and require the real combined audit to reject this mutation.
-                integration = getattr(overlay, "integration_review", lambda _: None)(root)
-                diagnostic = ("59i target integration: unreviewed bytes cannot enter parent projection: "
-                              "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala"
-                              if integration is not None else "WA-08")
+                diagnostic = ("59i production successor: sealed route tree differs "
+                              "from immutable source plus exact seal")
                 rejected("WA-08 partial downgrade", lambda: closure.source_scope(fixture),
                          diagnostic)
                 git(fixture, "reset", "--hard", source_head)

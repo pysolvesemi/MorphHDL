@@ -20,7 +20,7 @@ import types
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-HELPER_SHA256 = "4da300df4db3263f8c0be728c501f567756d1815b15dbc55d73422d4af864462"
+HELPER_SHA256 = "b25f9eeed1cb461425586115caff62e275685de9316c6f84d268c445c1c4903d"
 LEFT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 BASE = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
@@ -95,7 +95,7 @@ def immutable_merge_inventory(root: Path) -> tuple:
 
 def verify_runtime_merge(root: Path, review, schema: int) -> int:
     expected = dict(immutable_merge_inventory(root.resolve()))
-    current = review.RUNTIME_REPAIR_PARENT if schema == 6 else "HEAD"
+    current = review.RUNTIME_REPAIR_PARENT if schema in (6, 7) else "HEAD"
     for ref in (CHECKPOINT, current):
         actual = {p: entry for p, entry in review.tree(root, ref).items() if runtime(p)}
         require(actual == expected, "current runtime is not the exact parent merge")
@@ -125,7 +125,7 @@ def verify_ci_and_inventory(root: Path, review) -> None:
             require(expected is not None and expected.count(before) == 1,
                 "immutable regression-job budget anchor changed")
             budget = (b"timeout-minutes: 360\n" if
-                review.contract(root)["schema_version"] == 6 else b"timeout-minutes: 240\n")
+                review.contract(root)["schema_version"] in (6, 7) else b"timeout-minutes: 240\n")
             expected = expected.replace(before,
                 before.replace(b"timeout-minutes: 120\n", budget), 1)
         require(review.regular(root, path) == expected,
@@ -148,14 +148,14 @@ def verify(root: Path = ROOT) -> dict:
     review = source_review(root)
     value = review.verify(root)
     schema = value["schema_version"]
-    require(schema in (5, 6) and review.target_anchor(root) == TARGET,
+    require(schema in (5, 6, 7) and review.target_anchor(root) == TARGET,
         "wrong reviewed merge lifecycle")
     if schema == 5:
         require(value["target_checkpoint"] == review.pr190_checkpoint(),
             "wrong reviewed PR190 checkpoint")
     else:
-        require(value["previous_seal"] == review.previous_certificate(6),
-            "wrong reviewed runtime-repair parent")
+        require(value["previous_seal"] == review.previous_certificate(schema),
+            "wrong reviewed successor parent")
     count = verify_runtime_merge(root, review, schema)
     verify_ci_and_inventory(root, review)
     # These policies and every sequential compiler body remain byte-identical

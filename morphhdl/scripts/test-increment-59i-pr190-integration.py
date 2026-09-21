@@ -388,7 +388,7 @@ def run_schema6_retained_tests():
 
 
 if __name__ == '__main__':
-    if review.source_review(ROOT).contract(ROOT)['schema_version'] == 6:
+    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7):
         run_schema6_retained_tests()
     else:
         unittest.main(defaultTest='Pr190IntegrationTests', verbosity=2)

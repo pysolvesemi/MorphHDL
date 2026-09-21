@@ -145,7 +145,7 @@ class Sync(unittest.TestCase):
             self.review.target_source(self.root,INC61,b'unreviewed')
 
 if __name__ == '__main__':
-    if __import__('json').loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6):
+    if __import__('json').loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7):
         # Keep every original exact-merge assertion on its certified schema-3
         # source. The pinned router authenticates the whole current schema-4
         # checkout before and after that unchanged historical suite.
