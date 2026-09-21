@@ -1,0 +1,60 @@
+name: PR191 baseline, lane and 60f golden repair for 025ae94b
+
+on:
+  push:
+    branches: [recovery/pr191-baseline-lane-60f-025ae94b]
+    paths:
+      - .github/workflows/pr191-baseline-lane-60f-025ae94b.yml
+      - .github/recovery/pr191-baseline-lane-60f-025ae94b/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr191-baseline-lane-60f-025ae94b
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 025ae94b61a8620c5b75af967425898e579f4829
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = 025ae94b61a8620c5b75af967425898e579f4829
+          test "$(git rev-parse 'HEAD^{tree}')" = a220ead65e21edb038159e6c920a7193ad9aaaaf
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr191-dispatch-evidence/source-review.log"
+      - name: Launch only diagnosed baseline, lane and 60f failures
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr191-baseline-lane-60f-025ae94b/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr191-baseline-lane-60f-025ae94b-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr191-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
