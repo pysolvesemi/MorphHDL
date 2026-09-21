@@ -1,5 +1,74 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — audit and timeout repairs, 21 September 2026
+
+Feature remains `883c5d8f088a0e2eab35592cf171d87792d30bf4`, target remains
+`bbae646ba43e6189c69feb308f8decb9b677b15f`. PR177 is draft and unmerged.
+Existing hourly monitor6ab007fe39f881918d2b96dc131e48ba is enabled; old monitor stays paused.
+
+All16 previous failed-first runs are terminal:11 successes; lane ABI,59g guard,
+and combined inventory failed;59h and60f cancelled at their job time limits.
+Combined Scala2.12 also reached240min. No old-head failed job was blindly retried.
+No full CI launched and no feature ref moved.
+
+Source staging35544165225 failed17 of25 gates on923972aa, largely because
+inherited callers rejected the new schema6 helper. That candidate is superseded.
+The latest local8a115bc5 candidate also had an incorrect retained-suite command:
+it ran the historical checker instead of the authenticated20-test suite. Fixed.
+
+New exact candidate, preserved via the existing recovery branch:
+- Source `0c07d0be3972944e11cbeb0fd9d587a6207109ba`, tree
+  `4a55346c2be1833380958ec10938fd2ddac8ddd6`, direct parent883c5d8f.
+- Seal `046e977a9a42b409fd31198b631bb6522cd7a09b`, tree
+  `76ebbf8abd6c2e5741f4899b96f233d4abe59df6`, direct source child.
+- Manifest SHA256 `81fde89785c375c0a5a7301638ee217e9c6fd91b3b91fd09172c21502214f29f`.
+- Normalized helper SHA256 `4da300df4db3263f8c0be728c501f567756d1815b15dbc55d73422d4af864462`.
+- Exact27-path repair,347 cumulative manifest records and40 target records.
+
+Retains the already diagnosed ABI repair byte-for-byte: both artifacts from
+35540026293 have matching command-log/applied-patch/file hashes and126 actual
+passing tests each. This is diagnostic evidence, not new-head qualification.
+New repairs authenticate schema6 in inherited consumers, retain all historical
+source checks, execute the correct immutable20-test PR190 suite, and add4
+current360-minute-budget controls. Local routing fixture checks passed; full
+source-authenticated execution remains required.
+
+Timeout evidence from exact883c jobs:
+-59h2.13 job106121108430:153min audits+202min tests/generation left4.5min for
+ hardware before360min cap.2.12 passed at~357.5min. Full original audit now lives
+ in a required same-head source job; both Scala lanes depend on its success and
+ compare exact HEAD/tree outputs. Test, repeated A/B generation, proof and prior
+ evidence steps remain byte-identical. Separate retained source artifact added.
+-60f2.12 job106121101218 hit240min while inventory auditing, after actual tests
+ and pass workspace succeeded. Regression budget is360 only in schema6; schema5
+ historical240 contract remains exact.
+-Combined2.12 job106121071338 hit240min while test step active. Its budget becomes
+360 and exact lexical inventory6→7 is retained.
+All34 inventory/workflow preservation controls pass, including omission/optional
+source/proof mutations. Three workflows and all shell bodies parse.
+These scheduling/audit changes do not change generated Verilog; the candidate
+also includes the earlier runtime ABI repair, so do not label the whole source
+successor audit-only.
+
+NEXT: inspect the newest run of increment-59i-runtime-successor-source.yml for
+seal046e977a. Require all25 authentic gates, clean checkout and original artifact
+API digest/content verification. Do not publish feature until they pass and live
+feature/target guards remain exact. Source and seal are already real GitHub
+objects; do not reconstruct or rewrite them. If source fails, diagnose exact
+logs and preserve rejected evidence; do not weaken gates.
+
+After valid source qualification, advance existing feature non-force to exact
+seal046e977a and run failed-first/new-head requirements before full CI. The new
+59h source job/artifact requires refreshing workflow job/artifact inventory;
+old totals150 jobs/95 artifacts become at least151/96 if no other changes.
+Do not transfer883c successes to new head. Reuse only same-head runs, preserve
+intent-before-dispatch journal and launch no duplicate dispatcher. All53
+workflows remain required before completion; roadmap remains unchecked. Merge
+only after all final-head qualification/evidence with expected SHA, merge method
+merge, and no duplicate broad postmerge CI. Keep hourly continuation enabled.
+Local candidate: /workspace/scratch/8270be305ad2/59i-resume-20260921.
+
+
 
 ## CURRENT CHECKPOINT — sealed runtime successor source qualification, 20 September 2026 23:17 UTC
 
