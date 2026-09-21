@@ -279,7 +279,7 @@ def pr190_checkpoint() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "UNSEALED"
+CONTRACT_SHA256 = "2efa4ec48b503ae8191404fc708a4f093fd061a31526097eab10304a9dc84096"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
