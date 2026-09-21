@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "c0abf565e4a76ed1fadb819dbfd27cdb74227e3f",
+  "final_source_commit": "4b079554e08db99a9f772c57f273ad26684f1707",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -290,7 +290,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "76968fccec632021bf22483e3c5db2212bc56414abce8d04369943fa1af57f8a"
+      "after_sha256": "794b2f0b3b4cf0a30127a2b3fe7674d99fb503ff38cc0b27b887453f16d8b18d"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -2042,7 +2042,7 @@
       "path": "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala",
       "mode": "100644",
       "before_sha256": "932d8558abff37e98a8a907d8f72e7b367440db393b60573ed6076520cadb6e7",
-      "after_sha256": "f151da95a3069cde04006abcf63407198e763a48304398171536fd423c339096"
+      "after_sha256": "183a6f3fcdcd8d8e2b0ae6cc31be1d8de95c988f04cccc28c60d4b8d1f12997e"
     },
     {
       "path": "morphhdl/src/test/scala/morphhdl/NativeLibraryMigrationTests.scala",
