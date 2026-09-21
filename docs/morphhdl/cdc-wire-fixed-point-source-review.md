@@ -231,3 +231,26 @@ deterministic artifacts, 6,672 four-state cases, 51 formal comparisons and four
 genuine mutation rejections. All 21 generated public contract files match the
 reviewed goldens. The changed bundle golden additionally passed real Yosys
 equivalence against its previous committed version at WIDTH=1/8/64.
+
+## Separate enabled and disabled contract oracles
+
+The targeted Mill run `35558421879` on `e26eceae4` failed in both Scala
+lanes at the data-shapes test's disabled-output golden comparison. The public
+golden now describes the enabled pipeline, whereas the disabled pipeline
+correctly retains the three internal Bundle aliases. The test now compares
+enabled output byte-for-byte with that public golden and disabled output
+byte-for-byte with an independent literal copied exactly from the golden at
+`0a512546a38ed82b916f975025f5da278a68a6aa`. Neither DUT is rewritten.
+All existing interface, register, sequential-statement, four-state simulation
+and formal-equivalence checks at WIDTH=1/8/64 remain unchanged. This repair
+changes test expectations only; compiler and workflow bytes are unchanged.
+Fresh affected-workflow qualification is required; no CI pass is inferred
+from copying or authenticating an oracle.
+
+Local validation of this test-only repair passed the actual data-shapes test
+on Scala 2.13.12, including strict Verilog compilation, four-state simulation
+and Yosys equivalence at all three widths. The disabled literal was separately
+verified byte-identical to the cited historical golden (3,235 bytes, SHA-256
+`b9a6fa929edeec0e4779d330d7b43bc1e048236a14d30792a24eebb83df542f3`).
+The regression-inventory controls still reject all 65 negative cases without
+changing the original XML. Dual-Scala CI remains pending.
