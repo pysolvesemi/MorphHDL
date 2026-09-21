@@ -1,5 +1,63 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — source passed; target moved, 21 September 2026 05:50 UTC
+
+Source qualification [35556994859](https://github.com/pysolvesemi/MorphHDL/actions/runs/35556994859)
+completed successfully at 04:46:35 UTC on controller327180b98cc035db85addac9a524578ac3fe97bb.
+Job106202423495 executed all25 exact commands with returncode0. All25 original
+nonempty command logs were independently matched to the downloaded job log.
+The original31-file artifact10622841322 ZIP is12037 bytes and its independently
+computed SHA256 matches the live GitHub API and upload log:
+`ab4efce935a5a6e84a6b18cd0342bdf1c278f2a891604de7d1e17ac4ffa8e664`.
+The source workflow's final worktree/index/untracked-file cleanliness assertions
+passed. The exact command inventory, ordered source/seal/parent identities,
+trees,27 repair paths, two seal paths and manifest hash were reverified locally
+against real fetched Git objects. The failed source artifact10618178908 remains
+unchanged, and its original ZIP digest was again matched to the live API.
+
+**Do not repeat the passed source run or publish its feature ref blindly.**
+The final live branch read found target `ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd`,
+tree `d59b08a6cc850d35532aaf98856031a2da4ee862`, one direct child of bbae646b.
+Its only change is new root AGENTS.md, mode100644, blob
+`36abb9e910357b79ab3cd72fac4276b51d6ba9d5`,101 lines of targeted-dispatch
+instructions. The complete new file was read. No compiler/test/workflow change
+occurred on target. PR base.sha still reported bbae646b at the same read: use
+the direct target ref, not the stale PR metadata, for publication guards.
+
+Feature remains883c5d8f088a0e2eab35592cf171d87792d30bf4; PR177 draft/unmerged.
+No feature advance, new qualification dispatch, full controller publication,
+full CI or merge occurred. All-event exact9d6d runs query returned0.
+
+Read-only `git merge-tree --write-tree 9d6d738d... ce4a02c...` is conflict-free:
+result tree `7cf398c5e5bb13a75ed0f0b88ce6606b89ca187d`, differing from9d6d only by
+the exact target AGENTS.md addition. No merge commit/ref was created.
+This is integration analysis, NOT source or hardware qualification.
+
+The existing schema6 seal lifecycle cannot silently accept that merge:
+verify_seal_history fixes target_ceiling to bbae646b, requires integration to
+preserve the feature tree, and admits only the exact completion documentation
+exceptions (not AGENTS.md). Do not remove/relax these assertions or change frozen
+historical target anchors. A bounded reviewed target-documentation successor/
+integration reconciliation is still needed before guarded publication.
+Preserve the now-qualified dafc source/9d6d seal and their actual evidence,
+authenticate the exact ce4 parent/tree/AGENTS bytes, retain original schema6
+audits and all historical mutation controls, and add rejection controls for
+unrelated target bytes, modes, ancestry or runtime drift. Then qualify only
+that affected source route and applicable failed/affected workflows. No
+previous-head hardware success transfers.
+
+Safe local worktrees created without a development branch:
+- /workspace/scratch/8270be305ad2/59i-qualified-9d6d: clean detached qualified seal.
+- /workspace/scratch/8270be305ad2/59i-targeted-9d6d: detached recovery327180.
+Original source ZIP: /workspace/scratch/8270be305ad2/source-35556994859.zip.
+The older /59i-recovery checkout contains unpublished full-CI preparation;
+DO NOT publish its HEAD. No dispatcher was edited in this turn.
+
+Keep the existing monitor enabled. This is an in-scope integration task, not
+a credentials/dispatch-authority blocker. The user's latest targeted-only and
+existing-branch directions override any conflicting generic AGENTS guidance.
+Earlier checkpoints below are historical.
+
 ## CURRENT CHECKPOINT — inherited schema-6 routing repair, 21 September 2026
 
 Source qualification [35548874187](https://github.com/pysolvesemi/MorphHDL/actions/runs/35548874187)
