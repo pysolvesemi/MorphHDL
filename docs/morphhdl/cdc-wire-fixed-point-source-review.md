@@ -283,3 +283,21 @@ unchanged. This is a workflow expectation repair only; compiler, test and
 generated-Verilog bytes are unchanged. The baseline workflow is explicitly
 enrolled in the current source-review scope and cumulative seal. A fresh
 exact-head baseline run must pass before final full CI.
+
+## Hourly-monitoring instruction integration
+
+The integration target advanced from `ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd`
+to `3aa132e87e10dd0d2e0062c7d34d26bddb58fa72` by one `[skip ci]`
+documentation commit. That commit changes only the repository-level `AGENTS.md`:
+it requires the already-active hourly monitor to remain enabled through targeted
+qualification, final full CI, merge and verified closure, and records the same
+no-duplicate, failed-log and exact-head rules followed here.
+
+Ordinary two-parent merge `588d3bd148657efbfa9b223e1405c4f592cfe923`
+incorporates that target commit after sealed baseline repair `cb72ea2851`. No
+compiler, test, generated RTL, golden, workflow, native-review or formal-registry
+byte changes are introduced. `AGENTS.md` was already an explicit source-review
+and cumulative-seal path, so this integration requires a fresh documentation
+checkpoint and outer seal but no native or formal-record refresh. Passing
+targeted evidence remains retained for the unchanged implementation; applicable
+final-head full CI is still required before completion.
