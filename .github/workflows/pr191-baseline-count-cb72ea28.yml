@@ -1,0 +1,60 @@
+name: PR191 baseline count repair for cb72ea28
+
+on:
+  push:
+    branches: [recovery/pr191-targeted-ci-20260921]
+    paths:
+      - .github/workflows/pr191-baseline-count-cb72ea28.yml
+      - .github/recovery/pr191-baseline-count-cb72ea28/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr191-baseline-count-cb72ea28
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: cb72ea2851b529fbe216c1a56a0de68d68770400
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = cb72ea2851b529fbe216c1a56a0de68d68770400
+          test "$(git rev-parse 'HEAD^{tree}')" = 19b18c49d278e0e0f65f5653478b97b0d8ffc1a5
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr191-dispatch-evidence/source-review.log"
+      - name: Launch only repaired baseline workflow
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr191-baseline-count-cb72ea28/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr191-baseline-count-cb72ea28-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr191-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
