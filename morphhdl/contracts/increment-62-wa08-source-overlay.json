@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "4b079554e08db99a9f772c57f273ad26684f1707",
+  "final_source_commit": "ba7f1c5ef1d5fd8690a3155fff63ffd0e7b8f8a8",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -149,6 +149,12 @@
       "after_sha256": "f03852f102d715d075cd16adde06bfb6aa79ff317c608c3a701f9a3077cd23a1"
     },
     {
+      "path": "AGENTS.md",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "1f20a687842ecd9f0f3cc2d7a26c43627fc42468b9011a9ae9b8bec949a2bca3"
+    },
+    {
       "path": "build.mill",
       "mode": "100644",
       "before_sha256": "2a0ab720da477dd60ffc4c664b6cb85bb1560cf58f7338e9ecb388db0b0c5497",
@@ -290,7 +296,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "794b2f0b3b4cf0a30127a2b3fe7674d99fb503ff38cc0b27b887453f16d8b18d"
+      "after_sha256": "ef63f04ce726f173371fb5cae2d3b011a9d9f2784125f3f6075dd0b99c69fa84"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -1616,7 +1622,7 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "879432a336be1ab9bbd94db4369a0f857bef97478f35337af9f916a5688b553f"
+      "after_sha256": "b622620cffb8054183204c5b279ebb2e63bb64e1c3da645163f48871aa7d44b1"
     },
     {
       "path": "morphhdl/scripts/check-contracts.sh",
@@ -1730,7 +1736,7 @@
       "path": "morphhdl/scripts/refresh-cdc-wire-source-seal.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "e5f001b3c162705f672f94557302ed88faa558c5f9c7af6cebced8153986f231"
+      "after_sha256": "aa6ca247bc91c85fbff73802dc918c705b1364460e42a65a7bf507a83270f8da"
     },
     {
       "path": "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
