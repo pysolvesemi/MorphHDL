@@ -1,5 +1,39 @@
 # Increment 59i continuation — 20 September 2026
 
+## Latest user direction — targeted failures only, 21 September 2026
+
+The user's newest instruction supersedes the intermediate request for full CI:
+"run targeted CI only for failed workflow. workflow failed."
+
+Do not launch full CI or publish the locally prepared full-CI controller.
+Full-CI planning files under full-ci-046e977a remain intermediate only; no full
+dispatcher was published or launched, and no feature ref was advanced.
+
+At the live check, replacement source run35548874187 remains in progress on
+controller e5a2ce97a87b3c1b08933e50a01cfbe8b9099959. Identity and live-ref guards
+passed; the25 retained source gates are still executing. Its previous failed
+run35544165225 is already superseded by this corrected targeted replacement.
+Do not duplicate the active run or rerun the old failing source unchanged.
+
+Feature remains883c5d8f088a0e2eab35592cf171d87792d30bf4 and target remains
+bbae646ba43e6189c69feb308f8decb9b677b15f. The published-head failure ledger is
+unchanged:59g35527122356,lane35527089532,combined35527103629 failed;
+59h35527118755 and60f35527114989 were cancelled at their proven time limits.
+Their repairs are in staged seal046e977a9a42b409fd31198b631bb6522cd7a09b.
+
+Next inspect the active source run. If it fails, fix its actual reported cause
+and run only the affected source-qualification workflow. If it passes, verify
+its original artifact digest/content and preserve the existing source publication
+guards. Then qualify only failed/affected workflows under the latest instruction,
+reusing active/passing runs and never automatically restarting the full matrix.
+All final acceptance/source/evidence gates still apply before merge. PR remains
+draft and roadmap unchecked.
+
+Single hourly task6ab007fe39f881918d2b96dc131e48ba remains enabled with this latest
+targeted-only instruction. Superseded task6aae834192c8819195f25e56cdc525f7 is paused.
+Earlier full-CI sequencing below is historical and does not override this update.
+
+
 ## CURRENT CHECKPOINT — audit and timeout repairs, 21 September 2026
 
 Feature remains `883c5d8f088a0e2eab35592cf171d87792d30bf4`, target remains
