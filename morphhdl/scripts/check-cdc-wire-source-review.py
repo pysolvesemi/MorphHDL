@@ -45,6 +45,8 @@ PRODUCTION_PATHS = frozenset((
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala',
 ))
 TEST_PATHS = frozenset((
+    'morphhdl/scripts/check-increment-60e-signedness-boundaries.py',
+    'morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala',
     'morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala',
     'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala',
     'morphhdl/src/test/scala/spinal/core/CdcPublicationFormalControl.scala',
@@ -73,6 +75,21 @@ TEST_PATHS = frozenset((
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/cross-scala.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-off/RecursiveFillCleanupRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-on/RecursiveFillCleanupRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-on/fixed-point.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-off/ResizeNamingHierarchy.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-off/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/ResizeNamingHierarchy.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/fixed-point.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/naming-off/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/naming-on/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/naming-on/fixed-point.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/provenance.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/publication-qualification.json',
+    'repro/recursive-fill-cleanup/qualified-fc61cad0/source.txt',
     'repro/recursive-fill-cleanup/NativeCleanupTrace.scala',
     'repro/recursive-fill-cleanup/README.md',
     'repro/recursive-fill-cleanup/RecursiveFillCleanupRepro.scala',

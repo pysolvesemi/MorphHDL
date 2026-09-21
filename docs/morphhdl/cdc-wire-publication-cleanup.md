@@ -129,3 +129,35 @@ This checkpoint is implementation under qualification, not completion. Baseline
 reproduction is qualified. Repaired-source targeted CI, full CI and merge must
 be recorded on the exact final SHA/tree before closure. PR192's distinct hourly
 monitor remains enabled. No private application workspace was available.
+
+## Focused qualification and broader-CI follow-up
+
+Focused workflow 362756881, run 35626956100, passed all three jobs on
+`fc61cad03b0ee849a5b198d1442f583c1e52a70c`, tree
+`9d530833ad98e7a33bd318196b4ba60916e80451`: both Scala lanes and cross-Scala
+comparison. Each lane passed the inherited checks plus all 15 new parameter/
+fixture cases and both simulation/formal mutation rejections. The exact emitted
+on/off RTL, source identity, fixed-point receipts, qualification matrix,
+cross-Scala receipt and artifact digests are preserved under
+`repro/recursive-fill-cleanup/qualified-fc61cad0/`. This is focused evidence for
+both compiler repairs, not a full-CI completion claim.
+
+The eight targeted workflows were launched by the isolated controller at
+`da346aebef2505bcb7dbf8fde1416bee635179a4`, run 35626908969. The native-source guard
+also passed. Pass-workspace run 35626968240 failed its branch authorization:
+the existing route admitted only the original CDC branch. The follow-up now
+explicitly enters that same sealed inventory route. Lookalike branches and
+unreviewed native paths remain rejected by added negative controls.
+
+An audit of remaining proof harnesses found two more dependencies on injected
+resize spellings. The nested-sum writer now records resize names from exact
+native input/driver identities; its checker still requires all four resize
+boundaries, two disabled arithmetic carriers, and the ordered arithmetic tree.
+The sign-extension mutation follows the public `resized` output to its exact
+TARGET extension of input `a`, and still requires a single changed boundary and
+a real SAT counterexample. Historical static contracts are unchanged.
+
+These verification-only follow-ups require a new source seal and current-head
+targeted qualification. Active older-head jobs are left intact. Full CI and
+merge remain gated on the final source; no historical or older-head success is
+substituted for an applicable current-head result.

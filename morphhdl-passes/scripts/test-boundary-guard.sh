@@ -484,7 +484,17 @@ if [[ -f "${repo_root}/morphhdl/scripts/check-cdc-wire-source-review.py" ]]; the
     run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
   expect_failure 'CDC-WIRE lookalike branch cannot authorize native paths' \
     run_checker agent/wa-cdc-wire-01-fixed-point-unreviewed "${cdc_wire_manifest}"
+  printf '%s\n' \
+    'core/src/main/scala/spinal/core/Component.scala' \
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala' \
+    'morphhdl/src/test/scala/morphhdl/examples/CdcPublicationCleanupFixtures.scala' >>"${cdc_wire_manifest}"
+  expect_success 'CDC-WIRE publication follow-up requires the same sealed inventory' \
+    run_checker agent/cdc-wire-native-publication-cleanup "${cdc_wire_manifest}"
+  expect_failure 'publication lookalike branch cannot authorize native paths' \
+    run_checker agent/cdc-wire-native-publication-cleanup-unreviewed "${cdc_wire_manifest}"
   printf '%s\n' 'core/src/main/scala/spinal/core/UnreviewedCdcWire.scala' >>"${cdc_wire_manifest}"
   expect_failure 'CDC-WIRE extra native path stays outside the inventory' \
     run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
+  expect_failure 'publication follow-up still rejects unreviewed native paths' \
+    run_checker agent/cdc-wire-native-publication-cleanup "${cdc_wire_manifest}"
 fi
