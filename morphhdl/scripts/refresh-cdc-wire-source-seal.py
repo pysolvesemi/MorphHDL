@@ -57,7 +57,7 @@ def main() -> None:
     paths |= {path for path in changed if outer.governed(path)}
     # Documentation describing the exact new scope is sealed too, even though
     # documentation has no compiler-source wildcard admission.
-    paths |= {'docs/morphhdl/cdc-wire-fixed-point-source-review.md',
+    paths |= {'AGENTS.md', 'docs/morphhdl/cdc-wire-fixed-point-source-review.md',
               'morphhdl/examples/contracts/symbolic_data_shapes.v'}
     paths -= {OUTER, CONTRACT}
     tree = outer.tree(ROOT, head)

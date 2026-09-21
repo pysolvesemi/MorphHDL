@@ -66,6 +66,7 @@ TEST_PATHS = frozenset((
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
+    'AGENTS.md',
     SELF, OUTER, CONTRACT, REGISTRY,
     'morphhdl/contracts/increment-55-native-change-review.json',
     'morphhdl/contracts/native-source-preservation.json',

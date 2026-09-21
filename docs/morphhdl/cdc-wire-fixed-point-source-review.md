@@ -254,3 +254,13 @@ verified byte-identical to the cited historical golden (3,235 bytes, SHA-256
 `b9a6fa929edeec0e4779d330d7b43bc1e048236a14d30792a24eebb83df542f3`).
 The regression-inventory controls still reject all 65 negative cases without
 changing the original XML. Dual-Scala CI remains pending.
+
+The full local `MorphSingleSourceVerilogTests` suite subsequently passed all
+14 tests on Scala 2.13.12 at sealed head `b1176dde22` with no cancellations.
+The first Mill-only controller stopped before any dispatch when the live target
+advanced to `ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd`. That target commit adds
+only `AGENTS.md`, standardizing the targeted-CI protocol. It is incorporated by
+an ordinary merge, with its exact instruction bytes enrolled in the source
+review and cumulative seal. This integration changes no compiler, test, golden
+or qualification-workflow bytes relative to `b1176dde22`; the dispatch identity
+guards remain unchanged. The stopped controller must not be rerun.
