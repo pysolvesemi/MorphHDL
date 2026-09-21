@@ -16,15 +16,12 @@ identity, driver/reference identities, width, protection, source-intent, scope
 and type-node state for declarations excluded before proof. No emitted spelling
 is used to infer provenance. This probe does not implement any optimization.
 
-The initial remote run compiles and inspects the exact baseline with both native
-compiler plugins enabled. Its temporary test-source override is reproduction
-only; it is not a substitute for inherited tests or final acceptance. The local
-runtime has Java but no usable Scala dependency cache or HDL tools; Maven access
-is unavailable and both connected devboxes are offline. Use a narrowly scoped
-read-only diagnostic Actions runner, then perform the required targeted-before-
-full qualification after implementing and reviewing the repair.
+The exact baseline was built and passed both Scala lanes in run 35620756320.
+Actual Verilog, complete candidate trace and artifact provenance are archived in
+`baseline/`. See `docs/morphhdl/cdc-wire-publication-cleanup.md` for the diagnosis,
+repair, permanent regression commands and current qualification status.
 
-Next: inspect the actual baseline outputs and all candidate dispositions, then
-implement the generic safe transport/boundary repair and normal resize naming.
-Add independent port-driven two/four-state oracles, enabled/disabled equivalence,
-parameter overrides 2,3,4,8,16, negative controls and determinism before closure.
+Local experiments now use recovered JVM/HDL tooling. Cached compiler classes are
+mixed historical binaries, so those experiments are diagnostic only. Required
+qualification builds the exact sealed source on the remote runners. The permanent
+acceptance never overrides unmanagedSources or excludes inherited tests.

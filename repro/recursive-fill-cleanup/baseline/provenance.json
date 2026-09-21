@@ -1,0 +1,14 @@
+{
+  "compiler_sha": "155df6eb0e38ecce04a37de2067b0794702fcb83",
+  "compiler_tree": "2dee374f6f77359f3b4845f9ae9172ac97e7c957",
+  "fixture_sha": "7ebe4ae5d8d92b097a612f584f099978d4981012",
+  "workflow_id": 363502212,
+  "run_url": "https://github.com/pysolvesemi/MorphHDL/actions/runs/35620756320",
+  "scala_lanes": [
+    "2.12.18",
+    "2.13.12"
+  ],
+  "archived_lane": "2.13.12",
+  "artifact_id": 10650070360,
+  "artifact_sha256": "86478e212f685b85770506e3d27a6aaa1409b731ba85a75ad7ed11d773959928"
+}

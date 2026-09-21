@@ -25,6 +25,8 @@ CONTRACT = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
 SELF = 'morphhdl/scripts/check-cdc-wire-source-review.py'
 REGISTRY = 'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json'
 PRODUCTION_PATHS = frozenset((
+    'core/src/main/scala/spinal/core/Component.scala',
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala',
     'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala',
     'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala',
     'core/src/main/scala/spinal/core/ParameterizedVec.scala',
@@ -43,6 +45,9 @@ PRODUCTION_PATHS = frozenset((
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala',
 ))
 TEST_PATHS = frozenset((
+    'morphhdl/src/test/scala/spinal/core/CdcPublicationFormalControl.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/CdcPublicationCleanupFixtures.scala',
+    'morphhdl-passes/scripts/check-cdc-publication-cleanup.py',
     'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala',
     'core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala',
     'core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala',
@@ -66,6 +71,20 @@ TEST_PATHS = frozenset((
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
+    'repro/recursive-fill-cleanup/NativeCleanupTrace.scala',
+    'repro/recursive-fill-cleanup/README.md',
+    'repro/recursive-fill-cleanup/RecursiveFillCleanupRepro.scala',
+    'repro/recursive-fill-cleanup/ResizeTemporaryNamingRepro.scala',
+    'repro/recursive-fill-cleanup/baseline/baseline.log',
+    'repro/recursive-fill-cleanup/baseline/compiler-source.txt',
+    'repro/recursive-fill-cleanup/baseline/fill-off/RecursiveFillCleanupRepro.v',
+    'repro/recursive-fill-cleanup/baseline/fill-on/RecursiveFillCleanupRepro.v',
+    'repro/recursive-fill-cleanup/baseline/naming-off/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/baseline/naming-on/ResizeTemporaryNamingRepro.v',
+    'repro/recursive-fill-cleanup/baseline/probe-source.txt',
+    'repro/recursive-fill-cleanup/baseline/provenance.json',
+    'repro/recursive-fill-cleanup/requirements.md',
+    'docs/morphhdl/cdc-wire-publication-cleanup.md',
     'AGENTS.md',
     SELF, OUTER, CONTRACT, REGISTRY,
     'morphhdl/contracts/increment-55-native-change-review.json',
@@ -88,6 +107,24 @@ REVIEW_PATHS = frozenset((
 
 
 CDC_SAFETY_MARKERS = {
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala': (
+        'val nativeOwner = !record.witnessInactive && record.typedTarget.nonEmpty &&',
+        'validCurrentRecord(component, record) &&',
+        'ExternalParameterizedNativeResize.provesAssignment(component, record.sourceDriver)',
+        'NativePublicationWidth.equivalentAtOwner(width, expected, component, record.resizeSource)',
+        'if (!nativeOwner) {',
+    ),
+    'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala': (
+        'target.dontSimplifyIt().addTag(noBackendCombMerge)',
+        'source.dontSimplifyIt().addTag(noBackendCombMerge)',
+        'def revalidate(): Unit = {',
+    ),
+    'morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala': (
+        'WA10-NATIVE-ZERO-RECEIVER-WIDTH-AUTHORITY',
+        'val before = NativeWidthProvenance.optionalWidthOf(value)',
+        'val after = NativeWidthProvenance.optionalWidthOf(value)',
+        'ElaborationWidthAuthority.equivalent(a, b)',
+    ),
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala': (
         'deferPreferredExpressionSource = true, sourceIntent = Some(sourceIntent))',
         'phases.insert(firstLiveness, sourceIntent)',

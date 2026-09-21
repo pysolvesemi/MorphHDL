@@ -1,0 +1,645 @@
+[info] [launcher] getting org.scala-sbt sbt 1.10.0  (this may take some time)...
+[info] [launcher] getting Scala 2.12.19 (for sbt)...
+[0m[[0m[0minfo[0m] [0m[0mwelcome to sbt 1.10.0 (Eclipse Adoptium Java 17.0.20.1)[0m
+[0m[[0m[0minfo[0m] [0m[0mloading settings for project baseline-build from plugin.sbt ...[0m
+[0m[[0m[0minfo[0m] [0m[0mloading project definition from /home/runner/work/MorphHDL/MorphHDL/baseline/project[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 1 Scala source to /home/runner/work/MorphHDL/MorphHDL/baseline/project/target/scala-2.12/sbt-1.0/classes ...[0m
+[0m[[0m[0minfo[0m] [0m[0mNon-compiled module 'compiler-bridge_2.12' for Scala 2.12.19. Compiling...[0m
+[0m[[0m[0minfo[0m] [0m[0m  Compilation completed in 9.589s.[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+/home/runner/work/MorphHDL/MorphHDL/baseline/build.sbt:200: warning: method sonatypeRepo in class ResolverFunctions is deprecated (since 1.7.0): Use sonatypeOssRepos instead e.g. `resolvers ++= Resolver.sonatypeOssRepos("snapshots")`
+    resolvers += Resolver.sonatypeRepo("public"),
+                          ^
+[0m[[0m[0minfo[0m] [0m[0mloading settings for project all from build.sbt ...[0m
+[0m[[0m[0minfo[0m] [0m[0mresolving key references (13791 settings) ...[0m
+[0m[[0m[0minfo[0m] [0m[0mset current project to SpinalHDL-all (in build file:/home/runner/work/MorphHDL/MorphHDL/baseline/)[0m
+[0m[[0m[0minfo[0m] [0m[0mSetting Scala version to 2.13.12 on 14 projects.[0m
+[0m[[0m[0minfo[0m] [0m[0mReapplying settings...[0m
+[0m[[0m[0minfo[0m] [0m[0mset current project to SpinalHDL-all (in build file:/home/runner/work/MorphHDL/MorphHDL/baseline/)[0m
+[0m[[0m[0minfo[0m] [0m[0mDefining morph / Test / unmanagedSources[0m
+[0m[[0m[0minfo[0m] [0m[0mThe new value will be used by morph / Test / bspBuildTargetSourcesItem, morph / Test / packageSrc / mappings and 2 others.[0m
+[0m[[0m[0minfo[0m] [0m[0m	Run `last` for details.[0m
+[0m[[0m[0minfo[0m] [0m[0mReapplying settings...[0m
+[0m[[0m[0minfo[0m] [0m[0mset current project to SpinalHDL-all (in build file:/home/runner/work/MorphHDL/MorphHDL/baseline/)[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 4 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/morphplugin/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala:34:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class ClassifiedTrees([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala:41:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class WildcardMembers([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mthree warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0m* -unchecked[0m
+[0m[[0m[0minfo[0m] [0m[0m* -target:jvm-1.8[0m
+[0m[[0m[0minfo[0m] [0m[0m* -language:reflectiveCalls[0m
+[0m[[0m[0minfo[0m] [0m[0m* -Xplugin:/home/runner/work/MorphHDL/MorphHDL/baseline/idslplugin/target/scala-2.13/spinalhdl-idsl-plugin_2.13-dev.jar[0m
+[0m[[0m[0minfo[0m] [0m[0m* -Xplugin:/home/runner/work/MorphHDL/MorphHDL/baseline/morphplugin/target/scala-2.13/morphhdl-compiler-plugin_2.13-dev.jar[0m
+[0m[[0m[0minfo[0m] [0m[0m* -Xplugin-require:morphhdl[0m
+[0m[[0m[32msuccess[0m] [0m[0mTotal time: 10 s, completed Sep 21, 2026, 3:43:59 PM[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 6 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/paramrtl/target/scala-2.13/classes ...[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 5 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/morphir/target/scala-2.13/classes ...[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 2 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/idslpayload/target/scala-2.13/classes ...[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 17 Scala sources and 10 Java sources to /home/runner/work/MorphHDL/MorphHDL/baseline/sim/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation[0m
+[0m[[0m[33mwarn[0m] [0m[0m3 deprecations (since 2.11.0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m4 deprecations in total; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mthree warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 2 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/idslplugin/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation[0m
+[0m[[0m[33mwarn[0m] [0m[0m23 deprecations (since 2.13.0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m24 deprecations in total; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mthree warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/sim/src/main/java/spinal/sim/DynamicCompiler.java: DynamicCompiler.java uses or overrides a deprecated API.[0m
+[0m[[0m[0minfo[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/sim/src/main/java/spinal/sim/DynamicCompiler.java: Recompile with -Xlint:deprecation for details.[0m
+[0m[[0m[0minfo[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/sim/src/main/java/spinal/sim/DynamicCompiler.java: DynamicCompiler.java uses unchecked or unsafe operations.[0m
+[0m[[0m[0minfo[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/sim/src/main/java/spinal/sim/DynamicCompiler.java: Recompile with -Xlint:unchecked for details.[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 91 Scala sources and 2 Java sources to /home/runner/work/MorphHDL/MorphHDL/baseline/core/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 2 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/backends/verilog/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/Union.scala:8:16: Implicit definition should have explicit type (inferred T) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def wrapped[T <: Data](ue: UnionElement[T]) = ue.get()[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/core.scala:379:48: fruitless type test: a value of type String cannot also be a List[Any] (the underlying of List[_])[0m
+[0m[[0m[33mwarn[0m] [0m[0m        if (pi.hasNext && !pi.next.isInstanceOf[List[_]]) bldr append pi.next[0m
+[0m[[0m[33mwarn[0m] [0m[0m                                               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/internals/Phase.scala:3228:25: non-variable type argument spinal.core.SpinalEnum in type pattern spinal.core.SpinalEnumCraft[spinal.core.SpinalEnum] is unchecked since it is eliminated by erasure[0m
+[0m[[0m[33mwarn[0m] [0m[0m                case d: SpinalEnumCraft[SpinalEnum] => d.init(d.spinalEnum.elements(0))[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/sim/package.scala:735:9: method without a parameter list overrides method getSim in trait SimEquiv defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    def getSim = bt.encoding.getElement(getBigInt(bt), bt.spinalEnum).asInstanceOf[SpinalEnumElement[T]][0m
+[0m[[0m[33mwarn[0m] [0m[0m        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/AFix.scala:231:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: SCRAP[0m
+[0m[[0m[33mwarn[0m] [0m[0m    roundType match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/Data.scala:390:29: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m  def dirString(): String = dir match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                            ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/Data.scala:581:16: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m          that.dir match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/Data.scala:593:9: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m        d match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/SInt.scala:397:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: SCRAP[0m
+[0m[[0m[33mwarn[0m] [0m[0m    roundType match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/UInt.scala:279:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: SCRAP[0m
+[0m[[0m[33mwarn[0m] [0m[0m    roundType match{[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/fiber/AsyncThread.scala:81:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: false[0m
+[0m[[0m[33mwarn[0m] [0m[0m    done match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/internals/Phase.scala:1700:31: unreachable code[0m
+[0m[[0m[33mwarn[0m] [0m[0m          case e: MemReadSync =>[0m
+[0m[[0m[33mwarn[0m] [0m[0m                              ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/internals/Phase.scala:3114:12: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, inout, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m        io.dir match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/core/src/main/scala/spinal/core/internals/PhaseVerilog.scala:483:23: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Nil[0m
+[0m[[0m[33mwarn[0m] [0m[0m        val newName = IFlist match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m4 deprecations[0m
+[0m[[0m[33mwarn[0m] [0m[0m83 deprecations (since 2.13.0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 2.13.11)[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 2.13.2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m70 deprecations (since 2.13.3)[0m
+[0m[[0m[33mwarn[0m] [0m[0m2 deprecations (since 2.13.4)[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 9)[0m
+[0m[[0m[33mwarn[0m] [0m[0m162 deprecations in total; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m3 feature warnings; re-run with -feature for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m23 warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 10 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/morphruntime/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 563 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/lib/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib.scala:75:16: Implicit definition should have explicit type (inferred spinal.core.DataPimper[spinal.lib.Fragment[T]]) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def fragmentFixer[T <: Data](_data: Fragment[T]) = new DataPimper(_data)[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/CrossClock.scala:162:15: non-variable type argument spinal.core.Data in type pattern spinal.lib.BufferCC[spinal.core.Data] is unchecked since it is eliminated by erasure[0m
+[0m[[0m[33mwarn[0m] [0m[0m      case c: BufferCC[Data] => {[0m
+[0m[[0m[33mwarn[0m] [0m[0m              ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/Utils.scala:713:19: abstract type pattern T is unchecked since it is eliminated by erasure[0m
+[0m[[0m[33mwarn[0m] [0m[0m        case bt : T => solveCombDriver(bt)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                  ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegInst.scala:94:19: non-variable type argument spinal.core.SpinalEnum in type pattern spinal.core.SpinalEnumCraft[spinal.core.SpinalEnum] is unchecked since it is eliminated by erasure[0m
+[0m[[0m[33mwarn[0m] [0m[0m          case t: SpinalEnumCraft[SpinalEnum] => t.init(t.spinalEnum.elements(resetValue.toInt))[0m
+[0m[[0m[33mwarn[0m] [0m[0m                  ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:781:25: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val inserterStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:782:24: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val addressStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:783:21: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val dataStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:784:20: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val tagStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                   ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:785:21: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val prepStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:786:24: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val processStage = ctrl(2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1428:25: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val inserterStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1430:21: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val readStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1431:24: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val processStage = ctrl(p.readProcessAt)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1527:25: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val inserterStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1528:22: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val fetchStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                     ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1529:21: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val readStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1530:24: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val processStage = ctrl(2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1714:25: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val inserterStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1715:22: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val fetchStage = ctrl(0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                     ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1716:21: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val readStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1717:27: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val preprocessStage = ctrl(1)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                          ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/coherent/Cache.scala:1718:24: reference to ctrl is ambiguous;[0m
+[0m[[0m[33mwarn[0m] [0m[0mit is both defined in the enclosing class Cache and inherited in the enclosing anonymous class as method ctrl (defined in class StageCtrlPipeline)[0m
+[0m[[0m[33mwarn[0m] [0m[0mIn Scala 2, symbols inherited from a superclass shadow symbols defined in an outer scope.[0m
+[0m[[0m[33mwarn[0m] [0m[0mSuch references are ambiguous in Scala 3. To continue using the inherited symbol, write `this.ctrl`.[0m
+[0m[[0m[33mwarn[0m] [0m[0mOr use `-Wconf:msg=legacy-binding:s` to silence this warning. [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    val processStage = ctrl(2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                       ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/sim/BridgeTestbench.scala:11:16: Implicit definition should have explicit type (inferred spinal.lib.bus.tilelink.sim.IdAllocator) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val idAllocator = new IdAllocator(DebugId.width)[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/sim/BridgeTestbench.scala:12:16: Implicit definition should have explicit type (inferred spinal.lib.bus.tilelink.sim.IdCallback) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val idCallback = new IdCallback[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/sim/MemoryAgent.scala:19:16: Pattern definition introduces Unit-valued member of MemoryAgent; consider wrapping it in `locally { ... }`.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val _ = sm[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/cpu/riscv/impl/ICache.scala:258:18: Implicit definition should have explicit type (inferred spinal.lib.cpu.riscv.impl.InstructionCacheConfig) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    implicit val p = InstructionCacheConfig([0m
+[0m[[0m[33mwarn[0m] [0m[0m                 ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/cpu/riscv/impl/bench/CoreUut.scala:11:18: Implicit definition should have explicit type (inferred spinal.lib.cpu.riscv.impl.RiscvCoreConfig) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m    implicit val toto = p[0m
+[0m[[0m[33mwarn[0m] [0m[0m                 ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/misc/pipeline/CtrlLink.scala:147:16: Implicit definition should have explicit type (inferred CtrlApi.this.BundlePimper[T])[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def bundlePimper[T <: Bundle](stageable: Payload[T]) = new BundlePimper[T](this (stageable))[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/misc/pipeline/Node.scala:65:16: Implicit definition should have explicit type (inferred NodeBaseApi.this.BundlePimper[T])[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def bundlePimper[T <: Bundle](stageable: Payload[T]) = new  BundlePimper[T](this(stageable))[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/misc/test/MultithreadedTester.scala:57:16: Implicit definition should have explicit type (inferred scala.concurrent.ExecutionContextExecutorService) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val ec = ExecutionContext.fromExecutorService([0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Play.scala:112:20: Implicit definition should have explicit type (inferred spinal.lib.pipeline.Pipeline) [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m      implicit val pip = new Pipeline[0m
+[0m[[0m[33mwarn[0m] [0m[0m                   ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:137:16: Implicit definition should have explicit type (inferred T)[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def stageablePiped[T <: Data](stageable: Stageable[T])(implicit key : StageableOffset = StageableOffsetNone) = Stage.this(stageable, key.value)[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:138:16: Implicit definition should have explicit type (inferred AnyRef{def of(key: Any): T})[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def stageablePiped2[T <: Data](stageable: Stageable[T]) = new {[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:142:16: Implicit definition should have explicit type (inferred T)[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def stageablePiped3[T <: Data](key: Tuple2[Stageable[T], Any]) = Stage.this(key._1, key._2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:145:16: Implicit definition should have explicit type (inferred AnyRef{def of(key: Any): spinal.core.Vec[T]})[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def stageablePipedVec2[T <: Data](stageable: Stageable[Vec[T]]) = new {[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Stage.scala:148:16: Implicit definition should have explicit type (inferred spinal.core.Vec[T])[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit def stageablePipedVec3[T <: Data](key: Tuple2[Stageable[Vec[T]], Any]) = Stage.this(key._1, key._2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/sim/Stream.scala:90:16: Pattern definition introduces Unit-valued member of StreamDriver; consider wrapping it in `locally { ... }`.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val _ = sm[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/sim/Stream.scala:256:16: Pattern definition introduces Unit-valued member of StreamDriverOoo; consider wrapping it in `locally { ... }`.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  implicit val _ = sm[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/bmb/BmbGenerators.scala:184:16: method with a single empty parameter list overrides method getBus in trait InterruptCtrlGeneratorI defined without a parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  override def getBus(): Handle[Nameable] = ctrl[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RamInst.scala:28:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  override def readBits: Bits = bus.rdat[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RdFifoInst.scala:18:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  override def readBits: Bits = bus.payload[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:23:7: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  def readBits: Bits = {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/VirtualRegInst.scala:7:16: method without a parameter list overrides method readBits in class RegBase defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  override def readBits: Bits = busif.defaultReadBits[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/WrFifoInst.scala:20:16: method without a parameter list overrides method readBits in class RegSlice defined with a single empty parameter list [quickfixable][0m
+[0m[[0m[33mwarn[0m] [0m[0m  override def readBits: Bits = bi.defaultReadBits[0m
+[0m[[0m[33mwarn[0m] [0m[0m               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/com/usb/ohci/UsbOhciTilelinkFiber.scala:46:17: comparing values of types spinal.core.ClockDomain and spinal.core.fiber.Handle[spinal.core.ClockDomain] using `==` will always yield false[0m
+[0m[[0m[33mwarn[0m] [0m[0m      if(ctrlCd == phyCd) {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/generator/ClockDomainGenerator.scala:272:5: multiline expressions might require enclosing parentheses; a value can be silently discarded when Unit is expected[0m
+[0m[[0m[33mwarn[0m] [0m[0m    generator[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/Utils.scala:702:32: unreachable code[0m
+[0m[[0m[33mwarn[0m] [0m[0m    case e: MemReadSync => body(e)[0m
+[0m[[0m[33mwarn[0m] [0m[0m                               ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/bmb/Bmb.scala:561:38: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  def resize(dataWidth : Int): Bmb = this match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                                     ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:24:55: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))[0m
+[0m[[0m[33mwarn[0m] [0m[0m    override def transformers = MappedConnection.this.userMapping match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                                                      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:34:29: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))[0m
+[0m[[0m[33mwarn[0m] [0m[0m      MappedConnection.this.userMapping match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                            ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:48:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))[0m
+[0m[[0m[33mwarn[0m] [0m[0m    userMapping match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/fabric/MappedConnection.scala:57:5: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: Any forSome x not in (BigInt, DefaultMapping, spinal.lib.bus.misc.AddressMapping)))[0m
+[0m[[0m[33mwarn[0m] [0m[0m    userMapping match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:325:7: Exhaustivity analysis reached max recursion depth, not all missing cases are reported.[0m
+[0m[[0m[33mwarn[0m] [0m[0m(Please try with scalac -Ypatmat-exhaust-depth 40 or -Ypatmat-exhaust-depth off.)[0m
+[0m[[0m[33mwarn[0m] [0m[0m      accType match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegBase.scala:356:7: Exhaustivity analysis reached max recursion depth, not all missing cases are reported.[0m
+[0m[[0m[33mwarn[0m] [0m[0m(Please try with scalac -Ypatmat-exhaust-depth 40 or -Ypatmat-exhaust-depth off.)[0m
+[0m[[0m[33mwarn[0m] [0m[0m      accType match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegInst.scala:320:21: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: W1CHS, W1I, W1SHS[0m
+[0m[[0m[33mwarn[0m] [0m[0m    val ret: Bits = acc match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/regif/Block/RegSlice.scala:35:13: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: spinal.lib.bus.regif.Secure forSome x not in (spinal.lib.bus.regif.Secure.CS, spinal.lib.bus.regif.Secure.MS)))[0m
+[0m[[0m[33mwarn[0m] [0m[0m      Option(sec) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m            ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/sim/Checker.scala:223:25: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: None[0m
+[0m[[0m[33mwarn[0m] [0m[0m        inflightC.remove(d.source -> d.address) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/bus/tilelink/sim/Checker.scala:239:21: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: None[0m
+[0m[[0m[33mwarn[0m] [0m[0m    inflightD.remove(e.sink) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                    ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/dsptool/FixData.scala:30:26: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: SCRAP[0m
+[0m[[0m[33mwarn[0m] [0m[0m      val rounded = this.roundType match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                         ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/eda/TimingExtractor.scala:143:49: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: None[0m
+[0m[[0m[33mwarn[0m] [0m[0m    case bt : BaseType if bt.isComb => bt.getTag(classOf[ClockDomainTag]) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                                                ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/io/InOutVecToBits.scala:22:7: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, inout, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m    e.getDirection match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/io/InOutVecToBits.scala:36:13: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: inWithNull, inout, outWithNull[0m
+[0m[[0m[33mwarn[0m] [0m[0m        key.getDirection match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m            ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/pipeline/Pipeline.scala:171:22: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: Some((x: Any forSome x not in Pipeline.this.ConnectionModel))[0m
+[0m[[0m[33mwarn[0m] [0m[0m      stageDriver.get(stage) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                     ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/system/dma/sg/MemoryCore.scala:112:7: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: (true, true)[0m
+[0m[[0m[33mwarn[0m] [0m[0m      (p.writes(self).absolutePriority, p.writes(other).absolutePriority) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/lib/src/main/scala/spinal/lib/system/dma/sg/MemoryCore.scala:198:7: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following input: (true, true)[0m
+[0m[[0m[33mwarn[0m] [0m[0m      (p.reads(self).absolutePriority, p.reads(other).absolutePriority) match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m      ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m28 deprecations[0m
+[0m[[0m[33mwarn[0m] [0m[0m3 deprecations (since 2.13)[0m
+[0m[[0m[33mwarn[0m] [0m[0m372 deprecations (since 2.13.0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m23 deprecations (since 2.13.2)[0m
+[0m[[0m[33mwarn[0m] [0m[0m439 deprecations (since 2.13.3)[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 2022-12-31)[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation (since 2026.12.30)[0m
+[0m[[0m[33mwarn[0m] [0m[0m867 deprecations in total; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m6 feature warnings; re-run with -feature for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m74 warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 25 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/frontend/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m2 feature warnings; re-run with -feature for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mtwo warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 72 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl/target/scala-2.13/classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl/src/main/scala/spinal/core/internals/ParameterizedVerilogStructural.scala:3422:41: match may not be exhaustive.[0m
+[0m[[0m[33mwarn[0m] [0m[0mIt would fail on the following inputs: Vector0, Vector1(), Vector2(), Vector3(), Vector4(), Vector5(), Vector6()[0m
+[0m[[0m[33mwarn[0m] [0m[0m                val conditionalOwners = nestedOwners match {[0m
+[0m[[0m[33mwarn[0m] [0m[0m                                        ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:95:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class ForwardRewrite([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:99:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class PreferredSourceRewrite([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:185:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeCandidate([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireAliasNativeBridge.scala:195:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeProof([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:161:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeCandidate([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:174:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeProof([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala:495:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class CanonicalSnapshot([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala:129:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeCandidate([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala:137:28: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m  private final case class NativeProof([0m
+[0m[[0m[33mwarn[0m] [0m[0m                           ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m/home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala:2618:30: The outer reference in this type test cannot be checked at run time.[0m
+[0m[[0m[33mwarn[0m] [0m[0m    private final case class ModularUIntFacts([0m
+[0m[[0m[33mwarn[0m] [0m[0m                             ^[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation[0m
+[0m[[0m[33mwarn[0m] [0m[0m30 deprecations (since 2.13.0)[0m
+[0m[[0m[33mwarn[0m] [0m[0m4 deprecations (since 2.13.3)[0m
+[0m[[0m[33mwarn[0m] [0m[0m40 deprecations (since Increment 58)[0m
+[0m[[0m[33mwarn[0m] [0m[0m75 deprecations in total; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 feature warning; re-run with -feature for details[0m
+[0m[[0m[33mwarn[0m] [0m[0m17 warnings found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mcompiling 3 Scala sources to /home/runner/work/MorphHDL/MorphHDL/baseline/morphhdl/target/scala-2.13/test-classes ...[0m
+[0m[[0m[33mwarn[0m] [0m[0m1 deprecation; re-run with -deprecation for details[0m
+[0m[[0m[33mwarn[0m] [0m[0mone warning found[0m
+[0m[[0m[0minfo[0m] [0m[0mdone compiling[0m
+[0m[[0m[0minfo[0m] [0m[0mrunning (fork) roadmap.RecursiveFillCleanupRepro /home/runner/work/_temp/evidence/fill-on true[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] SpinalHDL dev    git head : 155df6eb0e38ecce04a37de2067b0794702fcb83[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] JVM max memory : 3998.0MiB[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] Current date : 2026.09.21 15:45:49[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.000 : Elaborate components[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.456 : Checks and transforms[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	before-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=0	name=bypass	origin=Some(Reflected(bypass))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=1	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=1	name=upper	origin=Some(Reflected(upper))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=2	name=lower	origin=Some(Reflected(lower))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=4	name=writeFill	origin=Some(Reflected(writeFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=6	name=readFill	origin=Some(Reflected(readFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=5:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=7	name=fifo_capacity	origin=Some(Explicit(fifo_capacity))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-PRESERVATION)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=9	name=upperWide	origin=Some(Reflected(upperWide))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Right(NativeProof(PackedType(Literal(18),Unsigned,UnsignedInteger),Vector()))	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=8	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=11	name=selectedUpper	origin=Some(Reflected(selectedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-PRESERVATION)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=10	name=	origin=Some(Unnamed)	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=BinaryMultiplexerUInt:refs=7,1,9:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=Left(WA09-NATIVE-REGISTERED-RECEIVER)	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=13	name=clampedUpper	origin=Some(Reflected(clampedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-REGISTERED-IDENTITY)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=12	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=14	name=zeroFill	origin=Some(Reflected(zeroFill))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=3	name=	origin=Some(Unnamed)	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,14,13:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=Right(NativeProof(PackedType(ParameterRef(parameter.native-named-expression-width),Unsigned,UnsignedInteger),Vector(IntegerParameter(parameter.native-named-expression-width,NATIVE_NAMED_EXPRESSION_WIDTH,5,IntegerParameterDomain(4,18,Vector(4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18)),None))))	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=5	name=	origin=Some(Unnamed)	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,7,2,14:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	before-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	after-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=0	name=bypass	origin=Some(Reflected(bypass))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=1	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=1	name=upper	origin=Some(Reflected(upper))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=2	name=lower	origin=Some(Reflected(lower))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=4	name=writeFill	origin=Some(Reflected(writeFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,14,13:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=6	name=readFill	origin=Some(Reflected(readFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=5:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=7	name=fifo_capacity	origin=Some(Explicit(fifo_capacity))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-PRESERVATION)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=8	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=11	name=selectedUpper	origin=Some(Reflected(selectedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-PRESERVATION)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=10	name=	origin=Some(Unnamed)	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=BinaryMultiplexerUInt:refs=7,1,8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=Left(WA09-NATIVE-REGISTERED-RECEIVER)	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=13	name=clampedUpper	origin=Some(Reflected(clampedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-REGISTERED-IDENTITY)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=12	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=14	name=zeroFill	origin=Some(Reflected(zeroFill))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=5	name=	origin=Some(Unnamed)	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,7,2,14:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	after-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=0	name=bypass	origin=Some(Reflected(bypass))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=1	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=1	name=upper	origin=Some(Reflected(upper))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=2	name=lower	origin=Some(Reflected(lower))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=4	name=writeFill	origin=Some(Reflected(writeFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,14,13:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=6	name=readFill	origin=Some(Reflected(readFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=5:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=7	name=fifo_capacity	origin=Some(Explicit(fifo_capacity))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-PRESERVATION)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=8	name=morphhdl_resize	origin=Some(Reflected(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=11	name=selectedUpper	origin=Some(Reflected(selectedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-PRESERVATION)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=10	name=_zz_selectedUpper	origin=Some(Reflected(_zz_selectedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=BinaryMultiplexerUInt:refs=7,1,8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-REGISTERED-RECEIVER)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=13	name=clampedUpper	origin=Some(Reflected(clampedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-REGISTERED-IDENTITY)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=12	name=morphhdl_resize_1	origin=Some(Reflected(morphhdl_resize_1))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=14	name=zeroFill	origin=Some(Reflected(zeroFill))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=5	name=_zz_readFill	origin=Some(Reflected(_zz_readFill))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,7,2,14:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 1.112 : Generate Verilog to /tmp/morphhdl-single-source-16166723451798334661[0m
+[0m[[0m[0minfo[0m] [0m[0m[Done] at 1.362[0m
+[0m[[0m[32msuccess[0m] [0m[0mTotal time: 112 s (01:52), completed Sep 21, 2026, 3:45:51 PM[0m
+[0m[[0m[0minfo[0m] [0m[0mrunning (fork) roadmap.RecursiveFillCleanupRepro /home/runner/work/_temp/evidence/fill-off false[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] SpinalHDL dev    git head : 155df6eb0e38ecce04a37de2067b0794702fcb83[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] JVM max memory : 3998.0MiB[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] Current date : 2026.09.21 15:45:52[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.000 : Elaborate components[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.473 : Checks and transforms[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=0	name=bypass	origin=Some(Reflected(bypass))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=1	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=1	name=upper	origin=Some(Reflected(upper))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=false	oneDriver=false	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=2	name=lower	origin=Some(Reflected(lower))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=5	name=writeFill	origin=Some(Reflected(writeFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,3,4:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=7	name=readFill	origin=Some(Reflected(readFill))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=BinaryMultiplexerUInt:refs=0,6,2,3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=6	name=fifo_capacity	origin=Some(Explicit(fifo_capacity))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-PRESERVATION)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=9	name=upperWide	origin=Some(Reflected(upperWide))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Right(NativeProof(PackedType(Literal(18),Unsigned,UnsignedInteger),Vector()))	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=8	name=morphhdl_resize	origin=Some(Reflected(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=10	name=selectedUpper	origin=Some(Reflected(selectedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=BinaryMultiplexerUInt:refs=6,1,9:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-SELECTED-RECEIVER)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=4	name=clampedUpper	origin=Some(Reflected(clampedUpper))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=Left(WA05-NATIVE-REGISTERED-IDENTITY)	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=11	name=morphhdl_resize_1	origin=Some(Reflected(morphhdl_resize_1))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=3	name=zeroFill	origin=Some(Reflected(zeroFill))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=UIntLiteral:refs=:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA09-NATIVE-EXPRESSION-UNREPRESENTED)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.714 : Generate Verilog to /tmp/morphhdl-single-source-16023567789403844085[0m
+[0m[[0m[0minfo[0m] [0m[0m[Done] at 0.998[0m
+[0m[[0m[32msuccess[0m] [0m[0mTotal time: 2 s, completed Sep 21, 2026, 3:45:53 PM[0m
+[0m[[0m[0minfo[0m] [0m[0mrunning (fork) roadmap.ResizeTemporaryNamingRepro /home/runner/work/_temp/evidence/naming-on true[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] SpinalHDL dev    git head : 155df6eb0e38ecce04a37de2067b0794702fcb83[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] JVM max memory : 3998.0MiB[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] Current date : 2026.09.21 15:45:54[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.000 : Elaborate components[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.424 : Checks and transforms[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	before-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=0	name=a	origin=Some(Reflected(a))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=1	name=b	origin=Some(Reflected(b))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=3	name=wide	origin=Some(Reflected(wide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=2:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=5	name=namedWide	origin=Some(Reflected(namedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=4:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=7	name=zzNamedWide	origin=Some(Reflected(zzNamedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=6:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=9	name=roundTrip	origin=Some(Reflected(roundTrip))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=10	name=morphhdl_resize_source	origin=Some(Explicit(morphhdl_resize_source))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=2	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=8	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=11	name=kept_difference	origin=Some(Explicit(kept_difference))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=4	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=12	name=_zz_user_kept	origin=Some(Explicit(_zz_user_kept))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	before-cleanup	id=6	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	before-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	after-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=0	name=a	origin=Some(Reflected(a))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=1	name=b	origin=Some(Reflected(b))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=3	name=wide	origin=Some(Reflected(wide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=2:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=5	name=namedWide	origin=Some(Reflected(namedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=4:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=7	name=zzNamedWide	origin=Some(Reflected(zzNamedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=6:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=9	name=roundTrip	origin=Some(Reflected(roundTrip))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=10	name=morphhdl_resize_source	origin=Some(Explicit(morphhdl_resize_source))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=2	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=8	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=11	name=kept_difference	origin=Some(Explicit(kept_difference))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=4	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=12	name=_zz_user_kept	origin=Some(Explicit(_zz_user_kept))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	after-cleanup	id=6	name=morphhdl_resize	origin=Some(Explicit(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	after-cleanup[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=0	name=a	origin=Some(Reflected(a))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=1	name=b	origin=Some(Reflected(b))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=3	name=wide	origin=Some(Reflected(wide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=2:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=5	name=namedWide	origin=Some(Reflected(namedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=4:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=7	name=zzNamedWide	origin=Some(Reflected(zzNamedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=6:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=9	name=roundTrip	origin=Some(Reflected(roundTrip))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=10	name=morphhdl_resize_source	origin=Some(Reflected(morphhdl_resize_source))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=2	name=morphhdl_resize	origin=Some(Reflected(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=8	name=morphhdl_resize_1	origin=Some(Reflected(morphhdl_resize_1))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=11	name=kept_difference	origin=Some(Explicit(kept_difference))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=4	name=morphhdl_resize_2	origin=Some(Reflected(morphhdl_resize_2))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=12	name=_zz_user_kept	origin=Some(Explicit(_zz_user_kept))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=6	name=morphhdl_resize_3	origin=Some(Reflected(morphhdl_resize_3))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=true	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.709 : Generate Verilog to /tmp/morphhdl-single-source-15511301413570628946[0m
+[0m[[0m[0minfo[0m] [0m[0m[Done] at 0.964[0m
+[0m[[0m[32msuccess[0m] [0m[0mTotal time: 2 s, completed Sep 21, 2026, 3:45:56 PM[0m
+[0m[[0m[0minfo[0m] [0m[0mrunning (fork) roadmap.ResizeTemporaryNamingRepro /home/runner/work/_temp/evidence/naming-off false[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] SpinalHDL dev    git head : 155df6eb0e38ecce04a37de2067b0794702fcb83[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] JVM max memory : 3998.0MiB[0m
+[0m[[0m[0minfo[0m] [0m[0m[Runtime] Current date : 2026.09.21 15:45:57[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.000 : Elaborate components[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.434 : Checks and transforms[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-START	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=0	name=a	origin=Some(Reflected(a))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=1	name=b	origin=Some(Reflected(b))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=false	oneDriver=false	frozen=false	tags=	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=multiple-or-no-drivers	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=3	name=wide	origin=Some(Reflected(wide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=18	driver=UInt:refs=2:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=5	name=namedWide	origin=Some(Reflected(namedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=4:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=7	name=zzNamedWide	origin=Some(Reflected(zzNamedWide))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=false	width=18	driver=UInt:refs=6:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=9	name=roundTrip	origin=Some(Reflected(roundTrip))	comb=true	local=false	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=UInt:refs=8:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=10	name=morphhdl_resize_source	origin=Some(Reflected(morphhdl_resize_source))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=2	name=morphhdl_resize	origin=Some(Reflected(morphhdl_resize))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=10:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=8	name=morphhdl_resize_1	origin=Some(Reflected(morphhdl_resize_1))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=true	width=(FIFO_LOG_DEPTH + 2)	driver=ResizeUInt:refs=3:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=11	name=kept_difference	origin=Some(Explicit(kept_difference))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=4	name=morphhdl_resize_2	origin=Some(Reflected(morphhdl_resize_2))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=11:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=12	name=_zz_user_kept	origin=Some(Explicit(_zz_user_kept))	comb=true	local=true	analog=false	typeNode=false	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=(FIFO_LOG_DEPTH + 2)	driver=Sub:refs=0,1:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=Left(WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY)[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE	allocated	id=6	name=morphhdl_resize_3	origin=Some(Reflected(morphhdl_resize_3))	comb=true	local=true	analog=false	typeNode=true	vital=true	sourceIntent=false	scope=true	oneDriver=true	frozen=false	tags=noBackendCombMerge$	publicationOwned=false	width=18	driver=ResizeUInt:refs=12:whole=true:root=true	unnamed-alias=excluded-before-proof	named-alias=excluded-before-proof	unnamed-expression=excluded-before-proof	named-expression=excluded-before-proof[0m
+[0m[[0m[0minfo[0m] [0m[0mNATIVE-TRACE-END	allocated[0m
+[0m[[0m[0minfo[0m] [0m[0m[Progress] at 0.613 : Generate Verilog to /tmp/morphhdl-single-source-58569497606976828[0m
+[0m[[0m[0minfo[0m] [0m[0m[Done] at 0.921[0m
+[0m[[0m[32msuccess[0m] [0m[0mTotal time: 2 s, completed Sep 21, 2026, 3:45:58 PM[0m
+[0J
