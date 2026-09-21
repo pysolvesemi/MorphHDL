@@ -264,3 +264,22 @@ an ordinary merge, with its exact instruction bytes enrolled in the source
 review and cumulative seal. This integration changes no compiler, test, golden
 or qualification-workflow bytes relative to `b1176dde22`; the dispatch identity
 guards remain unchanged. The stopped controller must not be rerun.
+
+## Baseline regenerated-contract count repair
+
+Current-head baseline run `35565550600` passed its complete Scala 2.13 lane
+and, on Scala 2.12, passed compilation and all 1,232 executed tests before the
+contract-generation step. Both deterministic fixture generations succeeded.
+That step then retained the pre-repair assertion that
+`symbolic_data_shapes.v` contains 33 exact `[WIDTH-1:0]` ranges. The reviewed
+enabled golden and the generated output contain 30: the 27 public scalar-width
+ports and three registers. The difference is exactly the three internal Bundle
+aliases intentionally removed by the already-qualified cleanup repair.
+
+The baseline assertion now requires 30. Its independent exact golden `cmp`,
+complete file inventory, construction-order determinism, packed-Vec ports,
+clocked process, strict Verilog tools and all other structural checks remain
+unchanged. This is a workflow expectation repair only; compiler, test and
+generated-Verilog bytes are unchanged. The baseline workflow is explicitly
+enrolled in the current source-review scope and cumulative seal. A fresh
+exact-head baseline run must pass before final full CI.

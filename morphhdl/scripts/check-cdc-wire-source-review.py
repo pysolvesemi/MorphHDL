@@ -78,6 +78,7 @@ REVIEW_PATHS = frozenset((
     'morphhdl-passes/scripts/check-boundary.sh',
     'morphhdl-passes/scripts/test-boundary-guard.sh',
     '.github/workflows/cdc-wire-fixed-point.yml',
+    '.github/workflows/morphhdl-baseline.yml',
     '.github/workflows/morphhdl-passes.yml',
     '.github/workflows/increment-60f-equivalence-closure.yml',
     'docs/morphhdl/cdc-wire-fixed-point-source-review.md',
