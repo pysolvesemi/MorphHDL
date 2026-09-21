@@ -1,0 +1,63 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 192,
+  "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+  "tree": "9d530833ad98e7a33bd318196b4ba60916e80451",
+  "branch": "agent/cdc-wire-native-publication-cleanup",
+  "target_branch": "parameterized-verilog",
+  "target": "155df6eb0e38ecce04a37de2067b0794702fcb83",
+  "controller_branch": "ci/cdc-wire-publication-targeted-fc61cad0",
+  "controller_path": ".github/workflows/cdc-wire-publication-targeted-fc61cad0.yml",
+  "controller_root": ".github/recovery/pr192-publication-fc61cad0",
+  "baseline_run": 35620756320,
+  "workflows": [
+    {
+      "id": 362756881,
+      "path": ".github/workflows/cdc-wire-fixed-point.yml",
+      "sha256": "959191772d21e4f4cb76b97e95530c5426e17b4588926ce94c6b14d996d27548",
+      "reason": "Recursive cleanup, naming, native publication safety, independent 15-case HDL matrix and cross-Scala determinism"
+    },
+    {
+      "id": 336665858,
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "ee0ada3df713a5db0ae3fc20dd2d62491a7be8db070a139a47bda667be4771e8",
+      "reason": "Changed native Component name allocator and reviewed native-source manifest"
+    },
+    {
+      "id": 354645379,
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "sha256": "4a57f26ffba42ac8b743e09583512adca173a569d9d5aaac893fb20398ef6edf",
+      "reason": "Changed expression codec, native bridge, cumulative source seal and inherited formal registry"
+    },
+    {
+      "id": 337719848,
+      "path": ".github/workflows/morphhdl-passes.yml",
+      "sha256": "e8aec793a1a98ab15f5a6ddf913d4679bea6a5dac4b2137221102401e1c57c63",
+      "reason": "Canonical/native wire expression bridge and source fingerprints"
+    },
+    {
+      "id": 332279971,
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "sha256": "a3d0c1b6a2373f38bebc72d6d8d0d40a0322bfab16a8dfb1f8af88d0f24eb6c5",
+      "reason": "All SBT compiler/frontend/native tests and Verilog-2001 contracts in both Scala lanes"
+    },
+    {
+      "id": 332476711,
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "sha256": "27a16a81ea59975d8b4a5bea8edcd200e8ec2e55464e71d902571782837a2418",
+      "reason": "Independent Mill build and native test lanes"
+    },
+    {
+      "id": 351327055,
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "sha256": "39c673d5224cf1f153ddbbcdbd42dc17b3a269e205391212257dfa46fe1a693e",
+      "reason": "Unsigned widening/zero and retained signed resize/truncation semantics"
+    },
+    {
+      "id": 354063673,
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "sha256": "69cb6d500a543cd08244ac5960f2a35caca32c17490891a5edf5e893db07336f",
+      "reason": "Per-component publication, collision handling and hierarchy declaration references"
+    }
+  ]
+}

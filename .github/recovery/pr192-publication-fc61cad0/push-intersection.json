@@ -1,0 +1,11 @@
+{
+  "branch": "ci/cdc-wire-publication-targeted-fc61cad0",
+  "paths": [
+    ".github/workflows/cdc-wire-publication-targeted-fc61cad0.yml",
+    ".github/recovery/pr192-publication-fc61cad0/dispatch.py",
+    ".github/recovery/pr192-publication-fc61cad0/test_dispatch.py",
+    ".github/recovery/pr192-publication-fc61cad0/manifest.json",
+    ".github/recovery/pr192-publication-fc61cad0/README.md"
+  ],
+  "matching_existing_workflows": []
+}

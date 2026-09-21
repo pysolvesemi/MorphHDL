@@ -1,0 +1,60 @@
+name: PR192 publication cleanup targeted CI
+
+on:
+  push:
+    branches: [ci/cdc-wire-publication-targeted-fc61cad0]
+    paths:
+      - .github/workflows/cdc-wire-publication-targeted-fc61cad0.yml
+      - .github/recovery/pr192-publication-fc61cad0/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr192-publication-fc61cad0
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: fc61cad03b0ee849a5b198d1442f583c1e52a70c
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = fc61cad03b0ee849a5b198d1442f583c1e52a70c
+          test "$(git rev-parse 'HEAD^{tree}')" = 9d530833ad98e7a33bd318196b4ba60916e80451
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr192-dispatch-evidence/source-review.log"
+      - name: Launch only the eight affected qualification workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr192-publication-fc61cad0/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr192-publication-fc61cad0-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr192-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
