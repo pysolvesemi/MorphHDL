@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Preserve the complete inherited 60f harness while extending one time budget.
+"""Preserve the complete inherited 60f harness while extending current budgets.
 
 These are scheduling/result-classification controls, not execution of the
 inherited source audits. All 18 original audit cases remain in the harness.
@@ -57,7 +57,7 @@ def load_harness():
 
 
 def historical_harness(tree):
-    """Reverse exactly the reviewed scheduling helper, never an arbitrary edit.
+    """Reverse exactly the reviewed scheduling helpers, never an arbitrary edit.
 
     Authenticate both the complete helper AST and its sole call site before
     removing that one layer. The whole restored module must still match the
@@ -74,16 +74,39 @@ def historical_harness(tree):
 ''').body[0]
     if len(functions) != 1 or canonical_ast(functions[0]) != canonical_ast(expected):
         raise RuntimeError("current-positive scheduling helper changed")
+    negative_functions = [n for n in result.body if isinstance(n, ast.FunctionDef)
+                          and n.name == "current_negative_timeout"]
+    negative_expected = ast.parse('''def current_negative_timeout(root: Path) -> int:
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 120
+''').body[0]
+    if (len(negative_functions) != 1 or
+            canonical_ast(negative_functions[0]) != canonical_ast(negative_expected)):
+        raise RuntimeError("current-negative scheduling helper changed")
     main = next(n for n in result.body if isinstance(n, ast.FunctionDef) and n.name == "main")
     budgets = [n for n in main.body if isinstance(n, ast.Assign)
                and any(isinstance(t, ast.Name) and t.id == "timeout" for t in n.targets)]
     call = ast.parse("current_positive_timeout(ROOT)", mode="eval").body
     if len(budgets) != 1 or canonical_ast(budgets[0].value) != canonical_ast(call):
         raise RuntimeError("current-positive scheduling call changed")
+    negative_call = ast.parse("current_negative_timeout(fixture)", mode="eval").body
+    negative_keywords = [keyword for node in ast.walk(main)
+                         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                         and node.func.id == "check" for keyword in node.keywords
+                         if keyword.arg == "timeout_seconds"
+                         and canonical_ast(keyword.value) == canonical_ast(negative_call)]
+    if len(negative_keywords) != 1:
+        raise RuntimeError("current-negative scheduling call changed")
     result.body.remove(functions[0])
+    result.body.remove(negative_functions[0])
     budgets[0].value = ast.parse(
         '900 if (ROOT / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600',
         mode="eval").body
+    for node in ast.walk(main):
+        if isinstance(node, ast.Call) and negative_keywords[0] in node.keywords:
+            node.keywords.remove(negative_keywords[0])
+            break
     return result
 
 
@@ -102,7 +125,7 @@ class SourceBudgetTests(unittest.TestCase):
         return eval(compile(ast.Expression(self.expression), str(HARNESS), "eval"),
                     {"ROOT": root, "current_positive_timeout": self.harness.current_positive_timeout})
 
-    def test_only_current_positive_timeout_changes_in_complete_harness(self):
+    def test_only_current_timeouts_change_in_complete_harness(self):
         restored = historical_harness(self.tree)
         self.assertEqual(ast_digest(restored), FROZEN_HARNESS_AST_SHA256)
 
@@ -140,6 +163,18 @@ class SourceBudgetTests(unittest.TestCase):
     def test_legacy_current_positive_budget_is_unchanged(self):
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(self.budget(Path(directory)), 600)
+
+    def test_current_successor_negative_budget_has_bounded_headroom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "morphhdl/contracts/increment-59i-production-successor.json"
+            marker.parent.mkdir(parents=True)
+            marker.write_text("{}")
+            self.assertEqual(self.harness.current_negative_timeout(root), 600)
+
+    def test_historical_negative_budget_is_unchanged(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(self.harness.current_negative_timeout(Path(directory)), 120)
 
     def test_historical_positive_still_has_120_seconds(self):
         result = subprocess.CompletedProcess([], 0, "inherited native audits PASS")
@@ -198,6 +233,14 @@ class SourceBudgetTests(unittest.TestCase):
                       and n.name == "current_positive_timeout")
         next(n for n in ast.walk(helper) if isinstance(n, ast.Constant) and n.value == 3600).value = 3601
         with self.assertRaisesRegex(RuntimeError, "scheduling helper changed"):
+            historical_harness(changed)
+
+    def test_altered_negative_helper_is_rejected_before_historical_projection(self):
+        changed = copy.deepcopy(self.tree)
+        helper = next(n for n in changed.body if isinstance(n, ast.FunctionDef)
+                      and n.name == "current_negative_timeout")
+        next(n for n in ast.walk(helper) if isinstance(n, ast.Constant) and n.value == 600).value = 601
+        with self.assertRaisesRegex(RuntimeError, "current-negative scheduling helper changed"):
             historical_harness(changed)
 
     def test_changed_call_cannot_be_hidden_by_projection(self):

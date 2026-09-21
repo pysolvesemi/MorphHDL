@@ -58,6 +58,16 @@ def current_positive_timeout(root: Path) -> int:
     return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
 
 
+def current_negative_timeout(root: Path) -> int:
+    # Schema-successor rejection checks now authenticate the complete joined
+    # source before reaching some deliberate mutations.  Reserve bounded
+    # headroom only for those current fixtures; historical negatives and the
+    # check() default retain their original 120-second contract.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 120
+
+
 def main() -> None:
     spec = importlib.util.spec_from_file_location("closure_scope", CHECKER)
     module = importlib.util.module_from_spec(spec)
@@ -157,7 +167,8 @@ def main() -> None:
                             git(fixture, "-c", "user.name=Scope guard fixture",
                                 "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
                                 "-m", "isolated 60f inherited source-scope fixture")
-                records.append(check(fixture, label, rejection))
+                records.append(check(fixture, label, rejection,
+                                     timeout_seconds=current_negative_timeout(fixture)))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:

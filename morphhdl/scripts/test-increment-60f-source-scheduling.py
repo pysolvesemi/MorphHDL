@@ -22,10 +22,12 @@ class SourceSchedulingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.assertEqual(H.current_positive_timeout(root), 600)
+            self.assertEqual(H.current_negative_timeout(root), 120)
             contract = root / "morphhdl/contracts/increment-59i-target-integration.json"
             contract.parent.mkdir(parents=True)
             contract.write_text("fixture presence only")
             self.assertEqual(H.current_positive_timeout(root), 900)
+            self.assertEqual(H.current_negative_timeout(root), 120)
 
     def test_joined_current_positive_reserves_measured_runtime_headroom(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -35,6 +37,8 @@ class SourceSchedulingTests(unittest.TestCase):
             contract.write_text("fixture presence only; actual audit still authenticates this")
             self.assertEqual(H.current_positive_timeout(root), 3600)
             self.assertGreater(H.current_positive_timeout(root), 2 * 1621.921)
+            self.assertEqual(H.current_negative_timeout(root), 600)
+            self.assertGreater(H.current_negative_timeout(root), 2 * 120)
 
     def test_negative_and_git_commands_keep_original_120_seconds(self):
         self.assertEqual(inspect.signature(H.check).parameters["timeout_seconds"].default, 120)
@@ -67,7 +71,10 @@ class SourceSchedulingTests(unittest.TestCase):
             "unapproved-native-path"])
         checks = [n for n in ast.walk(main) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "check"]
         self.assertEqual(len(checks), 2)
-        self.assertEqual(sum(any(k.arg == "timeout_seconds" for k in n.keywords) for n in checks), 1)
+        self.assertEqual(sum(any(k.arg == "timeout_seconds" for k in n.keywords) for n in checks), 2)
+        negative = next(k.value for n in checks for k in n.keywords
+                        if k.arg == "timeout_seconds" and isinstance(k.value, ast.Call))
+        self.assertEqual(ast.unparse(negative), "current_negative_timeout(fixture)")
 
     def test_qualification_workflows_retain_both_complete_audits(self):
         # These assertions protect command enrollment, not YAML parser behavior.
