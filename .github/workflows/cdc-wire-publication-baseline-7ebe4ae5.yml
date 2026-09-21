@@ -1,0 +1,118 @@
+name: CDC publication baseline 7ebe4ae5
+on:
+  push:
+    branches: ['ci/cdc-wire-publication-baseline-7ebe4ae5']
+    paths: ['.github/workflows/cdc-wire-publication-baseline-7ebe4ae5.yml']
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 155df6eb0e38ecce04a37de2067b0794702fcb83
+          path: baseline
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 7ebe4ae5d8d92b097a612f584f099978d4981012
+          path: probe
+          persist-credentials: false
+          sparse-checkout: repro/recursive-fill-cleanup
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.cache/coursier
+          key: ${{ runner.os }}-cdc-wire-${{ matrix.scala }}-${{ hashFiles('baseline/**/build.sbt', 'baseline/project/**') }}
+      - name: Authenticate baseline and install tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C baseline rev-parse HEAD)" = 155df6eb0e38ecce04a37de2067b0794702fcb83
+          test "$(git -C probe rev-parse HEAD)" = 7ebe4ae5d8d92b097a612f584f099978d4981012
+          test "$(git -C probe rev-parse 'HEAD^{tree}')" = 74c5c08e5a6396da166fb1087493592ce28ef60a
+          mkdir -p "$RUNNER_TEMP/evidence"
+          git -C baseline rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/evidence/compiler-source.txt"
+          git -C probe rev-parse HEAD 'HEAD^{tree}' > "$RUNNER_TEMP/evidence/probe-source.txt"
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends iverilog yosys verilator
+      - name: Compile the native fixtures with both compiler plugins and trace baseline
+        shell: bash
+        working-directory: baseline
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            "set morph / Test / unmanagedSources := (file(\"$GITHUB_WORKSPACE/probe/repro/recursive-fill-cleanup\") * \"*.scala\").get" \
+            'show morph / Test / scalacOptions' \
+            "morph/Test/runMain roadmap.RecursiveFillCleanupRepro $RUNNER_TEMP/evidence/fill-on true" \
+            "morph/Test/runMain roadmap.RecursiveFillCleanupRepro $RUNNER_TEMP/evidence/fill-off false" \
+            "morph/Test/runMain roadmap.ResizeTemporaryNamingRepro $RUNNER_TEMP/evidence/naming-on true" \
+            "morph/Test/runMain roadmap.ResizeTemporaryNamingRepro $RUNNER_TEMP/evidence/naming-off false" \
+            2>&1 | tee "$RUNNER_TEMP/evidence/baseline.log"
+      - name: Compile and show actual emitted artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for mode in on off; do
+            iverilog -g2012 -s RecursiveFillCleanupRepro -o "$RUNNER_TEMP/evidence/fill-$mode.vvp" "$RUNNER_TEMP/evidence/fill-$mode/RecursiveFillCleanupRepro.v"
+            iverilog -g2012 -s ResizeTemporaryNamingRepro -o "$RUNNER_TEMP/evidence/naming-$mode.vvp" "$RUNNER_TEMP/evidence/naming-$mode/ResizeTemporaryNamingRepro.v"
+          done
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          for p in sorted(Path(os.environ['RUNNER_TEMP'],'evidence').rglob('*.v')):
+              print('ACTUAL-VERILOG', p.relative_to(Path(os.environ['RUNNER_TEMP'],'evidence')))
+              print(p.read_text())
+          PY
+          git -C baseline diff --exit-code
+      - name: Retain reusable local dependency cache
+        if: always() && matrix.scala == '2.13.12'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/dependencies"
+          python3 - <<'PY'
+          import os,tarfile
+          from pathlib import Path
+          root=Path.home()
+          with tarfile.open(Path(os.environ['RUNNER_TEMP'],'dependencies','jvm-tools.tgz'),'w:gz') as t:
+              for folder in (root/'.cache/coursier',root/'.sbt'):
+                  if folder.exists():
+                      for p in folder.rglob('*'):
+                          if p.is_file() and p.suffix in ('.jar','.pom','.xml','.properties'):
+                              t.add(p,arcname=str(p.relative_to(root)),recursive=False)
+          with tarfile.open(Path(os.environ['RUNNER_TEMP'],'dependencies','hdl-tools.tgz'),'w:gz') as t:
+              for name in ('/usr/bin/iverilog','/usr/bin/iverilog-vpi','/usr/bin/vvp','/usr/lib/x86_64-linux-gnu/ivl'):
+                  p=Path(name)
+                  if p.exists(): t.add(p,arcname=name.lstrip('/'))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cdc-publication-baseline-${{ matrix.scala }}-7ebe4ae5
+          path: ${{ runner.temp }}/evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.scala == '2.13.12'
+        with:
+          name: cdc-publication-local-dependencies-7ebe4ae5
+          path: ${{ runner.temp }}/dependencies/
+          if-no-files-found: error
+          retention-days: 7
