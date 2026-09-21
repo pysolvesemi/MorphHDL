@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "ba7f1c5ef1d5fd8690a3155fff63ffd0e7b8f8a8",
+  "final_source_commit": "1ca0ba9637017d46d2e5dd1e1fddca5f865bc826",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -105,6 +105,12 @@
       "mode": "100644",
       "before_sha256": null,
       "after_sha256": "23f3ac98376d252a6787bed0d0479bb2070c61ce360061fd9c8efb996e70f679"
+    },
+    {
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "mode": "100644",
+      "before_sha256": "86d9863f44ec03a56349cf6f5c0d2b19f7ad8d869f2ef8138638541bc6d0bbbd",
+      "after_sha256": "a3d0c1b6a2373f38bebc72d6d8d0d40a0322bfab16a8dfb1f8af88d0f24eb6c5"
     },
     {
       "path": ".github/workflows/morphhdl-passes.yml",
@@ -296,7 +302,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "ef63f04ce726f173371fb5cae2d3b011a9d9f2784125f3f6075dd0b99c69fa84"
+      "after_sha256": "4cb4783ae6572fc891b1819aa36477ee7a1f7bffe8a2ea2da7241b93075db5e7"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -1622,7 +1628,7 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "b622620cffb8054183204c5b279ebb2e63bb64e1c3da645163f48871aa7d44b1"
+      "after_sha256": "2e2dd2bbe6272f9a4f10e456940d7e4a0269c886561bbf5542aae417f8167e6e"
     },
     {
       "path": "morphhdl/scripts/check-contracts.sh",
