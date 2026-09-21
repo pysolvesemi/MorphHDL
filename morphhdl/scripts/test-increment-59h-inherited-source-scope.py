@@ -201,10 +201,17 @@ def main() -> None:
             # source audit and authentication of the exact successor manifest.
             # Preserve every mutation and require its first owning guard.
             successor_paths = {entry["path"] for entry in successor.contract(ROOT)["files"]}
+            successor_tree = successor.tree(ROOT, "HEAD")
             adapted = []
             for label, relative, mutation, expected in cases:
                 if mutation in ("suffix", "paired", "inside") and relative in successor_paths and relative not in (CONTRACT, JOIN_CONTRACT):
                     expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
+                elif mutation in ("suffix", "inside") and relative in successor_tree:
+                    # Files inherited byte-for-byte from the schema predecessor
+                    # are outside the successor span inventory, but remain part
+                    # of its authenticated checkout.  Preserve every negative
+                    # mutation and require that stronger first-owning rejection.
+                    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
                 elif mutation == "hidden-index":
                     expected = "59i production successor: HEAD/index identity differs"
                 elif relative.startswith("foreign/src/main/"):
