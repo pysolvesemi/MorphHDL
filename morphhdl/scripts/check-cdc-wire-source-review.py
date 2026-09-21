@@ -61,6 +61,8 @@ TEST_PATHS = frozenset((
     'morphhdl-passes/scripts/validate-wa10-artifacts.py',
     'repro/remaining-wires/check.py',
     'morphhdl/scripts/check-wa08-production-artifacts.py',
+    'morphhdl/scripts/check-contracts.sh',
+    'morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py',
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
