@@ -1,5 +1,21 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — replacement controller formatting corrected, 21 September 2026
+
+Source run [35630186697](https://github.com/pysolvesemi/MorphHDL/actions/runs/35630186697)
+checked out exact seal300b, then failed before all25 commands because three newly
+inserted identity checks contained literal `\\n` text in the generated shell.
+Actual job106434229586 logs were inspected; the failure was `test: too many
+arguments`. Preserve artifact10654327785 and its uploaded ZIP SHA256
+`3cdfa04fc706c813d37e78c8be1beb0b944272b831268153a7b7c29235176dc6`.
+No source gate ran and no candidate byte changed.
+
+This recovery successor changes only those three literal separators to real YAML
+block newlines. It retains exact seal/source/feature/target/tree guards and the
+same25 commands. Its push launches one replacement source qualification. Do not
+rerun35630186697 or duplicate the replacement.
+
+
 ## CURRENT CHECKPOINT — complete reviewer-pin closure published, 21 September 2026
 
 Replacement source qualification 35610756312 authenticated the prior exact
