@@ -1,0 +1,11 @@
+{
+  "branch": "ci/cdc-wire-publication-repair-06cc4bb7",
+  "paths": [
+    ".github/workflows/cdc-wire-publication-repair-06cc4bb7.yml",
+    ".github/recovery/pr192-publication-06cc4bb7/dispatch.py",
+    ".github/recovery/pr192-publication-06cc4bb7/test_dispatch.py",
+    ".github/recovery/pr192-publication-06cc4bb7/manifest.json",
+    ".github/recovery/pr192-publication-06cc4bb7/README.md"
+  ],
+  "matching_existing_workflows": []
+}
