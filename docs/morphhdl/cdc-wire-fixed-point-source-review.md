@@ -301,3 +301,21 @@ and cumulative-seal path, so this integration requires a fresh documentation
 checkpoint and outer seal but no native or formal-record refresh. Passing
 targeted evidence remains retained for the unchanged implementation; applicable
 final-head full CI is still required before completion.
+
+## Targeted qualification completion
+
+Fresh affected-workflow qualification is complete for the repaired source:
+
+- Mill run `35562488070` passed both Scala versions.
+- Lane/when run `35565553072` passed all ten jobs.
+- 60f equivalence run `35565555663` passed all five jobs, including both
+  regression lanes and the cross-Scala comparison.
+- Baseline run `35569571226` passed Scala 2.12, Scala 2.13 and the strict
+  Verilog-2001 contract job after the exact regenerated-range count repair.
+
+The subsequent ordinary target merge and documentation checkpoints through
+`e76d428f06bc2fe873600a11ed3d096db54883df` do not change compiler, test,
+generated RTL, golden or workflow bytes from the qualified implementation.
+CDC-WIRE-01 is therefore marked complete in its owning roadmap. Applicable
+full CI on the final completion-and-seal tree remains mandatory before PR #191
+may merge; this section does not claim that final qualification has passed.
