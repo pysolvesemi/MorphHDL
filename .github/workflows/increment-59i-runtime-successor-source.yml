@@ -23,7 +23,7 @@ jobs:
       EXPECTED_SEAL: 4738d39eb7de2984a8ff7661093cb0bfd02bca37
       EXPECTED_SOURCE: 2f724fa7d2433dd45ea8c411bbdb2683f8130aed
       EXPECTED_PARENT: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
-      EXPECTED_TARGET: ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd
+      EXPECTED_TARGET: 3aa132e87e10dd0d2e0062c7d34d26bddb58fa72
     steps:
       - uses: actions/checkout@v4
         with:
