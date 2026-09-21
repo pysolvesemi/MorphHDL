@@ -45,6 +45,8 @@ PRODUCTION_PATHS = frozenset((
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala',
 ))
 TEST_PATHS = frozenset((
+    'morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala',
+    'morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala',
     'morphhdl/src/test/scala/spinal/core/CdcPublicationFormalControl.scala',
     'morphhdl/src/test/scala/morphhdl/examples/CdcPublicationCleanupFixtures.scala',
     'morphhdl-passes/scripts/check-cdc-publication-cleanup.py',

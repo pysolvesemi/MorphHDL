@@ -47,7 +47,11 @@ final class SignednessBoundaryTests extends AnyFunSuite {
 
   test("independent signed resize domains retain truncation before nested multiplication") {
     directory { root =>
-      val rtl = emit(root.resolve("resize.v"))(new Fixture.Scalars(width, Writer.target))
+      var native: Fixture.Scalars = null
+      val rtl = emit(root.resolve("resize.v")) {
+        native = new Fixture.Scalars(width, Writer.target)
+        native
+      }
       val product = "assign resizedProduct = \\(([A-Za-z_][A-Za-z0-9_$]*) \\* ([A-Za-z_][A-Za-z0-9_$]*)\\);".r
         .findAllMatchIn(rtl).toVector
       assert(product.size == 1, rtl)
@@ -58,8 +62,10 @@ final class SignednessBoundaryTests extends AnyFunSuite {
       }
       assert(rtl.contains("(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0)"), rtl)
       assert(rtl.contains("[(((TARGET) < (WIDTH)) ? (TARGET) : (WIDTH))-1:0]"), rtl)
-      assert(rtl.contains("assign morphhdl_resize_4 = {{(((5) > (WIDTH)) ? ((5) - (WIDTH)) : 0)"), rtl)
-      assert(rtl.contains("assign crossedFixed = morphhdl_resize_4;"), rtl)
+      val crossing = native.crossedFixed.head.source.asInstanceOf[BaseType].getName()
+      assert(rtl.contains("assign " + crossing + " = {{(((5) > (WIDTH)) ? ((5) - (WIDTH)) : 0)"), rtl)
+      assert(rtl.contains("assign crossedFixed = " + crossing + ";"), rtl)
+      assert(!crossing.startsWith("morphhdl_resize"), crossing)
     }
   }
 

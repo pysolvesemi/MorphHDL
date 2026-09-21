@@ -91,7 +91,9 @@ independent RTL oracle. Hierarchy is flattened only in Yosys's design IR.
 
 The focused workflow retains every previous test and artifact check and adds
 these three fixtures, 15 parameter/fixture cases per Scala lane, native
-publication-corruption controls, and cross-Scala byte comparison. The baseline
+publication-corruption controls, and cross-Scala byte comparison. The inherited resize/add and signed-boundary tests now resolve final names from
+their exact native carriers instead of requiring the removed compiler prefixes;
+all width, truncation and disabled-wrapper assertions remain. The baseline
 and Mill lanes remain required; local diagnostic builds using cached historical
 classes do not qualify the source.
 
