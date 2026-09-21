@@ -1,4 +1,5 @@
 name: Increment 59i runtime successor source qualification
+# Exact schema-8 substantive-target qualification; keep dispatch bounded to this source gate.
 
 on:
   push:
