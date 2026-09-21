@@ -14,7 +14,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "9d8369458f791210e961fbb3c97d5978020a41e2c1f742b128ec57ee36ffc579"
+CONTRACT_SHA256 = "fe7a3a7776cdeb4b1af86df87d9d1604ee65ff556ab162a249a3a4ce417ae7e1"
 
 
 def require(ok: bool, detail: str) -> None:
