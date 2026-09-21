@@ -1,5 +1,51 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — source qualified; substantive target integration under bounded review, 21 September 2026
+
+Replacement source qualification
+[35630478430](https://github.com/pysolvesemi/MorphHDL/actions/runs/35630478430)
+completed successfully on recovery controller
+`5580a7aec1de921b83f2a7a79fa21b1d29ab2b97`. Job106435178231
+authenticated exact source `e0260482839e2d4fe1fda4d6c3cb1c2d3600ddc2`,
+seal `300bdf94bea5b0b32f9c8e32aa032c01689ebf5d`, feature
+`9d6d738d32c71ff4359384ae9d87f715bf20ec55`, and substantive target
+`155df6eb0e38ecce04a37de2067b0794702fcb83`, then passed all25
+retained commands. Original artifact10657868568 was downloaded independently;
+its ZIP passed integrity checking and its SHA256
+`d44fe75b4bea13c53d43308ccf816dbdffa38f9c6cefcaf9f5ab3380b2a15cb1`
+matches the upload log and live API digest. The artifact contains25 PASS rows,
+the exact six commit/tree identities, live target tree
+`2dee374f6f77359f3b4845f9ae9172ac97e7c957`,21 repair paths and2 seal
+paths. Preserve the prior failed runs and evidence; do not rerun this source
+qualification.
+
+A fresh read-only merge of seal300b with target155df has common base bbae and
+exactly four textual conflicts:
+`.github/workflows/increment-60f-equivalence-closure.yml`,
+`morphhdl/contracts/increment-55-native-change-review.json`,
+`morphhdl/contracts/native-source-preservation.json`, and
+`morphhdl/scripts/check-pr190-pr189-source-sync.py`. The bounded local
+resolution composes both workflow inventories, unions both reviewed native
+contracts, uses the actual auto-merged NativeWidthProvenance and
+ParameterizedVec blobs, and retains the authenticated59i current-source route
+while the immutable target CDC certificate remains a separate required parent
+proof. Unpublished local witness commit
+`cb3a205530da709710e79f93078b701288800512`, tree
+`7f530c87f5a469f69fa69e3fd9f8af5a0e9804dc`, has ordered parents300b and
+155df. Its native approved-change manifest regenerates byte-for-byte, native
+source preservation passes, and CDC-WIRE regression self-test passes.
+
+This witness is NOT yet a feature candidate and must not be published or used
+for CI: the retained schema-7 verifier correctly rejects the newer two-parent
+target boundary. NEXT implement and review a bounded schema-8 integration
+successor that authenticates the passed schema-7 source artifact, exact previous
+seal, exact CDC target certificate, complete target delta and all four conflict
+resolutions. Qualify that exact successor before any non-force feature advance
+or targeted dispatch. Do not launch full CI, merge, or duplicate passing/active
+workflows. PR177 remains draft, feature remains9d6d, roadmap remains unchecked,
+and the hourly monitor stays enabled.
+
+
 ## CURRENT CHECKPOINT — replacement controller formatting corrected, 21 September 2026
 
 Source run [35630186697](https://github.com/pysolvesemi/MorphHDL/actions/runs/35630186697)
