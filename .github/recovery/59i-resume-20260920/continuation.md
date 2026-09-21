@@ -1,6 +1,63 @@
 # Increment 59i continuation — 20 September 2026
 
 
+## CURRENT CHECKPOINT — three rejection-diagnostic failures repaired, 21 September 2026
+
+Exact-head targeted runs exposed three audit-fixture failures on qualified head
+`9d6d738d32c71ff4359384ae9d87f715bf20ec55`. The actual logs were inspected:
+
+- WA-08 run [35570777721](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570777721),
+  source job106241769071, and 59h run
+  [35570833758](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570833758),
+  source job106241940829, rejected the intended inherited-file mutation with the
+  stronger schema-6 checkout-identity diagnostic before the older fixture text.
+- Combined run [35570802194](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570802194)
+  failed both jobs106241843807 and106241844150 after all preceding source checks
+  passed. Its retained WA-08 downgrade mutation was correctly rejected first by
+  `sealed route tree differs from immutable source plus exact seal`; the fixture
+  still expected the later target-integration diagnostic. No Scala compilation,
+  RTL generation or hardware step ran in these three failed workflows.
+- Original combined artifacts10629207016 and10629262733 were downloaded, ZIP
+  integrity-tested and independently matched to API/upload SHA256 values
+  `4ab8b1583ed2b970b84a05d2ddbbb87267fdf720f0a21a20411bb93442a4d37e`
+  and
+  `9e116f6cc84a2044cfe73ca571356b6e2e7631bcb47ca18248e4659aa2c338c0`.
+  The earlier verified59h failure artifact is retained; WA-08 produced none.
+
+The bounded complete repair changes only17 source-audit/checker files and their
+negative fixtures. It retains every mutation and recognizes the earlier stronger
+rejection; no compiler, Scala test, workflow, RTL or Verilog byte changes:
+
+- Source `19d8d199f3119fd858c34d3c734ee98c015cfb35`, tree
+  `aa05e96b9843ba38d2f2021926db1d6ff1a4c67b`, direct child of9d6d.
+- Seal `b5ba3184d4a3d26a8a1042924c7e1a13fd17a38c`, tree
+  `211c5936a788a2a6c915aa3a0a7278c8bd75f0c8`, direct source child.
+- Schema7 manifest SHA256
+  `57c4cc16ceba39cd0af468e63a28fa7807a0ef331642ae63a65e1463bbf9006f`;
+  normalized helper SHA256
+  `b25f9eeed1cb461425586115caff62e275685de9316c6f84d268c445c1c4903d`;
+ 348 cumulative file records and40 target records.
+- Local exact-seal verifier passed all348 records. The parent schema6 seal,
+  original source evidence and target integration anchors remain immutable.
+
+The narrower source0386361574/seal4c02358d candidate is superseded and must
+never advance the feature. Its already-created source run35585883076 remains
+queued and cannot be canceled through the connected GitHub actions. Final
+25-gate source qualification
+[35587102306](https://github.com/pysolvesemi/MorphHDL/actions/runs/35587102306)
+is pending behind the same non-canceling concurrency group on recovery controller
+`a85b7e000a06cdc27fc20f61b28d4e397cd85377`. Do not duplicate either run.
+
+Feature remains9d6d, target remainsce4a02c, PR177 remains draft/unmerged and
+the roadmap remains unchecked. NEXT: wait for final run35587102306, then require
+all25 command successes, clean checkout and independently verified original
+artifact. Only after fresh live-ref guards may the feature advance non-force to
+b5ba. Then rerun only the three directly affected failed workflows:59h, WA-08
+and combined. Reuse the remaining same-head workflow evidence because this
+successor is audit-only. Do not launch full CI, rerun active/passing workflows,
+merge, or mark the roadmap complete. Keep the hourly monitor enabled.
+
+
 ## CURRENT CHECKPOINT — qualified seal published; 16 affected workflows launched, 21 September 2026
 
 The bounded target-documentation reconciliation
