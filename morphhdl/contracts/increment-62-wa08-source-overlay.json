@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "7b7cf70824edb9e52062dd1b384eb27f76359058",
+  "final_source_commit": "e4446812cf070130549330f52511c7037f63424f",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -290,7 +290,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "a3d8facd0ee66b2c0e8a29f5fde4795e67c68370be55218f77cc14db29a8bbd8"
+      "after_sha256": "0c911f9dfd9b046d5beff55dabd00a9dfb03f023b9c981a6bc8dd0e9ee65b892"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -1508,7 +1508,7 @@
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
       "mode": "100644",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
-      "after_sha256": "81feb80dee8cf5c047b2926a95b04cbef006639ec8d793333f49b205d472d634"
+      "after_sha256": "8f6e4c68e21ff426b9c65e8dee2600980ebe28f6607833fcae9d70100e2ac9e6"
     },
     {
       "path": "morphhdl-passes/tests/wa10/general_expression_tb.v",
@@ -1610,7 +1610,7 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "3725956bde35d09bf313b19ca0ad61656c44c97379a08e559fd83c440e89852a"
+      "after_sha256": "5f1eeb610950ff5a76e388f443558dadae2da31e1918e47bdef9264888df7993"
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
@@ -1700,7 +1700,7 @@
       "path": "morphhdl/scripts/check-wa08-production-artifacts.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "c90241a032083d6d7fcf0a78d298e8fa4cfcbbd92608d93eb687135aacbeee02"
+      "after_sha256": "5032ead67c2151b6670112fe7175b46ae0a1ccfa3226ca93d2aa278aa6909425"
     },
     {
       "path": "morphhdl/scripts/check-wa10-source-scope.py",
@@ -1832,7 +1832,7 @@
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala",
       "mode": "100644",
       "before_sha256": "4d57e38b8f66e43a8a837641ba467669456296432ea988a6a883c0ecebf7b8c4",
-      "after_sha256": "5625db31e315df65c40b17a895f4cc656fd5d24344f6d856a00c7dc94ab9397b"
+      "after_sha256": "55428e6a98fbce070fc454cc2c4f8116628f199f6b06e58c9fb69a9ab3d6e5d4"
     },
     {
       "path": "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedHierarchyResizeWidth.scala",
