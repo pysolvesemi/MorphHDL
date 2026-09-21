@@ -1,6 +1,79 @@
 # Increment 59i continuation — 20 September 2026
 
 
+## CURRENT CHECKPOINT — final four-workflow audit repair qualifying, 21 September 2026
+
+Exact-head targeted runs on qualified head
+`9d6d738d32c71ff4359384ae9d87f715bf20ec55` exposed four audit-fixture
+failures. Preserve all original runs and artifacts:
+
+- WA-08 run [35570777721](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570777721)
+  source job106241769071 and 59h run
+  [35570833758](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570833758)
+  source job106241940829 correctly rejected an inherited mutation at the newer
+  schema-6 checkout-identity guard before the fixture's historical diagnostic.
+- Combined run [35570802194](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570802194)
+  jobs106241843807/106241844150 correctly rejected the retained WA-08 downgrade
+  mutation at the sealed-route-tree guard before the later target-integration
+  diagnostic. Original artifacts10629207016/10629262733 independently matched
+  SHA256 `4ab8b1583ed2b970b84a05d2ddbbb87267fdf720f0a21a20411bb93442a4d37e`
+  and `9e116f6cc84a2044cfe73ca571356b6e2e7631bcb47ca18248e4659aa2c338c0`.
+- 59f run [35570847879](https://github.com/pysolvesemi/MorphHDL/actions/runs/35570847879)
+  jobs106241980799/106241980925 passed all preceding source checks, then the
+  first current-successor negative probe exceeded its historical120-second
+  subprocess cap before reaching its expected rejection. Original artifacts
+  10631283064/10632977846 were independently downloaded, ZIP-tested and matched
+  SHA256 `f32c1f1b6a6b6219f8b9df33f598a5291dc8d1f89493904863a24e3f75d9cf97`
+  and `d65d2b86214bbbbb41b1f6a7571506f003d48f484ce4c74bc306824add4f8d3f`.
+
+The complete bounded repair changes20 Python audit/checker/fixture paths only.
+It recognizes the exact stronger current-schema rejection order and grants600
+seconds only to current production-successor negative probes; historical probes
+and default `check()` remain120 seconds. Every mutation, historical projection,
+workflow, compiler, Scala test, RTL and Verilog byte is retained. Local evidence:
+final348-record production verifier passed;23 source-budget controls and6
+source-scheduling controls passed; measured committed/uncommitted/staged probes
+finished in126–129 seconds with exact schema-7 diagnostics.
+
+- Final source `2f724fa7d2433dd45ea8c411bbdb2683f8130aed`, tree
+  `ea3a85328a8bcb713b558515453a6ae0d07054a5`, direct child of9d6d.
+- Final seal `4738d39eb7de2984a8ff7661093cb0bfd02bca37`, tree
+  `e0c838a05fb9ad4a350f8cd17171ebed17eca6e2`, direct source child.
+- Schema7 manifest SHA256
+  `df280f1e6f51435e696eab081e3c6c432bd07708f52e13cde0551e1dca55d5ce`;
+  normalized helper SHA256
+  `c056e9bc1e17a7708ce0db4ec17710b33500cd8426db50b47b338179873da752`;
+  348 cumulative records and40 target records.
+
+Target advanced again by direct documentation child
+`3aa132e87e10dd0d2e0062c7d34d26bddb58fa72`, tree
+`a9a220c11156675c784315f1d513dd258d66a818`; ce4a..3aa modifies only
+`AGENTS.md` (blob e51fc890, hourly-monitor closure instructions). Direct user
+targeted-only/full-CI-pause restrictions remain controlling. The read-only final
+seal/target merge is conflict-free, prospective tree
+`a7177b510a16c69fe6528731b27257ed28e2c122`, differing from the seal only by
+that exact `AGENTS.md` blob.
+
+Superseded source runs35585883076,35587102306 and35590081495 all failed closed
+in their live-target authentication step before the25 commands; actual jobs/logs
+were inspected. They are retained failures, not implementation failures and must
+not be rerun. Corrected final source run
+[35590237884](https://github.com/pysolvesemi/MorphHDL/actions/runs/35590237884),
+controller `863467592c3c840170206bb8594eb0fe1f6e8bb6`, authenticated the exact
+seal/source/parent/tree and live feature/target; all25 commands are in progress.
+Do not duplicate it.
+
+Feature remains9d6d, PR177 remains draft/unmerged and roadmap unchecked. NEXT:
+inspect run35590237884 once terminal, require all25 successes and independently
+verify its original artifact/API digest. Then run the prepared bounded exact
+target-documentation reconciliation for final seal4738/current target3aa and
+prospective treea717. Only after both pass and live refs remain exact may the
+existing feature advance non-force to4738. Rerun only the four directly affected
+failed workflows: WA-08, combined,59h and59f. Do not launch full CI, rerun passed
+or active workflows, merge, or mark the roadmap complete. Keep the single hourly
+monitor enabled.
+
+
 ## CURRENT CHECKPOINT — three rejection-diagnostic failures repaired, 21 September 2026
 
 Exact-head targeted runs exposed three audit-fixture failures on qualified head
