@@ -22,6 +22,19 @@ EXPECTED = {'TypedBalancedReductionBridgePublicationTests': 3,
             'TypedBalancedReductionStageReplayTests': 23,
             'TypedBalancedReductionClosedGraphTests': 27}
 ENROLLMENT = '          python3 -B morphhdl/scripts/test-increment-59g-report-inventory.py\n'
+OLD_BUDGET = '    timeout-minutes: 120\n'
+REVIEWED_BUDGET = '    timeout-minutes: 240\n'
+
+
+def restore_reviewed_workflow(text: str) -> str:
+    # Only the exact, already reviewed expired-job budget may differ. Preserve
+    # every command, proof, upload setting and rejection gate byte-for-byte.
+    for expected in (ENROLLMENT, REVIEWED_BUDGET,
+                     "'TypedBalancedReductionClosedGraphTests': 27"):
+        if text.count(expected) != 1:
+            raise AssertionError('Expected exactly one reviewed workflow edit: ' + expected)
+    return text.replace(ENROLLMENT, '').replace(REVIEWED_BUDGET, OLD_BUDGET).replace(
+        "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
 
 
 def gate(text: str) -> str:
@@ -155,11 +168,23 @@ class ReportInventoryTests(unittest.TestCase):
                                        "'TypedBalancedReductionClosedGraphTests': 20")
         self.assertEqual(ast.dump(ast.parse(normalized)), ast.dump(ast.parse(gate(self.old))))
 
-    def test_entire_workflow_is_preserved_except_count_and_test_enrollment(self):
-        self.assertEqual(self.workflow.count(ENROLLMENT), 1)
-        normalized = self.workflow.replace(ENROLLMENT, '').replace(
-            "'TypedBalancedReductionClosedGraphTests': 27", "'TypedBalancedReductionClosedGraphTests': 20")
-        self.assertEqual(normalized, self.old)
+    def test_entire_workflow_is_preserved_except_three_reviewed_edits(self):
+        self.assertEqual(restore_reviewed_workflow(self.workflow), self.old)
+
+    def test_unreviewed_budget_is_rejected(self):
+        for budget in (0, 120, 239, 241, 360):
+            with self.subTest(budget=budget), self.assertRaises(AssertionError):
+                restore_reviewed_workflow(self.workflow.replace(
+                    REVIEWED_BUDGET, '    timeout-minutes: %d\n' % budget))
+
+    def test_duplicate_budget_is_rejected(self):
+        with self.assertRaises(AssertionError):
+            restore_reviewed_workflow(self.workflow + REVIEWED_BUDGET)
+
+    def test_unrelated_workflow_change_is_not_normalized(self):
+        changed = self.workflow.replace('if-no-files-found: error', 'if-no-files-found: warn')
+        self.assertNotEqual(changed, self.workflow)
+        self.assertNotEqual(restore_reviewed_workflow(changed), self.old)
 
     def test_source_has_each_exact_test_inventory(self):
         for name, count in EXPECTED.items():

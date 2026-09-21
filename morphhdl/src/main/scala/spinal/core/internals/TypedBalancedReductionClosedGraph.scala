@@ -82,6 +82,10 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       private val frozen: Snapshot,
       private val combinationalScopes: Boolean
   ) {
+    private[TypedBalancedReductionClosedGraph] def this(
+        callback: UnvalidatedBalancedCallback, frozen: Snapshot
+    ) = this(callback, frozen, false)
+
     val ordinal: Int = callback.ordinal
     val nodeCount: Int = frozen.nodes.size
     val registerCount: Int = callback.declarations.count(_.isReg)
@@ -166,10 +170,16 @@ private[spinal] object TypedBalancedReductionClosedGraph {
       (callback: UnvalidatedBalancedCallback) => {
         observed.foreach(_.requireUnchanged())
         observed += observe(callback)
+        ()
       })
     observed.foreach(_.requireUnchanged())
     new ReductionObservation(record, observed.toVector)
   }
+
+  // Scala exposed this private accessor to nested classes under its mangled
+  // name. Retain that descriptor without widening the accepted graph policy.
+  private[TypedBalancedReductionClosedGraph] def `spinal$core$internals$TypedBalancedReductionClosedGraph$$inspect`(
+      callback: UnvalidatedBalancedCallback): Snapshot = inspect(callback, false)
 
   private def inspect(callback: UnvalidatedBalancedCallback, combinationalScopes: Boolean): Snapshot = {
     if (callback == null || callback.result == null || callback.operands == null ||

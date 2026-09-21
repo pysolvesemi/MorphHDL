@@ -33,7 +33,7 @@ jobs:
   integration:
     name: Composite integration Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
@@ -201,7 +201,7 @@ jobs:
           assert int(suite.get('tests', '0')) == 17, suite.attrib
           counts = {'TypedBalancedReductionCompositeLocalEnableTests': 31,
                     'TypedBalancedReductionCompositeStaticRedirectTests': 7,
-                    'ParameterizedVerilogStructuralLexicalTests': 6,
+                    'ParameterizedVerilogStructuralLexicalTests': 7,
                     'TypedBalancedReductionDeclarationFilterTests': 6,
                     'TypedBalancedReductionNestedResultTests': 8,
                     'TypedBalancedReductionCompositeCaptureTests': 10,

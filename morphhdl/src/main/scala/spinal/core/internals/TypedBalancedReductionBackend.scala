@@ -428,6 +428,13 @@ object TypedBalancedReductionBackend {
 
   // Scalar certificates own the changing full/partial/tail lane widths. The
   // composite path below retains its independent, fixed recursive leaf layout.
+  // Retain the old nested-class JVM accessor with the pre-local-enable policy.
+  private[TypedBalancedReductionBackend] def `spinal$core$internals$TypedBalancedReductionBackend$$buildScalar`(
+      vector: Vec[BaseType], op: (BaseType, BaseType) => BaseType,
+      bridge: (BaseType, Int) => BaseType, native: ElabBalancedReduction.Native[BaseType],
+      schema: TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema): BaseType =
+    buildScalar(vector, op, bridge, native, schema, false)
+
   private def buildScalar(vector: Vec[BaseType], op: (BaseType, BaseType) => BaseType,
       bridge: (BaseType, Int) => BaseType,
       native: ElabBalancedReduction.Native[BaseType],
@@ -556,6 +563,12 @@ object TypedBalancedReductionBackend {
     storage.records += Record(vector.asInstanceOf[Vec[Data]], shape, input, output, plan, stages, ordinal, outputObservation, lexicalOwner, schema)
     output
   }
+
+  private[TypedBalancedReductionBackend] def `spinal$core$internals$TypedBalancedReductionBackend$$buildComposite`(
+      vector: Vec[Data], op: (Data, Data) => Data,
+      bridge: (Data, Int) => Data, native: ElabBalancedReduction.Native[Data]): Data =
+    buildComposite(vector, op, bridge, native,
+      TypedBalancedReductionCertifiedCallbackPolicy.requireSupportedCompositeOperator(op), false)
 
   private def buildComposite(vector: Vec[Data], op: (Data, Data) => Data,
       bridge: (Data, Int) => Data,

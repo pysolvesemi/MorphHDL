@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = 'morphhdl/contracts/increment-59i-regression-inventory.json'
 HELPER = 'morphhdl/scripts/check-increment-59i-production-successor.py'
-VERIFIER_SHA256 = 'aadb2209a95947e8d86bf7c6cb34075b4b1f376f8894b809d20a52f56ffa7dbe'
+VERIFIER_SHA256 = '4da300df4db3263f8c0be728c501f567756d1815b15dbc55d73422d4af864462'
 CONTRACT_SHA256 = '338e26e122d657349e254e19ff452fbd94f839b774268bbaecb93ea002e6027f'
 
 

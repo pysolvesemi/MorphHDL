@@ -77,6 +77,13 @@ private[spinal] object TypedBalancedReductionCapture {
   ): UnvalidatedBalancedReduction[T] =
     apply(vector, op, levelBridge, native, (_: UnvalidatedBalancedCallback) => ())
 
+  // Default arguments do not retain an old JVM descriptor after adding a flag.
+  def apply[T <: Data](
+      vector: Vec[T], op: (T, T) => T, levelBridge: (T, Int) => T,
+      native: ElabBalancedReduction.Native[T], onCallback: UnvalidatedBalancedCallback => Unit
+  ): UnvalidatedBalancedReduction[T] =
+    apply(vector, op, levelBridge, native, onCallback, false)
+
   /** Observe a completed callback before the native helper invokes another.
     * The observer must not construct RTL or replay the Scala callback. This
     * seam lets the closed-graph validator freeze mutable expression children

@@ -95,6 +95,13 @@ private[internals] object ParameterizedVerilogStructural {
     * ownership analysis as ordinary structural regions. The caller owns the
     * typed topology; this function owns no HDL operation or reduction logic.
     */
+  // Keep the pre-capture JVM descriptor for already compiled internal callers.
+  private[internals] def extractNativeTemplates(
+      component: Component, blocks: Vector[ParameterizedStructuralBlock],
+      verilog: String, pc: PhaseContext, canonicalOf: Component => Component
+  ): (String, Vector[String]) =
+    extractNativeTemplates(component, blocks, verilog, pc, canonicalOf, None)
+
   private[internals] def extractNativeTemplates(
       component: Component, blocks: Vector[ParameterizedStructuralBlock],
       verilog: String, pc: PhaseContext, canonicalOf: Component => Component,
