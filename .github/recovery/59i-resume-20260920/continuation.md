@@ -1,6 +1,60 @@
 # Increment 59i continuation — 20 September 2026
 
 
+## CURRENT CHECKPOINT — complete four-gate source repair published, 21 September 2026
+
+Final source qualification
+[35590237884](https://github.com/pysolvesemi/MorphHDL/actions/runs/35590237884)
+authenticated the exact prior schema-7 source/seal/parent/live refs, then executed
+all25 retained commands. It completed with21 passes and4 audit-only failures:
+the top-level and nested PR190 adapters still admitted only schemas5/6; the
+complete 59h historical AST projection did not remove the exact new schema-7
+checkout-identity route; and the PR189 synchronization test retained a stale
+current continuation digest. No compiler, Scala, RTL, generated-Verilog or
+hardware test failed. Preserve the original job106302847338 and artifact
+10637014599. The independently downloaded original ZIP matches the live API
+SHA256
+`bbdac0aa894ae131fcde741ea36451130b42c0bff4d51b4cbb37ec58dac442ce`.
+
+The complete generic repair adds only
+`test-increment-59i-inherited-audit-budgets.py` to the prior closed audit set,
+for21 Python audit/checker/fixture paths total. Exact stronger rejection order
+and bounded600-second current-successor negatives remain; historical/default
+limits remain120 seconds. The final348-record verifier, both PR190 adapters,
+complete 59h historical projection, PR189 synchronization route,23 budget
+controls and6 scheduling controls pass locally. No compiler, workflow, Scala
+test, RTL or Verilog byte changed.
+
+- Source `83137697ca23028f56ac83e397bc0f607e1448a5`, tree
+  `329e9e5784ee4629194c2f4dc0884979766fb0d5`, direct child of feature9d6d.
+- Seal `71ebb9a2fdfa755f47a4c2e596e72f347dd7f404`, tree
+  `b7706f990ab4e6e0bf8c7206a63a2a53a9ce4626`, direct source child.
+- Schema7 manifest SHA256
+  `02f76de615c52dac932004ad575382f204c892f33a4bdc1977ebed6e4829a63d`;
+  normalized helper SHA256
+  `3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84`.
+- Current target remains
+  `3aa132e87e10dd0d2e0062c7d34d26bddb58fa72`, tree
+  `a9a220c11156675c784315f1d513dd258d66a818`; the conflict-free
+  prospective feature/target tree is
+  `f91779b2d3e088757564f4011e427eb3144bbb3c` and adds only exact
+  `AGENTS.md` blob `e51fc890c5147dea8e28313ee51ca499396cdba3`.
+
+This recovery commit updates only the narrow25-gate source controller and this
+checkpoint. Its push starts exactly one replacement source qualification; all
+other recovery workflows have disjoint path filters. Do not duplicate that run.
+Feature remains9d6d, PR177 remains draft/unmerged and roadmap unchecked.
+
+NEXT: inspect the replacement source run once terminal; require all25 actual
+command successes, exact identities, clean checkout and independent original
+artifact/API digest verification. Only then publish/run the bounded target-doc
+reconciliation for seal71ebb, target3aa and prospective treef917. After both
+pass and refs remain exact, advance the existing feature non-force to71ebb and
+dispatch only WA-08, combined,59h and59f. Do not launch full CI, publish the
+paused full-CI controller, merge, or duplicate passing/active workflows. Keep
+the hourly monitor enabled.
+
+
 ## CURRENT CHECKPOINT — final four-workflow audit repair qualifying, 21 September 2026
 
 Exact-head targeted runs on qualified head
