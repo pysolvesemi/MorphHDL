@@ -120,10 +120,46 @@ elif mutation in ("suffix", "inside") and relative in overlay_paths:
     return tree
 
 
+def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
+    """Reverse only schema 7's exact inherited-checkout rejection route."""
+    assignment = ast.parse('successor_tree = successor.tree(ROOT, "HEAD")').body[0]
+    reviewed = ast.parse('''if mutation in ("suffix", "inside") and relative in successor_tree:
+    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+''').body[0]
+
+    class RestoreCheckoutIdentity(ast.NodeTransformer):
+        assignment_count = 0
+        route_count = 0
+
+        def visit_Assign(self, node):
+            if dump(node) == dump(assignment):
+                self.assignment_count += 1
+                return None
+            return self.generic_visit(node)
+
+        def visit_If(self, node):
+            if dump(node.test) == dump(reviewed.test):
+                candidate = copy.deepcopy(node)
+                tail = candidate.orelse
+                candidate.orelse = []
+                if dump(candidate) != dump(reviewed) or len(tail) != 1 or not isinstance(tail[0], ast.If):
+                    raise AssertionError("unexpected schema-7 checkout-identity routing")
+                self.route_count += 1
+                return self.visit(tail[0])
+            return self.generic_visit(node)
+
+    restorer = RestoreCheckoutIdentity()
+    tree = restorer.visit(tree)
+    if restorer.assignment_count != 1 or restorer.route_count != 1:
+        raise AssertionError("expected exactly one reviewed schema-7 checkout-identity route")
+    return tree
+
+
 def historical_ast(filename: str, text: str) -> ast.Module:
     default = next(row[2] for row in CASES if row[0] == filename)
     tree = ast.parse(text)
     if filename == "test-increment-59h-inherited-source-scope.py":
+        tree = restore_reviewed_59h_checkout_identity(tree)
         tree = restore_reviewed_59h_diagnostics(tree)
     if filename == "test-increment-59g-source-review.py":
         joined = dump(ast.parse("max(600, current_positive_timeout(ROOT))", mode="eval").body)
@@ -355,6 +391,9 @@ class InheritedAuditBudgetTests(unittest.TestCase):
             ('current reviewed bytes differ: ', 'different failure: '),
             ('unreviewed bytes cannot enter historical projection: ', 'accepted: '),
             ('elif mutation in ("suffix", "inside")', 'elif True'),
+            ('relative in successor_tree', 'relative not in successor_tree'),
+            ('HEAD/index/worktree identity differs: ', 'accepted checkout: '),
+            ('successor_tree = successor.tree(ROOT, "HEAD")', 'successor_tree = {}'),
         ):
             self.assertIn(before, text)
             with self.subTest(before=before):

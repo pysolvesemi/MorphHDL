@@ -310,7 +310,7 @@ class Pr190IntegrationTests(unittest.TestCase):
 
 
 class Schema6BudgetTests(unittest.TestCase):
-    """Exercise the current schema-6 workflow without changing the old suite."""
+    """Exercise the current schema-6/7 workflow without changing the old suite."""
 
     @classmethod
     def setUpClass(cls):
@@ -321,8 +321,8 @@ class Schema6BudgetTests(unittest.TestCase):
         git(ROOT, 'worktree', 'add', '--quiet', '--detach', str(cls.root), cls.head)
         cls.addClassCleanup(git, ROOT, 'worktree', 'remove', '--force', str(cls.root))
         cls.production = review.source_review(cls.root)
-        if cls.production.contract(cls.root)['schema_version'] != 6:
-            raise RuntimeError('current regression-budget controls require schema 6')
+        if cls.production.contract(cls.root)['schema_version'] not in (6, 7):
+            raise RuntimeError('current regression-budget controls require schema 6 or 7')
         cls.path = cls.root / '.github/workflows/increment-60f-equivalence-closure.yml'
         cls.original = cls.path.read_bytes()
 
@@ -359,7 +359,7 @@ class Schema6BudgetTests(unittest.TestCase):
 def run_schema6_retained_tests():
     """Run the exact schema-5 mutation suite at its immutable seal.
 
-    The current schema-6 reviewer is authenticated on the live checkout on
+    The current schema-6/7 reviewer is authenticated on the live checkout on
     both sides.  The retained suite keeps testing its original target
     checkpoint fields without weakening or silently rewriting those tests.
     """
@@ -367,7 +367,7 @@ def run_schema6_retained_tests():
     current = unittest.TextTestRunner(verbosity=2).run(
         unittest.defaultTestLoader.loadTestsFromTestCase(Schema6BudgetTests))
     if current.testsRun != 4 or current.skipped or not current.wasSuccessful():
-        raise RuntimeError('current schema-6 regression-budget controls failed')
+        raise RuntimeError('current schema-6/7 regression-budget controls failed')
     raw = git(ROOT, 'show', HISTORICAL_SEAL + ':' + HISTORICAL_TEST)
     if __import__('hashlib').sha256(raw).hexdigest() != HISTORICAL_TEST_SHA256:
         raise RuntimeError('immutable schema-5 PR190 mutation suite changed')
@@ -384,11 +384,11 @@ def run_schema6_retained_tests():
         finally:
             git(ROOT, 'worktree', 'remove', '--force', str(root))
     review.verify(ROOT)
-    print('59i PR190 schema-6 review and 4 current budget controls plus exact retained schema-5 controls PASS', flush=True)
+    print('59i PR190 schema-6/7 review and 4 current budget controls plus exact retained schema-5 controls PASS', flush=True)
 
 
 if __name__ == '__main__':
-    if review.source_review(ROOT).contract(ROOT)['schema_version'] == 6:
+    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7):
         run_schema6_retained_tests()
     else:
         unittest.main(defaultTest='Pr190IntegrationTests', verbosity=2)

@@ -58,6 +58,16 @@ def current_positive_timeout(root: Path) -> int:
     return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
 
 
+def current_negative_timeout(root: Path) -> int:
+    # Schema-successor rejection checks now authenticate the complete joined
+    # source before reaching some deliberate mutations.  Reserve bounded
+    # headroom only for those current fixtures; historical negatives and the
+    # check() default retain their original 120-second contract.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 120
+
+
 def main() -> None:
     spec = importlib.util.spec_from_file_location("closure_scope", CHECKER)
     module = importlib.util.module_from_spec(spec)
@@ -86,6 +96,21 @@ def main() -> None:
         if path in integration_paths:
             return "59i target integration: unreviewed bytes cannot enter parent projection: " + path
         return "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: " + path
+
+    def current_successor_rejection(path: str, state: str) -> str:
+        contract = ROOT / "morphhdl/contracts/increment-59i-production-successor.json"
+        schema = json.loads(contract.read_text()).get("schema_version", 0) if contract.is_file() else 0
+        if schema >= 7:
+            if state == "committed":
+                return "59i production successor: sealed route tree differs from immutable source plus exact seal"
+            if state == "uncommitted":
+                return "59i production successor: HEAD/index/worktree identity differs: " + path
+            if state == "staged":
+                return "59i production successor: HEAD/index identity differs"
+            raise RuntimeError("unknown current-successor fixture state: " + state)
+        if state == "staged":
+            return "WA-08 source overlay: HEAD/index/worktree identity differs: " + path
+        return changed_successor(path)
 
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
@@ -118,21 +143,24 @@ def main() -> None:
          "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed-committed-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
-         changed_successor("core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala")),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "committed")),
         ("changed-uncommitted-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", False,
-         changed_successor("core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala")),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "uncommitted")),
         ("changed-staged-successor-emitter-restored-worktree", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
-         "WA-08 source overlay: HEAD/index/worktree identity differs: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged")),
         ("changed-committed-successor-pass-contracts", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", True,
-         changed_successor("morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala")),
+         current_successor_rejection(
+             "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "committed")),
         ("changed-staged-successor-pass-contracts-restored-worktree", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged",
-         "WA-08 source overlay: HEAD/index/worktree identity differs: "
-         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+         current_successor_rejection(
+             "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged")),
         ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
@@ -157,7 +185,8 @@ def main() -> None:
                             git(fixture, "-c", "user.name=Scope guard fixture",
                                 "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
                                 "-m", "isolated 60f inherited source-scope fixture")
-                records.append(check(fixture, label, rejection))
+                records.append(check(fixture, label, rejection,
+                                     timeout_seconds=current_negative_timeout(fixture)))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:
