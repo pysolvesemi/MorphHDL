@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "e4446812cf070130549330f52511c7037f63424f",
+  "final_source_commit": "c0abf565e4a76ed1fadb819dbfd27cdb74227e3f",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -290,7 +290,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "0c911f9dfd9b046d5beff55dabd00a9dfb03f023b9c981a6bc8dd0e9ee65b892"
+      "after_sha256": "76968fccec632021bf22483e3c5db2212bc56414abce8d04369943fa1af57f8a"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -1595,6 +1595,12 @@
       "after_sha256": "99d7d57ad732a5bd29efa3911baf20fe4ddf782a479b5d178b3a31582e8567b2"
     },
     {
+      "path": "morphhdl/examples/contracts/symbolic_data_shapes.v",
+      "mode": "100644",
+      "before_sha256": "b9a6fa929edeec0e4779d330d7b43bc1e048236a14d30792a24eebb83df542f3",
+      "after_sha256": "c0435ebd5404c5c337fe9fe8793f9714ecb25e15c37613e7d4b99c5237297222"
+    },
+    {
       "path": "morphhdl/scripts/check-cdc-successor-source.py",
       "mode": "100644",
       "before_sha256": null,
@@ -1610,7 +1616,13 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "5f1eeb610950ff5a76e388f443558dadae2da31e1918e47bdef9264888df7993"
+      "after_sha256": "879432a336be1ab9bbd94db4369a0f857bef97478f35337af9f916a5688b553f"
+    },
+    {
+      "path": "morphhdl/scripts/check-contracts.sh",
+      "mode": "100755",
+      "before_sha256": "d6cc35faf59acbbcaa81dd3779589bfcabc95602fdcb6efc65499074bb937ec6",
+      "after_sha256": "991b67e9229e4ffba8c156271c510583a075988ec3af6ab5fe7ed496da49f05d"
     },
     {
       "path": "morphhdl/scripts/check-increment-60f-artifacts.py",
@@ -1709,10 +1721,16 @@
       "after_sha256": "ae4a7ff509a44b0f118bbab8baac09181d5a89a593496282c562c4e993af8dfe"
     },
     {
+      "path": "morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py",
+      "mode": "100755",
+      "before_sha256": "b0f8535ecc13e347d3c833f4b8f2f9cb446179ded2ccd1612816788cba9c26e5",
+      "after_sha256": "d48dcd05cf2134cca07ca1265174abae61a99ddb059cba3e593179d96025612f"
+    },
+    {
       "path": "morphhdl/scripts/refresh-cdc-wire-source-seal.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "31c34c1d456f803eb2f645deabe4f28b97921e39614a22a7e3861a093ec728bb"
+      "after_sha256": "e5f001b3c162705f672f94557302ed88faa558c5f9c7af6cebced8153986f231"
     },
     {
       "path": "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
