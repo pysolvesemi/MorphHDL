@@ -38,7 +38,8 @@ def qualify_ordinary_named(output, first):
     protected_aliases = ("keptAlias", "guardedAlias", "conditionalAlias",
                          "toChildAlias", "fromChildAlias", "softResetAlias", "timingAlias",
                          "rootProceduralAlias", "extraordinarilyLongProtectedName")
-    ineligible_direct_port_aliases = ("signedAlias", "unsignedAlias")
+    direct_port_aliases = (("signedAlias", "signedIn", "signedResult"),
+                           ("unsignedAlias", "unsignedIn", "unsignedResult"))
 
     def declares_wire(source, name):
         return re.search(r"(?m)^\s*(?:\(\*.*?\*\)\s*)*wire\s+(?:signed\s+)?(?:\[[^\n]*?\]\s+)?" +
@@ -102,9 +103,20 @@ def qualify_ordinary_named(output, first):
             assert re.search(r"(?<![A-Za-z0-9_$])" + re.escape(name) +
                              r"(?![A-Za-z0-9_$])", enabled) is None, (
                 kind, "equal-length lexical-tie wire survived", name)
-        for name in protected_aliases + ineligible_direct_port_aliases:
+        for name in protected_aliases:
             assert declares_wire(reference, name) and declares_wire(enabled, name), (
                 kind, "protected/ineligible alias identity changed", name)
+        # CDC-WIRE admits an exact same-component input as an alias source.
+        # It is not a hierarchy crossing. Verify both original edges and the
+        # unique replacement edge; signedness/width are still checked by the
+        # unchanged public-port simulation, formal and tool gates below.
+        for alias, port, result in direct_port_aliases:
+            assert declares_wire(reference, alias), (kind, "missing disabled port alias", alias)
+            assert re.findall(r"\bassign\s+" + alias + r"\s*=\s*([^;]+);", reference) == [port]
+            assert re.findall(r"\bassign\s+" + result + r"\s*=\s*([^;]+);", reference) == [alias]
+            assert re.search(r"\b" + alias + r"\b", enabled) is None, (kind, "port alias survived", alias)
+            assert re.findall(r"\bassign\s+" + result + r"\s*=\s*([^;]+);", enabled) == [port], (
+                kind, "direct port driver changed", result)
         # WA-10 first substitutes bitSource into this ordinary wire, then
         # proves its expression is safe in the register's nonblocking RHS.
         # Preserve the disabled legacy wire and the real register/timing
@@ -229,11 +241,11 @@ def qualify_ordinary_named(output, first):
         assert "proof did fail" in failed or "model found: FAIL" in failed
         (proof / "candidate.v").write_text(candidate)
     return {"ordinary_untagged_aliases_removed_per_fixture": len(historical_aliases),
-            "all_direct_aliases_removed_per_fixture": len(expected_aliases),
+            "all_direct_aliases_removed_per_fixture": len(expected_aliases) + len(direct_port_aliases),
             "named_or_generated_expressions_removed_per_fixture": len(expected_expressions) + 1,
             "genuinely_unnamed_expression_temporaries_not_emitted_per_fixture": 1,
             "protected_aliases_retained_per_fixture": len(protected_aliases),
-            "ineligible_direct_port_aliases_retained_per_fixture": len(ineligible_direct_port_aliases),
+            "same_component_input_aliases_removed_per_fixture": len(direct_port_aliases),
             "final_named_expression_inlined_to_output": True,
             "short_meaningful_chain_fully_inlined": True,
             "equal_length_lexical_tie_is_deterministic": True,

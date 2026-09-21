@@ -39,9 +39,6 @@ module SymbolicDataShapes #(
   output wire [((WIDTH + WIDTH + WIDTH) * 2)-1:0] vec_out
 );
 
-  wire       [WIDTH-1:0] internal_payload_bits;
-  wire       signed [WIDTH-1:0] internal_payload_sint;
-  wire       [WIDTH-1:0] internal_payload_uint;
   reg        [WIDTH-1:0] payload_register_bits;
   reg        signed [WIDTH-1:0] payload_register_sint;
   reg        [WIDTH-1:0] payload_register_uint;
@@ -49,12 +46,9 @@ module SymbolicDataShapes #(
   assign bits_out = bits_in;
   assign uint_out = uint_in;
   assign sint_out = sint_in;
-  assign internal_payload_bits = bundle_in_bits;
-  assign internal_payload_uint = bundle_in_uint;
-  assign internal_payload_sint = bundle_in_sint;
-  assign bundle_out_bits = internal_payload_bits;
-  assign bundle_out_uint = internal_payload_uint;
-  assign bundle_out_sint = internal_payload_sint;
+  assign bundle_out_bits = bundle_in_bits;
+  assign bundle_out_uint = bundle_in_uint;
+  assign bundle_out_sint = bundle_in_sint;
   assign vec_out = vec_in;
   assign stream_out_valid = stream_in_valid;
   assign stream_out_payload_bits = stream_in_payload_bits;

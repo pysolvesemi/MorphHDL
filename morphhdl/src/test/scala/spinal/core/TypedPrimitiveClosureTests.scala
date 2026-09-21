@@ -815,7 +815,6 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
         "stream_in_payload",
         "stream_out_payload",
         "stream_m2s_payload",
-        "stream_half_payload",
         "flow_in_payload",
         "flow_out_payload",
         "flow_m2s_payload"
@@ -836,8 +835,14 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
         assert(source.contains("always@(posedgeclkorposedgereset)"), source)
         assert(source.contains("stream_s2m_rValid<=1'b0;"), source)
         assert(source.contains("assignstream_s2m_ready=(!stream_s2m_rValid);"), source)
-        assert(source.contains("assignstream_half_payload=stream_s2m_rData;"), source)
       }
+      // The half-pipe output aliases its retained WIDTH-wide payload state.
+      // Cleanup removes only that carrier, preserving the public connection.
+      assert(disabled.contains("wire[WIDTH-1:0]stream_half_payload;"), disabled)
+      assert(disabled.contains("assignstream_half_payload=stream_s2m_rData;"), disabled)
+      assert(disabled.contains("assignstream_out_payload=stream_half_payload;"), disabled)
+      assert(!compact.contains("stream_half_payload"), verilog)
+      assert(compact.contains("assignstream_out_payload=stream_s2m_rData;"), verilog)
       // WA-10 inlines this unprotected mux into its exact WIDTH-wide register
       // receiver. The payload state and conditional NBA remain native shapes.
       val payloadMux = "(stream_m2s_rValidN?stream_m2s_payload:stream_m2s_rData)"

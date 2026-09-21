@@ -1033,7 +1033,7 @@ Completion requires actual emitted before/after evidence, deterministic repeat
 emission and one-invocation idempotence, parameter overrides, four-state
 simulation, width/signedness controls, formal equivalence and inherited gates.
 
-- [ ] **CDC-WIRE-01 — Recursive unnamed/generated wire-expression cleanup to a fixed point.**
+- [x] **CDC-WIRE-01 — Recursive unnamed/generated wire-expression cleanup to a fixed point.**
 
   The report retains this chain (wide shifted carrier, 32-bit slice carrier,
   Boolean comparison carrier):
@@ -1256,3 +1256,13 @@ simulation, width/signedness controls, formal equivalence and inherited gates.
   remains part of this same item's receiver/context regression scope. These
   observations confirm reproducibility, not completion, behavioral equivalence,
   whole-domain qualification or a compiler repair.
+
+  **Completed September 21, 2026:** the generic fixed-point cleanup, typed
+  publication ownership and symbolic-width preservation are implemented and
+  sealed. Fresh affected-workflow qualification passed the dual-Scala Mill run
+  `35562488070`, all ten lane/when jobs in `35565553072`, all five 60f
+  equivalence jobs in `35565555663`, and both Scala lanes plus the strict
+  Verilog-2001 contract job in baseline run `35569571226`. The later target
+  integration changes documentation and seal records only; final full-CI
+  qualification remains a pre-merge gate rather than evidence for this
+  checkbox.

@@ -351,6 +351,15 @@ def project_regressions(root: Path, predecessor: Path, output: Path) -> None:
     git(root, 'merge-base', '--is-ancestor', REGRESSION_BASE, 'HEAD')
     output.unlink(missing_ok=True)
     value = sequential_report_inventory(root, result['head'])
+    cdc_path = 'morphhdl/scripts/check-cdc-wire-regressions.py'
+    cdc = load(root, cdc_path) if (root/cdc_path).exists() else None
+    cdc_updates = []
+    if cdc is not None:
+        # verify(root) authenticated the complete current-source seal above.
+        # Validate all additional current/copy XML before any copied deletion.
+        specs = cdc.source_suites(root)
+        cdc_receipt, cdc_updates = cdc.projection(root, predecessor, result['head'], specs)
+        value = {'sequential': value, 'cdc_wire': cdc_receipt}
     # Prove the old catalog/checker has no edits. Only copy-tree XML may differ.
     require(not git(predecessor, 'diff', '--name-only').strip() and
             not git(predecessor, 'diff', '--cached', '--name-only').strip(),
@@ -367,9 +376,18 @@ def project_regressions(root: Path, predecessor: Path, output: Path) -> None:
     # No partial deletion: validate ALL original/copy reports before removal.
     for path in copied:
         path.unlink()
+    for path, content in cdc_updates:
+        if content is None:
+            path.unlink()
+        else:
+            path.write_bytes(content)
     output.write_text(json.dumps(value, indent=2, sort_keys=True) + '\n')
-    require(sequential_report_inventory(root, result['head']) == value,
+    sequential = value['sequential'] if cdc is not None else value
+    require(sequential_report_inventory(root, result['head']) == sequential,
             'projection modified original sequential XML')
+    if cdc is not None:
+        require(cdc.report_inventory(root, result['head'], specs) == value['cdc_wire'],
+                'projection modified original CDC-WIRE XML')
     print('PR190_SEQUENTIAL_REPORTS_PASS tests=37 suites=3 projected_copies=3 original_xml_unchanged')
 
 
@@ -427,16 +445,31 @@ def combine_regressions(root: Path, complete: Path, extension: Path) -> None:
     require(complete.is_file() and not complete.is_symlink() and
             extension.is_file() and not extension.is_symlink(), 'missing/linked regression inventory')
     extra = json.loads(extension.read_bytes())
+    cdc_path = 'morphhdl/scripts/check-cdc-wire-regressions.py'
+    cdc = load(root, cdc_path) if (root/cdc_path).exists() else None
+    cdc_receipt = None
+    if cdc is not None:
+        require(set(extra) == {'sequential', 'cdc_wire'}, 'missing/changed CDC-WIRE receipt')
+        specs = cdc.source_suites(root)
+        cdc_receipt = extra['cdc_wire']
+        require(cdc_receipt == cdc.report_inventory(root, result['head'], specs),
+                'stale/changed CDC-WIRE report receipt')
+        extra = extra['sequential']
     # Bind the receipt to the current source and untouched actual reports;
     # rejecting a stale/synthetic/tampered receipt is independent of counts.
     require(extra == sequential_report_inventory(root, result['head']),
             'stale/changed sequential report receipt')
     combined = merge_sequential_inventory(json.loads(complete.read_bytes()), extra)
+    if cdc is not None:
+        combined = cdc.merge_inventory(combined, cdc_receipt, specs)
     require(combined == actual_regression_summary(root),
             'combined inventory differs from complete untouched current reports')
     complete.write_text(json.dumps(combined, indent=2) + '\n')
+    additional = sum(len(spec['added_cases']) for spec in specs.values()) if cdc is not None else 0
+    suites = sum(not spec['inherited_tests'] for spec in specs.values()) if cdc is not None else 0
     print('PR190_COMPLETE_REGRESSIONS_PASS tests=' + str(sum(x['tests'] for x in combined.values())) +
-          ' added_tests=37 added_suites=3 no_failures_errors_skips')
+          ' added_tests=' + str(37 + additional) + ' added_suites=' + str(3 + suites) +
+          ' no_failures_errors_skips')
 
 
 def main() -> None:

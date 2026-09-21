@@ -207,14 +207,12 @@ class ComponentEmitterVerilog(
       val requiredBeforeDepthCut = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
       expressionToWrap.foreach(expression => requiredBeforeDepthCut.put(expression, java.lang.Boolean.TRUE))
       cutLongExpressions()
-      // The depth planner visits a whole breadth frontier, including leaves.
-      // A carrier for an eligible sized literal cannot shorten a computation;
-      // avoid recreating it after the typed expression plan has accepted it.
-      // Keep all non-literal depth fences and all pre-existing mandatory wraps.
-      expressionToWrap.retain {
-        case literal: Literal =>
-          requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)
-        case _ => true
+      // The typed planner already bounds the complete expanded expression and
+      // proves every receiving context. Do not recreate its eliminated chain
+      // solely because the legacy breadth-frontier depth cutter sees it again.
+      // Mandatory wraps installed before this optional depth cut still win.
+      expressionToWrap.retain { expression =>
+        requiredBeforeDepthCut.containsKey(expression) || !wrappersProvenRedundant.containsKey(expression)
       }
     }
     // A declaration policy may require a real unsigned carrier at an exact
@@ -240,7 +238,7 @@ class ComponentEmitterVerilog(
             case _ => ""
           }
           val name = component.localNamingScope.allocateName((anonymSignalPrefix + sName).replace('.', '_'))
-          declarations ++= emitExpressionWrap(e, name)
+          declarations ++= emitExpressionWrap(e, name, this)
           wrappedExpressionToName(e) = name
         }
       }
@@ -1622,6 +1620,16 @@ end
   private lazy val wrappersProvenRedundant =
     VerilogEmitterExpressionInlining.redundantWrappers(component, spinalConfig)
 
+  private lazy val retainedVecOperationExpressions = {
+    val identities = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    ParameterizedVec.retainedOperationExpressions(component)
+      .foreach(expression => identities.put(expression, java.lang.Boolean.TRUE))
+    identities
+  }
+
+  private[internals] def isRetainedVecOperationExpression(expression: Expression): Boolean =
+    retainedVecOperationExpressions.containsKey(expression)
+
   override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =
     VerilogEmitterExpressionInlining.redundantSharedCondition(
       component, spinalConfig, condition, wrappersProvenRedundant)
@@ -1708,8 +1716,49 @@ end
     emitExpression(func.input)
   }
 
+  private val expressionSelectFunctions = mutable.LinkedHashMap[(String, Int, Int), String]()
+  private lazy val expressionSelectWidthNamesReserved: Unit =
+    component.dslBody.walkDeclarations {
+      case value: BaseType => ParameterizedWidth.expressionOf(value).foreach { width =>
+        width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))
+      }
+      case _ =>
+    }
+
+  /** Verilog-2001 cannot select an arbitrary expression. A function argument
+    * evaluates in the full original unsigned width; the function's fixed
+    * result then supplies the exact slice before any comparison/mux context.
+    * A bitwise mask is not equivalent for X/Z, and narrowing the argument before
+    * a right shift would discard live input bits. No such rewrite is used here.
+    */
+  private def expressionSelect(owner: Expression, source: Expression, hi: Int, lo: Int): Option[String] = {
+    if (!wrappersProvenRedundant.containsKey(owner) || source.isInstanceOf[BaseType] ||
+        VerilogEmitterExpressionInlining.directSelectBase(component, source).nonEmpty ||
+        wrappedExpressionToName.contains(source)) return None
+    NativeWidthProvenance.optionalWidthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo).map { width =>
+      // Width parameters may be published after native naming. MorphHDL also
+      // reserves the complete module parameter inventory in its pre-emission
+      // phase; these exact width names cover direct users of the core opt-in.
+      expressionSelectWidthNamesReserved
+      width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))
+      val key = (width.verilog, hi, lo)
+      val name = expressionSelectFunctions.getOrElseUpdate(key, {
+        val allocated = component.localNamingScope.allocateName("_morphhdl_slice")
+        val argument = component.localNamingScope.allocateName("value")
+        declarations ++= s"  function [${hi-lo}:0] $allocated;\n"
+        declarations ++= s"    input [${width.verilog}-1:0] $argument;\n"
+        declarations ++= s"    begin\n      $allocated = $argument[$hi:$lo];\n    end\n  endfunction\n"
+        allocated
+      })
+      s"$name(${emitExpression(source)})"
+    }
+  }
+
   def operatorImplResize(func: Resize): String = {
-    if(func.size < func.input.getWidth)
+    val selected = if (func.size > 0 && func.size < func.input.getWidth)
+      expressionSelect(func, func.input, func.size-1, 0) else None
+    if(selected.nonEmpty) selected.get
+    else if(func.size < func.input.getWidth)
       s"${emitExpression(func.input)}[${func.size-1}:0]"
     else if(func.size > func.input.getWidth)
       s"{${func.size - func.input.getWidth}'d0, ${emitExpression(func.input)}}"
@@ -1800,7 +1849,8 @@ end
   }
 
   def accessBoolFixed(e: BitVectorBitAccessFixed): String = {
-    s"${emitExpression(e.source)}[${e.bitId}]"
+    expressionSelect(e, e.source, e.bitId, e.bitId).getOrElse(
+      s"${emitExpression(e.source)}[${e.bitId}]")
   }
 
   def accessBoolFloating(e: BitVectorBitAccessFloating): String = {
@@ -1808,7 +1858,8 @@ end
   }
 
   def accessBitVectorFixed(e: BitVectorRangedAccessFixed): String = {
-    s"${emitExpression(e.source)}[${e.hi} : ${e.lo}]"
+    expressionSelect(e, e.source, e.hi, e.lo).getOrElse(
+      s"${emitExpression(e.source)}[${e.hi} : ${e.lo}]")
   }
 
   def accessBitVectorFloating(e: BitVectorRangedAccessFloating): String = {

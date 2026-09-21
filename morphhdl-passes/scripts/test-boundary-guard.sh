@@ -472,3 +472,19 @@ if [[ -f "${repo_root}/morphhdl/scripts/check-sequential-wire-source-review.py" 
 fi
 
 printf 'MorphHDL pass boundary self-tests passed.\n'
+
+# The CDC-WIRE-01 branch alone never authorizes native changes. Its exact
+# current-source inventory and byte seal must pass before admitting paths.
+if [[ -f "${repo_root}/morphhdl/scripts/check-cdc-wire-source-review.py" ]]; then
+  cdc_wire_manifest="${tmp_dir}/cdc-wire.txt"
+  printf '%s\n' \
+    'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala' \
+    'morphhdl/scripts/check-cdc-wire-source-review.py' >"${cdc_wire_manifest}"
+  expect_success 'CDC-WIRE authenticated successor paths' \
+    run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
+  expect_failure 'CDC-WIRE lookalike branch cannot authorize native paths' \
+    run_checker agent/wa-cdc-wire-01-fixed-point-unreviewed "${cdc_wire_manifest}"
+  printf '%s\n' 'core/src/main/scala/spinal/core/UnreviewedCdcWire.scala' >>"${cdc_wire_manifest}"
+  expect_failure 'CDC-WIRE extra native path stays outside the inventory' \
+    run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
+fi

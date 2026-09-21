@@ -9,6 +9,9 @@ import spinal.core.internals.{
   PhaseContext,
   PhaseRemoveUselessStuff,
   PhaseRemoveIntermediateUnnameds,
+  PhaseVerilog,
+  PhaseAllocateNames,
+  MorphHdlEmitterParameterNames,
   VerilogEmitterExpressionInlining
 }
 
@@ -85,6 +88,17 @@ private[morphhdl] object WireAssignmentProductionBridge {
     if (firstLiveness < 0 || firstLiveness >= cleanup(2))
       throw new IllegalStateException("condition source intent requires a pre-optimization liveness boundary")
     phases.insert(firstLiveness, sourceIntent)
+    // Native helper names share a namespace with parameters published by the
+    // external backend. Reserve the complete module inventory after native
+    // declaration allocation, leaving the signedness observation immediately
+    // adjacent to its emitter as required by the existing phase-plan contract.
+    val emitterIndex = phases.indexWhere(_.isInstanceOf[PhaseVerilog])
+    if (emitterIndex >= 0) {
+      val allocationIndex = phases.indexWhere(_.isInstanceOf[PhaseAllocateNames])
+      if (allocationIndex < 0 || allocationIndex >= emitterIndex)
+        throw new IllegalStateException("emitter parameter reservation requires prior native name allocation")
+      phases.insert(allocationIndex + 1, new MorphHdlEmitterParameterNames)
+    }
   }
 }
 
@@ -126,7 +140,8 @@ private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionS
 
       val unnamed = new UnnamedWireAliasNativePhase(Some(sourceIntent))
       unnamed.impl(pc)
-      val named = new NamedWireAliasNativePhase(deferPreferredExpressionSource = true)
+      val named = new NamedWireAliasNativePhase(
+        deferPreferredExpressionSource = true, sourceIntent = Some(sourceIntent))
       named.impl(pc)
       val expression = new UnnamedWireExpressionNativePhase(Some(sourceIntent))
       expression.impl(pc)

@@ -16,7 +16,7 @@ from pathlib import Path
 BASE = "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6"
 HELPER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
-CONTRACT_SHA256 = "37ae427746dca3c6eae7f00299f0b35673c8c2ce1a9029733571d1d5fa9daa9f"
+CONTRACT_SHA256 = "b3ab150e38a10c9346fee101adfc9387ba684904f26772f887d1f1bafe164b89"
 
 
 def integration_review(root: Path):

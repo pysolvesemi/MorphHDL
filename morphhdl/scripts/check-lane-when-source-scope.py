@@ -84,18 +84,23 @@ MARKERS = {
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": (
         "override def canInlineRepeatedWhenCondition(condition: Expression): Boolean",
         "component, spinalConfig, condition, wrappersProvenRedundant)",
-        "requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)",
+        "requiredBeforeDepthCut.containsKey(expression) || !wrappersProvenRedundant.containsKey(expression)",
     ),
     "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": (
         "target.getTags().forall(_ eq noBackendCombMerge)",
         "if (!isEnabled(config) || !approved.containsKey(expression)",
         "expression.getTypeObject != TypeBool", "nodes > 64",
         "nativeConditions == 1 && leaves >= 1 && leaves <= 32",
-        "leaves.toLong * nodes <= 256", "count.intValue == 1",
-        "ParameterizedWidth.expressionOf(target).isEmpty", "dataAssignments == 1",
-        "lo <= otherHi && otherLo <= hi", "referenceRequired", "isUnannotated",
+        "leaves.toLong * nodes <= 256", "entry.getValue.intValue == count.intValue && count.intValue <= 32",
+        "expandedSize(entry.getKey).toLong * count.intValue <= 256",
+        "logicalWidth(target).nonEmpty", "ElaborationWidthAuthority.equivalent(a, b)", "dataAssignments == 1",
+        "case target: BaseType if target.isReg && fixedTargetBoundary(target)",
+        "lo <= otherHi && otherLo <= hi", "visiting.containsKey(expression)", "var budget = 256", "isUnannotated",
     ),
     "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala": (
+        "generatedOrigin && conditionSourceIntent.exists(_.permits(alias))",
+        "if (alias.isTypeNode && !generatedTypeNode) None",
+        "if (value.isReg) DeclarationKind.Register\n    else if (value.isInput) DeclarationKind.Port(PortDirection.Input)\n    else if (value.isOutput) DeclarationKind.Port(PortDirection.Output)",
         "conditionSourceIntent.exists(_.permits(alias))", "WA10-CONDITION-USER-NAME",
         "NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression)",
         "conditionScopeWithin(statement.parentScope, alias.parentScope)",
@@ -173,6 +178,19 @@ def verify(root: Path) -> dict:
     root = root.resolve()
     outer = outer_overlay(root)
     sealed = outer.verify(root)
+    successor = root / "morphhdl/scripts/check-cdc-wire-source-review.py"
+    if successor.exists():
+        spec = importlib.util.spec_from_file_location("cdc_wire_lane_successor", successor)
+        require(spec is not None and spec.loader is not None, "missing CDC-WIRE source reviewer")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        current = module.verify(root, sealed)
+        # Preserve the historical inventory for callers while separately
+        # authenticating the explicit new increment, including every byte.
+        value = json.loads(outer.regular(root, CONTRACT))
+        value = dict(value)
+        value["review_paths"] = sorted(set(value["review_paths"]) | set(current["paths"]))
+        return value
     entries = {entry["path"]: entry for entry in sealed["files"]}
     require(CONTRACT in entries, "review contract is not in the exact outer seal")
     value = json.loads(outer.regular(root, CONTRACT))

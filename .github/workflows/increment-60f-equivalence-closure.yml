@@ -167,7 +167,7 @@ jobs:
           sbt -batch "++${{ matrix.scala }}" \
             idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
             frontend/test verilogBackend/test morph/test \
-            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.SequentialWireEmitterTests' \
+            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
             > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
       - name: Run the inherited isolated pass workspace suites
         shell: bash
@@ -276,6 +276,10 @@ jobs:
           print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
           PY
 
+          # Authenticate the target's complete CDC-WIRE regression inventory
+          # before applying the current 59i inventory projection.  Neither
+          # review substitutes for the other on the integrated head.
+          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test
           if test -f morphhdl/contracts/increment-59i-production-successor.json; then
             python3 -B morphhdl/scripts/check-increment-59i-regression-inventory.py prepare \
               --predecessor "$predecessor" --output "$output/increment-59i-test-inventory.json"
