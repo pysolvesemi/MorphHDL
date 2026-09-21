@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "5da18e6e9da1c1038bd229b01c3c4e5c25b5d2ff"
+      "approved_tree": "ac75a476f2e5d16c9a39c3d4c193a2f909a11e0e"
     },
     {
       "path": "idslpayload/src/main",
@@ -366,6 +366,75 @@
               "side": "approved",
               "text": "ParameterizedBlackBoxGenericRegistry.retain(this, name, value)",
               "count": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Component.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "CDC-WIRE-01 publication cleanup follow-up: reserve explicit names before generated allocation"
+      ],
+      "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/Component.scala",
+        "mode": "100644",
+        "blob": "73436b3a82594aa3d33e35d5bfa2e8ee5c2205a1",
+        "sha256": "0d08b9a682d07d285a839c494578b365a6768107959cb9d62319abb3775e5166"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/Component.scala",
+        "mode": "100644",
+        "blob": "b86b4da73a57bb889e3b5a307165f537ad04b57c",
+        "sha256": "58fb4807916a87daba1a006ecb43359b3656e2603f4b2ba7cadcca0a780a0ab9"
+      },
+      "edits": [
+        {
+          "id": "component-explicit-name-reservation-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.Component.allocateNames",
+          "reason": "Reserve all nonempty strong declaration names once before weak names or child instances request spellings; allocation still uses the same NamingScope and name priorities.",
+          "baseline_span": {
+            "start": 10258,
+            "end": 10258,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 10258,
+            "end": 10803,
+            "sha256": "6b4dc0e15696b9da836e0ea31e58a68ada590d7712a49f0571c0939f27fbb603"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case nameable: Nameable if !nameable.isWeak && nameable.isNamed && nameable.getName() != \"\" =>",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-explicit-name-reservation-02",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.Component.allocateNames",
+          "reason": "Remove the now-duplicate strong-name reservation from the second pass. Explicit duplicate names are still checked once each by the first pass before generated names are allocated.",
+          "baseline_span": {
+            "start": 11021,
+            "end": 11214,
+            "sha256": "7e645baec9d849896a52e725751274f748ec215ff5ab6be29fe65ce22b59dcd9"
+          },
+          "approved_span": {
+            "start": 11566,
+            "end": 11566,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "else\n          localNamingScope.iWantIt(nameable.getName()",
+              "count": 1
             }
           ]
         }
