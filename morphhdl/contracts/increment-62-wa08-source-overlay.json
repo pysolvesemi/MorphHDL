@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "d996f1d4d55471a1da5263ca6b001e0610e8a39d",
+  "final_source_commit": "dcc30fe810a6938bb205f2962c0dc4ea45b47b83",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -302,7 +302,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "ef160e8efa57215e78629c648f06ceda7af77662d1430a80485d7a61f7f9af82"
+      "after_sha256": "ca54760021504447604e58e221fc75b7061857198d03f3594ca6c187aedaa341"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
@@ -1322,7 +1322,7 @@
       "path": "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md",
       "mode": "100644",
       "before_sha256": "c81f3f472ec9db4c84392eccd91f071b8f32e85ffe8cfc2f06dd5887e5018b61",
-      "after_sha256": "2be1d2520245e6fa28ffaa51f154685c4e374086d8da094073fbf022eccd39fd"
+      "after_sha256": "d5ea228b1ce057f73058674dbd1ac5609b651f7bd96562e013cc449887329eca"
     },
     {
       "path": "morphhdl-passes/scripts/check-boundary.sh",
