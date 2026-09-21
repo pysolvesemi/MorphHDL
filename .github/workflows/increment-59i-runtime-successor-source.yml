@@ -20,14 +20,14 @@ jobs:
     timeout-minutes: 180
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 71ebb9a2fdfa755f47a4c2e596e72f347dd7f404
-      EXPECTED_SOURCE: 83137697ca23028f56ac83e397bc0f607e1448a5
+      EXPECTED_SEAL: 300bdf94bea5b0b32f9c8e32aa032c01689ebf5d
+      EXPECTED_SOURCE: e0260482839e2d4fe1fda4d6c3cb1c2d3600ddc2
       EXPECTED_PARENT: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
-      EXPECTED_TARGET: 3aa132e87e10dd0d2e0062c7d34d26bddb58fa72
+      EXPECTED_TARGET: 155df6eb0e38ecce04a37de2067b0794702fcb83
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 71ebb9a2fdfa755f47a4c2e596e72f347dd7f404
+          ref: 300bdf94bea5b0b32f9c8e32aa032c01689ebf5d
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -43,14 +43,14 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_PARENT"
-          test "$(git rev-parse 'HEAD^{tree}')" = b7706f990ab4e6e0bf8c7206a63a2a53a9ce4626
+          test "$(git rev-parse 'HEAD^{tree}')" = d148eb56bce01b6f2aa1737f546a1c68bfc89992\n          test "$(git rev-parse 'HEAD~1^{tree}')" = f0371e12fc398a0a9f733c26a7cb98f097029378
           test "$(git rev-parse 'HEAD~2^{tree}')" = 3498988dd26e3ee8c64209dec3dc57814dcf4111
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
-          target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
+          target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)\n          target_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$EXPECTED_TARGET" --jq .tree.sha)
           test "$feature" = "$EXPECTED_PARENT"
-          test "$target" = "$EXPECTED_TARGET"
-          git rev-parse HEAD HEAD^ HEAD^^ 'HEAD^{tree}' 'HEAD~2^{tree}' > "$evidence/identity.txt"
-          printf 'feature=%s\ntarget=%s\n' "$feature" "$target" > "$evidence/live-refs.txt"
+          test "$target" = "$EXPECTED_TARGET"\n          test "$target_tree" = 2dee374f6f77359f3b4845f9ae9172ac97e7c957
+          git rev-parse HEAD HEAD^ HEAD^^ 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' > "$evidence/identity.txt"
+          printf 'feature=%s\ntarget=%s\ntarget_tree=%s\n' "$feature" "$target" "$target_tree" > "$evidence/live-refs.txt"
           git diff --name-only "$EXPECTED_PARENT" "$EXPECTED_SOURCE" > "$evidence/runtime-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
       - name: Run all 25 retained source gates

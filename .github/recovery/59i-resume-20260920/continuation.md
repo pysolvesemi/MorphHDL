@@ -1,5 +1,46 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — complete reviewer-pin closure published, 21 September 2026
+
+Replacement source qualification 35610756312 authenticated the prior exact
+source/seal/feature/target identities and then completed with 17 passes and 8
+audit-only failures. Four stale reviewer fingerprints in three audit files caused
+all eight failures; no compiler, Scala, RTL, Verilog or hardware check failed.
+Preserve job 106368963413 and original artifact 10646634020, whose downloaded
+ZIP and API SHA256 both equal
+`4241f0c116f9c6ec7f12d6c422c294aaaf7b03a3a9c4496679910e1e49b14edc`.
+
+The complete narrow repair refreshes exactly four fingerprints in the existing
+21-path Python audit/checker/fixture successor. The exact schema-7 production
+verifier passed all 348 records, and all eight formerly failing commands passed
+on the exact local seal. No production compiler, Scala test, workflow, RTL or
+Verilog byte changed.
+
+- Source `e0260482839e2d4fe1fda4d6c3cb1c2d3600ddc2`, tree
+  `f0371e12fc398a0a9f733c26a7cb98f097029378`, direct child of feature 9d6d.
+- Seal `300bdf94bea5b0b32f9c8e32aa032c01689ebf5d`, tree
+  `d148eb56bce01b6f2aa1737f546a1c68bfc89992`, direct source child.
+- Schema-7 manifest SHA256
+  `b1b4a0a1b0f3e505e8f98463e6e966587e44343b30402c62a7e535127628ab6a`;
+  normalized helper SHA256
+  `3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84`.
+
+The integration target has since advanced by the fully qualified two-parent
+PR191 merge to `155df6eb0e38ecce04a37de2067b0794702fcb83`, tree
+`2dee374f6f77359f3b4845f9ae9172ac97e7c957`. This is substantive CDC-WIRE-01
+source, not a documentation-only movement. This controller qualifies only the
+repaired 59i source/seal while authenticating that exact live target; it does not
+claim final target integration. Feature remains 9d6d, PR177 remains draft and
+roadmap unchecked.
+
+NEXT: inspect this replacement 25-gate source run once terminal and independently
+verify all logs plus original artifact/API digest. If it passes, perform a fresh
+bounded substantive target-integration review against target155df before any
+feature advance or targeted workflow dispatch. Do not use the obsolete docs-only
+reconciliation, launch full CI, merge, or duplicate active/passing workflows.
+Keep the hourly monitor enabled.
+
+
 
 ## CURRENT CHECKPOINT — complete four-gate source repair published, 21 September 2026
 
