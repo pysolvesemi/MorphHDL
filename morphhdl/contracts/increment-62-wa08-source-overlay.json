@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "1ca0ba9637017d46d2e5dd1e1fddca5f865bc826",
+  "final_source_commit": "d996f1d4d55471a1da5263ca6b001e0610e8a39d",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -158,7 +158,7 @@
       "path": "AGENTS.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "1f20a687842ecd9f0f3cc2d7a26c43627fc42468b9011a9ae9b8bec949a2bca3"
+      "after_sha256": "1ad03bc7cfc546cd1b462a79d80eba31a568c758899791493c67ea2e94ce6164"
     },
     {
       "path": "build.mill",
@@ -302,7 +302,7 @@
       "path": "docs/morphhdl/cdc-wire-fixed-point-source-review.md",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "4cb4783ae6572fc891b1819aa36477ee7a1f7bffe8a2ea2da7241b93075db5e7"
+      "after_sha256": "ef160e8efa57215e78629c648f06ceda7af77662d1430a80485d7a61f7f9af82"
     },
     {
       "path": "docs/morphhdl/increment-61-one-file-per-component.md",
