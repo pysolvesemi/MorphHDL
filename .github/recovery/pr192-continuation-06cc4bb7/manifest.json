@@ -1,0 +1,168 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 192,
+  "head": "06cc4bb7ea660128b901c0bee21eaa397a96995c",
+  "tree": "9df9a33a53a8c17b711e8aed64ab6178a0518e75",
+  "branch": "agent/cdc-wire-native-publication-cleanup",
+  "target_branch": "parameterized-verilog",
+  "target": "155df6eb0e38ecce04a37de2067b0794702fcb83",
+  "controller_branch": "ci/cdc-wire-publication-continuation-06cc4bb7",
+  "controller_path": ".github/workflows/cdc-wire-publication-continuation-06cc4bb7.yml",
+  "controller_root": ".github/recovery/pr192-continuation-06cc4bb7",
+  "baseline_run": 35620756320,
+  "workflows": [
+    {
+      "id": 354645379,
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "sha256": "4a57f26ffba42ac8b743e09583512adca173a569d9d5aaac893fb20398ef6edf",
+      "reason": "Changed expression codec, native bridge, cumulative source seal and inherited formal registry"
+    },
+    {
+      "id": 332279971,
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "sha256": "a3d0c1b6a2373f38bebc72d6d8d0d40a0322bfab16a8dfb1f8af88d0f24eb6c5",
+      "reason": "All SBT compiler/frontend/native tests and Verilog-2001 contracts in both Scala lanes"
+    },
+    {
+      "id": 332476711,
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "sha256": "27a16a81ea59975d8b4a5bea8edcd200e8ec2e55464e71d902571782837a2418",
+      "reason": "Independent Mill build and native test lanes"
+    },
+    {
+      "id": 351327055,
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "sha256": "39c673d5224cf1f153ddbbcdbd42dc17b3a269e205391212257dfa46fe1a693e",
+      "reason": "Unsigned widening/zero and retained signed resize/truncation semantics"
+    },
+    {
+      "id": 354063673,
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "sha256": "69cb6d500a543cd08244ac5960f2a35caca32c17490891a5edf5e893db07336f",
+      "reason": "Per-component publication, collision handling and hierarchy declaration references"
+    }
+  ],
+  "failure_evidence": {
+    "run": 35626981676,
+    "job": 106423637742,
+    "workflow_id": 351327055,
+    "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+    "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+    "step": "Strict V2001 tools, independent equivalence and solver counterexamples"
+  },
+  "prior_terminal": [
+    {
+      "run": 35626964170,
+      "workflow_id": 354645379,
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 106423578211,
+          "conclusion": "success"
+        },
+        {
+          "id": 106432850279,
+          "conclusion": "failure"
+        },
+        {
+          "id": 106432850295,
+          "conclusion": "failure"
+        },
+        {
+          "id": 106434336231,
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "run": 35626972456,
+      "workflow_id": 332279971,
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 106423603633,
+          "conclusion": "success"
+        },
+        {
+          "id": 106423603982,
+          "conclusion": "success"
+        },
+        {
+          "id": 106433507109,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "run": 35626977862,
+      "workflow_id": 332476711,
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 106423623152,
+          "conclusion": "success"
+        },
+        {
+          "id": 106423623402,
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "run": 35626981676,
+      "workflow_id": 351327055,
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+      "conclusion": "failure",
+      "jobs": [
+        {
+          "id": 106423637431,
+          "conclusion": "success"
+        },
+        {
+          "id": 106423637653,
+          "conclusion": "success"
+        },
+        {
+          "id": 106423637742,
+          "conclusion": "failure"
+        },
+        {
+          "id": 106423637829,
+          "conclusion": "failure"
+        },
+        {
+          "id": 106443605892,
+          "conclusion": "skipped"
+        }
+      ]
+    },
+    {
+      "run": 35626985842,
+      "workflow_id": 354063673,
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 106423651603,
+          "conclusion": "success"
+        },
+        {
+          "id": 106423652131,
+          "conclusion": "success"
+        },
+        {
+          "id": 106433910129,
+          "conclusion": "success"
+        }
+      ]
+    }
+  ]
+}

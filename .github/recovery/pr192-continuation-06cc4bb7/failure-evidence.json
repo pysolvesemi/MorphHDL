@@ -1,0 +1,40 @@
+{
+  "observed_at": "2026-09-21T17:40:00Z",
+  "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+  "logs": [
+    {
+      "job_id": 106432850279,
+      "excerpt": [
+        "2026-09-21T17:09:40.1775477Z Traceback (most recent call last):",
+        "2026-09-21T17:09:40.1781583Z     assert internal_wires(parameterized[\"disabled\"], \"_zz_hTotal\") == parameter_add_wrappers",
+        "2026-09-21T17:09:40.1782029Z AssertionError"
+      ]
+    },
+    {
+      "job_id": 106432850295,
+      "excerpt": [
+        "2026-09-21T17:08:48.6845114Z Traceback (most recent call last):",
+        "2026-09-21T17:08:48.6847992Z     assert internal_wires(parameterized[\"disabled\"], \"_zz_hTotal\") == parameter_add_wrappers",
+        "2026-09-21T17:08:48.6848280Z AssertionError"
+      ]
+    },
+    {
+      "job_id": 106423637742,
+      "excerpt": [
+        "2026-09-21T16:49:47.9768856Z Traceback (most recent call last):",
+        "2026-09-21T16:49:47.9782836Z     require(text.count(before) == 1, label + \" mutation must affect exactly one boundary\")",
+        "2026-09-21T16:49:47.9785013Z     raise RuntimeError(detail)",
+        "2026-09-21T16:49:47.9785784Z RuntimeError: sign-extension mutation must affect exactly one boundary"
+      ]
+    },
+    {
+      "job_id": 106423637829,
+      "excerpt": [
+        "2026-09-21T16:49:44.6423113Z Traceback (most recent call last):",
+        "2026-09-21T16:49:44.6429577Z     require(text.count(before) == 1, label + \" mutation must affect exactly one boundary\")",
+        "2026-09-21T16:49:44.6430957Z     raise RuntimeError(detail)",
+        "2026-09-21T16:49:44.6431306Z RuntimeError: sign-extension mutation must affect exactly one boundary"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# PR192 deferred targeted continuation
+
+Exact head 06cc4bb7ea660128b901c0bee21eaa397a96995c; integration 155df6eb0e38ecce04a37de2067b0794702fcb83. Dispatch only the five deferred workflows. The three existing same-head workflows are excluded. All predecessor runs and latest jobs must be terminal with the observed identities and conclusions before any POST. Full CI, ref writes, merges, cancellation and retries are prohibited.
+
+Old source-overlay production jobs 106432850279/106432850295 failed at the exact `_zz_hTotal` wrapper-name assertion. Current source replaces this with native resize identity, four distinct boundaries, two ordered disabled arithmetic carriers and matching enabled arithmetic. Old signedness jobs 106423637742/106423637829 failed the injected-name mutation selector. Current source selects the unique public-output resize boundary while retaining real counterexample requirements. The repairs already exist in the sealed candidate; no source change is made here. Old baseline, Mill and compatibility lanes passed but do not qualify the new head.
