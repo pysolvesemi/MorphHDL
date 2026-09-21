@@ -1,0 +1,87 @@
+name: Increment 59i exact target-documentation reconciliation
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-target-doc-reconciliation.yml
+      - .github/recovery/59i-target-doc-reconciliation/**
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: increment-59i-target-documentation-reconciliation
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_FEATURE: 883c5d8f088a0e2eab35592cf171d87792d30bf4
+      EXPECTED_TARGET: ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd
+      EXPECTED_ARTIFACT: 10622841322
+      EXPECTED_ARTIFACT_DIGEST: ab4efce935a5a6e84a6b18cd0342bdf1c278f2a891604de7d1e17ac4ffa8e664
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
+          path: qualified
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate live refs and original successful source artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/59i-target-doc"
+          mkdir -p "$evidence"
+          test "$(git -C controller rev-parse HEAD)" = "$GITHUB_SHA"
+          feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
+          target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
+          test "$feature" = "$EXPECTED_FEATURE"
+          test "$target" = "$EXPECTED_TARGET"
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35556994859")
+          test "$(jq -r .status <<<"$run")" = completed
+          test "$(jq -r .conclusion <<<"$run")" = success
+          test "$(jq -r .head_sha <<<"$run")" = 327180b98cc035db85addac9a524578ac3fe97bb
+          artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT")
+          test "$(jq -r .workflow_run.id <<<"$artifact")" = 35556994859
+          test "$(jq -r .workflow_run.head_sha <<<"$artifact")" = 327180b98cc035db85addac9a524578ac3fe97bb
+          test "$(jq -r .digest <<<"$artifact")" = "sha256:$EXPECTED_ARTIFACT_DIGEST"
+          test "$(jq -r .expired <<<"$artifact")" = false
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT/zip" > "$evidence/source.zip"
+          test "$(sha256sum "$evidence/source.zip" | cut -d' ' -f1)" = "$EXPECTED_ARTIFACT_DIGEST"
+          printf 'feature=%s\ntarget=%s\n' "$feature" "$target" > "$evidence/current-live-refs.txt"
+      - name: Run rejection controls and exact merge-tree audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/59i-target-doc"
+          export SOURCE_ARTIFACT="$evidence/source.zip"
+          python3 -B controller/.github/recovery/59i-target-doc-reconciliation/test_audit.py \
+            2>&1 | tee "$evidence/unit-tests.log"
+          python3 -B controller/.github/recovery/59i-target-doc-reconciliation/audit.py \
+            --repo "$GITHUB_WORKSPACE/qualified" \
+            --artifact "$evidence/source.zip" \
+            --output "$evidence/reconciliation.json" \
+            2>&1 | tee "$evidence/audit.log"
+          git -C qualified diff --exit-code
+          git -C qualified diff --cached --exit-code
+          test -z "$(git -C qualified status --porcelain --untracked-files=all)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-target-doc-reconciliation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-target-doc/
+          if-no-files-found: error
+          retention-days: 30
