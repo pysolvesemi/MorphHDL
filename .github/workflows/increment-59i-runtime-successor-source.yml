@@ -20,14 +20,14 @@ jobs:
     timeout-minutes: 180
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 046e977a9a42b409fd31198b631bb6522cd7a09b
-      EXPECTED_SOURCE: 0c07d0be3972944e11cbeb0fd9d587a6207109ba
+      EXPECTED_SEAL: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
+      EXPECTED_SOURCE: dafc1c73658f0c0539068001c22dfbb5ff84b2b1
       EXPECTED_PARENT: 883c5d8f088a0e2eab35592cf171d87792d30bf4
       EXPECTED_TARGET: bbae646ba43e6189c69feb308f8decb9b677b15f
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 046e977a9a42b409fd31198b631bb6522cd7a09b
+          ref: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -43,7 +43,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_PARENT"
-          test "$(git rev-parse 'HEAD^{tree}')" = 76ebbf8abd6c2e5741f4899b96f233d4abe59df6
+          test "$(git rev-parse 'HEAD^{tree}')" = 3498988dd26e3ee8c64209dec3dc57814dcf4111
           test "$(git rev-parse 'HEAD~2^{tree}')" = f2219f49ef53ea3defc3526b0df76e5a67df4993
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)

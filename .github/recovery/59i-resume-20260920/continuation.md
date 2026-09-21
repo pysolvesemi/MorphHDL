@@ -1,5 +1,38 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — inherited schema-6 routing repair, 21 September 2026
+
+Source qualification [35548874187](https://github.com/pysolvesemi/MorphHDL/actions/runs/35548874187)
+completed with17/25 gates passing. Its original artifact10618178908 was
+digest-verified as SHA256 `04309e873f0dcd63c108ea5c4f703cf2ea3fbb7cb1a5a2aa2da2d8f970a0e5ba`.
+The eight failures were exact stale reviewer pins in four inherited routing
+sites; no implementation, compiler, proof or test failure was reported.
+
+A corrected direct successor preserves the complete27-path repair and changes
+only three already-reviewed audit files:
+- Source `dafc1c73658f0c0539068001c22dfbb5ff84b2b1`, tree
+  `4bf6bbcd1f84223e623b1a272594177550d75422`, direct parent883c5d8f.
+- Seal `9d6d738d32c71ff4359384ae9d87f715bf20ec55`, tree
+  `3498988dd26e3ee8c64209dec3dc57814dcf4111`.
+- Manifest SHA256
+  `ee9ced2c0cd0957d7f5f3f859c3a7a9fbba34460d039d641ed36fe70569836d8`.
+- Normalized helper SHA256 remains
+  `4da300df4db3263f8c0be728c501f567756d1815b15dbc55d73422d4af864462`.
+
+Local exact-seal verification passed all347 cumulative records. The direct
+affected guards also passed: PR190/PR189 sync mutations, WA08 overlay401 files,
+14 local-enable source-review tests, rollout composition, and all26 production
+successor mutation tests. These local results do not replace the25-gate source
+run. Feature and target remain883c5d8f/bbae646b; do not advance the feature
+until the new source run and original artifact pass.
+
+NEXT: inspect the newest increment-59i-runtime-successor-source run launched by
+the workflow update below. If queued/running, do not duplicate it. If successful,
+verify all25 rows, clean checkout, API digest and original artifact contents,
+then refresh live refs before non-force feature publication. Continue targeted
+failed/affected workflows only under the latest user direction; do not launch
+the prepared full-CI controller.
+
 ## Latest user direction — targeted failures only, 21 September 2026
 
 The user's newest instruction supersedes the intermediate request for full CI:
