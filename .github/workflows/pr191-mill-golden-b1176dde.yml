@@ -1,0 +1,60 @@
+name: PR191 Mill golden repair for b1176dde
+
+on:
+  push:
+    branches: [recovery/pr191-targeted-ci-20260921]
+    paths:
+      - .github/workflows/pr191-mill-golden-b1176dde.yml
+      - .github/recovery/pr191-mill-golden-b1176dde/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr191-mill-golden-b1176dde
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: b1176dde22d195648aa6f82776f262a9c7b3f9d7
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = b1176dde22d195648aa6f82776f262a9c7b3f9d7
+          test "$(git rev-parse 'HEAD^{tree}')" = c5239012170b83a8e9a77f49781faa72de37a342
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr191-dispatch-evidence/source-review.log"
+      - name: Launch only the diagnosed failed Mill workflow
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr191-mill-golden-b1176dde/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr191-mill-golden-b1176dde-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr191-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
