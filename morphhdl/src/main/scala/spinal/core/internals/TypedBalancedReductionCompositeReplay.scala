@@ -200,6 +200,11 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
     }
     value
   }
+  // Existing bytecode uses the old private accessor; newer code uses the
+  // package-visible entry point. Both retain the same clone/freshness checks.
+  private[TypedBalancedReductionCompositeReplay] def `spinal$core$internals$TypedBalancedReductionCompositeReplay$$cloneShape`(
+      template: Data, widths: Vector[ElaborationIntegerExpression]): Data = cloneShape(template, widths)
+
   private[internals] def cloneShape(template: Data, widths: Vector[ElaborationIntegerExpression]): Data = {
     if (template == null || widths == null || template.flatten.size != widths.size)
       fail("CLONE-SHAPE", "fresh replay clone requires one substituted width for every native leaf")
@@ -370,7 +375,15 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       private val captures: Vector[BaseType],
       private val leafTransfer: Option[TypedBalancedReductionCompositeLeafReplay.Proof]
   ) {
-    private[TypedBalancedReductionCompositeReplay] def operationKey: Any =
+    private[TypedBalancedReductionCompositeReplay] def this(
+        nativeResult: Data, resultWidths: Vector[ElaborationIntegerExpression],
+        inputShapes: Vector[Shape], recipes: Vector[Recipe],
+        observation: TypedBalancedReductionClosedGraph.Observation,
+        guards: Vector[() => Unit]
+    ) = this(nativeResult, resultWidths, inputShapes, recipes, observation,
+      guards, Vector.empty, None)
+
+    private[TypedBalancedReductionCompositeReplay] def operationKey: Vector[Any] =
       leafTransfer.map(_.operationKey).getOrElse(recipes.map(_.key))
     val hasWidening: Boolean = leafTransfer.nonEmpty &&
       resultWidths.zip(inputShapes.head.widths).exists { case (a, b) => !sameWidth(a, b) }

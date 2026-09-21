@@ -145,7 +145,7 @@ class Sync(unittest.TestCase):
             self.review.target_source(self.root,INC61,b'unreviewed')
 
 if __name__ == '__main__':
-    if __import__('json').loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5):
+    if __import__('json').loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6):
         # Keep every original exact-merge assertion on its certified schema-3
         # source. The pinned router authenticates the whole current schema-4
         # checkout before and after that unchanged historical suite.
@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 for index in range(1, len(relative.parts) + 1)) or not path.is_file() or path.stat().st_mode & 0o111:
             raise RuntimeError('PR189 historical router must be a regular non-executable file')
         raw = path.read_bytes()
-        if hashlib.sha256(raw).hexdigest() != 'f58d4be0c64d7e1fec019dac5699f53b23f05bc9866caee7223f83b5dbc0c69b':
+        if hashlib.sha256(raw).hexdigest() != '9de8298d82913153d84e5d352afa6c89dff5ac1a3bcfd3c47eb8b74941cd5572':
             raise RuntimeError('PR189 historical router changed')
         route = types.ModuleType('authenticated_pr189_historical_route')
         route.__file__ = str(path)

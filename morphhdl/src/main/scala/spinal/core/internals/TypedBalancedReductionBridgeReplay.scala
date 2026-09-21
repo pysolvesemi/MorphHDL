@@ -84,6 +84,15 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
       private val minimumInitializerWidth: Int,
       private val localGuards: Vector[() => Unit]
   ) {
+    // Historical scalar proofs have exactly their own input as control lane.
+    private[TypedBalancedReductionBridgeReplay] def this(
+        nativeResult: BaseType, resultWidth: ElaborationIntegerExpression,
+        input: Evidence, observation: TypedBalancedReductionClosedGraph.Observation,
+        registers: Vector[RegisterStep], minimumInitializerWidth: Int,
+        localGuards: Vector[() => Unit]
+    ) = this(nativeResult, resultWidth, input, Vector(input), 0, observation,
+      registers, minimumInitializerWidth, localGuards)
+
     val registerCount: Int = registers.size
     val hasLocalEnables: Boolean = registers.exists(_.enable.nonEmpty)
 

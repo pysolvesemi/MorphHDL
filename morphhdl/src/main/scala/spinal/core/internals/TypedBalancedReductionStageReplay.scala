@@ -163,6 +163,12 @@ private[spinal] object TypedBalancedReductionStageReplay {
       fail("PUBLICATION-UNVALIDATED", "native stage evidence is not post-phase parameterized publication permission")
   }
 
+  // Preserve linkage for callers compiled before the native Vec-zero flag.
+  def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema]): Certificate[T] =
+    capture(vector, op, bridge, native, schema, false)
+
   def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
       bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
       schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None,
