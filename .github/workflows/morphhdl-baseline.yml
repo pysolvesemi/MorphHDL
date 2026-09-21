@@ -175,8 +175,10 @@ jobs:
           symbolic_data_shapes=target/morphhdl/generated/run-1/symbolic_data_shapes.v
           test "$(grep -Ec '^[[:space:]]*parameter integer WIDTH = 8$' \
             "${symbolic_data_shapes}")" = "1"
+          # Cleanup removes three internal Bundle aliases while preserving all
+          # 27 ports and three registers, leaving 30 exact WIDTH ranges.
           test "$(grep -Ec '\[WIDTH-1:0\]' \
-            "${symbolic_data_shapes}")" = "33"
+            "${symbolic_data_shapes}")" = "30"
           test "$(grep -Ec \
             '^[[:space:]]*(input|output)[[:space:]]+wire[[:space:]]+\[[^]]*WIDTH[^]]*\][[:space:]]+vec_(in|out),?$' \
             "${symbolic_data_shapes}")" = "2"

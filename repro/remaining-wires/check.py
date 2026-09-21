@@ -3,12 +3,21 @@
 from __future__ import annotations
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+
+
+def truncation_validator():
+    path = Path(__file__).resolve().parents[2] / 'morphhdl-passes/scripts/validate-wa10-artifacts.py'
+    spec = importlib.util.spec_from_file_location('register_truncation_boundary', path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(argv: list[str], log: Path, expect_failure: bool = False) -> None:
@@ -176,6 +185,8 @@ def stress_bench() -> str:
 
 
 def main() -> None:
+    truncation = truncation_validator()
+    truncation.truncation_self_test()
     parser = argparse.ArgumentParser()
     parser.add_argument('directory', type=Path, help='Untouched GenerateRemainingWireMatrix output')
     args = parser.parse_args()
@@ -240,7 +251,9 @@ def main() -> None:
     assert (root / 'stress-default/StressOptimized.v').read_bytes() == (root / 'stress-repeat/StressOptimized.v').read_bytes()
     stress_dut = (root / 'stress-default/StressOptimized.v').read_text()
     assert 'sourceWord' in stress_dut
-    assert re.search(r'assign _zz_\w+\s*=.*io_value.*\+.*io_extra', stress_dut), 'Arithmetic select base must survive'
+    reference = (root / 'stress-disabled/StressReference.v').read_text()
+    source = truncation.validate_register_truncation(reference, stress_dut, 'a_sumTrunc')
+    assert re.sub(r'\s+', '', source) == '(io_value+io_extra)', 'Arithmetic slice source changed'
     bench = logs / 'stress_tb.v'
     bench.write_text(stress_bench())
     exe = logs / 'stress.vvp'

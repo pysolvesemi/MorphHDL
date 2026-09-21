@@ -31,6 +31,15 @@ object VerilogEmitterExpressionInlining {
       case _                      => true
     }
 
+  /** Width composition normally runs inside an elaboration branch. This
+    * optional late proof has no authority to reopen a finished branch: retain
+    * its wrapper when branch-scoped evidence is unavailable. Other metadata,
+    * graph and backend failures must continue to report their original error.
+    */
+  private[internals] def availableWidthEvidence[A](proof: => A): Option[A] = {
+    NativeWidthProvenance.availableEvidence(proof)
+  }
+
   /** A condition may be printed once per split process even when the native
     * expression has only one use. Keep this distinct from arbitrary expression
     * sharing: the ordinary complete sizing proof must already accept the exact
@@ -107,13 +116,14 @@ object VerilogEmitterExpressionInlining {
     * edge below therefore requires the exact native width and unsigned type.
     * A widening resize emits a concatenation: its operand is self-determined,
     * so narrower arithmetic can be visited in its original modular domain.
-    * A narrowing resize instead needs a reference as its select base in
-    * Verilog-2001; that one carrier stays, while its children can still inline.
+    * A narrowing resize uses a pure Verilog-2001 function when its source is
+    * an expression, preserving both its input evaluation width and exact slice.
     *
     * This only plans emitter-created carriers. It never removes a BaseType,
     * assignment, register, scope or clock edge, and never reassociates algebra.
-    * Signed, symbolic, annotated, shared and unknown expression boundaries
-    * fail closed. The node budget also bounds work and textual expression size.
+    * Signed, annotated and unknown expression boundaries fail closed. Symbolic
+    * widths require native typed provenance and whole-domain width equality.
+    * Shared nodes require proof at every occurrence and bounded duplication.
     */
   private[internals] def redundantWrappers(
       component: Component,
@@ -136,6 +146,53 @@ object VerilogEmitterExpressionInlining {
       case _                                        => -1
     }
 
+    val publicationExpressions = ParameterizedVec.retainedOperationExpressions(component)
+    val publicationIdentities = new IdentityHashMap[Expression, java.lang.Boolean]()
+    publicationExpressions.foreach(publicationIdentities.put(_, java.lang.Boolean.TRUE))
+    val publicationDependencies = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def reachesPublication(expression: Expression): Boolean = {
+      if (publicationIdentities.containsKey(expression)) return true
+      val known = publicationDependencies.get(expression)
+      if (known != null) return known.booleanValue
+      // A cycle supplies no independent scalar proof. Inferred declarations
+      // may delegate their geometry to one driver, so inspect that same edge
+      // before a scalar width query can flatten a publisher-owned Vec shape.
+      publicationDependencies.put(expression, java.lang.Boolean.TRUE)
+      val found = expression match {
+        case value: BitVector if ParameterizedWidth.expressionOf(value).isEmpty &&
+            !value.isFixedWidth && value.hasOnlyOneStatement => value.head match {
+          case assignment: DataAssignmentStatement if (assignment.target eq value) &&
+              (assignment.finalTarget eq value) => reachesPublication(assignment.source)
+          case _ => false
+        }
+        case _: BaseType => false
+        case _ =>
+          var found = false
+          expression.foreachDrivingExpression(child => if (reachesPublication(child)) found = true)
+          found
+      }
+      publicationDependencies.put(expression, java.lang.Boolean.valueOf(found))
+      found
+    }
+
+    val widths = new IdentityHashMap[Expression, Option[ElaborationIntegerExpression]]()
+    def logicalWidth(expression: Expression): Option[ElaborationIntegerExpression] = {
+      if (reachesPublication(expression)) return None
+      if (!widths.containsKey(expression)) widths.put(expression,
+        availableWidthEvidence(NativeWidthProvenance.widthOf(expression)).flatten
+          .filter(value => value.minimum > 0 && value.default == width(expression)))
+      widths.get(expression)
+    }
+    def sameWidth(left: Option[ElaborationIntegerExpression],
+                  right: Option[ElaborationIntegerExpression]): Boolean = (left, right) match {
+      case (Some(a), Some(b)) =>
+        availableWidthEvidence(ElaborationWidthAuthority.equivalent(a, b)).contains(true)
+      case _ => false
+    }
+    def fixedWidth(value: Int): Option[ElaborationIntegerExpression] =
+      Some(ElabInt.literal(value).expression)
+    val approvals = new IdentityHashMap[Expression, java.lang.Integer]()
+
     def unsignedKind(expression: Expression): Boolean =
       expression.getTypeObject == TypeUInt || expression.getTypeObject == TypeBits
 
@@ -147,7 +204,7 @@ object VerilogEmitterExpressionInlining {
         // while proving its pure RHS. All other target metadata still fences
         // optimization; use singleton identity, never custom tag equality.
         target.getTags().forall(_ eq noBackendCombMerge) &&
-        ParameterizedWidth.expressionOf(target).isEmpty
+        logicalWidth(target).nonEmpty
 
     def eligibleTarget(target: BaseType): Boolean = {
       var dataAssignments = 0
@@ -182,15 +239,18 @@ object VerilogEmitterExpressionInlining {
       valid && ranges.nonEmpty
     }
 
-    def plan(root: Expression, contextWidth: Int): Unit = {
-      val wrappers = ArrayBuffer[Expression]()
+    def plan(root: Expression, contextWidth: Option[ElaborationIntegerExpression]): Unit = {
+      val wrappers = ArrayBuffer[(Expression, Int)]()
+      val published = scala.collection.mutable.HashSet[Int]()
+      var occurrenceId = 0
       val visiting = new IdentityHashMap[Expression, java.lang.Boolean]()
       var budget = 256
 
-      def publish(nodes: scala.collection.Seq[Expression]): Unit = nodes.foreach { node =>
-        val count = occurrences.get(node)
-        if (count != null && (count.intValue == 1 || directSelectBase(component, node).nonEmpty))
-          result.put(node, java.lang.Boolean.TRUE)
+      def publish(nodes: scala.collection.Seq[(Expression, Int)]): Unit = nodes.foreach { case (node, id) =>
+        if (published.add(id)) {
+          val count = approvals.get(node)
+          approvals.put(node, if (count == null) 1 else count.intValue + 1)
+        }
       }
 
       // Logical operands and a mux condition are self-determined. An unknown
@@ -199,15 +259,17 @@ object VerilogEmitterExpressionInlining {
       // mux-value proofs transactional across the complete sizing context.
       def independentBoolean(expression: Expression): Boolean = {
         val checkpoint = wrappers.size
-        val proven = collect(expression, 1)
+        val proven = collect(expression, fixedWidth(1))
         if (proven) publish(wrappers.drop(checkpoint))
         else wrappers.trimEnd(wrappers.size - checkpoint)
         proven
       }
 
-      def collect(expression: Expression, expectedWidth: Int, referenceRequired: Boolean = false): Boolean = {
+      def collect(expression: Expression, expectedWidth: Option[ElaborationIntegerExpression]): Boolean = {
         budget -= 1
-        if (budget < 0 || expectedWidth <= 0 || width(expression) != expectedWidth ||
+        occurrenceId += 1
+        val id = occurrenceId
+        if (budget < 0 || !sameWidth(logicalWidth(expression), expectedWidth) ||
             visiting.containsKey(expression)) return false
 
         expression match {
@@ -216,7 +278,7 @@ object VerilogEmitterExpressionInlining {
           case leaf: BaseType =>
             return leaf.component == component &&
               (unsignedKind(leaf) || leaf.getTypeObject == TypeBool) &&
-              ParameterizedWidth.expressionOf(leaf).isEmpty
+              logicalWidth(leaf).nonEmpty
           case _ if !isUnannotated(expression) => return false
           case _ =>
         }
@@ -230,10 +292,10 @@ object VerilogEmitterExpressionInlining {
           }
 
         def comparison(node: BinaryOperator): Boolean = {
-          val operandWidth = width(node.left)
-          expectedWidth == 1 && operandWidth > 0 &&
-            node.left.getTypeObject == TypeUInt && node.right.getTypeObject == TypeUInt &&
-            width(node.right) == operandWidth &&
+          val operandWidth = logicalWidth(node.left)
+          sameWidth(expectedWidth, fixedWidth(1)) && operandWidth.nonEmpty &&
+            unsignedKind(node.left) && node.right.getTypeObject == node.left.getTypeObject &&
+            sameWidth(logicalWidth(node.right), operandWidth) &&
             collect(node.left, operandWidth) && collect(node.right, operandWidth)
         }
 
@@ -259,6 +321,9 @@ object VerilogEmitterExpressionInlining {
           case node: Operator.UInt.EqualSim       => comparison(node)
           case node: Operator.UInt.Smaller        => comparison(node)
           case node: Operator.UInt.SmallerOrEqual => comparison(node)
+          case node: Operator.Bits.Equal          => comparison(node)
+          case node: Operator.Bits.NotEqual       => comparison(node)
+          case node: Operator.Bits.EqualSim       => comparison(node)
 
           case node: Operator.Bool.And      => binary(node, TypeBool)
           case node: Operator.Bool.Or       => binary(node, TypeBool)
@@ -285,22 +350,50 @@ object VerilogEmitterExpressionInlining {
               if (node.isInstanceOf[ResizeUInt] || node.isInstanceOf[ResizeBits]) &&
                 node.input.getTypeObject == node.getTypeObject &&
                 ParameterizedWidth.resizeExpressionOf(node).isEmpty =>
-            collect(node.input, node.input.getWidth,
-              referenceRequired = node.size < node.input.getWidth)
+            logicalWidth(node.input).exists { source =>
+              // Only invariant fixed padding or an exact low slice has a
+              // printer here. A resize whose parameter domain crosses the
+              // destination width remains owned by its existing publisher.
+              val fixedSource = source.parameters.isEmpty
+              (fixedSource || (source.minimum >= node.size && source.default > node.size)) &&
+                collect(node.input, Some(source))
+            }
+
+          case node: BitVectorRangedAccessFixed if unsignedKind(node) && unsignedKind(node.source) =>
+            logicalWidth(node.source).exists { source =>
+              node.lo >= 0 && node.hi >= node.lo && source.minimum > node.hi &&
+                collect(node.source, Some(source))
+            }
+
+          case node: BitVectorBitAccessFixed if unsignedKind(node.source) =>
+            logicalWidth(node.source).exists { source =>
+              node.bitId >= 0 && source.minimum > node.bitId &&
+                collect(node.source, Some(source))
+            }
+
+          case node: Operator.BitVector.ShiftRightByUInt if unsignedKind(node) =>
+            node.left.getTypeObject == node.getTypeObject && node.right.getTypeObject == TypeUInt &&
+              collect(node.left, expectedWidth) && collect(node.right, logicalWidth(node.right))
+          case node: Operator.BitVector.ShiftRightByIntFixedWidth if unsignedKind(node) =>
+            node.source.getTypeObject == node.getTypeObject && collect(node.source, expectedWidth)
+          case node: Operator.BitVector.ShiftLeftByIntFixedWidth if unsignedKind(node) =>
+            node.source.getTypeObject == node.getTypeObject && collect(node.source, expectedWidth)
+          case node: Operator.BitVector.ShiftLeftByUIntFixedWidth if unsignedKind(node) =>
+            node.left.getTypeObject == node.getTypeObject && node.right.getTypeObject == TypeUInt &&
+              collect(node.left, expectedWidth) && collect(node.right, logicalWidth(node.right))
 
           case node: CastUIntToBits => collect(node.input, expectedWidth)
           case node: CastBitsToUInt => collect(node.input, expectedWidth)
 
           case node: Operator.Bits.Cat =>
             unsignedKind(node.left) && unsignedKind(node.right) &&
-              width(node.left) + width(node.right) == expectedWidth &&
-              collect(node.left, width(node.left)) && collect(node.right, width(node.right))
+              collect(node.left, logicalWidth(node.left)) && collect(node.right, logicalWidth(node.right))
 
           case _ => false
         }
         visiting.remove(expression)
-        if (proven && (!referenceRequired || directSelectBase(component, expression).nonEmpty))
-          wrappers += expression
+        if (proven)
+          wrappers += ((expression, id))
         proven
       }
 
@@ -310,7 +403,13 @@ object VerilogEmitterExpressionInlining {
     component.dslBody.walkStatements {
       case assignment: DataAssignmentStatement => assignment.target match {
         case target: BaseType if eligibleTarget(target) =>
-          plan(assignment.source, width(target))
+          plan(assignment.source, logicalWidth(target))
+        // Whole-register assignments each establish their own sizing context.
+        // Prove the existing pure RHS at that exact location; initialization,
+        // priority, clock/reset ownership and blocking/nonblocking order stay
+        // untouched. This does not inline a register or move any assignment.
+        case target: BaseType if target.isReg && fixedTargetBoundary(target) =>
+          plan(assignment.source, logicalWidth(target))
         // A no-op unsigned carrier which prints an existing reference has no
         // arithmetic or assignment-context obligation. This narrow fallback
         // handles repeated/nested register updates without enabling arbitrary
@@ -326,12 +425,45 @@ object VerilogEmitterExpressionInlining {
         // remain untouched. Overlap, whole-object overrides and dynamic
         // selects retain the historical wrappers.
         case target: AssignmentExpression if eligibleSelection(target) =>
-          plan(assignment.source, width(target))
+          plan(assignment.source, fixedWidth(width(target)))
         case _ =>
       }
-      case conditional: WhenStatement => plan(conditional.cond, 1)
+      case conditional: WhenStatement => plan(conditional.cond, fixedWidth(1))
       case _ =>
     }
+    // Each shared use must independently pass its receiving sizing context.
+    // Approving one sibling must not release a carrier used by an unsupported
+    // sibling. Expanded walk counts and per-root budgets bound text growth.
+    val subtreeSizes = new IdentityHashMap[Expression, java.lang.Integer]()
+    val sizing = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def expandedSize(node: Expression): Int = {
+      if (node == null || sizing.containsKey(node)) return 257
+      val cached = subtreeSizes.get(node)
+      if (cached != null) return cached.intValue
+      sizing.put(node, java.lang.Boolean.TRUE)
+      var size = 1
+      node match {
+        case _: BaseType =>
+        case _ => node.foreachDrivingExpression { child =>
+          if (size <= 256) size = math.min(257, size + expandedSize(child))
+        }
+      }
+      sizing.remove(node)
+      subtreeSizes.put(node, size)
+      size
+    }
+    val approved = approvals.entrySet().iterator()
+    while (approved.hasNext) {
+      val entry = approved.next()
+      val count = occurrences.get(entry.getKey)
+      if (count != null && entry.getValue.intValue == count.intValue && count.intValue <= 32 &&
+          expandedSize(entry.getKey).toLong * count.intValue <= 256)
+        result.put(entry.getKey, java.lang.Boolean.TRUE)
+    }
+    // Recorded Vec operations are still owned by the parameterized publisher.
+    // Their witness slices and carrier aliases are generalized after emission;
+    // replacing them by arbitrary-expression functions loses that exact journal.
+    publicationExpressions.foreach(result.remove)
     result
   }
 }

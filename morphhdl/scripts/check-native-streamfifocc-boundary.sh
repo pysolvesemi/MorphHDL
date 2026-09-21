@@ -505,13 +505,14 @@ reject(
     "StreamFifoCC must not use a wrapper, shadow path or component/source recognizer",
 )
 
-# Shared Gray helpers retain typed packed width without replacing their
-# established concrete implementation.
+# Shared Gray helpers retain typed packed width through compiler-owned geometry
+# markers without replacing their established concrete implementation. These
+# markers do not replace the explicit protection required on Stream carriers.
 require(
-    r"object\s+toGray.*?val\s+width\s*=\s*widthOfExpr\(uint\).*?if\s*\(width\.isConcrete\)\s*\{\s*B\s*\(\s*\(uint\s*>>\s*U\(1\)\)\s*\^\s*uint\s*\).*?val\s+shifted\s*=\s*UInt\(width\s+bits\).*?shifted\s*:=\s*uint\s*\|>>\s*1.*?val\s+result\s*=\s*Bits\(width\s+bits\).*?result\s*:=\s*shifted\.asBits\s*\^\s*uint\.asBits",
+    r"object\s+toGray.*?val\s+width\s*=\s*widthOfExpr\(uint\).*?if\s*\(width\.isConcrete\)\s*\{\s*B\s*\(\s*\(uint\s*>>\s*U\(1\)\)\s*\^\s*uint\s*\).*?val\s+shifted\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\).*?shifted\s*:=\s*uint\s*\|>>\s*1.*?val\s+result\s*=\s*ParameterizedExpressionCarrier\.retain\(Bits\(width\s+bits\)\).*?result\s*:=\s*shifted\.asBits\s*\^\s*uint\.asBits",
     utils,
     "TO-GRAY-WIDTH-RETENTION-MISSING",
-    "toGray must retain its concrete algorithm and materialize typed shift/XOR carriers",
+    "toGray must retain its concrete algorithm and materialize geometry-marked typed shift/XOR carriers",
 )
 require(
     r"object\s+fromGray.*?val\s+width\s*=\s*widthOfExpr\(gray\).*?if\s*\(width\.isConcrete\).*?List\.fill\(widthOf\(gray\)\).*?requireAuthoritativeIntegerDomain.*?val\s+maximumWidth\s*=\s*width\.maximum.*?var\s+shift\s*=\s*BigInt\(1\).*?while\s*\(shift\s*<\s*maximumWidth\).*?val\s+shiftAmount\s*=\s*shift\.toInt.*?shift\s*=\s*shift\s*<<\s*1",
@@ -520,10 +521,10 @@ require(
     "fromGray must retain the concrete algorithm and derive every typed prefix stage from the authoritative maximum",
 )
 require(
-    r"var\s+decoded\s*=\s*UInt\(width\s+bits\).*?val\s+shifted\s*=\s*UInt\(width\s+bits\).*?val\s+next\s*=\s*UInt\(width\s+bits\)",
+    r"var\s+decoded\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\).*?val\s+shifted\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\).*?val\s+next\s*=\s*ParameterizedExpressionCarrier\.retain\(UInt\(width\s+bits\)\)",
     utils,
     "FROM-GRAY-WIDTH-RETENTION-MISSING",
-    "each typed Gray decode stage must retain the input packed width",
+    "each typed Gray decode stage must retain the input packed width and compiler geometry marker",
 )
 
 # BufferCC remains the native synchronizer; only mechanical width propagation
@@ -1174,6 +1175,39 @@ case "${1:-}" in
     MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/good-stream.scala" \
       "$0" --check >/dev/null
 
+    python3 - "$utils_source" "$temporary" "$0" <<'PY'
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+temporary = Path(sys.argv[2])
+checker = Path(sys.argv[3]).resolve()
+for helper, declaration, native_type, diagnostic in (
+    ("toGray", "val shifted", "UInt", "TO-GRAY-WIDTH-RETENTION-MISSING"),
+    ("toGray", "val result", "Bits", "TO-GRAY-WIDTH-RETENTION-MISSING"),
+    ("fromGray", "var decoded", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("fromGray", "val shifted", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+    ("fromGray", "val next", "UInt", "FROM-GRAY-WIDTH-RETENTION-MISSING"),
+):
+    prefix, separator, body = source.partition("object " + helper + " {")
+    original = f"{declaration} = ParameterizedExpressionCarrier.retain({native_type}(width bits))"
+    if not separator or original not in body:
+        raise SystemExit("MORPH-NATIVE-STREAMFIFOCC-SELF-TEST-FIXTURE: missing " + original)
+    for mutation, replacement in (
+        ("marker", f"{declaration} = {native_type}(width bits)"),
+        ("width", original.replace("width bits", "width.witness bits")),
+    ):
+        path = temporary / f"{helper}-{declaration.split()[1]}-{mutation}.scala"
+        path.write_text(prefix + separator + body.replace(original, replacement, 1), encoding="utf-8")
+        result = subprocess.run([str(checker), "--check"], text=True, capture_output=True,
+                                env={**os.environ, "MORPHDL_STREAMFIFOCC_UTILS_SOURCE": str(path)})
+        if result.returncode == 0 or "MORPH-NATIVE-STREAMFIFOCC-" + diagnostic not in result.stderr:
+            raise SystemExit("MORPH-NATIVE-STREAMFIFOCC-SELF-TEST-DIAGNOSTIC: " +
+                             path.name + " did not reject the missing geometry obligation: " + result.stderr)
+PY
+
     sed '0,/depth\.isPow2/s//ElabBool.literal(true)/' \
       "$stream_source" > "$temporary/missing-power-of-two.scala"
     if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/missing-power-of-two.scala" \
@@ -1313,6 +1347,16 @@ case "${1:-}" in
     grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-INVALID-ALTERNATIVE-MISSING' \
       "$temporary/payload-zero.stderr" ||
       fail SELF-TEST-DIAGNOSTIC 'invalid payload-zero mutation did not report its stable diagnostic'
+
+    sed '/val retainedPayloadZero =/,/if (retainedPayloadZero != null)/s/\.dontSimplifyIt()//' \
+      "$stream_source" > "$temporary/unprotected-invalid-payload-zero.scala"
+    if MORPHDL_STREAMFIFOCC_STREAM_SOURCE="$temporary/unprotected-invalid-payload-zero.scala" \
+      "$0" --check >"$temporary/protection.stdout" 2>"$temporary/protection.stderr"; then
+      fail SELF-TEST-ACCEPTED 'missing explicit payload-zero protection passed'
+    fi
+    grep -Fq 'MORPH-NATIVE-STREAMFIFOCC-INVALID-ALTERNATIVE-MISSING' \
+      "$temporary/protection.stderr" ||
+      fail SELF-TEST-DIAGNOSTIC 'explicit protection mutation did not report its stable diagnostic'
 
     sed '0,/io\.popOccupancy := 0/s//pushToPopGray := 0\n      io.popOccupancy := 0/' \
       "$stream_source" > "$temporary/cross-sibling-gray.scala"

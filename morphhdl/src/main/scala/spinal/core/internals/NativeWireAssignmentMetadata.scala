@@ -15,6 +15,7 @@ object NativeWireAssignmentMetadata {
     * Keep the classification closed: arbitrary tags can hide references.
     */
   def isReferenceFreeTag(tag: SpinalTag): Boolean = tag match {
+    case value if spinal.core.ParameterizedExpressionCarrier.isGeometryBoundary(value) => true
     case _: ParameterizedMemoryTag | _: ParameterizedMemoryDepthOverrideTag => true
     case _ => false
   }
@@ -84,6 +85,19 @@ object NativeWireAssignmentMetadata {
     while (root.parent != null) root = root.parent
     var retained = false
     root.walkComponents { component =>
+      if (ExternalParameterizedAutoResize.retainsWireIdentity(component, alias)) retained = true
+      // Structural publication resolves the captured declarations by identity
+      // before validating their assignment domains. Removing an ordinary alias
+      // here would discard that obligation or replace its precise diagnostic
+      // with a missing-declaration error.
+      def structuralRegionUses(region: ParameterizedStructure.StructuralRegion): Boolean =
+        region.blocks.exists { block =>
+          block.declarations.exists(_ eq alias) || block.regions.exists(structuralRegionUses)
+        }
+      if (ParameterizedStructure.regionsOf(component).exists(structuralRegionUses)) retained = true
+      // Exact packed-operation proofs can follow compiler-created supporting
+      // assignments in addition to the operation's direct record fields.
+      if (ParameterizedVec.retainedOperationExpressions(component).exists(uses)) retained = true
       ParameterizedVec.retainedVectorsOf(component).foreach { vector =>
         if (uses(vector) || ParameterizedVec.operationsOf(vector).exists(uses) ||
             ParameterizedVec.writeInvocationsOf(vector).exists(uses)) retained = true

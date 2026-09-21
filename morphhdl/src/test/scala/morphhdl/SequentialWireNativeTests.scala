@@ -89,7 +89,7 @@ class SequentialWireNativeTests extends AnyFunSuite {
     assert(v.contains("state <= source[12:0];"), v)
     assert(!v.contains("assign _zz_"), v)
   }
-  test("named source and arithmetic slice bases survive while direct register slices simplify") {
+  test("named sources survive and arithmetic register slices preserve their exact boundary") {
     val v = emit() { ppc => new Fixture(ppc) {
       val enable = in Bool()
       val first, second = in UInt(18 bits)
@@ -106,7 +106,11 @@ class SequentialWireNativeTests extends AnyFunSuite {
     }}
     assert(v.contains("assign namedSource = (first + second);"), v)
     assert(v.contains("total <= namedSource[12:0];"), v)
-    assert(v.contains("assign _zz_"), v)
+    assert(!v.contains("assign _zz_"), v)
+    assert(v.contains("function [12:0]"), v)
+    assert(v.contains("input [18-1:0]"), v)
+    assert(v.contains("value[12:0]"), v)
+    assert(v.contains("arithmetic <= _morphhdl_slice((first + second));"), v)
     assert(!v.contains("(first + second)["), v)
   }
   test("unsupported switch consumers retain the condition helper rather than being partially rewritten") {

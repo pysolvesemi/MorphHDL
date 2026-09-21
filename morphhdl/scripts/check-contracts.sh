@@ -626,11 +626,11 @@ for width in range(1, 65):
         raise SystemExit("Vec packed range is not six WIDTH bits")
 if re.search(r"\bvec_(in|out)_[0-9]+", source):
     raise SystemExit("Vec escaped as exploded element ports")
-if source.count("[WIDTH-1:0]") != 33:
-    raise SystemExit("expected exactly 27 ordinary symbolic ports and six symbolic internals")
+if source.count("[WIDTH-1:0]") != 30:
+    raise SystemExit("expected exactly 27 ordinary symbolic ports and three symbolic registers")
 if len(re.findall(r"\bparameter\s+integer\s+WIDTH\s*=\s*8\b", source)) != 1:
     raise SystemExit("expected exactly one WIDTH public parameter")
-for kind, prefix in (("wire", "internal_payload_"), ("reg", "payload_register_")):
+for kind, prefix in (("reg", "payload_register_"),):
     declarations = re.findall(
         r"^  " + kind + r"\s+(?:(signed)\s+)?\[WIDTH-1:0\]\s+" + prefix + r"(bits|uint|sint);$",
         source, re.MULTILINE,
@@ -639,7 +639,12 @@ for kind, prefix in (("wire", "internal_payload_"), ("reg", "payload_register_")
         raise SystemExit("expected three exact symbolic " + prefix + " Bundle leaves")
     if {leaf for signed, leaf in declarations if signed} != {"sint"}:
         raise SystemExit("wrong scalar signedness for " + prefix)
-if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 22:
+if re.search(r"\binternal_payload_(bits|uint|sint)\b", source):
+    raise SystemExit("a removable direct Bundle input alias survived")
+for leaf in ("bits", "uint", "sint"):
+    if re.findall(r"^  assign bundle_out_" + leaf + r" = ([^;]+);$", source, re.MULTILINE) != ["bundle_in_" + leaf]:
+        raise SystemExit("Bundle output lost its unique same-type direct input driver")
+if len(re.findall(r"^  assign\s+", source, re.MULTILINE)) != 19:
     raise SystemExit("expected the exact direct equal-shape assignment inventory")
 if source.count("  assign vec_out = vec_in;") != 1:
     raise SystemExit("packed Vec is not one direct structural assignment")

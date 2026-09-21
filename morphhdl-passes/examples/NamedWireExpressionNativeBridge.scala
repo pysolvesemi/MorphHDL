@@ -223,14 +223,19 @@ private[examples] final class NamedWireExpressionNativePhase(
             val uses = statements.filter { statement =>
               (statement ne assignment) && references(statement, alias) > 0
             }
-            // Native comparison results used by when() retain isTypeNode even
-            // after they acquire REMOVABLE source-location names. Admit only
-            // this generated Boolean-condition profile; the complete condition
-            // proof still owns source intent, every receiver and process safety.
-            val conditionCarrier = alias.isInstanceOf[Bool] &&
-              (origin == NameOrigin.Generated || origin == NameOrigin.Unnamed) &&
+            // Native singleton cleanup leaves shared pure expression type
+            // nodes behind. Type-node status is compiler provenance, not user
+            // observability: only generated/unnamed nodes captured without
+            // explicit vital intent may enter the same complete receiver,
+            // metadata, packed-width and scheduling proof as ordinary wires.
+            val generatedOrigin = origin == NameOrigin.Generated || origin == NameOrigin.Unnamed
+            // Keep the established condition diagnostic path: its own proof
+            // reports source intent and process barriers explicitly.
+            val conditionCarrier = generatedOrigin && alias.isInstanceOf[Bool] &&
               uses.exists(_.isInstanceOf[WhenStatement])
-            if (alias.isTypeNode && !conditionCarrier) None
+            val generatedTypeNode = conditionCarrier ||
+              (generatedOrigin && conditionSourceIntent.exists(_.permits(alias)))
+            if (alias.isTypeNode && !generatedTypeNode) None
             else Some(
               NativeCandidate(
                 alias.component,
@@ -261,14 +266,16 @@ private[examples] final class NamedWireExpressionNativePhase(
     else if (candidate.useStatements.exists(selectedAliasUse(_, alias)))
       Left("WA09-NATIVE-SELECTED-RECEIVER")
     else if ((!NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression) ||
-        ParameterizedWidth.expressionOf(alias).nonEmpty) &&
+        retainedWidth(alias).nonEmpty) &&
         !candidate.useStatements.forall {
           case assignment: DataAssignmentStatement =>
-            (assignment.source eq alias) && samePackedBoundary(assignment.finalTarget, alias)
+            ((assignment.source eq alias) && samePackedBoundary(assignment.finalTarget, alias)) ||
+              (NativeWireExpressionCodec.symbolicInliningTree(candidate.sourceExpression) &&
+                symbolicReceiverBoundaries(assignment.source, assignment.finalTarget, alias))
           case _ => false
         })
-      // The existing exact symbolic boundary proof remains deliberately
-      // narrower than the fixed-width nested-expression path.
+      // Whole-RHS assignments or every context-determined edge must retain
+      // the exact authoritative width, including all parameter specializations.
       Left("WA10-NATIVE-SYMBOLIC-RECEIVER-PACKED-BOUNDARY")
     else if (alias.isInstanceOf[SInt] &&
         !candidate.sourceExpression.isInstanceOf[Literal] &&
@@ -281,8 +288,10 @@ private[examples] final class NamedWireExpressionNativePhase(
       // boundaries in nested/mixed receivers. Retain this identity instead of
       // replacing one fence with several emitter-created fences.
       Left("WA10-NATIVE-SIGNED-RECEIVER-BOUNDARY")
+    // Bound total duplicated work, not fanout alone. A single-receiver tree
+    // may use the same 256-node budget as several smaller receiver copies.
     else if (candidate.receiverOccurrenceCount > 32 ||
-        expressionNodeCount(candidate.sourceExpression) > 64 ||
+        expressionNodeCount(candidate.sourceExpression) > 256 ||
         candidate.receiverOccurrenceCount * expressionNodeCount(candidate.sourceExpression) > 256)
       Left("WA10-NATIVE-EXPRESSION-EXPANSION-BUDGET")
     else if (NativePureExpressionCopy(candidate.sourceExpression).isEmpty ||
@@ -345,7 +354,7 @@ private[examples] final class NamedWireExpressionNativePhase(
     ) return None
 
     val semantics = packedSemantics(alias).getOrElse(return None)
-    ParameterizedWidth.expressionOf(alias) match {
+    retainedWidth(alias) match {
       case None =>
         Some(
           NativeProof(
@@ -391,14 +400,75 @@ private[examples] final class NamedWireExpressionNativePhase(
   }
 
   private def samePackedBoundary(value: BaseType, alias: BaseType): Boolean =
-    value.getBitsWidth == alias.getBitsWidth &&
+    knownWidth(value).nonEmpty && knownWidth(alias).nonEmpty &&
+      value.getBitsWidth == alias.getBitsWidth &&
       packedSemantics(value).nonEmpty &&
       packedSemantics(value) == packedSemantics(alias) &&
-      ((ParameterizedWidth.expressionOf(value), ParameterizedWidth.expressionOf(alias)) match {
+      ((retainedWidth(value), retainedWidth(alias)) match {
         case (None, None)              => true
         case (Some(left), Some(right)) => sameRetainedWidth(left, right)
         case _                        => false
       })
+
+  private def knownWidth(value: BaseType): Option[ElaborationIntegerExpression] =
+    ParameterizedWidth.expressionOf(value).orElse(NativeWidthProvenance.optionalWidthOf(value))
+
+  private def retainedWidth(value: BaseType): Option[ElaborationIntegerExpression] =
+    knownWidth(value).filter(_.parameters.nonEmpty)
+
+  /** Follow the actual receiver path. Verilog assignment/arithmetic contexts
+    * may widen a nested expression; only self-determined Boolean/selection
+    * edges or an exactly equal retained width discharge the removed boundary.
+    */
+  private def symbolicReceiverBoundaries(root: Expression, target: BaseType, alias: BaseType): Boolean = {
+    def width(value: Expression): Option[ElaborationIntegerExpression] =
+      NativeWidthProvenance.optionalWidthOf(value)
+    def equal(a: ElaborationIntegerExpression, b: ElaborationIntegerExpression): Boolean =
+      try ElaborationWidthAuthority.equivalent(a, b) catch { case NonFatal(_) => false }
+    var remaining = 256
+    def visit(value: Expression, expected: ElaborationIntegerExpression): Boolean = {
+      remaining -= 1
+      if (remaining < 0 || value == null) return false
+      if (!expressionReferences(value, alias)) return true
+      value match {
+        case reference: BaseType => (reference eq alias) && width(alias).exists(equal(_, expected))
+        case resize: Resize if NativeWireExpressionCodec.inlineableResize(resize) =>
+          width(resize.input).exists(visit(resize.input, _))
+        case selection: BitVectorRangedAccessFixed if NativeWireExpressionCodec.inlineableSelection(selection) =>
+          width(selection.source).exists(visit(selection.source, _))
+        case binary: BinaryOperator if value.getTypeObject == TypeBool =>
+          if (binary.left.getTypeObject == TypeBool && binary.right.getTypeObject == TypeBool)
+            width(binary.left).exists(visit(binary.left, _)) && width(binary.right).exists(visit(binary.right, _))
+          else (width(binary.left), width(binary.right)) match {
+            case (Some(left), Some(right)) if equal(left, right) =>
+              visit(binary.left, left) && visit(binary.right, right)
+            case _ => false
+          }
+        case unary: UnaryOperator if value.getTypeObject == TypeBool =>
+          width(unary.source).exists(visit(unary.source, _))
+        case shift: Operator.BitVector.ShiftRightByUInt =>
+          width(shift).exists(equal(_, expected)) && visit(shift.left, expected) &&
+            width(shift.right).exists(visit(shift.right, _))
+        case mux: BinaryMultiplexer =>
+          width(value).exists(equal(_, expected)) &&
+            width(mux.cond).exists(visit(mux.cond, _)) &&
+            visit(mux.whenTrue, expected) && visit(mux.whenFalse, expected)
+        case unary: Operator.BitVector.ShiftRightByInt =>
+          width(value).exists(equal(_, expected)) && width(unary.source).exists(visit(unary.source, _))
+        case unary: Operator.BitVector.ShiftRightByIntFixedWidth =>
+          width(value).exists(equal(_, expected)) && visit(unary.source, expected)
+        case unary: Operator.BitVector.ShiftLeftByIntFixedWidth =>
+          width(value).exists(equal(_, expected)) && visit(unary.source, expected)
+        case binary: BinaryOperator =>
+          width(value).exists(equal(_, expected)) && visit(binary.left, expected) && visit(binary.right, expected)
+        case unary: UnaryOperator =>
+          width(value).exists(equal(_, expected)) && visit(unary.source, expected)
+        case cast: Cast => width(value).exists(equal(_, expected)) && visit(cast.input, expected)
+        case _ => false
+      }
+    }
+    width(target).exists(visit(root, _))
+  }
 
   private def sameRetainedWidth(
       left: ElaborationIntegerExpression,
@@ -446,7 +516,8 @@ private[examples] final class NamedWireExpressionNativePhase(
     val codec = new NativeWireExpressionCodec(
       scopeId,
       "native-named-expression",
-      (Vector(candidate.alias -> aliasId) ++ targetPairs).distinct
+      (Vector(candidate.alias -> aliasId) ++ targetPairs).distinct,
+      allowTypedSymbolicExpressions = true
     )
     val sourceExpression = codec.capture(candidate.sourceExpression).getOrElse(return None)
     val nativeScopes = new java.util.IdentityHashMap[ScopeStatement, String]()
@@ -478,11 +549,11 @@ private[examples] final class NamedWireExpressionNativePhase(
     // retained symbolic width family. Enroll that family explicitly instead
     // of replacing its WIDTH by a concrete witness. A symbolic alias already
     // owns its one family; unrelated roots or expressions remain ineligible.
-    var sourceWidthFamily = ParameterizedWidth.expressionOf(candidate.alias)
+    var sourceWidthFamily = retainedWidth(candidate.alias)
     var sourceWidthType = if (sourceWidthFamily.nonEmpty) Some(proof.packedType.width) else None
     val snapshotParameters = ArrayBuffer.empty[IntegerParameter] ++ proof.parameters
     codec.capturedSources.foreach { case (native, _) =>
-      ParameterizedWidth.expressionOf(native).foreach { width =>
+      retainedWidth(native).foreach { width =>
         sourceWidthFamily match {
           case Some(existing) if !sameRetainedWidth(existing, width) => return None
           case Some(_) =>
@@ -583,8 +654,9 @@ private[examples] final class NamedWireExpressionNativePhase(
       return Left("WA10-CONDITION-SOURCE-INTENT")
     if (!alias.isInstanceOf[Bool] || alias.getBitsWidth != 1 ||
         candidate.sourceExpression.getTypeObject != TypeBool ||
-        ParameterizedWidth.expressionOf(alias).nonEmpty ||
-        !NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression))
+        retainedWidth(alias).nonEmpty ||
+        (!NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression) &&
+          !NativeWireExpressionCodec.symbolicInliningTree(candidate.sourceExpression)))
       return Left("WA10-CONDITION-FIXED-BOOLEAN-BOUNDARY")
     val sourceSize = boundedConditionExpressionSize(candidate.sourceExpression, 64)
       .getOrElse(return Left("WA10-CONDITION-SOURCE-BUDGET"))
@@ -597,7 +669,8 @@ private[examples] final class NamedWireExpressionNativePhase(
         value.parentScope == null || !(value.parentScope eq candidate.component.dslBody) ||
         value.isAnalog || value.isInOut || value.getBitsWidth <= 0 ||
         (value.getTypeObject != TypeBool && value.getTypeObject != TypeUInt &&
-          value.getTypeObject != TypeBits) || ParameterizedWidth.expressionOf(value).nonEmpty))
+          value.getTypeObject != TypeBits) ||
+        NativeWidthProvenance.optionalWidthOf(value).exists(_.minimum < 1)))
       return Left("WA10-CONDITION-SOURCE-BOUNDARY")
     if (!conditionScopeWithin(alias.parentScope, candidate.component.dslBody) ||
         candidate.useStatements.exists(statement =>
@@ -816,17 +889,32 @@ private[examples] final class NamedWireExpressionNativePhase(
     val scopeId = ScopeId.unsafe("scope.native-condition-observation")
     val aliasId = SymbolId.unsafe("symbol.native-condition-observation.alias")
     val codec = new NativeWireExpressionCodec(scopeId, "condition-value-source",
-      Vector(candidate.alias -> aliasId))
+      Vector(candidate.alias -> aliasId), allowTypedSymbolicExpressions = true)
     val source = codec.capture(candidate.sourceExpression).getOrElse(return None)
     val receivers = candidate.useStatements.map { statement =>
       val expression = conditionReceiverExpression(statement).getOrElse(return None)
       if (expression.getTypeObject != TypeBool) return None
       codec.capture(expression).getOrElse(return None)
     }
+    // A one-bit condition can observe a retained width family without losing
+    // that family or substituting its elaboration witness into the proof.
+    val symbolicSources = codec.capturedSources.flatMap { case (native, _) => retainedWidth(native) }
+    val family = symbolicSources.headOption
+    if (family.exists(width => symbolicSources.exists(other => !sameRetainedWidth(width, other))))
+      return None
+    val parameters = family.map { width =>
+      if (width.minimum < 1 || width.maximum < width.minimum ||
+          width.maximum - width.minimum + 1 >
+            BigInt(morphhdl.ir.v1.CanonicalIrValidator.MaximumParameterDomainSize)) return None
+      val id = ParameterId.unsafe("parameter.native-condition-source-width")
+      IntegerParameter(id, "NATIVE_CONDITION_SOURCE_WIDTH", width.default,
+        IntegerParameterDomain(width.minimum, width.maximum, (width.minimum to width.maximum).toVector))
+    }.toVector
+    val symbolicType = parameters.headOption.map(value => IntExpr.ParameterRef(value.id))
     val declarations = codec.capturedSources.map { case (native, id) =>
       Declaration(id, scopeId,
         if (native eq candidate.alias) DeclarationKind.InternalCombinational else sourceKind(native),
-        Some(packedTypeFor(native, None, None).getOrElse(return None)),
+        Some(packedTypeFor(native, family, symbolicType).getOrElse(return None)),
         if (native eq candidate.alias) candidate.nameOrigin
         else NativeWireNameProvenance.origin(native).getOrElse(NameOrigin.Unknown),
         None, if (native eq candidate.alias) Observability.Unobserved else sourceObservability(native))
@@ -844,7 +932,7 @@ private[examples] final class NamedWireExpressionNativePhase(
           scopeId, observations(index).id, DriverKind.Continuous, DriverCoverage.FullObject, expression)
       }
     Some(CanonicalSnapshot(Design(CanonicalIrSchema.schemaVersion, CanonicalIrSchema.stage,
-      moduleId, Vector(Module(moduleId, "NativeConditionValueObservation", Vector.empty,
+      moduleId, Vector(Module(moduleId, "NativeConditionValueObservation", parameters,
         Vector(Scope(scopeId, None, ScopeKind.Module)), Vector.empty,
         declarations ++ observations, drivers))), aliasId, Vector.empty))
   }
@@ -924,8 +1012,9 @@ private[examples] final class NamedWireExpressionNativePhase(
       sourceWidthFamily: Option[ElaborationIntegerExpression],
       sourceWidthType: Option[IntExpr]
   ): Option[PackedType] = {
+    if (knownWidth(value).isEmpty) return None
     val semantics = packedSemantics(value).getOrElse(return None)
-    ParameterizedWidth.expressionOf(value) match {
+    retainedWidth(value) match {
       case None =>
         Some(PackedType(IntExpr.Literal(BigInt(value.getBitsWidth)), semantics._1, semantics._2))
       case Some(width) =>
@@ -939,9 +1028,12 @@ private[examples] final class NamedWireExpressionNativePhase(
   }
 
   private def sourceKind(value: BaseType): DeclarationKind =
-    if (value.isInput) DeclarationKind.Port(PortDirection.Input)
+    // This proof projection must retain register scheduling even when the
+    // native register is also an output port. Visibility is carried separately
+    // by sourceObservability; the real port and its NBA driver never change.
+    if (value.isReg) DeclarationKind.Register
+    else if (value.isInput) DeclarationKind.Port(PortDirection.Input)
     else if (value.isOutput) DeclarationKind.Port(PortDirection.Output)
-    else if (value.isReg) DeclarationKind.Register
     else DeclarationKind.InternalCombinational
 
   private def sourceObservability(value: BaseType): Observability =
@@ -997,13 +1089,15 @@ private[examples] final class NamedWireExpressionNativePhase(
   private def selectedAliasUse(statement: Statement, alias: BaseType): Boolean = {
     var selected = false
     statement.walkDrivingExpressions {
+      case access: BitVectorRangedAccessFixed if expressionReferences(access.source, alias) =>
+        if (!NativeWireExpressionCodec.inlineableSelection(access)) selected = true
       case access: SubAccess if expressionReferences(access.getBitVector, alias) =>
         selected = true
-      // A narrowing resize also emits a Verilog-2001 select. Keep its real
-      // arithmetic base/name; only proven direct aliases may pass through it.
+      // The emitter supplies a full-width function input and exact low-bit
+      // result for this supported unsigned resize; other selection bases stay.
       case resize: Resize if resize.input != null && resize.size < resize.input.getWidth &&
           expressionReferences(resize.input, alias) =>
-        selected = true
+        if (!NativeWireExpressionCodec.inlineableResize(resize)) selected = true
       case _ =>
     }
     selected

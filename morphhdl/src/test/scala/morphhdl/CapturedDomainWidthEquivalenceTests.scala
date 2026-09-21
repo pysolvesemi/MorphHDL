@@ -487,8 +487,9 @@ class CapturedDomainWidthEquivalenceTests extends AnyFunSuite {
   }
 
   test("a normalized typed resize rejects an internal source without width provenance") {
-    withTemporaryDirectory { directory =>
-      val config = SpinalConfig(targetDirectory = directory.toString)
+    for (cleanup <- Vector(false, true)) withTemporaryDirectory { directory =>
+      val config = MorphWireAssignmentPasses(
+        SpinalConfig(targetDirectory = directory.toString), enabled = cleanup)
       val fileName = "typed_resize_unproven_internal_source.v"
       config.netlistFileName = fileName
       val width =

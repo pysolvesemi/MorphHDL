@@ -703,9 +703,22 @@
       "classification": "typed-support-file",
       "introduced_by": [
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
-        "Increment 59e: composite and nested Bundle/Vec reductions"
+        "Increment 59e: composite and nested Bundle/Vec reductions",
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
       ],
-      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata.",
+      "reason": "Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. No width, branch, projection or parameter authority is invented.",
+      "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
+      ],
+      "reason": "Identity-scoped compiler-owned packed-geometry marker. Native simplification remains prohibited; optional wire optimization can recognize only this exact marker and must independently prove width/type equivalence. The marker contains no native references and gives no authority to remove other tags, explicit names, vital intent or user dontSimplifyIt protection.",
       "edits": []
     },
     {
@@ -734,9 +747,10 @@
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
         "Increment 53g: retire native-Int shadow reconstruction (#130)",
         "Increment 59e: composite and nested Bundle/Vec reductions",
-        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence"
+        "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
       ],
-      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence.",
+      "reason": "Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations.",
       "edits": []
     },
     {
@@ -1462,9 +1476,11 @@
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
         "WA-10: general typed expression inlining through native capture and structured emission",
         "Lane/when follow-up: typed lane extension and generated combinational condition repair",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The lane/when repair adds only an override for the repeated-condition request, requiring the existing exact-identity sizing proof plus a bounded repeated-process expansion proof. Emit exact-owner authenticated parameter legality via the native architecture buffer, under ifndef SYNTHESIS with deterministic native names. Hardware and width expressions remain outside the simulation-only guard.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact.",
       "edits": [
         {
           "id": "symbolic-legality-native-emission-01",
@@ -1488,7 +1504,7 @@
           "id": "componentemitterverilog-wa10-depthcut-snapshot",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Record the exact mandatory wrapper identities before unchanged depth cutting, so eligible literal removal can never discard a pre-existing wrapper.",
+          "reason": "Record exact mandatory wrapper identities before unchanged depth cutting, so optional typed expression cleanup never discards a pre-existing wrapper.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1501,11 +1517,24 @@
           "id": "componentemitterverilog-wa10-depthcut-and-signed-transport",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "After depth cutting remove only newly added typed-proven literal carriers; retain every nonliteral depth fence and preserve the exact inherited signed declaration unsigned-transport callback.",
+          "reason": "CDC-WIRE-01 removes only newly added depth wrappers whose full expansion and every receiving context already passed the bounded typed proof; every pre-existing mandatory wrapper and the inherited unsigned-transport declaration-policy callback remain retained.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "      // The depth planner visits a whole breadth frontier, including leaves.\n      // A carrier for an eligible sized literal cannot shorten a computation;\n      // avoid recreating it after the typed expression plan has accepted it.\n      // Keep all non-literal depth fences and all pre-existing mandatory wraps.\n      expressionToWrap.retain {\n        case literal: Literal =>\n          requiredBeforeDepthCut.containsKey(literal) || !wrappersProvenRedundant.containsKey(literal)\n        case _ => true\n      }\n    }\n    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
+              "text": "      // The typed planner already bounds the complete expanded expression and\n      // proves every receiving context. Do not recreate its eliminated chain\n      // solely because the legacy breadth-frontier depth cutter sees it again.\n      // Mandatory wraps installed before this optional depth cut still win.\n      expressionToWrap.retain { expression =>\n        requiredBeforeDepthCut.containsKey(expression) || !wrappersProvenRedundant.containsKey(expression)\n      }\n    }\n    // A declaration policy may require a real unsigned carrier at an exact\n    // typed conversion. Keep the inherited expression/cast printers unchanged.\n    if (verilogBase.hasDeclarationPolicy) {\n      component.dslBody.walkStatements { statement =>\n        statement.walkDrivingExpressions { expression =>\n          if (verilogBase.needsUnsignedTransport(expression)) expressionToWrap += expression\n        }\n      }\n    }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "cdc-wire-retained-wrapper-owner",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.emitArchitecture",
+          "reason": "Pass the actual native printer to the internal owner-checked retained-wrapper overload; the opt-in may preserve an unsigned symbolic range while the inherited allocation and wrapper identity remain unchanged. The byte-minimized insertion is only the printer argument at this exact call site.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": ", this",
               "count": 1
             }
           ]
@@ -1540,7 +1569,7 @@
           "id": "componentemitterverilog-wa10-expression-planning",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative.",
+          "reason": "WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. The same generation-local approved identity set now guards the repeated-condition-sharing override; other wrapping reasons remain authoritative. An emitter-local lazy identity set additionally preserves exact retained Vec operation expressions for their authoritative later publisher; no generated name or emitted spelling determines membership.",
           "required_exact_text": [
             {
               "side": "approved",
@@ -1550,6 +1579,11 @@
             {
               "side": "approved",
               "text": "  override def canInlineRepeatedWhenCondition(condition: Expression): Boolean =\n    VerilogEmitterExpressionInlining.redundantSharedCondition(\n      component, spinalConfig, condition, wrappersProvenRedundant)\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  private lazy val retainedVecOperationExpressions = {\n    val identities = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()\n    ParameterizedVec.retainedOperationExpressions(component)\n      .foreach(expression => identities.put(expression, java.lang.Boolean.TRUE))\n    identities\n  }\n\n  private[internals] def isRetainedVecOperationExpression(expression: Expression): Boolean =\n    retainedVecOperationExpressions.containsKey(expression)\n",
               "count": 1
             }
           ]
@@ -1620,6 +1654,42 @@
           ]
         },
         {
+          "id": "cdc-wire-expression-select-helper",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.expressionSelect",
+          "reason": "For proven unsigned expressions emit a collision-safe Verilog-2001 pure function with the complete authoritative symbolic input width and exact fixed output range; preserve four-state values and cache by width/range. Reserve retained component/width parameter names before allocating helpers or arguments; the Morph-owned phase separately reserves the full externally published parameter inventory. Read width parameter identities directly from retained local declarations; do not revalidate or expand finished branch domains merely to reserve names. Optional native width lookup refuses only unavailable scoped evidence and retains the inherited select path instead of granting new width authority.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "private def expressionSelect(owner: Expression",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "  private lazy val expressionSelectWidthNamesReserved: Unit =\n    component.dslBody.walkDeclarations {\n      case value: BaseType => ParameterizedWidth.expressionOf(value).foreach { width =>\n        width.parameters.foreach(parameter => component.localNamingScope.lockName(parameter.name))\n      }\n      case _ =>\n    }\n",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "NativeWidthProvenance.optionalWidthOf(source).filter(width => width.minimum > hi && lo >= 0 && hi >= lo)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "cdc-wire-narrow-resize-select",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.operatorImplResize",
+          "reason": "Use the approved full-input-width select function only for an exact narrowing resize; preserve inherited emission for all other resize cases.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "expressionSelect(func, func.input, func.size-1, 0)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "signed-boundary-60e-componentemitterverilog-8",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -1670,6 +1740,32 @@
               "count": 1
             }
           ]
+        },
+        {
+          "id": "cdc-wire-fixed-bit-select",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.accessBoolFixed",
+          "reason": "Use the approved full-input-width function for a proven one-bit fixed select; retain inherited declared-source selection otherwise.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "expressionSelect(e, e.source, e.bitId, e.bitId)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "cdc-wire-fixed-range-select",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog.bitVectorRangedAccessFixedImpl",
+          "reason": "Use the same approved exact range function when selecting a pure expression; retain inherited declared-source selection otherwise.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "expressionSelect(e, e.source, e.hi, e.lo).getOrElse(",
+              "count": 1
+            }
+          ]
         }
       ]
     },
@@ -1679,9 +1775,10 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "WA-10: general typed expression inlining through native capture and structured emission"
+        "WA-10: general typed expression inlining through native capture and structured emission",
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
       ],
-      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions.",
+      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions. CDC-WIRE-01 adds structural copies for exact fixed-width native shift classes. Copies retain operand identity, width metadata and shift amount through the existing bounded cycle/tag/type checks; declarations and registers are never copied into an expression.",
       "edits": []
     },
     {
@@ -1787,9 +1884,10 @@
         "Increment 60c: native signed declarations with casts retained",
         "Increment 60d: pure-SInt redundant cast elimination",
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
-        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility"
+        "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface.",
       "edits": [
         {
           "id": "signed-boundary-60e-verilogbase-1",
@@ -1808,11 +1906,24 @@
           "id": "signed-boundary-60e-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. A supplied opt-in unsigned logical range is used only when no signed-policy range exists; absent both policy and range, the exact inherited emitType path remains.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression): String = {\n    if (declarationPolicy == null) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) nativeType else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {\n    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "cdc-wire-retained-wrapper-width",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.VerilogBase.emitExpressionWrap",
+          "reason": "Keep the existing two-argument JVM entry point as a concrete default with no width override. The additional internal overload verifies printer/emitter identity and, only under the generation-scoped expression opt-in, preserves native-proven positive parameterized width for non-BaseType UInt/Bits carriers whose default equals the actual native width. Unavailable scoped evidence yields no range; no new declaration, signed interpretation, global registry or interface field is introduced. Exact retained Vec operation expressions are excluded so their native witness support widths remain owned by the later authoritative publisher.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "\n    emitExpressionWrapWithRange(e, name, None)\n\n  /** A retained late carrier has no BaseType for the parameterized declaration\n    * publisher to revisit. Its actual native allocation therefore preserves\n    * unsigned logical geometry directly from the typed expression graph. This\n    * is independent of signed declaration mode and never changes a real\n    * declaration or grants a signed interpretation.\n    */\n  private[internals] final def emitExpressionWrap(\n      e: Expression, name: String, printer: ComponentEmitterVerilog): String = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"an expression wrapper must belong to this native emitter\")\n    val range = if (VerilogEmitterExpressionInlining.isEnabled(printer.spinalConfig) &&\n        !e.isInstanceOf[BaseType] &&\n        !printer.isRetainedVecOperationExpression(e) &&\n        (e.getTypeObject == TypeUInt || e.getTypeObject == TypeBits)) {\n      VerilogEmitterExpressionInlining.availableWidthEvidence(NativeWidthProvenance.widthOf(e))\n        .flatten.filter(width => width.parameters.nonEmpty && width.minimum > 0 &&\n          width.default == e.asInstanceOf[WidthProvider].getWidth)\n        .map(width => s\"[${width.verilog}-1:0]\")\n    } else None\n    emitExpressionWrapWithRange(e, name, range)\n  }\n\n  private def emitExpressionWrapWithRange(\n      e: Expression, name: String, unsignedRange: Option[String]): String =",
               "count": 1
             }
           ]
@@ -1821,11 +1932,11 @@
           "id": "signed-boundary-60e-verilogbase-3",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
+          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Thread only the reviewed optional unsigned range into the inherited wire/reg declaration alignment; the structural wrapper branch is unchanged.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "Wrapper",
+              "text": "WrapperType(e, unsignedRang",
               "count": 1
             }
           ]
@@ -1880,9 +1991,11 @@
         "Increment 63 WA-09: safe named expressions and emitter wrapper elimination",
         "WA-10: general typed expression inlining through native capture and structured emission",
         "Lane/when follow-up: typed lane extension and generated combinational condition repair",
-        "PR190: native sequential condition and exact unsigned direct-select consumers"
+        "PR190: native sequential condition and exact unsigned direct-select consumers",
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
       ],
-      "reason": "Private generation-scoped opt-in for the typed structured emission proof. Configuration is copied without mutating the caller; disabling removes the private scope property, and expression annotations fail closed. WA-10 extends the existing Morph wire-assignment emission marker with bounded identity-based proof for unsigned literals, same-domain arithmetic including subtraction, fixed zero extension, comparisons, mux arms, exact disjoint selected RHS and safe register RHS uses. Independently sized Boolean operands are proven separately. The depth-cut pass retains real depth fences and every pre-existing required wrapper, suppressing only newly added eligible literal carriers. Typed width barriers, parameter identities, signed boundaries, shared nodes, protected targets, overlapping or dynamic selections and unknown expression forms remain fail-closed; disabled Morph and ordinary Spinal emission retain legacy planning. Lane/when successor: allow only the singleton noBackendCombMerge tag at a fixed target boundary while retaining that tag and the process structure. Add a separate Bool repeated-condition proof requiring the same approved expression identity, at most 64 source nodes, at most 32 rendered process copies and total expansion at most 256. No name matching or signed/symbolic generalization. PR190 bounded successor: an unannotated identity-sized UInt/Bits Resize may print an existing same-component fixed-width reference as a Verilog select base, including repeated whole-register RHS uses. Require identical native type, positive identical width and no parameterized resize/source metadata at every link; reject signed resizes, arithmetic, casts and changed widths. Existing source declarations, names and protection are retained. This exception neither bypasses registers nor permits arbitrary expression slicing or changes arithmetic context widths. The original expansion budgets and disabled policy are unchanged.",
+      "reason": "Generation-scoped typed structured emission proof; ordinary SpinalVerilog remains disabled and caller configuration is copied without mutation. Historical WA-09/WA-10/lane/sequential stages establish same-owner unsigned expressions, self-determined Boolean operands, supported whole-register RHS and disjoint fixed selections. CDC-WIRE-01 extends that proof recursively through unsigned shifts, bitwise operations, casts, exact slices and resizes using authoritative all-domain width equivalence and parameter identity. Every receiving occurrence must independently pass the exact sizing context; shared subtrees times occurrence count remain bounded to 256 nodes with at most 32 uses. Cycles, unknown annotations, protected targets, unsupported signed or symbolic boundaries, overlapping/dynamic selections and unknown expression forms fail closed. Typed direct-reference selection still requires identical kind and width. Mandatory existing wrappers and procedural structure remain retained. No component, generated-name, example or emitted-text recognition selects candidates. Qualification repair treats only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED from optional late width composition/equality as unavailable proof, retaining the wrapper without reopening a finished elaboration branch. Every other metadata, graph and backend error still propagates; no safety diagnostic is broadly swallowed. Exact expression identities owned by retained Vec operation and completed-write journals remain excluded from wrapper suppression, preserving later symbolic publication and factorized geometry without candidate selection by names or emitted text. Before optional scalar width lookup, an identity-based dependency walk refuses expressions that reach the retained Vec publication inventory, including inferred single-assignment BitVector drivers. Dependency cycles supply no scalar proof. The final wrapper exclusion reuses that same inventory, preserving factorized publication geometry without broadening any exception catch or changing structural proof authority.",
       "edits": []
     },
     {
@@ -3523,19 +3636,20 @@
       "classification": "mechanical-propagation",
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
-        "Increment 59b: native balanced-reduction capture boundary"
+        "Increment 59b: native balanced-reduction capture boundary",
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
       ],
-      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors.",
+      "reason": "Mechanically retain exact symbolic width through native Gray-code helpers and provide owner-local uncached reset-domain construction for generated CDC bodies while preserving concrete implementations. Route typed Vec counts through the neutral callback boundary while retaining the unchanged generic helper and concrete descriptors. CDC-WIRE-01 marks the five compiler-created symbolic Gray-code packed-geometry carriers with ParameterizedExpressionCarrier instead of user dontSimplifyIt intent. Native simplification still retains them. Optional expression removal requires exact typed geometry proof and cannot remove explicit user protection. Gray encode/decode equations, domain validation, loop topology and concrete paths are unchanged.",
       "edits": [
         {
           "id": "gray-typed-width-01",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.toGray typed width retention",
-          "reason": "Carry exact packed width across the native shift, XOR and cast operations on the symbolic path.",
+          "reason": "Carry exact packed width through native symbolic Gray shift/XOR operations with a compiler-owned geometry boundary. Keep native retention while distinguishing this boundary from explicit user preservation.",
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "val result = Bits(width bits).dontSimplifyIt()",
+              "text": "val result = ParameterizedExpressionCarrier.retain(Bits(width bits))",
               "count": 1
             }
           ]
@@ -3544,7 +3658,7 @@
           "id": "gray-typed-width-02",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.fromGray typed decoder",
-          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained.",
+          "reason": "Use an exact-domain fixed parallel-prefix decode topology whose shifts remain width-retained. Compiler-owned geometry boundaries keep native carriers retained until optional exact-width expression proof discharges them; explicit user dontSimplifyIt remains separate.",
           "required_exact_text": [
             {
               "side": "approved",

@@ -148,7 +148,9 @@ private[examples] final class UnnamedWireAliasNativePhase(
       component.dslBody.walkDeclarations {
         case alias: BaseType
             if alias.isUnnamed && alias.isComb && alias.isDirectionLess &&
-              !alias.isAnalog && !alias.isTypeNode && alias.parentScope != null &&
+              !alias.isAnalog &&
+              (!alias.isTypeNode || sourceIntent.exists(_.permits(alias))) &&
+              alias.parentScope != null &&
               (alias.parentScope eq alias.rootScopeStatement) &&
               alias.hasOnlyOneStatement =>
           alias.head match {
@@ -233,7 +235,7 @@ private[examples] final class UnnamedWireAliasNativePhase(
       assignment: DataAssignmentStatement
   ): Boolean =
     !alias.isFrozen() &&
-      alias.isEmptyOfTag &&
+      alias.getTags().forall(ParameterizedExpressionCarrier.isGeometryBoundary) &&
       !NativeWireAssignmentMetadata.retains(alias) &&
       !readPrivateBoolean(alias, "dontSimplify").getOrElse(true)
 
@@ -284,7 +286,13 @@ private[examples] final class UnnamedWireAliasNativePhase(
       case _                                          => return None
     }
 
-    (ParameterizedWidth.expressionOf(alias), ParameterizedWidth.expressionOf(source)) match {
+    val aliasWidth = ParameterizedWidth.expressionOf(alias)
+      .orElse(NativeWidthProvenance.optionalWidthOf(alias))
+    val sourceWidth = ParameterizedWidth.expressionOf(source)
+      .orElse(NativeWidthProvenance.optionalWidthOf(source))
+    // An unavailable late symbolic proof is not evidence of a concrete width.
+    if (aliasWidth.isEmpty || sourceWidth.isEmpty) return None
+    (aliasWidth.filter(_.parameters.nonEmpty), sourceWidth.filter(_.parameters.nonEmpty)) match {
       case (None, None) =>
         Some(
           NativeProof(
@@ -296,7 +304,8 @@ private[examples] final class UnnamedWireAliasNativePhase(
             Vector.empty
           )
         )
-      case (Some(left), Some(right)) if left eq right =>
+      case (Some(left), Some(right)) if
+          (try ElaborationWidthAuthority.equivalent(left, right) catch { case _: Exception => false }) =>
         val minimum = left.minimum
         val maximum = left.maximum
         val size = maximum - minimum + 1

@@ -84,6 +84,15 @@ object NativePureExpressionCopy {
         case node: Operator.UInt.ShiftRightByInt => new Operator.UInt.ShiftRightByInt(node.shift)
         case node: Operator.SInt.ShiftLeftByInt => new Operator.SInt.ShiftLeftByInt(node.shift)
         case node: Operator.SInt.ShiftRightByInt => new Operator.SInt.ShiftRightByInt(node.shift)
+        case node: Operator.Bits.ShiftLeftByIntFixedWidth => new Operator.Bits.ShiftLeftByIntFixedWidth(node.shift)
+        case node: Operator.Bits.ShiftRightByIntFixedWidth => new Operator.Bits.ShiftRightByIntFixedWidth(node.shift)
+        case _: Operator.Bits.ShiftLeftByUIntFixedWidth => new Operator.Bits.ShiftLeftByUIntFixedWidth
+        case node: Operator.UInt.ShiftLeftByIntFixedWidth => new Operator.UInt.ShiftLeftByIntFixedWidth(node.shift)
+        case node: Operator.UInt.ShiftRightByIntFixedWidth => new Operator.UInt.ShiftRightByIntFixedWidth(node.shift)
+        case _: Operator.UInt.ShiftLeftByUIntFixedWidth => new Operator.UInt.ShiftLeftByUIntFixedWidth
+        case node: Operator.SInt.ShiftLeftByIntFixedWidth => new Operator.SInt.ShiftLeftByIntFixedWidth(node.shift)
+        case node: Operator.SInt.ShiftRightByIntFixedWidth => new Operator.SInt.ShiftRightByIntFixedWidth(node.shift)
+        case _: Operator.SInt.ShiftLeftByUIntFixedWidth => new Operator.SInt.ShiftLeftByUIntFixedWidth
         case _: ResizeBits => new ResizeBits
         case _: ResizeUInt => new ResizeUInt
         case _: ResizeSInt => new ResizeSInt

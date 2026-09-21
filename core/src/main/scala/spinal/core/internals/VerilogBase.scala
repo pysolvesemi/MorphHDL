@@ -178,12 +178,12 @@ trait VerilogBase extends VhdlVerilogBase{
     if (declarationPolicy != null && declarationPolicy.signed(
         new DeclarationOccurrence(this, subject, role))) "signed " else ""
 
-  private def emitWrapperType(e: Expression): String = {
-    if (declarationPolicy == null) return emitType(e)
+  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {
+    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)
     val nativeType = emitUnqualifiedType(e)
-    val section = if (declarationPolicy == null) nativeType else {
+    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {
       val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)
-      declarationPolicy.wrapperRange(occurrence).getOrElse(nativeType)
+      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)
     }
     declarationPrefix(e, ExpressionWrapper) + section
   }
@@ -195,11 +195,37 @@ trait VerilogBase extends VhdlVerilogBase{
     f"$net%-10s $section%-8s $name"
   }
 
-  def emitExpressionWrap(e: Expression, name: String): String = {
+  def emitExpressionWrap(e: Expression, name: String): String =
+    emitExpressionWrapWithRange(e, name, None)
+
+  /** A retained late carrier has no BaseType for the parameterized declaration
+    * publisher to revisit. Its actual native allocation therefore preserves
+    * unsigned logical geometry directly from the typed expression graph. This
+    * is independent of signed declaration mode and never changes a real
+    * declaration or grants a signed interpretation.
+    */
+  private[internals] final def emitExpressionWrap(
+      e: Expression, name: String, printer: ComponentEmitterVerilog): String = {
+    require(printer != null && printer.usesVerilogBase(this),
+      "an expression wrapper must belong to this native emitter")
+    val range = if (VerilogEmitterExpressionInlining.isEnabled(printer.spinalConfig) &&
+        !e.isInstanceOf[BaseType] &&
+        !printer.isRetainedVecOperationExpression(e) &&
+        (e.getTypeObject == TypeUInt || e.getTypeObject == TypeBits)) {
+      VerilogEmitterExpressionInlining.availableWidthEvidence(NativeWidthProvenance.widthOf(e))
+        .flatten.filter(width => width.parameters.nonEmpty && width.minimum > 0 &&
+          width.default == e.asInstanceOf[WidthProvider].getWidth)
+        .map(width => s"[${width.verilog}-1:0]")
+    } else None
+    emitExpressionWrapWithRange(e, name, range)
+  }
+
+  private def emitExpressionWrapWithRange(
+      e: Expression, name: String, unsignedRange: Option[String]): String = {
 //    s"  wire ${emitType(e)} ${name};\n"
     if (!e.isInstanceOf[SpinalStruct]) {
       val isReg = e.isInstanceOf[Multiplexer]
-      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitWrapperType(e), name) + ";\n"
+      theme.maintab + expressionAlign(if(isReg) "reg" else "wire", emitWrapperType(e, unsignedRange), name) + ";\n"
     } else
       theme.maintab + expressionAlign(e.asInstanceOf[SpinalStruct].getTypeString, "", name) + ";\n"
   }
