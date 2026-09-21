@@ -1,0 +1,60 @@
+name: PR191 targeted CI for e26eceae
+
+on:
+  push:
+    branches: [recovery/pr191-targeted-ci-20260921]
+    paths:
+      - .github/workflows/pr191-targeted-ci-e26eceae.yml
+      - .github/recovery/pr191-targeted-ci/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr191-targeted-ci-e26eceae
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: e26eceae4eec3466133543f1261f5493a631d183
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = e26eceae4eec3466133543f1261f5493a631d183
+          test "$(git rev-parse 'HEAD^{tree}')" = d4383c1d299f1bc2f2458d7e35240ed078ab146d
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr191-dispatch-evidence/source-review.log"
+      - name: Launch only the eight diagnosed failed workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr191-targeted-ci/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr191-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr191-targeted-dispatch-e26eceae-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr191-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
