@@ -60,6 +60,8 @@ TEST_PATHS = frozenset((
     'morphhdl-passes/scripts/check-cdc-wire-cleanup.py',
     'morphhdl-passes/scripts/validate-wa10-artifacts.py',
     'repro/remaining-wires/check.py',
+    'morphhdl/scripts/check-wa08-production-artifacts.py',
+    'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
     SELF, OUTER, CONTRACT, REGISTRY,

@@ -1328,11 +1328,27 @@ object ExternalParameterizedAutoResize {
       var retained = false
       while (records.hasNext && !retained) {
         val record = records.next()
-        retained = (record.target eq alias) || (record.resizeSource eq alias) ||
+        // Capture also inventories ordinary concrete `.resized` edges. Those
+        // have no symbolic publication obligation and must not fence off the
+        // existing alias-to-register cleanup. Require positive parameter-free
+        // evidence for every boundary, including both the original and current
+        // driver; missing/scoped evidence is not a concrete-width fallback.
+        // Typed and inactive records retain identity even when corrupted, so
+        // their owning validator still emits its precise rejection.
+        val concreteOnly = record.typedTarget.isEmpty && !record.witnessInactive &&
+          record.inactiveTargetWidth.isEmpty &&
+          Vector[Expression](record.target, record.resizeSource,
+            record.originalSource, record.sourceDriver.source).forall { expression =>
+            NativeWidthProvenance.optionalWidthOf(expression).exists { width =>
+              width.parameters.isEmpty &&
+                ElaborationWidthAuthority.evaluate(width, Vector.empty).exists(_ > 0)
+            }
+          }
+        retained = !concreteOnly && ((record.target eq alias) || (record.resizeSource eq alias) ||
           record.typedInput.exists(_ eq alias) ||
           record.typedResize.exists(expressionUses) ||
           expressionUses(record.originalSource) ||
-          assignmentUses(record.outer) || assignmentUses(record.sourceDriver)
+          assignmentUses(record.outer) || assignmentUses(record.sourceDriver))
       }
       retained || storage.syntheticBoolean.exists { record =>
         (record.target eq alias) || (record.resizeSource eq alias) ||
