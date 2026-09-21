@@ -1,5 +1,45 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-8 substantive-target reviewer sealed, 22 September 2026
+
+The passed schema-7 source evidence and exact CDC-WIRE-01 target are now
+composed by a bounded schema-8 integration successor. Published checkpoint
+`4722f279bb230ff514f1c898619ca2665c39e713`, tree
+`7f530c87f5a469f69fa69e3fd9f8af5a0e9804dc`, has ordered parents the prior
+qualified seal `300bdf94bea5b0b32f9c8e32aa032c01689ebf5d` and live target
+`155df6eb0e38ecce04a37de2067b0794702fcb83`. It resolves the four textual
+conflicts by composing both sides and records all eight paths whose integrated
+bytes differ from the target parent.
+
+Reviewed source `5a4be8629ebaafa9b672bb56ef8e49b491374681`, tree
+`75522bff31a649a187f9709a16eb129cdef91b02`, is the direct checkpoint child and
+changes only the production-successor reviewer. Candidate seal
+`604e10817c2af3b77cce315ea1eafa9fdc469424`, tree
+`b3947120f05370db493f3a3e128a2ef076d126d5`, is the direct source child and
+changes only the sealed helper plus schema-8 contract. The contract has379
+complete source records,57 complete target records, manifest SHA256
+`7626e6bae35e6cedd42217be07b57f6b1a89204151e8b2e9050a372d09abbc89`,
+and normalized helper SHA256
+`9c2ce41f40b526be40a43298281719b996c0a13830a9ab32b7299538dc2a4a85`.
+
+Exact local seal validation passed the full production-successor verifier, all
+26 production-successor mutation tests, native-source preservation, and CDC
+regression self-test with16 added tests,3 added suites and65 rejected negative
+fixtures. The first unpublished draft failed closed because its source helper
+was not unsealed; the replacement above fixes that construction defect without
+weakening any gate. An API-created unreferenced draft seal with a truncated
+contract is invalid and must never be used; the exact candidate above is made
+reachable only through this recovery checkpoint.
+
+This recovery update starts one exact25-gate source qualification. Do not
+duplicate it. Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`,
+PR177 remains draft/unmerged, and the roadmap remains unchecked. NEXT inspect
+all25 logs and independently verify the original artifact/API digest. Only if
+that run passes and live feature/target refs remain exact may the feature advance
+non-force to the schema-8 seal and only the four directly affected failed
+workflows be dispatched. Do not launch full CI, merge, or duplicate passing or
+active workflows. Keep hourly monitoring enabled.
+
 ## CURRENT CHECKPOINT — source qualified; substantive target integration under bounded review, 21 September 2026
 
 Replacement source qualification
