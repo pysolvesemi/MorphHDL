@@ -92,7 +92,7 @@ def load(root: Path, relative: str):
     return module
 
 
-SYNC_HELPER_SHA256 = "4da300df4db3263f8c0be728c501f567756d1815b15dbc55d73422d4af864462"
+SYNC_HELPER_SHA256 = "c056e9bc1e17a7708ce0db4ec17710b33500cd8426db50b47b338179873da752"
 SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
 
@@ -117,7 +117,7 @@ def sync_continuation(root: Path) -> bool:
     module.__file__ = str(path)
     exec(compile(raw, str(path), "exec"), module.__dict__)
     value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
-    if value['schema_version'] in (5, 6):
+    if value['schema_version'] in (5, 6, 7):
         require(module.target_anchor(root) == module.PR190_TARGET,
                 "unreviewed 59i PR190 synchronization target")
         load(root, "morphhdl/scripts/check-increment-59i-pr190-integration.py").verify(root)

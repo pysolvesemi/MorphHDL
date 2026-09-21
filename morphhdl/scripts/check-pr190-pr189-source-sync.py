@@ -126,7 +126,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
             'missing, linked or executable current 59i integration reviewer')
         raw = path.read_bytes()
         require(hashlib.sha256(raw).hexdigest() ==
-            'c29e400afc8c2a5c679c82599cf252a2faba3646409947b81dd69c12fcea3623',
+            'df39cfe2292d7c91585070bda3c8259191f18bab67d481fe97f256df4f8e6774',
             'current 59i integration reviewer changed')
         key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
         if key not in sys.modules:
