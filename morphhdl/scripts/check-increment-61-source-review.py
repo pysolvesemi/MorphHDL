@@ -85,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84"
+CONTINUATION_HELPER_SHA256 = "6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -108,11 +108,12 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     module.__file__ = str(file)
     exec(compile(raw, str(file), "exec"), module.__dict__)
     value = module.verify(root)
-    require(value["schema_version"] in (3, 4, 5, 6, 7) and
-            module.target_anchor(root) == (module.PR190_TARGET if value["schema_version"] in (5, 6, 7)
+    require(value["schema_version"] in (3, 4, 5, 6, 7, 8, 9) and
+            module.target_anchor(root) == (module.SUBSTANTIVE_TARGET if value["schema_version"] in (8, 9)
+                else module.PR190_TARGET if value["schema_version"] in (5, 6, 7)
                 else "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"),
             "unreviewed Increment 61 continuation target")
-    if value["schema_version"] in (5, 6, 7):
+    if value["schema_version"] in (5, 6, 7, 8, 9):
         import importlib.util
         path = root / 'morphhdl/scripts/check-increment-59i-pr190-integration.py'
         spec = importlib.util.spec_from_file_location('increment61_pr190_current_review', path)
@@ -137,7 +138,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "2944d6adc5b47b2d3645ffea77df3e4450dba1e7f3faf0b4ea8d29ee22584d8c":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "c7d3382b20949bdbad72ee3be0f8215fd4c428527cba92e1dc0bfde9c512517d":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")

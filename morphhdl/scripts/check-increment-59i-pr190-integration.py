@@ -20,7 +20,7 @@ import types
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-HELPER_SHA256 = "3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84"
+HELPER_SHA256 = "6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f"
 LEFT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 BASE = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
@@ -125,7 +125,7 @@ def verify_ci_and_inventory(root: Path, review) -> None:
             require(expected is not None and expected.count(before) == 1,
                 "immutable regression-job budget anchor changed")
             budget = (b"timeout-minutes: 360\n" if
-                review.contract(root)["schema_version"] in (6, 7) else b"timeout-minutes: 240\n")
+                review.contract(root)["schema_version"] in (6, 7, 8, 9) else b"timeout-minutes: 240\n")
             expected = expected.replace(before,
                 before.replace(b"timeout-minutes: 120\n", budget), 1)
         require(review.regular(root, path) == expected,
@@ -148,8 +148,26 @@ def verify(root: Path = ROOT) -> dict:
     review = source_review(root)
     value = review.verify(root)
     schema = value["schema_version"]
-    require(schema in (5, 6, 7) and review.target_anchor(root) == TARGET,
+    require(schema in (5, 6, 7, 8, 9) and review.target_anchor(root) ==
+        (review.SUBSTANTIVE_TARGET if schema in (8, 9) else TARGET),
         "wrong reviewed merge lifecycle")
+    if schema in (8, 9):
+        # The CDC-WIRE target legitimately supersedes the old PR190 runtime
+        # merge. Authenticate the complete current checkout, then replay this
+        # exact PR190 certificate at the immutable schema-7 seal where its
+        # original topology and runtime assertions remain applicable.
+        historical = review.frozen(root, review.SUBSTANTIVE_PARENT,
+            "morphhdl/scripts/check-increment-59i-pr190-integration.py")
+        require(historical is not None, "missing immutable PR190 integration reviewer")
+        review.audit_immutable_certificate(root, review.SUBSTANTIVE_PARENT,
+            "morphhdl/scripts/check-increment-59i-pr190-integration.py",
+            hashlib.sha256(historical).hexdigest())
+        return {"head": review.revision(root, "HEAD"), "source": value["source_commit"],
+            "target": review.SUBSTANTIVE_TARGET, "checkpoint": review.SUBSTANTIVE_CHECKPOINT,
+            "runtime_files": len({p for p in review.tree(root, "HEAD") if runtime(p)}),
+            "target_records": len(value["target_integration"]["files"]),
+            "expected_testcases": 2307, "expected_suites": 230,
+            "qualification": "source identity only; no runtime proof credit"}
     if schema == 5:
         require(value["target_checkpoint"] == review.pr190_checkpoint(),
             "wrong reviewed PR190 checkpoint")

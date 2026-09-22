@@ -22,6 +22,8 @@ spec.loader.exec_module(review)
 HISTORICAL_SEAL = '883c5d8f088a0e2eab35592cf171d87792d30bf4'
 HISTORICAL_TEST = 'morphhdl/scripts/test-increment-59i-pr190-integration.py'
 HISTORICAL_TEST_SHA256 = '58d2fe460882844ab0fc2f8109d92f84bebfbd0dcf77918daf6741715a98b17e'
+SCHEMA7_SEAL = '300bdf94bea5b0b32f9c8e32aa032c01689ebf5d'
+SCHEMA7_TEST_SHA256 = 'e3f7e950f66c51efa10394f142d937aab7ecb8e2a6330dd6ce718bd585ae3719'
 
 
 def git(root, *args, data=None):
@@ -321,7 +323,7 @@ class Schema6BudgetTests(unittest.TestCase):
         git(ROOT, 'worktree', 'add', '--quiet', '--detach', str(cls.root), cls.head)
         cls.addClassCleanup(git, ROOT, 'worktree', 'remove', '--force', str(cls.root))
         cls.production = review.source_review(cls.root)
-        if cls.production.contract(cls.root)['schema_version'] not in (6, 7):
+        if cls.production.contract(cls.root)['schema_version'] not in (6, 7, 8, 9):
             raise RuntimeError('current regression-budget controls require schema 6 or 7')
         cls.path = cls.root / '.github/workflows/increment-60f-equivalence-closure.yml'
         cls.original = cls.path.read_bytes()
@@ -364,6 +366,29 @@ def run_schema6_retained_tests():
     checkpoint fields without weakening or silently rewriting those tests.
     """
     review.verify(ROOT)
+    schema = review.source_review(ROOT).contract(ROOT)['schema_version']
+    if schema in (8, 9):
+        raw = git(ROOT, 'show', SCHEMA7_SEAL + ':' + HISTORICAL_TEST)
+        if __import__('hashlib').sha256(raw).hexdigest() != SCHEMA7_TEST_SHA256:
+            raise RuntimeError('immutable schema-7 PR190 mutation suite changed')
+        with tempfile.TemporaryDirectory(prefix='59i-pr190-schema7-retained-') as temp:
+            root = Path(temp) / 'source'
+            git(ROOT, 'worktree', 'add', '--quiet', '--detach', str(root), SCHEMA7_SEAL)
+            try:
+                result = subprocess.run(
+                    [sys.executable, '-B', str(root / HISTORICAL_TEST), '-v'], cwd=root,
+                    env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), timeout=3600)
+                if result.returncode:
+                    raise RuntimeError('retained schema-7 PR190 mutation suite failed')
+                if git(root, 'status', '--porcelain', '--untracked-files=all'):
+                    raise RuntimeError('retained schema-7 PR190 mutation suite dirtied its checkout')
+            finally:
+                git(ROOT, 'worktree', 'remove', '--force', str(root))
+        review.verify(ROOT)
+        print('59i PR190 schema-8/9 review plus exact retained schema-7 controls PASS',
+            flush=True)
+        return
+
     current = unittest.TextTestRunner(verbosity=2).run(
         unittest.defaultTestLoader.loadTestsFromTestCase(Schema6BudgetTests))
     if current.testsRun != 4 or current.skipped or not current.wasSuccessful():
@@ -388,7 +413,7 @@ def run_schema6_retained_tests():
 
 
 if __name__ == '__main__':
-    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7):
+    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7, 8, 9):
         run_schema6_retained_tests()
     else:
         unittest.main(defaultTest='Pr190IntegrationTests', verbosity=2)
