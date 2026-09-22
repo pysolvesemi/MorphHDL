@@ -133,6 +133,28 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
     case _ => true
   }
 
+  /** Exact native ownership of a concrete declaration width. `BitVector` keeps
+    * this field package-private to spinal.core; this downstream phase must not
+    * broaden that API merely for an optimization. Reading the compiler's own
+    * field is equivalent to BitVector.isFixedWidth and does not infer ownership
+    * from the current driver width or emitted spelling. Any reflection failure
+    * retains the original assignment.
+    */
+  private def hasFixedDeclaredWidth(value: BitVector): Boolean = {
+    var current: Class[_] = value.getClass
+    while (current != null) {
+      try {
+        val field = current.getDeclaredField("fixedWidth")
+        field.setAccessible(true)
+        return field.getInt(value) != -1
+      } catch {
+        case _: NoSuchFieldException => current = current.getSuperclass
+        case NonFatal(_) => return false
+      }
+    }
+    false
+  }
+
   private def boundary(assignment: DataAssignmentStatement): Option[Boundary] = {
     val target = assignment.finalTarget
     if (!(assignment.target eq target) || !unsigned(target) || target.isAnalog ||
@@ -144,7 +166,8 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
     // An inferred expression carrier can still be recursively substituted at
     // another stable receiver; its own width-defining driver is not widened.
     target match {
-      case vector: BitVector if vector.isFixedWidth || ParameterizedWidth.expressionOf(vector).nonEmpty =>
+      case vector: BitVector if hasFixedDeclaredWidth(vector) ||
+          ParameterizedWidth.expressionOf(vector).nonEmpty =>
       case _ => return None
     }
     val receiver = width(target).getOrElse(return None)
