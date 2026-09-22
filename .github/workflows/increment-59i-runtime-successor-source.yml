@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact final schema-9 reviewer-pin repair qualification; keep dispatch bounded to this source gate.
+# Exact schema-11 documentation-target reconciliation qualification; keep dispatch bounded to this source gate.
 
 on:
   push:
@@ -18,21 +18,20 @@ concurrency:
 jobs:
   source:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: bcf2a9e63832e6d0fe72229705eb29e358d5afce
-      EXPECTED_SOURCE: 09c87259726d7580a93d66f0f1949b66ed11814a
-      EXPECTED_CHECKPOINT: 4722f279bb230ff514f1c898619ca2665c39e713
-      EXPECTED_PREVIOUS_SEAL: 300bdf94bea5b0b32f9c8e32aa032c01689ebf5d
-      EXPECTED_SCHEMA8_SEAL: 604e10817c2af3b77cce315ea1eafa9fdc469424
-      EXPECTED_SCHEMA8_SOURCE: 5a4be8629ebaafa9b672bb56ef8e49b491374681
+      EXPECTED_SEAL: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
+      EXPECTED_SOURCE: 1ee1e5e3e84497de4b983e08be31e46ceb4dbc25
+      EXPECTED_CHECKPOINT: 31be34e11c41d12c08d39626314b860c24bc9781
+      EXPECTED_PREVIOUS_SEAL: 3ce0bf30e51af8d84a432a8937c88f31db1d7d05
+      EXPECTED_PREVIOUS_SOURCE: 6cac9906bafe63812b53a9de4bd432bdd623771e
       EXPECTED_FEATURE: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
-      EXPECTED_TARGET: 155df6eb0e38ecce04a37de2067b0794702fcb83
+      EXPECTED_TARGET: 09880c538c4cf83022f4a1bb1dd16b43ea81a751
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: bcf2a9e63832e6d0fe72229705eb29e358d5afce
+          ref: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -47,27 +46,36 @@ jobs:
           printf 'started\n' > "$evidence/started.txt"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
-          test "$(git rev-parse HEAD^^)" = "$EXPECTED_SCHEMA8_SEAL"
-          test "$(git rev-parse HEAD~3)" = "$EXPECTED_SCHEMA8_SOURCE"
-          test "$(git rev-parse HEAD~4)" = "$EXPECTED_CHECKPOINT"
+          test "$(git rev-parse HEAD^^)" = "$EXPECTED_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREVIOUS_SEAL $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = 04b0bc37f64bb4123e20d5500f89580e6af52c1c
-          test "$(git rev-parse 'HEAD~1^{tree}')" = be3ca556a1a09da780d694b083c3e3efc45205d9
-          test "$(git rev-parse 'HEAD~2^{tree}')" = b3947120f05370db493f3a3e128a2ef076d126d5
-          test "$(git rev-parse 'HEAD~3^{tree}')" = 75522bff31a649a187f9709a16eb129cdef91b02
-          test "$(git rev-parse 'HEAD~4^{tree}')" = 7f530c87f5a469f69fa69e3fd9f8af5a0e9804dc
-          test "$(git rev-parse "$EXPECTED_PREVIOUS_SEAL^{tree}")" = d148eb56bce01b6f2aa1737f546a1c68bfc89992
+          test "$(git rev-parse "$EXPECTED_PREVIOUS_SEAL^")" = "$EXPECTED_PREVIOUS_SOURCE"
+          test "$(git rev-parse 'HEAD^{tree}')" = e22a4775ab70c3c1d516ba2d83323f2273776c63
+          test "$(git rev-parse 'HEAD~1^{tree}')" = 324087367b0b979bf8eee675d96c74f40937e2ac
+          test "$(git rev-parse 'HEAD~2^{tree}')" = 3e18070703fbb27d74deefacb796a56df4a0717a
+          test "$(git rev-parse "$EXPECTED_PREVIOUS_SEAL^{tree}")" = 9f9c856590f0eb3ea93d7e6abec0e9c97609b454
+          test "$(git rev-parse "$EXPECTED_PREVIOUS_SOURCE^{tree}")" = f8efd9301cfde275d586d8e48934c357e1f31711
           test "$(git rev-parse "$EXPECTED_FEATURE^{tree}")" = 3498988dd26e3ee8c64209dec3dc57814dcf4111
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
           target_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$EXPECTED_TARGET" --jq .tree.sha)
+          pr_state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .state)
+          pr_draft=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .draft)
+          pr_merged=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq '.merged_at // ""')
+          pr_head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .head.sha)
+          pr_base=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .base.ref)
           test "$feature" = "$EXPECTED_FEATURE"
           test "$target" = "$EXPECTED_TARGET"
-          test "$target_tree" = 2dee374f6f77359f3b4845f9ae9172ac97e7c957
-          git rev-parse HEAD HEAD^ HEAD^^ HEAD~3 HEAD~4 "$EXPECTED_PREVIOUS_SEAL" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' 'HEAD~3^{tree}' 'HEAD~4^{tree}' > "$evidence/identity.txt"
-          printf 'feature=%s\ntarget=%s\ntarget_tree=%s\n' "$feature" "$target" "$target_tree" > "$evidence/live-refs.txt"
-          git diff --name-only "$EXPECTED_SCHEMA8_SEAL" "$EXPECTED_SOURCE" > "$evidence/runtime-repair-paths.txt"
+          test "$target_tree" = 6216cf799cc51c5a5f815d08f16e435c6b48ddc7
+          test "$pr_state" = open
+          test "$pr_draft" = true
+          test -z "$pr_merged"
+          test "$pr_head" = "$EXPECTED_FEATURE"
+          test "$pr_base" = parameterized-verilog
+          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREVIOUS_SEAL" "$EXPECTED_PREVIOUS_SOURCE" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' "$EXPECTED_PREVIOUS_SEAL^{tree}" "$EXPECTED_PREVIOUS_SOURCE^{tree}" > "$evidence/identity.txt"
+          printf 'feature=%s\ntarget=%s\ntarget_tree=%s\npr_state=%s\npr_draft=%s\npr_head=%s\npr_base=%s\n' "$feature" "$target" "$target_tree" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" > "$evidence/live-refs.txt"
+          git diff --name-only "$EXPECTED_CHECKPOINT" "$EXPECTED_SOURCE" > "$evidence/runtime-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
+          git diff --name-only "$EXPECTED_TARGET" "$EXPECTED_CHECKPOINT" > "$evidence/target-reconciliation-paths.txt"
       - name: Run all 25 retained source gates
         shell: bash
         run: |

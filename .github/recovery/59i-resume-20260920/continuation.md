@@ -1,5 +1,54 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — final schema-11 documentation reconciliation qualifying, 22 September 2026
+
+The live target advanced by one direct documentation-only child from
+`8ee07f251f5400922763382073db45ca76d012bd` to
+`09880c538c4cf83022f4a1bb1dd16b43ea81a751`, tree
+`6216cf799cc51c5a5f815d08f16e435c6b48ddc7`, changing only
+`morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md`. Bounded schema-11
+checkpoint `31be34e11c41d12c08d39626314b860c24bc9781`, tree
+`3e18070703fbb27d74deefacb796a56df4a0717a`, has ordered parents the validated
+schema-10 seal `3ce0bf30e51af8d84a432a8937c88f31db1d7d05` and that exact target. It composes
+the target documentation without changing any compiler, Scala implementation,
+RTL, generated Verilog, workflow, test or proof byte.
+
+- Reviewed source `1ee1e5e3e84497de4b983e08be31e46ceb4dbc25`, tree
+  `324087367b0b979bf8eee675d96c74f40937e2ac`, is the direct checkpoint child.
+  It changes exactly11 Python audit/checker/fixture paths and extends every
+  authenticated lifecycle through schema11 while preserving stronger rejection
+  order and historical/default time limits.
+- Candidate seal `1eb63e57d41fb1f707da8ca7f176b1ecc609aebf`, tree
+  `e22a4775ab70c3c1d516ba2d83323f2273776c63`, is the direct source child.
+- Schema-11 contract SHA256 is
+  `604ed060eaeb27de970df7cc74a0038b5fc908804f83a39f6d7791608b6951d6`;
+  normalized helper SHA256 remains
+  `2245a1ed6d02a40d6d7aa47690d25b03e5dddaa7e7096ba11c6326cd1598c930`.
+  The final verifier contains417 complete source records and one exact
+  documentation-target record.
+
+Exact final-seal validation passed the production-successor verifier, target
+integration, WA08 overlay, native-source preservation, CDC successor
+authentication and all28 self-test mutation controls in isolated parallel
+worktrees. Failed construction attempts are
+preserved as immutable, unreferenced evidence: `83d9366f...`/`715da0fd...`
+exposed the historical-target projection; `a405928a...`/`9ce6a1c5...` exposed
+the CDC synchronization target; `5b26ea1a...`/`7fd30a82...` exposed bytecode
+pollution; `92c3f685...`/`4e53fc9c...` exposed the PR190 lifecycle; and
+`19507045...`/`e6c9aa93...` exposed the missing accepted stronger-rejection
+prefix. No gate, timeout, test, proof or rejection was weakened.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`; target remains
+`09880c538c4cf83022f4a1bb1dd16b43ea81a751`; PR177 remains open, draft and
+unmerged; the roadmap remains unchecked. This recovery update launches exactly
+one guarded360-minute run of the unchanged25 retained source commands. Do not
+duplicate it. NEXT inspect all25 actual logs and independently verify the
+original artifact/API digest. Only after it passes and live refs remain exact
+may the feature advance non-force to the schema-11 seal and only directly
+affected failed workflows be dispatched. Do not launch full CI, merge, publish
+the paused full-CI controller, or duplicate active/passing workflows. Keep
+monitoring enabled.
+
 ## CURRENT CHECKPOINT — schema-10 reconciliation validated; newer documentation target pending, 22 September 2026
 
 Source qualification [35729599090](https://github.com/pysolvesemi/MorphHDL/actions/runs/35729599090)
