@@ -29,7 +29,7 @@ TEST = "morphhdl/scripts/test-increment-59i-local-enable-source-review.py"
 CONTRACT_SHA256 = "d886bc65b410f971a5e4d009ea63b5d630caf449a6ed40b2411ef196775bd81d"
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-SUCCESSOR_HELPER_SHA256 = "558fe2e5e3ddeb53e0ce0aa095172e64b34258bb02712b4266772cb16fd58598"
+SUCCESSOR_HELPER_SHA256 = "2245a1ed6d02a40d6d7aa47690d25b03e5dddaa7e7096ba11c6326cd1598c930"
 BASE_CONTRACT_SHA256 = "99dd143a0cc54898051e21adb58d311671af97642c6a77e52554f5d86b85125b"
 QUALIFICATION = "source-review-only; hardware and final-head qualification remain independent mandatory gates"
 PATHS = (
@@ -237,7 +237,7 @@ def verify(root: Path) -> dict[str, dict]:
     delta = {path.decode() for path in git(root, "diff", "--no-renames", "--name-only", "-z", BASE, reviewed_head).split(b"\0")
         if path and re.search(rb"(?:^|/)src/main/", path)}
     expected = set(PRODUCTION_PATHS)
-    if schema in (5, 6, 7, 8, 9):
+    if schema in (5, 6, 7, 8, 9, 10, 11):
         # Every additional target body is independently bound to the exact
         # PR190 merge; it cannot become a local-enable review exception.
         expected |= {path for path in successor.changed(root, successor.PR190_COMMON,

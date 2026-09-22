@@ -85,14 +85,16 @@ def git(root: Path, *args: str) -> bytes:
 
 
 def load(root: Path, relative: str):
-    spec = importlib.util.spec_from_file_location("cdc_review_" + str(id(root)), root / relative)
-    require(spec is not None and spec.loader is not None, "cannot load source verifier")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    import types
+    path = root / relative
+    require(path.is_file() and not path.is_symlink(), "cannot load source verifier")
+    module = types.ModuleType("cdc_review_" + str(id(root)))
+    module.__file__ = str(path)
+    exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     return module
 
 
-SYNC_HELPER_SHA256 = "558fe2e5e3ddeb53e0ce0aa095172e64b34258bb02712b4266772cb16fd58598"
+SYNC_HELPER_SHA256 = "2245a1ed6d02a40d6d7aa47690d25b03e5dddaa7e7096ba11c6326cd1598c930"
 SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
 
@@ -117,8 +119,10 @@ def sync_continuation(root: Path) -> bool:
     module.__file__ = str(path)
     exec(compile(raw, str(path), "exec"), module.__dict__)
     value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
-    if value['schema_version'] in (5, 6, 7, 8, 9):
-        require(module.target_anchor(root) == (module.SUBSTANTIVE_TARGET
+    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11):
+        require(module.target_anchor(root) == (module.DOCUMENTATION_TARGET
+                if value['schema_version'] == 11 else module.CURRENT_TARGET
+                if value['schema_version'] == 10 else module.SUBSTANTIVE_TARGET
                 if value['schema_version'] in (8, 9) else module.PR190_TARGET),
                 "unreviewed 59i PR190 synchronization target")
         load(root, "morphhdl/scripts/check-increment-59i-pr190-integration.py").verify(root)
@@ -238,7 +242,8 @@ def self_test(root: Path = ROOT) -> None:
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
                 require(result.returncode != 0, "mutation accepted: " + label)
                 require("WA-08 source overlay:" in result.stderr or
-                        "PR189 successor source:" in result.stderr,
+                        "PR189 successor source:" in result.stderr or
+                        "59i production successor:" in result.stderr,
                         "mutation did not reach a source guard: " + label + "\n" + result.stderr)
                 controls += 1
             for path in candidates:
