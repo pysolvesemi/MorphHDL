@@ -257,10 +257,12 @@ comparison.
 
 The validator now identifies the two retained lane output-resize carriers by
 their exact `laneDe` / `laneFrameEnd` drivers and `io_de` / `io_frameEnd`
-receivers.  It requires the historical baseline to contain the old compiler
-prefix, requires the candidate not to contain it, and requires the disabled
-artifacts to be byte-identical after canonicalizing only those two identifiers.
-All other disabled topologies remain exactly byte-identical.  Determinism,
+receivers, plus the receiver fixture's retained `lanes` to `io_de` output
+resize.  It requires the historical baseline to contain the old compiler
+prefix, requires the candidate not to contain it, and requires each disabled
+artifact to be byte-identical after canonicalizing only those three
+driver/receiver-authenticated identifiers.  The disabled conditions topology
+remains exactly byte-identical.  Determinism,
 strict Verilog-2001 compilation, lint, simulation, formal equivalence,
 synthesis/port-width checks, mutation controls, cross-Scala artifact equality,
 SBT, Mill and binary/source compatibility gates are unchanged.  This is a
