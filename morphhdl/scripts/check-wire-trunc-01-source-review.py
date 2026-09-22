@@ -2,9 +2,11 @@
 """Cumulative exact-source review for WIRE-TRUNC-01.
 
 Current source is authenticated before any historical projection. The prior CDC
-reviewers are replayed unchanged at the immutable integration predecessor; this
-successor then seals the exact WIRE-TRUNC-01 compiler, tests and workflows at a
-single source anchor. No historical receipt is treated as current behavior proof.
+reviewers are replayed unchanged at their last reviewed integration tree; the
+later WIRE-TRUNC roadmap-only base remains the source-inventory predecessor.
+This successor then seals the exact WIRE-TRUNC-01 compiler, tests and workflows
+at a single source anchor. No historical receipt is treated as current behavior
+proof.
 """
 from __future__ import annotations
 
@@ -20,6 +22,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
 BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
+HISTORICAL_BASE = "67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca"
+HISTORICAL_TREE = "d19d225af835fcba77bcf96e142cf8a79f4a0fb6"
 SOURCE = "10a0ac6d9427fbd7256d3d5011458208434a01f4"
 SOURCE_TREE = "429f0aecff66b5800ea6f014021574ec247c8c7a"
 SELF = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
@@ -175,7 +179,7 @@ def safety_failures(path: str, text: str) -> list[str]:
 def replay_historical(root: Path) -> None:
     with tempfile.TemporaryDirectory(prefix="wire-trunc-predecessor-") as directory:
         predecessor = Path(directory) / "baseline"
-        git(root, "worktree", "add", "--detach", str(predecessor), BASE)
+        git(root, "worktree", "add", "--detach", str(predecessor), HISTORICAL_BASE)
         try:
             for command in HISTORICAL_COMMANDS:
                 result = subprocess.run(command, cwd=predecessor, stdout=subprocess.PIPE,
@@ -193,6 +197,9 @@ def verify(root: Path = ROOT, replay: bool = True) -> dict:
     head = git(root, "rev-parse", "HEAD").decode().strip()
     require(git(root, "rev-parse", BASE + "^{tree}").decode().strip() == BASE_TREE,
             "baseline tree changed")
+    require(git(root, "rev-parse", HISTORICAL_BASE + "^{tree}").decode().strip() == HISTORICAL_TREE,
+            "historical CDC tree changed")
+    git(root, "merge-base", "--is-ancestor", HISTORICAL_BASE, BASE)
     require(git(root, "rev-parse", SOURCE + "^{tree}").decode().strip() == SOURCE_TREE,
             "source-anchor tree changed")
     git(root, "merge-base", "--is-ancestor", BASE, SOURCE)
