@@ -96,13 +96,13 @@ jobs:
           java -version > "$RUNNER_TEMP/cdc-wire-evidence/java-version.txt" 2>&1
           iverilog -V > "$RUNNER_TEMP/cdc-wire-evidence/iverilog-version.txt" 2>&1
           yosys -V > "$RUNNER_TEMP/cdc-wire-evidence/yosys-version.txt"
-      - name: Authenticate current native source and reviewed overlay
+      - name: Authenticate current WIRE-TRUNC successor and inherited source history
         run: |
           set -euo pipefail
-          python3 morphhdl/scripts/check-cdc-wire-source-review.py --self-test 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/current-source.log"
-          python3 morphhdl/scripts/check-native-source-preservation.py 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/native-source.log"
-          python3 morphhdl/scripts/check-increment-62-wa08-source-overlay.py 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/source-overlay.log"
-          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test 2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/report-controls.log"
+          python3 morphhdl/scripts/check-wire-trunc-01-source-review.py --self-test \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/current-source.log"
+          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/report-controls.log"
       - name: Fixed-point regression and inherited emitter receiver safety
         id: regression
         run: |
