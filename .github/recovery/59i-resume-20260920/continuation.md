@@ -1,5 +1,52 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — complete schema-9 audit closure qualifying, 22 September 2026
+
+Source qualification [35677332297](https://github.com/pysolvesemi/MorphHDL/actions/runs/35677332297)
+authenticated the exact schema-9 source/seal and unchanged feature/target refs,
+then completed with 19 passes and six retained-audit failures. The actual logs
+and original artifact10677194179 were inspected; its downloaded ZIP SHA256
+`8f875e7dee535c94a2daf9fea108b148ef11c04ee83a37ce0dcd4057327ebbd9`
+matches the live API digest. No compiler, Scala execution, RTL, generated-Verilog
+or hardware gate failed.
+
+The bounded replacement closes the complete generic cause across the same
+schema-9 audit successor. It projects the local-enable review to its exact
+schema-6 runtime anchor, replays the immutable CDC-WIRE certificate at qualified
+target `155df6eb0e38ecce04a37de2067b0794702fcb83`, refreshes every changed
+Scala-test inventory fingerprint, and updates only authenticated dependent
+reviewer pins. The source changes exactly17 audit/checker/fixture/inventory paths
+relative to the schema-8 seal; no workflow, compiler, production Scala, RTL or
+Verilog byte changes.
+
+- Reviewed source `44f5d0b6ddc7470f8a2a43c7ae671a66b3e4d195`, tree
+  `d098d8af971183b498a8ead2d4c72a919c7b1189`, direct child of schema-8 seal
+  `604e10817c2af3b77cce315ea1eafa9fdc469424`.
+- Candidate seal `dbf83e0bb7b98ab5499c75868c32b4ad2ebca943`, tree
+  `56dc43aac983cbabfd1e4d007d7adb181e61726e`, direct source child.
+- Manifest SHA256
+  `ff0112d594e2a16dd432608f1074c9701e20b3dc5f80142d383effdcf4de351d`;
+  normalized helper SHA256
+  `6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f`;
+  379 complete source records and57 complete target records.
+
+The exact production-successor verifier, complete 34-test regression-inventory
+suite, local-enable source mutation review, rollout composition and lane/CDC
+target replay passed locally. The long PR189 historical replay was stopped by
+the local execution window after progressing without a reported failure; it is
+not counted as passing evidence. The authoritative replacement is the single
+25-gate source qualification launched by this recovery checkpoint. Do not
+duplicate it.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`, target remains
+`155df6eb0e38ecce04a37de2067b0794702fcb83`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. NEXT inspect all25 logs and independently
+verify the original artifact/API digest. Only after source qualification and a
+fresh bounded target-integration reconciliation pass may the feature advance
+non-force and only directly affected failed workflows be dispatched. Do not
+launch full CI, merge, or duplicate passing/active workflows. Keep monitoring
+enabled.
+
 ## CURRENT CHECKPOINT — schema-9 retained-audit repair qualifying, 22 September 2026
 
 Schema-8 source qualification run35653956963 authenticated its exact

@@ -21,8 +21,8 @@ jobs:
     timeout-minutes: 180
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 7b1c85e62db8ec0b1f96123abf48fcaf00ed95c0
-      EXPECTED_SOURCE: bb385d858470ba62993327dcdd4b49477968f48c
+      EXPECTED_SEAL: dbf83e0bb7b98ab5499c75868c32b4ad2ebca943
+      EXPECTED_SOURCE: 44f5d0b6ddc7470f8a2a43c7ae671a66b3e4d195
       EXPECTED_CHECKPOINT: 4722f279bb230ff514f1c898619ca2665c39e713
       EXPECTED_PREVIOUS_SEAL: 300bdf94bea5b0b32f9c8e32aa032c01689ebf5d
       EXPECTED_SCHEMA8_SEAL: 604e10817c2af3b77cce315ea1eafa9fdc469424
@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 7b1c85e62db8ec0b1f96123abf48fcaf00ed95c0
+          ref: dbf83e0bb7b98ab5499c75868c32b4ad2ebca943
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -51,8 +51,8 @@ jobs:
           test "$(git rev-parse HEAD~3)" = "$EXPECTED_SCHEMA8_SOURCE"
           test "$(git rev-parse HEAD~4)" = "$EXPECTED_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREVIOUS_SEAL $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = 644d566b288093b2c93933b71782016130c89b9c
-          test "$(git rev-parse 'HEAD~1^{tree}')" = 5c9ff83cafdeba5aea04117b51790ec1d6eb6d3d
+          test "$(git rev-parse 'HEAD^{tree}')" = 56dc43aac983cbabfd1e4d007d7adb181e61726e
+          test "$(git rev-parse 'HEAD~1^{tree}')" = d098d8af971183b498a8ead2d4c72a919c7b1189
           test "$(git rev-parse 'HEAD~2^{tree}')" = b3947120f05370db493f3a3e128a2ef076d126d5
           test "$(git rev-parse 'HEAD~3^{tree}')" = 75522bff31a649a187f9709a16eb129cdef91b02
           test "$(git rev-parse 'HEAD~4^{tree}')" = 7f530c87f5a469f69fa69e3fd9f8af5a0e9804dc
