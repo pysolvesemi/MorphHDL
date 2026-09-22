@@ -20,11 +20,11 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
 BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
-SOURCE = "SOURCE_ANCHOR"
-SOURCE_TREE = "SOURCE_TREE_ANCHOR"
+SOURCE = "10a0ac6d9427fbd7256d3d5011458208434a01f4"
+SOURCE_TREE = "429f0aecff66b5800ea6f014021574ec247c8c7a"
 SELF = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
 CONTRACT = "morphhdl/contracts/wire-trunc-01-source-review.json"
-CONTRACT_BLOB = "MANIFEST_BLOB"
+CONTRACT_BLOB = "da26d59f2e4b0c36a168cb6f8d6a3ee2ade3583f"
 
 SOURCE_PATHS = frozenset((
     ".github/workflows/cdc-wire-fixed-point.yml",
