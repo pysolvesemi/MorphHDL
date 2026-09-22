@@ -122,6 +122,34 @@ module tb;
 endmodule
 '''
 
+# A structurally direct fixture used only to prove that the qualification is
+# behavioral, not a regex gate. Every mutant below still satisfies require_shape.
+MUTATION_DUT = r'''
+module LowBitTruncationFixture #(parameter OUT_WIDTH=13)(
+  input [15:0] a,b,c, input load,stall,clear,clk,reset,
+  output [OUT_WIDTH-1:0] comb,wrappedComb,bitwiseComb,
+  output reg [OUT_WIDTH-1:0] blocking,
+  output reg [OUT_WIDTH-1:0] sampled
+);
+  wire [15:0] wrappedPair = a + b;
+  assign comb = a + b + c;
+  assign wrappedComb = wrappedPair + c;
+  assign bitwiseComb = {2'b0,a} ^ {2'b0,b} ^ {2'b0,c};
+  always @* begin
+    blocking = 0;
+    if(load) blocking = a + b + c;
+  end
+  initial sampled=0;
+  always @(posedge clk) begin
+    if(reset) sampled <= 0;
+    else if(!stall) begin
+      if(load) sampled <= a + b + c;
+      if(clear) sampled <= 0;
+    end
+  end
+endmodule
+'''
+
 
 def qualify(root: Path) -> dict:
     manifest = json.loads((root / "fixture.json").read_text())
@@ -196,6 +224,48 @@ stat
     return report
 
 
+def functional_mutation_controls() -> int:
+    require_shape(MUTATION_DUT)
+    mutations = (
+        MUTATION_DUT.replace("assign comb = a + b + c;",
+                             "assign comb = a + b + (c & 16'h0000);"),
+        MUTATION_DUT.replace("assign wrappedComb = wrappedPair + c;",
+                             "assign wrappedComb = a + b + c;"),
+        MUTATION_DUT.replace("{2'b0,a} ^ {2'b0,b} ^ {2'b0,c}",
+                             "{2'b0,a} | {2'b0,b} | {2'b0,c}"),
+        MUTATION_DUT.replace("if(load) sampled <= a + b + c;\n      if(clear) sampled <= 0;",
+                             "if(clear) sampled <= 0;\n      if(load) sampled <= a + b + c;"),
+    )
+    with tempfile.TemporaryDirectory(prefix="wire-trunc-mutations-") as directory:
+        root = Path(directory)
+        oracle = root / "oracle.v"
+        tb = root / "tb.sv"
+        oracle.write_text(ORACLE)
+        tb.write_text(TB)
+        rejected = 0
+        for index, mutation in enumerate(mutations):
+            # These controls intentionally keep the structural requirement true;
+            # only independent behavioral qualification is allowed to reject them.
+            require_shape(mutation)
+            dut = root / f"mutant-{index}.v"
+            binary = root / f"mutant-{index}.vvp"
+            dut.write_text(mutation)
+            compile_result = subprocess.run(
+                ["iverilog", "-g2012", "-s", "tb", "-Ptb.OUT_WIDTH=17",
+                 "-o", str(binary), str(dut), str(oracle), str(tb)],
+                text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                timeout=60, check=False)
+            if compile_result.returncode:
+                raise AssertionError(f"functional mutant {index} did not compile: {compile_result.stdout}")
+            simulation = subprocess.run(["vvp", str(binary)], text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                        timeout=60, check=False)
+            if simulation.returncode == 0:
+                raise AssertionError(f"functional mutant {index} escaped the independent oracle")
+            rejected += 1
+        return rejected
+
+
 def self_test() -> None:
     good = "parameter OUT_WIDTH=13; assign comb=a+b+c; blocking = a+b+c; sampled <= a+b+c;"
     require_shape(good)
@@ -209,13 +279,15 @@ def self_test() -> None:
         except AssertionError:
             rejected += 1
     assert rejected == 4
+    functional = functional_mutation_controls()
+    assert functional == 4
     # Independent modular identity and intermediate-overflow counterexample.
     for width in WIDTHS:
         mask = (1 << width) - 1
         for a, b, c in ((0, 0, 0), (65535, 65535, 65535), (32768, 32768, 7), (1, 2, 3)):
             assert (((a + b + c) & ((1 << 18) - 1)) & mask) == ((a + b + c) & mask)
     assert (((65535 + 1) & 65535) + 7) != (65535 + 1 + 7)
-    print("WIRE_TRUNC_01 checker self-test: 4 malformed-shape controls rejected")
+    print("WIRE_TRUNC_01 checker self-test: 4 malformed-shape and 4 functional RTL mutations rejected")
 
 
 def main() -> None:
