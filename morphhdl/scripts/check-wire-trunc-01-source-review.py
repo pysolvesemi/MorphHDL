@@ -134,15 +134,15 @@ def contract(root: Path) -> dict:
     require(hashlib.sha256(raw).hexdigest() == CONTRACT_SHA256, "sealed manifest changed")
     value = json.loads(raw)
     require(set(value) == {"schema_version", "base", "base_tree", "source_commit",
-                          "source_tree", "helper_normalized_sha256", "source_paths"},
+                          "source_tree", "helper_source_blob", "source_paths"},
             "invalid manifest keys")
     require(value["schema_version"] == 1 and value["base"] == BASE and
             value["base_tree"] == BASE_TREE and value["source_commit"] == SOURCE and
             value["source_tree"] == SOURCE_TREE, "manifest anchors differ")
+    require(re.fullmatch(r"[0-9a-f]{40}", value["helper_source_blob"]) is not None,
+            "invalid helper source blob")
     paths = value["source_paths"]
     require(paths == sorted(SOURCE_PATHS), "manifest source inventory differs")
-    require(hashlib.sha256(normalize_helper(regular(root, SELF))).hexdigest() ==
-            value["helper_normalized_sha256"], "reviewer algorithm differs")
     return value
 
 
@@ -205,6 +205,9 @@ def verify(root: Path = ROOT, replay: bool = True) -> dict:
     expected_head = SOURCE_PATHS | {CONTRACT}
     require(changed(root, BASE, head) == expected_head,
             "current inventory differs: " + repr(sorted(changed(root, BASE, head) ^ expected_head)))
+    source_helper = tree_entry(root, SOURCE, SELF)
+    require(source_helper is not None && source_helper[1] == value["helper_source_blob"],
+            "manifest does not pin the source reviewer blob")
 
     # The source anchor fixes every implementation/test/workflow byte. Only this
     # reviewer's three seal constants differ in the final seal commit.
@@ -263,10 +266,13 @@ def main() -> None:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--print-paths", action="store_true")
     args = parser.parse_args()
-    result = self_test() if args.self_test else verify()
-    if args.print_paths and result is not None:
+    if args.self_test:
+        self_test()
+        return
+    result = verify()
+    if args.print_paths:
         print("\n".join(result["paths"]))
-    elif not args.self_test:
+    else:
         print("WIRE_TRUNC_01_SOURCE_PASS " + json.dumps(result, sort_keys=True))
 
 
