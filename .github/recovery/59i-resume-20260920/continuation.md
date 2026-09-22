@@ -1,5 +1,53 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — final schema-9 reviewer-pin repair qualifying, 22 September 2026
+
+Source qualification [35698227977](https://github.com/pysolvesemi/MorphHDL/actions/runs/35698227977)
+authenticated the exact schema-9 source/seal and unchanged feature/target refs,
+then completed with 23 passes and two retained-audit failures. The original
+artifact10685120964 was independently downloaded; its ZIP SHA256
+`d31133b5116ab1151d1a599b5180208570f76a26f75250cf9503f9ad030213ca`
+matches the live API digest and passes ZIP integrity. The two failing commands
+were `test-pr190-pr189-source-sync.py` and
+`test-sequential-wire-source-review.py`; both rejected the same stale
+`current 59i integration reviewer changed` hash. No compiler, Scala execution,
+RTL, generated-Verilog or hardware gate failed.
+
+The bounded replacement changes one literal in
+`morphhdl/scripts/check-pr190-pr189-source-sync.py`, pinning the authenticated
+SHA256 `38419b97e73309fb3b9aac0778ae698e291cb74e8671005369a3c791bdda0249`
+of `check-increment-59i-pr190-integration.py`. The schema-9 contract updates
+both the complete-source and target-integration records for that path; no test,
+proof, workflow, compiler, production Scala, RTL or Verilog byte is weakened or
+changed.
+
+- Reviewed source `09c87259726d7580a93d66f0f1949b66ed11814a`, tree
+  `be3ca556a1a09da780d694b083c3e3efc45205d9`, direct child of schema-8 seal
+  `604e10817c2af3b77cce315ea1eafa9fdc469424`.
+- Candidate seal `bcf2a9e63832e6d0fe72229705eb29e358d5afce`, tree
+  `04b0bc37f64bb4123e20d5500f89580e6af52c1c`, direct source child.
+- Contract SHA256
+  `03151a7443b18eb9977b3b9cec133d9876724133b385311121c96062f13898eb`;
+  helper file SHA256
+  `12f7a1f56807b2d18502ace5e3fc0a28c9f55568b85352baab4a98e2c1e8aa23`;
+  normalized helper SHA256
+  `6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f`.
+
+On the exact seal, the 379-record production-successor verifier passed. Both
+formerly failing commands passed locally: PR190/PR189 synchronization rejected
+48 live mutations, and sequential-wire review rejected 28 live mutations plus
+58 safety removals. The checkout is clean and `git diff --check` passes.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`, target remains
+`155df6eb0e38ecce04a37de2067b0794702fcb83`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. This checkpoint launches exactly one
+replacement 25-gate source qualification. Do not duplicate it. NEXT inspect all
+25 actual logs and independently verify the original artifact/API digest. Only
+after source qualification and a fresh bounded target-integration reconciliation
+pass may the feature advance non-force and only directly affected failed
+workflows be dispatched. Do not launch full CI, merge, or duplicate
+passing/active workflows. Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — complete schema-9 audit closure qualifying, 22 September 2026
 
 Source qualification [35677332297](https://github.com/pysolvesemi/MorphHDL/actions/runs/35677332297)
