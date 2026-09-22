@@ -24,7 +24,7 @@ SOURCE = "SOURCE_ANCHOR"
 SOURCE_TREE = "SOURCE_TREE_ANCHOR"
 SELF = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
 CONTRACT = "morphhdl/contracts/wire-trunc-01-source-review.json"
-CONTRACT_SHA256 = "MANIFEST_HASH"
+CONTRACT_BLOB = "MANIFEST_BLOB"
 
 SOURCE_PATHS = frozenset((
     ".github/workflows/cdc-wire-fixed-point.yml",
@@ -125,14 +125,12 @@ def normalize_helper(raw: bytes) -> bytes:
                  count=1, flags=re.M)
     raw = re.sub(rb'^SOURCE_TREE = "[^"]+"$', b'SOURCE_TREE = "SOURCE_TREE_ANCHOR"', raw,
                  count=1, flags=re.M)
-    return re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$',
-                  b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, count=1, flags=re.M)
+    return re.sub(rb'^CONTRACT_BLOB = "[^"]+"$',
+                  b'CONTRACT_BLOB = "MANIFEST_BLOB"', raw, count=1, flags=re.M)
 
 
 def contract(root: Path) -> dict:
-    raw = regular(root, CONTRACT)
-    require(hashlib.sha256(raw).hexdigest() == CONTRACT_SHA256, "sealed manifest changed")
-    value = json.loads(raw)
+    value = json.loads(regular(root, CONTRACT))
     require(set(value) == {"schema_version", "base", "base_tree", "source_commit",
                           "source_tree", "helper_source_blob", "source_paths"},
             "invalid manifest keys")
@@ -141,8 +139,7 @@ def contract(root: Path) -> dict:
             value["source_tree"] == SOURCE_TREE, "manifest anchors differ")
     require(re.fullmatch(r"[0-9a-f]{40}", value["helper_source_blob"]) is not None,
             "invalid helper source blob")
-    paths = value["source_paths"]
-    require(paths == sorted(SOURCE_PATHS), "manifest source inventory differs")
+    require(value["source_paths"] == sorted(SOURCE_PATHS), "manifest source inventory differs")
     return value
 
 
@@ -232,6 +229,7 @@ def verify(root: Path = ROOT, replay: bool = True) -> dict:
     contract_raw = regular(root, CONTRACT)
     contract_entry = tree_entry(root, head, CONTRACT)
     require(contract_entry == current_index(root, CONTRACT), "manifest HEAD/index identity differs")
+    require(contract_entry == ("100644", CONTRACT_BLOB), "sealed manifest blob changed")
     require(contract_entry == ("100644", hashlib.sha1(
         b"blob " + str(len(contract_raw)).encode() + b"\0" + contract_raw).hexdigest()),
         "manifest HEAD/worktree identity differs")
