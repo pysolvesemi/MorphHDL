@@ -50,6 +50,10 @@ COPY_ADDITIONS = frozenset((
     'fixed-width shift copies preserve logical operator class, amount and source geometry',
 ))
 CDC_LITERAL_CASES = frozenset((
+    'symbolic zero retains a width-sensitive complement under a Boolean receiver',
+    'retained resize identities preserve allocated references across hierarchy in both modes',
+    'publication-owned resize boundaries allow recursive occupancy aliases zero and mux cleanup',
+    'resize capture preserves unnamed provenance explicit lookalikes and naming collisions in both modes',
     'generated-looking explicit names and keep/debug/CDC barriers survive recursive cleanup',
     'shared unnamed expressions above the duplication budget retain their actual identity',
     'shared compiler expression nodes inline while independently protected expression nodes remain',

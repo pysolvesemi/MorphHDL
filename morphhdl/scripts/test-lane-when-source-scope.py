@@ -297,5 +297,52 @@ class LaneWhenReviewTests(unittest.TestCase):
         mutant = rtl.comparison_script(Path('before.v'), Path('after.v'), 'Example', 1, Path('witness.json'))
         self.assertIn('sat -dump_json "witness.json" -prove-asserts', mutant)
 
+    def test_disabled_lane_baseline_allows_only_ordinary_resize_names(self):
+        baseline = textwrap.dedent('''\
+            module LaneExpressionExample;
+              wire [3:0] morphhdl_resize;
+              wire [3:0] morphhdl_resize_1;
+              assign morphhdl_resize = laneDe[3:0];
+              assign io_de = morphhdl_resize;
+              assign morphhdl_resize_1 = laneFrameEnd[3:0];
+              assign io_frameEnd = morphhdl_resize_1;
+            endmodule
+        ''')
+        candidate = baseline.replace('morphhdl_resize_1', '_zz_io_frameEnd') \
+                            .replace('morphhdl_resize', '_zz_io_de')
+        self.assertEqual(rtl.canonical_disabled_lane(baseline, candidate=False),
+                         rtl.canonical_disabled_lane(candidate, candidate=True))
+        with self.assertRaises(RuntimeError):
+            rtl.canonical_disabled_lane(baseline, candidate=True)
+        with self.assertRaises(RuntimeError):
+            rtl.canonical_disabled_lane(candidate.replace('_zz_io_de', 'custom_de'), candidate=True)
+        changed = candidate.replace('laneFrameEnd[3:0]', 'laneFrameEnd[2:0]')
+        self.assertNotEqual(rtl.canonical_disabled_lane(baseline, candidate=False),
+                            rtl.canonical_disabled_lane(changed, candidate=True))
+
+    def test_disabled_receiver_baseline_allows_only_its_output_resize_name(self):
+        baseline = textwrap.dedent('''\
+            module LaneReceiverCoverageExample;
+              wire [3:0] morphhdl_resize;
+              assign morphhdl_resize = lanes[3:0];
+              assign io_de = morphhdl_resize;
+            endmodule
+        ''')
+        candidate = baseline.replace('morphhdl_resize', '_zz_io_de')
+        self.assertEqual(rtl.canonical_disabled_receivers(baseline, candidate=False),
+                         rtl.canonical_disabled_receivers(candidate, candidate=True))
+        with self.assertRaises(RuntimeError):
+            rtl.canonical_disabled_receivers(baseline, candidate=True)
+        with self.assertRaises(RuntimeError):
+            rtl.canonical_disabled_receivers(
+                candidate.replace('_zz_io_de', 'custom_de'), candidate=True)
+        with self.assertRaises(RuntimeError):
+            rtl.canonical_disabled_receivers(
+                candidate.replace('assign io_de = _zz_io_de;',
+                                  'assign io_de = another_signal;'), candidate=True)
+        changed = candidate.replace('lanes[3:0]', 'lanes[2:0]')
+        self.assertNotEqual(rtl.canonical_disabled_receivers(baseline, candidate=False),
+                            rtl.canonical_disabled_receivers(changed, candidate=True))
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

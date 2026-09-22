@@ -372,10 +372,17 @@ def text_contract(out: Path, kind: str) -> None:
 
 def mutations(out: Path) -> None:
     """Each live boundary corruption must produce a real SAT counterexample."""
+    # Follow the public resized output to its exact extension of a to TARGET.
+    # A mutation target must not depend on a compiler-injected temporary name.
+    scalars = (out / "scalars" / "candidate.v").read_text()
+    extension = " = {{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){a[(WIDTH)-1]}},"
+    driver = re.findall(r"(?m)^\s*assign resized = ([A-Za-z_][A-Za-z0-9_$]*);\s*$", scalars)
+    require(len(driver) == 1, "sign-extension mutation requires one exact public resized driver")
+    target = "assign " + driver[0] + extension
+    require(scalars.count(target) == 1, "sign-extension mutation must identify exactly one TARGET resize of a")
     cases = (
         ("sign-extension", "scalars", dict(WIDTH=5, TARGET=8),
-         "assign morphhdl_resize = {{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){a[(WIDTH)-1]}},",
-         "assign morphhdl_resize = {{(((TARGET) > (WIDTH)) ? ((TARGET) - (WIDTH)) : 0){1'b0}},"),
+         target, target.replace("a[(WIDTH)-1]", "1'b0")),
         ("negative-literal", "scalars", dict(WIDTH=32, TARGET=8),
          "assign negativeLiteral = 8'shff;", "assign negativeLiteral = 8'hff;"),
         ("unsigned-consumer", "scalars", dict(WIDTH=5, TARGET=8),

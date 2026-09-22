@@ -1,10 +1,12 @@
 package morphhdl.examples
 
 import java.nio.file.{Files, Path, Paths}
+import java.nio.charset.StandardCharsets
 
 import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
 import morphhdl.frontend.HdlInt
 import spinal.core._
+import spinal.core.internals.Resize
 
 /** Exact fixed-width source form for the emitter-created-wrapper regression. */
 private[examples] final class FixedNestedUnsignedExtendedSum(witnessWidth: HdlInt)
@@ -90,9 +92,28 @@ object NestedUnsignedExtendedSumProductionArtifactWriter {
       max = BigInt(16)
     )
     val original = config(output)
+    var native: ParameterizedNestedUnsignedExtendedSum = null
     MorphVerilog(selected(original, mode)) {
-      new ParameterizedNestedUnsignedExtendedSum(width)
+      native = new ParameterizedNestedUnsignedExtendedSum(width)
+      native
     }
+    val names = Vector(native.hActive, native.hFrontPorch, native.hSyncWidth, native.hBackPorch).map { input =>
+      val targets = scala.collection.mutable.ArrayBuffer.empty[BaseType]
+      native.dslBody.walkDeclarations {
+        case value: BaseType if value.hasOnlyOneStatement => value.head.source match {
+          case resize: Resize if resize.input eq input => targets += value
+          case _ =>
+        }
+        case _ =>
+      }
+      require(targets.size == 1 && targets.head.getBitsWidth == 18,
+        "each input must retain its exact native resize boundary")
+      val name = targets.head.getName()
+      require(name.matches("[A-Za-z_][A-Za-z0-9_$]*"))
+      "\"" + input.getName() + "\":\"" + name + "\""
+    }
+    Files.write(output.resolve("native-resizes.json"),
+      (names.mkString("{", ",", "}\n")).getBytes(StandardCharsets.UTF_8))
   }
 
   private def generateOverflow(output: Path, mode: String): Unit = {

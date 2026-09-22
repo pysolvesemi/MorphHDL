@@ -301,6 +301,8 @@ private[examples] final class NamedWireExpressionNativePhase(
           case _ => false
         })
       Left("WA10-NATIVE-EXPRESSION-COPY-UNREPRESENTED")
+    else if (symbolicZero(candidate).nonEmpty && !zeroReceiverWidthsPreserved(candidate))
+      Left("WA10-NATIVE-ZERO-RECEIVER-WIDTH-AUTHORITY")
     else
       sharedSafety.expressionRemovalBlocker(
         pc,
@@ -1042,6 +1044,46 @@ private[examples] final class NamedWireExpressionNativePhase(
       externallyVisible = value.isInput || value.isOutput
     )
 
+  /** A literal zero has the same value at every positive unsigned width.
+    * Its replacement must also preserve every enclosing operator's geometry:
+    * checking only the final receiver would miss e.g. a complemented zero
+    * under a comparison. These are optional proofs over native typed widths.
+    */
+  private def symbolicZero(candidate: NativeCandidate): Option[Expression] =
+    if (!retainedWidth(candidate.alias).exists(_.minimum >= 1)) None
+    else candidate.sourceExpression match {
+      case literal: UIntLiteral if !literal.hasPoison() && literal.getValue() == 0 =>
+        Some(UIntLiteral(BigInt(0), null, 1))
+      case literal: BitsLiteral if !literal.hasPoison() && literal.getValue() == 0 =>
+        Some(BitsLiteral(BigInt(0), null, 1))
+      case _ => None
+    }
+
+  private def zeroReceiverWidthsPreserved(candidate: NativeCandidate): Boolean =
+    candidate.useStatements.forall {
+      case assignment: DataAssignmentStatement =>
+        var valid = true
+        var remaining = 256
+        def substitute(value: Expression): Expression = {
+          remaining -= 1
+          if (remaining < 0) { valid = false; return value }
+          if (value eq candidate.alias) return symbolicZero(candidate).get
+          if (!expressionReferences(value, candidate.alias)) return value
+          val before = NativeWidthProvenance.optionalWidthOf(value)
+          value.remapExpressions(substitute)
+          val after = NativeWidthProvenance.optionalWidthOf(value)
+          valid &&= (for (a <- before; b <- after)
+            yield NativeWidthProvenance.availableEvidence(
+              ElaborationWidthAuthority.equivalent(a, b)).contains(true)).contains(true)
+          value
+        }
+        NativePureExpressionCopy(assignment.source).exists { copy =>
+          substitute(copy)
+          valid
+        }
+      case _ => false
+    }
+
   private def rewriteNativeIdentity(candidate: NativeCandidate): Int = {
     if (candidate.useStatements.exists(_.isInstanceOf[WhenStatement]))
       return rewriteConditionIdentity(candidate)
@@ -1067,8 +1109,11 @@ private[examples] final class NamedWireExpressionNativePhase(
         case reference: BaseType if reference eq candidate.alias =>
           replacements += 1
           if (assignment.finalTarget.isReg) proceduralReceiverRewrites += 1
-          val copied = NativePureExpressionCopy(candidate.sourceExpression).getOrElse(
-            throw new IllegalStateException("WA-10 proven source copy became unsupported"))
+          // Do not carry a default-sized zero into smaller legal overrides.
+          // The proof above checked all affected enclosing operator widths.
+          val copied = symbolicZero(candidate).getOrElse(
+            NativePureExpressionCopy(candidate.sourceExpression).getOrElse(
+              throw new IllegalStateException("WA-10 proven source copy became unsupported")))
           if (!receiverSuppliesFence && ParameterizedWidth.expressionOf(candidate.alias).isEmpty &&
               NativeWireExpressionCodec.fixedWidthTree(candidate.sourceExpression))
             NativeWireExpressionCodec.fenced(copied, candidate.alias)

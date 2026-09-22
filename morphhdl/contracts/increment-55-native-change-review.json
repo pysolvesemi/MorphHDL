@@ -201,6 +201,44 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/Component.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/Component.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "CDC-WIRE-01 publication cleanup follow-up: reserve explicit names before generated allocation"
+      ],
+      "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change.",
+      "edits": [
+        {
+          "id": "component-explicit-name-reservation-01",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.Component.allocateNames",
+          "reason": "Reserve all nonempty strong declaration names once before weak names or child instances request spellings; allocation still uses the same NamingScope and name priorities.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "case nameable: Nameable if !nameable.isWeak && nameable.isNamed && nameable.getName() != \"\" =>",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "component-explicit-name-reservation-02",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.Component.allocateNames",
+          "reason": "Remove the now-duplicate strong-name reservation from the second pass. Explicit duplicate names are still checked once each by the first pass before generated names are allocated.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "else\n          localNamingScope.iWantIt(nameable.getName()",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/Data.scala",
       "baseline_path": "core/src/main/scala/spinal/core/Data.scala",
       "change": "modified",

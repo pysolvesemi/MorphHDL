@@ -1,0 +1,26 @@
+{
+  "byte_identical": true,
+  "compared_verilog_files": 12,
+  "head": "fc61cad03b0ee849a5b198d1442f583c1e52a70c",
+  "publication_matrix_cases_per_lane": 15,
+  "publication_verilog_files": 12,
+  "scala_versions": [
+    "2.12.18",
+    "2.13.12"
+  ],
+  "sha256": {
+    "disabled/CdcGrayChainRepro.v": "f9cb4eeb9632611d5c86020d2b2b10900d55fa693c9b611ef05cdb838cd5f90b",
+    "disabled/CdcSliceCompareRepro.v": "a9aac108c4ee1f1f98e0f36a540db25ee7c0126730bb4672f9c4c7d56c684a08",
+    "disabled/CdcWhenPredicateRepro.v": "de095ddfe4d8ae6ebeb4dce669ca1b149cde74d960e3c05ad4326951568e7732",
+    "disabled/CdcWireControls.v": "63862695d3a286a7507d9d29ecf07a8f41a41de9d98358e53dd672da34931c01",
+    "enabled/CdcGrayChainRepro.v": "88141cd223e64be024053fe2ff76b92a19b7338913d7cb1f72ff628ddadf677b",
+    "enabled/CdcSliceCompareRepro.v": "d7435d1aab52ce5528bad7ab5ae6154e5d9646da5d5e4488e462ccf4cf408d9e",
+    "enabled/CdcWhenPredicateRepro.v": "a1c748b90c9ccb1a06af8a045205075e2e472b2fe5b8a615b8850f625014d5df",
+    "enabled/CdcWireControls.v": "97e4916f117c803f63c09cf67d2307c7cf9bcc355e47b67949f14841439b0a35",
+    "repeat/CdcGrayChainRepro.v": "88141cd223e64be024053fe2ff76b92a19b7338913d7cb1f72ff628ddadf677b",
+    "repeat/CdcSliceCompareRepro.v": "d7435d1aab52ce5528bad7ab5ae6154e5d9646da5d5e4488e462ccf4cf408d9e",
+    "repeat/CdcWhenPredicateRepro.v": "a1c748b90c9ccb1a06af8a045205075e2e472b2fe5b8a615b8850f625014d5df",
+    "repeat/CdcWireControls.v": "97e4916f117c803f63c09cf67d2307c7cf9bcc355e47b67949f14841439b0a35"
+  },
+  "tree": "9d530833ad98e7a33bd318196b4ba60916e80451"
+}
