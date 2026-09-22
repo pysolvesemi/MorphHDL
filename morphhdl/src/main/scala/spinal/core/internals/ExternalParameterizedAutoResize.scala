@@ -533,9 +533,28 @@ object ExternalParameterizedAutoResize {
             expected.sourceLocation
           )
         }
-        storage.byStatement.put(record.outer, record)
-        storage.byStatement.put(record.sourceDriver, record)
-        storage.byResizeSource.put(record.resizeSource, record)
+        // The native-resize publisher already owns an explicitly preserved
+        // live typed boundary. In that case no normalization-recovery journal
+        // is needed: retaining the adjacent same-width forwarding assignment
+        // would incorrectly make it part of the resize's publication identity.
+        // Establish ownership while BOTH original edges still exist; never
+        // drop, forgive or reclassify an invalid/inactive captured record later.
+        val nativeOwner = !record.witnessInactive && record.typedTarget.nonEmpty &&
+          validCurrentRecord(component, record) &&
+          (record.outer.source eq record.resizeSource) &&
+          (record.outer.parentScope eq component.dslBody) &&
+          (record.sourceDriver.parentScope eq component.dslBody) &&
+          typedTargetMatches(record, record.target) &&
+          ExternalParameterizedNativeResize.provesAssignment(component, record.sourceDriver) &&
+          ExternalParameterizedNativeResize.targetWidthOf(component, record.resizeSource).exists { width =>
+            record.typedTarget.exists(expected =>
+              NativePublicationWidth.equivalentAtOwner(width, expected, component, record.resizeSource))
+          }
+        if (!nativeOwner) {
+          storage.byStatement.put(record.outer, record)
+          storage.byStatement.put(record.sourceDriver, record)
+          storage.byResizeSource.put(record.resizeSource, record)
+        }
       }
     }
     storage.syntheticBoolean ++= syntheticRecords

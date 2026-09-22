@@ -25,8 +25,12 @@ private object MorphVerilogExpressionInliningFixture {
     setDefinitionName("ParameterizedUnsignedExtendedSum")
     val hActive, hFrontPorch, hSyncWidth, hBackPorch = in UInt (width bits)
     val hTotal = out UInt (18 bits)
-    hTotal := (((hActive.resize(18) + hFrontPorch.resize(18)) +
-      hSyncWidth.resize(18)) + hBackPorch.resize(18))
+    @dontName val activeWide = hActive.resize(18)
+    @dontName val frontWide = hFrontPorch.resize(18)
+    @dontName val syncWide = hSyncWidth.resize(18)
+    @dontName val backWide = hBackPorch.resize(18)
+    hTotal := (((activeWide + frontWide) + syncWide) + backWide)
+    def resizeNames: Vector[String] = Vector(activeWide, frontWide, syncWide, backWide).map(_.getName())
   }
 }
 
@@ -61,13 +65,15 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
     read(directory, fileName)
   }
 
-  private def parameterizedMorph(enabled: Boolean): String = withDirectory { directory =>
+  private def parameterizedMorph(enabled: Boolean): (String, Vector[String]) = withDirectory { directory =>
     val fileName = "parameterized.v"
     val width = HdlInt.param("WIDTH", default = 16, min = 1, max = 16)
+    var native: ParameterizedUnsignedExtendedSum = null
     MorphVerilog(MorphWireAssignmentPasses(config(directory, fileName), enabled)) {
-      new ParameterizedUnsignedExtendedSum(width)
+      native = new ParameterizedUnsignedExtendedSum(width)
+      native
     }
-    read(directory, fileName)
+    read(directory, fileName) -> native.resizeNames
   }
 
   private def wrapperAssignments(verilog: String): Vector[String] =
@@ -115,22 +121,36 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
   }
 
   test("parameter-dependent resize carriers remain while redundant arithmetic wrappers inline") {
-    val generated = parameterizedMorph(enabled = true)
+    val (generated, resizes) = parameterizedMorph(enabled = true)
 
     assert(generated.contains("parameter integer WIDTH = 16"))
-    assert(wrapperAssignments(generated).isEmpty)
-    assert(generated.contains("wire       [17:0]   morphhdl_resize;"))
+    assert(resizes.distinct.size == 4)
+    assert(wrapperAssignments(generated).filterNot(line =>
+      resizes.exists(name => line.trim.startsWith("assign " + name + " ="))).isEmpty)
+    resizes.foreach { name =>
+      assert(("wire\\s+\\[17:0\\]\\s+" + java.util.regex.Pattern.quote(name) + ";").r.findFirstIn(generated).nonEmpty)
+    }
+    assert(!generated.contains("morphhdl_resize"))
     assert(generated.contains(
-      "assign hTotal = (((morphhdl_resize + morphhdl_resize_1) + morphhdl_resize_2) + morphhdl_resize_3);"
+      s"assign hTotal = (((${resizes(0)} + ${resizes(1)}) + ${resizes(2)}) + ${resizes(3)});"
     ))
   }
 
   test("disabled parameter-dependent generation preserves both resize and add wrappers") {
-    val generated = parameterizedMorph(enabled = false)
+    val (generated, resizes) = parameterizedMorph(enabled = false)
 
-    assert(wrapperAssignments(generated).size == 2)
-    assert(generated.contains("wire       [17:0]   morphhdl_resize;"))
-    assert(generated.contains("assign hTotal = (_zz_hTotal + morphhdl_resize_3);"))
+    assert(resizes.distinct.size == 4)
+    val additions = wrapperAssignments(generated).filterNot(line =>
+      resizes.exists(name => line.trim.startsWith("assign " + name + " =")))
+    assert(additions.size == 2)
+    resizes.foreach { name =>
+      assert(("wire\\s+\\[17:0\\]\\s+" + java.util.regex.Pattern.quote(name) + ";").r.findFirstIn(generated).nonEmpty)
+    }
+    assert(!generated.contains("morphhdl_resize"))
+    val finalAdd = ("assign hTotal = \\(([A-Za-z_][A-Za-z0-9_$]*) \\+ " +
+      java.util.regex.Pattern.quote(resizes(3)) + "\\);").r.findFirstMatchIn(generated)
+    assert(finalAdd.nonEmpty)
+    assert(additions.exists(_.trim.startsWith("assign " + finalAdd.get.group(1) + " =")))
   }
 
   test("an output-register receiver retains its port and unsupported canonical timing context") {

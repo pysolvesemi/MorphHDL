@@ -245,6 +245,30 @@ The existing 60g workflow also subscribes to pushes on this exact repair branch,
 
 Local checks on the failure repair passed the 177-file source seal, native-source preservation, 19 lane review tests (including 41 safety mutations, 30 complete-gate rejection controls, and 12 job-context rejection controls), and the formal-validator self-tests. The actual previously failing 59h source suite passed two positives and all 28 exact rejections, with unchanged 59c and pre-rollout 59h historical controls separately replayed. These source checks do not claim Scala/JVM, HDL simulation, synthesis, or hosted CI qualification.
 
+## CDC-WIRE-01 disabled-mode naming reconciliation, 2026-09-22
+
+CDC-WIRE-01 intentionally removes the compiler-injected
+`morphhdl_resize` / `morphhdl_resize_source` weak-name provenance from unnamed
+native resize nodes in both enabled and disabled modes.  Full CI exposed one
+historical lane validator assertion that still required the entire disabled
+artifact to remain byte-identical to the pre-repair compiler.  Both Scala
+lanes passed their production/test suites and failed only that obsolete naming
+comparison.
+
+The validator now identifies the two retained lane output-resize carriers by
+their exact `laneDe` / `laneFrameEnd` drivers and `io_de` / `io_frameEnd`
+receivers, plus the receiver fixture's retained `lanes` to `io_de` output
+resize.  It requires the historical baseline to contain the old compiler
+prefix, requires the candidate not to contain it, and requires each disabled
+artifact to be byte-identical after canonicalizing only those three
+driver/receiver-authenticated identifiers.  The disabled conditions topology
+remains exactly byte-identical.  Determinism,
+strict Verilog-2001 compilation, lint, simulation, formal equivalence,
+synthesis/port-width checks, mutation controls, cross-Scala artifact equality,
+SBT, Mill and binary/source compatibility gates are unchanged.  This is a
+proof-contract correction only: it has no production-source or generated-
+Verilog effect.
+
 ## Retry-safe publication artifact repair, 2026-09-17 (qualification pending)
 
 On integrated head `464b098ad7dc60ed1e5f63f34051acb872f46b1c`, the

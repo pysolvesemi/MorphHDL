@@ -297,6 +297,15 @@ abstract class Component extends NameableByComponent with ContextUser with Scala
     val anonymPrefix = if(globalData.phaseContext.config.anonymSignalUniqueness) globalData.anonymSignalPrefix + "_" + this.definitionName else globalData.anonymSignalPrefix
     localNamingScope.allocateName(anonymPrefix)
 
+    // Reserve explicit signal names before allocating any generated names.
+    // A weak name proposed by propagation must not consume a later user's
+    // spelling merely because its declaration appeared first.
+    dslBody.walkStatements {
+      case nameable: Nameable if !nameable.isWeak && nameable.isNamed && nameable.getName() != "" =>
+        localNamingScope.iWantIt(nameable.getName(), s"Reserved name ${nameable.getName()} is not free for ${nameable.toString()} defined at \n${nameable.getScalaLocationLong}")
+      case _ =>
+    }
+
     for (child <- children) {
       OwnableRef.proposal(child, this)
       if (child.isUnnamed) {
@@ -314,8 +323,6 @@ abstract class Component extends NameableByComponent with ContextUser with Scala
         }
         if (nameable.isWeak)
           nameable.setName(localNamingScope.allocateName(nameable.getName()), Nameable.DATAMODEL_STRONG)
-        else
-          localNamingScope.iWantIt(nameable.getName(), s"Reserved name ${nameable.getName()} is not free for ${nameable.toString()} defined at \n${nameable.getScalaLocationLong}")
       case _ =>
     }
   }

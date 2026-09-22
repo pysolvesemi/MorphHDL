@@ -180,8 +180,8 @@ object ExternalParameterizedNativeResize {
                       if (!literalZeroReservation && !identity && !fixedNarrowing) {
                         target.dontSimplifyIt().addTag(noBackendCombMerge)
                         source.dontSimplifyIt().addTag(noBackendCombMerge)
-                        if (!target.isNamed) target.setWeakName("morphhdl_resize")
-                        if (!source.isNamed) source.setWeakName("morphhdl_resize_source")
+                        // Publication records retain native identity through name allocation.
+                        // Preservation is independent of user/reflected/generated naming.
                         captured += Record(assignment, target, resize, source, sourceWidth, targetWidth,
                           source.getBitsWidth, resize.size,
                           NativePublicationScope.capture(component, assignment.parentScope),

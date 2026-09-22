@@ -132,7 +132,7 @@ object CdcWireCleanupFixtures {
   * Identity comparison is deliberately stronger than equivalent emitted text:
   * a second invocation cannot replace a node or driver, even with an equal copy.
   */
-private object CdcWireCleanupFixedPointObserver {
+private[examples] object CdcWireCleanupFixedPointObserver {
   def install(config: SpinalConfig, output: Path): Unit = {
     config.phasesInserters += { phases: ArrayBuffer[Phase] =>
       val index = phases.indexWhere(_.getClass.getName ==

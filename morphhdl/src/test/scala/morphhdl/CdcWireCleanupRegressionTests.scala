@@ -13,6 +13,50 @@ import scala.sys.process.{Process, ProcessLogger}
 
 /** HDL semantics and the independent oracles run in check-cdc-wire-cleanup.py. */
 class CdcWireCleanupRegressionTests extends AnyFunSuite {
+  test("symbolic zero retains a width-sensitive complement under a Boolean receiver") {
+    withDirectory { root => morphhdl.examples.CdcPublicationCleanupFixtures.zeroWidthControl(root) }
+  }
+
+  test("retained resize identities preserve allocated references across hierarchy in both modes") {
+    withDirectory { root =>
+      for (enabled <- Vector(false, true)) {
+        val first = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve(enabled.toString),
+          naming = true, enabled = enabled, observe = enabled, hierarchy = true)
+        val repeat = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve(enabled + "-repeat"),
+          naming = true, enabled = enabled, observe = false, hierarchy = true)
+        assert(first == repeat)
+      }
+    }
+  }
+
+  test("publication-owned resize boundaries allow recursive occupancy aliases zero and mux cleanup") {
+    withDirectory { root =>
+      val first = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve("on"),
+        naming = false, enabled = true, observe = true)
+      val repeat = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve("repeat"),
+        naming = false, enabled = true, observe = false)
+      assert(first == repeat)
+      assert(first.contains("FIFO_LOG_DEPTH + 2"))
+      assert(!first.contains("morphhdl_resize"))
+    }
+  }
+
+  test("resize capture preserves unnamed provenance explicit lookalikes and naming collisions in both modes") {
+    withDirectory { root =>
+      for (enabled <- Vector(false, true)) {
+        val first = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve(enabled.toString),
+          naming = true, enabled = enabled, observe = enabled)
+        val repeat = morphhdl.examples.CdcPublicationCleanupFixtures.generate(root.resolve(enabled + "-repeat"),
+          naming = true, enabled = enabled, observe = false)
+        assert(first == repeat)
+        for (name <- Vector("kept_difference", "_zz_user_kept", "morphhdl_resize_source", "_zz_wide"))
+          assert(first.contains("assign " + name + " ="), name)
+        assert(!first.contains("morphhdl_resize_source_"), "compiler prefix was injected")
+        assert(!first.contains("assign morphhdl_resize ="), "compiler target name was injected")
+      }
+    }
+  }
+
   private def withDirectory(body: Path => Unit): Unit = {
     val directory = Files.createTempDirectory("cdc-wire-cleanup-")
     try body(directory)

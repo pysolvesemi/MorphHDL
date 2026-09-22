@@ -297,18 +297,32 @@ def qualify_nested_unsigned_sums(output, first):
     assert fixed_direct in fixed["enabled"]
     assert "assign hTotal = (_zz_hTotal + _zz_hTotal_5);" in fixed["disabled"]
 
-    parameter_add_wrappers = {"_zz_hTotal", "_zz_hTotal_1"}
-    parameter_resize_carriers = {"morphhdl_resize"} | {
-        "morphhdl_resize_" + str(index) for index in range(1, 4)
-    }
-    assert internal_wires(parameterized["disabled"], "_zz_hTotal") == parameter_add_wrappers
-    assert not internal_wires(parameterized["enabled"], "_zz_hTotal")
-    for source in parameterized.values():
-        assert internal_wires(source, "morphhdl_resize") == parameter_resize_carriers
-    parameter_direct = ("assign hTotal = (((morphhdl_resize + morphhdl_resize_1) + "
-                        "morphhdl_resize_2) + morphhdl_resize_3);")
-    assert parameter_direct in parameterized["enabled"]
-    assert "assign hTotal = (_zz_hTotal + morphhdl_resize_3);" in parameterized["disabled"]
+    parameter_add_wrappers = set()
+    parameter_resize_carriers = set()
+    for mode, source in parameterized.items():
+        # The writer resolves these names from actual resize input/target
+        # identities after normal allocation, without changing the fixture RHS.
+        resize_names = json.loads((first / ("nested-parameterized-" + mode) / "native-resizes.json").read_text())
+        inputs = ("hActive", "hFrontPorch", "hSyncWidth", "hBackPorch")
+        assert set(resize_names) == set(inputs)
+        ordered = [resize_names[name] for name in inputs]
+        assert len(set(ordered)) == 4
+        declarations = set(re.findall(r"(?m)^\s*wire\s+\[17:0\]\s+([A-Za-z_][A-Za-z0-9_$]*)\s*;", source))
+        assert set(ordered) <= declarations
+        additions = declarations - set(ordered)
+        if mode != "disabled":
+            assert not additions
+            assert f"assign hTotal = ((({ordered[0]} + {ordered[1]}) + {ordered[2]}) + {ordered[3]});" in source
+        else:
+            assert len(additions) == 2
+            parameter_add_wrappers = additions
+            parameter_resize_carriers = set(ordered)
+            root = re.findall(r"assign hTotal = \(([A-Za-z_][A-Za-z0-9_$]*) \+ " + re.escape(ordered[3]) + r"\);", source)
+            assert len(root) == 1 and root[0] in additions
+            inner = re.findall(r"assign " + re.escape(root[0]) + r" = \(([A-Za-z_][A-Za-z0-9_$]*) \+ " + re.escape(ordered[2]) + r"\);", source)
+            assert len(inner) == 1 and set(root + inner) == additions
+            assert f"assign {inner[0]} = ({ordered[0]} + {ordered[1]});" in source
+        assert all(not name.startswith("morphhdl_resize") for name in ordered)
     assert "parameter integer WIDTH = 16" in parameterized["enabled"]
 
     overflow_wrappers = {"_zz_overflowTotal", "_zz_overflowTotal_1"}

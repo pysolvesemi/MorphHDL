@@ -1,0 +1,121 @@
+{
+  "matrix": [
+    {
+      "fixture": "fill",
+      "depth": 2,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "fill",
+      "depth": 3,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "fill",
+      "depth": 4,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "fill",
+      "depth": 8,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "fill",
+      "depth": 16,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "naming",
+      "depth": 2,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "naming",
+      "depth": 3,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "naming",
+      "depth": 4,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "naming",
+      "depth": 8,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "naming",
+      "depth": 16,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "hierarchy",
+      "depth": 2,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "hierarchy",
+      "depth": 3,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "hierarchy",
+      "depth": 4,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "hierarchy",
+      "depth": 8,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    },
+    {
+      "fixture": "hierarchy",
+      "depth": 16,
+      "four_state": "passed",
+      "equivalence": "passed",
+      "oracle_formal": "passed"
+    }
+  ],
+  "mutations": [
+    {
+      "fixture": "fill",
+      "four_state": "rejected",
+      "formal": "rejected"
+    },
+    {
+      "fixture": "naming",
+      "four_state": "rejected",
+      "formal": "rejected"
+    }
+  ]
+}

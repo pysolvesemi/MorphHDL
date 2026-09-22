@@ -109,7 +109,7 @@ jobs:
           set -euo pipefail
           sbt -batch '++${{ matrix.scala }}' \
             'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
-            'morph/Test/testOnly morphhdl.CdcWireCleanupRegressionTests morphhdl.CdcWireEmitterNamespaceTests morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' \
+            'morph/Test/testOnly morphhdl.CdcWireCleanupRegressionTests morphhdl.CdcWireEmitterNamespaceTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/regressions.log"
       - name: Generate enabled, disabled and deterministic-repeat RTL
         id: generation
@@ -118,6 +118,7 @@ jobs:
           set -euo pipefail
           sbt -batch '++${{ matrix.scala }}' \
             "morph/Test/runMain morphhdl.examples.CdcWireCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/rtl" \
+            "morph/Test/runMain morphhdl.examples.CdcPublicationCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/publication" \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/generation.log"
       - name: Verify cleanup shape, four-state semantics and formal equivalence
         if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
@@ -126,6 +127,9 @@ jobs:
           python3 morphhdl-passes/scripts/check-cdc-wire-cleanup.py \
             "$RUNNER_TEMP/cdc-wire-evidence/rtl" \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/qualification.log"
+          python3 morphhdl-passes/scripts/check-cdc-publication-cleanup.py \
+            "$RUNNER_TEMP/cdc-wire-evidence/publication" \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/publication-qualification.log"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/upload-artifact@v4
@@ -194,9 +198,26 @@ jobs:
           assert identities[versions[0]] == identities[versions[1]], 'cross-Scala source trees differ'
           for relative in sorted(expected):
               assert (root/versions[0]/'rtl'/relative).read_bytes() == (root/versions[1]/'rtl'/relative).read_bytes(), ('cross-Scala Verilog mismatch', relative)
+          publication_files = None
+          for version in versions:
+              publication = root/version/'publication'
+              result = json.loads((publication/'publication-qualification.json').read_text())
+              assert {(c['fixture'], c['depth']) for c in result['matrix']} == {(f, d) for f in ('fill','naming','hierarchy') for d in (2,3,4,8,16)}
+              assert len(result['mutations']) == 2 and all(c['four_state'] == c['formal'] == 'rejected' for c in result['mutations'])
+              assert len(result['matrix']) == 15 and all(c['four_state'] == c['equivalence'] == c['oracle_formal'] == 'passed' for c in result['matrix'])
+              files = {str(p.relative_to(publication)) for f in ('fill','naming','hierarchy') for m in ('on','off','repeat') for p in (publication/(f+'-'+m)).glob('*.v')}
+              assert all(any(p.startswith(f+'-'+m+'/') for p in files) for f in ('fill','naming','hierarchy') for m in ('on','off','repeat'))
+              if publication_files is None: publication_files = files
+              assert files == publication_files
+              for f in ('fill','naming','hierarchy'):
+                  proof = json.loads((publication/(f+'-on')/'fixed-point.json').read_text())
+                  assert proof['second_invocation_changes'] == 0
+          for relative in sorted(publication_files):
+              assert (root/versions[0]/'publication'/relative).read_bytes() == (root/versions[1]/'publication'/relative).read_bytes(), ('cross-Scala publication mismatch', relative)
           report = {'head': os.environ['EXPECTED_HEAD'], 'tree': identities[versions[0]][1],
                     'scala_versions': list(versions), 'compared_verilog_files': len(expected),
-                    'byte_identical': True, 'sha256': manifests[versions[0]]}
+                    'byte_identical': True, 'sha256': manifests[versions[0]],
+                    'publication_verilog_files': len(publication_files), 'publication_matrix_cases_per_lane': 15}
           (root/'cross-scala.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print('CDC_WIRE_CROSS_SCALA_PASS files=' + str(len(expected)) + ' exact_source=true byte_identical=true')
           PY

@@ -283,14 +283,18 @@ private[examples] object NativeWireExpressionCodec {
   /** Verilog-2001 lowering owns an exact function argument/result boundary.
     * These checks use authoritative geometry over the complete domain; the
     * current elaboration width is never evidence that a select stays in range.
+    * Unsigned widening is admitted only if every legal input width fits the
+    * fixed result; a resize crossing the target over its domain stays guarded.
     */
   def inlineableResize(node: Resize): Boolean =
     (node.isInstanceOf[ResizeUInt] || node.isInstanceOf[ResizeBits]) &&
       node.input != null && node.getTypeObject == node.input.getTypeObject &&
       node.size > 0 && ParameterizedWidth.resizeExpressionOf(node).isEmpty &&
       NativeWidthProvenance.optionalWidthOf(node.input).exists(width =>
-        width.minimum >= node.size && width.default == node.input.getWidth &&
-          (width.default > node.size || width.maximum == node.size))
+        width.minimum > 0 && width.default == node.input.getWidth &&
+          ((width.minimum >= node.size &&
+            (width.default > node.size || width.maximum == node.size)) ||
+            width.maximum <= node.size))
 
   def inlineableSelection(node: BitVectorRangedAccessFixed): Boolean =
     node.source != null && (node.source.getTypeObject == TypeUInt ||
