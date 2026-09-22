@@ -1,5 +1,58 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-10 reconciliation validated; newer documentation target pending, 22 September 2026
+
+Source qualification [35729599090](https://github.com/pysolvesemi/MorphHDL/actions/runs/35729599090)
+authenticated the exact schema-9 seal/source and then reached the controller's
+180-minute job ceiling. Eighteen of25 retained commands passed; command19
+(`check-cdc-successor-source.py`) was interrupted and commands20–25 never ran.
+No retained gate reported a failure. Original artifact10703514945 was
+independently downloaded and verified with ZIP SHA256
+`412f77f9f0c32dad091691421f3d559c7e98f4cacba06566e568aeb3423db4fc`.
+The measured runner slowdown projects about260 minutes, so the exact replacement
+controller uses a guarded360-minute ceiling without changing the25 commands or
+their order.
+
+While that run was active, the live target advanced from `155df6eb...` through
+qualified merge `67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca` and its sole
+documentation child `8ee07f251f5400922763382073db45ca76d012bd`. The bounded
+schema-10 reconciliation preserves the complete schema-9 certificate and
+composes all target bytes. Checkpoint
+`b348c45238295eebea0306224e7fb9167d01cb9c`, tree
+`5cb9f8008cd73bb8233b05a18519e02c9c8debff`, has ordered parents the prior
+seal `bcf2a9e63832e6d0fe72229705eb29e358d5afce` and current target `8ee07f...`.
+
+- Reviewed source `6cac9906bafe63812b53a9de4bd432bdd623771e`, tree
+  `f8efd9301cfde275d586d8e48934c357e1f31711`, is the direct checkpoint child.
+  It changes exactly11 Python audit/reviewer paths, closing the helper,
+  target-integration and WA08 transitive pins without changing compiler,
+  production Scala, RTL, Verilog, tests, proofs or workflows.
+- Candidate seal `3ce0bf30e51af8d84a432a8937c88f31db1d7d05`, tree
+  `9f9c856590f0eb3ea93d7e6abec0e9c97609b454`, is the direct source child.
+- Schema-10 contract SHA256 is
+  `89f38a088b19935f5c3e5d4c51bf5c4af53d3bb1a18cba4231d5a13761a39b60`;
+  normalized helper SHA256 is
+  `558fe2e5e3ddeb53e0ce0aa095172e64b34258bb02712b4266772cb16fd58598`.
+  It contains417 complete source records and59 complete target records.
+
+Exact local validation passed the production-successor verifier, target
+integration, WA08 overlay, native-source preservation and the CDC regression
+self-test with20 added tests,3 suites and65 rejected negative controls. Feature
+remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`; PR177 remains draft and
+unmerged; the roadmap remains unchecked.
+
+The final pre-publication guard then found target
+`09880c538c4cf83022f4a1bb1dd16b43ea81a751`, tree
+`6216cf799cc51c5a5f815d08f16e435c6b48ddc7`, a direct documentation-only
+child of `8ee07f...` changing only
+`morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md`. Therefore the
+prepared schema-10 controller was withheld and no replacement CI was launched.
+NEXT create a bounded schema-11 documentation reconciliation preserving the
+validated schema-10 seal, then launch one guarded360-minute25-gate source run
+only if feature, target, recovery and PR refs remain exact. Do not rerun the
+stale-target source, advance the feature, dispatch targeted workflows, launch
+full CI, merge, or duplicate passing/active workflows. Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — final schema-9 reviewer-pin repair qualifying, 22 September 2026
 
 Source qualification [35698227977](https://github.com/pysolvesemi/MorphHDL/actions/runs/35698227977)
