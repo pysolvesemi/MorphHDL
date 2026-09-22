@@ -36,7 +36,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
     var protectedUse: UInt = null
     var observed = false
     val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false, headerWithRepoHash = false))
+      headerWithDate = false))
     config.phasesInserters += { phases: ArrayBuffer[Phase] =>
       val index = phases.indexWhere(_.getClass.getName == "morphhdl.examples.ProductionWireAssignmentPhase")
       require(index >= 0)
