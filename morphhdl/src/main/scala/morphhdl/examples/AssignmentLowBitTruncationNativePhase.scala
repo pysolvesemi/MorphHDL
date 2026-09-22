@@ -114,9 +114,15 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
   private def unsigned(value: Expression): Boolean = value != null &&
     (value.getTypeObject == TypeUInt || value.getTypeObject == TypeBits)
 
+  private def bitWidth(value: Expression): Int = value match {
+    case _ if value != null && value.getTypeObject == TypeBool => 1
+    case sized: WidthProvider => sized.getWidth
+    case _ => -1
+  }
+
   private def width(value: Expression): Option[ElaborationIntegerExpression] =
     NativeWidthProvenance.optionalWidthOf(value)
-      .filter(result => result.minimum > 0 && result.default == value.getBitsWidth)
+      .filter(result => result.minimum > 0 && result.default == bitWidth(value))
 
   private def equal(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean =
     try ElaborationWidthAuthority.equivalent(left, right)
@@ -151,7 +157,7 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
     if (source.parameters.nonEmpty || source.minimum != source.maximum ||
         source.default != source.minimum || receiver.maximum > source.minimum ||
         receiver.maximum < receiver.minimum) return None
-    Some(Boundary(input, receiver, input.getBitsWidth, ranged))
+    Some(Boundary(input, receiver, bitWidth(input), ranged))
   }
 
   private def prepare(pc: PhaseContext, component: Component,
@@ -204,7 +210,7 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
       value match {
         case alias: BaseType =>
           if (alias.getTypeObject == TypeSInt || (alias.component ne component) ||
-              (alias eq target) && target.isComb) throw Unproved
+              ((alias eq target) && target.isComb)) throw Unproved
           candidate(alias) match {
             case None => alias
             case Some(definition) =>
@@ -223,14 +229,19 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
           }
         case _ =>
           if (value.getTypeObject == TypeSInt || !unannotated(value)) throw Unproved
-          val children = new IdentityHashMap[Expression, Expression]()
-          value.foreachDrivingExpression(child => children.put(child, expand(child, depth + 1)))
-          // Native remapping stabilizes each edge. Only old child identities
-          // are keys, so a fresh replacement is returned exactly once.
-          value.remapDrivingExpressions(child => {
-            val replacement = children.get(child)
-            if (replacement == null) child else replacement
-          })
+          val stable = new IdentityHashMap[Expression, java.lang.Boolean]()
+          // The native remapper stabilizes each edge by visiting its result.
+          // Mark only completed replacements, not their original BaseType:
+          // repeated reads of one carrier must receive independently owned
+          // operator trees, just like NativePureExpressionCopy's edge copies.
+          value.remapDrivingExpressions { child =>
+            if (stable.containsKey(child)) child
+            else {
+              val replacement = expand(child, depth + 1)
+              stable.put(replacement, java.lang.Boolean.TRUE)
+              replacement
+            }
+          }
           value
       }
     }
