@@ -140,6 +140,13 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
         target.parentScope == null || !(target.parentScope eq target.rootScopeStatement) ||
         !target.getTags().forall(_ eq noBackendCombMerge) ||
         NativeWireAssignmentMetadata.retains(target)) return None
+    // The receiver must own its width independently of the RHS being changed.
+    // An inferred expression carrier can still be recursively substituted at
+    // another stable receiver; its own width-defining driver is not widened.
+    target match {
+      case vector: BitVector if vector.isFixedWidth || ParameterizedWidth.expressionOf(vector).nonEmpty =>
+      case _ => return None
+    }
     val receiver = width(target).getOrElse(return None)
     val root = assignment.source
     if (root == null || !unsigned(root) || root.getTypeObject != target.getTypeObject ||
@@ -191,9 +198,13 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
         case driver: DataAssignmentStatement if (driver.target eq alias) &&
             (driver.finalTarget eq alias) && (driver.parentScope eq alias.rootScopeStatement) &&
             driver.source != null && driver.source.getTypeObject == alias.getTypeObject &&
-            width(driver.source).exists(equal(_, own)) &&
+            width(driver.source).exists(source => source.parameters.isEmpty &&
+              source.minimum == source.maximum && source.minimum >= own.maximum) &&
             NativeWireExpressionCodec.fixedWidthTree(driver.source) =>
-          // Metadata/identity checks are shared with the native wire stages.
+          // An earlier round may already have lowered this fixed receiver's
+          // low slice. Its wider RHS still evaluates in its own domain. The
+          // declaration fence recreated below restores the exact packed value
+          // at every substituted use, including such already-lowered drivers.
           // Blocking receivers are not asserted to be continuous: their
           // independent input/register-only sampling proof is checked below.
           val receivers = if (continuous || nonblocking) Vector[Statement](assignment) else Vector.empty[Statement]
