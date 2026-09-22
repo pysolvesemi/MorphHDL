@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "base": "09880c538c4cf83022f4a1bb1dd16b43ea81a751",
+  "base_tree": "6216cf799cc51c5a5f815d08f16e435c6b48ddc7",
+  "source_commit": "10a0ac6d9427fbd7256d3d5011458208434a01f4",
+  "source_tree": "429f0aecff66b5800ea6f014021574ec247c8c7a",
+  "helper_source_blob": "f55cfa7f8671d725c7e38183303f547fb5f1b321",
+  "source_paths": [
+    ".github/workflows/cdc-wire-fixed-point.yml",
+    ".github/workflows/wire-trunc-01.yml",
+    "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+    "morphhdl-passes/scripts/check-low-bit-truncation.py",
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/AssignmentLowBitTruncationProof.scala",
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/AssignmentLowBitTruncationProofSpec.scala",
+    "morphhdl/scripts/check-wire-trunc-01-source-review.py",
+    "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationNativePhase.scala",
+    "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+    "morphhdl/src/test/scala/morphhdl/examples/AssignmentLowBitTruncationNativeTests.scala",
+    "morphhdl/src/test/scala/nativeapplication/LowBitTruncationArtifactWriter.scala"
+  ]
+}
