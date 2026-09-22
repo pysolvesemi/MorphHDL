@@ -1,5 +1,52 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-9 retained-audit repair qualifying, 22 September 2026
+
+Schema-8 source qualification run35653956963 authenticated its exact
+seal/source/checkpoint and unchanged feature/target refs, then exposed only
+retained audit-fixture failures. No compiler, Scala, RTL, generated-Verilog or
+hardware gate failed. The bounded schema-9 repair changes exactly16 Python
+audit/checker/fixture and regression-inventory paths; it preserves the qualified
+schema-8 seal and substantive target, replays the immutable schema-7 PR190 and
+PR189 certificates, refreshes the exact native regression hash, and memoizes only
+immutable historical replay. Live current-source authentication still runs before
+and after every negative probe.
+
+- Reviewed source `bb385d858470ba62993327dcdd4b49477968f48c`, tree
+  `5c9ff83cafdeba5aea04117b51790ec1d6eb6d3d`, direct child of schema-8 seal
+  `604e10817c2af3b77cce315ea1eafa9fdc469424`.
+- Candidate seal `7b1c85e62db8ec0b1f96123abf48fcaf00ed95c0`, tree
+  `644d566b288093b2c93933b71782016130c89b9c`, direct source child.
+- Schema-9 manifest SHA256
+  `baa4eb35825051449f791a4326d8586ba8461221390d65d6a6d3fe7e5c5c19c4`;
+  normalized helper SHA256
+  `848d69992de82b235edafb142ca038cafc41c019f4f15280fb11da71418ff5fc`;
+  379 complete source records and57 complete target records.
+
+The exact production-successor verifier, PR190 current controls, retained schema-5
+controls and PR190/PR189 synchronization mutations passed locally. A long local
+sequential-source mutation loop was terminated by the execution runtime without a
+reported test failure; it is not counted as passing evidence. The authoritative
+25-gate source qualification is
+[35677332297](https://github.com/pysolvesemi/MorphHDL/actions/runs/35677332297),
+launched once by controller `b926561a808cc2ff6a28506c791ce0f05864243c`.
+Do not duplicate it.
+
+An unreferenced draft source `5ef1f5dc2d682e21b669e29658bbcf591a2ea4d7`
+has the wrong tree because an oversized blob transfer was truncated. It and its
+unreferenced draft tree `7a8cc5f912e15902cf8ff977902a3951f7b5fba3` are invalid and must
+never advance any ref. The exact source/seal above were rebuilt with verified
+blob hashes and trees.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`, target remains
+`155df6eb0e38ecce04a37de2067b0794702fcb83`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. NEXT inspect all25 logs and independently
+verify the original artifact/API digest. Only after source qualification and a
+fresh bounded target-integration reconciliation pass may the feature advance
+non-force and only directly affected failed workflows be dispatched. Do not
+launch full CI, merge, or duplicate passing/active workflows. Keep monitoring
+enabled.
+
 ## CURRENT CHECKPOINT — schema-8 substantive-target reviewer sealed, 22 September 2026
 
 The passed schema-7 source evidence and exact CDC-WIRE-01 target are now
