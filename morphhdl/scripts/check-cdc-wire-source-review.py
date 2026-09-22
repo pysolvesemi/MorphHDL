@@ -45,6 +45,8 @@ PRODUCTION_PATHS = frozenset((
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala',
 ))
 TEST_PATHS = frozenset((
+    'morphhdl/scripts/check-lane-when-inlining.py',
+    'morphhdl/scripts/test-lane-when-source-scope.py',
     'morphhdl/scripts/check-increment-60e-signedness-boundaries.py',
     'morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala',
     'morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala',
@@ -75,6 +77,7 @@ TEST_PATHS = frozenset((
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
 ))
 REVIEW_PATHS = frozenset((
+    'docs/morphhdl/lane-when-inlining-repair.md',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/cross-scala.json',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-off/RecursiveFillCleanupRepro.v',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-on/RecursiveFillCleanupRepro.v',
