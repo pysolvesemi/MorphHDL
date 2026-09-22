@@ -39,8 +39,11 @@ private[examples] final class LowBitTruncationFixture(outWidth: HdlInt) extends 
 object LowBitTruncationArtifactWriter {
   private[examples] def generate(output: Path, mode: String): Unit = {
     Files.createDirectories(output)
+    // Keep baseline-supported defaults for repository-hash headers. The fixture
+    // changes only deterministic date emission; WIRE-TRUNC-01 must not depend
+    // on a parameterized-emitter configuration feature introduced later.
     val base = SpinalConfig(targetDirectory = output.toString,
-      oneFilePerComponent = true, headerWithDate = false, headerWithRepoHash = false,
+      oneFilePerComponent = true, headerWithDate = false,
       defaultConfigForClockDomains = ClockDomainConfig(resetKind = SYNC, resetActiveLevel = HIGH))
     val config = mode match {
       case "default" | "repeat" => base
