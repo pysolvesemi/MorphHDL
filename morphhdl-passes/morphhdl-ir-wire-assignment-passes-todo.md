@@ -1266,3 +1266,170 @@ simulation, width/signedness controls, formal equivalence and inherited gates.
   integration changes documentation and seal records only; final full-CI
   qualification remains a pre-merge gate rather than evidence for this
   checkbox.
+
+## September 22 timing report — low-slice absorption into assignment receivers
+
+- [ ] **WIRE-TRUNC-01 — Recursively inline eligible expression carriers when a destination assignment absorbs their low-bit truncation.**
+
+  **Reported case:** the generated timing module computes an unsigned 18-bit
+  sum, then assigns its low 13 bits to a 13-bit register:
+
+  ```verilog
+  wire [17:0] _zz_timing_hSyncEnd;
+  reg [12:0] timing_hSyncEnd;
+  assign _zz_timing_hSyncEnd = (({2'd0, timing_cfg_h_active} +
+      {2'd0, timing_cfg_h_front_porch}) + {2'd0, timing_cfg_h_sync_width});
+  // Inside the existing clocked block and configuration-load condition:
+  timing_hSyncEnd <= _zz_timing_hSyncEnd[12:0];
+  ```
+
+  **Desired transformation for this proved case:**
+
+  ```verilog
+  timing_hSyncEnd <= (({2'd0, timing_cfg_h_active} +
+      {2'd0, timing_cfg_h_front_porch}) + {2'd0, timing_cfg_h_sync_width});
+  ```
+
+  The operands remain unsigned 18-bit expressions; destination assignment
+  discards precisely the upper five bits. The same transformation may apply to
+  a continuous assignment or eligible blocking procedural assignment. It must
+  preserve the original process, clock/reset, conditional guards, priority,
+  sampling and assignment kind. Do not rewrite the user's Scala into named
+  intermediates or hand-edit generated Verilog as the compiler fix.
+
+  **Standalone Scala reproduction:** save as `/tmp/LowSliceReceiverRepro.scala`.
+  This fixture needs only MorphHDL and its native libraries, with no Display
+  Controller checkout or Dan IP. OUT_WIDTH=13 reproduces the reported geometry;
+  the same emitted module exposes the width domain for override qualification.
+
+  ```scala
+  package roadmap
+
+  import spinal.core._
+  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.frontend.HdlInt
+
+  object LowSliceReceiverRepro extends App {
+    require(args.length == 2, "Expected output-directory and passes-enabled")
+    val config = MorphWireAssignmentPasses(SpinalConfig(
+      targetDirectory = args(0), oneFilePerComponent = true,
+      headerWithDate = false, headerWithRepoHash = true
+    ), enabled = args(1).toBoolean)
+    MorphVerilog(config) {
+      new Component {
+        setDefinitionName("LowSliceReceiverRepro")
+        val outWidth: ElabInt = HdlInt.param("OUT_WIDTH", 13, 1, 18).asElabInt
+        val a, b, c = in UInt(16 bits)
+        val load = in Bool()
+        val comb = out UInt(outWidth bits)
+        val sampled = out(Reg(UInt(outWidth bits)) init(0))
+        // Method-local expression: no explicit user-named preservation boundary.
+        def sum = a.resize(18) + b.resize(18) + c.resize(18)
+        comb := sum.resize(outWidth)
+        when(load) { sampled := sum.resize(outWidth) }
+      }
+    }
+  }
+  ```
+
+  Run from the MorphHDL repository root:
+
+  ```sh
+  sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/LowSliceReceiverRepro.scala"))' \
+    'morph/Test/runMain roadmap.LowSliceReceiverRepro /tmp/low-slice-on true' \
+    'morph/Test/runMain roadmap.LowSliceReceiverRepro /tmp/low-slice-off false'
+  iverilog -g2012 -s LowSliceReceiverRepro -o /tmp/low-slice-on.vvp \
+    /tmp/low-slice-on/LowSliceReceiverRepro.v
+  ```
+
+  These commands generate and compile only; they are not behavioral or formal
+  qualification. Retain both compiler plugins. The focused unmanagedSources
+  override must never exclude inherited tests from increment qualification.
+  Confirm the fixture's native and emitted residuals on the current compiler;
+  record actual blockers, including exclusions before candidate proof and
+  late backend-created resize/slice wrappers. The Scala fixture is proposed,
+  not claimed as an executed compiler reproduction by this documentation change.
+
+  **Self-contained Verilog semantic check:** save the following as
+  `/tmp/LowSliceSemantics.v`, then run
+  `iverilog -g2012 -s LowSliceSemantics -o /tmp/low-slice-check /tmp/LowSliceSemantics.v`
+  and `vvp /tmp/low-slice-check`.
+
+  ```verilog
+  `timescale 1ns/1ps
+  module LowSliceSemantics;
+    reg clk = 0;
+    always #5 clk = ~clk;
+    reg [15:0] a = 0, b = 0, c = 0;
+    wire [17:0] tmp = ({2'd0,a} + {2'd0,b}) + {2'd0,c};
+    wire [12:0] oldComb = tmp[12:0];
+    wire [12:0] newComb = ({2'd0,a} + {2'd0,b}) + {2'd0,c};
+    reg [12:0] oldQ, newQ;
+    always @(posedge clk) begin
+      oldQ <= tmp[12:0];
+      newQ <= ({2'd0,a} + {2'd0,b}) + {2'd0,c};
+    end
+    task check;
+      begin
+        #1;
+        if (oldComb !== newComb) $fatal(1, "continuous mismatch");
+        @(posedge clk); #1;
+        if (oldQ !== newQ) $fatal(1, "nonblocking mismatch");
+      end
+    endtask
+    integer i, j;
+    initial begin
+      for (i=0; i<2050; i=i+1) begin
+        @(negedge clk);
+        if (i==0) begin a=0; b=0; c=0; end
+        else if (i==1) begin a=65535; b=65535; c=65535; end
+        else begin a=$random; b=$random; c=$random; end
+        check;
+      end
+      for (i=0; i<16; i=i+1) begin
+        for (j=0; j<6; j=j+1) begin
+          @(negedge clk); a=16'h1234; b=16'hfedc; c=16'h1fff;
+          case (j)
+            0: a[i]=1'bx; 1: a[i]=1'bz;
+            2: b[i]=1'bx; 3: b[i]=1'bz;
+            4: c[i]=1'bx; 5: c[i]=1'bz;
+          endcase
+          check;
+        end
+      end
+      $display("PASS LowSliceSemantics: 2050 ordinary and 96 X/Z vectors");
+      $finish;
+    end
+  endmodule
+  ```
+
+  **Acceptance:** prove the exact assignment boundary: the selection starts at
+  bit zero, its width equals the destination's effective assignment width, and
+  the substituted expression preserves authoritative operand/result widths and
+  signedness. Preserve expression self-determined/context-determined boundaries,
+  intermediate overflow/truncation and X/Z semantics. Nested uses, part-selected
+  destinations, signed extension, nonzero slice offsets and widening receivers
+  require separate proofs; they must not inherit this case's permission.
+
+  Extend the generic native copy/canonical proof/publication paths as needed;
+  do not remove metadata protection indiscriminately or select candidates by
+  `_zz` spelling, component name or literal 18-to-13 widths. Demonstrate that
+  native output does not recreate an equivalent temporary after cleanup.
+  Rewrite every eligible reference and iterate to a fixed point, retaining a
+  carrier when a remaining receiver or real protection requires it. Keep its
+  ordinary name/provenance if retained; no cosmetic `morphhdl_*` renaming.
+
+  Qualify continuous, blocking and nonblocking receivers; shared/mixed receiver
+  sets; reset/load/stall/priority behavior; recursive alias/resize chains; and
+  overrides OUT_WIDTH=1,12,13,17,18 on the same emitted artifact in each mode.
+  Add negative controls for explicit names, dontSimplifyIt/keep/no-merge,
+  unsafe process/sensitivity dependencies, signed/unsigned changes, high slices,
+  dynamic selections, widening, retained symbolic authority and expansion
+  budgets. Use independent modular-arithmetic checks, four-state simulation,
+  applicable formal/equivalence and synthesis checks, deterministic emission,
+  idempotence and all inherited wire-pass/parameterized-publication gates.
+
+  **Documentation evidence, September 22:** the reported fixed-width rewrite
+  passed an Icarus semantic comparison for continuous and nonblocking receivers
+  with 2,050 ordinary and 96 per-bit X/Z vectors. This supports the specific
+  rewrite, not a general optimizer repair or completion of this increment.
