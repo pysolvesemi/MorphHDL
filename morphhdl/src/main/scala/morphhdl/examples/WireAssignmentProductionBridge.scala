@@ -161,6 +161,12 @@ private final class ProductionWireAssignmentPhase(sourceIntent: NativeConditionS
           ternary.changedCount > 0
     }
 
+    // WIRE-TRUNC-01 is final assignment-boundary lowering, not a seventh
+    // selectable wire pass. Keep the six-stage canonical order unchanged.
+    // Its own recursive, fixed-point writeback is proved at each existing
+    // receiver; it never offers the wider RHS to an earlier width normalizer.
+    new AssignmentLowBitTruncationNativePhase(sourceIntent).impl(pc)
+
     completed = true
   }
 }
