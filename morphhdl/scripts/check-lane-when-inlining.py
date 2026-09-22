@@ -51,6 +51,42 @@ def inventory(root: Path) -> dict[str, str]:
     return {p: digest(root / p) for p in sorted(expected)}
 
 
+def canonical_disabled_lane(text: str, *, candidate: bool) -> str:
+    """Canonicalize only the two retained symbolic output-resize carriers.
+
+    CDC-WIRE-01 deliberately stopped assigning ``morphhdl_resize*`` weak names
+    to unnamed native resize nodes.  The disabled lane artifact therefore has
+    the same declarations and assignments with ordinary backend names.  Match
+    those nodes by their exact driver and output receiver, then require byte
+    identity after replacing only the two identifiers.  This is a validator
+    comparison; emitted RTL is never rewritten.
+    """
+    identifier = r"[A-Za-z_][A-Za-z0-9_$]*"
+    roles = (("laneDe", "io_de", "__LANE_DE_RESIZE__"),
+             ("laneFrameEnd", "io_frameEnd", "__LANE_FRAME_END_RESIZE__"))
+    names: list[str] = []
+    canonical = text
+    for source, output, placeholder in roles:
+        matches = re.findall(
+            rf"(?m)^\s*assign\s+({identifier})\s*=\s*{source}\[", text)
+        require(len(matches) == 1, f"disabled lane {source} resize carrier inventory changed")
+        name = matches[0]
+        require(re.search(rf"(?m)^\s*assign\s+{output}\s*=\s*{re.escape(name)}\s*;\s*$", text)
+                is not None, f"disabled lane {output} resize receiver changed")
+        names.append(name)
+        canonical = re.sub(rf"\b{re.escape(name)}\b", placeholder, canonical)
+    require(len(set(names)) == len(names), "disabled lane resize carriers alias")
+    if candidate:
+        require(all(not name.startswith("morphhdl_resize") for name in names),
+                "candidate retained compiler-injected resize naming")
+        require(all(name.startswith("_zz_") for name in names),
+                "candidate resize carrier did not use ordinary generated naming")
+    else:
+        require(all(name.startswith("morphhdl_resize") for name in names),
+                "baseline no longer demonstrates compiler-injected resize naming")
+    return canonical
+
+
 def structural(before: Path, after: Path) -> None:
     for topology in CASES:
         for mode in MODES:
@@ -61,8 +97,16 @@ def structural(before: Path, after: Path) -> None:
             if mode != "disabled":
                 require(artifact(after, topology, mode).read_bytes() ==
                         artifact(after, topology).read_bytes(), f"default/enabled mismatch: {topology}")
-        require(artifact(before, topology, "disabled").read_bytes() ==
-                artifact(after, topology, "disabled").read_bytes(), f"disabled RTL changed: {topology}")
+        if topology == "lane":
+            old_disabled = artifact(before, topology, "disabled").read_text()
+            new_disabled = artifact(after, topology, "disabled").read_text()
+            require(canonical_disabled_lane(old_disabled, candidate=False) ==
+                    canonical_disabled_lane(new_disabled, candidate=True),
+                    "disabled lane RTL changed beyond ordinary resize carrier names")
+        else:
+            require(artifact(before, topology, "disabled").read_bytes() ==
+                    artifact(after, topology, "disabled").read_bytes(),
+                    f"disabled RTL changed: {topology}")
     old = artifact(before, "lane").read_text()
     new = artifact(after, "lane").read_text()
     require("assign _zz_laneDe = {3'd0, laneX_0};" in old and
