@@ -1,0 +1,62 @@
+name: PR192 receiver naming proof repair targeted CI
+
+on:
+  push:
+    branches: [ci/cdc-wire-publication-receiver-repair-aad1e17b]
+    paths:
+      - .github/workflows/cdc-wire-publication-receiver-repair-aad1e17b.yml
+      - .github/recovery/pr192-receiver-repair-aad1e17b/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr192-publication-receiver-repair-aad1e17b
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: aad1e17b23e58beea985e7ddacbfbea5ab68b84e
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = aad1e17b23e58beea985e7ddacbfbea5ab68b84e
+          test "$(git rev-parse 'HEAD^{tree}')" = d19d225af835fcba77bcf96e142cf8a79f4a0fb6
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py --self-test \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr192-dispatch-evidence/source-review.log"
+          python3 -B morphhdl/scripts/test-lane-when-source-scope.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr192-dispatch-evidence/lane-review-tests.log"
+      - name: Launch only the four affected qualification workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr192-receiver-repair-aad1e17b/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr192-publication-receiver-repair-aad1e17b-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr192-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30

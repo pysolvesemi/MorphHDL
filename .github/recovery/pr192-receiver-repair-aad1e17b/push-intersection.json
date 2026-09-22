@@ -1,0 +1,1095 @@
+{
+  "target": "155df6eb0e38ecce04a37de2067b0794702fcb83",
+  "controller_branch": "ci/cdc-wire-publication-receiver-repair-aad1e17b",
+  "existing_push_matches": [],
+  "only_new_controller_matches": true,
+  "workflows": [
+    {
+      "path": ".github/workflows/cdc-independent-parameter-consumers.yml",
+      "sha256": "17826c3b19bb02e526f28d9923862d5bf300f79c239c151fc01624349ca71060",
+      "push": {
+        "branches": [
+          "agent/cdc-independent-parameter-consumers"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/cdc-wire-fixed-point.yml",
+      "sha256": "fdd78581e1403f72fc5af263d656da85a88bdc7b268ce0a1fbcb8f5c76117474",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/wa-cdc-wire-01-fixed-point"
+        ],
+        "paths": [
+          "core/src/main/scala/spinal/core/internals/**",
+          "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
+          "core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala",
+          "core/src/test/scala/spinal/core/internals/**",
+          "lib/src/main/scala/spinal/lib/Utils.scala",
+          "morphhdl-passes/**",
+          "morphhdl/src/main/scala/morphhdl/**",
+          "morphhdl/src/main/scala/spinal/core/internals/**",
+          "morphhdl/src/test/scala/morphhdl/**",
+          "morphhdl/src/test/scala/spinal/core/**",
+          "morphhdl/scripts/**",
+          "morphhdl/contracts/**",
+          ".github/workflows/cdc-wire-fixed-point.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/docker.yml",
+      "sha256": "0ebc02b4ecae5d97c343e228c16cac05f1cbb81e75a4bc5aa4296a3c1e154dff",
+      "push": {
+        "tags": [
+          "*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-52-complete.yml",
+      "sha256": "d71887672a9569ae43abcb4c43096ed0e9561e6cc193fed32fd1ab0573115266",
+      "push": {
+        "branches": [
+          "agent/increment-52-nested-control-flow-clean"
+        ],
+        "paths": [
+          ".github/workflows/increment-52-complete.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-52-final-clean-head.yml",
+      "sha256": "3cb71db23a77bb472b30e482a16cbc929ab29804967962567b8f22b60870d6a8",
+      "push": {
+        "branches": [
+          "agent/increment-52-nested-control-flow-clean"
+        ],
+        "paths": [
+          ".github/workflows/increment-52-final-clean-head.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-52-overlap-debug.yml",
+      "sha256": "59eee9ec45830c0f601d432a450d1c13ef08333eaa49e39227263b116f19b0c3",
+      "push": {
+        "branches": [
+          "agent/increment-52-nested-control-flow-clean"
+        ],
+        "paths": [
+          ".github/workflows/increment-52-overlap-debug.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-52-range-coalesce-repair.yml",
+      "sha256": "8e5f3f692bdf7698f8918b8547548dfb3a33669d9a9f45eda96cfd26047b7f37",
+      "push": {
+        "branches": [
+          "agent/increment-52-nested-control-flow-clean"
+        ],
+        "paths": [
+          ".github/workflows/increment-52-range-coalesce-repair.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-53d-typed-streamwidthadapter.yml",
+      "sha256": "660365897e618367a5bb326058a961741b7c06ecb6f57e4055e4693755c36660",
+      "push": {
+        "branches": [
+          "agent/increment-53d-typed-streamwidthadapter-clean"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-53e-typed-streamfifo.yml",
+      "sha256": "8bdfb9525e140cafa606e5026e115d2e6305ed75fcad034d88401dcfa69cc2c0",
+      "push": {
+        "branches": [
+          "agent/increment-53e-typed-streamfifo-clean"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-53f-typed-primitives.yml",
+      "sha256": "d9195eb20c2a7d4179d475e3cae0e984721c07c4533245e6aeddc26dc3e948b1",
+      "push": {
+        "branches": [
+          "agent/increment-53f-typed-primitives"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-53g-production-retirement.yml",
+      "sha256": "d7e1e446008aa9f19c918f3b4c4c28606f89d471a215cc88dd71885aef4bd792",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-53g-retire-native-int-shadow"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-54-typed-layering-ir.yml",
+      "sha256": "c9ba8b7791a337f881e8e2e272405a660eee00515239642efc7c897f2dbc17df",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-54-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-55-concrete-compatibility-audit.yml",
+      "sha256": "9a8b4d2cfe855992e6b41deebba6fc699838e80f682658bcdd2a9b1c45ef516d",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-55-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-56-native-typed-library-surface.yml",
+      "sha256": "e7926044467a3171ee5a7246cc76b4ecb768997abf8efbad24058fdfab633378",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-56-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-57-broad-native-library-migration.yml",
+      "sha256": "f34c3ad2d119c676113c0ae3ebd19b797c81a57273ec1e15ea0371eb2978e9c7",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-57-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-57a-typed-streamfifocc.yml",
+      "sha256": "5ba48aefec8d23692c99bc66ee2e257131138154d05016b95cd98358c1b161f2",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-57a-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-57b-streamfifocc-payload-width-formal.yml",
+      "sha256": "97211a89109b7a2602d8e43e306762190cf7eced524fdaecc3000ed57464080a",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-57b-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-58-legacy-retirement.yml",
+      "sha256": "1a6cb0e2feb9d1c1839d9aaf7fae7d9e551b8a513e326a429c07b4b0f18245b7",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-58-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59-typed-blackbox-generics.yml",
+      "sha256": "1fbb49e9f35bf7091b629932059f1ec386f2ad86f27f355a2e0c72423d6ff8bc",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-59-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59a-recursive-verilog-module.yml",
+      "sha256": "f504d46431caf1b5fba3c4fc2e443692f961aed9937b4cece4fec0985e11c040",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-59a-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-closed-graph.yml",
+      "sha256": "012cdcdabc70c50c985a301ce8a500b283859286d832182f64624636c39a8a16",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-closed-graph.yml",
+          "morphhdl/src/**",
+          "core/src/**",
+          "lib/src/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-inherited-source-scope.yml",
+      "sha256": "06ee06c83b7afe9f60380d7c83651c5add5fc85c32b02cd922560019e40457f5",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59d-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-inherited-source-scope.yml",
+          "morphhdl/scripts/check-increment-60c-signed-declarations.py",
+          "morphhdl/scripts/check-increment-60d-pure-sint-casts.py",
+          "morphhdl/scripts/check-increment-60e-signedness-boundaries.py",
+          "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
+          "morphhdl/contracts/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-operator-replay.yml",
+      "sha256": "cff74bb38a940b016ba5407d0ee0ef5e422f8b80b0644e0ee691f515246e2e9c",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-operator-replay.yml",
+          "core/**",
+          "lib/**",
+          "morphhdl/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-publication.yml",
+      "sha256": "0edb735fc14ff021e4bc02c6ee9035d93f44f96a4c563fe49f33ce35408136a6",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-publication.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/check-increment-59b-publication.py",
+          "morphhdl/scripts/check-increment-59b-operator-replay.py",
+          "build.sbt",
+          "build.mill",
+          "core/src/**",
+          "lib/src/**",
+          "morphruntime/src/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-reduce-balanced-tree.yml",
+      "sha256": "70d6f6a84bef9b95e74af998bffe22dad0b1718017a5a63e8734ca016e0647d3",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-reduce-balanced-tree.yml",
+          "core/**",
+          "lib/**",
+          "morphhdl/**",
+          "docs/morphhdl/increment-59b*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59b-stage-replay.yml",
+      "sha256": "ee760dd8df0adfbe04a1d221704eeb13daee34b8181808d0c6280ef5e64234ea",
+      "push": {
+        "branches": [
+          "agent/increment-59b-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59b-stage-replay.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/check-increment-59b-stage-replay.py",
+          "morphhdl/scripts/check-increment-59b-operator-replay.py",
+          "core/src/**",
+          "lib/src/**",
+          "morphruntime/src/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59c-named-field-vectors.yml",
+      "sha256": "fc35f82abce044120549798ba892198ac213a5fcbb15e8574a70ec2a3695aea4",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-59c-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59c-named-field-vectors.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/check-increment-59c-*.py",
+          "morphhdl/scripts/test-increment-59c-*.py",
+          "morphhdl/contracts/**",
+          "core/src/**",
+          "lib/src/**",
+          "morphruntime/src/**",
+          "build.sbt",
+          "build.mill"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59d-widening.yml",
+      "sha256": "d0e8c8d3faf98e27948f5eaf70b2cf3f6aed11a9e9f2ad2b239cf379d8fc929c",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-59d-*",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59d-widening.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/check-increment-59d-widening.py",
+          "morphhdl/scripts/bootstrap-increment-59d-verilator.sh",
+          "morphhdl/scripts/check-increment-59d-synthesis.py",
+          "morphhdl/scripts/test-increment-59d-synthesis.py",
+          "morphhdl/scripts/test-increment-59d-inherited-60f-scope.py",
+          "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
+          "morphhdl/scripts/test-inherited-source-audit-timeouts.py",
+          "morphhdl/scripts/check-increment-59b-operator-replay.py",
+          "build.sbt",
+          "build.mill",
+          "core/src/**",
+          "lib/src/**",
+          "morphruntime/src/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59e-composite-reduction.yml",
+      "sha256": "efc890ec50fe3c2833a079da563cddec03aaf78562b8550200310b66021bb80a",
+      "push": {
+        "branches": [
+          "agent/increment-59e-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59e-composite-reduction.yml",
+          "core/src/**",
+          "lib/src/**",
+          "morphruntime/src/**",
+          "morphhdl/**",
+          "morphir/**",
+          "frontend/**",
+          "build.sbt",
+          "build.mill"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59f-callback-graphs.yml",
+      "sha256": "f330768a0307eb472ed6ee2569254dc72d7c04201c1e43aad512f1773d3817ff",
+      "push": {
+        "branches": [
+          "agent/increment-59f-*",
+          "agent/increment-59d-*",
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59f-callback-graphs.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/*59f*.py",
+          "morphhdl/contracts/*59f*.json",
+          "morphhdl/scripts/check-increment-59b-*.py",
+          "core/src/**",
+          "lib/src/**",
+          "frontend/src/**",
+          "morphruntime/src/**",
+          "build.sbt",
+          "build.mill"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59g-register-bridges.yml",
+      "sha256": "786f61fcd3045a46bdbb1b07ab87589de0b5ff9e494ebe3a817d940ab284bd17",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-59g-*"
+        ],
+        "paths": [
+          ".github/workflows/increment-59g-register-bridges.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/**",
+          "morphhdl/contracts/**",
+          "core/src/**",
+          "lib/src/**",
+          "build.sbt",
+          "build.mill"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "sha256": "b2f7d7e6a8f08ffa112521cc43b220c689efd1317a44b1c5d50349e3c2b87102",
+      "push": {
+        "branches": [
+          "agent/increment-59h-*",
+          "agent/increment-59g-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          ".github/workflows/increment-59h-nested-owners.yml",
+          "morphhdl/src/**",
+          "morphhdl/scripts/*59h*.py",
+          "morphhdl/contracts/*59h*.json",
+          "morphhdl/scripts/check-increment-59b-*.py",
+          "morphhdl/scripts/test-increment-59b-inherited-source-scope.py",
+          "morphhdl/scripts/test-inherited-source-audit-timeouts.py",
+          "core/src/**",
+          "lib/src/**",
+          "frontend/src/**",
+          "morphruntime/src/**",
+          "build.sbt",
+          "build.mill"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60a-sint-baseline.yml",
+      "sha256": "e072137720fa4fdec6f9ba63c739932dfa6ba4f0c8068bc8b77b0651faf41354",
+      "push": {
+        "branches": [
+          "agent/increment-60a-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          ".github/workflows/increment-60a-sint-baseline.yml",
+          "morphhdl/**",
+          "docs/morphhdl/increment-60*",
+          "docs/morphhdl/parameterized-verilog-todo.md"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60b-signedness-authority.yml",
+      "sha256": "9a553eafddc1bbea24394e10cfeb6c42250f40fca919327571b057b87a0d145a",
+      "push": {
+        "branches": [
+          "agent/increment-60b-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          ".github/workflows/increment-60b-signedness-authority.yml",
+          "morphhdl/**",
+          "docs/morphhdl/increment-60*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60c-signed-declarations.yml",
+      "sha256": "57674df5bb164c73996ba272f4f6dcbecc3add2f7f170120166acf235cc93de1",
+      "push": {
+        "branches": [
+          "agent/increment-60c-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          "core/**",
+          "morphhdl/**",
+          "docs/morphhdl/increment-60*",
+          ".github/workflows/increment-60c-signed-declarations.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60d-pure-sint-casts.yml",
+      "sha256": "14448a2e6380f2e4325d85b9e8e1cb66c82fca7754e55a98ab975809d0e68673",
+      "push": {
+        "branches": [
+          "agent/increment-60d-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          "core/**",
+          "morphhdl/**",
+          "docs/morphhdl/increment-60*",
+          ".github/workflows/increment-60d-pure-sint-casts.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60e-signedness-boundaries.yml",
+      "sha256": "65ec3914cd90e2b0c9e8cb58c65e365a642ba52fbce37d98878ebb8f2935306a",
+      "push": {
+        "branches": [
+          "agent/increment-60e-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          "core/**",
+          "morphhdl/**",
+          "docs/morphhdl/increment-60*",
+          ".github/workflows/increment-60e-signedness-boundaries.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "sha256": "39c673d5224cf1f153ddbbcdbd42dc17b3a269e205391212257dfa46fe1a693e",
+      "push": {
+        "branches": [
+          "agent/increment-60f-*",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          "core/**",
+          "lib/**",
+          "morphhdl/**",
+          "morphir/**",
+          "morphplugin/**",
+          "morphhdl-passes/**",
+          "docs/morphhdl/increment-60*",
+          ".github/workflows/increment-60f-equivalence-closure.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-60g-default-signed-verilog.yml",
+      "sha256": "1d0589bf1296653cd79104fdc9788f0f9a838037565438ba7a4f07106c424646",
+      "push": {
+        "branches": [
+          "agent/increment-60g-*",
+          "agent/lane-when-expression-inlining",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-61-compatibility-matrix.yml",
+      "sha256": "69cb6d500a543cd08244ac5960f2a35caca32c17490891a5edf5e893db07336f",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-61-one-file-per-component"
+        ],
+        "paths": [
+          ".github/workflows/increment-61-compatibility-matrix.yml",
+          "morphhdl/contracts/increment-61-source-review.json",
+          "morphhdl/scripts/check-increment-61-source-review.py",
+          "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala",
+          "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+          "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala",
+          "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala",
+          "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityCatalog.scala",
+          "morphhdl/src/test/scala/morphhdl/Increment61CompatibilityMatrix.scala"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-61-one-file-per-component.yml",
+      "sha256": "09ba99381423de8db83df55f2d104c7b10a87bfe677359dd9b12a34f25d74134",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-61-one-file-per-component"
+        ],
+        "paths": [
+          ".github/workflows/increment-59c-named-field-vectors.yml",
+          ".github/workflows/increment-59g-register-bridges.yml",
+          ".github/workflows/increment-60c-signed-declarations.yml",
+          ".github/workflows/increment-60d-pure-sint-casts.yml",
+          ".github/workflows/increment-60e-signedness-boundaries.yml",
+          ".github/workflows/increment-60f-equivalence-closure.yml",
+          ".github/workflows/increment-60g-default-signed-verilog.yml",
+          ".github/workflows/increment-61-one-file-per-component.yml",
+          "docs/morphhdl/increment-61-one-file-per-component.md",
+          "docs/morphhdl/parameterized-verilog-todo.md",
+          "morphhdl/contracts/increment-61-source-review.json",
+          "morphhdl/scripts/check-increment-60g-default-rollout.py",
+          "morphhdl/scripts/check-increment-61-source-review.py",
+          "morphhdl/src/main/scala/morphhdl/MorphPerComponentPublication.scala",
+          "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",
+          "morphhdl/src/main/scala/morphhdl/integration/ExternalSpinalVerilog.scala",
+          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalParameterizedVerilog.scala",
+          "morphhdl/src/main/scala/spinal/core/internals/MorphHdlExternalEnumLocalizer.scala",
+          "morphhdl/src/test/scala/morphhdl/Increment61PerComponentPublicationTests.scala"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "sha256": "4a57f26ffba42ac8b743e09583512adca173a569d9d5aaac893fb20398ef6edf",
+      "push": {
+        "branches": [
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/independent-parameter-domains.yml",
+      "sha256": "76e759a978d8a11f87c748c0523d58d1f95f4c3d4e0768e8e78a4ad679b3c616",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/independent-parameter-domain-composition"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/lane-when-expression-diagnostic.yml",
+      "sha256": "23f3ac98376d252a6787bed0d0479bb2070c61ce360061fd9c8efb996e70f679",
+      "push": {
+        "branches": [
+          "agent/lane-when-expression-inlining",
+          "parameterized-verilog"
+        ],
+        "paths": [
+          ".github/workflows/lane-when-expression-diagnostic.yml",
+          "core/src/main/**",
+          "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala",
+          "morphhdl/src/main/**",
+          "morphhdl-passes/examples/**",
+          "morphhdl-passes/src/main/**",
+          "morphhdl/scripts/check-lane-when-inlining.py",
+          "morphhdl/src/test/scala/morphhdl/Lane*",
+          "morphhdl/src/test/scala/morphhdl/GenerateLaneExpressionExample.scala",
+          "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala",
+          "morphhdl/src/test/resources/lane-expression/**"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/mill-tests.yml",
+      "sha256": "36bb84fa1c972facd2a69b1e96aa6d8525f38526ab781215cf4afe2dd5ad1c51",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-baseline.yml",
+      "sha256": "a3d0c1b6a2373f38bebc72d6d8d0d40a0322bfab16a8dfb1f8af88d0f24eb6c5",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-enum-localparams.yml",
+      "sha256": "3424e01ded5828b4abe357565fb787e6b5711f35d23faba757b3965f425a8fa4",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-external-boundary.yml",
+      "sha256": "3f630cb4bf30d0c067f2e02e037f42acc3c2e7309da1d2a1d7ef819606a67cc0",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-external-formalization.yml",
+      "sha256": "fe559240c65379be58ee5b237f3eb2b9096c520f5d81b96e5aae03569284ce20",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-external-memory.yml",
+      "sha256": "3cf6cfed5e1c65c08145e0628fb4713a5e2ae91184edaf12c21201b58725a460",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog",
+          "agent/increment-53e-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-external-structural-process.yml",
+      "sha256": "c28117d4596aab101b85696a9388795fc84bbb0136eff4b9489f03ed7e35dfa4",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-external-symbolic-width.yml",
+      "sha256": "bafa0bf0d0bc1646cb98e64cb6cab7571735cdff74e80f4755784dbf33110738",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-mill.yml",
+      "sha256": "27a16a81ea59975d8b4a5bea8edcd200e8ec2e55464e71d902571782837a2418",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-axi4-slave-factory-formal-equivalence.yml",
+      "sha256": "8c2c5f0d9c71531e8c52b15647111cd7f107c5872e3f4f02e3ab562c463fcb49",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-axi4-slave-factory-offsets.yml",
+      "sha256": "288e9374c02d0ec7974089e0e8fe3ab7a302f562d9956aad55ee71844c273b81",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-int-nested-control-flow.yml",
+      "sha256": "5892ca1f5e380ebc1ad9a6648c6ba8ce5f421f6b335461df9e9e4c1d31d032db",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-int-shadow-expressions.yml",
+      "sha256": "7815bb76ea68015dc3c1b80eb7c17d3941668647f53dd3cae46caa6cdf35c3e6",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-int-shadow-provenance.yml",
+      "sha256": "b2f443419806928d9d90b6d398410fde40a5ce7b4ae5a8a29f628709be02ffe2",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-int-symbolic-conditionals.yml",
+      "sha256": "ae22e981a96b7d03c51d46174158b7eede7736ce370393defdc81eddbeca7a47",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-source-guard.yml",
+      "sha256": "ee0ada3df713a5db0ae3fc20dd2d62491a7be8db070a139a47bda667be4771e8",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog",
+          "agent/increment-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-stream-width-adapter.yml",
+      "sha256": "050110b40b98249d19d66fc39ca0509b3c6cd01721260bdce14e46b22e122933",
+      "push": {
+        "branches": [
+          "agent/increment-53d-native-streamwidth-adapter",
+          "agent/increment-53d-typed-streamwidthadapter-clean",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-streamfifo-formal-equivalence.yml",
+      "sha256": "f81335d475c1f7492ded29334799708fd28acb8a6c052e248d9b9e6cafee28ce",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-native-streamfifo-structure.yml",
+      "sha256": "a66ff3bbad57fd79a4f1985d15a7671b71d437810ebf358024c8f09c7cf0f1e5",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-passes.yml",
+      "sha256": "e8aec793a1a98ab15f5a6ddf913d4679bea6a5dac4b2137221102401e1c57c63",
+      "push": {
+        "branches": [
+          "parameterized-verilog"
+        ],
+        "paths": [
+          "morphhdl-passes/**",
+          ".github/workflows/morphhdl-passes.yml"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-streamfifocc-proof.yml",
+      "sha256": "6a4899c46f9abc6eceab0b2d48c5c11eed9a316ef0d708b804a615f846a887ba",
+      "push": {
+        "branches": [
+          "main",
+          "parameterized-verilog"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/morphhdl-typed-elaboration-values.yml",
+      "sha256": "8070cb056955ee17cdcde9d43c48491464c694166213675197e1fcde7e2c0767",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/increment-53d-*",
+          "agent/increment-53e-*"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/pr189-60b-source-repair.yml",
+      "sha256": "d3ac20698fe4b518953b553c5fe677e1ff67c3f5a1748c35518153521f8be6c4",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/pr189-compact-timeout.yml",
+      "sha256": "60ff3b20f8138c386a1e9a5d3f868c58a05cfc9fc0775ffffb9a8c3a9e714915",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/pr189-pr187-integration.yml",
+      "sha256": "530b141c583a8d85b56acde4219ae4b87b757284dc8fb561759a5aed33c53169",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/push-docs.yml",
+      "sha256": "32cb152bd25f542e20e13968a65e5505c268daea491ebc36c8b9eca9baf12841",
+      "push": {
+        "branches": [
+          "dev"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/run-tests-2_13.yml",
+      "sha256": "33f6db594c3cb490ff5f4f993dc0d2246507382efef1612faeb12342b0a7c290",
+      "push": {
+        "branches": [
+          "dev"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/run-tests-verilator5.yml",
+      "sha256": "6f6f2525a4e750da57574a59782e66f566139f5b665ceeb8e18866f5d3a3bd8b",
+      "push": {
+        "branches": [
+          "dev"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/run-tests.yml",
+      "sha256": "a5e555794f76210b33158a9a09cc5149af1b6453d4163cb01fac7f06d9509e52",
+      "push": {
+        "branches": [
+          "dev"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/sbt-tests.yml",
+      "sha256": "5b0fe9571b92aaabf8796399c4db692e32f856ebc07018df9051a9722c3fab57",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/scalafmt.yml.deprecated",
+      "sha256": "76baa7a7e783f2ac71ec2aa9342d41cf92ffbf6dd1e292688e88587d3c367e7e",
+      "push": false,
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/sequential-source-review-targeted.yml",
+      "sha256": "f8ffdbad457978bbdee45990b3b1988f90a25328d17c7f279cdc26369c52bfc8",
+      "push": {
+        "branches": [
+          "agent/wa-sequential-wire-consumers"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/sequential-wire-consumers.yml",
+      "sha256": "9cb519d62aad6e5468dde81a8b95db14c87dcee29fb825693c9ed787b880df78",
+      "push": {
+        "branches": [
+          "agent/wa-sequential-wire-consumers"
+        ],
+        "paths": [
+          ".github/workflows/sequential-wire-consumers.yml",
+          "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala",
+          "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala",
+          "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala",
+          "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala",
+          "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+          "morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala",
+          "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala",
+          "repro/remaining-wires/build.sbt",
+          "repro/remaining-wires/check.py",
+          "repro/remaining-wires/project/build.properties",
+          "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala",
+          "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala",
+          "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala"
+        ]
+      },
+      "branch_matches": false
+    },
+    {
+      "path": ".github/workflows/wa11-symbolic-boolean-width.yml",
+      "sha256": "f03852f102d715d075cd16adde06bfb6aa79ff317c608c3a701f9a3077cd23a1",
+      "push": {
+        "branches": [
+          "parameterized-verilog",
+          "agent/wa-11-*"
+        ]
+      },
+      "branch_matches": false
+    }
+  ]
+}
