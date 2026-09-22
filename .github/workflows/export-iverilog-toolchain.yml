@@ -1,0 +1,51 @@
+name: Export Icarus portability toolchain
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/export-iverilog-toolchain'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Install and package Icarus Verilog
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y iverilog
+          mkdir -p /tmp/iverilog-root
+          while IFS= read -r path; do
+            [[ -e "${path}" ]] || continue
+            case "${path}" in
+              /usr/share/doc/*|/usr/share/man/*) continue ;;
+            esac
+            mkdir -p "/tmp/iverilog-root$(dirname "${path}")"
+            if [[ -d "${path}" ]]; then
+              mkdir -p "/tmp/iverilog-root${path}"
+            else
+              cp -a "${path}" "/tmp/iverilog-root${path}"
+            fi
+          done < <(dpkg -L iverilog)
+          tar -C /tmp/iverilog-root -czf /tmp/iverilog-toolchain.tar.gz .
+          sha256sum /tmp/iverilog-toolchain.tar.gz > /tmp/iverilog-toolchain.tar.gz.sha256
+          iverilog -V > /tmp/iverilog-version.txt 2>&1
+          ldd /usr/bin/iverilog > /tmp/iverilog-ldd.txt
+          ldd /usr/bin/vvp > /tmp/vvp-ldd.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iverilog-toolchain
+          path: |
+            /tmp/iverilog-toolchain.tar.gz
+            /tmp/iverilog-toolchain.tar.gz.sha256
+            /tmp/iverilog-version.txt
+            /tmp/iverilog-ldd.txt
+            /tmp/vvp-ldd.txt
+          if-no-files-found: error
