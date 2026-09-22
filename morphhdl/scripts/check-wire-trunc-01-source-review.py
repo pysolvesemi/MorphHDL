@@ -204,9 +204,12 @@ def verify(root: Path = ROOT, replay: bool = True) -> dict:
             "source-anchor tree changed")
     git(root, "merge-base", "--is-ancestor", BASE, SOURCE)
     git(root, "merge-base", "--is-ancestor", SOURCE, head)
-    require(changed(root, BASE, SOURCE) == SOURCE_PATHS,
-            "source-anchor inventory differs: " + repr(sorted(changed(root, BASE, SOURCE) ^ SOURCE_PATHS)))
+    # Once a manifest exists in the feature lineage it remains an exact reviewed
+    # path at later source anchors, but its final bytes are sealed independently
+    # below rather than treated as implementation/test/workflow source bytes.
     expected_head = SOURCE_PATHS | {CONTRACT}
+    require(changed(root, BASE, SOURCE) == expected_head,
+            "source-anchor inventory differs: " + repr(sorted(changed(root, BASE, SOURCE) ^ expected_head)))
     require(changed(root, BASE, head) == expected_head,
             "current inventory differs: " + repr(sorted(changed(root, BASE, head) ^ expected_head)))
     source_helper = tree_entry(root, SOURCE, SELF)
