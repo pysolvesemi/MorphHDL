@@ -203,7 +203,7 @@ def verify(root: Path = ROOT, replay: bool = True) -> dict:
     require(changed(root, BASE, head) == expected_head,
             "current inventory differs: " + repr(sorted(changed(root, BASE, head) ^ expected_head)))
     source_helper = tree_entry(root, SOURCE, SELF)
-    require(source_helper is not None && source_helper[1] == value["helper_source_blob"],
+    require(source_helper is not None and source_helper[1] == value["helper_source_blob"],
             "manifest does not pin the source reviewer blob")
 
     # The source anchor fixes every implementation/test/workflow byte. Only this
