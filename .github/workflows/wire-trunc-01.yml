@@ -131,7 +131,13 @@ jobs:
           java -version > "$evidence/java-version.txt" 2>&1
           iverilog -V > "$evidence/iverilog-version.txt" 2>&1
           yosys -V > "$evidence/yosys-version.txt"
-      - name: Canonical assignment proof and malformed-checker controls
+      - name: Authenticate cumulative current source and replay inherited source gates
+        id: source-review
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wire-trunc-01-source-review.py --self-test \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/source-review.log"
+      - name: Canonical assignment proof and checker mutation controls
         id: canonical
         run: |
           set -euo pipefail
@@ -142,7 +148,7 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/canonical.log"
       - name: Generate unchanged public-API artifacts with the actual candidate
         id: generation
-        if: ${{ !cancelled() && steps.identity.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.identity.outcome == 'success' && steps.source-review.outcome == 'success' }}
         run: |
           set -euo pipefail
           sbt -batch '++${{ matrix.scala }}' \
@@ -171,7 +177,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           import json, os, xml.etree.ElementTree as ET
-          expected = {'AssignmentLowBitTruncationProofSpec': 7, 'AssignmentLowBitTruncationNativeTests': 10}
+          expected = {'AssignmentLowBitTruncationProofSpec': 7, 'AssignmentLowBitTruncationNativeTests': 16}
           evidence = {}
           for suite, minimum in expected.items():
               files = list(Path('.').glob('**/target/test-reports/*'+suite+'*.xml'))
@@ -236,7 +242,7 @@ jobs:
               assert len(identity) == 2 and identity[0] == os.environ['EXPECTED_HEAD']
               assert (root/'scala-version.txt').read_text().strip() == version
               counts = json.loads((root/'new-test-counts.json').read_text())
-              assert counts['AssignmentLowBitTruncationProofSpec'] >= 7 and counts['AssignmentLowBitTruncationNativeTests'] >= 10
+              assert counts['AssignmentLowBitTruncationProofSpec'] >= 7 and counts['AssignmentLowBitTruncationNativeTests'] >= 16
               report = json.loads((root/'rtl/qualification.json').read_text())
               matrix = report['matrix']
               expected = {(mode, width) for mode in ('default','enabled','disabled','repeat') for width in (1,12,13,17,18)}
