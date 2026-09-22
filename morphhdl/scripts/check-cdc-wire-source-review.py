@@ -24,6 +24,8 @@ OUTER = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
 CONTRACT = 'morphhdl/contracts/increment-62-wa08-source-overlay.json'
 SELF = 'morphhdl/scripts/check-cdc-wire-source-review.py'
 REGISTRY = 'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json'
+CURRENT_TARGET = '155df6eb0e38ecce04a37de2067b0794702fcb83'
+CURRENT_TARGET_TREE = '2dee374f6f77359f3b4845f9ae9172ac97e7c957'
 PRODUCTION_PATHS = frozenset((
     'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala',
     'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala',
@@ -156,6 +158,24 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root = root.resolve()
     outer = load(root, OUTER)
     seal = sealed if sealed is not None else outer.verify(root)
+    # The cumulative 59i successor authenticates the complete current union.
+    # Replay this immutable CDC certificate at its exact qualified target;
+    # broadening the historical CDC path allowlist would let unrelated 59i
+    # audit adapters masquerade as CDC implementation changes.
+    if hasattr(outer, 'integration_review') and outer.integration_review(root) is not None:
+        require(git(root, 'rev-parse', CURRENT_TARGET+'^{tree}').decode().strip() ==
+                CURRENT_TARGET_TREE, 'qualified CDC target tree changed')
+        current = git(root, 'rev-parse', 'HEAD').decode().strip()
+        with tempfile.TemporaryDirectory(prefix='cdc-wire-qualified-target-') as directory:
+            checkout = Path(directory) / 'source'
+            git(root, 'worktree', 'add', '--detach', str(checkout), CURRENT_TARGET)
+            try:
+                result = verify(checkout)
+            finally:
+                git(root, 'worktree', 'remove', '--force', str(checkout))
+        require(git(root, 'rev-parse', 'HEAD').decode().strip() == current,
+                'current source changed during CDC target replay')
+        return result
     require(hashlib.sha256(outer.normalized_helper((root/OUTER).read_bytes())).hexdigest() ==
             '14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab',
             'outer source verifier algorithm changed')

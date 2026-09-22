@@ -452,13 +452,13 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     if len(re.findall(pattern, raw, re.M)) != 1:
         raise RuntimeError('continuation routing found an ambiguous current verifier seal')
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    if hashlib.sha256(normalized).hexdigest() != '3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84':
+    if hashlib.sha256(normalized).hexdigest() != '6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f':
         raise RuntimeError('continuation routing refuses an unauthenticated current verifier')
     review = types.ModuleType('reviewed_schema4_continuation_route')
     review.__file__ = str(helper)
     exec(compile(raw, str(helper), 'exec'), review.__dict__)
     value = review.verify(ROOT)
-    if value['schema_version'] not in (4, 5, 6, 7):
+    if value['schema_version'] not in (4, 5, 6, 7, 8, 9):
         raise RuntimeError('continuation route changed schema')
     anchor = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
     originals = {
@@ -491,14 +491,14 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
         print('Exercising current schema-4 lifecycle controls', flush=True)
         subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-local-enable-successor.py', '-v'],
             cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
-        if value['schema_version'] in (5, 6, 7):
+        if value['schema_version'] in (5, 6, 7, 8, 9):
             subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-pr190-integration.py', '-v'],
                 cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
     review.verify(ROOT)
 
 
 if __name__ == '__main__':
-    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7):
+    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7, 8, 9):
         run_schema4_historical_continuation()
     else:
         unittest.main(verbosity=2)

@@ -29,7 +29,7 @@ TEST = "morphhdl/scripts/test-increment-59i-local-enable-source-review.py"
 CONTRACT_SHA256 = "d886bc65b410f971a5e4d009ea63b5d630caf449a6ed40b2411ef196775bd81d"
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-SUCCESSOR_HELPER_SHA256 = "3c7f16450f34374a3c1a486e0713ae895ccd6a4b8c1ec3e6c444e06f439c0c84"
+SUCCESSOR_HELPER_SHA256 = "6d15673dbd8bda6f93043d7150fa8ae1b34b5f83c8af4967ead5e421b231b01f"
 BASE_CONTRACT_SHA256 = "99dd143a0cc54898051e21adb58d311671af97642c6a77e52554f5d86b85125b"
 QUALIFICATION = "source-review-only; hardware and final-head qualification remain independent mandatory gates"
 PATHS = (
@@ -233,11 +233,11 @@ def verify(root: Path) -> dict[str, dict]:
     require(digest(frozen(root, BASE, SUCCESSOR_CONTRACT)) == BASE_CONTRACT_SHA256,
         "published predecessor certificate changed")
     schema = successor.contract(root)['schema_version']
-    reviewed_head = successor.RUNTIME_REPAIR_PARENT if schema in (6, 7) else head
+    reviewed_head = (successor.RUNTIME_REPAIR_PARENT if schema in (6, 7, 9) else head)
     delta = {path.decode() for path in git(root, "diff", "--no-renames", "--name-only", "-z", BASE, reviewed_head).split(b"\0")
         if path and re.search(rb"(?:^|/)src/main/", path)}
     expected = set(PRODUCTION_PATHS)
-    if schema in (5, 6, 7):
+    if schema in (5, 6, 7, 8, 9):
         # Every additional target body is independently bound to the exact
         # PR190 merge; it cannot become a local-enable review exception.
         expected |= {path for path in successor.changed(root, successor.PR190_COMMON,
@@ -246,7 +246,7 @@ def verify(root: Path) -> dict[str, dict]:
     verify_committed_identity(root, (*PATHS, CONTRACT, CHECKER, TEST))
     for path, entry in entries.items():
         source = (frozen(root, successor.RUNTIME_REPAIR_PARENT, path)
-            if schema in (6, 7) else regular(root, path))
+            if schema in (6, 7, 9) else regular(root, path))
         restore_reviewed(entry, frozen(root, BASE, path), source)
     require(git(root, "rev-parse", "HEAD").decode().strip() == head, "HEAD changed during source review")
     return entries
@@ -260,7 +260,8 @@ def restore_source(root: Path, path: str, source: str) -> str:
         return source
     raw = source.encode()
     baseline = frozen(root, BASE, path)
-    if successor.contract(root)['schema_version'] in (6, 7) and raw == regular(root, path):
+    schema = successor.contract(root)['schema_version']
+    if schema in (6, 7, 9) and raw == regular(root, path):
         # The runtime successor legitimately changes several local-enable
         # production files after this historical review.  Authenticate the
         # complete live checkout first, then project those exact bytes to the
@@ -293,7 +294,7 @@ def self_test(root: Path) -> None:
     for path, entry in entries.items():
         baseline = frozen(root, BASE, path)
         source = (frozen(root, successor.RUNTIME_REPAIR_PARENT, path)
-            if schema in (6, 7) else regular(root, path))
+            if schema in (6, 7, 9) else regular(root, path))
         require(restore_reviewed(entry, baseline, source) == baseline, "positive span reversal failed")
         positions = {0, len(source) // 2, len(source) - 1}
         positions.update(edit["after_start"] for edit in entry["edits"])
