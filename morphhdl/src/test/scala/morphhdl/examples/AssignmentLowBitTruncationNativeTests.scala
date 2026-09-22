@@ -73,6 +73,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
       })
     }
     val witnessWidth = HdlInt.param("WITNESS_WIDTH", 2, 1, 4)
+    val symbolicWidth = HdlInt.param("SYMBOLIC_WIDTH", 18, 14, 18)
     MorphVerilog(config) {
       new Component {
         setDefinitionName("LowBitNativeBoundary")
@@ -80,10 +81,17 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
         val witnessOut = out Bits(witnessWidth bits)
         witnessOut := witnessIn
         val a, b, c = in UInt(16 bits)
+        val select = in UInt(5 bits)
         @dontName val first = a.resize(18) + b.resize(18)
         @dontName val bridge = UInt(18 bits)
         bridge := first
-        @dontName val expression = if (kind == "repeated") bridge ^ bridge else bridge ^ c.resize(18)
+        @dontName val ordinary = bridge ^ c.resize(18)
+        @dontName val expression = if (kind == "repeated") bridge ^ bridge
+          else if (kind == "symbolic") {
+            val symbolic = UInt(symbolicWidth bits)
+            symbolic := ordinary.resize(symbolicWidth.asElabInt)
+            symbolic
+          } else ordinary
         carrier = expression
         kind match {
           case "keep" => expression.addAttribute("keep")
@@ -92,10 +100,25 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
           case "no-merge" => expression.addTag(noBackendCombMerge)
           case _ =>
         }
-        val result = out UInt((if (kind == "widening") 20 else 13) bits)
+        val resultWidth = if (kind == "widening") 20 else if (kind == "part-target") 18 else 13
+        val result = out UInt(resultWidth bits)
         low = result
-        if (kind == "high-slice") result := expression(17 downto 5)
-        else result := expression.resize(if (kind == "widening") 20 else 13)
+        kind match {
+          case "high-slice" => result := expression(17 downto 5)
+          case "widening" => result := expression.resize(20)
+          case "signed" => result := expression.asSInt.resize(13).asUInt
+          case "dynamic" => result := expression(select).asUInt.resize(13)
+          case "part-target" => result(12 downto 0) := expression(12 downto 0)
+          case "unsafe-blocking" =>
+            val unsafe = UInt(18 bits).setName("unsafeComb")
+            unsafe := a.resize(18)
+            result := 0
+            when(witnessIn.orR) { result := (expression ^ unsafe).resize(13) }
+          case "budget" =>
+            val expanded = (0 until 33).map(_ => expression).reduce(_ ^ _)
+            result := expanded.resize(13)
+          case _ => result := expression.resize(13)
+        }
         if (kind == "mixed") {
           val other = out UInt(13 bits)
           protectedUse = other
@@ -106,7 +129,9 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
     assert(observed, "native boundary observer did not execute")
   }
 
-  for (kind <- Vector("safe", "repeated", "mixed", "keep", "vital", "explicit", "no-merge", "high-slice", "widening")) {
+  for (kind <- Vector("safe", "repeated", "mixed", "keep", "vital", "explicit", "no-merge",
+      "high-slice", "widening", "signed", "dynamic", "part-target", "symbolic",
+      "unsafe-blocking", "budget")) {
     test("native assignment absorption: " + kind) { inspect(kind) }
   }
 
