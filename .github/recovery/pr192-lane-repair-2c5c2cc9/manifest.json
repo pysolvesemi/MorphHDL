@@ -1,0 +1,58 @@
+{
+  "repository": "pysolvesemi/MorphHDL",
+  "pr": 192,
+  "head": "2c5c2cc93fc0ed2ba848f82e0c55f1e028dd77ef",
+  "tree": "6e0c42ddee090bef366b1c7a8360b16e8a4a6322",
+  "branch": "agent/cdc-wire-native-publication-cleanup",
+  "target_branch": "parameterized-verilog",
+  "target": "155df6eb0e38ecce04a37de2067b0794702fcb83",
+  "controller_branch": "ci/cdc-wire-publication-lane-repair-2c5c2cc9",
+  "controller_path": ".github/workflows/cdc-wire-publication-lane-repair-2c5c2cc9.yml",
+  "controller_root": ".github/recovery/pr192-lane-repair-2c5c2cc9",
+  "workflows": [
+    {
+      "id": 357516223,
+      "path": ".github/workflows/lane-when-expression-diagnostic.yml",
+      "sha256": "23f3ac98376d252a6787bed0d0479bb2070c61ce360061fd9c8efb996e70f679",
+      "reason": "Failed full-CI proof contract; both Scala lanes require the repaired disabled resize-name comparison"
+    },
+    {
+      "id": 362756881,
+      "path": ".github/workflows/cdc-wire-fixed-point.yml",
+      "sha256": "959191772d21e4f4cb76b97e95530c5426e17b4588926ce94c6b14d996d27548",
+      "reason": "Authenticates the repaired CDC-WIRE source review and cumulative source seal"
+    },
+    {
+      "id": 354645379,
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "sha256": "4a57f26ffba42ac8b743e09583512adca173a569d9d5aaac893fb20398ef6edf",
+      "reason": "Runs the changed lane review tests and the resealed cumulative source overlay"
+    },
+    {
+      "id": 337719848,
+      "path": ".github/workflows/morphhdl-passes.yml",
+      "sha256": "25e4917c29a18593ce86ee3c8955eaca7f365e2cb13d2f6a48beb212aee37d9f",
+      "reason": "Runs the changed lane review tests and CDC-WIRE source-review controls"
+    }
+  ],
+  "failure_evidence": {
+    "run": 35676871683,
+    "workflow_id": 357516223,
+    "path": ".github/workflows/lane-when-expression-diagnostic.yml",
+    "head": "c92db6bf944227ffc3980568d0d150e87d66f7f4",
+    "jobs": [
+      {
+        "job": 106585117907,
+        "step": "Check final RTL, parameter widths, simulations, proofs, and real RTL mutations"
+      },
+      {
+        "job": 106585117933,
+        "step": "Check final RTL, parameter widths, simulations, proofs, and real RTL mutations"
+      },
+      {
+        "job": 106595906734,
+        "step": "Reject missing skipped cancelled or failed required jobs"
+      }
+    ]
+  }
+}

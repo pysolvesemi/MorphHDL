@@ -1,0 +1,62 @@
+name: PR192 lane naming proof repair targeted CI
+
+on:
+  push:
+    branches: [ci/cdc-wire-publication-lane-repair-2c5c2cc9]
+    paths:
+      - .github/workflows/cdc-wire-publication-lane-repair-2c5c2cc9.yml
+      - .github/recovery/pr192-lane-repair-2c5c2cc9/**
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: pr192-publication-lane-repair-2c5c2cc9
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 2c5c2cc93fc0ed2ba848f82e0c55f1e028dd77ef
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Authenticate the exact repaired source and seal
+        working-directory: qualification
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+          test "$(git rev-parse HEAD)" = 2c5c2cc93fc0ed2ba848f82e0c55f1e028dd77ef
+          test "$(git rev-parse 'HEAD^{tree}')" = 6e0c42ddee090bef366b1c7a8360b16e8a4a6322
+          python3 -B morphhdl/scripts/check-cdc-wire-source-review.py --self-test \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr192-dispatch-evidence/source-review.log"
+          python3 -B morphhdl/scripts/test-lane-when-source-scope.py \
+            2>&1 | tee "$GITHUB_WORKSPACE/pr192-dispatch-evidence/lane-review-tests.log"
+      - name: Launch only the four affected qualification workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/pr192-lane-repair-2c5c2cc9/dispatch.py \
+            --source "$GITHUB_WORKSPACE/qualification" \
+            --output "$GITHUB_WORKSPACE/pr192-dispatch-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr192-publication-lane-repair-2c5c2cc9-${{ github.run_id }}-${{ github.run_attempt }}
+          path: pr192-dispatch-evidence/
+          if-no-files-found: error
+          retention-days: 30
