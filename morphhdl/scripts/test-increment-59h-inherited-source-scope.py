@@ -92,6 +92,17 @@ def current_positive_timeout(root: Path) -> int:
     return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
 
 
+def current_negative_timeout(root: Path) -> int:
+    # Current schema-successor negatives authenticate the complete joined
+    # source before reaching their deliberate mutation.  Reserve the same
+    # bounded rejection headroom used by the inherited 60f harness only when
+    # that exact successor contract is present.  Historical/default 59h
+    # negatives retain their original 180-second contract.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 180
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     # The complete current traversal can exceed 180s under audit contention.
@@ -246,7 +257,8 @@ def main() -> None:
                     elif mutation == "hidden-index":
                         git(fixture, "add", "--", relative)
                         path.write_bytes(original)
-                records.append(checked(fixture, label, expected))
+                records.append(checked(fixture, label, expected,
+                                       timeout_seconds=current_negative_timeout(fixture)))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
         historical = Path(directory) / "historical-59c"

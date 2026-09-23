@@ -7,6 +7,7 @@ are mocked; the actual audit wrappers and entry-point budget choices execute.
 """
 from __future__ import annotations
 
+import ast
 import contextlib
 import importlib.util
 import io
@@ -162,6 +163,38 @@ class AuditTimeoutTests(unittest.TestCase):
                 self.assertEqual(record["exit_code"], code)
                 self.assertEqual(record["expected_rejection"], expected)
                 self.assertEqual(record["source_head"], "source-head")
+
+    def test_59h_current_successor_negative_budget_has_bounded_headroom(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            integration = root / "morphhdl/contracts/increment-59i-target-integration.json"
+            integration.parent.mkdir(parents=True)
+            integration.write_text("fixture presence only")
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            successor = root / "morphhdl/contracts/increment-59i-production-successor.json"
+            successor.write_text("fixture presence only; the real audit authenticates its bytes")
+            self.assertEqual(module.current_negative_timeout(root), 600)
+            self.assertGreater(module.current_negative_timeout(root), 2 * 180)
+
+    def test_59h_current_negative_call_uses_the_successor_selector(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        tree = ast.parse(Path(module.__file__).read_text())
+        main = next(node for node in tree.body
+                    if isinstance(node, ast.FunctionDef) and node.name == "main")
+        calls = [node for node in ast.walk(main)
+                 if isinstance(node, ast.Call)
+                 and isinstance(node.func, ast.Name)
+                 and node.func.id == "checked"]
+        routed = [keyword.value for call in calls for keyword in call.keywords
+                  if keyword.arg == "timeout_seconds"
+                  and isinstance(keyword.value, ast.Call)
+                  and isinstance(keyword.value.func, ast.Name)
+                  and keyword.value.func.id == "current_negative_timeout"]
+        self.assertEqual(len(routed), 1)
+        self.assertEqual(ast.unparse(routed[0]),
+                         "current_negative_timeout(fixture)")
 
     def test_59h_main_selects_600_seconds_only_for_complete_positive(self):
         module = load("test-increment-59h-inherited-source-scope.py")

@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 for index in range(1, len(relative.parts) + 1)) or not path.is_file() or path.stat().st_mode & 0o111:
             raise RuntimeError('PR189 historical router must be a regular non-executable file')
         raw = path.read_bytes()
-        if hashlib.sha256(raw).hexdigest() != '9048883b8878ac6a90efd9cad5f06fc475ae580f74c7fd6678ff6358d573337b':
+        if hashlib.sha256(raw).hexdigest() != 'c15e3b94eb1fd150900b64f182854e4316da81bb7e2a17ad3f052547995ae119':
             raise RuntimeError('PR189 historical router changed')
         route = types.ModuleType('authenticated_pr189_historical_route')
         route.__file__ = str(path)

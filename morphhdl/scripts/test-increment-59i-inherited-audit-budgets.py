@@ -161,6 +161,36 @@ def historical_ast(filename: str, text: str) -> ast.Module:
     if filename == "test-increment-59h-inherited-source-scope.py":
         tree = restore_reviewed_59h_checkout_identity(tree)
         tree = restore_reviewed_59h_diagnostics(tree)
+        negative = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                    and node.name == "current_negative_timeout"]
+        expected_negative = ast.parse(f'''def current_negative_timeout(root: Path) -> int:
+    if (root / "{SUCCESSOR}").is_file():
+        return 600
+    return 180
+''').body[0]
+        if len(negative) != 1 or dump(negative[0]) != dump(expected_negative):
+            raise AssertionError("unexpected current-negative selector")
+        expected_call = dump(ast.parse("current_negative_timeout(fixture)", mode="eval").body)
+
+        class RestoreNegativeBudget(ast.NodeTransformer):
+            count = 0
+
+            def visit_Call(self, node):
+                if (isinstance(node.func, ast.Name) and node.func.id == "checked"):
+                    retained = []
+                    for keyword in node.keywords:
+                        if keyword.arg == "timeout_seconds" and dump(keyword.value) == expected_call:
+                            self.count += 1
+                        else:
+                            retained.append(keyword)
+                    node.keywords = retained
+                return self.generic_visit(node)
+
+        restore_negative = RestoreNegativeBudget()
+        tree = restore_negative.visit(tree)
+        if restore_negative.count != 1:
+            raise AssertionError("expected exactly one current-negative selector call")
+        tree.body.remove(negative[0])
     if filename == "test-increment-59g-source-review.py":
         joined = dump(ast.parse("max(600, current_positive_timeout(ROOT))", mode="eval").body)
         unjoined = ast.parse("current_positive_timeout(ROOT)", mode="eval").body
@@ -295,6 +325,16 @@ class InheritedAuditBudgetTests(unittest.TestCase):
                     patch.object(module.subprocess, "run", return_value=result) as run:
                 self.invoke(module, caller, ROOT, "precise rejection")
                 self.assertEqual(run.call_args.kwargs["timeout"], negative_budget)
+
+    def test_59h_current_successor_negative_budget_is_bounded(self):
+        module = load("test-increment-59h-inherited-source-scope.py")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            write_marker(root, PARENT)
+            self.assertEqual(module.current_negative_timeout(root), 180)
+            write_marker(root, SUCCESSOR)
+            self.assertEqual(module.current_negative_timeout(root), 600)
 
     def test_git_commands_remain_120_seconds(self):
         for filename, _, _, _, _ in CASES:
