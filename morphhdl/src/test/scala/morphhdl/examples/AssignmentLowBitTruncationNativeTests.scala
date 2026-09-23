@@ -44,13 +44,20 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
       phases.insert(index, new Phase {
         override def hasNetlistImpact: Boolean = true
         override def impl(pc: PhaseContext): Unit = {
-          val sourceBefore = low.head.asInstanceOf[DataAssignmentStatement].source
+          val assignment = low.head.asInstanceOf[DataAssignmentStatement]
+          // Recreate the exact boundary left when an earlier canonical stage has
+          // already consumed the explicit resize: the whole assignment now owns
+          // the low projection of this wider generated carrier.
+          if (kind == "absorbed") assignment.source = carrier
+          val sourceBefore = assignment.source
+          val carrierLiveBefore = carrier.parentScope != null
+          val carrierReferencedBefore = references(sourceBefore, carrier)
           val carrierName = NativeWireNameProvenance.origin(carrier)
           val phase = new AssignmentLowBitTruncationNativePhase(intent)
           phase.impl(pc)
-          val sourceAfter = low.head.asInstanceOf[DataAssignmentStatement].source
+          val sourceAfter = assignment.source
           kind match {
-            case "safe" | "mixed" | "repeated" =>
+            case "safe" | "absorbed" | "mixed" | "repeated" =>
               assert(carrierName.exists(value => value == morphhdl.ir.v1.NameOrigin.Unnamed ||
                 value == morphhdl.ir.v1.NameOrigin.Generated), carrierName)
               assert(phase.rewrittenAssignments >= 1, "eligible low-bit receiver was not rewritten")
@@ -60,9 +67,21 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
                 assert(carrier.parentScope != null, "shared carrier was deleted while an unsupported receiver remains")
                 assert(references(protectedUse.head.asInstanceOf[DataAssignmentStatement].source, carrier))
               } else assert(carrier.parentScope == null, "dead eligible carrier was not removed")
+            case "keep" | "vital" | "explicit" | "no-merge" =>
+              // Protection belongs to the carrier identity. An inherited phase
+              // may already have copied an independent expression away from it;
+              // WIRE-TRUNC must never make the protected carrier newly dead or
+              // rewrite an assignment that still references that identity.
+              assert((carrier.parentScope != null) == carrierLiveBefore,
+                "WIRE-TRUNC changed protected carrier liveness")
+              if (carrierReferencedBefore) {
+                assert(sourceAfter eq sourceBefore, "protected carrier receiver was changed")
+                assert(references(sourceAfter, carrier), "protected carrier reference was removed")
+              }
             case _ =>
-              assert(sourceAfter eq sourceBefore, "protected or unsupported receiver was changed")
-              assert(carrier.parentScope != null, "protected carrier identity was removed")
+              assert(sourceAfter eq sourceBefore, "unsupported receiver was changed")
+              assert((carrier.parentScope != null) == carrierLiveBefore,
+                "WIRE-TRUNC changed pre-existing carrier liveness for an unsupported receiver")
           }
           val second = new AssignmentLowBitTruncationNativePhase(intent)
           second.impl(pc)
@@ -129,7 +148,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
     assert(observed, "native boundary observer did not execute")
   }
 
-  for (kind <- Vector("safe", "repeated", "mixed", "keep", "vital", "explicit", "no-merge",
+  for (kind <- Vector("safe", "absorbed", "repeated", "mixed", "keep", "vital", "explicit", "no-merge",
       "high-slice", "widening", "signed", "dynamic", "part-target", "symbolic",
       "unsafe-blocking", "budget")) {
     test("native assignment absorption: " + kind) { inspect(kind) }
