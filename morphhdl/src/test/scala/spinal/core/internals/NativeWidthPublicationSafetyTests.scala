@@ -221,12 +221,19 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       val resize = assignment.source.asInstanceOf[Resize]
       assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
       assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "pending" })
       assignment.source = fixture.source
       ExternalParameterizedNativeResize.completeLowBitTruncationConsumption(
         fixture, assignment, fixture.source)
       assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
-      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "valid" } == "valid")
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        "valid"
+      } == "valid")
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
       expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
 
       val originalScope = assignment.parentScope
@@ -235,7 +242,11 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       assignment.parentScope = borrowed
       expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved" })
       assignment.parentScope = originalScope
-      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "restored" } == "restored")
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        "restored"
+      } == "restored")
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
     }
   }
 
