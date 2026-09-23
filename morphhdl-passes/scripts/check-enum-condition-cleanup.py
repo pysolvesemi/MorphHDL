@@ -28,11 +28,14 @@ ALL_TOPS = FSM_TOPS + [top for top, _, _ in OBSERVATION_TOPS] + [
 ]
 
 
-def run(work: Path, command: list[str], label: str) -> str:
+def run(work: Path, command: list[str], label: str, *, expect_failure: bool = False) -> str:
     result = subprocess.run(command, cwd=work, text=True, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT, timeout=300)
     (work / (label + ".log")).write_text(result.stdout)
-    assert result.returncode == 0, f"{label}: {' '.join(command)}\n{result.stdout}"
+    if expect_failure:
+        assert result.returncode != 0, f"{label}: mutation unexpectedly passed"
+    else:
+        assert result.returncode == 0, f"{label}: {' '.join(command)}\n{result.stdout}"
     return result.stdout
 
 
@@ -261,6 +264,35 @@ def simulate_observation(root: Path, top: str, bits: int, kind: str) -> None:
     assert "ENUM_FOUR_STATE_PASS" in output
 
 
+def prove_equivalence(work: Path, top: str, width: int, gold_file: str,
+                      gate_file: str, label: str, *, structural: bool = False,
+                      expect_failure: bool = False) -> None:
+    lines: list[str] = []
+    for source, name in ((gold_file, "gold"), (gate_file, "gate")):
+        lines += [f"read_verilog -formal -D SYNTHESIS {source}",
+              f"chparam -set WIDTH {width} {top}", f"hierarchy -check -top {top}",
+              "proc", "flatten", "memory_map", "opt_clean", "async2sync", "opt_clean",
+              "rename -hide", f"rename {top} {name}", f"design -stash {name}"]
+    lines += ["design -reset", "design -copy-from gold -as gold gold",
+              "design -copy-from gate -as gate gate", "equiv_make gold gate equiv",
+              "hierarchy -check -top equiv"]
+    if structural:
+        # Names are deliberately hidden before composition: generated spellings
+        # are not state or provenance evidence.  For generated-mode comparisons,
+        # derive correspondence from common inputs and identical cell topology.
+        # Independent handwritten-oracle proofs keep their existing SAT-only
+        # route because their intentionally different topology is not evidence.
+        lines += ["equiv_struct -fwd -icells", "opt_clean", "opt_expr"]
+    lines += ["equiv_simple -undef -seq 8",
+              "equiv_induct -undef -seq 8", "equiv_status -assert"]
+    script = work / (label + ".ys")
+    script.write_text("\n".join(lines) + "\n")
+    output = run(work, ["yosys", "-Q", "-s", script.name], label,
+                 expect_failure=expect_failure)
+    if expect_failure:
+        assert re.search(r"ERROR: Found [1-9][0-9]* unproven \$equiv cells", output), output
+
+
 def formal_and_synthesis(root: Path, top: str, width: int) -> dict:
     work = root / "qualification" / f"formal-{top}-{width}"
     work.mkdir(parents=True, exist_ok=True)
@@ -268,27 +300,16 @@ def formal_and_synthesis(root: Path, top: str, width: int) -> dict:
         shutil.copyfile(root / mode / (top + ".v"), work / (mode + ".v"))
         run(work, ["iverilog", "-g2012", "-s", top, "-tnull", f"-P{top}.WIDTH={width}",
                    mode + ".v"], mode + "-strict-compile")
-    def prove(gold_file: str, gate_file: str, label: str) -> None:
-        lines: list[str] = []
-        for source, name in ((gold_file, "gold"), (gate_file, "gate")):
-            lines += [f"read_verilog -formal -D SYNTHESIS {source}",
-                  f"chparam -set WIDTH {width} {top}", f"hierarchy -check -top {top}",
-                  "proc", "flatten", "memory_map", "opt_clean", "async2sync", "opt_clean",
-                  "rename -hide", f"rename {top} {name}", f"design -stash {name}"]
-        lines += ["design -reset", "design -copy-from gold -as gold gold",
-                  "design -copy-from gate -as gate gate", "equiv_make gold gate equiv",
-                  "hierarchy -check -top equiv", "equiv_simple -undef -seq 8",
-                  "equiv_induct -undef -seq 8", "equiv_status -assert"]
-        script = work / (label + ".ys")
-        script.write_text("\n".join(lines) + "\n")
-        run(work, ["yosys", "-Q", "-s", script.name], label)
 
-    prove("disabled.v", "enabled.v", "mode-equivalence")
+    prove_equivalence(work, top, width, "disabled.v", "enabled.v", "mode-equivalence",
+                      structural=True)
     oracle_proved = False
     if top == "EnumConditionRepro":
         (work / "oracle.v").write_text(fsm_oracle())
-        prove("oracle.v", "enabled.v", "enabled-oracle-equivalence")
-        prove("oracle.v", "disabled.v", "disabled-oracle-equivalence")
+        prove_equivalence(work, top, width, "oracle.v", "enabled.v",
+                          "enabled-oracle-equivalence")
+        prove_equivalence(work, top, width, "oracle.v", "disabled.v",
+                          "disabled-oracle-equivalence")
         oracle_proved = True
     synthesis = {}
     for mode in ("enabled", "disabled"):
@@ -302,6 +323,22 @@ def formal_and_synthesis(root: Path, top: str, width: int) -> dict:
             "independent_oracle": "passed" if oracle_proved else "not-applicable"}
 
 
+def reject_transition_mutation(root: Path) -> dict:
+    top = "EnumConditionBinaryCoverage"
+    width = 8
+    work = root / "qualification" / f"formal-{top}-{width}"
+    source = (work / "enabled.v").read_text()
+    old = "if((fsm_stateReg == FSM_IDLE)) begin"
+    assert source.count(old) == 2, "binary FSM mutation target changed"
+    mutated = source.replace(old, "if((fsm_stateReg == FSM_ACTIVE)) begin", 1)
+    (work / "transition-mutation.v").write_text(mutated)
+    prove_equivalence(work, top, width, "disabled.v", "transition-mutation.v",
+                      "transition-mutation-equivalence", structural=True,
+                      expect_failure=True)
+    return {"top": top, "width": width, "kind": "wrong-state-transition",
+            "formal": "rejected"}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("artifacts", type=Path)
@@ -311,7 +348,8 @@ def main() -> None:
     for tool in ("iverilog", "vvp", "yosys"):
         assert shutil.which(tool), f"missing required HDL tool: {tool}"
     result: dict[str, object] = {"head": args.head,
-        "structure": structural_check(root, args.head), "fsm": [], "four_state": [], "formal": []}
+        "structure": structural_check(root, args.head), "fsm": [], "four_state": [],
+        "formal": [], "formal_mutations": []}
     for width in (1, 8, 32):
         simulate_fsm(root, width)
         result["fsm"].append({"width": width, "oracle": "passed", "mode_equality": "passed"})
@@ -325,6 +363,7 @@ def main() -> None:
     for top in FSM_TOPS[1:] + ["DistinctEnumIdentityRepro"]:
         result["formal"].append({"top": top, "width": 8,
             "synthesis_cells": formal_and_synthesis(root, top, 8)})
+    result["formal_mutations"].append(reject_transition_mutation(root))
     (root / "qualification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(f"ENUM_CONDITION_QUALIFICATION_PASS formal={len(result['formal'])} "
           f"four_state={len(result['four_state'])} widths=3")
