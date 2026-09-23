@@ -81,6 +81,7 @@ TEST_PATHS = frozenset((
     'morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala',
     'morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala',
     'morphhdl/src/test/scala/morphhdl/examples/EnumConditionNativeIdentityTests.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala',
 ))
 REVIEW_PATHS = frozenset((
     'docs/morphhdl/lane-when-inlining-repair.md',
@@ -130,6 +131,7 @@ REVIEW_PATHS = frozenset((
     '.github/workflows/increment-60f-equivalence-closure.yml',
     'docs/morphhdl/cdc-wire-fixed-point-source-review.md',
     'docs/morphhdl/parameterized-verilog-todo.md',
+    'docs/morphhdl/increment-64-derived-localparams.md',
     'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md',
 ))
 
