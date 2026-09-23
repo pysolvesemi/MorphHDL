@@ -39,8 +39,10 @@ SOURCE_PATHS = frozenset((
     "morphhdl-passes/src/test/scala/morphhdl/passes/transform/AssignmentLowBitTruncationProofSpec.scala",
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationNativePhase.scala",
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
     "morphhdl/src/test/scala/morphhdl/examples/AssignmentLowBitTruncationNativeTests.scala",
     "morphhdl/src/test/scala/nativeapplication/LowBitTruncationArtifactWriter.scala",
+    "morphhdl/src/test/scala/spinal/core/internals/NativeWidthPublicationSafetyTests.scala",
     SELF,
 ))
 
@@ -49,6 +51,7 @@ PRODUCTION_PATHS = frozenset((
     "morphhdl-passes/src/main/scala/morphhdl/passes/transform/AssignmentLowBitTruncationProof.scala",
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationNativePhase.scala",
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
 ))
 
 SAFETY_MARKERS = {
@@ -81,11 +84,25 @@ SAFETY_MARKERS = {
         "independentBlockingInputs(replacement, component)",
         "AssignmentLowBitTruncationProof.prove",
         "if (definitions.isEmpty && selectedBoundary.receiver.parameters.isEmpty) return None",
+        "beginLowBitTruncationConsumption(component, assignment)",
+        "completeLowBitTruncationConsumption(",
         "expressionRemovalBlocker",
     ),
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": (
         "new AssignmentLowBitTruncationNativePhase(sourceIntent).impl(pc)",
         "Keep the six-stage canonical order unchanged",
+    ),
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala": (
+        "val wireTruncationReplacement = new java.util.IdentityHashMap[Record, Expression]()",
+        "def beginLowBitTruncationConsumption(",
+        "if (!validFresh(component, record))",
+        "record.targetWidth.parameters.isEmpty || record.sourceWidth.parameters.nonEmpty",
+        "value.wireTruncationReplacement.put(record, null)",
+        "def completeLowBitTruncationConsumption(",
+        "replacementWidth.parameters.nonEmpty",
+        "validConsumedFresh(component, value, record)",
+        "record.assignment.source eq replacement",
+        "if (!consumed(value, record))",
     ),
 }
 
