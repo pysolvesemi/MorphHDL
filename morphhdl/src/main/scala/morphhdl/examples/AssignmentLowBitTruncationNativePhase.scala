@@ -295,10 +295,11 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
       val copied = NativePureExpressionCopy(selectedBoundary.input).getOrElse(return None)
       val replacement = expand(copied, 0)
       if (boundedSize(replacement) > 256) return None
-      // Do not make an explicitly named/protected whole carrier newly eligible
-      // merely by stripping its select. References inside an expanded pure
-      // expression retain their original names and metadata without alteration.
-      if (selectedBoundary.input.isInstanceOf[BaseType] && definitions.isEmpty) return None
+      // WIRE-TRUNC-01 exists to remove eligible expression carriers. A
+      // carrier-free native resize/select is already the authoritative
+      // assignment boundary; stripping it would alter inherited fixed-width
+      // sequential emission without eliminating any wire.
+      if (definitions.isEmpty) return None
       if (!continuous && !nonblocking && !independentBlockingInputs(replacement, component)) return None
 
       val scope = ScopeId.unsafe("scope.wire-trunc.assignment")
