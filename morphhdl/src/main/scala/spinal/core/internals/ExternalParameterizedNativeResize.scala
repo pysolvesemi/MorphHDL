@@ -31,6 +31,11 @@ object ExternalParameterizedNativeResize {
     val byResize = new java.util.IdentityHashMap[Resize, Record]()
     val byTarget = new java.util.IdentityHashMap[BaseType, Record]()
     val byAssignment = new java.util.IdentityHashMap[DataAssignmentStatement, Record]()
+    // WIRE-TRUNC-01 may consume one captured resize only after its complete
+    // assignment proof succeeds. A null value is a deliberately fail-closed
+    // pending state between begin and completion; a non-null expression binds
+    // the exact replacement identity that publication must subsequently see.
+    val wireTruncationReplacement = new java.util.IdentityHashMap[Record, Expression]()
     records.foreach { record =>
       if (byResize.put(record.resize, record) != null ||
           byTarget.put(record.target, record) != null ||
@@ -45,12 +50,17 @@ object ExternalParameterizedNativeResize {
   private def records(component: Component): Vector[Record] =
     storage(component).map(_.records).getOrElse(Vector.empty)
 
+  private def consumed(value: Storage, record: Record): Boolean =
+    value.wireTruncationReplacement.containsKey(record)
+
   private val publicationValidation = new ThreadLocal[
     java.util.IdentityHashMap[Record, java.lang.Boolean]]()
 
   /** Limit validation reuse to one pure final publication call. Recheck every
     * captured record before returning its text so mutation cannot cross the
-    * publication boundary with a cached proof.
+    * publication boundary with a cached proof. A WIRE-TRUNC-01 consumption is
+    * not a validation bypass: it has its own exact post-rewrite identity and
+    * width checks and remains revalidated on both sides of publication.
     */
   private[internals] def withPublicationValidation[A](component: Component)(body: => A): A = {
     val capturedStorage = storage(component)
@@ -59,7 +69,8 @@ object ExternalParameterizedNativeResize {
       if (storage(component).orNull ne capturedStorage.orNull)
         fail("native resize capture ownership changed during publication")
       captured.foreach { record =>
-        if (!validFresh(component, record)) fail("retained native resize assignment changed during publication")
+        if (!validForPublication(component, record))
+          fail("retained native resize assignment changed during publication")
       }
     }
     revalidate()
@@ -200,9 +211,105 @@ object ExternalParameterizedNativeResize {
     })
   }
 
+  /** Begin a one-shot WIRE-TRUNC-01 ownership transfer for the exact captured
+    * assignment. No other native-resize record is eligible. The original edge
+    * must still be fresh and the complete target domain must be a symbolic
+    * unsigned low projection of one fixed source width. The pending null token
+    * intentionally makes publication fail until completion binds the actual
+    * replacement identity.
+    */
+  def beginLowBitTruncationConsumption(
+      component: Component,
+      assignment: DataAssignmentStatement
+  ): Boolean = storage(component) match {
+    case None => false
+    case Some(value) =>
+      val record = value.byAssignment.get(assignment)
+      if (record == null) false
+      else {
+        if (consumed(value, record)) fail("native resize assignment was consumed by WIRE-TRUNC-01 twice")
+        if (!validFresh(component, record))
+          fail("native resize assignment changed before WIRE-TRUNC-01 consumption")
+        if (record.targetWidth.parameters.isEmpty || record.sourceWidth.parameters.nonEmpty ||
+            record.sourceWidth.minimum != record.sourceWidth.maximum ||
+            record.sourceWidth.default != record.sourceWidth.minimum ||
+            record.targetWidth.maximum > record.sourceWidth.minimum ||
+            record.targetWidth.minimum >= record.sourceWidth.minimum)
+          fail("native resize assignment is not a symbolic low projection of one fixed source width")
+        value.wireTruncationReplacement.put(record, null)
+        true
+      }
+  }
+
+  /** Complete the exact WIRE-TRUNC-01 transfer after the proven replacement has
+    * become the assignment RHS. The replacement's native fixed-width authority
+    * is bound by identity; later mutation, target movement or width drift fails
+    * publication validation rather than falling back to a textual heuristic.
+    */
+  def completeLowBitTruncationConsumption(
+      component: Component,
+      assignment: DataAssignmentStatement,
+      replacement: Expression
+  ): Unit = {
+    val value = storage(component).getOrElse(fail("WIRE-TRUNC-01 completion lost native resize storage"))
+    val record = value.byAssignment.get(assignment)
+    if (record == null || !consumed(value, record) || value.wireTruncationReplacement.get(record) != null)
+      fail("WIRE-TRUNC-01 completion has no unique pending native resize record")
+    if (replacement == null || !(assignment.source eq replacement) ||
+        replacement.getTypeObject != record.target.getTypeObject)
+      fail("WIRE-TRUNC-01 completion does not bind the exact replacement RHS")
+    val replacementWidth = NativeWidthProvenance.widthOf(replacement)
+      .getOrElse(fail("WIRE-TRUNC-01 replacement lost native width authority"))
+    if (replacementWidth.parameters.nonEmpty ||
+        replacementWidth.minimum != record.sourceWidth.minimum ||
+        replacementWidth.maximum != record.sourceWidth.maximum ||
+        replacementWidth.default != record.sourceWidth.default)
+      fail("WIRE-TRUNC-01 replacement width differs from the captured source evaluation width")
+    value.wireTruncationReplacement.put(record, replacement)
+    if (!validConsumedFresh(component, value, record))
+      fail("WIRE-TRUNC-01 completed native resize lineage is not publication-safe")
+  }
+
   private def valid(component: Component, record: Record): Boolean = {
     val current = publicationValidation.get()
-    (current != null && current.containsKey(record)) || validFresh(component, record)
+    (current != null && current.containsKey(record)) || validForPublication(component, record)
+  }
+
+  private def validForPublication(component: Component, record: Record): Boolean =
+    storage(component).exists { value =>
+      if (consumed(value, record)) validConsumedFresh(component, value, record)
+      else validFresh(component, record)
+    }
+
+  private def validConsumedFresh(component: Component, value: Storage, record: Record): Boolean = {
+    val replacement = value.wireTruncationReplacement.get(record)
+    if (replacement == null) return false
+    var count = 0
+    var drivers = 0
+    var targets = 0
+    component.dslBody.walkStatements {
+      case assignment: DataAssignmentStatement =>
+        if (assignment eq record.assignment) count += 1
+        if (assignment.finalTarget eq record.target) drivers += 1
+      case base: BaseType =>
+        if (base eq record.target) targets += 1
+      case _ =>
+    }
+    val replacementWidth = NativeWidthProvenance.widthOf(replacement)
+    count == 1 && drivers == 1 && targets == 1 &&
+      record.assignmentScope.matches(record.assignment.parentScope) &&
+      record.targetScope.matches(record.target.parentScope) &&
+      (record.assignment.target eq record.target) && (record.assignment.finalTarget eq record.target) &&
+      (record.assignment.source eq replacement) && (replacement ne record.resize) &&
+      replacement.getTypeObject == record.target.getTypeObject &&
+      record.target.getBitsWidth == record.witnessTargetWidth &&
+      (record.target.component eq component) && record.target.isComb &&
+      record.target.dontSimplify && record.target.hasTag(noBackendCombMerge) &&
+      replacementWidth.exists(width => width.parameters.isEmpty &&
+        width.minimum == record.sourceWidth.minimum && width.maximum == record.sourceWidth.maximum &&
+        width.default == record.sourceWidth.default) &&
+      ParameterizedWidth.expressionOf(record.target)
+        .exists(NativePublicationWidth.equivalentAtOwner(_, record.targetWidth, component, record.target))
   }
 
   private def validFresh(component: Component, record: Record): Boolean = {
@@ -245,7 +352,7 @@ object ExternalParameterizedNativeResize {
   }
 
   private[internals] def proves(component: Component, resize: Resize): Boolean =
-    storage(component).flatMap(value => Option(value.byResize.get(resize))).exists(valid(component, _))
+    storage(component).flatMap(value => Option(value.byResize.get(resize))).exists(validFresh(component, _))
 
   /** The original target-sized assignment remains a resize boundary when
     * native simplification removes an equal-witness Resize expression.
@@ -254,7 +361,7 @@ object ExternalParameterizedNativeResize {
       component: Component,
       assignment: DataAssignmentStatement
   ): Boolean =
-    storage(component).flatMap(value => Option(value.byAssignment.get(assignment))).exists(valid(component, _))
+    storage(component).flatMap(value => Option(value.byAssignment.get(assignment))).exists(validFresh(component, _))
 
   private[internals] def targetWidthOf(component: Component, target: BaseType)
       : Option[ElaborationIntegerExpression] =
@@ -270,8 +377,11 @@ object ExternalParameterizedNativeResize {
   ): Unit = records(component).foreach { record =>
     if (!valid(component, record))
       fail("retained native resize assignment changed before width validation")
-    mismatch(record.source, record.sourceWidth).foreach { detail =>
-      fail(s"native resize source publication differs from its captured exact width: $detail")
+    val value = storage(component).get
+    if (!consumed(value, record)) {
+      mismatch(record.source, record.sourceWidth).foreach { detail =>
+        fail(s"native resize source publication differs from its captured exact width: $detail")
+      }
     }
     mismatch(record.target, record.targetWidth).foreach { detail =>
       fail(s"native resize target publication differs from its captured exact width: $detail")
@@ -281,50 +391,57 @@ object ExternalParameterizedNativeResize {
   private[internals] def rewrite(component: Component, verilog: String): String = {
     var lines = verilog.split("\n", -1).toVector
     val claimed = scala.collection.mutable.HashSet.empty[String]
+    val value = storage(component)
     records(component).foreach { record =>
       if (!valid(component, record)) fail("retained native resize assignment changed after capture")
-      val targetName = Option(record.target.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize target has no emitted name"))
-      val sourceName = Option(record.source.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize source has no emitted name"))
-      if (!claimed.add(targetName)) fail(s"multiple resize targets share emitted name '$targetName'")
-      val targetWidth = record.witnessTargetWidth
-      val sourceWidth = record.witnessSourceWidth
-      val signed = record.source.isInstanceOf[SInt]
-      val expected = if (targetWidth < sourceWidth) s"$sourceName[${targetWidth - 1}:0]"
-        else if (targetWidth == sourceWidth) sourceName
-        else if (signed) s"{{${targetWidth - sourceWidth}{$sourceName[${sourceWidth - 1}]}}, $sourceName}"
-        else s"{${targetWidth - sourceWidth}'d0, $sourceName}"
-      val assignment = ("^(\\s*assign\\s+" + Pattern.quote(targetName) +
-        "\\s*=\\s*)(.*?)(;\\s*)$").r
-      var targets = 0
-      var matches = 0
-      lines = lines.map {
-        case assignment(prefix, rhs, suffix) =>
-          targets += 1
-          if (rhs.trim == expected) {
-            matches += 1
-            val to = s"(${record.targetWidth.verilog})"
-            val from = s"(${record.sourceWidth.verilog})"
-            // Keep every part select positive/in range and every replication
-            // non-negative, including domains crossing narrowing and widening.
-            // The complete concat has exactly the native target width, so no
-            // assignment-context extension or truncation is left implicit.
-            val resized = if (record.targetWidth.maximum <= record.sourceWidth.minimum)
-              s"$sourceName[$to-1:0]"
-            else {
-              val selected = if (record.targetWidth.minimum >= record.sourceWidth.maximum) from
-                else s"(($to < $from) ? $to : $from)"
-              val extra = s"(($to > $from) ? ($to - $from) : 0)"
-              val extension = if (signed) s"$sourceName[$from-1]" else "1'b0"
-              s"{{$extra{$extension}}, $sourceName[$selected-1:0]}"
-            }
-            prefix + resized + suffix
-          } else prefix + rhs + suffix
-        case line => line
+      // WIRE-TRUNC-01 has already replaced this exact captured resize with a
+      // proof-bound fixed-width expression. Its symbolic target declaration is
+      // still validated above; reapplying the old resize textual rewrite would
+      // recreate the removed carrier and violate the one-owner handoff.
+      if (!value.exists(consumed(_, record))) {
+        val targetName = Option(record.target.getName()).filter(_.nonEmpty)
+          .getOrElse(fail("retained native resize target has no emitted name"))
+        val sourceName = Option(record.source.getName()).filter(_.nonEmpty)
+          .getOrElse(fail("retained native resize source has no emitted name"))
+        if (!claimed.add(targetName)) fail(s"multiple resize targets share emitted name '$targetName'")
+        val targetWidth = record.witnessTargetWidth
+        val sourceWidth = record.witnessSourceWidth
+        val signed = record.source.isInstanceOf[SInt]
+        val expected = if (targetWidth < sourceWidth) s"$sourceName[${targetWidth - 1}:0]"
+          else if (targetWidth == sourceWidth) sourceName
+          else if (signed) s"{{${targetWidth - sourceWidth}{$sourceName[${sourceWidth - 1}]}}, $sourceName}"
+          else s"{${targetWidth - sourceWidth}'d0, $sourceName}"
+        val assignment = ("^(\\s*assign\\s+" + Pattern.quote(targetName) +
+          "\\s*=\\s*)(.*?)(;\\s*)$").r
+        var targets = 0
+        var matches = 0
+        lines = lines.map {
+          case assignment(prefix, rhs, suffix) =>
+            targets += 1
+            if (rhs.trim == expected) {
+              matches += 1
+              val to = s"(${record.targetWidth.verilog})"
+              val from = s"(${record.sourceWidth.verilog})"
+              // Keep every part select positive/in range and every replication
+              // non-negative, including domains crossing narrowing and widening.
+              // The complete concat has exactly the native target width, so no
+              // assignment-context extension or truncation is left implicit.
+              val resized = if (record.targetWidth.maximum <= record.sourceWidth.minimum)
+                s"$sourceName[$to-1:0]"
+              else {
+                val selected = if (record.targetWidth.minimum >= record.sourceWidth.maximum) from
+                  else s"(($to < $from) ? $to : $from)"
+                val extra = s"(($to > $from) ? ($to - $from) : 0)"
+                val extension = if (signed) s"$sourceName[$from-1]" else "1'b0"
+                s"{{$extra{$extension}}, $sourceName[$selected-1:0]}"
+              }
+              prefix + resized + suffix
+            } else prefix + rhs + suffix
+          case line => line
+        }
+        if (targets != 1 || matches != 1)
+          fail(s"resize target '$targetName' maps to $targets native assignments and $matches exact witness edges")
       }
-      if (targets != 1 || matches != 1)
-        fail(s"resize target '$targetName' maps to $targets native assignments and $matches exact witness edges")
     }
     lines.mkString("\n")
   }
