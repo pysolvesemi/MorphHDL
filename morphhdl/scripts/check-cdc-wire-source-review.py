@@ -28,6 +28,7 @@ PRODUCTION_PATHS = frozenset((
     'core/src/main/scala/spinal/core/Component.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala',
     'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala',
+    'core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala',
     'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala',
     'core/src/main/scala/spinal/core/ParameterizedVec.scala',
     'lib/src/main/scala/spinal/lib/Utils.scala',
@@ -75,6 +76,11 @@ TEST_PATHS = frozenset((
     'morphhdl/scripts/check-contracts.sh',
     'morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py',
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
+    'morphhdl-passes/scripts/check-enum-condition-cleanup.py',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/EnumConditionNativeIdentityTests.scala',
 ))
 REVIEW_PATHS = frozenset((
     'docs/morphhdl/lane-when-inlining-repair.md',
@@ -146,6 +152,29 @@ CDC_SAFETY_MARKERS = {
         'val before = NativeWidthProvenance.optionalWidthOf(value)',
         'val after = NativeWidthProvenance.optionalWidthOf(value)',
         'ElaborationWidthAuthority.equivalent(a, b)',
+        'WA10-CONDITION-ENUM-SOURCE-AUTHORITY',
+        'exactEnumProjection(',
+        'sameEnumBoundary(value, alias)',
+    ),
+    'core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala': (
+        '(definition eq that.definition)',
+        '(encoding eq that.encoding)',
+        'InferableEnumEncodingImplChoiceFixed',
+        'literalBelongsTo(leftValue, operator)',
+    ),
+    'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala': (
+        'NativeEnumExpressionAuthority.comparison(node).nonEmpty',
+        'to.copyEncodingConfig(from)',
+    ),
+    'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala': (
+        'NativeEnumExpressionAuthority.comparison(node).exists',
+        'resolvedEnum(leaf).nonEmpty',
+    ),
+    'morphhdl-passes/examples/NativeWireExpressionCodec.scala': (
+        'NativeEnumExpressionAuthority.comparison(node)',
+        'authority.encoding eq binaryOneHot',
+        'RtlBinaryOperator.BitwiseAnd',
+        'capturedEnumAuthorities',
     ),
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala': (
         'deferPreferredExpressionSource = true, sourceIntent = Some(sourceIntent))',

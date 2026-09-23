@@ -71,6 +71,8 @@ object NativeWidthProvenance {
 
   private def deriveWidth(expression: Expression): Option[ElaborationIntegerExpression] = expression match {
     case value if value != null && value.getTypeObject == TypeBool => constant(1)
+    case value: EnumEncoded =>
+      NativeEnumExpressionAuthority.resolve(value).flatMap(authority => constant(authority.width))
     case data: BitVector =>
       ParameterizedWidth.expressionOf(data) match {
         case some @ Some(value) if value.exactDomain.nonEmpty => some

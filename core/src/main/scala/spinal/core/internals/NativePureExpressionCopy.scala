@@ -1,7 +1,7 @@
 package spinal.core.internals
 
 import scala.util.control.NonFatal
-import spinal.core.{BaseType, ParameterizedWidth, SpinalTagReady}
+import spinal.core.{BaseType, EnumLiteral, ParameterizedWidth, SpinalTagReady}
 
 /** Bounded copy of pure native expression nodes after width inference.
   *
@@ -32,6 +32,8 @@ object NativePureExpressionCopy {
           case literal: BitsLiteral => literal.clone()
           case literal: UIntLiteral => literal.clone()
           case literal: SIntLiteral => literal.clone()
+          case literal: EnumLiteral[_]
+              if NativeEnumExpressionAuthority.resolve(literal).nonEmpty => literal.clone()
         case _: Operator.Bool.And => new Operator.Bool.And
         case _: Operator.Bool.Or => new Operator.Bool.Or
         case _: Operator.Bool.Xor => new Operator.Bool.Xor
@@ -78,6 +80,12 @@ object NativePureExpressionCopy {
         case _: Operator.SInt.SmallerOrEqual => new Operator.SInt.SmallerOrEqual
         case _: Operator.SInt.ShiftLeftByUInt => new Operator.SInt.ShiftLeftByUInt
         case _: Operator.SInt.ShiftRightByUInt => new Operator.SInt.ShiftRightByUInt
+        case node: Operator.Enum.Equal
+            if NativeEnumExpressionAuthority.comparison(node).nonEmpty =>
+          new Operator.Enum.Equal(node.enumDef)
+        case node: Operator.Enum.NotEqual
+            if NativeEnumExpressionAuthority.comparison(node).nonEmpty =>
+          new Operator.Enum.NotEqual(node.enumDef)
         case node: Operator.Bits.ShiftLeftByInt => new Operator.Bits.ShiftLeftByInt(node.shift)
         case node: Operator.Bits.ShiftRightByInt => new Operator.Bits.ShiftRightByInt(node.shift)
         case node: Operator.UInt.ShiftLeftByInt => new Operator.UInt.ShiftLeftByInt(node.shift)
@@ -150,6 +158,11 @@ object NativePureExpressionCopy {
             to.lo = from.lo
           case (_: Literal, _: Literal) =>
           case _ => throw new IllegalArgumentException("unsupported native expression payload")
+        }
+        (source, result) match {
+          case (from: InferableEnumEncodingImpl, to: InferableEnumEncodingImpl) =>
+            to.copyEncodingConfig(from)
+          case _ =>
         }
         // Copy each child edge separately. Repeated references to one source
         // operator must become separate receiver occurrences so later native

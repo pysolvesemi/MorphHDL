@@ -142,6 +142,8 @@ object VerilogEmitterExpressionInlining {
 
     def width(expression: Expression): Int = expression match {
       case _ if expression.getTypeObject == TypeBool => 1
+      case encoded: EnumEncoded =>
+        NativeEnumExpressionAuthority.resolve(encoded).map(_.width).getOrElse(-1)
       case sized: WidthProvider                     => sized.getWidth
       case _                                        => -1
     }
@@ -196,8 +198,15 @@ object VerilogEmitterExpressionInlining {
     def unsignedKind(expression: Expression): Boolean =
       expression.getTypeObject == TypeUInt || expression.getTypeObject == TypeBits
 
+    def resolvedEnum(expression: Expression): Option[NativeEnumExpressionAuthority.Resolved] =
+      expression match {
+        case encoded: EnumEncoded => NativeEnumExpressionAuthority.resolve(encoded)
+        case _ => None
+      }
+
     def fixedTargetBoundary(target: BaseType): Boolean =
-      (unsignedKind(target) || target.getTypeObject == TypeBool) &&
+      (unsignedKind(target) || target.getTypeObject == TypeBool ||
+        resolvedEnum(target).nonEmpty) &&
         width(target) > 0 && target.component == component &&
         // This layout-only flag protects process separation. The planner
         // changes neither the target nor its driver/scope, so retain the flag
@@ -277,7 +286,8 @@ object VerilogEmitterExpressionInlining {
           // policy does not remove. Synthetic annotated nodes remain fenced.
           case leaf: BaseType =>
             return leaf.component == component &&
-              (unsignedKind(leaf) || leaf.getTypeObject == TypeBool) &&
+              (unsignedKind(leaf) || leaf.getTypeObject == TypeBool ||
+                resolvedEnum(leaf).nonEmpty) &&
               logicalWidth(leaf).nonEmpty
           case _ if !isUnannotated(expression) => return false
           case _ =>
@@ -299,8 +309,18 @@ object VerilogEmitterExpressionInlining {
             collect(node.left, operandWidth) && collect(node.right, operandWidth)
         }
 
+        def enumComparison(node: BinaryOperator with EnumEncoded): Boolean =
+          NativeEnumExpressionAuthority.comparison(node).exists { authority =>
+            val packedWidth = fixedWidth(authority.authority.width)
+            sameWidth(expectedWidth, fixedWidth(1)) &&
+              sameWidth(logicalWidth(node.left), packedWidth) &&
+              sameWidth(logicalWidth(node.right), packedWidth) &&
+              collect(node.left, packedWidth) && collect(node.right, packedWidth)
+          }
+
         val proven = expression match {
           case _: BoolLiteral | _: UIntLiteral | _: BitsLiteral => true
+          case literal: EnumLiteral[_] => resolvedEnum(literal).nonEmpty
 
           case node: Operator.UInt.Add => binary(node, TypeUInt)
           case node: Operator.UInt.Sub => binary(node, TypeUInt)
@@ -324,6 +344,9 @@ object VerilogEmitterExpressionInlining {
           case node: Operator.Bits.Equal          => comparison(node)
           case node: Operator.Bits.NotEqual       => comparison(node)
           case node: Operator.Bits.EqualSim       => comparison(node)
+
+          case node: Operator.Enum.Equal    => enumComparison(node)
+          case node: Operator.Enum.NotEqual => enumComparison(node)
 
           case node: Operator.Bool.And      => binary(node, TypeBool)
           case node: Operator.Bool.Or       => binary(node, TypeBool)
