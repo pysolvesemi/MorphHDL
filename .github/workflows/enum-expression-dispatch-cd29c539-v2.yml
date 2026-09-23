@@ -1,0 +1,166 @@
+name: Enum expression targeted dispatch cd29c539 v2
+
+on:
+  push:
+    branches:
+      - agent/control-enum-expression-cd29c539-v2
+    paths:
+      - .github/workflows/enum-expression-dispatch-cd29c539-v2.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate proof-correspondence-repaired identities and dispatch affected workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import time
+          import urllib.parse
+          import urllib.request
+
+          repo = "pysolvesemi/MorphHDL"
+          pr_number = 194
+          base_ref = "parameterized-verilog"
+          base_sha = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
+          candidate_ref = "agent/enum-expression-recursive-cleanup"
+          candidate_sha = "cd29c539971ea048efe6a20d2fa959f19a10df14"
+          candidate_tree = "21db2c83c0a3cda5f2fb7e13c17cabf5c258a91b"
+          workflows = {
+              358619655: ".github/workflows/cdc-independent-parameter-consumers.yml",
+              362756881: ".github/workflows/cdc-wire-fixed-point.yml",
+              351327055: ".github/workflows/increment-60f-equivalence-closure.yml",
+              354645379: ".github/workflows/increment-62-wa08-source-overlay.yml",
+              357516223: ".github/workflows/lane-when-expression-diagnostic.yml",
+              344527149: ".github/workflows/morphhdl-enum-localparams.yml",
+              336665858: ".github/workflows/morphhdl-native-source-guard.yml",
+              337719848: ".github/workflows/morphhdl-passes.yml",
+              361097183: ".github/workflows/sequential-wire-consumers.yml",
+              356390164: ".github/workflows/wa11-symbolic-boolean-width.yml",
+          }
+          api = "https://api.github.com/repos/" + repo
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "morphhdl-enum-expression-repair-controller",
+          }
+
+          def request(method, path, body=None):
+              data = None if body is None else json.dumps(body, separators=(",", ":")).encode()
+              req = urllib.request.Request(api + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  raw = response.read()
+                  return None if not raw else json.loads(raw)
+
+          def ref_sha(name):
+              return request("GET", "/git/ref/heads/" + urllib.parse.quote(name, safe="/"))["object"]["sha"]
+
+          def validate_identities():
+              assert os.environ["GITHUB_REPOSITORY"] == repo
+              assert os.environ["GITHUB_REF_NAME"] == "agent/control-enum-expression-cd29c539-v2"
+              pr = request("GET", f"/pulls/{pr_number}")
+              assert pr["state"] == "open" and not pr["draft"]
+              assert pr["base"]["ref"] == base_ref and pr["base"]["sha"] == base_sha
+              assert pr["head"]["ref"] == candidate_ref and pr["head"]["sha"] == candidate_sha
+              assert ref_sha(base_ref) == base_sha
+              assert ref_sha(candidate_ref) == candidate_sha
+              commit = request("GET", "/git/commits/" + candidate_sha)
+              assert commit["tree"]["sha"] == candidate_tree
+
+          def validate_failure():
+              run = request("GET", "/actions/runs/35818989584")
+              assert run["workflow_id"] == 362756881
+              assert run["head_sha"] == "99945c9b40a8a20ab5848b683eef339f5cf5bbee"
+              assert run["event"] == "workflow_dispatch"
+              assert run["status"] == "completed" and run["conclusion"] == "failure"
+              jobs = request("GET", "/actions/runs/35818989584/jobs?per_page=100")["jobs"]
+              failed = [job for job in jobs if job["id"] == 107046581722]
+              assert len(failed) == 1 and failed[0]["conclusion"] == "failure"
+              assert failed[0]["name"].endswith("Scala 2.13.12")
+              second = [job for job in jobs if job["id"] == 107046581837]
+              assert len(second) == 1 and second[0]["conclusion"] == "failure"
+              assert second[0]["name"].endswith("Scala 2.12.18")
+
+          def runs_for(workflow_id):
+              branch = urllib.parse.quote(candidate_ref, safe="")
+              result = request("GET", f"/actions/workflows/{workflow_id}/runs?branch={branch}&event=workflow_dispatch&per_page=100")
+              return [run for run in result["workflow_runs"] if run["head_sha"] == candidate_sha]
+
+          validate_identities()
+          validate_failure()
+          ledger = {
+              "repository": repo, "pull_request": pr_number,
+              "base_ref": base_ref, "base_sha": base_sha,
+              "candidate_ref": candidate_ref, "candidate_sha": candidate_sha,
+              "candidate_tree": candidate_tree, "supersedes": "99945c9b40a8a20ab5848b683eef339f5cf5bbee",
+              "failure_run_id": 35818989584, "failure_job_ids": [107046581722, 107046581837],
+              "dispatches": []
+          }
+          for workflow_id, expected_path in workflows.items():
+              validate_identities()
+              definition = request("GET", f"/actions/workflows/{workflow_id}")
+              assert definition["path"] == expected_path and definition["state"] == "active"
+              encoded_path = urllib.parse.quote(expected_path, safe="/")
+              content = request("GET", f"/contents/{encoded_path}?ref={urllib.parse.quote(candidate_ref, safe='')}")
+              workflow_text = base64.b64decode(content["content"]).decode()
+              assert "workflow_dispatch" in workflow_text
+              existing = runs_for(workflow_id)
+              retained = [run for run in existing if run["status"] in ("queued", "in_progress") or run.get("conclusion") == "success"]
+              row = {"workflow_id": workflow_id, "path": expected_path, "payload": {"ref": candidate_ref}}
+              if retained:
+                  run = sorted(retained, key=lambda item: item["id"], reverse=True)[0]
+                  row.update({"action": "retained", "run_id": run["id"], "url": run["html_url"], "status": run["status"], "conclusion": run.get("conclusion")})
+              else:
+                  row.update({"action": "dispatched", "previous_terminal_runs": [{"id": run["id"], "conclusion": run.get("conclusion")} for run in existing]})
+                  request("POST", f"/actions/workflows/{workflow_id}/dispatches", {"ref": candidate_ref})
+              ledger["dispatches"].append(row)
+
+          deadline = time.monotonic() + 90
+          while time.monotonic() < deadline:
+              complete = True
+              for row in ledger["dispatches"]:
+                  if "run_id" in row:
+                      continue
+                  matches = runs_for(row["workflow_id"])
+                  if not matches:
+                      complete = False
+                      continue
+                  run = sorted(matches, key=lambda item: item["id"], reverse=True)[0]
+                  row.update({"run_id": run["id"], "url": run["html_url"], "status": run["status"], "conclusion": run.get("conclusion"), "event": run["event"], "head_sha": run["head_sha"], "head_branch": run["head_branch"]})
+              if complete:
+                  break
+              time.sleep(5)
+
+          validate_identities()
+          for row in ledger["dispatches"]:
+              assert row.get("run_id"), row
+              assert row.get("event", "workflow_dispatch") == "workflow_dispatch"
+              assert row.get("head_sha", candidate_sha) == candidate_sha
+              assert row.get("head_branch", candidate_ref) == candidate_ref
+          with open("dispatch-ledger.json", "w", encoding="utf-8") as stream:
+              json.dump(ledger, stream, indent=2, sort_keys=True)
+              stream.write("\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("# Enum-expression proof-correspondence-repaired targeted dispatch\n\n```json\n")
+              summary.write(json.dumps(ledger, indent=2, sort_keys=True))
+              summary.write("\n```\n")
+          PY
+      - name: Upload repaired dispatch ledger
+        uses: actions/upload-artifact@v4
+        with:
+          name: enum-expression-dispatch-ledger-cd29c539-v2
+          path: dispatch-ledger.json
+          if-no-files-found: error
+          retention-days: 30
