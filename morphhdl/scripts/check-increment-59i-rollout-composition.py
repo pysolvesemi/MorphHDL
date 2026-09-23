@@ -19,7 +19,7 @@ COMBINED_BASE = "71efa81bf56e8483f7837519b2e44cdeba908439"
 CONTRACT = "morphhdl/contracts/increment-59i-rollout-composition.json"
 CONTRACT_SHA256 = "3eda911201658d435d98c1f957fa1554ed8626f6e70473eb3a0698327021d7a8"
 LOCAL_ENABLE_CHECKER = "morphhdl/scripts/check-increment-59i-local-enable-source-review.py"
-LOCAL_ENABLE_CHECKER_SHA256 = "3818a9a52d2d310369f5239f5c3a335b3fcb7bf77a0f7fab583f36083ae48342"
+LOCAL_ENABLE_CHECKER_SHA256 = "d91068c36c7d2ed032588307153895f880d48e45d1fe16cc3ba48f5eff219650"
 
 
 def integration_review(root: Path):
@@ -39,7 +39,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "4982330e8177ba954a49c001bddaeb667f357ab185c1a18eae664d3e91a8bb92",
+    require(hashlib.sha256(normalized).hexdigest() == "89bfc630b1ec4130098879dd57b6c785579fa37cc6416030c9bb13766ae53e33",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.

@@ -94,7 +94,7 @@ def load(root: Path, relative: str):
     return module
 
 
-SYNC_HELPER_SHA256 = "2245a1ed6d02a40d6d7aa47690d25b03e5dddaa7e7096ba11c6326cd1598c930"
+SYNC_HELPER_SHA256 = "66a4ab5dd5374ff935ff74d0936ec7975af46233791469e6877a9746e6f122f3"
 SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
 
@@ -119,9 +119,9 @@ def sync_continuation(root: Path) -> bool:
     module.__file__ = str(path)
     exec(compile(raw, str(path), "exec"), module.__dict__)
     value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
-    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11):
+    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12):
         require(module.target_anchor(root) == (module.DOCUMENTATION_TARGET
-                if value['schema_version'] == 11 else module.CURRENT_TARGET
+                if value['schema_version'] in (11, 12) else module.CURRENT_TARGET
                 if value['schema_version'] == 10 else module.SUBSTANTIVE_TARGET
                 if value['schema_version'] in (8, 9) else module.PR190_TARGET),
                 "unreviewed 59i PR190 synchronization target")

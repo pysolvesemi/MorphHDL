@@ -323,7 +323,7 @@ class Schema6BudgetTests(unittest.TestCase):
         git(ROOT, 'worktree', 'add', '--quiet', '--detach', str(cls.root), cls.head)
         cls.addClassCleanup(git, ROOT, 'worktree', 'remove', '--force', str(cls.root))
         cls.production = review.source_review(cls.root)
-        if cls.production.contract(cls.root)['schema_version'] not in (6, 7, 8, 9):
+        if cls.production.contract(cls.root)['schema_version'] not in (6, 7, 8, 9, 10, 11, 12):
             raise RuntimeError('current regression-budget controls require schema 6 or 7')
         cls.path = cls.root / '.github/workflows/increment-60f-equivalence-closure.yml'
         cls.original = cls.path.read_bytes()
@@ -367,7 +367,7 @@ def run_schema6_retained_tests():
     """
     review.verify(ROOT)
     schema = review.source_review(ROOT).contract(ROOT)['schema_version']
-    if schema in (8, 9):
+    if schema in (8, 9, 10, 11, 12):
         raw = git(ROOT, 'show', SCHEMA7_SEAL + ':' + HISTORICAL_TEST)
         if __import__('hashlib').sha256(raw).hexdigest() != SCHEMA7_TEST_SHA256:
             raise RuntimeError('immutable schema-7 PR190 mutation suite changed')
@@ -413,7 +413,7 @@ def run_schema6_retained_tests():
 
 
 if __name__ == '__main__':
-    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7, 8, 9):
+    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7, 8, 9, 10, 11, 12):
         run_schema6_retained_tests()
     else:
         unittest.main(defaultTest='Pr190IntegrationTests', verbosity=2)

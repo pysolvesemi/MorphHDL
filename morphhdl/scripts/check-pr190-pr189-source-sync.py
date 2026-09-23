@@ -152,7 +152,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
             'missing, linked or executable current 59i integration reviewer')
         raw = path.read_bytes()
         require(hashlib.sha256(raw).hexdigest() ==
-            '38419b97e73309fb3b9aac0778ae698e291cb74e8671005369a3c791bdda0249',
+            'e374597f01e47ea47b28b247e776c7e24d8bf682d648dc40a13929c743ea4059',
             'current 59i integration reviewer changed')
         key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
         if key not in sys.modules:
@@ -164,7 +164,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
         # The current review authenticates the complete merge before this
         # compatibility result exposes the original PR190 obligation sets.
         schema = sys.modules[key].source_review(root).contract(root)['schema_version']
-        if schema in (8, 9):
+        if schema in (8, 9, 10, 11, 12):
             retained = retained_schema7_sync(root)
             current = sys.modules[key].verify(root)
             compatibility = ('base', 'source', 'lane', 'production_files',
@@ -195,7 +195,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
         '59i integration certificate was removed')
     normalized=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$', b'CONTRACT_SHA256 = "MANIFEST_HASH"',
                       (root/OUTER).read_bytes(), count=1, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest()=="14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
+    require(hashlib.sha256(normalized).hexdigest()=="1593324f64df2351ece9f8c3d181fcf2f6ac72f4d1ebfbb44faf3730d27ec3bc",
             "outer verifier algorithm changed")
     outer=load(root,OUTER)
     seal=sealed if sealed is not None else outer.verify(root)

@@ -452,13 +452,13 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     if len(re.findall(pattern, raw, re.M)) != 1:
         raise RuntimeError('continuation routing found an ambiguous current verifier seal')
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    if hashlib.sha256(normalized).hexdigest() != '2245a1ed6d02a40d6d7aa47690d25b03e5dddaa7e7096ba11c6326cd1598c930':
+    if hashlib.sha256(normalized).hexdigest() != '66a4ab5dd5374ff935ff74d0936ec7975af46233791469e6877a9746e6f122f3':
         raise RuntimeError('continuation routing refuses an unauthenticated current verifier')
     review = types.ModuleType('reviewed_schema4_continuation_route')
     review.__file__ = str(helper)
     exec(compile(raw, str(helper), 'exec'), review.__dict__)
     value = review.verify(ROOT)
-    if value['schema_version'] not in (4, 5, 6, 7, 8, 9, 10, 11):
+    if value['schema_version'] not in (4, 5, 6, 7, 8, 9, 10, 11, 12):
         raise RuntimeError('continuation route changed schema')
     anchor = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
     originals = {
@@ -491,14 +491,14 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
         print('Exercising current schema-4 lifecycle controls', flush=True)
         subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-local-enable-successor.py', '-v'],
             cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
-        if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11):
+        if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12):
             subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-pr190-integration.py', '-v'],
                 cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
     review.verify(ROOT)
 
 
 if __name__ == '__main__':
-    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7, 8, 9, 10, 11):
+    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7, 8, 9, 10, 11, 12):
         run_schema4_historical_continuation()
     else:
         unittest.main(verbosity=2)
