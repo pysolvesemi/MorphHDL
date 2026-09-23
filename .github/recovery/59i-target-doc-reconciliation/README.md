@@ -1,20 +1,18 @@
-# Increment 59i target-documentation reconciliation
+# Increment 59i schema-12 target reconciliation
 
-This recovery-only audit preserves the already-qualified schema-6 feature seal
-`9d6d738d32c71ff4359384ae9d87f715bf20ec55`. It does not create or modify a
-feature commit, dispatch qualification workflows, launch full CI, or merge the
-pull request.
+This recovery-only audit authenticates final schema-12 seal
+`c654f43c24d86ca99c056dd4cb74b7a18d9f41e3` and the original successful
+25-command source artifact from run `35814557330`. It does not update the
+feature ref, dispatch qualification workflows, launch full CI, or merge PR177.
 
-The audit accepts exactly one target movement: commit
-`ce4a02c11b5ec19777c3d900e7fdc06ebbf6d7cd`, a direct child of the source-time
-target `bbae646ba43e6189c69feb308f8decb9b677b15f`, adding only root `AGENTS.md`
-with its reviewed mode and bytes. It independently re-authenticates the original
-successful source artifact from run `35556994859` and proves that both merge-tree
-orders are conflict-free and produce tree
-`7cf398c5e5bb13a75ed0f0b88ce6606b89ca187d`: the qualified feature tree plus
-only the exact target `AGENTS.md` blob.
+The current target `09880c538c4cf83022f4a1bb1dd16b43ea81a751` is already the
+ordered second parent of the retained schema-11 documentation checkpoint in the
+final seal's ancestry. The audit revalidates its sole documentation delta from
+`8ee07f251f5400922763382073db45ca76d012bd`, proves the current target is an
+ancestor of the final seal, and requires both merge-tree orders to reproduce
+the exact final seal tree `815a381426e9507363ab91bd3a258ab9668fb87a`.
 
-Success is target-reconciliation evidence, not compiler, RTL, hardware, full-CI,
-completion, or merge evidence. The feature ref may be advanced separately only
-after the original artifact and this audit are independently verified and the
-live feature/target refs remain exact.
+Success is bounded target-integration evidence. Feature advancement is a
+separate guarded non-force action after the original reconciliation artifact is
+independently verified and all feature, target, recovery, and PR refs remain
+exact. Only the four directly affected failed workflows may then be dispatched.

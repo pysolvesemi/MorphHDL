@@ -1,6 +1,45 @@
 # Increment 59i continuation — 20 September 2026
 
 
+## CURRENT CHECKPOINT — schema-12 source qualified; exact target reconciliation launching, 23 September 2026
+
+[Source qualification 35814557330](https://github.com/pysolvesemi/MorphHDL/actions/runs/35814557330)
+passed all25 retained commands on exact schema-12 seal
+`c654f43c24d86ca99c056dd4cb74b7a18d9f41e3`, tree
+`815a381426e9507363ab91bd3a258ab9668fb87a`, and source
+`2797acc2fbeb0733c29d8c05d64857801de32ae2`, tree
+`bad8f069942e54c0e4736076ebe5ff336dec26d6`. Exact sealed-successor and live-ref
+authentication passed before the commands. The actual job log independently
+contains25 PASS rows, zero FAIL rows, no Actions error or cancellation, and the
+unchanged command inventory.
+
+Original artifact10737543172 was independently downloaded. Its ZIP SHA256
+`cb111646377e014455a830c0796654de2da0ea39e7db4a3e9e358848c641528d`
+matches the live API digest; ZIP integrity, all25 non-empty command logs, exact
+identity/tree/live-ref evidence, the18-path audit repair, two-path seal and clean
+source assertions pass. The artifact records417 complete source files,230 suites
+and2307 expected testcases. No compiler, Scala implementation, RTL, generated
+Verilog, workflow command, test or proof byte changed in this final repair.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`; target remains
+`09880c538c4cf83022f4a1bb1dd16b43ea81a751`; PR177 remains open, draft and
+unmerged. The target is already the ordered second parent of the retained
+schema-11 documentation checkpoint in the final seal ancestry. Locally the
+bounded schema-12 reconciliation and all7 rejection controls pass: the sole
+target movement remains the exact documentation file
+`morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md`, the target is an
+ancestor of the final seal, and both merge-tree orders reproduce exact seal tree
+`815a381426e9507363ab91bd3a258ab9668fb87a`.
+
+This recovery update launches exactly one30-minute read-only target
+reconciliation. Do not duplicate it. NEXT inspect its actual logs and independently
+verify its original artifact/API digest. Only after it passes and all live refs
+remain exact may the feature advance non-force to the schema-12 seal, followed
+by only the four directly affected failed workflows: WA08, combined,59h and59f.
+Do not launch full CI, merge, publish the paused full-CI controller, or duplicate
+active/passing workflows. Keep monitoring enabled.
+
+
 ## CURRENT CHECKPOINT — final schema-12 exact-head audit repair qualifying, 23 September 2026
 
 Source qualification [35789187654](https://github.com/pysolvesemi/MorphHDL/actions/runs/35789187654)
