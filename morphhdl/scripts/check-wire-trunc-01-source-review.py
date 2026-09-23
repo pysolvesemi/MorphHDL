@@ -80,7 +80,7 @@ SAFETY_MARKERS = {
         "used(spentNodes, alias) + cost > 256",
         "independentBlockingInputs(replacement, component)",
         "AssignmentLowBitTruncationProof.prove",
-        "if (definitions.isEmpty) return None",
+        "if (definitions.isEmpty && selectedBoundary.receiver.parameters.isEmpty) return None",
         "expressionRemovalBlocker",
     ),
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": (
