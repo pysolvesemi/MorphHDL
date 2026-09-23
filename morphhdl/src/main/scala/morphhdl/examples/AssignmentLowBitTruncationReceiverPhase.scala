@@ -162,22 +162,20 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
         driver.parentScope == null ||
         !(driver.parentScope eq symbolicCarrier.rootScopeStatement) ||
         !symbolicCarrier.hasOnlyOneStatement || !unsigned(symbolicCarrier) ||
-        !symbolicCarrier.dontSimplify ||
-        !symbolicCarrier.getTags().forall(_ eq noBackendCombMerge) ||
+        !WireTruncationNativeAccess.protectedCarrier(symbolicCarrier) ||
         !NativeWireNameProvenance.origin(symbolicCarrier).exists(value =>
           value == NameOrigin.Generated || value == NameOrigin.Unnamed) ||
         !sourceIntent.permits(symbolicCarrier)) return None
 
-    val receiverWidth = ExternalParameterizedNativeResize
-      .targetWidthOf(component, symbolicCarrier).filter(_.parameters.nonEmpty)
+    val receiverWidth = WireTruncationNativeAccess
+      .symbolicResizeTargetWidth(component, symbolicCarrier)
       .getOrElse(return None)
     val fixedCarrier = driver.source match {
       case value: BaseType if (value.component eq component) && value.isComb &&
           value.isDirectionLess && !value.isAnalog && !value.isInOut &&
           unsigned(value) && value.getTypeObject == symbolicCarrier.getTypeObject &&
           value.parentScope != null && (value.parentScope eq value.rootScopeStatement) &&
-          value.hasOnlyOneStatement && value.dontSimplify &&
-          value.getTags().forall(_ eq noBackendCombMerge) &&
+          value.hasOnlyOneStatement && WireTruncationNativeAccess.protectedCarrier(value) &&
           NativeWireNameProvenance.origin(value).exists(origin =>
             origin == NameOrigin.Generated || origin == NameOrigin.Unnamed) &&
           sourceIntent.permits(value) => value
@@ -224,7 +222,7 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
       NativeWireNameProvenance.origin(fixedCarrier).get)
     val before = RtlExpr.Resize(beforeInput, receiverParameter, Signedness.Unsigned)
     if (AssignmentLowBitTruncationProof.prove(
-        before, after, receiverParameter, fixedWidth.default,
+        before, after, receiverParameter, fixedCarrier.getBitsWidth,
         receiverWidth.minimum, receiverWidth.maximum, Vector(definition)).isEmpty) return None
 
     val receiverStatements = statements.collect {
