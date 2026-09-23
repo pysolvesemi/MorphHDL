@@ -1809,6 +1809,67 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Enum-condition full-CI repair: preserve scoped PSL semantics on supported GHDL builds"
+      ],
+      "reason": "Emit scoped VHDL assert and assume properties as the Boolean-equivalent not-scope-or-condition form. This preserves the complete native scope, condition, abort and trigger while avoiding the unsupported N_IMP_BOOL synthesis node in the repository's pinned GHDL formal backend. Cover retains its inherited sequence operator and ordinary unscoped properties remain byte-equivalent.",
+      "edits": [
+        {
+          "id": "componentemittervhdl-retire-implication-builder",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Retire the shared implication/sequence prefix builder so assert/assume and cover can retain their distinct semantics on the pinned backend.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) \":\" else \"->\"\n              val preCond = if (scopeCond.length > 0) s\"$scopeCond $concatOperator \" else \"\"\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-scoped-property-forms",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Define the exact std_logic-typed Boolean-equivalent guard for scoped assert/assume while retaining the inherited cover sequence form.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"((not pkg_toStdLogic($scopeCond)) or ($cond))\" else cond",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"$scopeCond : $cond\" else cond",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-emit-guarded-properties",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Use the reviewed guarded property for assert/assume and the reviewed sequence property for cover without changing abort or trigger suffixes.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "preCond$cond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $preCond$cond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$preCond$c",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "guardedCond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $guardedCond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$coveredC",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala",
       "baseline_path": null,
       "change": "added",

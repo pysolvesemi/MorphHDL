@@ -35,6 +35,7 @@ PRODUCTION_PATHS = frozenset((
     'core/src/main/scala/spinal/core/NativeWidthProvenance.scala',
     'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala',
     'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala',
+    'core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala',
     'core/src/main/scala/spinal/core/internals/VerilogBase.scala',
     'morphhdl-passes/examples/NativeWireExpressionCodec.scala',
     'morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala',
@@ -171,6 +172,13 @@ CDC_SAFETY_MARKERS = {
     'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala': (
         'NativeEnumExpressionAuthority.comparison(node).exists',
         'resolvedEnum(leaf).nonEmpty',
+    ),
+    'core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala': (
+        'val guardedCond =',
+        'if (scopeCond.nonEmpty) s"((not pkg_toStdLogic($scopeCond)) or ($cond))" else cond',
+        'case AssertStatementKind.ASSERT => s"assert (always $guardedCond$abort)$trigger"',
+        'case AssertStatementKind.ASSUME => s"assume (always $guardedCond)$trigger"',
+        'case AssertStatementKind.COVER  => s"cover {$coveredCond}$trigger"',
     ),
     'morphhdl-passes/examples/NativeWireExpressionCodec.scala': (
         'NativeEnumExpressionAuthority.comparison(node)',
