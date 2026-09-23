@@ -85,7 +85,7 @@ def expected_after_sha(entry: dict, integrated: bool) -> str:
     return alternate if integrated and alternate is not None else entry["after_sha256"]
 
 
-CONTINUATION_HELPER_SHA256 = "711fb90a07c6940a0219d618e3e69368605f4aec863533d8554c60c5db0e8fd1"
+CONTINUATION_HELPER_SHA256 = "70009882bc3fde5ec691a68945fdb3a63d707c4f4f9c67a3f6ccbf1650ccea4a"
 
 
 def continuation_review(root: Path, self_test: bool = False) -> bool:
@@ -108,14 +108,14 @@ def continuation_review(root: Path, self_test: bool = False) -> bool:
     module.__file__ = str(file)
     exec(compile(raw, str(file), "exec"), module.__dict__)
     value = module.verify(root)
-    require(value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14) and
-            module.target_anchor(root) == (module.DOCUMENTATION_TARGET if value["schema_version"] in (11, 12, 13, 14)
+    require(value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15) and
+            module.target_anchor(root) == (module.DOCUMENTATION_TARGET if value["schema_version"] in (11, 12, 13, 14, 15)
                 else module.CURRENT_TARGET if value["schema_version"] == 10
                 else module.SUBSTANTIVE_TARGET if value["schema_version"] in (8, 9)
                 else module.PR190_TARGET if value["schema_version"] in (5, 6, 7)
                 else "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"),
             "unreviewed Increment 61 continuation target")
-    if value["schema_version"] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
+    if value["schema_version"] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15):
         import importlib.util
         path = root / 'morphhdl/scripts/check-increment-59i-pr190-integration.py'
         spec = importlib.util.spec_from_file_location('increment61_pr190_current_review', path)

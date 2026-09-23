@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "fcdb6990ba0c9e88ecf55ede34b31669ecdd8066b6f9de4ccd8bbc8bd5c964fb",
+    require(hashlib.sha256(normalized).hexdigest() == "9b24f8ff086899df93e3de483e83fa899802c705180f87ac1517c73736a6ad83",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
