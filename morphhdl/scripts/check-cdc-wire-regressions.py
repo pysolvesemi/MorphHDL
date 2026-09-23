@@ -48,7 +48,10 @@ EMITTER_ADDITIONS = frozenset((
 ))
 COPY_ADDITIONS = frozenset((
     'fixed-width shift copies preserve logical operator class, amount and source geometry',
+    'unresolved, incompatible and case-equality enum observations fail closed',
 ))
+COPY_ENUM_ENCODINGS = ('binary', 'one-hot', 'custom nonsequential')
+COPY_ENUM_TEMPLATE = '$label enum equality and inequality copy exact native authority into fresh trees'
 CDC_LITERAL_CASES = frozenset((
     'symbolic zero retains a width-sensitive complement under a Boolean receiver',
     'retained resize identities preserve allocated references across hierarchy in both modes',
@@ -90,10 +93,17 @@ def source_suites(root: Path) -> dict:
             len(emitter) == 25 + len(EMITTER_ADDITIONS),
             'missing/unreviewed current emitter testcase')
     copy_before = literal_cases(inherited(COPY_SOURCE))
-    copied = copy_before | COPY_ADDITIONS
-    require(len(copy_before) == 2 and len(copied) == 3 and
-            literal_cases((root/COPY_SOURCE).read_text()) == copied,
+    copy_source = (root/COPY_SOURCE).read_text()
+    copy_literals = copy_before | COPY_ADDITIONS
+    require(len(copy_before) == 2 and len(copy_literals) == 4 and
+            literal_cases(copy_source) == copy_literals and
+            copy_source.count('test(s"' + COPY_ENUM_TEMPLATE + '")') == 1 and
+            all(copy_source.count('("' + label + '",') == 1 for label in COPY_ENUM_ENCODINGS),
             'missing/unreviewed native-copy testcase')
+    copy_enum_cases = {
+        COPY_ENUM_TEMPLATE.replace('$label', label) for label in COPY_ENUM_ENCODINGS
+    }
+    copied = copy_literals | copy_enum_cases
     cdc_source = (root/CDC_SOURCE).read_text()
     require(literal_cases(cdc_source) == CDC_LITERAL_CASES,
             'missing/unreviewed CDC literal testcase')
