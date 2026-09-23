@@ -23,6 +23,10 @@ private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) 
   val source = in(UInt(8 bits)).setName("wireTruncSource")
   val target = out(UInt(width bits)).setName("wireTruncTarget")
   target := source.resize(width.asElabInt)
+  // Preserve the elaboration-time Resize identity itself. Native normalization
+  // may legitimately replace assignment.source by its equal witness before the
+  // observer phase, but the publication registry still owns this exact Resize.
+  val nativeResize = target.head.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[Resize]
 }
 
 class NativeWidthPublicationSafetyTests extends AnyFunSuite {
@@ -218,7 +222,7 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
   test("WIRE truncation native-resize handoff is symbolic, exact and one-shot") {
     inspectWireTruncation { fixture =>
       val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
-      val resize = assignment.source.asInstanceOf[Resize]
+      val resize = fixture.nativeResize
       assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
       assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
