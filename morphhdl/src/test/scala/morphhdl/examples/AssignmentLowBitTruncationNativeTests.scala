@@ -44,10 +44,19 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
       phases.insert(index, new Phase {
         override def hasNetlistImpact: Boolean = true
         override def impl(pc: PhaseContext): Unit = {
-          val assignment = low.head.asInstanceOf[DataAssignmentStatement]
-          // Recreate the exact boundary left when an earlier canonical stage has
-          // already consumed the explicit resize: the whole assignment now owns
-          // the low projection of this wider generated carrier.
+          val assignment = if (kind == "part-target") {
+            var partial: DataAssignmentStatement = null
+            low.foreachStatements {
+              case candidate: DataAssignmentStatement if !(candidate.target eq low) => partial = candidate
+              case _ =>
+            }
+            require(partial != null, "partial-target fixture lost its selected assignment")
+            partial
+          } else low.head.asInstanceOf[DataAssignmentStatement]
+          // Recreate the exact whole-RHS boundary left when an earlier stage has
+          // already consumed the explicit resize. Keep a separate unsupported
+          // receiver alive so this direct BaseType is still an authentic native
+          // declaration rather than a deleted object reintroduced by the test.
           if (kind == "absorbed") assignment.source = carrier
           val sourceBefore = assignment.source
           val carrierLiveBefore = carrier.parentScope != null
@@ -63,7 +72,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
               assert(phase.rewrittenAssignments >= 1, "eligible low-bit receiver was not rewritten")
               assert(phase.rewrittenReferences >= 1, "the receiver changed without inlining its carrier")
               assert(!references(sourceAfter, carrier), "low-bit receiver still reads the removed boundary")
-              if (kind == "mixed") {
+              if (kind == "mixed" || kind == "absorbed") {
                 assert(carrier.parentScope != null, "shared carrier was deleted while an unsupported receiver remains")
                 assert(references(protectedUse.head.asInstanceOf[DataAssignmentStatement].source, carrier))
               } else assert(carrier.parentScope == null, "dead eligible carrier was not removed")
@@ -127,7 +136,9 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
           case "widening" => result := expression.resize(20)
           case "signed" => result := expression.asSInt.resize(13).asUInt
           case "dynamic" => result := expression(select).asUInt.resize(13)
-          case "part-target" => result(12 downto 0) := expression(12 downto 0)
+          case "part-target" =>
+            result := 0
+            result(12 downto 0) := expression(12 downto 0)
           case "unsafe-blocking" =>
             val unsafe = UInt(18 bits).setName("unsafeComb")
             unsafe := a.resize(18)
@@ -138,7 +149,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
             result := expanded.resize(13)
           case _ => result := expression.resize(13)
         }
-        if (kind == "mixed") {
+        if (kind == "mixed" || kind == "absorbed") {
           val other = out UInt(13 bits)
           protectedUse = other
           other := expression(17 downto 5)
