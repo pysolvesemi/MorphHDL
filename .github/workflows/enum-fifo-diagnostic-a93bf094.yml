@@ -35,10 +35,10 @@ jobs:
         run: |
           git apply <<'PATCH'
           diff --git a/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala b/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
-          index 1cd82b82f..9d4fd4ec0 100644
+          index f4d650164..635f97010 100644
           --- a/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
           +++ b/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
-          @@ -640,15 +640,22 @@ class ComponentEmitterVhdl(
+          @@ -641,15 +641,22 @@ class ComponentEmitterVhdl(
                        case assertStatement: AssertStatement =>
                          val scopeCond = getScopeConditional(assertStatement)
           -              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) ":" else "->"
