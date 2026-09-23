@@ -173,12 +173,23 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
     val receiver = width(target).getOrElse(return None)
     val root = assignment.source
     if (root == null || !unsigned(root) || root.getTypeObject != target.getTypeObject ||
-        !unannotated(root) || !width(root).exists(equal(_, receiver))) return None
+        !unannotated(root)) return None
+    val rootWidth = width(root).getOrElse(return None)
     val (input, ranged) = root match {
-      case resize: Resize if resize.isInstanceOf[ResizeUInt] || resize.isInstanceOf[ResizeBits] =>
+      case resize: Resize if (resize.isInstanceOf[ResizeUInt] || resize.isInstanceOf[ResizeBits]) &&
+          equal(rootWidth, receiver) =>
         (resize.input: Expression, false)
-      case access: BitVectorRangedAccessFixed if access.lo == 0 =>
+      case access: BitVectorRangedAccessFixed if access.lo == 0 && equal(rootWidth, receiver) =>
         (access.source: Expression, true)
+      // Earlier canonical cleanup can consume an explicit low resize while
+      // leaving its generated fixed-width carrier as the whole RHS. At that
+      // point the assignment itself is the low projection. Admit only a
+      // genuinely wider fixed carrier; prepare() must still expand it through
+      // authentic generated/unnamed provenance and the full safety proof.
+      case base: BaseType if rootWidth.parameters.isEmpty &&
+          rootWidth.minimum == rootWidth.maximum && receiver.maximum <= rootWidth.minimum &&
+          receiver.minimum < rootWidth.minimum =>
+        (base: Expression, false)
       case _ => return None
     }
     if (!unsigned(input) || input.getTypeObject != target.getTypeObject ||
