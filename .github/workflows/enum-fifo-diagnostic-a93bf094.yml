@@ -33,39 +33,10 @@ jobs:
       - name: Apply semantics-preserving GHDL implication lowering
         shell: bash
         run: |
-          git apply <<'PATCH'
-          diff --git a/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala b/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
-          index f4d650164..635f97010 100644
-          --- a/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
-          +++ b/core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
-          @@ -641,15 +641,22 @@ class ComponentEmitterVhdl(
-                       case assertStatement: AssertStatement =>
-                         val scopeCond = getScopeConditional(assertStatement)
-          -              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) ":" else "->"
-          -              val preCond = if (scopeCond.length > 0) s"$scopeCond $concatOperator " else ""
-                         val cond = emitExpression(assertStatement.cond)
-          +              // Logical implication and `not A or B` are equivalent here, but
-          +              // older GHDL synthesis builds abort on a long Boolean consequent
-          +              // represented as PSL N_IMP_BOOL.  Keep cover's sequence form and
-          +              // lower scoped assert/assume guards to the equivalent Boolean
-          +              // expression so the property remains intact on those builds.
-          +              val guardedCond =
-          +                if (scopeCond.nonEmpty) s"((not ($scopeCond)) or ($cond))" else cond
-          +              val coveredCond =
-          +                if (scopeCond.nonEmpty) s"$scopeCond : $cond" else cond
-                         val trigger = if (multiclock) " @" + getTrigger(component, group.clockDomain) else ""
-                         val abort = getAbort(component, group.clockDomain)
-                         val statement = assertStatement.kind match {
-          -                case AssertStatementKind.ASSERT => s"assert (always $preCond$cond$abort)$trigger"
-          -                case AssertStatementKind.ASSUME => s"assume (always $preCond$cond)$trigger"
-          -                case AssertStatementKind.COVER  => s"cover {$preCond$cond}$trigger"
-          +                case AssertStatementKind.ASSERT => s"assert (always $guardedCond$abort)$trigger"
-          +                case AssertStatementKind.ASSUME => s"assume (always $guardedCond)$trigger"
-          +                case AssertStatementKind.COVER  => s"cover {$coveredCond}$trigger"
-                         }
-                         val label = getLabel(assertStatement)
-                         logics ++= s"  $label: $statement; -- ${assertStatement.loc.file}.scala:L${assertStatement.loc.line}\n"
-          PATCH
+          set -euo pipefail
+          printf '%s' 'ZGlmZiAtLWdpdCBhL2NvcmUvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0NvbXBvbmVudEVtaXR0ZXJWaGRsLnNjYWxhIGIvY29yZS9zcmMvbWFpbi9zY2FsYS9zcGluYWwvY29yZS9pbnRlcm5hbHMvQ29tcG9uZW50RW1pdHRlclZoZGwuc2NhbGEKaW5kZXggZjRkNjUwMTY0Li42MzVmOTcwMTAgMTAwNjQ0Ci0tLSBhL2NvcmUvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0NvbXBvbmVudEVtaXR0ZXJWaGRsLnNjYWxhCisrKyBiL2NvcmUvc3JjL21haW4vc2NhbGEvc3BpbmFsL2NvcmUvaW50ZXJuYWxzL0NvbXBvbmVudEVtaXR0ZXJWaGRsLnNjYWxhCkBAIC02NDEsMTUgKzY0MSwyMiBAQCBjbGFzcyBDb21wb25lbnRFbWl0dGVyVmhkbCgKICAgICAgICAgICBzdGF0ZW1lbnQgbWF0Y2ggewogICAgICAgICAgICAgY2FzZSBhc3NlcnRTdGF0ZW1lbnQ6IEFzc2VydFN0YXRlbWVudCA9PgogICAgICAgICAgICAgICB2YWwgc2NvcGVDb25kID0gZ2V0U2NvcGVDb25kaXRpb25hbChhc3NlcnRTdGF0ZW1lbnQpCi0gICAgICAgICAgICAgIHZhbCBjb25jYXRPcGVyYXRvciA9IGlmIChhc3NlcnRTdGF0ZW1lbnQua2luZCA9PSBBc3NlcnRTdGF0ZW1lbnRLaW5kLkNPVkVSKSAiOiIgZWxzZSAiLT4iCi0gICAgICAgICAgICAgIHZhbCBwcmVDb25kID0gaWYgKHNjb3BlQ29uZC5sZW5ndGggPiAwKSBzIiRzY29wZUNvbmQgJGNvbmNhdE9wZXJhdG9yICIgZWxzZSAiIgogICAgICAgICAgICAgICB2YWwgY29uZCA9IGVtaXRFeHByZXNzaW9uKGFzc2VydFN0YXRlbWVudC5jb25kKQorICAgICAgICAgICAgICAvLyBMb2dpY2FsIGltcGxpY2F0aW9uIGFuZCBgbm90IEEgb3IgQmAgYXJlIGVxdWl2YWxlbnQgaGVyZSwgYnV0CisgICAgICAgICAgICAgIC8vIG9sZGVyIEdIREwgc3ludGhlc2lzIGJ1aWxkcyBhYm9ydCBvbiBhIGxvbmcgQm9vbGVhbiBjb25zZXF1ZW50CisgICAgICAgICAgICAgIC8vIHJlcHJlc2VudGVkIGFzIFBTTCBOX0lNUF9CT09MLiAgS2VlcCBjb3ZlcidzIHNlcXVlbmNlIGZvcm0gYW5kCisgICAgICAgICAgICAgIC8vIGxvd2VyIHNjb3BlZCBhc3NlcnQvYXNzdW1lIGd1YXJkcyB0byB0aGUgZXF1aXZhbGVudCBCb29sZWFuCisgICAgICAgICAgICAgIC8vIGV4cHJlc3Npb24gc28gdGhlIHByb3BlcnR5IHJlbWFpbnMgaW50YWN0IG9uIHRob3NlIGJ1aWxkcy4KKyAgICAgICAgICAgICAgdmFsIGd1YXJkZWRDb25kID0KKyAgICAgICAgICAgICAgICBpZiAoc2NvcGVDb25kLm5vbkVtcHR5KSBzIigobm90ICgkc2NvcGVDb25kKSkgb3IgKCRjb25kKSkiIGVsc2UgY29uZAorICAgICAgICAgICAgICB2YWwgY292ZXJlZENvbmQgPQorICAgICAgICAgICAgICAgIGlmIChzY29wZUNvbmQubm9uRW1wdHkpIHMiJHNjb3BlQ29uZCA6ICRjb25kIiBlbHNlIGNvbmQKICAgICAgICAgICAgICAgdmFsIHRyaWdnZXIgPSBpZiAobXVsdGljbG9jaykgIiBAIiArIGdldFRyaWdnZXIoY29tcG9uZW50LCBncm91cC5jbG9ja0RvbWFpbikgZWxzZSAiIgogICAgICAgICAgICAgICB2YWwgYWJvcnQgPSBnZXRBYm9ydChjb21wb25lbnQsIGdyb3VwLmNsb2NrRG9tYWluKQogICAgICAgICAgICAgICB2YWwgc3RhdGVtZW50ID0gYXNzZXJ0U3RhdGVtZW50LmtpbmQgbWF0Y2ggewotICAgICAgICAgICAgICAgIGNhc2UgQXNzZXJ0U3RhdGVtZW50S2luZC5BU1NFUlQgPT4gcyJhc3NlcnQgKGFsd2F5cyAkcHJlQ29uZCRjb25kJGFib3J0KSR0cmlnZ2VyIgotICAgICAgICAgICAgICAgIGNhc2UgQXNzZXJ0U3RhdGVtZW50S2luZC5BU1NVTUUgPT4gcyJhc3N1bWUgKGFsd2F5cyAkcHJlQ29uZCRjb25kKSR0cmlnZ2VyIgotICAgICAgICAgICAgICAgIGNhc2UgQXNzZXJ0U3RhdGVtZW50S2luZC5DT1ZFUiAgPT4gcyJjb3ZlciB7JHByZUNvbmQkY29uZH0kdHJpZ2dlciIKKyAgICAgICAgICAgICAgICBjYXNlIEFzc2VydFN0YXRlbWVudEtpbmQuQVNTRVJUID0+IHMiYXNzZXJ0IChhbHdheXMgJGd1YXJkZWRDb25kJGFib3J0KSR0cmlnZ2VyIgorICAgICAgICAgICAgICAgIGNhc2UgQXNzZXJ0U3RhdGVtZW50S2luZC5BU1NVTUUgPT4gcyJhc3N1bWUgKGFsd2F5cyAkZ3VhcmRlZENvbmQpJHRyaWdnZXIiCisgICAgICAgICAgICAgICAgY2FzZSBBc3NlcnRTdGF0ZW1lbnRLaW5kLkNPVkVSICA9PiBzImNvdmVyIHskY292ZXJlZENvbmR9JHRyaWdnZXIiCiAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgdmFsIGxhYmVsID0gZ2V0TGFiZWwoYXNzZXJ0U3RhdGVtZW50KQogICAgICAgICAgICAgICBsb2dpY3MgKys9IHMiICAkbGFiZWw6ICRzdGF0ZW1lbnQ7IC0tICR7YXNzZXJ0U3RhdGVtZW50LmxvYy5maWxlfS5zY2FsYTpMJHthc3NlcnRTdGF0ZW1lbnQubG9jLmxpbmV9XG4iCg==' | base64 -d > /tmp/emitter.patch
+          git apply --check /tmp/emitter.patch
+          git apply /tmp/emitter.patch
           git diff --check
           git diff -- core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
       - name: Verify repaired exact GHDL case
