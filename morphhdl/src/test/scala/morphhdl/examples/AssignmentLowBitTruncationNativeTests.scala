@@ -1,4 +1,4 @@
-package morphhdl.examples
+package morphhdl.examples {
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
@@ -97,7 +97,7 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
           case "keep" => expression.addAttribute("keep")
           case "vital" => expression.setAsVital()
           case "explicit" => expression.setName("userExpression")
-          case "no-merge" => expression.addTag(noBackendCombMerge)
+          case "no-merge" => AssignmentLowBitTruncationTestAccess.preventCombMerge(expression)
           case _ =>
         }
         val resultWidth = if (kind == "widening") 20 else if (kind == "part-target") 18 else 13
@@ -154,6 +154,19 @@ class AssignmentLowBitTruncationNativeTests extends AnyFunSuite {
       assert(!comb.contains("[12:0]"), "a default-only low slice survived: " + comb)
       val disabled = generated("disabled")
       assert(disabled != enabled, "enabled and disabled fixtures did not exercise different lowering")
+    }
+  }
+}
+}
+
+package spinal.core.internals {
+  /** Test-only access to the real native no-merge tag, whose visibility is
+    * restricted to spinal.core. Do not replace the tag with a weaker attribute.
+    */
+  object AssignmentLowBitTruncationTestAccess {
+    def preventCombMerge(value: spinal.core.BaseType): Unit = {
+      value.addTag(spinal.core.noBackendCombMerge)
+      ()
     }
   }
 }
