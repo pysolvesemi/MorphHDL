@@ -19,6 +19,12 @@ private[internals] final class NativeWidthPublicationSafetyFixture(width: HdlInt
   equalOutput := equalResize
 }
 
+private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) extends Component {
+  val source = in(UInt(8 bits)).setName("wireTruncSource")
+  val target = out(UInt(width bits)).setName("wireTruncTarget")
+  target := source.resize(width.asElabInt)
+}
+
 class NativeWidthPublicationSafetyTests extends AnyFunSuite {
   private def inspect(body: NativeWidthPublicationSafetyFixture => Unit): Unit = {
     val width = HdlInt.param("WIDTH", 5, 1, 8)
@@ -38,12 +44,29 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
     config.generateVerilog(new NativeWidthPublicationSafetyFixture(width))
   }
 
+  private def inspectWireTruncation(body: NativeResizeWireTruncationFixture => Unit): Unit = {
+    val width = HdlInt.param("WIRE_TRUNC_WIDTH", 5, 1, 8)
+    val config = SpinalConfig(
+      targetDirectory = Files.createTempDirectory("native-resize-wire-trunc-").toString,
+      headerWithDate = false, headerWithRepoHash = false)
+    config.phasesInserters += { phases =>
+      ExternalParameterizedNativeResize.install(phases)
+      val boundary = phases.indexWhere(_.isInstanceOf[PhaseRemoveIntermediateUnnameds])
+      assert(boundary >= 0)
+      phases.insert(boundary, new PhaseMisc {
+        override def impl(pc: PhaseContext): Unit =
+          body(pc.topLevel.asInstanceOf[NativeResizeWireTruncationFixture])
+      })
+    }
+    config.generateVerilog(new NativeResizeWireTruncationFixture(width))
+  }
+
   private def highAccess(fixture: NativeWidthPublicationSafetyFixture): BitVectorBitAccessFixed =
     fixture.high.head.source.asInstanceOf[BitVectorBitAccessFixed]
 
   private def resizeNode(value: UInt): Resize = value.head.source.asInstanceOf[Resize]
 
-  private def expectLineage(body: => String): Unit = {
+  private def expectLineage(body: => Any): Unit = {
     val error = intercept[ParameterizedVerilogException](body)
     assert(error.code.contains("LINEAGE-MISMATCH"), error.getMessage)
   }
@@ -189,6 +212,39 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       } finally fixture.userCache ++= savedCache
       assert(ExternalParameterizedHighBit.proves(fixture, access))
       assert(ExternalParameterizedNativeResize.proves(fixture, resize))
+    }
+  }
+
+  test("WIRE truncation native-resize handoff is symbolic, exact and one-shot") {
+    inspectWireTruncation { fixture =>
+      val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
+      val resize = assignment.source.asInstanceOf[Resize]
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      assignment.source = fixture.source
+      ExternalParameterizedNativeResize.completeLowBitTruncationConsumption(
+        fixture, assignment, fixture.source)
+      assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "valid" } == "valid")
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+
+      val originalScope = assignment.parentScope
+      val borrowed = new ScopeStatement(null)
+      borrowed.component = fixture
+      assignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved" })
+      assignment.parentScope = originalScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "restored" } == "restored")
+    }
+  }
+
+  test("WIRE truncation handoff rejects a captured fixed target resize") {
+    inspect { fixture =>
+      val assignment = fixture.resized.head.asInstanceOf[DataAssignmentStatement]
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
     }
   }
 }
