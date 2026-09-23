@@ -1,0 +1,70 @@
+name: Enum cleanup inherited FIFO diagnostic
+
+on:
+  push:
+    branches: [agent/control-enum-fifo-diagnostic-a93bf094]
+    paths: [.github/workflows/enum-fifo-diagnostic-a93bf094.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a93bf094ed830c704526dce2cacc06b339a2a6b6
+          fetch-depth: 1
+      - name: Verify exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "a93bf094ed830c704526dce2cacc06b339a2a6b6"
+          test "$(git rev-parse HEAD^{tree})" = "300b730326883eb0b6bcd75508627fe9a07ef3d4"
+      - uses: actions/cache/restore@v3
+        with:
+          path: |
+            **/
+          key: Linux-compiled-a93bf094ed830c704526dce2cacc06b339a2a6b6
+          fail-on-cache-miss: true
+      - name: Reproduce one deterministic GHDL depth-seven failure
+        id: reproduce
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          sbt ++2.12.18 'tester/testOnly spinal.tester.scalatest.FormalFifoTester -- -z "formalpsl_StreamFifo_depth.7-withAsyncRead.false-withBypass.false-forFMax.false-allowExtraMsb.false-backend.GhdlFormalBackend"' 2>&1 | tee /tmp/enum-fifo-diagnostic.log
+      - name: Capture formal engine diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/enum-fifo-diagnostic
+          cp /tmp/enum-fifo-diagnostic.log /tmp/enum-fifo-diagnostic/ || true
+          if [ -d simWorkspace ]; then
+            find simWorkspace -type f -print | sort > /tmp/enum-fifo-diagnostic/files.txt
+            while IFS= read -r f; do
+              case "$f" in
+                *.log|*.txt|*.status|*.sby|*.ys)
+                  printf '\n===== %s =====\n' "$f"
+                  sed -n '1,240p' "$f"
+                  ;;
+              esac
+            done < /tmp/enum-fifo-diagnostic/files.txt | tee /tmp/enum-fifo-diagnostic/formal-files.txt
+            cp -a simWorkspace /tmp/enum-fifo-diagnostic/
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: enum-fifo-diagnostic-a93bf094
+          path: /tmp/enum-fifo-diagnostic
+          retention-days: 7
+      - name: Preserve reproduction result
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.reproduce.outcome }}" = success
