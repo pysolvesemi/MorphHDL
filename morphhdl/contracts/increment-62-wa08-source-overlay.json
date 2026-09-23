@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "4386c705541790f3129a8326fc40e45e74412ece",
+  "final_source_commit": "ad45351c46e6362948a41c36239133f6eafd1ab2",
   "helper_normalized_sha256": "14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
   "files": [
     {
@@ -249,6 +249,12 @@
       "mode": "100644",
       "before_sha256": "8dfe14204b6a18337ba883aa9928aaa8334ee27ef807ca45034ab8a0c596f28d",
       "after_sha256": "feb0d1d693b2f3ce875d831d99607ed7d7eb8ca17da5f4e590a1879e9605c0dc"
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "mode": "100644",
+      "before_sha256": "929f7c6672f02fd526007611dfd970f61d00d22827c6ecb62e5d3a73ba13ce0b",
+      "after_sha256": "23ff71d006ec772a63f9276c1625c776e5d579b8b6f4c4722079e04ad88e4b9e"
     },
     {
       "path": "core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala",
@@ -1604,7 +1610,7 @@
       "path": "morphhdl/contracts/increment-55-native-change-review.json",
       "mode": "100644",
       "before_sha256": "98209f1dac84b7577a469399b0efadb3c9e986c6b1a7d96e8b794a43d44d88ae",
-      "after_sha256": "569be0696f58ae391c6a2205a9e733220cc0db18e2a9a298247a2ac0eb4c2fd3"
+      "after_sha256": "65464e191d9407cf8d5756a6fb65dafe692b1e01611d1e6c647684166e39aa86"
     },
     {
       "path": "morphhdl/contracts/increment-61-source-review.json",
@@ -1622,7 +1628,7 @@
       "path": "morphhdl/contracts/native-source-preservation.json",
       "mode": "100644",
       "before_sha256": "d4f3a0d62bfaaab2cc32e6e95baa194926f5e5b869324b429fb26b79562923b0",
-      "after_sha256": "c5224ac6bbc8251b648ab7fb8ada67d0516d6810f4a7a2050d724f356fc65b7c"
+      "after_sha256": "2d6d86f2e4e4351df65e61d79bb2ad5f5d682b5437a8cd9f33e1faef807a9a2c"
     },
     {
       "path": "morphhdl/contracts/wa10-source-scope.json",
@@ -1652,7 +1658,7 @@
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "745efa481228258cd8dc5e0c97b58de579defd6eda42bcc31a20a6ce5360b8b2"
+      "after_sha256": "6a7725b15931bd9780fb54814dff97843d3bd6cdad6b0cb4dde25c87f04d4e46"
     },
     {
       "path": "morphhdl/scripts/check-contracts.sh",
