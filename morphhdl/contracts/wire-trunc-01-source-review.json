@@ -2,9 +2,9 @@
   "schema_version": 1,
   "base": "09880c538c4cf83022f4a1bb1dd16b43ea81a751",
   "base_tree": "6216cf799cc51c5a5f815d08f16e435c6b48ddc7",
-  "source_commit": "148791429cbfd74cadaefe40badfb3741ceeb0e1",
-  "source_tree": "b7d694e8b7f84a9ed42c6c14d0dcd82e4dd42180",
-  "helper_source_blob": "dfc0e2c46fb7b4757529b4855de7b885736ccdf0",
+  "source_commit": "835dca2da83d8eb1e20990da3c5dd5d62f968a66",
+  "source_tree": "2c55bb59aa490eb47ebe9ff8ffbb97722a39b402",
+  "helper_source_blob": "621979ed73b3ebb0492624af30e552a96582af9a",
   "source_paths": [
     ".github/workflows/cdc-wire-fixed-point.yml",
     ".github/workflows/wire-trunc-01.yml",
@@ -17,6 +17,7 @@
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationReceiverPhase.scala",
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/WireTruncationNativeAccess.scala",
     "morphhdl/src/test/scala/morphhdl/examples/AssignmentLowBitTruncationNativeTests.scala",
     "morphhdl/src/test/scala/nativeapplication/LowBitTruncationArtifactWriter.scala",
     "morphhdl/src/test/scala/spinal/core/internals/NativeWidthPublicationSafetyTests.scala"
