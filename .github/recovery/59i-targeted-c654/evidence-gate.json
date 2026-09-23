@@ -1,0 +1,16 @@
+{
+  "reconciliation": {
+    "artifact_id": 10740776415,
+    "artifact_sha256": "9bfe9caead1689aa56fcf5e35b7528d308ca220661a2cb94f9474c2d1fb2fcf5",
+    "controller_sha": "c0f707418d9cfa636b1739d80b7caaf17e9b61bb",
+    "run_attempt": 1,
+    "run_id": 35836365057
+  },
+  "source": {
+    "artifact_id": 10737543172,
+    "artifact_sha256": "cb111646377e014455a830c0796654de2da0ea39e7db4a3e9e358848c641528d",
+    "controller_sha": "e87700c14f4e2f5c620451c5a9ca0f89e07f9fdd",
+    "run_attempt": 1,
+    "run_id": 35814557330
+  }
+}

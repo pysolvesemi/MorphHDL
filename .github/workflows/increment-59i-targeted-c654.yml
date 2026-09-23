@@ -1,0 +1,62 @@
+name: Increment 59i exact schema-12 affected-workflow dispatcher
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/recovery/59i-targeted-c654/**
+      - .github/workflows/increment-59i-targeted-c654.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [reconcile, dispatch, plan]
+        default: reconcile
+        required: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: increment-59i-targeted-c654-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      CONTROLLER_MODE: ${{ github.event_name == 'push' && 'dispatch' || inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: c654f43c24d86ca99c056dd4cb74b7a18d9f41e3
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Run exact schema-12 affected-workflow controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/59i-targeted-c654/dispatch.py \
+            --repo-root "$GITHUB_WORKSPACE/qualification" \
+            --manifest "$GITHUB_WORKSPACE/controller/.github/recovery/59i-repair-failed-first/dispatch-manifest.json" \
+            --stage-gate "$GITHUB_WORKSPACE/controller/.github/recovery/59i-targeted-c654/evidence-gate.json" \
+            --mode "$CONTROLLER_MODE" \
+            --output "$GITHUB_WORKSPACE/targeted-receipts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 59i-targeted-dispatch-journal-c654f43c24d8-${{ github.run_id }}-${{ github.run_attempt }}
+          path: targeted-receipts/
+          if-no-files-found: error
+          retention-days: 30
