@@ -266,13 +266,16 @@ def simulate_observation(root: Path, top: str, bits: int, kind: str) -> None:
 
 def prove_equivalence(work: Path, top: str, width: int, gold_file: str,
                       gate_file: str, label: str, *, structural: bool = False,
+                      hide_names: bool = True,
                       expect_failure: bool = False) -> None:
     lines: list[str] = []
     for source, name in ((gold_file, "gold"), (gate_file, "gate")):
         lines += [f"read_verilog -formal -D SYNTHESIS {source}",
               f"chparam -set WIDTH {width} {top}", f"hierarchy -check -top {top}",
-              "proc", "flatten", "memory_map", "opt_clean", "async2sync", "opt_clean",
-              "rename -hide", f"rename {top} {name}", f"design -stash {name}"]
+              "proc", "flatten", "memory_map", "opt_clean", "async2sync", "opt_clean"]
+        if hide_names:
+            lines.append("rename -hide")
+        lines += [f"rename {top} {name}", f"design -stash {name}"]
     lines += ["design -reset", "design -copy-from gold -as gold gold",
               "design -copy-from gate -as gate gate", "equiv_make gold gate equiv",
               "hierarchy -check -top equiv"]
@@ -301,8 +304,18 @@ def formal_and_synthesis(root: Path, top: str, width: int) -> dict:
         run(work, ["iverilog", "-g2012", "-s", top, "-tnull", f"-P{top}.WIDTH={width}",
                    mode + ".v"], mode + "-strict-compile")
 
-    prove_equivalence(work, top, width, "disabled.v", "enabled.v", "mode-equivalence",
-                      structural=True)
+    # The authoritative same-fixture proof retains exact native state-storage
+    # identity.  Generated condition-carrier spellings are neither required nor
+    # matched: the enabled artifact has removed those carriers.  This route also
+    # gives the mutation control a sound cross-version correspondence model.
+    prove_equivalence(work, top, width, "disabled.v", "enabled.v",
+                      "mode-equivalence", hide_names=False)
+    # Keep an independent name-hidden topology proof so carrier allocation and
+    # private-name changes cannot be the only reason the authoritative proof
+    # succeeds.  This is supplemental because old Yosys equiv_struct versions
+    # may over-pair a deliberately mutated constant cone when -icells is used.
+    prove_equivalence(work, top, width, "disabled.v", "enabled.v",
+                      "mode-equivalence-hidden-structural", structural=True)
     oracle_proved = False
     if top == "EnumConditionRepro":
         (work / "oracle.v").write_text(fsm_oracle())
@@ -333,7 +346,7 @@ def reject_transition_mutation(root: Path) -> dict:
     mutated = source.replace(old, "if((fsm_stateReg == FSM_ACTIVE)) begin", 1)
     (work / "transition-mutation.v").write_text(mutated)
     prove_equivalence(work, top, width, "disabled.v", "transition-mutation.v",
-                      "transition-mutation-equivalence", structural=True,
+                      "transition-mutation-equivalence", hide_names=False,
                       expect_failure=True)
     return {"top": top, "width": width, "kind": "wrong-state-transition",
             "formal": "rejected"}
