@@ -458,7 +458,7 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     review.__file__ = str(helper)
     exec(compile(raw, str(helper), 'exec'), review.__dict__)
     value = review.verify(ROOT)
-    if value['schema_version'] not in (4, 5, 6, 7, 8, 9, 10, 11, 12):
+    if value['schema_version'] not in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
         raise RuntimeError('continuation route changed schema')
     anchor = '90b7fc8f13f2c53dbb6f7f8ab51f4e43cd486be6'
     originals = {
@@ -491,14 +491,14 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
         print('Exercising current schema-4 lifecycle controls', flush=True)
         subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-local-enable-successor.py', '-v'],
             cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
-        if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12):
+        if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
             subprocess.run([sys.executable, '-B', 'morphhdl/scripts/test-increment-59i-pr190-integration.py', '-v'],
                 cwd=ROOT, env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'), check=True, timeout=3600)
     review.verify(ROOT)
 
 
 if __name__ == '__main__':
-    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7, 8, 9, 10, 11, 12):
+    if json.loads((ROOT / CONTRACT).read_bytes()).get('schema_version') in (4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
         run_schema4_historical_continuation()
     else:
         unittest.main(verbosity=2)

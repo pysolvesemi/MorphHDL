@@ -125,7 +125,7 @@ def verify_ci_and_inventory(root: Path, review) -> None:
             require(expected is not None and expected.count(before) == 1,
                 "immutable regression-job budget anchor changed")
             budget = (b"timeout-minutes: 360\n" if
-                review.contract(root)["schema_version"] in (6, 7, 8, 9, 10, 11, 12) else b"timeout-minutes: 240\n")
+                review.contract(root)["schema_version"] in (6, 7, 8, 9, 10, 11, 12, 13, 14) else b"timeout-minutes: 240\n")
             expected = expected.replace(before,
                 before.replace(b"timeout-minutes: 120\n", budget), 1)
         require(review.regular(root, path) == expected,
@@ -148,11 +148,11 @@ def verify(root: Path = ROOT) -> dict:
     review = source_review(root)
     value = review.verify(root)
     schema = value["schema_version"]
-    require(schema in (5, 6, 7, 8, 9, 10, 11, 12) and review.target_anchor(root) ==
-        (review.DOCUMENTATION_TARGET if schema in (11, 12) else review.CURRENT_TARGET
+    require(schema in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14) and review.target_anchor(root) ==
+        (review.DOCUMENTATION_TARGET if schema in (11, 12, 13, 14) else review.CURRENT_TARGET
             if schema == 10 else review.SUBSTANTIVE_TARGET if schema in (8, 9) else TARGET),
         "wrong reviewed merge lifecycle")
-    if schema in (8, 9, 10, 11, 12):
+    if schema in (8, 9, 10, 11, 12, 13, 14):
         # The CDC-WIRE target legitimately supersedes the old PR190 runtime
         # merge. Authenticate the complete current checkout, then replay this
         # exact PR190 certificate at the immutable schema-7 seal where its
@@ -165,7 +165,7 @@ def verify(root: Path = ROOT) -> dict:
             hashlib.sha256(historical).hexdigest())
         return {"head": review.revision(root, "HEAD"), "source": value["source_commit"],
             "target": review.target_anchor(root), "checkpoint": (review.DOCUMENTATION_CHECKPOINT
-                if schema in (11, 12) else review.CURRENT_CHECKPOINT if schema == 10 else review.SUBSTANTIVE_CHECKPOINT),
+                if schema in (11, 12, 13, 14) else review.CURRENT_CHECKPOINT if schema == 10 else review.SUBSTANTIVE_CHECKPOINT),
             "runtime_files": len({p for p in review.tree(root, "HEAD") if runtime(p)}),
             "target_records": len(value["target_integration"]["files"]),
             "expected_testcases": 2307, "expected_suites": 230,

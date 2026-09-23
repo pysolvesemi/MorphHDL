@@ -119,9 +119,9 @@ def sync_continuation(root: Path) -> bool:
     module.__file__ = str(path)
     exec(compile(raw, str(path), "exec"), module.__dict__)
     value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
-    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12):
+    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
         require(module.target_anchor(root) == (module.DOCUMENTATION_TARGET
-                if value['schema_version'] in (11, 12) else module.CURRENT_TARGET
+                if value['schema_version'] in (11, 12, 13, 14) else module.CURRENT_TARGET
                 if value['schema_version'] == 10 else module.SUBSTANTIVE_TARGET
                 if value['schema_version'] in (8, 9) else module.PR190_TARGET),
                 "unreviewed 59i PR190 synchronization target")

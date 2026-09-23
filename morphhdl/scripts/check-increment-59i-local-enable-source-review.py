@@ -233,11 +233,11 @@ def verify(root: Path) -> dict[str, dict]:
     require(digest(frozen(root, BASE, SUCCESSOR_CONTRACT)) == BASE_CONTRACT_SHA256,
         "published predecessor certificate changed")
     schema = successor.contract(root)['schema_version']
-    reviewed_head = (successor.RUNTIME_REPAIR_PARENT if schema in (6, 7, 9, 10, 11, 12) else head)
+    reviewed_head = (successor.RUNTIME_REPAIR_PARENT if schema in (6, 7, 9, 10, 11, 12, 13, 14) else head)
     delta = {path.decode() for path in git(root, "diff", "--no-renames", "--name-only", "-z", BASE, reviewed_head).split(b"\0")
         if path and re.search(rb"(?:^|/)src/main/", path)}
     expected = set(PRODUCTION_PATHS)
-    if schema in (5, 6, 7, 8, 9, 10, 11, 12):
+    if schema in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
         # Every additional target body is independently bound to the exact
         # PR190 merge; it cannot become a local-enable review exception.
         expected |= {path for path in successor.changed(root, successor.PR190_COMMON,
@@ -246,7 +246,7 @@ def verify(root: Path) -> dict[str, dict]:
     verify_committed_identity(root, (*PATHS, CONTRACT, CHECKER, TEST))
     for path, entry in entries.items():
         source = (frozen(root, successor.RUNTIME_REPAIR_PARENT, path)
-            if schema in (6, 7, 9, 10, 11, 12) else regular(root, path))
+            if schema in (6, 7, 9, 10, 11, 12, 13, 14) else regular(root, path))
         restore_reviewed(entry, frozen(root, BASE, path), source)
     require(git(root, "rev-parse", "HEAD").decode().strip() == head, "HEAD changed during source review")
     return entries
@@ -261,7 +261,7 @@ def restore_source(root: Path, path: str, source: str) -> str:
     raw = source.encode()
     baseline = frozen(root, BASE, path)
     schema = successor.contract(root)['schema_version']
-    if schema in (6, 7, 9, 10, 11, 12) and raw == regular(root, path):
+    if schema in (6, 7, 9, 10, 11, 12, 13, 14) and raw == regular(root, path):
         # The runtime successor legitimately changes several local-enable
         # production files after this historical review.  Authenticate the
         # complete live checkout first, then project those exact bytes to the
@@ -294,7 +294,7 @@ def self_test(root: Path) -> None:
     for path, entry in entries.items():
         baseline = frozen(root, BASE, path)
         source = (frozen(root, successor.RUNTIME_REPAIR_PARENT, path)
-            if schema in (6, 7, 9, 10, 11, 12) else regular(root, path))
+            if schema in (6, 7, 9, 10, 11, 12, 13, 14) else regular(root, path))
         require(restore_reviewed(entry, baseline, source) == baseline, "positive span reversal failed")
         positions = {0, len(source) // 2, len(source) - 1}
         positions.update(edit["after_start"] for edit in entry["edits"])
