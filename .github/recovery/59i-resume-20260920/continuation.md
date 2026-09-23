@@ -1,5 +1,47 @@
 # Increment 59i continuation — 20 September 2026
 
+
+## CURRENT CHECKPOINT — final schema-12 exact-head audit repair qualifying, 23 September 2026
+
+Source qualification [35789187654](https://github.com/pysolvesemi/MorphHDL/actions/runs/35789187654)
+authenticated the exact schema-11 source and seal, then completed with14 passes
+and11 retained-audit failures. Original artifact10724062268 has API/upload ZIP
+SHA256 `8ad7165c6b47eaca4eeb67fc0221a8bb070cc11082435738fc0e92dfdfed5e8a`.
+Every failure was an exact reviewer/fixture pin; no compiler, Scala, RTL,
+generated-Verilog or hardware command failed.
+
+The bounded schema-12 repair is a direct child of the schema-11 seal and changes
+exactly18 Python audit/checker/fixture paths. Reviewed source
+`2797acc2fbeb0733c29d8c05d64857801de32ae2`, tree
+`bad8f069942e54c0e4736076ebe5ff336dec26d6`, retains the stronger rejection
+order and all historical/default time limits. Direct-child seal
+`c654f43c24d86ca99c056dd4cb74b7a18d9f41e3`, tree
+`815a381426e9507363ab91bd3a258ab9668fb87a`, changes only the production
+contract and verifier hash slot. Schema-12 contract SHA256 is
+`1aa42ad49505a3ff772a3df4736089c2b268951be4117965ee0518c5a2e9f0fd`;
+normalized helper SHA256 remains
+`66a4ab5dd5374ff935ff74d0936ec7975af46233791469e6877a9746e6f122f3`.
+The final verifier contains417 complete source records.
+
+All11 previously failing retained commands now pass locally on the exact source
+tree, including20 PR190 integration tests,54 CI-gate and48 mutation controls,
+58 sequential-wire safety negatives,34 regression-inventory tests,26
+production-successor tests, and the complete45+9 continuation controls. The
+full production verifier passes. No test, proof, workflow command, compiler,
+Scala implementation, RTL or generated Verilog byte was weakened or changed.
+
+Feature remains `9d6d738d32c71ff4359384ae9d87f715bf20ec55`; target remains
+`09880c538c4cf83022f4a1bb1dd16b43ea81a751`; PR177 remains open, draft and
+unmerged; the roadmap remains unchecked. This recovery update makes the exact
+source and seal reachable and launches exactly one guarded360-minute run of the
+unchanged25 retained source commands. Do not duplicate it. NEXT inspect all25
+actual logs and independently verify the original artifact/API digest. Only
+after it passes and a bounded current-target reconciliation passes may the
+feature advance non-force to the schema-12 seal, followed by only directly
+affected failed workflows. Do not launch full CI, merge, publish the paused
+full-CI controller, or duplicate active/passing workflows. Keep monitoring
+enabled.
+
 ## CURRENT CHECKPOINT — final schema-11 documentation reconciliation qualifying, 22 September 2026
 
 The live target advanced by one direct documentation-only child from

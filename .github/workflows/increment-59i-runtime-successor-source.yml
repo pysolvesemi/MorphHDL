@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-11 documentation-target reconciliation qualification; keep dispatch bounded to this source gate.
+# Exact schema-12 retained-audit repair qualification; keep dispatch bounded to this source gate.
 
 on:
   push:
@@ -21,17 +21,18 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
-      EXPECTED_SOURCE: 1ee1e5e3e84497de4b983e08be31e46ceb4dbc25
-      EXPECTED_CHECKPOINT: 31be34e11c41d12c08d39626314b860c24bc9781
-      EXPECTED_PREVIOUS_SEAL: 3ce0bf30e51af8d84a432a8937c88f31db1d7d05
-      EXPECTED_PREVIOUS_SOURCE: 6cac9906bafe63812b53a9de4bd432bdd623771e
+      EXPECTED_SEAL: c654f43c24d86ca99c056dd4cb74b7a18d9f41e3
+      EXPECTED_SOURCE: 2797acc2fbeb0733c29d8c05d64857801de32ae2
+      EXPECTED_PREDECESSOR_SEAL: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
+      EXPECTED_PREDECESSOR_SOURCE: 1ee1e5e3e84497de4b983e08be31e46ceb4dbc25
+      EXPECTED_DOCUMENTATION_CHECKPOINT: 31be34e11c41d12c08d39626314b860c24bc9781
+      EXPECTED_EARLIER_SEAL: 3ce0bf30e51af8d84a432a8937c88f31db1d7d05
       EXPECTED_FEATURE: 9d6d738d32c71ff4359384ae9d87f715bf20ec55
       EXPECTED_TARGET: 09880c538c4cf83022f4a1bb1dd16b43ea81a751
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
+          ref: c654f43c24d86ca99c056dd4cb74b7a18d9f41e3
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -46,14 +47,16 @@ jobs:
           printf 'started\n' > "$evidence/started.txt"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
-          test "$(git rev-parse HEAD^^)" = "$EXPECTED_CHECKPOINT"
-          test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREVIOUS_SEAL $EXPECTED_TARGET"
-          test "$(git rev-parse "$EXPECTED_PREVIOUS_SEAL^")" = "$EXPECTED_PREVIOUS_SOURCE"
-          test "$(git rev-parse 'HEAD^{tree}')" = e22a4775ab70c3c1d516ba2d83323f2273776c63
-          test "$(git rev-parse 'HEAD~1^{tree}')" = 324087367b0b979bf8eee675d96c74f40937e2ac
-          test "$(git rev-parse 'HEAD~2^{tree}')" = 3e18070703fbb27d74deefacb796a56df4a0717a
-          test "$(git rev-parse "$EXPECTED_PREVIOUS_SEAL^{tree}")" = 9f9c856590f0eb3ea93d7e6abec0e9c97609b454
-          test "$(git rev-parse "$EXPECTED_PREVIOUS_SOURCE^{tree}")" = f8efd9301cfde275d586d8e48934c357e1f31711
+          test "$(git rev-parse HEAD^^)" = "$EXPECTED_PREDECESSOR_SEAL"
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR_SEAL^")" = "$EXPECTED_PREDECESSOR_SOURCE"
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR_SOURCE^")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT"
+          test "$(git rev-list --parents -n 1 "$EXPECTED_DOCUMENTATION_CHECKPOINT")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT $EXPECTED_EARLIER_SEAL $EXPECTED_TARGET"
+          test "$(git rev-parse 'HEAD^{tree}')" = 815a381426e9507363ab91bd3a258ab9668fb87a
+          test "$(git rev-parse 'HEAD~1^{tree}')" = bad8f069942e54c0e4736076ebe5ff336dec26d6
+          test "$(git rev-parse 'HEAD~2^{tree}')" = e22a4775ab70c3c1d516ba2d83323f2273776c63
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR_SOURCE^{tree}")" = 324087367b0b979bf8eee675d96c74f40937e2ac
+          test "$(git rev-parse "$EXPECTED_DOCUMENTATION_CHECKPOINT^{tree}")" = 3e18070703fbb27d74deefacb796a56df4a0717a
+          test "$(git rev-parse "$EXPECTED_EARLIER_SEAL^{tree}")" = 9f9c856590f0eb3ea93d7e6abec0e9c97609b454
           test "$(git rev-parse "$EXPECTED_FEATURE^{tree}")" = 3498988dd26e3ee8c64209dec3dc57814dcf4111
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
@@ -71,11 +74,11 @@ jobs:
           test -z "$pr_merged"
           test "$pr_head" = "$EXPECTED_FEATURE"
           test "$pr_base" = parameterized-verilog
-          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREVIOUS_SEAL" "$EXPECTED_PREVIOUS_SOURCE" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' "$EXPECTED_PREVIOUS_SEAL^{tree}" "$EXPECTED_PREVIOUS_SOURCE^{tree}" > "$evidence/identity.txt"
+          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREDECESSOR_SOURCE" "$EXPECTED_DOCUMENTATION_CHECKPOINT" "$EXPECTED_EARLIER_SEAL" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' "$EXPECTED_PREDECESSOR_SOURCE^{tree}" "$EXPECTED_DOCUMENTATION_CHECKPOINT^{tree}" "$EXPECTED_EARLIER_SEAL^{tree}" > "$evidence/identity.txt"
           printf 'feature=%s\ntarget=%s\ntarget_tree=%s\npr_state=%s\npr_draft=%s\npr_head=%s\npr_base=%s\n' "$feature" "$target" "$target_tree" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" > "$evidence/live-refs.txt"
-          git diff --name-only "$EXPECTED_CHECKPOINT" "$EXPECTED_SOURCE" > "$evidence/runtime-repair-paths.txt"
+          git diff --name-only "$EXPECTED_PREDECESSOR_SEAL" "$EXPECTED_SOURCE" > "$evidence/audit-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
-          git diff --name-only "$EXPECTED_TARGET" "$EXPECTED_CHECKPOINT" > "$evidence/target-reconciliation-paths.txt"
+          git diff --name-only "$EXPECTED_TARGET" "$EXPECTED_DOCUMENTATION_CHECKPOINT" > "$evidence/target-reconciliation-paths.txt"
       - name: Run all 25 retained source gates
         shell: bash
         run: |
