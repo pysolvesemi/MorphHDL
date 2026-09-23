@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "917f9c93d77f67f08d289c60bbdfe41fcd5f9a29"
+      "approved_tree": "d716895d2db6e317b96f25767a0f63c7d93ce7f0"
     },
     {
       "path": "idslpayload/src/main",
@@ -3084,6 +3084,108 @@
             {
               "side": "approved",
               "text": "expressionSelect(e, e.source, e.hi, e.lo).getOrElse(",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Enum-condition full-CI repair: preserve scoped PSL semantics on supported GHDL builds"
+      ],
+      "reason": "Emit scoped VHDL assert and assume properties as the Boolean-equivalent not-scope-or-condition form. This preserves the complete native scope, condition, abort and trigger while avoiding the unsupported N_IMP_BOOL synthesis node in the repository's pinned GHDL formal backend. Cover retains its inherited sequence operator and ordinary unscoped properties remain byte-equivalent.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+        "mode": "100644",
+        "blob": "f4d650164fe60fcd12f9d2512798aa845bfafd16",
+        "sha256": "929f7c6672f02fd526007611dfd970f61d00d22827c6ecb62e5d3a73ba13ce0b"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+        "mode": "100644",
+        "blob": "9ab0de113c7e03c93da549777781344fb88d875d",
+        "sha256": "23ff71d006ec772a63f9276c1625c776e5d579b8b6f4c4722079e04ad88e4b9e"
+      },
+      "edits": [
+        {
+          "id": "componentemittervhdl-retire-implication-builder",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Retire the shared implication/sequence prefix builder so assert/assume and cover can retain their distinct semantics on the pinned backend.",
+          "baseline_span": {
+            "start": 25501,
+            "end": 25698,
+            "sha256": "0ed8b8b5d33e4da11b7fed2c6493d43d1eef474e6ae52251ae0a8fa07c7e5d59"
+          },
+          "approved_span": {
+            "start": 25501,
+            "end": 25501,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) \":\" else \"->\"\n              val preCond = if (scopeCond.length > 0) s\"$scopeCond $concatOperator \" else \"\"\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-scoped-property-forms",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Define the exact std_logic-typed Boolean-equivalent guard for scoped assert/assume while retaining the inherited cover sequence form.",
+          "baseline_span": {
+            "start": 25760,
+            "end": 25760,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 25563,
+            "end": 26190,
+            "sha256": "5d63bb118da5119621a8c265ea7d6d11a82c6cfad56281a1773a125e0d8ec47d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"((not pkg_toStdLogic($scopeCond)) or ($cond))\" else cond",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"$scopeCond : $cond\" else cond",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-emit-guarded-properties",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Use the reviewed guarded property for assert/assume and the reviewed sequence property for cover without changing abort or trigger suffixes.",
+          "baseline_span": {
+            "start": 26053,
+            "end": 26244,
+            "sha256": "ab8e55b09ebd35ddac9ce632d81f867485e602e009638d9d5c17ce70ea3129b5"
+          },
+          "approved_span": {
+            "start": 26483,
+            "end": 26671,
+            "sha256": "922a650a4b1f674bf8322881ce81b931d3aeb06c2f11e41bb60de6d42cf8899a"
+          },
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "preCond$cond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $preCond$cond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$preCond$c",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "guardedCond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $guardedCond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$coveredC",
               "count": 1
             }
           ]
