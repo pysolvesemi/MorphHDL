@@ -295,11 +295,14 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
       val copied = NativePureExpressionCopy(selectedBoundary.input).getOrElse(return None)
       val replacement = expand(copied, 0)
       if (boundedSize(replacement) > 256) return None
-      // WIRE-TRUNC-01 exists to remove eligible expression carriers. A
-      // carrier-free native resize/select is already the authoritative
-      // assignment boundary; stripping it would alter inherited fixed-width
-      // sequential emission without eliminating any wire.
-      if (definitions.isEmpty) return None
+      // Fixed carrier-free resize/select boundaries are already authoritative
+      // native fences and must stay intact. A symbolic whole-object receiver is
+      // different: the explicit root resize represents exactly the parameterized
+      // low projection proved below, and removing it lets the existing late
+      // emitter sizing proof keep the wider RHS evaluation domain without a
+      // default-width carrier. Direct BaseType roots still require an expanded
+      // authentic generated/unnamed definition.
+      if (definitions.isEmpty && selectedBoundary.receiver.parameters.isEmpty) return None
       if (!continuous && !nonblocking && !independentBlockingInputs(replacement, component)) return None
 
       val scope = ScopeId.unsafe("scope.wire-trunc.assignment")
