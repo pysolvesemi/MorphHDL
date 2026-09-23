@@ -102,6 +102,10 @@ SAFETY_MARKERS = {
         "replacementWidth.parameters.nonEmpty",
         "validConsumedFresh(component, value, record)",
         "record.assignment.source eq replacement",
+        "def validConsumedDuringPublication(",
+        "current != null && current.containsKey(record)",
+        "consumed(value, record) && validConsumedFresh(component, value, record)",
+        "validConsumedDuringPublication(component, value, record)",
         "if (!consumed(value, record))",
     ),
 }
