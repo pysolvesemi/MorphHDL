@@ -351,17 +351,40 @@ object ExternalParameterizedNativeResize {
          .exists(NativePublicationWidth.equivalentAtOwner(_, record.targetWidth, component, record.target)))
   }
 
+  /** A consumed WIRE-TRUNC-01 assignment is not a native resize proof after the
+    * handoff. During the one scoped publication call only, however, the generic
+    * assignment-width validator may recognize that exact completed handoff as
+    * already owned and revalidated by this registry. Pending, stale, unrelated
+    * or post-publication assignments remain unauthorized.
+    */
+  private def validConsumedDuringPublication(
+      component: Component,
+      value: Storage,
+      record: Record
+  ): Boolean = {
+    val current = publicationValidation.get()
+    current != null && current.containsKey(record) &&
+      consumed(value, record) && validConsumedFresh(component, value, record)
+  }
+
   private[internals] def proves(component: Component, resize: Resize): Boolean =
     storage(component).flatMap(value => Option(value.byResize.get(resize))).exists(validFresh(component, _))
 
   /** The original target-sized assignment remains a resize boundary when
-    * native simplification removes an equal-witness Resize expression.
+    * native simplification removes an equal-witness Resize expression. A
+    * completed WIRE-TRUNC-01 handoff is recognized only while its enclosing
+    * publication validation scope is active; outside that scope this API keeps
+    * its historical fresh-resize meaning.
     */
   private[internals] def provesAssignment(
       component: Component,
       assignment: DataAssignmentStatement
-  ): Boolean =
-    storage(component).flatMap(value => Option(value.byAssignment.get(assignment))).exists(validFresh(component, _))
+  ): Boolean = storage(component).exists { value =>
+    Option(value.byAssignment.get(assignment)).exists { record =>
+      validFresh(component, record) ||
+        validConsumedDuringPublication(component, value, record)
+    }
+  }
 
   private[internals] def targetWidthOf(component: Component, target: BaseType)
       : Option[ElaborationIntegerExpression] =
