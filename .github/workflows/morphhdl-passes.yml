@@ -137,7 +137,9 @@ jobs:
             audit_base_sha=27af65abbee0d2334d6be7a6e4e2408b8af32fd9
             printf 'Current PR189 source: %s\nHistorical pass-only static source: %s\n' \
               "$(git rev-parse HEAD)" "$audit_source"
-          elif [[ "$SOURCE_HEAD_REF" == agent/wa-cdc-wire-01-fixed-point || "$SOURCE_HEAD_REF" == agent/cdc-wire-native-publication-cleanup ]]; then
+          elif [[ "$SOURCE_HEAD_REF" == agent/wa-cdc-wire-01-fixed-point ||
+                  "$SOURCE_HEAD_REF" == agent/cdc-wire-native-publication-cleanup ||
+                  "$SOURCE_HEAD_REF" == agent/enum-expression-recursive-cleanup ]]; then
             # Authenticate the recursive-cleanup successor and its current
             # rejection controls before replaying immutable historical syntax
             # contracts. Scala, native generation and all formal jobs below

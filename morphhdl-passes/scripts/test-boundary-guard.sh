@@ -484,6 +484,10 @@ if [[ -f "${repo_root}/morphhdl/scripts/check-cdc-wire-source-review.py" ]]; the
     run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
   expect_failure 'CDC-WIRE lookalike branch cannot authorize native paths' \
     run_checker agent/wa-cdc-wire-01-fixed-point-unreviewed "${cdc_wire_manifest}"
+  expect_success 'enum-expression successor paths require the same sealed inventory' \
+    run_checker agent/enum-expression-recursive-cleanup "${cdc_wire_manifest}"
+  expect_failure 'enum-expression lookalike cannot authorize native paths' \
+    run_checker agent/enum-expression-recursive-cleanup-unreviewed "${cdc_wire_manifest}"
   printf '%s\n' \
     'core/src/main/scala/spinal/core/Component.scala' \
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala' \
@@ -497,4 +501,6 @@ if [[ -f "${repo_root}/morphhdl/scripts/check-cdc-wire-source-review.py" ]]; the
     run_checker agent/wa-cdc-wire-01-fixed-point "${cdc_wire_manifest}"
   expect_failure 'publication follow-up still rejects unreviewed native paths' \
     run_checker agent/cdc-wire-native-publication-cleanup "${cdc_wire_manifest}"
+  expect_failure 'enum-expression successor still rejects unreviewed native paths' \
+    run_checker agent/enum-expression-recursive-cleanup "${cdc_wire_manifest}"
 fi
