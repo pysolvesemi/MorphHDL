@@ -31,13 +31,50 @@ jobs:
             **/
           key: Linux-compiled-a93bf094ed830c704526dce2cacc06b339a2a6b6
           fail-on-cache-miss: true
-      - name: Run complete FIFO formal suite in isolation
+      - name: Apply semantics-preserving GHDL implication lowering
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala")
+          text = path.read_text()
+          old = '''              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) ":" else "->"
+              val preCond = if (scopeCond.length > 0) s"$scopeCond $concatOperator " else ""
+              val cond = emitExpression(assertStatement.cond)
+              val trigger = if (multiclock) " @" + getTrigger(component, group.clockDomain) else ""
+              val abort = getAbort(component, group.clockDomain)
+              val statement = assertStatement.kind match {
+                case AssertStatementKind.ASSERT => s"assert (always $preCond$cond$abort)$trigger"
+                case AssertStatementKind.ASSUME => s"assume (always $preCond$cond)$trigger"
+                case AssertStatementKind.COVER  => s"cover {$preCond$cond}$trigger"
+              }
+          '''
+          new = '''              val cond = emitExpression(assertStatement.cond)
+              val guardedCond =
+                if (scopeCond.nonEmpty) s"((not ($scopeCond)) or ($cond))" else cond
+              val coveredCond =
+                if (scopeCond.nonEmpty) s"$scopeCond : $cond" else cond
+              val trigger = if (multiclock) " @" + getTrigger(component, group.clockDomain) else ""
+              val abort = getAbort(component, group.clockDomain)
+              val statement = assertStatement.kind match {
+                case AssertStatementKind.ASSERT => s"assert (always $guardedCond$abort)$trigger"
+                case AssertStatementKind.ASSUME => s"assume (always $guardedCond)$trigger"
+                case AssertStatementKind.COVER  => s"cover {$coveredCond}$trigger"
+              }
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("emitter patch anchor mismatch")
+          path.write_text(text.replace(old, new))
+          PY
+          git diff --check
+          git diff -- core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala
+      - name: Verify repaired exact GHDL case
         id: reproduce
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          sbt ++2.12.18 'tester/testOnly spinal.tester.scalatest.FormalFifoTester' 2>&1 | tee /tmp/enum-fifo-diagnostic.log
+          sbt ++2.12.18 'tester/testOnly spinal.tester.scalatest.FormalFifoTester -- -z "formalpsl_StreamFifo_depth.7-withAsyncRead.false-withBypass.false-forFMax.false-allowExtraMsb.false-backend.GhdlFormalBackend"' 2>&1 | tee /tmp/enum-fifo-diagnostic.log
       - name: Capture formal engine diagnostics
         if: always()
         shell: bash
@@ -45,25 +82,18 @@ jobs:
           set -euo pipefail
           mkdir -p /tmp/enum-fifo-diagnostic
           cp /tmp/enum-fifo-diagnostic.log /tmp/enum-fifo-diagnostic/ || true
+          git diff > /tmp/enum-fifo-diagnostic/emitter.patch
           if [ -d simWorkspace ]; then
             find simWorkspace -type f -print | sort > /tmp/enum-fifo-diagnostic/files.txt
-            while IFS= read -r f; do
-              case "$f" in
-                *.log|*.txt|*.status|*.sby|*.ys)
-                  printf '\n===== %s =====\n' "$f"
-                  sed -n '1,240p' "$f"
-                  ;;
-              esac
-            done < /tmp/enum-fifo-diagnostic/files.txt | tee /tmp/enum-fifo-diagnostic/formal-files.txt
             cp -a simWorkspace /tmp/enum-fifo-diagnostic/
           fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: enum-fifo-suite-diagnostic-a93bf094
+          name: enum-fifo-emitter-repair-a93bf094
           path: /tmp/enum-fifo-diagnostic
           retention-days: 7
-      - name: Preserve isolated-suite result
+      - name: Preserve repair result
         if: always()
         shell: bash
         run: |
