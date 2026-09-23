@@ -33,7 +33,7 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
   private final case class Definition(alias: BaseType, driver: DataAssignmentStatement,
       source: Expression, width: Int, origin: NameOrigin)
   private final case class Plan(source: Expression, definitions: Vector[Definition],
-      copies: Vector[(BaseType, Int, Int)])
+      copies: Vector[(BaseType, Int, Int)], symbolicReceiver: Boolean)
 
   private var completed = false
   private var assignments = 0
@@ -60,7 +60,17 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
         statementsOf(component).foreach {
           case assignment: DataAssignmentStatement =>
             prepare(pc, component, assignment).foreach { plan =>
+              // Native symbolic resize publication captured this assignment
+              // before canonical cleanup. Transfer that exact ownership only
+              // after the complete WIRE proof has produced a Plan; the paired
+              // completion binds the replacement identity immediately after
+              // writeback. A missing capture needs no handoff.
+              val consumedNativeResize = plan.symbolicReceiver &&
+                ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(component, assignment)
               assignment.source = plan.source
+              if (consumedNativeResize)
+                ExternalParameterizedNativeResize.completeLowBitTruncationConsumption(
+                  component, assignment, plan.source)
               assignments += 1
               plan.copies.foreach { case (alias, count, nodes) =>
                 spentCopies.put(alias, used(spentCopies, alias) + count)
@@ -326,7 +336,7 @@ private[examples] final class AssignmentLowBitTruncationNativePhase(
           selectedBoundary.receiver.maximum, capturedDefinitions).isEmpty) return None
       Some(Plan(replacement, definitions.toVector, definitions.toVector.map { definition =>
         (definition.alias, used(counts, definition.alias), used(costs, definition.alias))
-      }))
+      }, symbolicReceiver = selectedBoundary.receiver.parameters.nonEmpty))
     } catch { case Unproved => None }
   }
 
