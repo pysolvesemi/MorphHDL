@@ -41,6 +41,7 @@ SOURCE_PATHS = frozenset((
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationReceiverPhase.scala",
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/WireTruncationNativeAccess.scala",
     "morphhdl/src/test/scala/morphhdl/examples/AssignmentLowBitTruncationNativeTests.scala",
     "morphhdl/src/test/scala/nativeapplication/LowBitTruncationArtifactWriter.scala",
     "morphhdl/src/test/scala/spinal/core/internals/NativeWidthPublicationSafetyTests.scala",
@@ -54,6 +55,7 @@ PRODUCTION_PATHS = frozenset((
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationReceiverPhase.scala",
     "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala",
     "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala",
+    "morphhdl/src/main/scala/spinal/core/internals/WireTruncationNativeAccess.scala",
 ))
 
 SAFETY_MARKERS = {
@@ -91,15 +93,17 @@ SAFETY_MARKERS = {
         "expressionRemovalBlocker",
     ),
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationReceiverPhase.scala": (
-        "ExternalParameterizedNativeResize",
-        ".targetWidthOf(component, symbolicCarrier).filter(_.parameters.nonEmpty)",
+        "WireTruncationNativeAccess.protectedCarrier(symbolicCarrier)",
+        ".symbolicResizeTargetWidth(component, symbolicCarrier)",
         "value == NameOrigin.Generated || value == NameOrigin.Unnamed",
         "sourceIntent.permits(symbolicCarrier)",
+        "WireTruncationNativeAccess.protectedCarrier(value)",
         "sourceIntent.permits(value)",
         "receiverWidth.maximum > fixedWidth.minimum",
         "receiverWidth.minimum >= fixedWidth.minimum",
         "NativeWireExpressionCodec.fixedWidthTree(value.source)",
         "AssignmentLowBitTruncationProof.prove(",
+        "before, after, receiverParameter, fixedCarrier.getBitsWidth,",
         "value.source eq symbolicCarrier",
         "sameBoundary(target, symbolicCarrier)",
         "independentBlockingInputs(replacement, component)",
@@ -128,6 +132,14 @@ SAFETY_MARKERS = {
         "consumed(value, record) && validConsumedFresh(component, value, record)",
         "validConsumedDuringPublication(component, value, record)",
         "if (!consumed(value, record))",
+    ),
+    "morphhdl/src/main/scala/spinal/core/internals/WireTruncationNativeAccess.scala": (
+        "value.dontSimplify",
+        "value.getTags().forall(_ eq noBackendCombMerge)",
+        "if (component == null || target == null) None",
+        "ExternalParameterizedNativeResize",
+        ".targetWidthOf(component, target)",
+        ".filter(_.parameters.nonEmpty)",
     ),
 }
 
