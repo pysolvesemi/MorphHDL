@@ -31,13 +31,13 @@ jobs:
             **/
           key: Linux-compiled-a93bf094ed830c704526dce2cacc06b339a2a6b6
           fail-on-cache-miss: true
-      - name: Reproduce one deterministic GHDL depth-seven failure
+      - name: Run complete FIFO formal suite in isolation
         id: reproduce
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
-          sbt ++2.12.18 'tester/testOnly spinal.tester.scalatest.FormalFifoTester -- -z "formalpsl_StreamFifo_depth.7-withAsyncRead.false-withBypass.false-forFMax.false-allowExtraMsb.false-backend.GhdlFormalBackend"' 2>&1 | tee /tmp/enum-fifo-diagnostic.log
+          sbt ++2.12.18 'tester/testOnly spinal.tester.scalatest.FormalFifoTester' 2>&1 | tee /tmp/enum-fifo-diagnostic.log
       - name: Capture formal engine diagnostics
         if: always()
         shell: bash
@@ -60,10 +60,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: enum-fifo-diagnostic-a93bf094
+          name: enum-fifo-suite-diagnostic-a93bf094
           path: /tmp/enum-fifo-diagnostic
           retention-days: 7
-      - name: Preserve reproduction result
+      - name: Preserve isolated-suite result
         if: always()
         shell: bash
         run: |
