@@ -47,7 +47,7 @@ object ExternalParameterizedNativeResize {
     val wireTruncationReplacement = new java.util.IdentityHashMap[Record, Expression]()
     // Final receiver forwarding is a second, strictly subordinate handoff.
     // It never creates resize authority of its own: every record remains bound
-    // to one completed captured resize and one exact receiver assignment.
+    // to one captured low-projection owner and one exact receiver assignment.
     val wireTruncationReceivers =
       new java.util.IdentityHashMap[DataAssignmentStatement, ReceiverRecord]()
     val wireTruncationReceiverReplacement =
@@ -75,6 +75,29 @@ object ExternalParameterizedNativeResize {
 
   private def consumed(value: Storage, record: Record): Boolean =
     value.wireTruncationReplacement.containsKey(record)
+
+  private def lowBitProjection(record: Record): Boolean =
+    record.targetWidth.parameters.nonEmpty && record.sourceWidth.parameters.isEmpty &&
+      record.sourceWidth.minimum == record.sourceWidth.maximum &&
+      record.sourceWidth.default == record.sourceWidth.minimum &&
+      record.targetWidth.maximum <= record.sourceWidth.minimum &&
+      record.targetWidth.minimum < record.sourceWidth.minimum
+
+  /** A forwarded receiver may be subordinate to either the exact still-fresh
+    * native resize owner retained by another use, or to that same owner after
+    * WIRE-TRUNC has completed its first consumption handoff. No other captured
+    * resize can authorize receiver forwarding.
+    */
+  private def validReceiverOwnerFresh(
+      component: Component,
+      value: Storage,
+      record: Record
+  ): Boolean = lowBitProjection(record) && {
+    if (consumed(value, record))
+      value.wireTruncationReplacement.get(record) != null &&
+        validConsumedFresh(component, value, record)
+    else validFresh(component, record)
+  }
 
   private def references(expression: Expression, target: BaseType): Boolean = {
     if (expression == null) false
@@ -272,11 +295,7 @@ object ExternalParameterizedNativeResize {
         if (consumed(value, record)) fail("native resize assignment was consumed by WIRE-TRUNC-01 twice")
         if (!validFresh(component, record))
           fail("native resize assignment changed before WIRE-TRUNC-01 consumption")
-        if (record.targetWidth.parameters.isEmpty || record.sourceWidth.parameters.nonEmpty ||
-            record.sourceWidth.minimum != record.sourceWidth.maximum ||
-            record.sourceWidth.default != record.sourceWidth.minimum ||
-            record.targetWidth.maximum > record.sourceWidth.minimum ||
-            record.targetWidth.minimum >= record.sourceWidth.minimum)
+        if (!lowBitProjection(record))
           fail("native resize assignment is not a symbolic low projection of one fixed source width")
         value.wireTruncationReplacement.put(record, null)
         true
@@ -312,11 +331,13 @@ object ExternalParameterizedNativeResize {
       fail("WIRE-TRUNC-01 completed native resize lineage is not publication-safe")
   }
 
-  /** Bind one exact downstream whole-object receiver to an already completed
-    * WIRE-TRUNC-01 resize handoff. The receiver must still read the captured
-    * symbolic target and own the same authoritative symbolic width at its own
-    * declaration. This pending record grants no publication authority until
-    * completion binds the exact fixed-width replacement identity.
+  /** Bind one exact downstream whole-object receiver to a captured symbolic
+    * low-projection owner. The owner may still be the exact fresh native resize
+    * retained by another use or may already have completed the first WIRE
+    * consumption handoff. The receiver must still read that captured symbolic
+    * target and own the same authoritative symbolic width at its declaration.
+    * This pending record grants no publication authority until completion binds
+    * the exact fixed-width replacement identity.
     */
   def beginLowBitTruncationReceiverForwarding(
       component: Component,
@@ -328,9 +349,8 @@ object ExternalParameterizedNativeResize {
       val owner = value.byAssignment.get(ownerAssignment)
       if (owner == null) false
       else {
-        if (!consumed(value, owner) || value.wireTruncationReplacement.get(owner) == null ||
-            !validConsumedFresh(component, value, owner))
-          fail("WIRE-TRUNC-01 receiver forwarding lost its completed resize owner")
+        if (!validReceiverOwnerFresh(component, value, owner))
+          fail("WIRE-TRUNC-01 receiver forwarding lost its exact low-projection resize owner")
         if (receiver == null) return false
         if (value.wireTruncationReceivers.containsKey(receiver))
           fail("WIRE-TRUNC-01 receiver assignment was forwarded twice")
@@ -441,8 +461,7 @@ object ExternalParameterizedNativeResize {
       record: ReceiverRecord
   ): Boolean = {
     val replacement = value.wireTruncationReceiverReplacement.get(record)
-    if (replacement == null || !consumed(value, record.owner) ||
-        !validConsumedFresh(component, value, record.owner)) return false
+    if (replacement == null || !validReceiverOwnerFresh(component, value, record.owner)) return false
     var assignments = 0
     var targets = 0
     component.dslBody.walkStatements {
@@ -546,14 +565,14 @@ object ExternalParameterizedNativeResize {
     * completed WIRE-TRUNC-01 handoff is recognized only while its enclosing
     * publication validation scope is active; outside that scope this API keeps
     * its historical fresh-resize meaning. Final forwarded receivers have the
-    * same scoped-only rule and are bound to their exact consumed owner.
+    * same scoped-only rule and are bound to their exact captured owner.
     */
   private[internals] def provesAssignment(
       component: Component,
       assignment: DataAssignmentStatement
   ): Boolean = storage(component).exists { value =>
     val native = Option(value.byAssignment.get(assignment)).exists { record =>
-      validFresh(component, record) ||
+      (!consumed(value, record) && validFresh(component, record)) ||
         validConsumedDuringPublication(component, value, record)
     }
     val receiver = Option(value.wireTruncationReceivers.get(assignment))
@@ -565,6 +584,19 @@ object ExternalParameterizedNativeResize {
       : Option[ElaborationIntegerExpression] =
     storage(component).flatMap(value => Option(value.byTarget.get(target)))
       .filter(valid(component, _)).map(_.targetWidth)
+
+  /** Expose only the exact fixed source identity of a captured symbolic low
+    * projection whose owner is still valid for receiver forwarding. This is a
+    * read-only bridge for the WIRE receiver proof, not publication authority.
+    */
+  private[internals] def lowBitTruncationSourceOf(
+      component: Component,
+      target: BaseType
+  ): Option[BaseType] = storage(component).flatMap { value =>
+    Option(value.byTarget.get(target))
+      .filter(validReceiverOwnerFresh(component, value, _))
+      .map(_.source: BaseType)
+  }
 
   /** The generic width analysis must publish the same geometry that this
     * captured native resize proves. A fixed source witness cannot authorize
