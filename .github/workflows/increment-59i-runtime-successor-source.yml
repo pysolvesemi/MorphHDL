@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-16 59h diagnostic-order repair qualification; keep dispatch bounded to this source gate.
+# Exact schema-16 byte-safe replacement seal qualification; keep dispatch bounded to this source gate.
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 8b1920da34434e5bd38646305731b341e292c29a
+      EXPECTED_SEAL: f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6
       EXPECTED_SOURCE: 7ae72385bf0079c3a8c70ab0c317f97c421ddd09
       EXPECTED_PREDECESSOR_SEAL: c48bad51b9857570e65fbd7c1be5dec465a3e8fa
       EXPECTED_PREDECESSOR_SOURCE: 9270cb332aba63b6ea7ca17dc2694b93ff7ded52
@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 8b1920da34434e5bd38646305731b341e292c29a
+          ref: f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -67,7 +67,7 @@ jobs:
           test "$(git rev-parse "$EXPECTED_OLDEST_SEAL^")" = "$EXPECTED_OLDEST_SOURCE"
           test "$(git rev-parse "$EXPECTED_OLDEST_SOURCE^")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_DOCUMENTATION_CHECKPOINT")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT $EXPECTED_EARLIER_SEAL $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = 6efafef53e0e5aa722aac4ca04277c0f9e941d94
+          test "$(git rev-parse 'HEAD^{tree}')" = 303dd21d525ea001ddf8327a96e215d417e20ba6
           test "$(git rev-parse 'HEAD~1^{tree}')" = e033d6419c3775e5d0ba57eab5d4a8033153e65c
           test "$(git rev-parse 'HEAD~2^{tree}')" = 6c2bee9158e61022a4fdc56efb33b056bf2135ff
           test "$(git rev-parse "$EXPECTED_PREDECESSOR_SOURCE^{tree}")" = 898934c355f6a7280932f92e5e7f88f2e1f3bc1b
