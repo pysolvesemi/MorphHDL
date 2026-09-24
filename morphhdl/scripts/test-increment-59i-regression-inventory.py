@@ -7,6 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -140,6 +141,11 @@ class Reports(unittest.TestCase):
     def test_xml_entity(self):self.file.write_bytes(b'<!DOCTYPE x [<!ENTITY q "x">]>'+self.file.read_bytes());self.reject()
 
 class Preservation(unittest.TestCase):
+    def test_59f_partition_retains_source_audits_and_every_scala_obligation(self):
+        subprocess.run([sys.executable, '-B',
+            'morphhdl/scripts/test-increment-59f-scheduling.py', '-v'],
+            cwd=ROOT, check=True, timeout=120)
+
     def test_59h_partition_retains_all_original_source_test_and_proof_obligations(self):
         verify_59h_partition((ROOT/'.github/workflows/increment-59h-nested-owners.yml').read_text())
     def test_59h_partition_rejects_optional_stale_missing_and_changed_obligations(self):

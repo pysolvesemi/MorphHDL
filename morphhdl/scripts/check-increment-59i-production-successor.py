@@ -475,6 +475,38 @@ SCHEMA_DIAGNOSTIC_PATHS = frozenset((
     'morphhdl/scripts/test-increment-59i-pr190-integration.py',
 ))
 
+# Schema-16 qualification plus the exact-head 59f run proved that the two
+# Scala lanes spend roughly four hours in the complete inherited source audit,
+# leaving too little of GitHub's fixed six-hour job ceiling for the unchanged
+# generation, tests, and hardware proof.  This direct successor moves that
+# exact audit into one required same-head source job and changes only the
+# workflow, its fail-closed scheduling control, and the closed reviewer set.
+SCHEMA_SCHEDULING_PARENT = "f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6"
+SCHEMA_SCHEDULING_PARENT_TREE = "303dd21d525ea001ddf8327a96e215d417e20ba6"
+SCHEMA_SCHEDULING_PARENT_SOURCE = "7ae72385bf0079c3a8c70ab0c317f97c421ddd09"
+SCHEMA_SCHEDULING_PARENT_MANIFEST = "71bd767ae90a3e2baa4cb32120f196e2855e97c4f8ffd8e29b19727633d5768f"
+SCHEMA_SCHEDULING_PARENT_HELPER = "ea2ba0be742d878260c0bac57be3ec26e2e917bee74fd3851ddaf7664d5c5d1e"
+SCHEMA_SCHEDULING_PATHS = frozenset((
+    '.github/workflows/increment-59f-callback-graphs.yml',
+    'morphhdl/scripts/check-cdc-successor-source.py',
+    'morphhdl/scripts/check-increment-59i-local-enable-source-review.py',
+    'morphhdl/scripts/check-increment-59i-pr190-integration.py',
+    'morphhdl/scripts/check-increment-59i-production-successor.py',
+    'morphhdl/scripts/check-increment-59i-regression-inventory.py',
+    'morphhdl/scripts/check-increment-59i-rollout-composition.py',
+    'morphhdl/scripts/check-increment-59i-target-integration.py',
+    'morphhdl/scripts/check-increment-59i-widening-source-review.py',
+    'morphhdl/scripts/check-increment-60b-signedness-authority.py',
+    'morphhdl/scripts/check-increment-61-source-review.py',
+    'morphhdl/scripts/check-increment-62-wa08-source-overlay.py',
+    'morphhdl/scripts/check-pr190-pr189-source-sync.py',
+    'morphhdl/scripts/test-increment-59f-scheduling.py',
+    'morphhdl/scripts/test-increment-59i-continuation.py',
+    'morphhdl/scripts/test-increment-59i-pr189-sync.py',
+    'morphhdl/scripts/test-increment-59i-pr190-integration.py',
+    'morphhdl/scripts/test-increment-59i-regression-inventory.py',
+))
+
 # The substantive target qualification exposed only inherited audit adapters
 # and fixtures that still pinned the schema-7 verifier or topology.  This
 # successor is a direct child of the immutable schema-8 seal and cannot change
@@ -506,7 +538,7 @@ AUDIT_ADAPTER_PATHS = frozenset((
 
 
 def integration_parameters(schema: int) -> tuple[str, str, frozenset]:
-    if schema in (11, 12, 13, 14, 15, 16):
+    if schema in (11, 12, 13, 14, 15, 16, 17):
         return DOCUMENTATION_TARGET, DOCUMENTATION_COMMON, DOCUMENTATION_RECONCILIATIONS
     if schema == 10:
         return CURRENT_TARGET, CURRENT_COMMON, CURRENT_RECONCILIATIONS
@@ -520,6 +552,12 @@ def integration_parameters(schema: int) -> tuple[str, str, frozenset]:
 
 
 def previous_certificate(schema: int = 3) -> dict:
+    if schema == 17:
+        return {"seal_commit": SCHEMA_SCHEDULING_PARENT,
+            "seal_tree": SCHEMA_SCHEDULING_PARENT_TREE,
+            "source_commit": SCHEMA_SCHEDULING_PARENT_SOURCE,
+            "contract_sha256": SCHEMA_SCHEDULING_PARENT_MANIFEST,
+            "helper_normalized_sha256": SCHEMA_SCHEDULING_PARENT_HELPER}
     if schema == 16:
         return {"seal_commit": SCHEMA_DIAGNOSTIC_PARENT,
             "seal_tree": SCHEMA_DIAGNOSTIC_PARENT_TREE,
@@ -613,7 +651,7 @@ def pr190_checkpoint() -> dict:
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 TEST = "morphhdl/scripts/test-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-CONTRACT_SHA256 = "71bd767ae90a3e2baa4cb32120f196e2855e97c4f8ffd8e29b19727633d5768f"
+CONTRACT_SHA256 = "UNSEALED"
 COMPLETION_TODO = "docs/morphhdl/parameterized-verilog-todo.md"
 COMPLETION_RECORD = "docs/morphhdl/increment-59i-final-qualification.md"
 COMPLETION_ANCHOR = "- [ ] **Increment 59i — Combined Vec/reduction compatibility, proof and publication closure**\n".encode()
@@ -750,11 +788,11 @@ def validate_contract(value: dict) -> dict:
          set(value) == keys | {"target_integration", "previous_seal", "development_checkpoint"}) or
         (type(value.get("schema_version")) is int and value["schema_version"] == 5 and
          set(value) == keys | {"target_integration", "previous_seal", "target_checkpoint"}) or
-        (type(value.get("schema_version")) is int and value["schema_version"] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) and
+        (type(value.get("schema_version")) is int and value["schema_version"] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) and
          set(value) == keys | {"target_integration", "previous_seal"})),
         "invalid manifest schema")
     require(value["predecessor"] == BASE, "immutable predecessor changed")
-    if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+    if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         require(value["previous_seal"] == previous_certificate(value["schema_version"]),
             "previous source seal identity changed")
     if value["schema_version"] == 4:
@@ -883,7 +921,7 @@ def verify_target_integration(root: Path, value: dict) -> None:
         scope_parent = SUBSTANTIVE_PARENT
     elif value["schema_version"] == 10:
         scope_parent = CURRENT_PARENT
-    elif value["schema_version"] in (11, 12, 13, 14, 15, 16):
+    elif value["schema_version"] in (11, 12, 13, 14, 15, 16, 17):
         scope_parent = DOCUMENTATION_PARENT
     if value["schema_version"] in (3, 4):
         git(root, "merge-base", "--is-ancestor", scope_parent, CONTINUATION_PARENT)
@@ -1115,7 +1153,7 @@ def verify_previous_certificate(root: Path, value: dict) -> None:
         "target carries an unrelated 59i seal")
     audit_immutable_certificate(root, parent, HELPER,
         certificate["helper_normalized_sha256"], normalized=True,
-        timeout=600 if value["schema_version"] in (14, 15, 16) else 300)
+        timeout=600 if value["schema_version"] in (14, 15, 16, 17) else 300)
     certificate = frozen(root, CONTINUATION_TARGET, "morphhdl/contracts/increment-61-source-review.json")
     require(certificate is not None and digest(certificate) == CONTINUATION_61_CONTRACT,
         "immutable Increment 61 contract changed")
@@ -1123,7 +1161,7 @@ def verify_previous_certificate(root: Path, value: dict) -> None:
         "immutable Increment 61 predecessor changed")
     audit_immutable_certificate(root, CONTINUATION_TARGET,
         "morphhdl/scripts/check-increment-61-source-review.py", CONTINUATION_61_HELPER)
-    if value["schema_version"] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+    if value["schema_version"] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         audit_immutable_certificate(root, PR190_TARGET,
             "morphhdl/scripts/check-pr190-pr189-source-sync.py", PR190_TARGET_CHECKER)
 
@@ -1292,6 +1330,20 @@ def verify_schema_diagnostic_history(root: Path, value: dict) -> None:
         "schema-diagnostic repair changed files outside the closed reviewed set")
     require(tree(root, source).get(CONTRACT) == tree(root, SCHEMA_DIAGNOSTIC_PARENT).get(CONTRACT),
         "schema-diagnostic repair changed the preserved schema-15 certificate")
+
+
+def verify_schema_scheduling_history(root: Path, value: dict) -> None:
+    """Admit only the bounded 59f source/lane split after schema 16."""
+    source = value["source_commit"]
+    require(git(root, "rev-list", "--parents", "-n", "1", source).decode().split() ==
+        [source, SCHEMA_SCHEDULING_PARENT],
+        "schema-scheduling repair must be one direct child of the schema-16 seal")
+    require(git(root, "rev-parse", SCHEMA_SCHEDULING_PARENT + "^{tree}").decode().strip() ==
+        SCHEMA_SCHEDULING_PARENT_TREE, "schema-scheduling parent tree changed")
+    require(changed(root, SCHEMA_SCHEDULING_PARENT, source) == SCHEMA_SCHEDULING_PATHS,
+        "schema-scheduling repair changed files outside the closed reviewed set")
+    require(tree(root, source).get(CONTRACT) == tree(root, SCHEMA_SCHEDULING_PARENT).get(CONTRACT),
+        "schema-scheduling repair changed the preserved schema-16 certificate")
 
 
 def verify_runtime_repair_history(root: Path, value: dict) -> None:
@@ -1474,12 +1526,16 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
         verify_schema_hash_history(root, value)
         verify_previous_certificate(root, value)
         verify_target_integration(root, value)
-    else:
-        require(value["schema_version"] == 16, "unsupported seal lifecycle")
+    elif value["schema_version"] == 16:
         verify_schema_diagnostic_history(root, value)
         verify_previous_certificate(root, value)
         verify_target_integration(root, value)
-    if value["schema_version"] not in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+    else:
+        require(value["schema_version"] == 17, "unsupported seal lifecycle")
+        verify_schema_scheduling_history(root, value)
+        verify_previous_certificate(root, value)
+        verify_target_integration(root, value)
+    if value["schema_version"] not in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         require(not git(root, "rev-list", "--full-history", BASE + ".." + source, "--", CONTRACT),
             "source history already contains a successor seal")
     # A normal GitHub integration merge places the reviewed feature in its
@@ -1499,7 +1555,7 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
             require(integration is None, "sealed route contains more than one integration merge")
             target, feature = ancestry[1:]
             try:
-                target_ceiling = (DOCUMENTATION_TARGET if value["schema_version"] in (11, 12, 13, 14, 15, 16) else
+                target_ceiling = (DOCUMENTATION_TARGET if value["schema_version"] in (11, 12, 13, 14, 15, 16, 17) else
                     CURRENT_TARGET if value["schema_version"] == 10 else
                     SUBSTANTIVE_TARGET if value["schema_version"] in (8, 9) else
                     PR190_DOCUMENTATION_TARGET if value["schema_version"] in (5, 6, 7) else
@@ -1519,7 +1575,7 @@ def verify_seal_history(root: Path, value: dict, head: str, expected: dict) -> N
         "first seal must be one direct child of the immutable source")
     require(tree(root, seal) == expected and changed(root, source, seal) == {HELPER, CONTRACT},
         "first seal differs from immutable source plus exact seal")
-    history_base = source if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) else BASE
+    history_base = source if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) else BASE
     history = git(root, "rev-list", "--full-history", history_base + ".." + head, "--", CONTRACT).decode().splitlines()
     require(bool(history), "immutable first seal is missing")
     for commit in history:
@@ -1608,13 +1664,13 @@ def verify(root: Path) -> dict:
         require(git(root, "rev-parse", commit + "^{tree}").decode().strip() == value[key + "_tree"],
             "immutable " + key + " tree changed")
     before_tree, source_tree, committed = tree(root, BASE), tree(root, source), tree(root, head)
-    require(CONTRACT not in before_tree and (value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16) or CONTRACT not in source_tree),
+    require(CONTRACT not in before_tree and (value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17) or CONTRACT not in source_tree),
         "source or predecessor already contains successor seal")
     require(source_tree.get(HELPER, (None,))[0] == "100644",
         "immutable source helper must be regular and non-executable")
     records = {entry["path"]: entry for entry in value["files"]}
     source_delta = changed(root, BASE, source)
-    if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+    if value["schema_version"] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17):
         require(CONTRACT in source_delta, "continuation lost its prior certificate")
         source_delta.remove(CONTRACT)
     require(set(records) == source_delta, "complete successor delta inventory changed")
@@ -1659,7 +1715,7 @@ def target_source(root: Path, path: str, source: bytes) -> bytes:
     value = _projection_contract(root)
     require(value["schema_version"] >= 2, "target refresh projection requires schema 2, 3 or 4")
     target_commit = integration_parameters(value["schema_version"])[0]
-    projection_commit = DOCUMENTATION_COMMON if value["schema_version"] in (11, 12, 13, 14, 15, 16) else target_commit
+    projection_commit = DOCUMENTATION_COMMON if value["schema_version"] in (11, 12, 13, 14, 15, 16, 17) else target_commit
     before = frozen(root, target_commit, path) or b""
     projected = frozen(root, projection_commit, path) or b""
     if source == before:
@@ -1682,7 +1738,7 @@ def target_inventory(root: Path, paths: set[str], qualification_base: str,
         full: bool = False) -> set[str]:
     value = verify(root)
     require(value["schema_version"] >= 2, "target refresh inventory requires schema 2, 3 or 4")
-    target_commit = (DOCUMENTATION_COMMON if value["schema_version"] in (11, 12, 13, 14, 15, 16) else
+    target_commit = (DOCUMENTATION_COMMON if value["schema_version"] in (11, 12, 13, 14, 15, 16, 17) else
         integration_parameters(value["schema_version"])[0])
     entries = changed(root, target_commit, value["source_commit"]) | {
         HELPER, CONTRACT, COMPLETION_TODO, COMPLETION_RECORD}
@@ -1702,7 +1758,7 @@ def increment61_predecessor_source(root: Path, path: str, source: bytes) -> byte
     each projection additionally authenticates its manifest and exact input.
     """
     schema = _projection_contract(root)["schema_version"]
-    require(schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+    require(schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17),
         "Increment 61 predecessor requires schema 3 through 16")
     current_target = PR190_TARGET if schema >= 8 else integration_parameters(schema)[0]
     current = frozen(root, current_target, path) or b""
@@ -1714,7 +1770,7 @@ def increment61_predecessor_source(root: Path, path: str, source: bytes) -> byte
 def increment61_predecessor_inventory(root: Path, paths: set[str], qualification_base: str,
         full: bool = False) -> set[str]:
     schema = verify(root)["schema_version"]
-    require(schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16),
+    require(schema in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17),
         "Increment 61 predecessor requires schema 3 through 16")
     target = PR190_TARGET if schema >= 8 else integration_parameters(schema)[0]
     entries = changed(root, CONTINUATION_61_BASE, target)

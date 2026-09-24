@@ -42,7 +42,7 @@ env:
   PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
-  validate:
+  source:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59g-') ||
@@ -53,15 +53,14 @@ jobs:
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59e-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59f'))
       || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
-    name: Safe callback graphs Scala ${{ matrix.scala }}
+    name: Safe callback graph source audits
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ['2.12.18', '2.13.12']
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    outputs:
+      head: ${{ steps.identity.outputs.head }}
+      tree: ${{ steps.identity.outputs.tree }}
     env:
       COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
       COURSIER_CACHE: /sbt/.cache/coursier/v1
@@ -94,6 +93,57 @@ jobs:
             --output "$output/native.json"
           cmp morphhdl/contracts/native-source-preservation.json "$output/native.json"
           python3 morphhdl/scripts/check-increment-59f-callback-graphs.py --self-test
+          python3 morphhdl/scripts/test-increment-59f-scheduling.py
+      - name: Identify the successfully audited source
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'head=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - name: Retain source audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59f-source-${{ github.run_attempt }}
+          path: target/increment-59f-callback-graphs
+          if-no-files-found: error
+          retention-days: 30
+
+  validate:
+    needs: source
+    name: Safe callback graphs Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve the same successfully audited source for this Scala lane
+        shell: bash
+        env:
+          AUDITED_HEAD: ${{ needs.source.outputs.head }}
+          AUDITED_TREE: ${{ needs.source.outputs.tree }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$AUDITED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$AUDITED_TREE"
+          output="$GITHUB_WORKSPACE/target/increment-59f-callback-graphs"
+          mkdir -p "$output/bootstrap"
       - name: Bootstrap repository-pinned SBT launcher
         shell: bash
         run: |
