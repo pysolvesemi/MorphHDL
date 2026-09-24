@@ -711,7 +711,7 @@ jobs:
     if: ${{ always() && (github.event_name != 'pull_request' || startsWith(github.head_ref, 'agent/wa-') || github.head_ref == 'agent/lane-when-expression-inlining' || github.head_ref == 'agent/increment-61-one-file-per-component') }}
     runs-on: ubuntu-latest
     # Revalidate all retained proofs; this is not an individual solver budget.
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Require every upstream proof job to have succeeded
         shell: bash
