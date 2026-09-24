@@ -2,8 +2,8 @@
   "schema_version": 1,
   "base": "09880c538c4cf83022f4a1bb1dd16b43ea81a751",
   "base_tree": "6216cf799cc51c5a5f815d08f16e435c6b48ddc7",
-  "source_commit": "ee9884095e6be43a28eef3e9f82fb8f801c65b6f",
-  "source_tree": "8100e62fae76f28f1f9c6bc4799725ea2c631e23",
+  "source_commit": "5d60b3bf6890e6b842815bce0d2409468491354d",
+  "source_tree": "0d37bd78c33cd19450355b2bbf16d85b1d06c655",
   "helper_source_blob": "3bff3f81fc09292d497da31d29362c46245f69ae",
   "source_paths": [
     ".github/workflows/cdc-wire-fixed-point.yml",
