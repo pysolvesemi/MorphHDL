@@ -22,14 +22,14 @@ private[internals] final class NativeWidthPublicationSafetyFixture(width: HdlInt
 private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) extends Component {
   val source = in(UInt(8 bits)).setName("wireTruncSource")
   val fixed = UInt(8 bits).setName("wireTruncFixed")
-  val target = out(UInt(width bits)).setName("wireTruncTarget")
+  // Keep the actual resize result as the owner declaration. Assigning the resize
+  // directly to an output introduces one extra native UInt carrier before the
+  // publication capture phase and makes an unsafe cast observe that carrier
+  // instead of the registry-owned Resize node.
+  val target = fixed.resize(width.asElabInt).setName("wireTruncTarget")
   val receiver = out(UInt(width bits)).setName("wireTruncReceiver")
   fixed := source
-  target := fixed.resize(width.asElabInt)
   receiver := target
-  // Preserve the elaboration-time Resize identity itself. Native normalization
-  // may legitimately replace assignment.source by its equal witness before the
-  // observer phase, but the publication registry still owns this exact Resize.
   val nativeResize = target.head.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[Resize]
 }
 
