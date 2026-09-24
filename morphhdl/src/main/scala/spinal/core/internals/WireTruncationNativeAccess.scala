@@ -22,4 +22,27 @@ object WireTruncationNativeAccess {
     else ExternalParameterizedNativeResize
       .targetWidthOf(component, target)
       .filter(_.parameters.nonEmpty)
+
+  /** Compare two symbolic declaration widths in their actual native owners.
+    * Raw expression equality is intentionally insufficient here: two distinct
+    * declarations can own the same HDL parameter expression while carrying
+    * different native owner identities. Publication already has the canonical
+    * cross-owner proof; expose only that read-only predicate to WIRE-TRUNC.
+    */
+  def equivalentSymbolicWidth(
+      component: Component,
+      left: BaseType,
+      right: BaseType
+  ): Boolean = {
+    if (component == null || left == null || right == null ||
+        (left.component ne component) || (right.component ne component)) false
+    else {
+      (for {
+        leftWidth <- NativeWidthProvenance.optionalWidthOf(left)
+        rightWidth <- NativeWidthProvenance.optionalWidthOf(right)
+        if leftWidth.parameters.nonEmpty && rightWidth.parameters.nonEmpty
+      } yield NativePublicationWidth.equivalentAtOwners(
+        leftWidth, left, rightWidth, right, component)).contains(true)
+    }
+  }
 }
