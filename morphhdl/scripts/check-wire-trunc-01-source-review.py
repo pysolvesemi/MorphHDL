@@ -24,11 +24,11 @@ BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
 BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
 HISTORICAL_BASE = "67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca"
 HISTORICAL_TREE = "d19d225af835fcba77bcf96e142cf8a79f4a0fb6"
-SOURCE = "c4fa1deba187d916005f1506c43e9e15c0ae8b5f"
-SOURCE_TREE = "c1c3e662af885426853f306bca1af7687d41be75"
+SOURCE = "1a5d173ea82ddab0e92ee3ccb262e6d43be08697"
+SOURCE_TREE = "4389f825a7fa72b397885590e88eff547ab27585"
 SELF = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
 CONTRACT = "morphhdl/contracts/wire-trunc-01-source-review.json"
-CONTRACT_BLOB = "642e92846d10ffb88da9806e22e563548f57350a"
+CONTRACT_BLOB = "2637f7ebc1f08be1908c6bdfc9f166f84687ee21"
 
 SOURCE_PATHS = frozenset((
     ".github/workflows/cdc-wire-fixed-point.yml",
