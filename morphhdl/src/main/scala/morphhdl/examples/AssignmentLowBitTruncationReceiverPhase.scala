@@ -46,7 +46,13 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
               if (!(receiver.source eq driver.finalTarget))
                 throw new IllegalStateException(
                   "WIRE-TRUNC-01 receiver changed after exact forwarding proof")
+              if (!ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+                  component, driver, receiver))
+                throw new IllegalStateException(
+                  "WIRE-TRUNC-01 receiver has no exact completed native-resize owner")
               receiver.source = replacement
+              ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
+                component, receiver, replacement)
               rewritten += 1
             }
           }
