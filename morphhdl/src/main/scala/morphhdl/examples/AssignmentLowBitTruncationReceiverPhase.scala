@@ -21,11 +21,10 @@ import spinal.core.internals._
   * fresh, in which case the live owner assignment still contains its Resize.
   * In both forms this phase replays the same canonical low-projection proof from
   * the exact captured fixed source identity and substitutes only whole-RHS reads
-  * whose destination owns the same symbolic packed width. Carrier declarations
-  * themselves are deliberately retained here, so preservation/publication
-  * ownership is never weakened or bypassed. Only the existing receiver RHS is
-  * replaced; assignment kind, target, scope, clock/reset and priority remain
-  * untouched.
+  * whose destination owns the same symbolic packed width; carrier declarations themselves are
+  * deliberately retained here, so preservation/publication ownership is never
+  * weakened or bypassed. Only the existing receiver RHS is replaced; assignment
+  * kind, target, scope, clock/reset and priority remain untouched.
   */
 private[examples] final class AssignmentLowBitTruncationReceiverPhase(
     sourceIntent: NativeConditionSourceIntent
