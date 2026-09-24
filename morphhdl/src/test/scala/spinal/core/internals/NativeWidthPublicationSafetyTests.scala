@@ -59,9 +59,15 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       headerWithDate = false, headerWithRepoHash = false)
     config.phasesInserters += { phases =>
       ExternalParameterizedNativeResize.install(phases)
-      val boundary = phases.indexWhere(_.isInstanceOf[PhaseRemoveIntermediateUnnameds])
-      assert(boundary >= 0)
-      phases.insert(boundary, new PhaseMisc {
+      val cleanup = phases.zipWithIndex.collect {
+        case (_: PhaseRemoveIntermediateUnnameds, index) => index
+      }.toVector
+      assert(cleanup.size >= 3)
+      // Exercise the handoff at the same late native boundary used by the
+      // production WIRE pipeline: after width normalization, replacing the
+      // third cleanup rather than injecting a narrowing assignment before
+      // PhaseNormalizeNodeInputs can reject it for ordinary Spinal semantics.
+      phases.update(cleanup(2), new PhaseMisc {
         override def impl(pc: PhaseContext): Unit =
           body(pc.topLevel.asInstanceOf[NativeResizeWireTruncationFixture])
       })
