@@ -121,23 +121,55 @@ elif mutation in ("suffix", "inside") and relative in overlay_paths:
 
 
 def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
-    """Reverse only schema 7's exact inherited-checkout rejection route."""
+    """Reverse the exact schema-7 and schema-16 checkout rejection routes."""
     assignment = ast.parse('successor_tree = successor.tree(ROOT, "HEAD")').body[0]
+    projection_empty = ast.parse('successor_path_rejections = set()').body[0]
+    projection_boundary = ast.parse('''if join is not None and prod in join.PATHS:
+    boundary = join.PATHS.index(prod)
+    successor_path_rejections = set(join.PATHS[:boundary + 1])
+''').body[0]
+    routed = ast.parse('''if (mutation in ("suffix", "paired", "inside") and
+        relative in successor_paths and relative in successor_path_rejections and
+        relative not in (CONTRACT, JOIN_CONTRACT)):
+    expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
+''').body[0]
+    original_route = ast.parse('''if mutation in ("suffix", "paired", "inside") and relative in successor_paths and relative not in (CONTRACT, JOIN_CONTRACT):
+    expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
+''').body[0]
     reviewed = ast.parse('''if mutation in ("suffix", "inside") and relative in successor_tree:
     expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
 ''').body[0]
 
     class RestoreCheckoutIdentity(ast.NodeTransformer):
         assignment_count = 0
+        projection_empty_count = 0
+        projection_boundary_count = 0
+        routed_count = 0
         route_count = 0
 
         def visit_Assign(self, node):
             if dump(node) == dump(assignment):
                 self.assignment_count += 1
                 return None
+            if dump(node) == dump(projection_empty):
+                self.projection_empty_count += 1
+                return None
             return self.generic_visit(node)
 
         def visit_If(self, node):
+            if dump(node) == dump(projection_boundary):
+                self.projection_boundary_count += 1
+                return None
+            if dump(node.test) == dump(routed.test):
+                candidate = copy.deepcopy(node)
+                tail = candidate.orelse
+                candidate.orelse = []
+                if dump(candidate) != dump(routed) or len(tail) != 1 or not isinstance(tail[0], ast.If):
+                    raise AssertionError("unexpected schema-16 path rejection routing")
+                restored = copy.deepcopy(original_route)
+                restored.orelse = tail
+                self.routed_count += 1
+                return self.generic_visit(restored)
             if dump(node.test) == dump(reviewed.test):
                 candidate = copy.deepcopy(node)
                 tail = candidate.orelse
@@ -150,8 +182,10 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
 
     restorer = RestoreCheckoutIdentity()
     tree = restorer.visit(tree)
-    if restorer.assignment_count != 1 or restorer.route_count != 1:
-        raise AssertionError("expected exactly one reviewed schema-7 checkout-identity route")
+    if (restorer.assignment_count != 1 or restorer.projection_empty_count != 1 or
+            restorer.projection_boundary_count != 1 or restorer.routed_count != 1 or
+            restorer.route_count != 1):
+        raise AssertionError("expected exactly one reviewed schema-7/schema-16 checkout route")
     return tree
 
 
@@ -434,6 +468,10 @@ class InheritedAuditBudgetTests(unittest.TestCase):
             ('relative in successor_tree', 'relative not in successor_tree'),
             ('HEAD/index/worktree identity differs: ', 'accepted checkout: '),
             ('successor_tree = successor.tree(ROOT, "HEAD")', 'successor_tree = {}'),
+            ('successor_path_rejections = set()', 'successor_path_rejections = successor_paths'),
+            ('prod in join.PATHS', 'prod not in join.PATHS'),
+            ('boundary = join.PATHS.index(prod)', 'boundary = len(join.PATHS)'),
+            ('relative in successor_path_rejections', 'relative not in successor_path_rejections'),
         ):
             self.assertIn(before, text)
             with self.subTest(before=before):

@@ -28,7 +28,7 @@ CONTRACT = "morphhdl/contracts/increment-59i-target-integration.json"
 CONTRACT_SHA256 = "9ec750ceffa71d79e2fc78dc91b0c033ebe3ae4035116ed1495ba0012d9cd4b4"
 SUCCESSOR_HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 SUCCESSOR_CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-SUCCESSOR_HELPER_SHA256 = "70009882bc3fde5ec691a68945fdb3a63d707c4f4f9c67a3f6ccbf1650ccea4a"
+SUCCESSOR_HELPER_SHA256 = "ea2ba0be742d878260c0bac57be3ec26e2e917bee74fd3851ddaf7664d5c5d1e"
 
 
 def require(ok: bool, detail: str) -> None:

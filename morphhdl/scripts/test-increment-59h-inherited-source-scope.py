@@ -213,9 +213,21 @@ def main() -> None:
             # Preserve every mutation and require its first owning guard.
             successor_paths = {entry["path"] for entry in successor.contract(ROOT)["files"]}
             successor_tree = successor.tree(ROOT, "HEAD")
+            # The joined reviewer reaches its paths in contract order.  Once
+            # the first local-enable path is restored, that reviewer must
+            # authenticate the complete successor checkout before continuing.
+            # Later and disjoint mutations therefore retain the stronger
+            # checkout rejection; only the prefix through that exact boundary
+            # can reach the path-scoped predecessor projection first.
+            successor_path_rejections = set()
+            if join is not None and prod in join.PATHS:
+                boundary = join.PATHS.index(prod)
+                successor_path_rejections = set(join.PATHS[:boundary + 1])
             adapted = []
             for label, relative, mutation, expected in cases:
-                if mutation in ("suffix", "paired", "inside") and relative in successor_paths and relative not in (CONTRACT, JOIN_CONTRACT):
+                if (mutation in ("suffix", "paired", "inside") and
+                        relative in successor_paths and relative in successor_path_rejections and
+                        relative not in (CONTRACT, JOIN_CONTRACT)):
                     expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
                 elif mutation in ("suffix", "inside") and relative in successor_tree:
                     # Files inherited byte-for-byte from the schema predecessor
