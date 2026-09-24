@@ -17,14 +17,15 @@ import spinal.core.internals._
   *   symbolicCarrier := fixedCarrier
   *   receiver := symbolicCarrier
   *
-  * The first WIRE phase already proved that symbolicCarrier is exactly the low
-  * projection of fixedCarrier over the complete parameter domain. This phase
-  * replays that same canonical certificate from the live native identities and
-  * substitutes only whole-RHS reads of symbolicCarrier whose destination owns
-  * the exact same symbolic packed width. The carrier declarations themselves
-  * are deliberately retained here, so preservation/publication ownership is
-  * never weakened or bypassed. Only the existing receiver RHS is replaced;
-  * assignment kind, target, scope, clock/reset and priority remain untouched.
+  * A process-scoped receiver can also keep the captured symbolic resize owner
+  * fresh, in which case the live owner assignment still contains its Resize.
+  * In both forms this phase replays the same canonical low-projection proof from
+  * the exact captured fixed source identity and substitutes only whole-RHS reads
+  * whose destination owns the same symbolic packed width. Carrier declarations
+  * themselves are deliberately retained here, so preservation/publication
+  * ownership is never weakened or bypassed. Only the existing receiver RHS is
+  * replaced; assignment kind, target, scope, clock/reset and priority remain
+  * untouched.
   */
 private[examples] final class AssignmentLowBitTruncationReceiverPhase(
     sourceIntent: NativeConditionSourceIntent
@@ -49,7 +50,7 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
               if (!ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
                   component, driver, receiver))
                 throw new IllegalStateException(
-                  "WIRE-TRUNC-01 receiver has no exact completed native-resize owner")
+                  "WIRE-TRUNC-01 receiver has no exact native-resize owner")
               receiver.source = replacement
               ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
                 component, receiver, replacement)
@@ -159,6 +160,20 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
     else false
   }
 
+  private def eligibleFixedCarrier(
+      component: Component,
+      symbolicCarrier: BaseType,
+      value: BaseType
+  ): Boolean =
+    value != null && (value.component eq component) && value.isComb &&
+      value.isDirectionLess && !value.isAnalog && !value.isInOut &&
+      unsigned(value) && value.getTypeObject == symbolicCarrier.getTypeObject &&
+      value.parentScope != null && (value.parentScope eq value.rootScopeStatement) &&
+      value.hasOnlyOneStatement && WireTruncationNativeAccess.protectedCarrier(value) &&
+      NativeWireNameProvenance.origin(value).exists(origin =>
+        origin == NameOrigin.Generated || origin == NameOrigin.Unnamed) &&
+      sourceIntent.permits(value)
+
   private def candidate(
       component: Component,
       driver: DataAssignmentStatement,
@@ -180,15 +195,15 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
       .symbolicResizeTargetWidth(component, symbolicCarrier)
       .getOrElse(return None)
     val fixedCarrier = driver.source match {
-      case value: BaseType if (value.component eq component) && value.isComb &&
-          value.isDirectionLess && !value.isAnalog && !value.isInOut &&
-          unsigned(value) && value.getTypeObject == symbolicCarrier.getTypeObject &&
-          value.parentScope != null && (value.parentScope eq value.rootScopeStatement) &&
-          value.hasOnlyOneStatement && WireTruncationNativeAccess.protectedCarrier(value) &&
-          NativeWireNameProvenance.origin(value).exists(origin =>
-            origin == NameOrigin.Generated || origin == NameOrigin.Unnamed) &&
-          sourceIntent.permits(value) => value
-      case _ => return None
+      case value: BaseType if eligibleFixedCarrier(component, symbolicCarrier, value) => value
+      // A process-scoped use can make the symbolic resize carrier vital before
+      // WIRE-TRUNC runs, so its original Resize remains in the owner assignment.
+      // Recover only the exact captured fixed source identity; the native resize
+      // registry independently revalidates this owner during receiver handoff.
+      case _ => WireTruncationNativeAccess
+        .lowBitTruncationSource(component, symbolicCarrier)
+        .filter(eligibleFixedCarrier(component, symbolicCarrier, _))
+        .getOrElse(return None)
     }
     val fixedWidth = width(fixedCarrier).filter(value => value.parameters.isEmpty &&
       value.minimum == value.maximum && value.default == value.minimum)
