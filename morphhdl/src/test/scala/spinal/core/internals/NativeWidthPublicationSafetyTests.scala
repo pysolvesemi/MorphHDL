@@ -22,7 +22,9 @@ private[internals] final class NativeWidthPublicationSafetyFixture(width: HdlInt
 private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) extends Component {
   val source = in(UInt(8 bits)).setName("wireTruncSource")
   val target = out(UInt(width bits)).setName("wireTruncTarget")
+  val receiver = out(UInt(width bits)).setName("wireTruncReceiver")
   target := source.resize(width.asElabInt)
+  receiver := target
   // Preserve the elaboration-time Resize identity itself. Native normalization
   // may legitimately replace assignment.source by its equal witness before the
   // observer phase, but the publication registry still owns this exact Resize.
@@ -222,8 +224,10 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
   test("WIRE truncation native-resize handoff is symbolic, exact and one-shot") {
     inspectWireTruncation { fixture =>
       val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
+      val receiverAssignment = fixture.receiver.head.asInstanceOf[DataAssignmentStatement]
       val resize = fixture.nativeResize
       assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
       assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
       expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "pending" })
@@ -232,25 +236,51 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
         fixture, assignment, fixture.source)
       assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "pending receiver"
+      })
+      receiverAssignment.source = fixture.source
+      ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
+        fixture, receiverAssignment, fixture.source)
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+
       assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
         assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
         assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
         "valid"
       } == "valid")
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
       expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
 
       val originalScope = assignment.parentScope
       val borrowed = new ScopeStatement(null)
       borrowed.component = fixture
       assignment.parentScope = borrowed
-      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved" })
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved owner" })
       assignment.parentScope = originalScope
       assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
         assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
-        "restored"
-      } == "restored")
-      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored owner"
+      } == "restored owner")
+
+      val receiverScope = receiverAssignment.parentScope
+      receiverAssignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved receiver" })
+      receiverAssignment.parentScope = receiverScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored receiver"
+      } == "restored receiver")
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
     }
   }
 
