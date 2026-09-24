@@ -1,0 +1,76 @@
+name: WIRE-TRUNC-01 seal late publication safety boundary
+
+on:
+  push:
+    branches:
+      - ci/wire-trunc-01-ba090a2c-boundary-seal
+
+permissions:
+  contents: write
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/wire-trunc-01-assignment-absorption
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Verify exact feature head and publish final seal only
+        shell: bash
+        env:
+          EXPECTED_PARENT: d91531f78bcee19aa9b90e36440de671f0b9de8f
+          SOURCE_ANCHOR: ba090a2c602db547f883fa1dfacf5fc0e9ef6bd1
+          SOURCE_TREE: f248eece7e1acf17166743bd3ec7229b5683075e
+          CONTRACT_BLOB: 3945341fd8064b857c4cc8154bc1c7f8a9276b49
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$SOURCE_ANCHOR^{tree}")" = "$SOURCE_TREE"
+          test "$(git hash-object morphhdl/contracts/wire-trunc-01-source-review.json)" = "$CONTRACT_BLOB"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('morphhdl/scripts/check-wire-trunc-01-source-review.py')
+          text = path.read_text()
+          replacements = {
+              'SOURCE = "b385b3438d3fe78204786534e29561d0b5a1e19e"':
+                  'SOURCE = "ba090a2c602db547f883fa1dfacf5fc0e9ef6bd1"',
+              'SOURCE_TREE = "a74a4ba2ee8e55766b4e5f095ab4440d72aa6c16"':
+                  'SOURCE_TREE = "f248eece7e1acf17166743bd3ec7229b5683075e"',
+              'CONTRACT_BLOB = "5e57eb7d1a5adfc47d57a50b6b3df868e45f8eb8"':
+                  'CONTRACT_BLOB = "3945341fd8064b857c4cc8154bc1c7f8a9276b49"',
+          }
+          original = text
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'exact seal constant missing or duplicated: {old}')
+              text = text.replace(old, new)
+          path.write_text(text)
+
+          old_lines = original.splitlines()
+          new_lines = text.splitlines()
+          changed = [(a, b) for a, b in zip(old_lines, new_lines) if a != b]
+          if len(old_lines) != len(new_lines) or len(changed) != 3:
+              raise SystemExit(f'final seal changed beyond three constants: {len(changed)}')
+          allowed = {'SOURCE = ', 'SOURCE_TREE = ', 'CONTRACT_BLOB = '}
+          for old, new in changed:
+              if not any(old.startswith(prefix) and new.startswith(prefix) for prefix in allowed):
+                  raise SystemExit(f'unexpected final-seal edit: {old!r} -> {new!r}')
+          PY
+
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
+          git diff --check
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add morphhdl/scripts/check-wire-trunc-01-source-review.py
+          git commit -m "test: seal late WIRE safety boundary [skip ci]"
+          test "$(git diff HEAD^ HEAD --name-only)" = "morphhdl/scripts/check-wire-trunc-01-source-review.py"
+          test "$(git diff --numstat HEAD^ HEAD | awk '{a+=$1; d+=$2} END {print a,d}')" = "3 3"
+          python3 morphhdl/scripts/check-wire-trunc-01-source-review.py --self-test
+          git status --porcelain --untracked-files=all | test ! -s /dev/stdin
+          git push origin HEAD:agent/wire-trunc-01-assignment-absorption
