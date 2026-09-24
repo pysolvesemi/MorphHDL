@@ -79,7 +79,12 @@ lazy val all = (project in file("."))
     version := SpinalVersion.all,
     publishArtifact := false,
     publishLocal := {},
-    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core),
+    ScalaUnidoc / unidoc / scalacOptions ++= Seq(
+      s"-Xplugin:${(idslplugin / Compile / packageBin / artifactPath).value.getAbsolutePath}",
+      s"-Xplugin:${(morphplugin / Compile / packageBin).value.getAbsolutePath}",
+      "-Xplugin-require:morphhdl"
+    )
   )
   .aggregate(sim, idslpayload, idslplugin, morphplugin, morphir, core, lib, tester, paramrtl, morphruntime, frontend, verilogBackend, morph)
 

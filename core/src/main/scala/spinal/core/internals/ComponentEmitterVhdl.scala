@@ -641,15 +641,22 @@ class ComponentEmitterVhdl(
           statement match {
             case assertStatement: AssertStatement =>
               val scopeCond = getScopeConditional(assertStatement)
-              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) ":" else "->"
-              val preCond = if (scopeCond.length > 0) s"$scopeCond $concatOperator " else ""
               val cond = emitExpression(assertStatement.cond)
+              // Logical implication and `not A or B` are equivalent here, but
+              // older GHDL synthesis builds abort on a long Boolean consequent
+              // represented as PSL N_IMP_BOOL.  Keep cover's sequence form and
+              // lower scoped assert/assume guards to the equivalent Boolean
+              // expression so the property remains intact on those builds.
+              val guardedCond =
+                if (scopeCond.nonEmpty) s"((not pkg_toStdLogic($scopeCond)) or ($cond))" else cond
+              val coveredCond =
+                if (scopeCond.nonEmpty) s"$scopeCond : $cond" else cond
               val trigger = if (multiclock) " @" + getTrigger(component, group.clockDomain) else ""
               val abort = getAbort(component, group.clockDomain)
               val statement = assertStatement.kind match {
-                case AssertStatementKind.ASSERT => s"assert (always $preCond$cond$abort)$trigger"
-                case AssertStatementKind.ASSUME => s"assume (always $preCond$cond)$trigger"
-                case AssertStatementKind.COVER  => s"cover {$preCond$cond}$trigger"
+                case AssertStatementKind.ASSERT => s"assert (always $guardedCond$abort)$trigger"
+                case AssertStatementKind.ASSUME => s"assume (always $guardedCond)$trigger"
+                case AssertStatementKind.COVER  => s"cover {$coveredCond}$trigger"
               }
               val label = getLabel(assertStatement)
               logics ++= s"  $label: $statement; -- ${assertStatement.loc.file}.scala:L${assertStatement.loc.line}\n"

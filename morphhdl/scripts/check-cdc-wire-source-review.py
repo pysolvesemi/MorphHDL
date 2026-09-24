@@ -28,12 +28,14 @@ PRODUCTION_PATHS = frozenset((
     'core/src/main/scala/spinal/core/Component.scala',
     'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedNativeResize.scala',
     'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala',
+    'core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala',
     'core/src/main/scala/spinal/core/ParameterizedExpressionCarrier.scala',
     'core/src/main/scala/spinal/core/ParameterizedVec.scala',
     'lib/src/main/scala/spinal/lib/Utils.scala',
     'core/src/main/scala/spinal/core/NativeWidthProvenance.scala',
     'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala',
     'core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala',
+    'core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala',
     'core/src/main/scala/spinal/core/internals/VerilogBase.scala',
     'morphhdl-passes/examples/NativeWireExpressionCodec.scala',
     'morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala',
@@ -75,8 +77,15 @@ TEST_PATHS = frozenset((
     'morphhdl/scripts/check-contracts.sh',
     'morphhdl/scripts/check-yosys-symbolic-data-shapes-contract.py',
     'morphhdl/examples/contracts/symbolic_data_shapes.v',
+    'morphhdl-passes/scripts/check-enum-condition-cleanup.py',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala',
+    'morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/EnumConditionNativeIdentityTests.scala',
+    'morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala',
 ))
 REVIEW_PATHS = frozenset((
+    'build.sbt',
     'docs/morphhdl/lane-when-inlining-repair.md',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/cross-scala.json',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-off/RecursiveFillCleanupRepro.v',
@@ -124,8 +133,19 @@ REVIEW_PATHS = frozenset((
     '.github/workflows/increment-60f-equivalence-closure.yml',
     'docs/morphhdl/cdc-wire-fixed-point-source-review.md',
     'docs/morphhdl/parameterized-verilog-todo.md',
+    'docs/morphhdl/increment-64-derived-localparams.md',
     'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md',
 ))
+
+BUILD_REVIEW_MARKERS = {
+    'build.sbt': (
+        'ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)',
+        'ScalaUnidoc / unidoc / scalacOptions ++= Seq(',
+        's"-Xplugin:${(idslplugin / Compile / packageBin / artifactPath).value.getAbsolutePath}"',
+        's"-Xplugin:${(morphplugin / Compile / packageBin).value.getAbsolutePath}"',
+        '"-Xplugin-require:morphhdl"',
+    ),
+}
 
 
 CDC_SAFETY_MARKERS = {
@@ -146,6 +166,36 @@ CDC_SAFETY_MARKERS = {
         'val before = NativeWidthProvenance.optionalWidthOf(value)',
         'val after = NativeWidthProvenance.optionalWidthOf(value)',
         'ElaborationWidthAuthority.equivalent(a, b)',
+        'WA10-CONDITION-ENUM-SOURCE-AUTHORITY',
+        'exactEnumProjection(',
+        'sameEnumBoundary(value, alias)',
+    ),
+    'core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala': (
+        '(definition eq that.definition)',
+        '(encoding eq that.encoding)',
+        'InferableEnumEncodingImplChoiceFixed',
+        'literalBelongsTo(leftValue, operator)',
+    ),
+    'core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala': (
+        'NativeEnumExpressionAuthority.comparison(node).nonEmpty',
+        'to.copyEncodingConfig(from)',
+    ),
+    'core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala': (
+        'NativeEnumExpressionAuthority.comparison(node).exists',
+        'resolvedEnum(leaf).nonEmpty',
+    ),
+    'core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala': (
+        'val guardedCond =',
+        'if (scopeCond.nonEmpty) s"((not pkg_toStdLogic($scopeCond)) or ($cond))" else cond',
+        'case AssertStatementKind.ASSERT => s"assert (always $guardedCond$abort)$trigger"',
+        'case AssertStatementKind.ASSUME => s"assume (always $guardedCond)$trigger"',
+        'case AssertStatementKind.COVER  => s"cover {$coveredCond}$trigger"',
+    ),
+    'morphhdl-passes/examples/NativeWireExpressionCodec.scala': (
+        'NativeEnumExpressionAuthority.comparison(node)',
+        'authority.encoding eq binaryOneHot',
+        'RtlBinaryOperator.BitwiseAnd',
+        'capturedEnumAuthorities',
     ),
     'morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala': (
         'deferPreferredExpressionSource = true, sourceIntent = Some(sourceIntent))',
@@ -211,6 +261,11 @@ def safety_failures(path: str, source: str) -> list[str]:
     return errors + ['application/name/text recognition: ' + pattern for pattern in forbidden if re.search(pattern, source)]
 
 
+def review_failures(path: str, source: str) -> list[str]:
+    return ['missing reviewed build guard: ' + marker
+            for marker in BUILD_REVIEW_MARKERS.get(path, ()) if marker not in source]
+
+
 def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root = root.resolve()
     outer = load(root, OUTER)
@@ -240,6 +295,9 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
                 'missing inherited sequential safety obligation: ' + path)
     for path in actual & PRODUCTION_PATHS:
         require(not safety_failures(path, (root/path).read_text()), 'nongeneric implementation: ' + path)
+    for path in actual & BUILD_REVIEW_MARKERS.keys():
+        require(not review_failures(path, (root/path).read_text()),
+                'incomplete inherited-build repair: ' + path)
     old = json.loads(git(root, 'show', BASE+':'+REGISTRY))
     current = json.loads((root/REGISTRY).read_bytes())
     require(current.keys() == old.keys() and current['files'].keys() == old['files'].keys() and
@@ -285,6 +343,12 @@ def self_test(root: Path = ROOT) -> None:
         for marker in markers:
             require(bool(safety_failures(path, original.replace(marker, 'REMOVED_CDC_GUARD'))),
                     'accepted missing direct-alias guard: ' + marker)
+            rejected += 1
+    for path, markers in BUILD_REVIEW_MARKERS.items():
+        original = (root/path).read_text()
+        for marker in markers:
+            require(bool(review_failures(path, original.replace(marker, 'REMOVED_BUILD_GUARD'))),
+                    'accepted missing reviewed build guard: ' + marker)
             rejected += 1
     with tempfile.TemporaryDirectory(prefix='cdc-wire-review-') as directory:
         copy = Path(directory)/'current'
