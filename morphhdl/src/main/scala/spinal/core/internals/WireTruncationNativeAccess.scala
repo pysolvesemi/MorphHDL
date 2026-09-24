@@ -23,6 +23,21 @@ object WireTruncationNativeAccess {
       .targetWidthOf(component, target)
       .filter(_.parameters.nonEmpty)
 
+  /** Return the exact fixed source declaration behind a captured symbolic low
+    * projection when that native-resize owner is still publication-valid. The
+    * owner may remain fresh (for example because a process use retains it) or
+    * may already have completed the first WIRE consumption handoff. No new
+    * mutation/proof authority is created here.
+    */
+  def lowBitTruncationSource(
+      component: Component,
+      target: BaseType
+  ): Option[BaseType] =
+    if (component == null || target == null) None
+    else ExternalParameterizedNativeResize
+      .lowBitTruncationSourceOf(component, target)
+      .filter(value => value != null && (value.component eq component))
+
   /** Compare two symbolic declaration widths in their actual native owners.
     * Raw expression equality is intentionally insufficient here: two distinct
     * declarations can own the same HDL parameter expression while carrying
