@@ -770,9 +770,10 @@
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "Enum-condition repair: resolved native enum packed-width authority"
       ],
-      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. No width, branch, projection or parameter authority is invented.",
+      "reason": "Retain immutable native width provenance through construction, casts, resize, widening, mux, source-relative saturation ranges/results and all-ones literals. Freshness compares complete width functions and exact root/domain identities, including under narrowed singleton domains; native operators and inference remain authoritative. After existing copyCloneMetadata completes at the actual native cloneOf seam, notify the invocation-local Vec zero observer of that exact source/result pair; metadata copying alone cannot create clone ancestry or enable zero construction. Derive width provenance from exact native scalar IR and transfer it at construction/clone/mux seams; retain exact-node msb evidence while preserving the original native operators, memory representation and concrete width inference. Delegate clone geometry validation to the recursive authored-layout checker before transferring exact scalar or Vec metadata. CDC-WIRE-01 derives exact symbolic result width for Bool-valued expressions, fixed and variable shifts, and ranged access using the existing typed width authority. Shift amounts remain self-determined; no concrete construction witness substitutes for a symbolic width domain. Qualification adds an explicit optional late-evidence query without changing construction-time widthOf behavior. Only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED indicate unavailable optional proof and retain the original graph; malformed metadata and every unrelated compiler error still propagate. Resolved enum values derive width only from the exact native enum definition and encoding authority; unresolved or anticipated encodings remain unrepresented. No width, branch, projection or parameter authority is invented.",
       "edits": []
     },
     {
@@ -1905,15 +1906,88 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVhdl.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Enum-condition full-CI repair: preserve scoped PSL semantics on supported GHDL builds"
+      ],
+      "reason": "Emit scoped VHDL assert and assume properties as the Boolean-equivalent not-scope-or-condition form. This preserves the complete native scope, condition, abort and trigger while avoiding the unsupported N_IMP_BOOL synthesis node in the repository's pinned GHDL formal backend. Cover retains its inherited sequence operator and ordinary unscoped properties remain byte-equivalent.",
+      "edits": [
+        {
+          "id": "componentemittervhdl-retire-implication-builder",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Retire the shared implication/sequence prefix builder so assert/assume and cover can retain their distinct semantics on the pinned backend.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "              val concatOperator = if (assertStatement.kind == AssertStatementKind.COVER) \":\" else \"->\"\n              val preCond = if (scopeCond.length > 0) s\"$scopeCond $concatOperator \" else \"\"\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-scoped-property-forms",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Define the exact std_logic-typed Boolean-equivalent guard for scoped assert/assume while retaining the inherited cover sequence form.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"((not pkg_toStdLogic($scopeCond)) or ($cond))\" else cond",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "if (scopeCond.nonEmpty) s\"$scopeCond : $cond\" else cond",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemittervhdl-emit-guarded-properties",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVhdl.emitArchitecture",
+          "reason": "Use the reviewed guarded property for assert/assume and the reviewed sequence property for cover without changing abort or trigger suffixes.",
+          "required_exact_text": [
+            {
+              "side": "baseline",
+              "text": "preCond$cond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $preCond$cond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$preCond$c",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "guardedCond$abort)$trigger\"\n                case AssertStatementKind.ASSUME => s\"assume (always $guardedCond)$trigger\"\n                case AssertStatementKind.COVER  => s\"cover {$coveredC",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/internals/NativeEnumExpressionAuthority.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Enum-condition repair: exact native enum definition, encoding and element authority"
+      ],
+      "reason": "Resolve late enum-expression eligibility only after native inference has fixed or inferred one authoritative encoding. Record exact enum-definition, encoding-object and element identities together with every encoded value and packed width; reject unresolved, anticipated, incompatible, negative or overflowing authorities. Comparisons require the operator and both operands to carry the same exact authority, and literals must belong to that exact definition. No emitted spelling, declaration position, default witness or parsed Verilog supplies authority.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala",
       "baseline_path": null,
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
         "WA-10: general typed expression inlining through native capture and structured emission",
-        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup"
+        "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
+        "Enum-condition repair: fresh exact-authority enum expression copies"
       ],
-      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions. CDC-WIRE-01 adds structural copies for exact fixed-width native shift classes. Copies retain operand identity, width metadata and shift amount through the existing bounded cycle/tag/type checks; declarations and registers are never copied into an expression.",
+      "reason": "Copy only explicitly supported pure native expression classes for validated wire substitution. Preserve signal reference identity, inferred widths and source locations; reject cycles, unsupported subclasses, excessive expansion, tagged expressions and symbolic resize metadata that cannot be copied exactly. This helper never copies declarations or registers into combinational expressions. CDC-WIRE-01 adds structural copies for exact fixed-width native shift classes. The enum repair adds only resolved EnumLiteral and Enum Equal/NotEqual nodes, allocates fresh operator and literal nodes, copies native encoding configuration and exact element identity, and retains referenced signal identities. Case equality, unresolved or incompatible enum authority and poison remain unsupported. Copies retain operand identity, width metadata and shift amount through the existing bounded cycle/tag/type checks; declarations and registers are never copied into an expression.",
       "edits": []
     },
     {
@@ -2128,9 +2202,10 @@
         "Lane/when follow-up: typed lane extension and generated combinational condition repair",
         "PR190: native sequential condition and exact unsigned direct-select consumers",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "Enum-condition repair: post-proof enum-expression emission"
       ],
-      "reason": "Generation-scoped typed structured emission proof; ordinary SpinalVerilog remains disabled and caller configuration is copied without mutation. Historical WA-09/WA-10/lane/sequential stages establish same-owner unsigned expressions, self-determined Boolean operands, supported whole-register RHS and disjoint fixed selections. CDC-WIRE-01 extends that proof recursively through unsigned shifts, bitwise operations, casts, exact slices and resizes using authoritative all-domain width equivalence and parameter identity. Every receiving occurrence must independently pass the exact sizing context; shared subtrees times occurrence count remain bounded to 256 nodes with at most 32 uses. Cycles, unknown annotations, protected targets, unsupported signed or symbolic boundaries, overlapping/dynamic selections and unknown expression forms fail closed. Typed direct-reference selection still requires identical kind and width. Mandatory existing wrappers and procedural structure remain retained. No component, generated-name, example or emitted-text recognition selects candidates. Qualification repair treats only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED from optional late width composition/equality as unavailable proof, retaining the wrapper without reopening a finished elaboration branch. Every other metadata, graph and backend error still propagates; no safety diagnostic is broadly swallowed. Exact expression identities owned by retained Vec operation and completed-write journals remain excluded from wrapper suppression, preserving later symbolic publication and factorized geometry without candidate selection by names or emitted text. Before optional scalar width lookup, an identity-based dependency walk refuses expressions that reach the retained Vec publication inventory, including inferred single-assignment BitVector drivers. Dependency cycles supply no scalar proof. The final wrapper exclusion reuses that same inventory, preserving factorized publication geometry without broadening any exception catch or changing structural proof authority.",
+      "reason": "Generation-scoped typed structured emission proof; ordinary SpinalVerilog remains disabled and caller configuration is copied without mutation. Historical WA-09/WA-10/lane/sequential stages establish same-owner unsigned expressions, self-determined Boolean operands, supported whole-register RHS and disjoint fixed selections. CDC-WIRE-01 extends that proof recursively through unsigned shifts, bitwise operations, casts, exact slices and resizes using authoritative all-domain width equivalence and parameter identity. The enum repair admits resolved enum leaves, literals and equality/inequality only through exact native authority, including enum packed width, so the emitter does not rematerialize a post-cleanup `_zz_when` wrapper. Every receiving occurrence must independently pass the exact sizing context; shared subtrees times occurrence count remain bounded to 256 nodes with at most 32 uses. Cycles, unknown annotations, protected targets, unsupported signed or symbolic boundaries, overlapping/dynamic selections and unknown expression forms fail closed. Typed direct-reference selection still requires identical kind and width. Mandatory existing wrappers and procedural structure remain retained. No component, generated-name, example or emitted-text recognition selects candidates. Qualification repair treats only SPINAL-ELAB-DOMAIN-PROJECTION-SCOPE-EXPANSION and SPINAL-PARAMETERIZED-VERILOG-WIDTH-EXACT-DOMAIN-REQUIRED from optional late width composition/equality as unavailable proof, retaining the wrapper without reopening a finished elaboration branch. Every other metadata, graph and backend error still propagates; no safety diagnostic is broadly swallowed. Exact expression identities owned by retained Vec operation and completed-write journals remain excluded from wrapper suppression, preserving later symbolic publication and factorized geometry without candidate selection by names or emitted text. Before optional scalar width lookup, an identity-based dependency walk refuses expressions that reach the retained Vec publication inventory, including inferred single-assignment BitVector drivers. Dependency cycles supply no scalar proof. The final wrapper exclusion reuses that same inventory, preserving factorized publication geometry without broadening any exception catch or changing structural proof authority.",
       "edits": []
     },
     {

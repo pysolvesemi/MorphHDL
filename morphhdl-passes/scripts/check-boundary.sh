@@ -31,7 +31,7 @@ is_wa11=false
 is_lane_when=false
 is_cdc_wire=false
 case "${head_ref}" in
-  agent/wa-cdc-wire-01-fixed-point|agent/cdc-wire-native-publication-cleanup) is_cdc_wire=true ;;
+  agent/wa-cdc-wire-01-fixed-point|agent/cdc-wire-native-publication-cleanup|agent/enum-expression-recursive-cleanup) is_cdc_wire=true ;;
   agent/wa-08-*|wa-08-*) is_wa08=true ;;
   agent/wa-09-*|wa-09-*) is_wa09=true ;;
   agent/wa-10-*|wa-10-*) is_wa10=true ;;

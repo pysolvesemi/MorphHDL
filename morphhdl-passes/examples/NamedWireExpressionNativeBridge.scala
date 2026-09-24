@@ -348,11 +348,14 @@ private[examples] final class NamedWireExpressionNativePhase(
       // Native Bool operators carry TypeBool but do not implement
       // WidthProvider; their packed width is exactly one bit.
       case _ if expression.getTypeObject == TypeBool => 1
+      case encoded: EnumEncoded =>
+        NativeEnumExpressionAuthority.resolve(encoded).map(_.width).getOrElse(return None)
       case _                                         => return None
     }
     if (
       expressionWidth != alias.getBitsWidth || alias.getBitsWidth < 1 ||
-      expression.getTypeObject != alias.getTypeObject
+      expression.getTypeObject != alias.getTypeObject ||
+      !sameEnumBoundary(alias, expression)
     ) return None
 
     val semantics = packedSemantics(alias).getOrElse(return None)
@@ -398,14 +401,31 @@ private[examples] final class NamedWireExpressionNativePhase(
     case _: Bits => Some(Signedness.Unsigned -> PackedValueSemantics.BitVector)
     case _: UInt => Some(Signedness.Unsigned -> PackedValueSemantics.UnsignedInteger)
     case _: SInt => Some(Signedness.Signed -> PackedValueSemantics.SignedInteger)
+    case encoded: SpinalEnumCraft[_]
+        if NativeEnumExpressionAuthority.resolve(encoded).nonEmpty =>
+      // Canonical expression passes operate on the exact encoded projection;
+      // NativeEnumExpressionAuthority separately retains definition/encoding identity.
+      Some(Signedness.Unsigned -> PackedValueSemantics.BitVector)
     case _       => None
   }
+
+  private def sameEnumBoundary(value: Expression, other: Expression): Boolean =
+    if (value.getTypeObject != TypeEnum && other.getTypeObject != TypeEnum) true
+    else (value, other) match {
+      case (left: EnumEncoded, right: EnumEncoded) =>
+        (for {
+          a <- NativeEnumExpressionAuthority.resolve(left)
+          b <- NativeEnumExpressionAuthority.resolve(right)
+        } yield a.exactlyMatches(b)).contains(true)
+      case _ => false
+    }
 
   private def samePackedBoundary(value: BaseType, alias: BaseType): Boolean =
     knownWidth(value).nonEmpty && knownWidth(alias).nonEmpty &&
       value.getBitsWidth == alias.getBitsWidth &&
       packedSemantics(value).nonEmpty &&
       packedSemantics(value) == packedSemantics(alias) &&
+      sameEnumBoundary(value, alias) &&
       ((retainedWidth(value), retainedWidth(alias)) match {
         case (None, None)              => true
         case (Some(left), Some(right)) => sameRetainedWidth(left, right)
@@ -497,8 +517,46 @@ private[examples] final class NamedWireExpressionNativePhase(
   private final case class CanonicalSnapshot(
       design: Design,
       aliasId: SymbolId,
-      nonblockingReceivers: Vector[(ModuleId, Driver)]
+      nonblockingReceivers: Vector[(ModuleId, Driver)],
+      enumAuthorities: Vector[NativeEnumExpressionAuthority.Resolved]
   )
+
+  /** The canonical IR deliberately keeps its compact packed-value vocabulary.
+    * Enum observations may enter that vocabulary only with this exact native
+    * side proof.  It is part of the snapshot decision (not an emitter-name
+    * heuristic): every enum node must resolve, and every distinct definition,
+    * encoding object, width and element/code table must be represented by the
+    * codec.  Thus overlapping numeric codes from distinct enums never share an
+    * authority even though their projected RtlExpr values can look alike.
+    */
+  private def exactEnumProjection(
+      roots: Vector[Expression],
+      captured: Vector[NativeEnumExpressionAuthority.Resolved]
+  ): Boolean = {
+    val pending = ArrayBuffer.empty[Expression] ++ roots
+    val seen = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
+    val expected = ArrayBuffer.empty[NativeEnumExpressionAuthority.Resolved]
+    var remaining = 1024
+    while (pending.nonEmpty) {
+      remaining -= 1
+      if (remaining < 0) return false
+      val node = pending.remove(pending.size - 1)
+      if (node == null) return false
+      if (seen.put(node, java.lang.Boolean.TRUE) == null) {
+        node match {
+          case encoded: EnumEncoded =>
+            val authority = NativeEnumExpressionAuthority.resolve(encoded).getOrElse(return false)
+            if (!expected.exists(_.exactlyMatches(authority))) expected += authority
+          case _ if node.getTypeObject == TypeEnum => return false
+          case _ =>
+        }
+        node.foreachDrivingExpression(child => pending += child)
+      }
+    }
+    expected.size == captured.size &&
+      expected.forall(authority => captured.exists(_.exactlyMatches(authority))) &&
+      captured.forall(authority => expected.exists(_.exactlyMatches(authority)))
+  }
 
   private def canonicalSnapshot(
       candidate: NativeCandidate,
@@ -546,6 +604,12 @@ private[examples] final class NamedWireExpressionNativePhase(
     }
     if (codec.capturedSources.exists { case (native, _) => packedSemantics(native).isEmpty })
       return None
+    if (!exactEnumProjection(
+        candidate.sourceExpression +: candidate.useStatements.flatMap {
+          case assignment: DataAssignmentStatement => Some(assignment.source)
+          case _ => None
+        },
+        codec.capturedEnumAuthorities)) return None
 
     // A fixed-width alias (for example a Bool comparison) can read one
     // retained symbolic width family. Enroll that family explicitly instead
@@ -636,7 +700,8 @@ private[examples] final class NamedWireExpressionNativePhase(
     Some(CanonicalSnapshot(design, aliasId,
       receiverDrivers.filter(driver => driver.kind == DriverKind.Procedural &&
         declarations.exists(value => value.id == driver.target &&
-          value.kind == DeclarationKind.Register)).map(moduleId -> _)))
+          value.kind == DeclarationKind.Register)).map(moduleId -> _),
+      codec.capturedEnumAuthorities))
   }
 
   /** A condition is a one-bit value observation, not a fictitious register.
@@ -666,12 +731,18 @@ private[examples] final class NamedWireExpressionNativePhase(
       return Left("WA10-CONDITION-RECEIVER-BUDGET")
     if (candidate.sourceReferences.isEmpty)
       return Left("WA10-CONDITION-CONSTANT-SENSITIVITY")
+    if (candidate.sourceReferences.exists {
+        case encoded: SpinalEnumCraft[_] =>
+          NativeEnumExpressionAuthority.resolve(encoded).isEmpty
+        case _ => false
+      })
+      return Left("WA10-CONDITION-ENUM-SOURCE-AUTHORITY")
     if (candidate.sourceReferences.exists(value =>
         (value eq alias) || (value.component ne candidate.component) ||
         value.parentScope == null || !(value.parentScope eq candidate.component.dslBody) ||
         value.isAnalog || value.isInOut || value.getBitsWidth <= 0 ||
         (value.getTypeObject != TypeBool && value.getTypeObject != TypeUInt &&
-          value.getTypeObject != TypeBits) ||
+          value.getTypeObject != TypeBits && value.getTypeObject != TypeEnum) ||
         NativeWidthProvenance.optionalWidthOf(value).exists(_.minimum < 1)))
       return Left("WA10-CONDITION-SOURCE-BOUNDARY")
     if (!conditionScopeWithin(alias.parentScope, candidate.component.dslBody) ||
@@ -898,6 +969,9 @@ private[examples] final class NamedWireExpressionNativePhase(
       if (expression.getTypeObject != TypeBool) return None
       codec.capture(expression).getOrElse(return None)
     }
+    if (!exactEnumProjection(
+        candidate.sourceExpression +: candidate.useStatements.flatMap(conditionReceiverExpression),
+        codec.capturedEnumAuthorities)) return None
     // A one-bit condition can observe a retained width family without losing
     // that family or substituting its elaboration witness into the proof.
     val symbolicSources = codec.capturedSources.flatMap { case (native, _) => retainedWidth(native) }
@@ -936,7 +1010,8 @@ private[examples] final class NamedWireExpressionNativePhase(
     Some(CanonicalSnapshot(Design(CanonicalIrSchema.schemaVersion, CanonicalIrSchema.stage,
       moduleId, Vector(Module(moduleId, "NativeConditionValueObservation", parameters,
         Vector(Scope(scopeId, None, ScopeKind.Module)), Vector.empty,
-        declarations ++ observations, drivers))), aliasId, Vector.empty))
+        declarations ++ observations, drivers))), aliasId, Vector.empty,
+      codec.capturedEnumAuthorities))
   }
 
   private def rewriteConditionIdentity(candidate: NativeCandidate): Int = {
@@ -981,6 +1056,14 @@ private[examples] final class NamedWireExpressionNativePhase(
     val snapshot = canonicalSnapshot(candidate, proof).getOrElse(
       return Left("WA09-NATIVE-EXPRESSION-UNREPRESENTED")
     )
+    if (!exactEnumProjection(
+        candidate.sourceExpression +: candidate.useStatements.flatMap {
+          case assignment: DataAssignmentStatement => Some(assignment.source)
+          case when: WhenStatement => Some(when.cond)
+          case _ => None
+        },
+        snapshot.enumAuthorities))
+      return Left("WA09-NATIVE-ENUM-PROJECTION-AUTHORITY")
     val result = candidate.nameOrigin match {
       case NameOrigin.Unnamed =>
         UnnamedWireExpressionEliminationPass.runWithNativeNonblockingReceivers(

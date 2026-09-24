@@ -33,6 +33,7 @@ private[examples] final class NativeWireExpressionCodec(
   // AnyVal and a missing Java-map read can otherwise trigger null unboxing.
   private val sourceIds = new java.util.IdentityHashMap[BaseType, String]()
   private val sources = ArrayBuffer.empty[(BaseType, SymbolId)]
+  private val enumAuthorities = ArrayBuffer.empty[NativeEnumExpressionAuthority.Resolved]
   private val active = new java.util.IdentityHashMap[Expression, java.lang.Boolean]()
   private var nextReference = 0
   private var referenceOwner = scopeId
@@ -43,6 +44,10 @@ private[examples] final class NativeWireExpressionCodec(
   }
 
   def capturedSources: Vector[(BaseType, SymbolId)] = sources.toVector
+
+  /** Exact native identities that authorized an encoded canonical projection. */
+  def capturedEnumAuthorities: Vector[NativeEnumExpressionAuthority.Resolved] =
+    enumAuthorities.toVector
 
   def capture(value: Expression): Option[RtlExpr] = capture(value, "rhs")
 
@@ -96,6 +101,13 @@ private[examples] final class NativeWireExpressionCodec(
       }
 
     value match {
+      case literal: EnumLiteral[_] =>
+        NativeEnumExpressionAuthority.resolve(literal).flatMap { authority =>
+          authority.encodedValueOf(literal).map { encoded =>
+            recordEnumAuthority(authority)
+            RtlExpr.Literal(encoded, authority.width)
+          }
+        }
       case literal: BoolLiteral if !literal.hasPoison() =>
         Some(RtlExpr.Literal(if (literal.value) BigInt(1) else BigInt(0), 1))
       case literal: BitVectorLiteral if !literal.hasPoison() && literal.getWidth > 0 =>
@@ -108,6 +120,11 @@ private[examples] final class NativeWireExpressionCodec(
         )
       case source: BaseType
           if !source.isAnalog && !source.isInOut && supportedPackedBase(source) =>
+        source match {
+          case encoded: SpinalEnumCraft[_] =>
+            NativeEnumExpressionAuthority.resolve(encoded).foreach(recordEnumAuthority)
+          case _ =>
+        }
         val idValue = sourceIds.get(source)
         val id =
           if (idValue != null) SymbolId.unsafe(idValue)
@@ -131,6 +148,11 @@ private[examples] final class NativeWireExpressionCodec(
       case node: Operator.Bool.Equal => binary(node, RtlBinaryOperator.Equal)
       case node: Operator.Bool.NotEqual => binary(node, RtlBinaryOperator.NotEqual)
       case node: Operator.Bool.Not => unary(node, RtlUnaryOperator.LogicalNot)
+
+      case node: Operator.Enum.Equal => enumComparison(node, equal = true, path)
+      case node: Operator.Enum.NotEqual => enumComparison(node, equal = false, path)
+      // Case equality has distinct four-state behavior and remains fenced.
+      case _: Operator.Enum.EqualSim => None
 
       case node: Operator.Bits.Cat =>
         for {
@@ -247,9 +269,85 @@ private[examples] final class NativeWireExpressionCodec(
       else morphhdl.ir.v1.Signedness.Unsigned)
     )
 
+  /** Project the exact native Verilog enum observation after resolving its
+    * definition and encoding identities.  One-hot comparisons intentionally
+    * use the emitter's bit-test/overlap semantics rather than numeric equality,
+    * preserving invalid multi-hot states and X/Z behavior.
+    */
+  private def enumComparison(
+      node: BinaryOperator with EnumEncoded,
+      equal: Boolean,
+      path: String
+  ): Option[RtlExpr] =
+    NativeEnumExpressionAuthority.comparison(node).flatMap { comparison =>
+      val authority = comparison.authority
+      recordEnumAuthority(authority)
+
+      def captured(value: Expression, suffix: String): Option[RtlExpr] =
+        capture(value, path + suffix)
+
+      def oneHotBit(literal: EnumLiteral[_]): Option[Int] =
+        authority.encodedValueOf(literal).flatMap { encoded =>
+          if (encoded > 0 && (encoded & (encoded - 1)) == 0)
+            Some(encoded.bitLength - 1)
+          else None
+        }
+
+      def literalSignal(
+          literal: EnumLiteral[_],
+          signal: SpinalEnumCraft[_],
+          signalPath: String
+      ): Option[RtlExpr] =
+        for {
+          bit <- oneHotBit(literal)
+          value <- captured(signal, signalPath)
+        } yield {
+          val selected = RtlExpr.BitSelect(
+            value,
+            RtlExpr.Literal(BigInt(bit), math.max(1, BigInt(bit).bitLength))
+          )
+          if (equal) selected else RtlExpr.Unary(RtlUnaryOperator.LogicalNot, selected)
+        }
+
+      if (authority.encoding eq binaryOneHot) {
+        (node.left, node.right) match {
+          case (literal: EnumLiteral[_], signal: SpinalEnumCraft[_]) =>
+            literalSignal(literal, signal, ".right")
+          case (signal: SpinalEnumCraft[_], literal: EnumLiteral[_]) =>
+            literalSignal(literal, signal, ".left")
+          case _ =>
+            for {
+              left <- captured(node.left, ".left")
+              right <- captured(node.right, ".right")
+            } yield {
+              val overlap = RtlExpr.Binary(RtlBinaryOperator.BitwiseAnd, left, right)
+              RtlExpr.Binary(
+                if (equal) RtlBinaryOperator.NotEqual else RtlBinaryOperator.Equal,
+                overlap,
+                RtlExpr.Literal(BigInt(0), authority.width)
+              )
+            }
+        }
+      } else {
+        for {
+          left <- captured(node.left, ".left")
+          right <- captured(node.right, ".right")
+        } yield RtlExpr.Binary(
+          if (equal) RtlBinaryOperator.Equal else RtlBinaryOperator.NotEqual,
+          left,
+          right
+        )
+      }
+    }
+
+  private def recordEnumAuthority(authority: NativeEnumExpressionAuthority.Resolved): Unit =
+    if (!enumAuthorities.exists(_.exactlyMatches(authority))) enumAuthorities += authority
+
   private def supportedPackedBase(value: BaseType): Boolean = value match {
     case _: Bool | _: Bits | _: UInt | _: SInt => true
-    case _                                     => false
+    case encoded: SpinalEnumCraft[_] =>
+      NativeEnumExpressionAuthority.resolve(encoded).nonEmpty
+    case _ => false
   }
 
   private def sanitize(value: String): String =
@@ -313,11 +411,19 @@ private[examples] object NativeWireExpressionCodec {
       try {
         val represented = node match {
           case _: Bool => true
+          case encoded: SpinalEnumCraft[_] =>
+            NativeEnumExpressionAuthority.resolve(encoded).nonEmpty
           case base: BaseType => (base.getTypeObject == TypeUInt || base.getTypeObject == TypeBits) &&
             NativeWidthProvenance.optionalWidthOf(base).exists(_.minimum > 0)
           case _: BoolLiteral | _: UIntLiteral | _: BitsLiteral => true
+          case literal: EnumLiteral[_] =>
+            NativeEnumExpressionAuthority.resolve(literal).nonEmpty
           case _: Operator.Bool.And | _: Operator.Bool.Or | _: Operator.Bool.Xor |
               _: Operator.Bool.Not | _: Operator.Bool.Equal | _: Operator.Bool.NotEqual => true
+          case node: Operator.Enum.Equal =>
+            NativeEnumExpressionAuthority.comparison(node).nonEmpty
+          case node: Operator.Enum.NotEqual =>
+            NativeEnumExpressionAuthority.comparison(node).nonEmpty
           case _: Operator.UInt.Equal | _: Operator.UInt.NotEqual | _: Operator.UInt.Smaller |
               _: Operator.UInt.SmallerOrEqual | _: Operator.Bits.Equal | _: Operator.Bits.NotEqual => true
           case _: Operator.UInt.Add | _: Operator.UInt.Sub | _: Operator.UInt.And |
@@ -350,6 +456,15 @@ private[examples] object NativeWireExpressionCodec {
   /** Recreate the removed wire's native packed boundary before writeback. */
   def fenced(value: Expression, alias: BaseType): Expression = alias match {
     case _: Bool => value
+    case encodedAlias: SpinalEnumCraft[_] =>
+      value match {
+        case encodedValue: EnumEncoded
+            if (for {
+              expected <- NativeEnumExpressionAuthority.resolve(encodedAlias)
+              actual <- NativeEnumExpressionAuthority.resolve(encodedValue)
+            } yield expected.exactlyMatches(actual)).contains(true) => value
+        case _ => throw new IllegalArgumentException("incompatible enum expression fence")
+      }
     case _ =>
       val resize: Resize = alias match {
         case _: Bits => new ResizeBits

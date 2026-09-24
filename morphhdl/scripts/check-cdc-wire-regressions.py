@@ -22,11 +22,19 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = 'bbae646ba43e6189c69feb308f8decb9b677b15f'
 EMITTER = 'spinal.core.internals.VerilogEmitterExpressionInliningTests'
 COPY = 'spinal.core.internals.NativePureExpressionCopyTests'
+CODEC = 'morphhdl.examples.NativeWireExpressionCodecTests'
+ENUM_CONDITION = 'morphhdl.EnumConditionInliningRegressionTests'
+ENUM_NATIVE_IDENTITY = 'morphhdl.examples.EnumConditionNativeIdentityTests'
 CDC = 'morphhdl.CdcWireCleanupRegressionTests'
 NAMESPACE = 'morphhdl.CdcWireEmitterNamespaceTests'
 SEQUENTIAL = 'morphhdl.SequentialWireNativeTests'
 EMITTER_SOURCE = 'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala'
 COPY_SOURCE = 'core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala'
+CODEC_SOURCE = 'morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala'
+ENUM_CONDITION_SOURCE = 'morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala'
+ENUM_COVERAGE_SOURCE = 'morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala'
+ENUM_NATIVE_IDENTITY_SOURCE = \
+    'morphhdl/src/test/scala/morphhdl/examples/EnumConditionNativeIdentityTests.scala'
 CDC_SOURCE = 'morphhdl/src/test/scala/morphhdl/CdcWireCleanupRegressionTests.scala'
 NAMESPACE_SOURCE = 'morphhdl/src/test/scala/morphhdl/CdcWireEmitterNamespaceTests.scala'
 SEQUENTIAL_SOURCE = 'morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala'
@@ -48,6 +56,30 @@ EMITTER_ADDITIONS = frozenset((
 ))
 COPY_ADDITIONS = frozenset((
     'fixed-width shift copies preserve logical operator class, amount and source geometry',
+    'unresolved, incompatible and case-equality enum observations fail closed',
+))
+COPY_ENUM_ENCODINGS = ('binary', 'one-hot', 'custom nonsequential')
+COPY_ENUM_TEMPLATE = '$label enum equality and inequality copy exact native authority into fresh trees'
+CODEC_ENUM_ADDITIONS = frozenset((
+    'binary and explicit enum comparisons project exact encoded literals',
+    'one-hot literal and peer observations preserve native invalid-state semantics',
+    'canonical side authority distinguishes enum definitions with overlapping codes',
+))
+ENUM_CONDITION_LITERAL_CASES = frozenset((
+    'ordinary StateMachine isActive conditions inline recursively without changing state storage',
+    'disabled cleanup retains a meaningful generated-condition baseline',
+    'the same WIDTH-parameterized artifact remains symbolic in both modes',
+    'binary, one-hot and nonsequential custom encodings keep authoritative codes and widths',
+    'one-hot projections match native bit-test and overlap semantics for invalid values',
+    'distinct enum definitions with overlapping custom codes stay separate',
+    'explicit, protected, keep, no-merge, unsafe dependency and expansion fences retain native logic',
+))
+ENUM_CONDITION_MODES = ('Binary', 'OneHot', 'CustomWidth3', 'CustomWidth4')
+ENUM_CONDITION_TEMPLATE = '$mode FSM inlines equality, inequality, nested and shared receivers'
+ENUM_NATIVE_IDENTITY_CASES = frozenset((
+    'generated and unnamed enum observations are eligible by identity and disappear',
+    'the read-only observer does not change allocation or emitted bytes',
+    'protected enum carriers retain precise native rejection evidence',
 ))
 CDC_LITERAL_CASES = frozenset((
     'symbolic zero retains a width-sensitive complement under a Boolean receiver',
@@ -90,10 +122,40 @@ def source_suites(root: Path) -> dict:
             len(emitter) == 25 + len(EMITTER_ADDITIONS),
             'missing/unreviewed current emitter testcase')
     copy_before = literal_cases(inherited(COPY_SOURCE))
-    copied = copy_before | COPY_ADDITIONS
-    require(len(copy_before) == 2 and len(copied) == 3 and
-            literal_cases((root/COPY_SOURCE).read_text()) == copied,
+    copy_source = (root/COPY_SOURCE).read_text()
+    copy_literals = copy_before | COPY_ADDITIONS
+    require(len(copy_before) == 2 and len(copy_literals) == 4 and
+            literal_cases(copy_source) == copy_literals and
+            copy_source.count('test(s"' + COPY_ENUM_TEMPLATE + '")') == 1 and
+            all(copy_source.count('("' + label + '",') == 1 for label in COPY_ENUM_ENCODINGS),
             'missing/unreviewed native-copy testcase')
+    copy_enum_cases = {
+        COPY_ENUM_TEMPLATE.replace('$label', label) for label in COPY_ENUM_ENCODINGS
+    }
+    copied = copy_literals | copy_enum_cases
+    codec_before = literal_cases(inherited(CODEC_SOURCE))
+    codec = codec_before | CODEC_ENUM_ADDITIONS
+    require(len(codec_before) == 3 and
+            literal_cases((root/CODEC_SOURCE).read_text()) == codec and len(codec) == 6,
+            'missing/unreviewed native-codec enum testcase')
+    enum_condition_source = (root/ENUM_CONDITION_SOURCE).read_text()
+    enum_coverage_source = (root/ENUM_COVERAGE_SOURCE).read_text()
+    require(literal_cases(enum_condition_source) == ENUM_CONDITION_LITERAL_CASES and
+            enum_condition_source.count(
+                'for (mode <- EnumConditionEncodingMode.Binary to '
+                'EnumConditionEncodingMode.CustomWidth4)') == 1 and
+            enum_condition_source.count(
+                'test(s"${EnumConditionEncodingMode.label(mode)} FSM inlines equality, '
+                'inequality, nested and shared receivers")') == 1 and
+            all(enum_coverage_source.count('case ' + mode + ' => "' + mode + '"') == 1
+                for mode in ENUM_CONDITION_MODES),
+            'missing/unreviewed enum-condition parameterized testcase')
+    enum_condition = ENUM_CONDITION_LITERAL_CASES | {
+        ENUM_CONDITION_TEMPLATE.replace('$mode', mode) for mode in ENUM_CONDITION_MODES
+    }
+    require(literal_cases((root/ENUM_NATIVE_IDENTITY_SOURCE).read_text()) ==
+            ENUM_NATIVE_IDENTITY_CASES,
+            'missing/unreviewed enum native-identity testcase')
     cdc_source = (root/CDC_SOURCE).read_text()
     require(literal_cases(cdc_source) == CDC_LITERAL_CASES,
             'missing/unreviewed CDC literal testcase')
@@ -131,6 +193,14 @@ def source_suites(root: Path) -> dict:
                   'added_cases': sorted(EMITTER_ADDITIONS)},
         COPY: {'project': 'core', 'cases': sorted(copied), 'inherited_tests': 0,
                'added_cases': sorted(copied)},
+        CODEC: {'project': 'morphhdl', 'cases': sorted(codec), 'inherited_tests': 3,
+                'added_cases': sorted(CODEC_ENUM_ADDITIONS)},
+        ENUM_CONDITION: {'project': 'morphhdl', 'cases': sorted(enum_condition),
+                         'inherited_tests': 0, 'added_cases': sorted(enum_condition)},
+        ENUM_NATIVE_IDENTITY: {'project': 'morphhdl',
+                               'cases': sorted(ENUM_NATIVE_IDENTITY_CASES),
+                               'inherited_tests': 0,
+                               'added_cases': sorted(ENUM_NATIVE_IDENTITY_CASES)},
         CDC: {'project': 'morphhdl', 'cases': sorted(cdc), 'inherited_tests': 0,
               'added_cases': sorted(cdc)},
         NAMESPACE: {'project': 'morphhdl', 'cases': sorted(namespace), 'inherited_tests': 0,
@@ -238,7 +308,8 @@ def self_test(root: Path) -> None:
                 path.write_bytes(ET.tostring(suite))
         receipt, updates = projection(current, predecessor, 'fixture-not-qualified', specs)
         initial = {'core': {'tests': 30, 'suites': [EMITTER, 'original.core'], 'skipped': 0},
-                   'morphhdl': {'tests': 20, 'suites': ['original.morph', SEQUENTIAL], 'skipped': 0}}
+                   'morphhdl': {'tests': 20,
+                                'suites': [CODEC, 'original.morph', SEQUENTIAL], 'skipped': 0}}
         merged = merge_inventory(initial, receipt, specs)
         added = sum(len(spec['added_cases']) for spec in specs.values())
         require(sum(value['tests'] for value in merged.values()) == 50 + added,
@@ -288,8 +359,10 @@ def self_test(root: Path) -> None:
         emitter_copy = report_path(predecessor, EMITTER, specs[EMITTER])
         expected = sorted(set(specs[EMITTER]['cases']) - EMITTER_ADDITIONS)
         report_record(emitter_copy, EMITTER, expected)
+    added_suites = sum(not spec['inherited_tests'] for spec in specs.values())
     print('CDC_WIRE_REGRESSION_CONTROLS_PASS added_tests=' + str(added) +
-          ' added_suites=3 rejected=' + str(rejected) + ' original_xml_unchanged')
+          ' added_suites=' + str(added_suites) + ' rejected=' + str(rejected) +
+          ' original_xml_unchanged')
 
 
 if __name__ == '__main__':

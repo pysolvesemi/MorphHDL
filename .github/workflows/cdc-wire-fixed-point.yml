@@ -109,7 +109,7 @@ jobs:
           set -euo pipefail
           sbt -batch '++${{ matrix.scala }}' \
             'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
-            'morph/Test/testOnly morphhdl.CdcWireCleanupRegressionTests morphhdl.CdcWireEmitterNamespaceTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests' \
+            'morph/Test/testOnly morphhdl.CdcWireCleanupRegressionTests morphhdl.CdcWireEmitterNamespaceTests spinal.core.internals.NativeWidthPublicationSafetyTests morphhdl.SequentialWireNativeTests morphhdl.examples.SequentialWireRetentionTests morphhdl.LaneWhenInliningRegressionTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests spinal.core.BooleanWidthNormalizationTests morphhdl.EnumConditionInliningRegressionTests morphhdl.examples.EnumConditionNativeIdentityTests spinal.core.ProceduralIdentityAdversarialTests spinal.core.internals.ParameterizedVerilogTests morphhdl.GenericProcessLoweringTests morphhdl.SpinalEnumLocalParameterTests' \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/regressions.log"
       - name: Generate enabled, disabled and deterministic-repeat RTL
         id: generation
@@ -119,6 +119,8 @@ jobs:
           sbt -batch '++${{ matrix.scala }}' \
             "morph/Test/runMain morphhdl.examples.CdcWireCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/rtl" \
             "morph/Test/runMain morphhdl.examples.CdcPublicationCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/publication" \
+            "morph/Test/runMain morphhdl.EnumConditionCleanupArtifactWriter $RUNNER_TEMP/cdc-wire-evidence/enum" \
+            "morph/Test/runMain morphhdl.examples.EnumConditionNativeDiagnosticsWriter $RUNNER_TEMP/cdc-wire-evidence/enum/native-diagnostics.tsv" \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/generation.log"
       - name: Verify cleanup shape, four-state semantics and formal equivalence
         if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
@@ -130,6 +132,9 @@ jobs:
           python3 morphhdl-passes/scripts/check-cdc-publication-cleanup.py \
             "$RUNNER_TEMP/cdc-wire-evidence/publication" \
             2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/publication-qualification.log"
+          python3 morphhdl-passes/scripts/check-enum-condition-cleanup.py \
+            "$RUNNER_TEMP/cdc-wire-evidence/enum" --head "${{ github.event.pull_request.head.sha || github.sha }}" \
+            2>&1 | tee "$RUNNER_TEMP/cdc-wire-evidence/enum-qualification.log"
           git diff --exit-code
           git diff --cached --exit-code
       - uses: actions/upload-artifact@v4
@@ -214,10 +219,36 @@ jobs:
                   assert proof['second_invocation_changes'] == 0
           for relative in sorted(publication_files):
               assert (root/versions[0]/'publication'/relative).read_bytes() == (root/versions[1]/'publication'/relative).read_bytes(), ('cross-Scala publication mismatch', relative)
+          enum_tops = ('EnumConditionRepro', 'EnumConditionBinaryCoverage',
+                       'EnumConditionOneHotCoverage', 'EnumConditionCustomWidth3Coverage',
+                       'EnumConditionCustomWidth4Coverage', 'EnumObservationBinaryRepro',
+                       'EnumObservationOneHotRepro', 'EnumObservationCustomWidth3Repro',
+                       'EnumObservationCustomWidth4Repro', 'DistinctEnumIdentityRepro',
+                       'EnumConditionNegativeControls')
+          enum_expected = {mode + '/' + top + '.v'
+                           for mode in ('enabled', 'disabled', 'repeat') for top in enum_tops}
+          for version in versions:
+              enum_root = root/version/'enum'
+              enum_files = {str(path.relative_to(enum_root))
+                            for mode in ('enabled', 'disabled', 'repeat')
+                            for path in (enum_root/mode).glob('*.v')}
+              assert enum_files == enum_expected, ('missing enum artifacts', version, enum_files ^ enum_expected)
+              enum_result = json.loads((enum_root/'qualification.json').read_text())
+              assert enum_result['head'] == os.environ['EXPECTED_HEAD']
+              assert [case['width'] for case in enum_result['fsm']] == [1, 8, 32]
+              assert len(enum_result['four_state']) == 4 and len(enum_result['formal']) == 12
+              diagnostics = (enum_root/'native-diagnostics.tsv').read_text()
+              assert diagnostics.count('\tremaining-eligible\t0\t') == 2
+              assert '\tGenerated\ttrue\t' in diagnostics and '\tUnnamed\ttrue\t' in diagnostics
+          for relative in sorted(enum_expected):
+              assert (root/versions[0]/'enum'/relative).read_bytes() == (root/versions[1]/'enum'/relative).read_bytes(), ('cross-Scala enum mismatch', relative)
+          assert (root/versions[0]/'enum'/'native-diagnostics.tsv').read_bytes() == (root/versions[1]/'enum'/'native-diagnostics.tsv').read_bytes(), 'cross-Scala native diagnostics mismatch'
           report = {'head': os.environ['EXPECTED_HEAD'], 'tree': identities[versions[0]][1],
                     'scala_versions': list(versions), 'compared_verilog_files': len(expected),
                     'byte_identical': True, 'sha256': manifests[versions[0]],
-                    'publication_verilog_files': len(publication_files), 'publication_matrix_cases_per_lane': 15}
+                    'publication_verilog_files': len(publication_files), 'publication_matrix_cases_per_lane': 15,
+                    'enum_verilog_files': len(enum_expected), 'enum_formal_cases_per_lane': 12,
+                    'enum_four_state_cases_per_lane': 4, 'enum_fsm_widths': [1, 8, 32]}
           (root/'cross-scala.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
           print('CDC_WIRE_CROSS_SCALA_PASS files=' + str(len(expected)) + ' exact_source=true byte_identical=true')
           PY
