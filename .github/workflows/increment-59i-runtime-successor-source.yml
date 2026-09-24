@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-18 PR194 composition and Combined partition qualification.
+# Exact schema-18 authentication-pin repair qualification.
 
 on:
   push:
@@ -21,15 +21,15 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: a7d19e8fa7cdad323656bb5fc634d136ac4e002b
-      EXPECTED_SOURCE: 3f172ee5b66b4e2393f956e5ad7cf52c1ac02a56
+      EXPECTED_SEAL: 9d910a7b2b1041837ecef96c751efd67e5a88337
+      EXPECTED_SOURCE: f28eeac5f6651809b305686e9025abb35e349f5b
       EXPECTED_CHECKPOINT: d8b89e5a9a2c0fd08a51391b5d4487237bb7d234
       EXPECTED_PREDECESSOR: b1c8183face8761e14746cf0aed62e654f6a3bee
       EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: a7d19e8fa7cdad323656bb5fc634d136ac4e002b
+          ref: 9d910a7b2b1041837ecef96c751efd67e5a88337
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -46,8 +46,8 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREDECESSOR $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = f477b8197ee85217be75d1d85aafd9b3c2e19c69
-          test "$(git rev-parse 'HEAD~1^{tree}')" = a639476df2add5143f94fafc60d8128f132bf8d7
+          test "$(git rev-parse 'HEAD^{tree}')" = 6a58765a95bb7aa804d68cc996673fc92d4a62cd
+          test "$(git rev-parse 'HEAD~1^{tree}')" = 43ee1d818920a6e2377fca04c60e9d5f5d9b8494
           test "$(git rev-parse 'HEAD~2^{tree}')" = fbed8d0c07f84231f7b3a0a4802ebba579b7ba8c
           test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = 3116fa7575150fc0e7567df158006c97b052ec08
           test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = ed73aee1ca0c667a1c32b181d95c431c22ea3719

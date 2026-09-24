@@ -1,5 +1,41 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-18 authentication-pin repair qualifying, 24 September 2026
+
+Source qualification run 36066956224 authenticated the exact schema-18
+checkpoint/source/seal and unchanged live refs, then failed 13 of 25 commands.
+Original artifact 10836829424 was independently downloaded and its ZIP SHA256
+matches the API and upload digest
+`bfd5b1ed4e7a54725f762403382a28b493103a21b1250190eb24e84c74a71171`.
+The actual logs reduce every failure to four stale authentication pins: the
+target-integration normalized hash in the rollout and WA08 loaders, the current
+successor normalized hash in the continuation router, and the resulting
+continuation-file hash in the PR189 router. Preserve the failed run and artifact.
+
+Replacement reviewed source `f28eeac5f6651809b305686e9025abb35e349f5b`,
+tree `43ee1d818920a6e2377fca04c60e9d5f5d9b8494`, remains a direct child of the
+same checkpoint and differs from the failed source in exactly those four
+one-line pins; the checkpoint-to-source inventory remains the same exact 20
+reviewed paths. Direct source child seal
+`9d910a7b2b1041837ecef96c751efd67e5a88337`, tree
+`6a58765a95bb7aa804d68cc996673fc92d4a62cd`, changes only the schema-18
+contract and verifier seal slot. Contract SHA256 is
+`021a0c5412e9e4f204e093a89134440394bc5cf24527a1f5fa367927d2cc5758`;
+normalized helper SHA256 remains
+`5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472`.
+Python compilation, exact tree/path/hash controls and the four-pin dependency
+chain pass locally. The complete local verifier reaches only the unchanged
+immutable historical 300-second certificate timeout; no timeout or gate was
+weakened. The recovery workflow launches one replacement 25-gate source
+qualification. Do not duplicate it.
+
+Feature remains `b1c8183face8761e14746cf0aed62e654f6a3bee`, target remains
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. After the replacement source and a fresh
+bounded target reconciliation pass, advance the feature non-force and rerun
+only WA08, Combined and 59h; exact-head 59f already passed. No full CI, merge,
+roadmap update or duplicate active/passing workflow. Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — schema-18 PR194 composition source qualifying, 24 September 2026
 
 The substantive PR194 target is composed through exact two-parent checkpoint
