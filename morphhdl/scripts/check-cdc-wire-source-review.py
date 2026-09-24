@@ -85,6 +85,7 @@ TEST_PATHS = frozenset((
     'morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala',
 ))
 REVIEW_PATHS = frozenset((
+    'build.sbt',
     'docs/morphhdl/lane-when-inlining-repair.md',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/cross-scala.json',
     'repro/recursive-fill-cleanup/qualified-fc61cad0/fill-off/RecursiveFillCleanupRepro.v',
@@ -135,6 +136,16 @@ REVIEW_PATHS = frozenset((
     'docs/morphhdl/increment-64-derived-localparams.md',
     'morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md',
 ))
+
+BUILD_REVIEW_MARKERS = {
+    'build.sbt': (
+        'ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(lib, core)',
+        'ScalaUnidoc / unidoc / scalacOptions ++= Seq(',
+        's"-Xplugin:${(idslplugin / Compile / packageBin / artifactPath).value.getAbsolutePath}"',
+        's"-Xplugin:${(morphplugin / Compile / packageBin).value.getAbsolutePath}"',
+        '"-Xplugin-require:morphhdl"',
+    ),
+}
 
 
 CDC_SAFETY_MARKERS = {
@@ -250,6 +261,11 @@ def safety_failures(path: str, source: str) -> list[str]:
     return errors + ['application/name/text recognition: ' + pattern for pattern in forbidden if re.search(pattern, source)]
 
 
+def review_failures(path: str, source: str) -> list[str]:
+    return ['missing reviewed build guard: ' + marker
+            for marker in BUILD_REVIEW_MARKERS.get(path, ()) if marker not in source]
+
+
 def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root = root.resolve()
     outer = load(root, OUTER)
@@ -279,6 +295,9 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
                 'missing inherited sequential safety obligation: ' + path)
     for path in actual & PRODUCTION_PATHS:
         require(not safety_failures(path, (root/path).read_text()), 'nongeneric implementation: ' + path)
+    for path in actual & BUILD_REVIEW_MARKERS.keys():
+        require(not review_failures(path, (root/path).read_text()),
+                'incomplete inherited-build repair: ' + path)
     old = json.loads(git(root, 'show', BASE+':'+REGISTRY))
     current = json.loads((root/REGISTRY).read_bytes())
     require(current.keys() == old.keys() and current['files'].keys() == old['files'].keys() and
@@ -324,6 +343,12 @@ def self_test(root: Path = ROOT) -> None:
         for marker in markers:
             require(bool(safety_failures(path, original.replace(marker, 'REMOVED_CDC_GUARD'))),
                     'accepted missing direct-alias guard: ' + marker)
+            rejected += 1
+    for path, markers in BUILD_REVIEW_MARKERS.items():
+        original = (root/path).read_text()
+        for marker in markers:
+            require(bool(review_failures(path, original.replace(marker, 'REMOVED_BUILD_GUARD'))),
+                    'accepted missing reviewed build guard: ' + marker)
             rejected += 1
     with tempfile.TemporaryDirectory(prefix='cdc-wire-review-') as directory:
         copy = Path(directory)/'current'

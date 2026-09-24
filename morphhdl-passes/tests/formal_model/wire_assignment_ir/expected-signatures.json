@@ -3,7 +3,7 @@
   "files": {
     ".github/workflows/morphhdl-passes.yml": "dfd940a5c0d668e1bb5caef12dd2db4199dd1db41488bd35411e4ca59c2fa80b",
     "build.mill": "6ef039bcd23fcb608189301df6388c892f06455192cc59ae59fea498949acc3e",
-    "build.sbt": "9e03fbf306e30329a7e8610a8bfdaf9936073b2297220bda6a96f37c83758f9a",
+    "build.sbt": "f5aea1240439eb3ddabc53d121f9adefd147018644856eb2465502fae7dcb7ae",
     "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": "feb0d1d693b2f3ce875d831d99607ed7d7eb8ca17da5f4e590a1879e9605c0dc",
     "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala": "d31993e0d25abc79e9b4b0d25bb0a3561e583f2b1f016dc36dcc16547fffafb0",
     "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": "1cbcf5534dff958a987e0ce10b0040154c4c4adcc12c97934f5c90c538ae31d6",
