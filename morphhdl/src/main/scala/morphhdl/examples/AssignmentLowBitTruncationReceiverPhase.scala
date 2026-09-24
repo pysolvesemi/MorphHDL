@@ -79,9 +79,12 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
     try ElaborationWidthAuthority.equivalent(left, right)
     catch { case NonFatal(_) => false }
 
-  private def sameBoundary(component: Component, left: BaseType, right: BaseType): Boolean =
-    left.getTypeObject == right.getTypeObject && left.getBitsWidth == right.getBitsWidth &&
+  private def sameBoundary(left: BaseType, right: BaseType): Boolean = {
+    val component = left.component
+    component != null && (right.component eq component) &&
+      left.getTypeObject == right.getTypeObject && left.getBitsWidth == right.getBitsWidth &&
       WireTruncationNativeAccess.equivalentSymbolicWidth(component, left, right)
+  }
 
   private def unannotated(value: Expression): Boolean = value match {
     case tagged: SpinalTagReady => tagged.isEmptyOfTag
@@ -145,7 +148,7 @@ private[examples] final class AssignmentLowBitTruncationReceiverPhase(
     if (!(receiver.source eq symbolicCarrier) || !(receiver.target eq target) ||
         (target eq symbolicCarrier) || (target.component ne component) ||
         target.isAnalog || target.isInputOrInOut || receiver.parentScope == null ||
-        !sameBoundary(component, target, symbolicCarrier)) return false
+        !sameBoundary(target, symbolicCarrier)) return false
 
     if (target.isReg)
       target.clockDomain != null && independentBlockingInputs(replacement, component)
