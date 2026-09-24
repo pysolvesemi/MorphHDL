@@ -400,16 +400,59 @@ object VerilogEmitterExpressionInlining {
       if (collect(root, contextWidth)) publish(wrappers)
     }
 
+    // WIRE-TRUNC-01: a whole unsigned assignment narrower than its pure RHS
+    // cannot enlarge that RHS's context. Prove the complete tree in its own
+    // authoritative evaluation domain, not the receiver's low-bit width.
+    // A domain that can widen the RHS, a signed edge, or missing publication
+    // evidence still uses the historical exact-width proof and fails closed.
+    def narrowingContext(source: Expression, target: BaseType): Option[ElaborationIntegerExpression] =
+      if (!unsignedKind(source) || source.getTypeObject != target.getTypeObject) None
+      else for {
+        own <- logicalWidth(source)
+        receiver <- logicalWidth(target)
+        if own.minimum >= receiver.maximum
+      } yield own
+
+    def planAssignment(assignment: DataAssignmentStatement, target: BaseType): Unit =
+      plan(assignment.source, narrowingContext(assignment.source, target).orElse(logicalWidth(target)))
+
+    def independentBlockingInputs(root: Expression): Boolean = {
+      val pending = ArrayBuffer(root)
+      var nodes = 0
+      var leaves = 0
+      while (pending.nonEmpty) {
+        val next = pending.remove(pending.size - 1)
+        nodes += 1
+        if (next == null || nodes > 256) return false
+        next match {
+          case base: BaseType =>
+            leaves += 1
+            if ((base.component ne component) || (!base.isInput && !base.isReg) ||
+                base.isAnalog || base.isInOut) return false
+          case _ => next.foreachDrivingExpression(child => pending += child)
+        }
+      }
+      leaves > 0
+    }
+
     component.dslBody.walkStatements {
       case assignment: DataAssignmentStatement => assignment.target match {
         case target: BaseType if eligibleTarget(target) =>
-          plan(assignment.source, logicalWidth(target))
+          planAssignment(assignment, target)
         // Whole-register assignments each establish their own sizing context.
         // Prove the existing pure RHS at that exact location; initialization,
         // priority, clock/reset ownership and blocking/nonblocking order stay
         // untouched. This does not inline a register or move any assignment.
         case target: BaseType if target.isReg && fixedTargetBoundary(target) =>
-          plan(assignment.source, logicalWidth(target))
+          planAssignment(assignment, target)
+        // A lowered blocking RHS is safe only when no possibly coalesced
+        // blocking writer can change its dependencies. Keep this independent
+        // scheduling proof in addition to the complete unsigned sizing proof.
+        case target: BaseType if target.isComb && fixedTargetBoundary(target) &&
+            width(assignment.source) > width(target) &&
+            narrowingContext(assignment.source, target).nonEmpty &&
+            independentBlockingInputs(assignment.source) =>
+          planAssignment(assignment, target)
         // A no-op unsigned carrier which prints an existing reference has no
         // arithmetic or assignment-context obligation. This narrow fallback
         // handles repeated/nested register updates without enabling arbitrary

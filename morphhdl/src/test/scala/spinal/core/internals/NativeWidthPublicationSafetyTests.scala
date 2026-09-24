@@ -19,6 +19,20 @@ private[internals] final class NativeWidthPublicationSafetyFixture(width: HdlInt
   equalOutput := equalResize
 }
 
+private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) extends Component {
+  val source = in(UInt(8 bits)).setName("wireTruncSource")
+  val fixed = UInt(8 bits).setName("wireTruncFixed")
+  // Keep the actual resize result as the owner declaration. Assigning the resize
+  // directly to an output introduces one extra native UInt carrier before the
+  // publication capture phase and makes an unsafe cast observe that carrier
+  // instead of the registry-owned Resize node.
+  val target = fixed.resize(width.asElabInt).setName("wireTruncTarget")
+  val receiver = out(UInt(width bits)).setName("wireTruncReceiver")
+  fixed := source
+  receiver := target
+  val nativeResize = target.head.asInstanceOf[DataAssignmentStatement].source.asInstanceOf[Resize]
+}
+
 class NativeWidthPublicationSafetyTests extends AnyFunSuite {
   private def inspect(body: NativeWidthPublicationSafetyFixture => Unit): Unit = {
     val width = HdlInt.param("WIDTH", 5, 1, 8)
@@ -38,12 +52,35 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
     config.generateVerilog(new NativeWidthPublicationSafetyFixture(width))
   }
 
+  private def inspectWireTruncation(body: NativeResizeWireTruncationFixture => Unit): Unit = {
+    val width = HdlInt.param("WIRE_TRUNC_WIDTH", 5, 1, 8)
+    val config = SpinalConfig(
+      targetDirectory = Files.createTempDirectory("native-resize-wire-trunc-").toString,
+      headerWithDate = false, headerWithRepoHash = false)
+    config.phasesInserters += { phases =>
+      ExternalParameterizedNativeResize.install(phases)
+      val cleanup = phases.zipWithIndex.collect {
+        case (_: PhaseRemoveIntermediateUnnameds, index) => index
+      }.toVector
+      assert(cleanup.size >= 3)
+      // Exercise the handoff at the same late native boundary used by the
+      // production WIRE pipeline: after width normalization, replacing the
+      // third cleanup rather than injecting a narrowing assignment before
+      // PhaseNormalizeNodeInputs can reject it for ordinary Spinal semantics.
+      phases.update(cleanup(2), new PhaseMisc {
+        override def impl(pc: PhaseContext): Unit =
+          body(pc.topLevel.asInstanceOf[NativeResizeWireTruncationFixture])
+      })
+    }
+    config.generateVerilog(new NativeResizeWireTruncationFixture(width))
+  }
+
   private def highAccess(fixture: NativeWidthPublicationSafetyFixture): BitVectorBitAccessFixed =
     fixture.high.head.source.asInstanceOf[BitVectorBitAccessFixed]
 
   private def resizeNode(value: UInt): Resize = value.head.source.asInstanceOf[Resize]
 
-  private def expectLineage(body: => String): Unit = {
+  private def expectLineage(body: => Any): Unit = {
     val error = intercept[ParameterizedVerilogException](body)
     assert(error.code.contains("LINEAGE-MISMATCH"), error.getMessage)
   }
@@ -189,6 +226,114 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       } finally fixture.userCache ++= savedCache
       assert(ExternalParameterizedHighBit.proves(fixture, access))
       assert(ExternalParameterizedNativeResize.proves(fixture, resize))
+    }
+  }
+
+  test("WIRE truncation native-resize handoff is symbolic, exact and one-shot") {
+    inspectWireTruncation { fixture =>
+      val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
+      val receiverAssignment = fixture.receiver.head.asInstanceOf[DataAssignmentStatement]
+      val resize = fixture.nativeResize
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "pending" })
+      assignment.source = fixture.fixed
+      ExternalParameterizedNativeResize.completeLowBitTruncationConsumption(
+        fixture, assignment, fixture.fixed)
+      assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "pending receiver"
+      })
+      receiverAssignment.source = fixture.source
+      ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
+        fixture, receiverAssignment, fixture.source)
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "valid"
+      } == "valid")
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
+
+      val originalScope = assignment.parentScope
+      val borrowed = new ScopeStatement(null)
+      borrowed.component = fixture
+      assignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved owner" })
+      assignment.parentScope = originalScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored owner"
+      } == "restored owner")
+
+      val receiverScope = receiverAssignment.parentScope
+      receiverAssignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "moved receiver" })
+      receiverAssignment.parentScope = receiverScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored receiver"
+      } == "restored receiver")
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+    }
+  }
+
+  test("WIRE truncation receiver forwarding can retain its fresh resize owner") {
+    inspectWireTruncation { fixture =>
+      val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
+      val receiverAssignment = fixture.receiver.head.asInstanceOf[DataAssignmentStatement]
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "pending fresh-owner receiver"
+      })
+      receiverAssignment.source = fixture.source
+      ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
+        fixture, receiverAssignment, fixture.source)
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "valid fresh-owner receiver"
+      } == "valid fresh-owner receiver")
+      val receiverScope = receiverAssignment.parentScope
+      val borrowed = new ScopeStatement(null)
+      borrowed.component = fixture
+      receiverAssignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "moved fresh-owner receiver"
+      })
+      receiverAssignment.parentScope = receiverScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored fresh-owner receiver"
+      } == "restored fresh-owner receiver")
+    }
+  }
+
+  test("WIRE truncation handoff rejects a captured fixed target resize") {
+    inspect { fixture =>
+      val assignment = fixture.resized.head.asInstanceOf[DataAssignmentStatement]
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      expectLineage(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
     }
   }
 }

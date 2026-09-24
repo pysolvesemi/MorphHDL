@@ -1,0 +1,257 @@
+name: WIRE-TRUNC-01 assignment absorption
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  baseline:
+    name: Reproduce unchanged integration compiler
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - name: Build the unchanged baseline with the public-API fixture only
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/wire-trunc-baseline-evidence"
+          baseline="$RUNNER_TEMP/wire-trunc-baseline"
+          mkdir -p "$evidence"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/candidate.txt"
+          git worktree add --detach "$baseline" 09880c538c4cf83022f4a1bb1dd16b43ea81a751
+          fixture=morphhdl/src/test/scala/nativeapplication/LowBitTruncationArtifactWriter.scala
+          cp "$fixture" "$baseline/$fixture"
+          sha256sum "$fixture" > "$evidence/fixture-sha256.txt"
+          cd "$baseline"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/baseline.txt"
+          git diff --exit-code
+          git diff --cached --exit-code
+          test "$(git status --porcelain --untracked-files=all)" = "?? $fixture"
+          sbt -batch '++2.12.18' \
+            "morph/Test/runMain morphhdl.examples.LowBitTruncationArtifactWriter $evidence/rtl" \
+            2>&1 | tee "$evidence/baseline-sbt.log"
+      - name: Require the existing final-RTL carrier defect
+        env:
+          BASELINE_EVIDENCE: ${{ runner.temp }}/wire-trunc-baseline-evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util, json, os
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location('trunc_check', 'morphhdl-passes/scripts/check-low-bit-truncation.py')
+          check = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(check)
+          evidence = Path(os.environ['BASELINE_EVIDENCE'])
+          rtl = evidence/'rtl/enabled/LowBitTruncationFixture.v'
+          try:
+              check.require_shape(rtl.read_text())
+          except AssertionError as error:
+              result = {'reproduced': True, 'diagnostic': str(error),
+                        'baseline': (evidence/'baseline.txt').read_text().splitlines()}
+          else:
+              raise AssertionError('unchanged baseline unexpectedly meets the new structural requirement')
+          (evidence/'reproduction.json').write_text(json.dumps(result, indent=2)+'\n')
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wire-trunc-01-baseline-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/wire-trunc-baseline-evidence/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+  candidate:
+    name: Native, canonical and final HDL Scala ${{ matrix.scala }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    env:
+      SBT_TEST_PARALLEL: '0'
+      JVM_OPTS: '-Xmx5G -Xss4M -XX:ActiveProcessorCount=2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: sbt/setup-sbt@v1
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.sbt
+            ~/.cache/coursier
+          key: ${{ runner.os }}-wire-trunc-${{ matrix.scala }}-${{ hashFiles('**/build.sbt', 'project/**') }}
+      - name: Authenticate the exact candidate and install HDL tools
+        id: identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/wire-trunc-evidence"
+          mkdir -p "$evidence"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git rev-parse HEAD 'HEAD^{tree}' > "$evidence/source.txt"
+          printf '%s\n' '${{ matrix.scala }}' > "$evidence/scala-version.txt"
+          git diff --exit-code
+          git diff --cached --exit-code
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends iverilog yosys
+          java -version > "$evidence/java-version.txt" 2>&1
+          iverilog -V > "$evidence/iverilog-version.txt" 2>&1
+          yosys -V > "$evidence/yosys-version.txt"
+      - name: Authenticate cumulative current source and replay inherited source gates
+        id: source-review
+        run: |
+          set -euo pipefail
+          python3 morphhdl/scripts/check-wire-trunc-01-source-review.py --self-test \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/source-review.log"
+      - name: Canonical assignment proof and checker mutation controls
+        id: canonical
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/check-low-bit-truncation.py --self-test
+          cd morphhdl-passes
+          sbt -batch '++${{ matrix.scala }}' \
+            'testOnly morphhdl.passes.transform.AssignmentLowBitTruncationProofSpec' \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/canonical.log"
+      - name: Generate unchanged public-API artifacts with the actual candidate
+        id: generation
+        if: ${{ !cancelled() && steps.identity.outcome == 'success' && steps.source-review.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            "morph/Test/runMain morphhdl.examples.LowBitTruncationArtifactWriter $RUNNER_TEMP/wire-trunc-evidence/rtl" \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/generation.log"
+      - name: Native writeback, mixed receivers, preservation and inherited expression gates
+        id: native
+        if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          sbt -batch '++${{ matrix.scala }}' \
+            'core/Test/testOnly spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
+            'morph/Test/testOnly morphhdl.examples.AssignmentLowBitTruncationNativeTests morphhdl.examples.NativeWireExpressionCodecTests spinal.core.MorphVerilogExpressionInliningTests' \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/native.log"
+      - name: Simulate all overrides, prove independent oracle equivalence and synthesize
+        if: ${{ !cancelled() && steps.generation.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 morphhdl-passes/scripts/check-low-bit-truncation.py \
+            "$RUNNER_TEMP/wire-trunc-evidence/rtl" \
+            2>&1 | tee "$RUNNER_TEMP/wire-trunc-evidence/hdl-qualification.log"
+      - name: Require executed new test suites and a clean source checkout
+        if: ${{ !cancelled() && steps.canonical.outcome == 'success' && steps.native.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, xml.etree.ElementTree as ET
+          expected = {'AssignmentLowBitTruncationProofSpec': 7, 'AssignmentLowBitTruncationNativeTests': 16}
+          evidence = {}
+          for suite, minimum in expected.items():
+              files = list(Path('.').glob('**/target/test-reports/*'+suite+'*.xml'))
+              assert files, ('new suite did not execute', suite)
+              tests = 0
+              for path in files:
+                  root = ET.parse(path).getroot()
+                  assert all(int(root.attrib.get(key, 0)) == 0 for key in ('failures','errors','skipped')), str(path)
+                  tests += int(root.attrib.get('tests', 0))
+              assert tests >= minimum, (suite, tests, minimum)
+              evidence[suite] = tests
+          (Path(os.environ['RUNNER_TEMP'])/'wire-trunc-evidence/new-test-counts.json').write_text(json.dumps(evidence)+'\n')
+          PY
+          git diff --exit-code
+          git diff --cached --exit-code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wire-trunc-01-${{ matrix.scala }}-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            ${{ runner.temp }}/wire-trunc-evidence/
+            morphhdl-passes/target/test-reports/
+            morphhdl/target/test-reports/
+            core/target/test-reports/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+  cross-scala:
+    name: Require complete current-source and cross-Scala evidence
+    needs: [baseline, candidate]
+    if: ${{ always() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Require successful baseline reproduction and both candidate lanes
+        run: |
+          test '${{ needs.baseline.result }}' = success
+          test '${{ needs.candidate.result }}' = success
+      - uses: actions/download-artifact@v4
+        with:
+          name: wire-trunc-01-2.12.18-${{ github.event.pull_request.head.sha || github.sha }}
+          path: evidence/2.12.18
+      - uses: actions/download-artifact@v4
+        with:
+          name: wire-trunc-01-2.13.12-${{ github.event.pull_request.head.sha || github.sha }}
+          path: evidence/2.13.12
+      - name: Check exact identities, complete override matrix and byte-identical modules
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os
+          roots = []
+          for version in ('2.12.18','2.13.12'):
+              matches = list((Path('evidence')/version).rglob('source.txt'))
+              assert len(matches) == 1
+              root = matches[0].parent
+              identity = matches[0].read_text().splitlines()
+              assert len(identity) == 2 and identity[0] == os.environ['EXPECTED_HEAD']
+              assert (root/'scala-version.txt').read_text().strip() == version
+              counts = json.loads((root/'new-test-counts.json').read_text())
+              assert counts['AssignmentLowBitTruncationProofSpec'] >= 7 and counts['AssignmentLowBitTruncationNativeTests'] >= 16
+              report = json.loads((root/'rtl/qualification.json').read_text())
+              matrix = report['matrix']
+              expected = {(mode, width) for mode in ('default','enabled','disabled','repeat') for width in (1,12,13,17,18)}
+              assert len(matrix) == 20 and {(row['mode'],row['width']) for row in matrix} == expected
+              assert all(row['four_state'] == row['equivalence'] == row['synthesis'] == 'passed' and row['checks'] == 2146 for row in matrix)
+              roots.append(root)
+          assert (roots[0]/'source.txt').read_bytes() == (roots[1]/'source.txt').read_bytes()
+          for mode in ('default','enabled','disabled','repeat'):
+              relative = Path('rtl')/mode/'LowBitTruncationFixture.v'
+              assert (roots[0]/relative).read_bytes() == (roots[1]/relative).read_bytes(), mode
+          print('WIRE_TRUNC_01_CROSS_SCALA_PASS exact_source=true modes=4 overrides=5')
+          PY
