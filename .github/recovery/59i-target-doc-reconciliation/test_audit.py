@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused rejection controls for the schema-15 target audit."""
+"""Focused rejection controls for the schema-17 target audit."""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +11,7 @@ import unittest
 import zipfile
 
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("schema15_target_audit", HERE / "audit.py")
+spec = importlib.util.spec_from_file_location("schema17_target_audit", HERE / "audit.py")
 A = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(A)
 
