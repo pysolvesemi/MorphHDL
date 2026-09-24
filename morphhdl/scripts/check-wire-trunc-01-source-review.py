@@ -95,6 +95,7 @@ SAFETY_MARKERS = {
     "morphhdl/src/main/scala/morphhdl/examples/AssignmentLowBitTruncationReceiverPhase.scala": (
         "WireTruncationNativeAccess.protectedCarrier(symbolicCarrier)",
         ".symbolicResizeTargetWidth(component, symbolicCarrier)",
+        ".lowBitTruncationSource(component, symbolicCarrier)",
         "value == NameOrigin.Generated || value == NameOrigin.Unnamed",
         "sourceIntent.permits(symbolicCarrier)",
         "WireTruncationNativeAccess.protectedCarrier(value)",
@@ -124,15 +125,18 @@ SAFETY_MARKERS = {
         "val wireTruncationReceivers =",
         "val wireTruncationReceiverReplacement =",
         "receiverRecords(value).foreach",
+        "def lowBitProjection(record: Record): Boolean",
+        "def validReceiverOwnerFresh(",
         "def beginLowBitTruncationConsumption(",
         "if (!validFresh(component, record))",
-        "record.targetWidth.parameters.isEmpty || record.sourceWidth.parameters.nonEmpty",
+        "if (!lowBitProjection(record))",
         "value.wireTruncationReplacement.put(record, null)",
         "def completeLowBitTruncationConsumption(",
         "replacementWidth.parameters.nonEmpty",
         "validConsumedFresh(component, value, record)",
         "record.assignment.source eq replacement",
         "def beginLowBitTruncationReceiverForwarding(",
+        "validReceiverOwnerFresh(component, value, owner)",
         "receiver.source eq owner.target",
         "NativePublicationWidth.equivalentAtOwners(",
         "value.wireTruncationReceiverReplacement.put(record, null)",
@@ -146,6 +150,8 @@ SAFETY_MARKERS = {
         "def validReceiverDuringPublication(",
         "current != null && current.containsKey(record.owner)",
         "validReceiverDuringPublication(component, value, _)",
+        "(!consumed(value, record) && validFresh(component, record))",
+        "def lowBitTruncationSourceOf(",
         "if (!consumed(value, record))",
     ),
     "morphhdl/src/main/scala/spinal/core/internals/WireTruncationNativeAccess.scala": (
@@ -155,6 +161,8 @@ SAFETY_MARKERS = {
         "ExternalParameterizedNativeResize",
         ".targetWidthOf(component, target)",
         ".filter(_.parameters.nonEmpty)",
+        ".lowBitTruncationSourceOf(component, target)",
+        ".filter(value => value != null && (value.component eq component))",
     ),
 }
 
@@ -235,7 +243,7 @@ def tree_entry(root: Path, ref: str, path: str) -> tuple[str, str] | None:
 def current_index(root: Path, path: str) -> tuple[str, str] | None:
     rows = [row for row in git(root, "ls-files", "--stage", "-z", "--", path).split(b"\0") if row]
     if not rows:
-        return None
+      return None
     require(len(rows) == 1, "ambiguous index entry: " + path)
     metadata, actual = rows[0].split(b"\t", 1)
     mode, blob, stage = metadata.decode().split()
