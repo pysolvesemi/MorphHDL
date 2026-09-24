@@ -1,5 +1,38 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-18 PR194 composition source qualifying, 24 September 2026
+
+The substantive PR194 target is composed through exact two-parent checkpoint
+`d8b89e5a9a2c0fd08a51391b5d4487237bb7d234`, tree
+`fbed8d0c07f84231f7b3a0a4802ebba579b7ba8c`, with ordered parents the
+schema-17 feature `b1c8183face8761e14746cf0aed62e654f6a3bee` and live target
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`. The checkpoint resolves five
+composed paths and otherwise reuses exact blobs from the authenticated parents.
+
+Reviewed source `3f172ee5b66b4e2393f956e5ad7cf52c1ac02a56`, tree
+`a639476df2add5143f94fafc60d8128f132bf8d7`, is the direct checkpoint child and
+changes exactly20 reviewed workflow/audit/fixture/inventory paths. It fixes the
+retained manifest-diagnostic expectation and separates Combined source audits
+into two required same-head prerequisites while retaining both Scala lanes and
+every compilation, test, generated-Verilog, proof, determinism and evidence
+step. Direct-child seal `a7d19e8fa7cdad323656bb5fc634d136ac4e002b`, tree
+`f477b8197ee85217be75d1d85aafd9b3c2e19c69`, changes only the schema-18
+contract and verifier hash slot. Contract SHA256 is
+`b6cda81a8c5448e6c90fca9572f3aba865ce4a070879c9562f753403290dc922`;
+normalized helper SHA256 is
+`5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472`.
+
+Focused YAML, shell, native-manifest, target-integration, regression-inventory,
+budget, timeout and scheduling controls passed locally; the unchanged immutable
+historical certificate remains delegated to the retained remote25-gate source
+qualification. Feature remains b1c8183f, target remains db54d01e, PR177 remains
+draft/unmerged and the roadmap remains unchecked. This recovery successor
+launches exactly one360-minute source qualification. Do not duplicate it. NEXT
+inspect all25 actual logs and independently verify the original artifact/API
+digest. Only after source and a fresh bounded target reconciliation pass may the
+feature advance non-force and only WA08, Combined and59h be rerun; exact-head59f
+is already successful. Do not launch full CI, merge, or mark acceptance complete.
+Keep monitoring enabled.
 
 ## CURRENT CHECKPOINT — schema-12 source qualified; exact target reconciliation launching, 23 September 2026
 
