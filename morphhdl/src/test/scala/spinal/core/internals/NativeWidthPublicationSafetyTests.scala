@@ -286,6 +286,42 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
     }
   }
 
+  test("WIRE truncation receiver forwarding can retain its fresh resize owner") {
+    inspectWireTruncation { fixture =>
+      val assignment = fixture.target.head.asInstanceOf[DataAssignmentStatement]
+      val receiverAssignment = fixture.receiver.head.asInstanceOf[DataAssignmentStatement]
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(ExternalParameterizedNativeResize.beginLowBitTruncationReceiverForwarding(
+        fixture, assignment, receiverAssignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "pending fresh-owner receiver"
+      })
+      receiverAssignment.source = fixture.source
+      ExternalParameterizedNativeResize.completeLowBitTruncationReceiverForwarding(
+        fixture, receiverAssignment, fixture.source)
+      assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+      assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "valid fresh-owner receiver"
+      } == "valid fresh-owner receiver")
+      val receiverScope = receiverAssignment.parentScope
+      val borrowed = new ScopeStatement(null)
+      borrowed.component = fixture
+      receiverAssignment.parentScope = borrowed
+      expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        "moved fresh-owner receiver"
+      })
+      receiverAssignment.parentScope = receiverScope
+      assert(ExternalParameterizedNativeResize.withPublicationValidation(fixture) {
+        assert(ExternalParameterizedNativeResize.provesAssignment(fixture, receiverAssignment))
+        "restored fresh-owner receiver"
+      } == "restored fresh-owner receiver")
+    }
+  }
+
   test("WIRE truncation handoff rejects a captured fixed target resize") {
     inspect { fixture =>
       val assignment = fixture.resized.head.asInstanceOf[DataAssignmentStatement]
