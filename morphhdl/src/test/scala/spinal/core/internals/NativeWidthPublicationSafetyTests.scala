@@ -21,9 +21,11 @@ private[internals] final class NativeWidthPublicationSafetyFixture(width: HdlInt
 
 private[internals] final class NativeResizeWireTruncationFixture(width: HdlInt) extends Component {
   val source = in(UInt(8 bits)).setName("wireTruncSource")
+  val fixed = UInt(8 bits).setName("wireTruncFixed")
   val target = out(UInt(width bits)).setName("wireTruncTarget")
   val receiver = out(UInt(width bits)).setName("wireTruncReceiver")
-  target := source.resize(width.asElabInt)
+  fixed := source
+  target := fixed.resize(width.asElabInt)
   receiver := target
   // Preserve the elaboration-time Resize identity itself. Native normalization
   // may legitimately replace assignment.source by its equal witness before the
@@ -231,9 +233,9 @@ class NativeWidthPublicationSafetyTests extends AnyFunSuite {
       assert(ExternalParameterizedNativeResize.beginLowBitTruncationConsumption(fixture, assignment))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
       expectLineage(ExternalParameterizedNativeResize.withPublicationValidation(fixture) { "pending" })
-      assignment.source = fixture.source
+      assignment.source = fixture.fixed
       ExternalParameterizedNativeResize.completeLowBitTruncationConsumption(
-        fixture, assignment, fixture.source)
+        fixture, assignment, fixture.fixed)
       assert(!ExternalParameterizedNativeResize.proves(fixture, resize))
       assert(!ExternalParameterizedNativeResize.provesAssignment(fixture, assignment))
 
