@@ -4,7 +4,7 @@
   "base_tree": "6216cf799cc51c5a5f815d08f16e435c6b48ddc7",
   "source_commit": "c4fa1deba187d916005f1506c43e9e15c0ae8b5f",
   "source_tree": "c1c3e662af885426853f306bca1af7687d41be75",
-  "helper_source_blob": "3bff3f81fc09292d497da31d29362c46245f69ae",
+  "helper_source_blob": "f616cb71c0852dc93286557c60113c1bf6edca4c",
   "source_paths": [
     ".github/workflows/cdc-wire-fixed-point.yml",
     ".github/workflows/wire-trunc-01.yml",
