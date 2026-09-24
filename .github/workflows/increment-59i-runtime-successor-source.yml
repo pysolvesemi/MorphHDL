@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-16 byte-safe replacement seal qualification; keep dispatch bounded to this source gate.
+# Exact schema-17 59f scheduling-partition qualification; keep dispatch bounded to this source gate.
 
 on:
   push:
@@ -21,18 +21,20 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6
-      EXPECTED_SOURCE: 7ae72385bf0079c3a8c70ab0c317f97c421ddd09
-      EXPECTED_PREDECESSOR_SEAL: c48bad51b9857570e65fbd7c1be5dec465a3e8fa
-      EXPECTED_PREDECESSOR_SOURCE: 9270cb332aba63b6ea7ca17dc2694b93ff7ded52
-      EXPECTED_ANCESTOR_SEAL: 5adb952e038cd001f9a4adb27292a9fd7614fbe8
-      EXPECTED_ANCESTOR_SOURCE: 5a8178aa2422fb1987d7bab8692a107599c9b7ef
-      EXPECTED_PRIOR_SEAL: d6536e454b69346fe0954a322e0515396812f218
-      EXPECTED_PRIOR_SOURCE: f6575ae3559aa65a042bd644a93068a4a2044fbf
-      EXPECTED_OLDER_SEAL: c654f43c24d86ca99c056dd4cb74b7a18d9f41e3
-      EXPECTED_OLDER_SOURCE: 2797acc2fbeb0733c29d8c05d64857801de32ae2
-      EXPECTED_OLDEST_SEAL: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
-      EXPECTED_OLDEST_SOURCE: 1ee1e5e3e84497de4b983e08be31e46ceb4dbc25
+      EXPECTED_SEAL: b1c8183face8761e14746cf0aed62e654f6a3bee
+      EXPECTED_SOURCE: a11891bb879333f83a2469bd8c529265a58725fd
+      EXPECTED_PREDECESSOR_SEAL: f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6
+      EXPECTED_PREDECESSOR_SOURCE: 7ae72385bf0079c3a8c70ab0c317f97c421ddd09
+      EXPECTED_ANCESTOR_SEAL: c48bad51b9857570e65fbd7c1be5dec465a3e8fa
+      EXPECTED_ANCESTOR_SOURCE: 9270cb332aba63b6ea7ca17dc2694b93ff7ded52
+      EXPECTED_PRIOR_SEAL: 5adb952e038cd001f9a4adb27292a9fd7614fbe8
+      EXPECTED_PRIOR_SOURCE: 5a8178aa2422fb1987d7bab8692a107599c9b7ef
+      EXPECTED_OLDER_SEAL: d6536e454b69346fe0954a322e0515396812f218
+      EXPECTED_OLDER_SOURCE: f6575ae3559aa65a042bd644a93068a4a2044fbf
+      EXPECTED_OLDEST_SEAL: c654f43c24d86ca99c056dd4cb74b7a18d9f41e3
+      EXPECTED_OLDEST_SOURCE: 2797acc2fbeb0733c29d8c05d64857801de32ae2
+      EXPECTED_LEGACY_SEAL: 1eb63e57d41fb1f707da8ca7f176b1ecc609aebf
+      EXPECTED_LEGACY_SOURCE: 1ee1e5e3e84497de4b983e08be31e46ceb4dbc25
       EXPECTED_DOCUMENTATION_CHECKPOINT: 31be34e11c41d12c08d39626314b860c24bc9781
       EXPECTED_EARLIER_SEAL: 3ce0bf30e51af8d84a432a8937c88f31db1d7d05
       EXPECTED_FEATURE: c48bad51b9857570e65fbd7c1be5dec465a3e8fa
@@ -40,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6
+          ref: b1c8183face8761e14746cf0aed62e654f6a3bee
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -65,20 +67,24 @@ jobs:
           test "$(git rev-parse "$EXPECTED_OLDER_SEAL^")" = "$EXPECTED_OLDER_SOURCE"
           test "$(git rev-parse "$EXPECTED_OLDER_SOURCE^")" = "$EXPECTED_OLDEST_SEAL"
           test "$(git rev-parse "$EXPECTED_OLDEST_SEAL^")" = "$EXPECTED_OLDEST_SOURCE"
-          test "$(git rev-parse "$EXPECTED_OLDEST_SOURCE^")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT"
+          test "$(git rev-parse "$EXPECTED_OLDEST_SOURCE^")" = "$EXPECTED_LEGACY_SEAL"
+          test "$(git rev-parse "$EXPECTED_LEGACY_SEAL^")" = "$EXPECTED_LEGACY_SOURCE"
+          test "$(git rev-parse "$EXPECTED_LEGACY_SOURCE^")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_DOCUMENTATION_CHECKPOINT")" = "$EXPECTED_DOCUMENTATION_CHECKPOINT $EXPECTED_EARLIER_SEAL $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = 303dd21d525ea001ddf8327a96e215d417e20ba6
-          test "$(git rev-parse 'HEAD~1^{tree}')" = e033d6419c3775e5d0ba57eab5d4a8033153e65c
-          test "$(git rev-parse 'HEAD~2^{tree}')" = 6c2bee9158e61022a4fdc56efb33b056bf2135ff
-          test "$(git rev-parse "$EXPECTED_PREDECESSOR_SOURCE^{tree}")" = 898934c355f6a7280932f92e5e7f88f2e1f3bc1b
-          test "$(git rev-parse "$EXPECTED_ANCESTOR_SEAL^{tree}")" = 23e84f75a05372bfd0f819355806bd71dbcc31a5
-          test "$(git rev-parse "$EXPECTED_ANCESTOR_SOURCE^{tree}")" = ec400eb14314a82fdb924f1824bb62a43cb0532b
-          test "$(git rev-parse "$EXPECTED_PRIOR_SEAL^{tree}")" = 17b93cad066276a2ab96a3325ed0e02d85e7e6f5
-          test "$(git rev-parse "$EXPECTED_PRIOR_SOURCE^{tree}")" = 68a31a90d404c4ac693dccbb8d1c565adfca9af1
-          test "$(git rev-parse "$EXPECTED_OLDER_SEAL^{tree}")" = 815a381426e9507363ab91bd3a258ab9668fb87a
-          test "$(git rev-parse "$EXPECTED_OLDER_SOURCE^{tree}")" = bad8f069942e54c0e4736076ebe5ff336dec26d6
-          test "$(git rev-parse "$EXPECTED_OLDEST_SEAL^{tree}")" = e22a4775ab70c3c1d516ba2d83323f2273776c63
-          test "$(git rev-parse "$EXPECTED_OLDEST_SOURCE^{tree}")" = 324087367b0b979bf8eee675d96c74f40937e2ac
+          test "$(git rev-parse 'HEAD^{tree}')" = 3116fa7575150fc0e7567df158006c97b052ec08
+          test "$(git rev-parse 'HEAD~1^{tree}')" = 6712f79b63220f38ee7cadc86be589a31eff5d13
+          test "$(git rev-parse 'HEAD~2^{tree}')" = 303dd21d525ea001ddf8327a96e215d417e20ba6
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR_SOURCE^{tree}")" = e033d6419c3775e5d0ba57eab5d4a8033153e65c
+          test "$(git rev-parse "$EXPECTED_ANCESTOR_SEAL^{tree}")" = 6c2bee9158e61022a4fdc56efb33b056bf2135ff
+          test "$(git rev-parse "$EXPECTED_ANCESTOR_SOURCE^{tree}")" = 898934c355f6a7280932f92e5e7f88f2e1f3bc1b
+          test "$(git rev-parse "$EXPECTED_PRIOR_SEAL^{tree}")" = 23e84f75a05372bfd0f819355806bd71dbcc31a5
+          test "$(git rev-parse "$EXPECTED_PRIOR_SOURCE^{tree}")" = ec400eb14314a82fdb924f1824bb62a43cb0532b
+          test "$(git rev-parse "$EXPECTED_OLDER_SEAL^{tree}")" = 17b93cad066276a2ab96a3325ed0e02d85e7e6f5
+          test "$(git rev-parse "$EXPECTED_OLDER_SOURCE^{tree}")" = 68a31a90d404c4ac693dccbb8d1c565adfca9af1
+          test "$(git rev-parse "$EXPECTED_OLDEST_SEAL^{tree}")" = 815a381426e9507363ab91bd3a258ab9668fb87a
+          test "$(git rev-parse "$EXPECTED_OLDEST_SOURCE^{tree}")" = bad8f069942e54c0e4736076ebe5ff336dec26d6
+          test "$(git rev-parse "$EXPECTED_LEGACY_SEAL^{tree}")" = e22a4775ab70c3c1d516ba2d83323f2273776c63
+          test "$(git rev-parse "$EXPECTED_LEGACY_SOURCE^{tree}")" = 324087367b0b979bf8eee675d96c74f40937e2ac
           test "$(git rev-parse "$EXPECTED_DOCUMENTATION_CHECKPOINT^{tree}")" = 3e18070703fbb27d74deefacb796a56df4a0717a
           test "$(git rev-parse "$EXPECTED_EARLIER_SEAL^{tree}")" = 9f9c856590f0eb3ea93d7e6abec0e9c97609b454
           test "$(git rev-parse "$EXPECTED_FEATURE^{tree}")" = 6c2bee9158e61022a4fdc56efb33b056bf2135ff
@@ -98,7 +104,7 @@ jobs:
           test -z "$pr_merged"
           test "$pr_head" = "$EXPECTED_FEATURE"
           test "$pr_base" = parameterized-verilog
-          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREDECESSOR_SOURCE" "$EXPECTED_ANCESTOR_SEAL" "$EXPECTED_ANCESTOR_SOURCE" "$EXPECTED_PRIOR_SEAL" "$EXPECTED_PRIOR_SOURCE" "$EXPECTED_OLDER_SEAL" "$EXPECTED_OLDER_SOURCE" "$EXPECTED_OLDEST_SEAL" "$EXPECTED_OLDEST_SOURCE" "$EXPECTED_DOCUMENTATION_CHECKPOINT" "$EXPECTED_EARLIER_SEAL" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' "$EXPECTED_PREDECESSOR_SOURCE^{tree}" "$EXPECTED_ANCESTOR_SEAL^{tree}" "$EXPECTED_ANCESTOR_SOURCE^{tree}" "$EXPECTED_PRIOR_SEAL^{tree}" "$EXPECTED_PRIOR_SOURCE^{tree}" "$EXPECTED_OLDER_SEAL^{tree}" "$EXPECTED_OLDER_SOURCE^{tree}" "$EXPECTED_OLDEST_SEAL^{tree}" "$EXPECTED_OLDEST_SOURCE^{tree}" "$EXPECTED_DOCUMENTATION_CHECKPOINT^{tree}" "$EXPECTED_EARLIER_SEAL^{tree}" > "$evidence/identity.txt"
+          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREDECESSOR_SOURCE" "$EXPECTED_ANCESTOR_SEAL" "$EXPECTED_ANCESTOR_SOURCE" "$EXPECTED_PRIOR_SEAL" "$EXPECTED_PRIOR_SOURCE" "$EXPECTED_OLDER_SEAL" "$EXPECTED_OLDER_SOURCE" "$EXPECTED_OLDEST_SEAL" "$EXPECTED_OLDEST_SOURCE" "$EXPECTED_LEGACY_SEAL" "$EXPECTED_LEGACY_SOURCE" "$EXPECTED_DOCUMENTATION_CHECKPOINT" "$EXPECTED_EARLIER_SEAL" "$EXPECTED_FEATURE" 'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' "$EXPECTED_PREDECESSOR_SOURCE^{tree}" "$EXPECTED_ANCESTOR_SEAL^{tree}" "$EXPECTED_ANCESTOR_SOURCE^{tree}" "$EXPECTED_PRIOR_SEAL^{tree}" "$EXPECTED_PRIOR_SOURCE^{tree}" "$EXPECTED_OLDER_SEAL^{tree}" "$EXPECTED_OLDER_SOURCE^{tree}" "$EXPECTED_OLDEST_SEAL^{tree}" "$EXPECTED_OLDEST_SOURCE^{tree}" "$EXPECTED_LEGACY_SEAL^{tree}" "$EXPECTED_LEGACY_SOURCE^{tree}" "$EXPECTED_DOCUMENTATION_CHECKPOINT^{tree}" "$EXPECTED_EARLIER_SEAL^{tree}" > "$evidence/identity.txt"
           printf 'feature=%s\ntarget=%s\ntarget_tree=%s\npr_state=%s\npr_draft=%s\npr_head=%s\npr_base=%s\n' "$feature" "$target" "$target_tree" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" > "$evidence/live-refs.txt"
           git diff --name-only "$EXPECTED_PREDECESSOR_SEAL" "$EXPECTED_SOURCE" > "$evidence/audit-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
