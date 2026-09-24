@@ -1,0 +1,62 @@
+name: Increment 59i exact schema-17 affected-workflow dispatcher
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/recovery/59i-targeted-schema17/**
+      - .github/workflows/increment-59i-targeted-schema17.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [reconcile, dispatch, plan]
+        default: reconcile
+        required: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: increment-59i-targeted-schema17-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      CONTROLLER_MODE: ${{ github.event_name == 'push' && 'dispatch' || inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: b1c8183face8761e14746cf0aed62e654f6a3bee
+          path: qualification
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Run exact schema-17 affected-workflow controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B controller/.github/recovery/59i-targeted-schema17/dispatch.py \
+            --repo-root "$GITHUB_WORKSPACE/qualification" \
+            --manifest "$GITHUB_WORKSPACE/controller/.github/recovery/59i-repair-failed-first/dispatch-manifest.json" \
+            --stage-gate "$GITHUB_WORKSPACE/controller/.github/recovery/59i-targeted-schema17/evidence-gate.json" \
+            --mode "$CONTROLLER_MODE" \
+            --output "$GITHUB_WORKSPACE/targeted-receipts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 59i-targeted-dispatch-journal-b1c8183face8-${{ github.run_id }}-${{ github.run_attempt }}
+          path: targeted-receipts/
+          if-no-files-found: error
+          retention-days: 30
