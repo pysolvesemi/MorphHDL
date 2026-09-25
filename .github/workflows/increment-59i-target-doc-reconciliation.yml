@@ -1,4 +1,4 @@
-name: Increment 59i exact schema-17 target reconciliation
+name: Increment 59i exact schema-18 target reconciliation
 
 on:
   push:
@@ -22,10 +22,10 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       GH_TOKEN: ${{ github.token }}
-      EXPECTED_FEATURE: c48bad51b9857570e65fbd7c1be5dec465a3e8fa
-      EXPECTED_TARGET: 09880c538c4cf83022f4a1bb1dd16b43ea81a751
-      EXPECTED_ARTIFACT: 10804655467
-      EXPECTED_ARTIFACT_DIGEST: b8d010323e54e63256a5d445e49b9a22870865f5dc343a88017a43b6c1835b0e
+      EXPECTED_FEATURE: b1c8183face8761e14746cf0aed62e654f6a3bee
+      EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
+      EXPECTED_ARTIFACT: 10861343692
+      EXPECTED_ARTIFACT_DIGEST: c3a6eed0bd6d8b7fef73df9ab0176b4be3cbdac023685f8fdac1469d2dd12ffa
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,7 +34,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: b1c8183face8761e14746cf0aed62e654f6a3bee
+          ref: fb49648d8b7f05310d0907381c364c2e11882645
           path: qualified
           fetch-depth: 0
           submodules: recursive
@@ -50,15 +50,15 @@ jobs:
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
           test "$feature" = "$EXPECTED_FEATURE"
           test "$target" = "$EXPECTED_TARGET"
-          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/35969094981")
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/36112328748")
           test "$(jq -r .status <<<"$run")" = completed
           test "$(jq -r .conclusion <<<"$run")" = success
-          test "$(jq -r .head_sha <<<"$run")" = 4c34baf9053cde87af63e20d27ce7bd206c3e740
+          test "$(jq -r .head_sha <<<"$run")" = 5e0c80ae32ac89b6a2fb0c3675151a1ed4f3289f
           test "$(jq -r .path <<<"$run")" = .github/workflows/increment-59i-runtime-successor-source.yml
           test "$(jq -r .run_attempt <<<"$run")" = 1
           artifact=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT")
-          test "$(jq -r .workflow_run.id <<<"$artifact")" = 35969094981
-          test "$(jq -r .workflow_run.head_sha <<<"$artifact")" = 4c34baf9053cde87af63e20d27ce7bd206c3e740
+          test "$(jq -r .workflow_run.id <<<"$artifact")" = 36112328748
+          test "$(jq -r .workflow_run.head_sha <<<"$artifact")" = 5e0c80ae32ac89b6a2fb0c3675151a1ed4f3289f
           test "$(jq -r .digest <<<"$artifact")" = "sha256:$EXPECTED_ARTIFACT_DIGEST"
           test "$(jq -r .expired <<<"$artifact")" = false
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$EXPECTED_ARTIFACT/zip" > "$evidence/source.zip"
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: increment-59i-schema17-target-reconciliation-${{ github.run_id }}-${{ github.run_attempt }}
+          name: increment-59i-schema18-target-reconciliation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/59i-target-doc/
           if-no-files-found: error
           retention-days: 30

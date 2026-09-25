@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused rejection controls for the schema-17 target audit."""
+"""Focused rejection controls for the schema-18 target reconciliation."""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +11,7 @@ import unittest
 import zipfile
 
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("schema17_target_audit", HERE / "audit.py")
+spec = importlib.util.spec_from_file_location("schema18_target_audit", HERE / "audit.py")
 A = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(A)
 
@@ -27,8 +27,7 @@ def archive(files: dict[str, bytes]) -> bytes:
 class AuditTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        artifact = Path(os.environ["SOURCE_ARTIFACT"]).read_bytes()
-        cls.files = A.zip_files(artifact)
+        cls.files = A.zip_files(Path(os.environ["SOURCE_ARTIFACT"]).read_bytes())
 
     def test_exact_result_inventory_passes(self):
         A.validate_results(dict(self.files))
@@ -39,24 +38,17 @@ class AuditTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "failed or malformed"):
             A.validate_results(files)
 
-    def test_missing_or_empty_log_is_rejected(self):
-        files = dict(self.files); files["17.log"] = b""
+    def test_missing_log_is_rejected(self):
+        files = dict(self.files); files["05.log"] = b""
         with self.assertRaisesRegex(RuntimeError, "empty command log"):
             A.validate_results(files)
 
-    def test_changed_target_documentation_is_rejected(self):
-        raw = b"x" * 76252
-        with self.assertRaises(RuntimeError):
-            A.validate_target_bytes(raw)
-
-    def test_digest_precedes_zip_member_authority(self):
+    def test_digest_precedes_member_authority(self):
         files = dict(self.files); files["started.txt"] = b"forged\n"
-        raw = archive(files)
-        self.assertNotEqual(hashlib.sha256(raw).hexdigest(), A.ARTIFACT_SHA256)
         with self.assertRaisesRegex(RuntimeError, "artifact digest"):
-            A.zip_files(raw)
+            A.zip_files(archive(files))
 
-    def test_unsafe_member_is_rejected_after_exact_digest_gate(self):
+    def test_unsafe_member_is_rejected_after_digest_gate(self):
         old = A.ARTIFACT_SHA256
         try:
             raw = archive({"../escape": b"x"})
@@ -66,11 +58,15 @@ class AuditTests(unittest.TestCase):
         finally:
             A.ARTIFACT_SHA256 = old
 
-    def test_identity_mutation_is_not_the_expected_evidence(self):
+    def test_identity_mutation_is_detectable(self):
         files = dict(self.files)
         files["identity.txt"] = files["identity.txt"].replace(A.SEAL.encode(), b"0" * 40, 1)
-        identity = [line for line in files["identity.txt"].decode().splitlines() if line]
-        self.assertNotEqual(identity[0], A.SEAL)
+        self.assertNotEqual(files["identity.txt"].decode().splitlines()[0], A.SEAL)
+
+    def test_target_identity_mutation_is_detectable(self):
+        files = dict(self.files)
+        files["live-refs.txt"] = files["live-refs.txt"].replace(A.TARGET.encode(), b"0" * 40, 1)
+        self.assertNotIn("target=" + A.TARGET, files["live-refs.txt"].decode().splitlines())
 
 
 if __name__ == "__main__":

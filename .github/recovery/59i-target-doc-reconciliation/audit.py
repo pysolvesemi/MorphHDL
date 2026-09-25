@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authenticate the final schema-17 source evidence and current target."""
+"""Authenticate the schema-18 source evidence and exact PR194 target integration."""
 from __future__ import annotations
 
 import argparse
@@ -11,49 +11,22 @@ import re
 import subprocess
 import zipfile
 
-SEAL = "b1c8183face8761e14746cf0aed62e654f6a3bee"
-SEAL_TREE = "3116fa7575150fc0e7567df158006c97b052ec08"
-SOURCE = "a11891bb879333f83a2469bd8c529265a58725fd"
-SOURCE_TREE = "6712f79b63220f38ee7cadc86be589a31eff5d13"
-PREDECESSOR_SEAL = "f9805ccfc3c1d9d73a38d1e0e6dd5676cc21cbb6"
-PREDECESSOR_SEAL_TREE = "303dd21d525ea001ddf8327a96e215d417e20ba6"
-PREDECESSOR_SOURCE = "7ae72385bf0079c3a8c70ab0c317f97c421ddd09"
-PREDECESSOR_SOURCE_TREE = "e033d6419c3775e5d0ba57eab5d4a8033153e65c"
-ANCESTOR_SEAL = "c48bad51b9857570e65fbd7c1be5dec465a3e8fa"
-ANCESTOR_SEAL_TREE = "6c2bee9158e61022a4fdc56efb33b056bf2135ff"
-ANCESTOR_SOURCE = "9270cb332aba63b6ea7ca17dc2694b93ff7ded52"
-ANCESTOR_SOURCE_TREE = "898934c355f6a7280932f92e5e7f88f2e1f3bc1b"
-PRIOR_SEAL = "5adb952e038cd001f9a4adb27292a9fd7614fbe8"
-PRIOR_SEAL_TREE = "23e84f75a05372bfd0f819355806bd71dbcc31a5"
-PRIOR_SOURCE = "5a8178aa2422fb1987d7bab8692a107599c9b7ef"
-PRIOR_SOURCE_TREE = "ec400eb14314a82fdb924f1824bb62a43cb0532b"
-OLDER_SEAL = "d6536e454b69346fe0954a322e0515396812f218"
-OLDER_SEAL_TREE = "17b93cad066276a2ab96a3325ed0e02d85e7e6f5"
-OLDER_SOURCE = "f6575ae3559aa65a042bd644a93068a4a2044fbf"
-OLDER_SOURCE_TREE = "68a31a90d404c4ac693dccbb8d1c565adfca9af1"
-OLDEST_SEAL = "c654f43c24d86ca99c056dd4cb74b7a18d9f41e3"
-OLDEST_SEAL_TREE = "815a381426e9507363ab91bd3a258ab9668fb87a"
-OLDEST_SOURCE = "2797acc2fbeb0733c29d8c05d64857801de32ae2"
-OLDEST_SOURCE_TREE = "bad8f069942e54c0e4736076ebe5ff336dec26d6"
-LEGACY_SEAL = "1eb63e57d41fb1f707da8ca7f176b1ecc609aebf"
-LEGACY_SEAL_TREE = "e22a4775ab70c3c1d516ba2d83323f2273776c63"
-LEGACY_SOURCE = "1ee1e5e3e84497de4b983e08be31e46ceb4dbc25"
-LEGACY_SOURCE_TREE = "324087367b0b979bf8eee675d96c74f40937e2ac"
-DOCUMENTATION_CHECKPOINT = "31be34e11c41d12c08d39626314b860c24bc9781"
-DOCUMENTATION_CHECKPOINT_TREE = "3e18070703fbb27d74deefacb796a56df4a0717a"
-EARLIER_SEAL = "3ce0bf30e51af8d84a432a8937c88f31db1d7d05"
-FEATURE = "c48bad51b9857570e65fbd7c1be5dec465a3e8fa"
-FEATURE_TREE = "6c2bee9158e61022a4fdc56efb33b056bf2135ff"
-TARGET = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
-TARGET_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
-OLD_TARGET = "8ee07f251f5400922763382073db45ca76d012bd"
-OLD_TARGET_TREE = "1e6753d901256d31af1c46977e1de86e47a0b7b7"
-TARGET_PATH = "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md"
-TARGET_BLOB = "5739586b9271dee22df84126f83a26cb07e0b1db"
-TARGET_SHA256 = "d727555a7210570b711f66dcfb8eebfa6b687977bf3f3c056a36455adac0f668"
-ARTIFACT_SHA256 = "b8d010323e54e63256a5d445e49b9a22870865f5dc343a88017a43b6c1835b0e"
-CONTRACT_SHA256 = "bb36fbe0447d71332306fcbed3b561ac4180f84a717a224699184f27d0543c0d"
-HELPER_NORMALIZED_SHA256 = "b4cf29a4bfbe058e8d77adc7e8896548207273ce75ea6f352497f57e160a15f6"
+SEAL = "fb49648d8b7f05310d0907381c364c2e11882645"
+SEAL_TREE = "eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2"
+SOURCE = "eeedb70bd3667a779cba58f89ff3b5367bdceb4b"
+SOURCE_TREE = "ea3c6a7e1d002dfec1053911ccebb0540027408f"
+CHECKPOINT = "d8b89e5a9a2c0fd08a51391b5d4487237bb7d234"
+CHECKPOINT_TREE = "fbed8d0c07f84231f7b3a0a4802ebba579b7ba8c"
+FEATURE = "b1c8183face8761e14746cf0aed62e654f6a3bee"
+FEATURE_TREE = "3116fa7575150fc0e7567df158006c97b052ec08"
+TARGET = "db54d01e5b21c7664f7a0de3795f061d77a3d259"
+TARGET_TREE = "ed73aee1ca0c667a1c32b181d95c431c22ea3719"
+COMMON_BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
+COMMON_BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
+SOURCE_CONTROLLER = "5e0c80ae32ac89b6a2fb0c3675151a1ed4f3289f"
+ARTIFACT_SHA256 = "c3a6eed0bd6d8b7fef73df9ab0176b4be3cbdac023685f8fdac1469d2dd12ffa"
+CONTRACT_SHA256 = "f8a3af90706847a22916f2cd006a5f9ad2b9e9fccf74618ddc1e177de9a6f3da"
+HELPER_NORMALIZED_SHA256 = "5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472"
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
 
@@ -88,19 +61,19 @@ COMMANDS = (
 
 def require(ok: bool, detail: str) -> None:
     if not ok:
-        raise RuntimeError("59i schema-17 target reconciliation: " + detail)
+        raise RuntimeError("59i schema-18 target reconciliation: " + detail)
 
 
 def digest(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def git(root: Path, *args: str) -> str:
+def git(root: Path, *args: str, binary: bool = False):
     result = subprocess.run(["git", "--literal-pathspecs", *args], cwd=root,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180)
     require(result.returncode == 0, "git " + " ".join(args) + " failed: " +
         result.stderr.decode(errors="replace"))
-    return result.stdout.decode()
+    return result.stdout if binary else result.stdout.decode()
 
 
 def normalized_helper(raw: bytes) -> bytes:
@@ -109,23 +82,17 @@ def normalized_helper(raw: bytes) -> bytes:
     return re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
 
 
-def validate_target_bytes(raw: bytes) -> None:
-    require(len(raw) == 76252 and raw.count(b"\n") == 1435,
-        "target documentation size or line inventory changed")
-    require(digest(raw) == TARGET_SHA256, "target documentation bytes changed")
-
-
 def zip_files(raw: bytes) -> dict[str, bytes]:
     require(digest(raw) == ARTIFACT_SHA256, "source artifact digest changed")
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         names = archive.namelist()
         require(len(names) == len(set(names)), "duplicate artifact member")
-        require(all(not name.startswith("/") and ".." not in Path(name).parts for name in names),
+        require(all(not n.startswith("/") and ".." not in Path(n).parts for n in names),
             "unsafe artifact member")
-        files = {name: archive.read(name) for name in names if not name.endswith("/")}
-    expected = {f"{index:02d}.log" for index in range(1, 26)} | {
+        files = {n: archive.read(n) for n in names if not n.endswith("/")}
+    expected = {f"{i:02d}.log" for i in range(1, 26)} | {
         "identity.txt", "live-refs.txt", "results.tsv", "audit-repair-paths.txt",
-        "seal-paths.txt", "target-reconciliation-paths.txt", "started.txt"}
+        "seal-paths.txt", "target-composition-paths.txt", "started.txt"}
     require(set(files) == expected, "source artifact member inventory changed")
     return files
 
@@ -137,9 +104,47 @@ def validate_results(files: dict[str, bytes]) -> None:
     require(all(row[0] == "PASS" and row[1] == "0" and row[2].isdigit() for row in rows),
         "source artifact contains a failed or malformed gate")
     require(tuple(row[3] for row in rows) == COMMANDS, "source command inventory changed")
-    require(all(files[f"{index:02d}.log"] for index in range(1, 26)),
+    require(all(files[f"{i:02d}.log"] for i in range(1, 26)),
         "source artifact has an empty command log")
     require(files["started.txt"] == b"started\n", "source start marker changed")
+
+
+def tree_entry(root: Path, revision: str, path: str) -> tuple[str, str] | None:
+    out = git(root, "ls-tree", "-z", revision, "--", path, binary=True)
+    if not out:
+        return None
+    metadata, found = out[:-1].split(b"\t", 1)
+    mode, kind, sha = metadata.decode().split()
+    require(kind == "blob" and found.decode() == path, "unexpected tree entry for " + path)
+    return mode, sha
+
+
+def validate_target_records(root: Path, contract: dict, expected_paths: list[str]) -> None:
+    target = contract.get("target_integration")
+    require(isinstance(target, dict), "missing target integration")
+    require(target.get("common_base") == COMMON_BASE and
+            target.get("common_base_tree") == COMMON_BASE_TREE and
+            target.get("target_commit") == TARGET and target.get("target_tree") == TARGET_TREE,
+            "target integration identity changed")
+    records = target.get("files")
+    require(isinstance(records, list) and len(records) == 26, "target record count changed")
+    require([r.get("path") for r in records] == expected_paths,
+            "target record order or paths changed")
+    for record in records:
+        path = record["path"]
+        # The integration record binds each reviewed target input to its exact
+        # composed source output.  COMMON_BASE determines the closed path set;
+        # it is not the per-record byte predecessor.
+        before = tree_entry(root, TARGET, path)
+        after = tree_entry(root, SOURCE, path)
+        require(before is not None and after is not None, "target record missing blob: " + path)
+        before_raw = git(root, "show", TARGET + ":" + path, binary=True)
+        after_raw = git(root, "show", SOURCE + ":" + path, binary=True)
+        require(record.get("before_mode") == before[0] and
+                record.get("before_sha256") == digest(before_raw) and
+                record.get("after_mode") == after[0] and
+                record.get("after_sha256") == digest(after_raw),
+                "target record bytes or mode changed: " + path)
 
 
 def validate(repo: Path, artifact: bytes) -> dict:
@@ -147,96 +152,58 @@ def validate(repo: Path, artifact: bytes) -> dict:
     files = zip_files(artifact)
     validate_results(files)
     require(git(repo, "rev-parse", "HEAD").strip() == SEAL, "checkout is not final seal")
-    require(git(repo, "rev-parse", "HEAD^{tree}").strip() == SEAL_TREE, "seal tree changed")
-    chains = ((SEAL, [SEAL, SOURCE]),
-              (SOURCE, [SOURCE, PREDECESSOR_SEAL]),
-              (PREDECESSOR_SEAL, [PREDECESSOR_SEAL, PREDECESSOR_SOURCE]),
-              (PREDECESSOR_SOURCE, [PREDECESSOR_SOURCE, ANCESTOR_SEAL]),
-              (ANCESTOR_SEAL, [ANCESTOR_SEAL, ANCESTOR_SOURCE]),
-              (ANCESTOR_SOURCE, [ANCESTOR_SOURCE, PRIOR_SEAL]),
-              (PRIOR_SEAL, [PRIOR_SEAL, PRIOR_SOURCE]),
-              (PRIOR_SOURCE, [PRIOR_SOURCE, OLDER_SEAL]),
-              (OLDER_SEAL, [OLDER_SEAL, OLDER_SOURCE]),
-              (OLDER_SOURCE, [OLDER_SOURCE, OLDEST_SEAL]),
-              (OLDEST_SEAL, [OLDEST_SEAL, OLDEST_SOURCE]),
-              (OLDEST_SOURCE, [OLDEST_SOURCE, LEGACY_SEAL]),
-              (LEGACY_SEAL, [LEGACY_SEAL, LEGACY_SOURCE]),
-              (LEGACY_SOURCE, [LEGACY_SOURCE, DOCUMENTATION_CHECKPOINT]),
-              (DOCUMENTATION_CHECKPOINT, [DOCUMENTATION_CHECKPOINT, EARLIER_SEAL, TARGET]))
-    for commit, expected in chains:
-        require(git(repo, "rev-list", "--parents", "-n", "1", commit).split() == expected,
-            "ordered ancestry changed at " + commit)
-    trees = ((SOURCE, SOURCE_TREE), (PREDECESSOR_SEAL, PREDECESSOR_SEAL_TREE),
-             (PREDECESSOR_SOURCE, PREDECESSOR_SOURCE_TREE),
-             (ANCESTOR_SEAL, ANCESTOR_SEAL_TREE),
-             (ANCESTOR_SOURCE, ANCESTOR_SOURCE_TREE),
-             (PRIOR_SEAL, PRIOR_SEAL_TREE), (PRIOR_SOURCE, PRIOR_SOURCE_TREE),
-             (OLDER_SEAL, OLDER_SEAL_TREE), (OLDER_SOURCE, OLDER_SOURCE_TREE),
-             (OLDEST_SEAL, OLDEST_SEAL_TREE), (OLDEST_SOURCE, OLDEST_SOURCE_TREE),
-             (LEGACY_SEAL, LEGACY_SEAL_TREE), (LEGACY_SOURCE, LEGACY_SOURCE_TREE),
-             (DOCUMENTATION_CHECKPOINT, DOCUMENTATION_CHECKPOINT_TREE),
-             (FEATURE, FEATURE_TREE), (TARGET, TARGET_TREE), (OLD_TARGET, OLD_TARGET_TREE))
-    for commit, expected in trees:
-        require(git(repo, "rev-parse", commit + "^{tree}").strip() == expected,
-            "tree changed at " + commit)
-    identity = [line for line in files["identity.txt"].decode().splitlines() if line]
-    require(identity == [SEAL, SOURCE, PREDECESSOR_SEAL, PREDECESSOR_SOURCE,
-        ANCESTOR_SEAL, ANCESTOR_SOURCE, PRIOR_SEAL, PRIOR_SOURCE, OLDER_SEAL,
-        OLDER_SOURCE, OLDEST_SEAL, OLDEST_SOURCE, LEGACY_SEAL, LEGACY_SOURCE,
-        DOCUMENTATION_CHECKPOINT, EARLIER_SEAL, FEATURE, SEAL_TREE,
-        SOURCE_TREE, PREDECESSOR_SEAL_TREE, PREDECESSOR_SOURCE_TREE,
-        ANCESTOR_SEAL_TREE, ANCESTOR_SOURCE_TREE, PRIOR_SEAL_TREE,
-        PRIOR_SOURCE_TREE, OLDER_SEAL_TREE, OLDER_SOURCE_TREE,
-        OLDEST_SEAL_TREE, OLDEST_SOURCE_TREE, LEGACY_SEAL_TREE, LEGACY_SOURCE_TREE,
-        DOCUMENTATION_CHECKPOINT_TREE,
-        "9f9c856590f0eb3ea93d7e6abec0e9c97609b454"],
+    for commit, tree in ((SEAL, SEAL_TREE), (SOURCE, SOURCE_TREE),
+                         (CHECKPOINT, CHECKPOINT_TREE), (FEATURE, FEATURE_TREE),
+                         (TARGET, TARGET_TREE), (COMMON_BASE, COMMON_BASE_TREE)):
+        require(git(repo, "rev-parse", commit + "^{tree}").strip() == tree,
+                "tree changed at " + commit)
+    require(git(repo, "rev-list", "--parents", "-n", "1", SEAL).split() == [SEAL, SOURCE],
+            "seal ancestry changed")
+    require(git(repo, "rev-list", "--parents", "-n", "1", SOURCE).split() ==
+            [SOURCE, CHECKPOINT], "source ancestry changed")
+    require(git(repo, "rev-list", "--parents", "-n", "1", CHECKPOINT).split() ==
+            [CHECKPOINT, FEATURE, TARGET], "checkpoint ordered parents changed")
+
+    identity = files["identity.txt"].decode().splitlines()
+    require(identity == [SEAL, SOURCE, CHECKPOINT, FEATURE, TARGET, SEAL_TREE,
+        SOURCE_TREE, CHECKPOINT_TREE, FEATURE_TREE, TARGET_TREE],
         "source artifact identity changed")
     expected_refs = ("feature=" + FEATURE + "\ntarget=" + TARGET +
-        "\ntarget_tree=" + TARGET_TREE + "\npr_state=open\npr_draft=true\npr_head=" +
-        FEATURE + "\npr_base=parameterized-verilog\n").encode()
+        "\nrecovery=" + SOURCE_CONTROLLER +
+        "\npr_state=open\npr_draft=true\npr_head=" + FEATURE +
+        "\npr_base=parameterized-verilog\n").encode()
     require(files["live-refs.txt"] == expected_refs, "source-time live refs changed")
-    require(files["audit-repair-paths.txt"].decode().splitlines() ==
-        git(repo, "diff", "--name-only", PREDECESSOR_SEAL, SOURCE).splitlines(),
-        "audit repair path evidence changed")
-    require(files["seal-paths.txt"].decode().splitlines() ==
-        git(repo, "diff", "--name-only", SOURCE, SEAL).splitlines() == [CONTRACT, HELPER],
-        "seal path evidence changed")
-    require(files["target-reconciliation-paths.txt"].decode().splitlines() ==
-        git(repo, "diff", "--name-only", TARGET, DOCUMENTATION_CHECKPOINT).splitlines(),
-        "target reconciliation path evidence changed")
-    require(digest((repo / CONTRACT).read_bytes()) == CONTRACT_SHA256,
-        "schema-17 contract changed")
-    require(digest(normalized_helper((repo / HELPER).read_bytes())) == HELPER_NORMALIZED_SHA256,
-        "schema-17 verifier algorithm changed")
+    repair_paths = git(repo, "diff", "--name-only", CHECKPOINT, SOURCE).splitlines()
+    seal_paths = git(repo, "diff", "--name-only", SOURCE, SEAL).splitlines()
+    target_paths = git(repo, "diff", "--name-only", COMMON_BASE, TARGET).splitlines()
+    require(files["audit-repair-paths.txt"].decode().splitlines() == repair_paths and
+            len(repair_paths) == 20, "repair path evidence changed")
+    require(files["seal-paths.txt"].decode().splitlines() == seal_paths == [CONTRACT, HELPER],
+            "seal path evidence changed")
+    require(files["target-composition-paths.txt"].decode().splitlines() == target_paths and
+            len(target_paths) == 26, "target composition evidence changed")
 
-    require(git(repo, "rev-list", "--parents", "-n", "1", TARGET).split() ==
-        [TARGET, OLD_TARGET], "target is not the exact direct documentation child")
-    require(git(repo, "diff", "--name-status", OLD_TARGET, TARGET).splitlines() ==
-        ["M\t" + TARGET_PATH], "target changed more than the reviewed documentation")
-    row = git(repo, "ls-tree", TARGET, "--", TARGET_PATH).split()
-    require(row == ["100644", "blob", TARGET_BLOB, TARGET_PATH],
-        "target documentation mode or blob changed")
-    target_bytes = subprocess.check_output(["git", "show", TARGET + ":" + TARGET_PATH], cwd=repo)
-    validate_target_bytes(target_bytes)
-    require(subprocess.run(["git", "merge-base", "--is-ancestor", TARGET, SEAL], cwd=repo).returncode == 0,
-        "current target is not an ancestor of the final seal")
-    forward = git(repo, "merge-tree", "--write-tree", SEAL, TARGET).strip()
-    reverse = git(repo, "merge-tree", "--write-tree", TARGET, SEAL).strip()
-    require(forward == reverse == SEAL_TREE,
-        "current target changes the final seal tree or conflicts")
-    require(not git(repo, "diff", "--name-only", SEAL, forward).strip(),
-        "prospective integration changes final seal bytes")
+    contract_raw = (repo / CONTRACT).read_bytes()
+    require(digest(contract_raw) == CONTRACT_SHA256, "schema-18 contract changed")
+    contract = json.loads(contract_raw)
+    require(contract.get("schema_version") == 18 and
+            contract.get("source_commit") == SOURCE and contract.get("source_tree") == SOURCE_TREE,
+            "schema-18 source binding changed")
+    require(len(contract.get("files", [])) == 427, "source record count changed")
+    require(digest(normalized_helper((repo / HELPER).read_bytes())) ==
+            HELPER_NORMALIZED_SHA256, "schema-18 verifier algorithm changed")
+    validate_target_records(repo, contract, target_paths)
+
+    require(git(repo, "merge-base", "--is-ancestor", TARGET, SEAL) == "",
+            "target is not an ancestor of the seal")
+    prospective = git(repo, "merge-tree", "--write-tree", TARGET, SEAL).strip()
+    require(prospective == SEAL_TREE, "prospective merge is not tree-preserving")
     require(not git(repo, "status", "--porcelain", "--untracked-files=all"),
-        "qualification checkout is dirty")
-    return {"schema": 17, "source_run": 35969094981, "source_artifact": 10804655467,
-        "source_artifact_sha256": ARTIFACT_SHA256, "source_commands_passed": 25,
-        "seal": SEAL, "seal_tree": SEAL_TREE, "source": SOURCE,
-        "source_tree": SOURCE_TREE, "feature_predecessor": FEATURE,
-        "current_target": TARGET, "current_target_tree": TARGET_TREE,
-        "target_change": [TARGET_PATH], "target_blob": TARGET_BLOB,
-        "prospective_merge_tree": SEAL_TREE, "target_is_ancestor": True,
-        "feature_ref_updated": False, "full_ci_started": False,
-        "qualification_claimed": False}
+            "qualified checkout is not clean")
+    return {"schema": 18, "seal": SEAL, "source": SOURCE, "feature": FEATURE,
+            "target": TARGET, "prospective_tree": prospective,
+            "source_records": 427, "target_records": 26,
+            "source_commands": len(COMMANDS), "artifact_sha256": ARTIFACT_SHA256}
 
 
 def main() -> None:
@@ -246,9 +213,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     result = validate(args.repo, args.artifact.read_bytes())
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    print("INCREMENT_59I_SCHEMA17_TARGET_RECONCILIATION_PASS", flush=True)
+    args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
+    print("SCHEMA18_TARGET_RECONCILIATION_PASS source=25 records=427 target_records=26 tree=" +
+          result["prospective_tree"])
 
 
 if __name__ == "__main__":

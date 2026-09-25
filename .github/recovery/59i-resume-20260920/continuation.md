@@ -1,5 +1,31 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-18 source passed; target reconciliation preparing, 25 September 2026
+
+Replacement source qualification run 36112328748 passed all 25 retained
+commands. Job 107998392598 authenticated the exact source and unchanged live
+refs before running the gates. Artifact 10861343692 was independently downloaded;
+its local ZIP, Actions API digest and upload digest all equal
+`c3a6eed0bd6d8b7fef73df9ab0176b4be3cbdac023685f8fdac1469d2dd12ffa`.
+All 25 logs are non-empty and results.tsv has exactly 25 PASS rows with the
+unchanged ordered command inventory.
+
+Final seal `fb49648d8b7f05310d0907381c364c2e11882645`, tree
+`eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2`, binds source
+`eeedb70bd3667a779cba58f89ff3b5367bdceb4b`, tree
+`ea3c6a7e1d002dfec1053911ccebb0540027408f`. The exact checkpoint
+`d8b89e5a9a2c0fd08a51391b5d4487237bb7d234` has ordered parents feature
+`b1c8183face8761e14746cf0aed62e654f6a3bee` and target
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`. The prospective target merge is
+conflict-free and tree-preserving at `eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2`.
+
+NEXT run one bounded schema-18 target reconciliation against the original
+successful source artifact and all 427 source plus 26 target records. Only after
+it passes and live refs remain exact may feature advance non-force to fb496.
+Then dispatch only the three failed workflows WA08, Combined and 59h. Preserve
+the already-passed 59f evidence. No full CI, merge, roadmap update, duplicate
+source run or duplicate passing workflow. Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — schema-18 WA08 restoration repair, 25 September 2026
 
 Run 36089506424 finished at 07:52:47 UTC with 24/25 commands passing.
