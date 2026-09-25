@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-18 inherited-target projection repair qualification.
+# Exact schema-18 byte-safe inherited-target projection qualification.
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: b1080f894993be0d29c17b7c2ae37528a482e1d2
+      EXPECTED_SEAL: f0c762fb313b00a864b1cbab26f4526b0a1177a2
       EXPECTED_SOURCE: f9cf815b887b9a6c71e649a259cfca3e960ee2d1
       EXPECTED_CHECKPOINT: d8b89e5a9a2c0fd08a51391b5d4487237bb7d234
       EXPECTED_PREDECESSOR: b1c8183face8761e14746cf0aed62e654f6a3bee
@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: b1080f894993be0d29c17b7c2ae37528a482e1d2
+          ref: f0c762fb313b00a864b1cbab26f4526b0a1177a2
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -46,7 +46,7 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_CHECKPOINT"
           test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREDECESSOR $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = 60bbfa4bfb553b878ca9c3dfb9ed1ac5f3d0fa76
+          test "$(git rev-parse 'HEAD^{tree}')" = b8a0eb16b0a4bacc73ca28f97dfc4be6bf464755
           test "$(git rev-parse 'HEAD~1^{tree}')" = de867e335081c97a42873d8f840ca60ef98c799a
           test "$(git rev-parse 'HEAD~2^{tree}')" = fbed8d0c07f84231f7b3a0a4802ebba579b7ba8c
           test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = 3116fa7575150fc0e7567df158006c97b052ec08

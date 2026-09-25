@@ -1,5 +1,34 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — byte-safe schema-18 replacement qualifying, 25 September 2026
+
+Source qualification run 36088754735 authenticated the exact composed
+successor and unchanged live refs, then failed because the published 7.5 MB
+contract blob was truncated during transport and contained invalid UTF-8.
+Original artifact 10844917033 was independently downloaded; its local, API
+and upload SHA256 values all equal
+`67df522cf911f076b73562632344a412c02f73763ed6abfcc70132e9d799bef3`.
+The production-successor tests and scheduling/inventory controls passed before
+the corrupted contract was read. Preserve the failed run and artifact.
+
+Reviewed source `f9cf815b887b9a6c71e649a259cfca3e960ee2d1`, tree
+`de867e335081c97a42873d8f840ca60ef98c799a`, is unchanged. The contract was
+republished through byte-safe fixed-size chunks and its Git blob SHA
+`c781326584174995de043e8d82cfcb747e1bf539` exactly matches the local Git
+object. Replacement direct source child seal
+`f0c762fb313b00a864b1cbab26f4526b0a1177a2`, tree
+`b8a0eb16b0a4bacc73ca28f97dfc4be6bf464755`, changes no reviewed source byte;
+it contains the same contract SHA256
+`fa5949cd9f01734cc9148fa83715409733fe870ce8ad3c034d1ce5160092baaf`
+and normalized helper SHA256
+`5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472`.
+Launch exactly one replacement 25-gate source qualification and do not
+duplicate it.
+
+Feature remains `b1c8183face8761e14746cf0aed62e654f6a3bee`, target remains
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. No full CI, merge or unrelated rerun.
+
 ## CURRENT CHECKPOINT — schema-18 inherited-target projection repair qualifying, 25 September 2026
 
 Replacement source qualification run 36072588692 authenticated its exact
