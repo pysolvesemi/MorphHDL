@@ -1,5 +1,42 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-18 inherited-target projection repair qualifying, 25 September 2026
+
+Replacement source qualification run 36072588692 authenticated its exact
+checkpoint, source, seal, feature, target, recovery and PR state, then failed
+11 of 25 retained commands. Original artifact 10840154826 was independently
+downloaded; its local, API and upload SHA256 values all equal
+`e1651097964e351d6f599410f7b7bdbdf809e10db1eafa1d104dd22b09f46009`.
+Fourteen commands passed. Every failure reduces to schema-18 reviewer routing:
+five sites retained the old normalized helper pin, three reviewers routed the
+substantive target as documentation-only, and the WA08 overlay did not yet
+authenticate exact target-owned bytes. No Scala, implementation or RTL defect
+was found. Preserve the failed run and artifact.
+
+Replacement reviewed source `f9cf815b887b9a6c71e649a259cfca3e960ee2d1`,
+tree `de867e335081c97a42873d8f840ca60ef98c799a`, remains a direct child of
+checkpoint `d8b89e5a9a2c0fd08a51391b5d4487237bb7d234` and changes the same exact
+20 reviewed audit/checker/workflow/fixture paths. The repair preserves stronger
+rejection order: schema 18 routes through the exact combined target/checkpoint,
+and WA08 accepts target-owned bytes only after exact sealed-hash authentication.
+Direct source child seal `b1080f894993be0d29c17b7c2ae37528a482e1d2`,
+tree `60bbfa4bfb553b878ca9c3dfb9ed1ac5f3d0fa76`, changes only the contract and
+verifier seal slot. Contract SHA256 is
+`fa5949cd9f01734cc9148fa83715409733fe870ce8ad3c034d1ce5160092baaf`;
+normalized helper SHA256 remains
+`5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472`.
+Focused integration, WA08, lane/source-scope, PR189/PR190, inventory, budget,
+timeout and continuation controls pass locally. No timeout, proof or gate was
+weakened. Launch exactly one replacement 25-gate source qualification and do
+not duplicate it.
+
+Feature remains `b1c8183face8761e14746cf0aed62e654f6a3bee`, target remains
+`db54d01e5b21c7664f7a0de3795f061d77a3d259`, PR177 remains draft/unmerged,
+and the roadmap remains unchecked. After source and a fresh bounded target
+reconciliation pass, advance the feature non-force and rerun only WA08,
+Combined and 59h; exact-head 59f already passed. No full CI, merge, roadmap
+update or duplicate active/passing workflow. Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — schema-18 authentication-pin repair qualifying, 24 September 2026
 
 Source qualification run 36066956224 authenticated the exact schema-18
