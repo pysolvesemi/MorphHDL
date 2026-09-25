@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-18 cumulative WA08 restoration qualification.
+# Exact schema-19 retained 59h rejection-order qualification.
 
 on:
   push:
@@ -21,19 +21,18 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: fb49648d8b7f05310d0907381c364c2e11882645
-      EXPECTED_SOURCE: eeedb70bd3667a779cba58f89ff3b5367bdceb4b
-      EXPECTED_CHECKPOINT: d8b89e5a9a2c0fd08a51391b5d4487237bb7d234
-      EXPECTED_PREDECESSOR: b1c8183face8761e14746cf0aed62e654f6a3bee
+      EXPECTED_SEAL: 596e0bac0a16d5caeea137f0056d05a2fad9984e
+      EXPECTED_SOURCE: 850118b0ff43fce2c9d078a3b6cb7c34bb936d09
+      EXPECTED_PREDECESSOR: fb49648d8b7f05310d0907381c364c2e11882645
       EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fb49648d8b7f05310d0907381c364c2e11882645
+          ref: 596e0bac0a16d5caeea137f0056d05a2fad9984e
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Authenticate exact composed successor and unchanged live refs
+      - name: Authenticate exact schema19 successor and unchanged live refs
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -44,12 +43,11 @@ jobs:
           printf 'started\n' > "$evidence/started.txt"
           test "$(git rev-parse HEAD)" = "$EXPECTED_SEAL"
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
-          test "$(git rev-parse HEAD^^)" = "$EXPECTED_CHECKPOINT"
-          test "$(git rev-list --parents -n 1 "$EXPECTED_CHECKPOINT")" = "$EXPECTED_CHECKPOINT $EXPECTED_PREDECESSOR $EXPECTED_TARGET"
-          test "$(git rev-parse 'HEAD^{tree}')" = eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2
-          test "$(git rev-parse 'HEAD~1^{tree}')" = ea3c6a7e1d002dfec1053911ccebb0540027408f
-          test "$(git rev-parse 'HEAD~2^{tree}')" = fbed8d0c07f84231f7b3a0a4802ebba579b7ba8c
-          test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = 3116fa7575150fc0e7567df158006c97b052ec08
+          test "$(git rev-parse HEAD^^)" = "$EXPECTED_PREDECESSOR"
+          test "$(git rev-list --parents -n 1 "$EXPECTED_SOURCE")" = "$EXPECTED_SOURCE $EXPECTED_PREDECESSOR"
+          test "$(git rev-parse 'HEAD^{tree}')" = 852fc87ec89ee32ab6193f7ce39e53cef0453451
+          test "$(git rev-parse 'HEAD~1^{tree}')" = 07ccca8bf9ba308d7ba1e8b46aa670c74965c1d4
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2
           test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = ed73aee1ca0c667a1c32b181d95c431c22ea3719
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
@@ -67,14 +65,12 @@ jobs:
           test -z "$pr_merged"
           test "$pr_head" = "$EXPECTED_PREDECESSOR"
           test "$pr_base" = parameterized-verilog
-          git diff --name-only "$EXPECTED_CHECKPOINT" "$EXPECTED_SOURCE" > "$evidence/audit-repair-paths.txt"
+          git diff --name-only "$EXPECTED_PREDECESSOR" "$EXPECTED_SOURCE" > "$evidence/audit-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
-          git diff --name-only "$EXPECTED_PREDECESSOR" "$EXPECTED_CHECKPOINT" > "$evidence/target-composition-paths.txt"
-          test "$(wc -l < "$evidence/audit-repair-paths.txt")" = 20
+          test "$(wc -l < "$evidence/audit-repair-paths.txt")" = 16
           test "$(wc -l < "$evidence/seal-paths.txt")" = 2
-          test "$(wc -l < "$evidence/target-composition-paths.txt")" = 26
-          git rev-parse HEAD HEAD^ HEAD^^ "$EXPECTED_PREDECESSOR" "$EXPECTED_TARGET" \
-            'HEAD^{tree}' 'HEAD~1^{tree}' 'HEAD~2^{tree}' \
+          git rev-parse HEAD HEAD^ "$EXPECTED_PREDECESSOR" "$EXPECTED_TARGET" \
+            'HEAD^{tree}' 'HEAD~1^{tree}' \
             "$EXPECTED_PREDECESSOR^{tree}" "$EXPECTED_TARGET^{tree}" > "$evidence/identity.txt"
           printf 'feature=%s\ntarget=%s\nrecovery=%s\npr_state=%s\npr_draft=%s\npr_head=%s\npr_base=%s\n' \
             "$feature" "$target" "$recovery" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" \
