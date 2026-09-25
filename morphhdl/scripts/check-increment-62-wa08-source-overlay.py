@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "2c53309de25037387e9ec0098e295a0979a31301d65fb642221e63cb537e4e27",
+    require(hashlib.sha256(normalized).hexdigest() == "5bbc6f5b41a6bec798f7cecc2bf49ca7b45fd5c8b1d6192c5950bbe4d27ea59e",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
@@ -178,7 +178,23 @@ def verify(root: Path) -> dict:
             indexed[path.decode()] = (mode, blob)
     for path, entry in records.items():
         raw = regular(root, path, entry["mode"])
-        projected = overlay_target_source(root, integration, path, raw) if integration is not None else raw
+        # A substantive current target can already carry the exact cumulative
+        # WA-08 byte.  Retain that authenticated byte directly; only source-
+        # specific successors need the older target projection.
+        projected = raw
+        if digest(raw) != entry["after_sha256"] and integration is not None:
+            projected = overlay_target_source(root, integration, path, raw)
+            # Schema 18 composes a substantive target.  The generic target
+            # projection first authenticates the exact live successor but
+            # exposes its common-base view; cumulative WA-08 records instead
+            # retain an exact target-owned byte when that is their sealed
+            # expectation.
+            if digest(projected) != entry["after_sha256"]:
+                successor = integration.successor_review(root)
+                if successor is not None and successor.contract(root)["schema_version"] == 18:
+                    target = successor.frozen(root, successor.SCHEMA_COMBINED_TARGET, path)
+                    if target is not None and digest(target) == entry["after_sha256"]:
+                        projected = target
         require(digest(projected) == entry["after_sha256"],
                 "unreviewed production delta: current reviewed bytes differ: " + path)
         old = frozen(root, BASE, path)
@@ -202,6 +218,14 @@ def verify(root: Path) -> dict:
     if integration is not None:
         changed = overlay_target_inventory(root, integration, changed, BASE, full=True)
     expected = set(records) | {HELPER, CONTRACT}
+    if integration is not None:
+        successor = integration.successor_review(root)
+        if successor is not None and successor.contract(root)["schema_version"] == 18:
+            # The generic projection removes the whole substantive target.
+            # Re-enroll only target-owned paths already sealed by this WA-08
+            # manifest; every such path's exact bytes were checked above.
+            changed |= (successor.changed(root, successor.SCHEMA_COMBINED_COMMON,
+                                          successor.SCHEMA_COMBINED_TARGET) & expected)
     require({p for p in changed if governed(p)} == {p for p in expected if governed(p)},
             "unreviewed production delta: governed inventory differs: " +
             repr(sorted({p for p in changed ^ expected if governed(p)})))
@@ -254,6 +278,16 @@ def restore_source(root: Path, path: str, source: bytes) -> bytes:
     integration = integration_review(root)
     if integration is not None:
         source = overlay_target_source(root, integration, path, source)
+        # The authenticated schema-18 target projection exposes the common
+        # base, while this cumulative WA-08 certificate may own newer target
+        # bytes. Match verify()'s exact target fallback after input validation;
+        # no caller-supplied or moving-target bytes authorize the projection.
+        if source != before and digest(source) != entry["after_sha256"]:
+            successor = integration.successor_review(root)
+            if successor is not None and successor.contract(root)["schema_version"] == 18:
+                target = successor.frozen(root, successor.SCHEMA_COMBINED_TARGET, path)
+                if target is not None and digest(target) == entry["after_sha256"]:
+                    source = target
     require(source == before or digest(source) == entry["after_sha256"],
             "unreviewed bytes cannot enter historical projection: " + path)
     return before

@@ -121,7 +121,7 @@ elif mutation in ("suffix", "inside") and relative in overlay_paths:
 
 
 def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
-    """Reverse the exact schema-7 and schema-16 checkout rejection routes."""
+    """Reverse the exact schema-7, schema-16 and schema-18 rejection routes."""
     assignment = ast.parse('successor_tree = successor.tree(ROOT, "HEAD")').body[0]
     projection_empty = ast.parse('successor_path_rejections = set()').body[0]
     projection_boundary = ast.parse('''if join is not None and prod in join.PATHS:
@@ -139,6 +139,10 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
     reviewed = ast.parse('''if mutation in ("suffix", "inside") and relative in successor_tree:
     expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
 ''').body[0]
+    reviewed_contracts = ast.parse('''if (mutation in ("suffix", "inside") and relative in successor_tree and
+        relative not in (CONTRACT, JOIN_CONTRACT)):
+    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+''').body[0]
 
     class RestoreCheckoutIdentity(ast.NodeTransformer):
         assignment_count = 0
@@ -146,6 +150,7 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
         projection_boundary_count = 0
         routed_count = 0
         route_count = 0
+        contract_route_count = 0
 
         def visit_Assign(self, node):
             if dump(node) == dump(assignment):
@@ -178,14 +183,24 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
                     raise AssertionError("unexpected schema-7 checkout-identity routing")
                 self.route_count += 1
                 return self.visit(tail[0])
+            if dump(node.test) == dump(reviewed_contracts.test):
+                candidate = copy.deepcopy(node)
+                tail = candidate.orelse
+                candidate.orelse = []
+                if dump(candidate) != dump(reviewed_contracts) or len(tail) != 1 or not isinstance(tail[0], ast.If):
+                    raise AssertionError("unexpected schema-18 manifest rejection routing")
+                restored = copy.deepcopy(reviewed)
+                restored.orelse = tail
+                self.contract_route_count += 1
+                return self.visit(restored)
             return self.generic_visit(node)
 
     restorer = RestoreCheckoutIdentity()
     tree = restorer.visit(tree)
     if (restorer.assignment_count != 1 or restorer.projection_empty_count != 1 or
             restorer.projection_boundary_count != 1 or restorer.routed_count != 1 or
-            restorer.route_count != 1):
-        raise AssertionError("expected exactly one reviewed schema-7/schema-16 checkout route")
+            restorer.route_count != 1 or restorer.contract_route_count != 1):
+        raise AssertionError("expected exactly one reviewed schema-7/schema-16/schema-18 checkout route")
     return tree
 
 

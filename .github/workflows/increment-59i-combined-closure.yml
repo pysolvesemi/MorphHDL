@@ -30,22 +30,17 @@ env:
   PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
-  integration:
-    name: Composite integration Scala ${{ matrix.scala }}
+  source:
+    name: Composite integration source audits
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        scala: ['2.12.18', '2.13.12']
     container:
       image: ghcr.io/spinalhdl/docker:v1.2.0
+    outputs:
+      head: ${{ steps.identity.outputs.head }}
+      tree: ${{ steps.identity.outputs.tree }}
     env:
-      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
-      COURSIER_CACHE: /sbt/.cache/coursier/v1
-      SBT_TEST_PARALLEL: '0'
-      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
-      SCALA_VERSION: ${{ matrix.scala }}
+      SCALA_VERSION: source
       INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d
       TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
     steps:
@@ -55,12 +50,12 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Preserve exact source, check native preservation and bootstrap pinned SBT
+      - name: Preserve exact source and run bounded primary audits
         shell: bash
         run: |
           set -euo pipefail
-          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
-          mkdir -p "$output/bootstrap"
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined-source"
+          mkdir -p "$output"
           git rev-parse HEAD > "$output/head.txt"
           git archive HEAD | gzip > "$output/source.tar.gz"
 
@@ -100,11 +95,110 @@ jobs:
           python3 morphhdl/scripts/test-increment-59i-publication-golden.py -v > "$output/publication-golden-mutations.log" 2>&1 || { tail -n 100 "$output/publication-golden-mutations.log"; exit 1; }
           python3 morphhdl/scripts/test-increment-59i-composite-captures.py
           python3 morphhdl/scripts/test-increment-59i-review-composition.py -v > "$output/review-composition-tests.log" 2>&1 || { tail -n 100 "$output/review-composition-tests.log"; exit 1; }
-          python3 morphhdl/scripts/test-wa07b-inherited-review.py > "$output/wa07b-composition-controls.log" 2>&1 || { tail -n 100 "$output/wa07b-composition-controls.log"; exit 1; }
-          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 100 "$output/inherited-source-controls.log"; exit 1; }
           python3 morphhdl/scripts/check-increment-59i-combined.py --self-test | tee "$output/checker-self-test.log"
           python3 morphhdl/scripts/test-increment-59i-combined.py -v 2>&1 | tee "$output/checker-regressions.log"
           python3 morphhdl/scripts/test-increment-59i-nested-results.py -v 2>&1 | tee "$output/nested-result-checker-tests.log"
+      - name: Identify the successfully audited source
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'head=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - name: Retain primary source audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-source-${{ github.run_attempt }}
+          path: target/increment-59i-combined-source
+          if-no-files-found: error
+          retention-days: 14
+
+  inherited_source:
+    name: Composite integration inherited source audits
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    outputs:
+      head: ${{ steps.identity.outputs.head }}
+      tree: ${{ steps.identity.outputs.tree }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve exact source and run bounded inherited audits
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined-inherited-source"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
+          python3 morphhdl/scripts/test-wa07b-inherited-review.py > "$output/wa07b-composition-controls.log" 2>&1 || { tail -n 100 "$output/wa07b-composition-controls.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 100 "$output/inherited-source-controls.log"; exit 1; }
+      - name: Identify the successfully audited source
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'head=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf 'tree=%s\n' "$(git rev-parse 'HEAD^{tree}')" >> "$GITHUB_OUTPUT"
+      - name: Retain inherited source audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-inherited-source-${{ github.run_attempt }}
+          path: target/increment-59i-combined-inherited-source
+          if-no-files-found: error
+          retention-days: 14
+
+  integration:
+    needs: [source, inherited_source]
+    name: Composite integration Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      SBT_TEST_PARALLEL: '0'
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+      SCALA_VERSION: ${{ matrix.scala }}
+      INTEGRATION_MERGE: ae3c87467e0bdb90a16ec8d319a733d2d4d6636d
+      TARGET_HEAD: 2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Preserve the same successfully audited source and bootstrap pinned SBT
+        shell: bash
+        env:
+          AUDITED_HEAD: ${{ needs.source.outputs.head }}
+          AUDITED_TREE: ${{ needs.source.outputs.tree }}
+          INHERITED_HEAD: ${{ needs.inherited_source.outputs.head }}
+          INHERITED_TREE: ${{ needs.inherited_source.outputs.tree }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$AUDITED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$AUDITED_TREE"
+          test "$(git rev-parse HEAD)" = "$INHERITED_HEAD"
+          test "$(git rev-parse 'HEAD^{tree}')" = "$INHERITED_TREE"
+          output="$GITHUB_WORKSPACE/target/increment-59i-combined"
+          mkdir -p "$output/bootstrap"
+          git rev-parse HEAD > "$output/head.txt"
+          git archive HEAD | gzip > "$output/source.tar.gz"
           version=$(sed -n 's/^sbt.version=//p' project/build.properties)
           test "$version" = '1.10.0'
           base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"

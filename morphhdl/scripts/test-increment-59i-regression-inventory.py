@@ -12,6 +12,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
+import re
+from collections import Counter
 ROOT=Path(__file__).resolve().parents[2]
 COMBINED_PARENT='883c5d8f088a0e2eab35592cf171d87792d30bf4'
 COMBINED_WORKFLOW='.github/workflows/increment-59i-combined-closure.yml'
@@ -19,19 +21,89 @@ LEXICAL_OLD="                    'ParameterizedVerilogStructuralLexicalTests': 6
 LEXICAL_CURRENT="                    'ParameterizedVerilogStructuralLexicalTests': 7,\n"
 BUDGET_OLD="    timeout-minutes: 240\n"
 BUDGET_CURRENT="    timeout-minutes: 360\n"
+COMBINED_SCHEDULING_BASE='b1c8183face8761e14746cf0aed62e654f6a3bee'
 spec=importlib.util.spec_from_file_location('inventory',ROOT/'morphhdl/scripts/check-increment-59i-regression-inventory.py')
 M=importlib.util.module_from_spec(spec);spec.loader.exec_module(M)
 
-def restore_combined_workflow(text):
-    if text.count(LEXICAL_CURRENT) != 1:
-        raise AssertionError('expected one reviewed lexical inventory update')
-    if text.count(BUDGET_CURRENT) != 1:
-        raise AssertionError('expected one reviewed integration job budget update')
-    restored=text.replace(LEXICAL_CURRENT,LEXICAL_OLD).replace(BUDGET_CURRENT,BUDGET_OLD)
-    old=M.git(ROOT,'show',COMBINED_PARENT+':'+COMBINED_WORKFLOW).decode()
-    if restored != old:
-        raise AssertionError('combined workflow changed outside the reviewed inventory count and job budget')
-    return restored
+def workflow_job(text,name,next_name=None):
+    start=text.index('  '+name+':\n')
+    return text[start:] if next_name is None else text[start:text.index('  '+next_name+':\n',start+1)]
+
+def workflow_steps(text):
+    chunks=re.split(r'(?=^      - )',text,flags=re.M)
+    return chunks[0],chunks[1:]
+
+def python_commands(text):
+    return Counter(line.strip() for line in text.splitlines() if 'python3 ' in line)
+
+def verify_combined_partition(text):
+    """The exact old source gate is sharded; Scala and determinism stay exact."""
+    old=M.git(ROOT,'show',COMBINED_SCHEDULING_BASE+':'+COMBINED_WORKFLOW).decode()
+    old_prefix=old.split('jobs:\n',1)[0]
+    current_prefix=text.split('jobs:\n',1)[0]
+    if current_prefix != old_prefix:
+        raise AssertionError('combined triggers, permissions, concurrency or global environment changed')
+    old_integration=workflow_job(old,'integration','determinism')
+    old_header,old_steps=workflow_steps(old_integration)
+    source=workflow_job(text,'source','inherited_source')
+    inherited=workflow_job(text,'inherited_source','integration')
+    integration=workflow_job(text,'integration','determinism')
+    integration_header,integration_steps=workflow_steps(integration)
+    if workflow_job(text,'determinism') != workflow_job(old,'determinism'):
+        raise AssertionError('cross-Scala determinism job changed')
+    expected_header=old_header.replace('  integration:\n','  integration:\n    needs: [source, inherited_source]\n',1)
+    if integration_header != expected_header:
+        raise AssertionError('Scala lanes changed outside the required source dependencies')
+    if integration_steps[0] != old_steps[0] or integration_steps[2:] != old_steps[2:]:
+        raise AssertionError('checkout, Scala tests, generation, proof or lane evidence changed')
+    prep=integration_steps[1]
+    required=(
+        'AUDITED_HEAD: ${{ needs.source.outputs.head }}',
+        'AUDITED_TREE: ${{ needs.source.outputs.tree }}',
+        'INHERITED_HEAD: ${{ needs.inherited_source.outputs.head }}',
+        'INHERITED_TREE: ${{ needs.inherited_source.outputs.tree }}',
+        'test "$(git rev-parse HEAD)" = "$AUDITED_HEAD"',
+        'test "$(git rev-parse \'HEAD^{tree}\')" = "$AUDITED_TREE"',
+        'test "$(git rev-parse HEAD)" = "$INHERITED_HEAD"',
+        'test "$(git rev-parse \'HEAD^{tree}\')" = "$INHERITED_TREE"',
+        "version=$(sed -n 's/^sbt.version=//p' project/build.properties)",
+        'test "$version" = \'1.10.0\'',
+        '-jar "$output/bootstrap/sbt-launch.jar" "++$SCALA_VERSION" "$@"',
+    )
+    for value in required:
+        if value not in prep:
+            raise AssertionError('missing exact source identity or bootstrap gate: '+value)
+    if python_commands(source+inherited+prep) != python_commands(old_steps[1]):
+        raise AssertionError('original source audit or bootstrap Python command changed, duplicated or disappeared')
+    for command in (
+        'test "$(git rev-parse "$INTEGRATION_MERGE^2")" = "$TARGET_HEAD"',
+        'git merge-base --is-ancestor "$INTEGRATION_MERGE" HEAD',
+        'git worktree add --detach "$feature_native" "$INTEGRATION_MERGE^1"',
+        'git worktree add --detach "$target_native" "$INTEGRATION_MERGE^2"',
+    ):
+        if source.count(command) != 1:
+            raise AssertionError('primary source audit changed: '+command)
+    for command in (
+        'python3 morphhdl/scripts/test-wa07b-inherited-review.py',
+        'python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py',
+    ):
+        if inherited.count(command) != 1 or command in source:
+            raise AssertionError('inherited audit is missing, duplicated or in the wrong shard: '+command)
+    if text.count('    timeout-minutes: 360\n') != 3:
+        raise AssertionError('source shards and Scala lanes must retain exact 360-minute budgets')
+    if 'continue-on-error' in text or 'fail-fast: true' in text:
+        raise AssertionError('combined gate was softened')
+    for job_name,artifact in (
+        ('source','increment-59i-source-${{ github.run_attempt }}'),
+        ('inherited_source','increment-59i-inherited-source-${{ github.run_attempt }}'),
+    ):
+        body=workflow_job(text,job_name,'inherited_source' if job_name=='source' else 'integration')
+        for value in ('outputs:\n      head: ${{ steps.identity.outputs.head }}',
+                      'tree: ${{ steps.identity.outputs.tree }}','id: identity','if: always()',
+                      'if-no-files-found: error','name: '+artifact):
+            if value not in body:
+                raise AssertionError(job_name+' evidence or success identity changed: '+value)
+    return old
 
 
 def verify_59h_partition(text):
@@ -166,20 +238,29 @@ class Preservation(unittest.TestCase):
             self.assertIn(before,current)
             with self.subTest(mutation=index),self.assertRaises(AssertionError):
                 verify_59h_partition(current.replace(before,after,1))
-    def test_combined_workflow_tracks_all_seven_lexical_cases(self):
+    def test_combined_workflow_tracks_all_seven_lexical_cases_and_preserves_every_obligation(self):
         current=(ROOT/COMBINED_WORKFLOW).read_text()
-        self.assertEqual(restore_combined_workflow(current).count(LEXICAL_OLD),1)
+        baseline=verify_combined_partition(current)
+        self.assertEqual(baseline.count(LEXICAL_CURRENT),1)
         source=(ROOT/'morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogStructuralLexicalTests.scala').read_text()
         self.assertEqual(source.count('  test("'),7)
-    def test_combined_workflow_rejects_unreviewed_count_or_other_change(self):
+    def test_combined_workflow_rejects_missing_stale_or_softened_partition(self):
         current=(ROOT/COMBINED_WORKFLOW).read_text()
-        for count in (0,6,8):
-            with self.subTest(count=count),self.assertRaises(AssertionError):
-                restore_combined_workflow(current.replace(LEXICAL_CURRENT,LEXICAL_CURRENT.replace(': 7,',f': {count},')))
-        for minutes in (240,359,361):
-            with self.subTest(minutes=minutes),self.assertRaises(AssertionError):
-                restore_combined_workflow(current.replace(BUDGET_CURRENT,f'    timeout-minutes: {minutes}\n'))
-        with self.assertRaises(AssertionError):restore_combined_workflow(current+'\n')
+        changes=(
+            ('    needs: [source, inherited_source]\n',''),
+            ('          test "$(git rev-parse HEAD)" = "$AUDITED_HEAD"\n',''),
+            ('          test "$(git rev-parse \'HEAD^{tree}\')" = "$INHERITED_TREE"\n',''),
+            ('          python3 morphhdl/scripts/test-wa07b-inherited-review.py','          true # removed wa07b'),
+            ('          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py','          true # removed inherited'),
+            ('  source:\n','  source:\n    continue-on-error: true\n'),
+            ('          if-no-files-found: error','          if-no-files-found: warn'),
+            ('    timeout-minutes: 360\n','    timeout-minutes: 359\n'),
+            (LEXICAL_CURRENT,LEXICAL_CURRENT.replace(': 7,',': 6,')),
+        )
+        for index,(before,after) in enumerate(changes):
+            self.assertIn(before,current)
+            with self.subTest(mutation=index),self.assertRaises(AssertionError):
+                verify_combined_partition(current.replace(before,after,1))
     def test_contract_hash_and_complete_inventory(self):
         raw=(ROOT/M.CONTRACT).read_bytes();self.assertEqual(hashlib.sha256(raw).hexdigest(),M.CONTRACT_SHA256)
         v=json.loads(raw)
