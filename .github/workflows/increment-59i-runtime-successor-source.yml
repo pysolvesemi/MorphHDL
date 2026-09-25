@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-19 retained 59h rejection-order qualification.
+# Exact schema-19 retained 59h diagnostic and complete inherited-routing qualification.
 
 on:
   push:
@@ -21,14 +21,14 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 596e0bac0a16d5caeea137f0056d05a2fad9984e
-      EXPECTED_SOURCE: 850118b0ff43fce2c9d078a3b6cb7c34bb936d09
+      EXPECTED_SEAL: d6b532f5dd8639649fea0434678de995ce573a62
+      EXPECTED_SOURCE: 3cd7e795893035c062f432e2d5c845c8c3a9cffe
       EXPECTED_PREDECESSOR: fb49648d8b7f05310d0907381c364c2e11882645
       EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 596e0bac0a16d5caeea137f0056d05a2fad9984e
+          ref: d6b532f5dd8639649fea0434678de995ce573a62
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -45,8 +45,8 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_PREDECESSOR"
           test "$(git rev-list --parents -n 1 "$EXPECTED_SOURCE")" = "$EXPECTED_SOURCE $EXPECTED_PREDECESSOR"
-          test "$(git rev-parse 'HEAD^{tree}')" = 852fc87ec89ee32ab6193f7ce39e53cef0453451
-          test "$(git rev-parse 'HEAD~1^{tree}')" = 07ccca8bf9ba308d7ba1e8b46aa670c74965c1d4
+          test "$(git rev-parse 'HEAD^{tree}')" = d5dc4ed5f0eb0f5c950ce6f8f50143951e6454a1
+          test "$(git rev-parse 'HEAD~1^{tree}')" = c52537a2c604c7b14d5971d0c0c84498fe63d1b1
           test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2
           test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = ed73aee1ca0c667a1c32b181d95c431c22ea3719
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
@@ -67,7 +67,7 @@ jobs:
           test "$pr_base" = parameterized-verilog
           git diff --name-only "$EXPECTED_PREDECESSOR" "$EXPECTED_SOURCE" > "$evidence/audit-repair-paths.txt"
           git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" > "$evidence/seal-paths.txt"
-          test "$(wc -l < "$evidence/audit-repair-paths.txt")" = 16
+          test "$(wc -l < "$evidence/audit-repair-paths.txt")" = 17
           test "$(wc -l < "$evidence/seal-paths.txt")" = 2
           git rev-parse HEAD HEAD^ "$EXPECTED_PREDECESSOR" "$EXPECTED_TARGET" \
             'HEAD^{tree}' 'HEAD~1^{tree}' \
