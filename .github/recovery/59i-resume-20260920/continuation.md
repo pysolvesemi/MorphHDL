@@ -1,5 +1,49 @@
 # Increment 59i continuation — 20 September 2026
 
+## CURRENT CHECKPOINT — schema-18 WA08 restoration repair, 25 September 2026
+
+Run 36089506424 finished at 07:52:47 UTC with 24/25 commands passing.
+Command 5, test-sequential-wire-source-review.py, failed after 6409 seconds
+at its original positive restore_source assertion for the expression-inlining
+file. All 25 commands ran; the six-hour job timeout was not reached.
+Original artifact 10852522630 was independently downloaded and matches both
+the API and upload SHA256:
+`35687e39ca2e6180b865f28781ccba89a1a0b7e93a7163ec07943666e0582cde`.
+Preserve this run, its original artifact, and every previous failed attempt.
+
+The cumulative WA08 verify() path already recognizes the reviewed PR194 target,
+but restore_source() projected it to the common base without the same exact
+target fallback. The repair adds that fallback only after the existing input
+authentication, requiring the immutable target bytes to match the sealed WA08
+after hash. No Scala/RTL, fixture expectation, gate, or timeout changed.
+
+Replacement source `eeedb70bd3667a779cba58f89ff3b5367bdceb4b`, tree
+`ea3c6a7e1d002dfec1053911ccebb0540027408f`, differs from f9cf815b only by
+ten added lines in check-increment-62-wa08-source-overlay.py. It remains a
+direct child of d8b89e5a and retains the closed 20-path schema-18 repair set.
+Seal `fb49648d8b7f05310d0907381c364c2e11882645`, tree
+`eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2`, changes only the contract and
+verifier seal slot. Contract SHA256:
+`f8a3af90706847a22916f2cd006a5f9ad2b9e9fccf74618ddc1e177de9a6f3da`.
+Its byte-safe uploaded blob is `32cfb7d29cc5f8acdeb814004005549ab6e243a6`,
+equal to the local Git blob. Normalized helper SHA256 remains
+`5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472`.
+All 427 source and 26 target records are retained; only this checker record
+differs, plus the new source identity. The exact history and source-record
+checks pass locally. The original four-file projection loop fails on f0c762fb
+and passes on the repair: 8 current/baseline positives and 12 altered-byte
+rejections. All 26 production-successor tests pass. These focused controls do
+not replace the complete unchanged 25-command remote qualification.
+
+Launch one replacement qualification through the existing recovery source
+controller. Inspect actual results, all 25 logs and the original artifact/API
+digest when terminal. Only after source and fresh target reconciliation pass
+may feature advance non-force. Then rerun only failed WA08, Combined and 59h;
+retain the passed 59f evidence without relabeling it as new-source evidence.
+Feature b1c8183f, target db54d01e, PR177 draft/unmerged, roadmap unchecked.
+No full CI, merge, broad dispatch, or duplicate active/passing workflow.
+Keep monitoring enabled.
+
 ## CURRENT CHECKPOINT — byte-safe schema-18 replacement qualifying, 25 September 2026
 
 Source qualification run 36088754735 authenticated the exact composed
