@@ -1,0 +1,16 @@
+{
+  "source": {
+    "run_id": 36112328748,
+    "run_attempt": 1,
+    "controller_sha": "5e0c80ae32ac89b6a2fb0c3675151a1ed4f3289f",
+    "artifact_id": 10861343692,
+    "artifact_sha256": "c3a6eed0bd6d8b7fef73df9ab0176b4be3cbdac023685f8fdac1469d2dd12ffa"
+  },
+  "reconciliation": {
+    "run_id": 36134293312,
+    "run_attempt": 1,
+    "controller_sha": "e7e023ff35ae46b98d728b423205df4279d4f13f",
+    "artifact_id": 10863069418,
+    "artifact_sha256": "e40077674d3e24b7b186a58a2e5f7c40a0d5e9810e3f619fdb864473c43fb1fd"
+  }
+}
