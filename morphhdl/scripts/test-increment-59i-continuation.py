@@ -452,7 +452,7 @@ def run_schema4_historical_continuation(suite: str = "continuation") -> None:
     if len(re.findall(pattern, raw, re.M)) != 1:
         raise RuntimeError('continuation routing found an ambiguous current verifier seal')
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    if hashlib.sha256(normalized).hexdigest() != '5f14a988d0441424863c0f0de0cb220f03460ac81427fe448ce84fa0dc572472':
+    if hashlib.sha256(normalized).hexdigest() != '15a711f132f42b28fb1c67cac28249b6b392c6004bc2c88baa43de47a52b5055':
         raise RuntimeError('continuation routing refuses an unauthenticated current verifier')
     review = types.ModuleType('reviewed_schema4_continuation_route')
     review.__file__ = str(helper)
