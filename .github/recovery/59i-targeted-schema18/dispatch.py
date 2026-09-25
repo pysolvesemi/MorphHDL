@@ -154,7 +154,7 @@ def require_stage(api, gate, root, output):
     source_gate = gate['source']
     source_run = m._passed_run(api, source_gate['run_id'], source_gate['controller_sha'],
         'increment-59i-runtime-successor-source.yml', 'source', {
-            'Authenticate exact sealed successor and unchanged live refs',
+            'Authenticate exact composed successor and unchanged live refs',
             'Run all 25 retained source gates',
         })
     source_raw = m._artifact(api, source_run, source_gate['artifact_id'],
@@ -238,7 +238,7 @@ def stage_run(api, gate):
     reconciliation = gate['reconciliation']
     source_run = m._passed_run(api, source['run_id'], source['controller_sha'],
         'increment-59i-runtime-successor-source.yml', 'source', {
-            'Authenticate exact sealed successor and unchanged live refs',
+            'Authenticate exact composed successor and unchanged live refs',
             'Run all 25 retained source gates',
         })
     m._passed_run(api, reconciliation['run_id'], reconciliation['controller_sha'],
