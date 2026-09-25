@@ -121,7 +121,7 @@ elif mutation in ("suffix", "inside") and relative in overlay_paths:
 
 
 def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
-    """Reverse the exact schema-7, schema-16 and schema-18 rejection routes."""
+    """Reverse the exact schema-7, schema-16, schema-18 and schema-19 routes."""
     assignment = ast.parse('successor_tree = successor.tree(ROOT, "HEAD")').body[0]
     projection_empty = ast.parse('successor_path_rejections = set()').body[0]
     projection_boundary = ast.parse('''if join is not None and prod in join.PATHS:
@@ -143,6 +143,10 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
         relative not in (CONTRACT, JOIN_CONTRACT)):
     expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
 ''').body[0]
+    reviewed_owner_contract = ast.parse('''if (mutation in ("suffix", "inside") and relative in successor_tree and
+        relative != JOIN_CONTRACT):
+    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+''').body[0]
 
     class RestoreCheckoutIdentity(ast.NodeTransformer):
         assignment_count = 0
@@ -151,6 +155,7 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
         routed_count = 0
         route_count = 0
         contract_route_count = 0
+        owner_contract_route_count = 0
 
         def visit_Assign(self, node):
             if dump(node) == dump(assignment):
@@ -193,14 +198,26 @@ def restore_reviewed_59h_checkout_identity(tree: ast.Module) -> ast.Module:
                 restored.orelse = tail
                 self.contract_route_count += 1
                 return self.visit(restored)
+            if dump(node.test) == dump(reviewed_owner_contract.test):
+                candidate = copy.deepcopy(node)
+                tail = candidate.orelse
+                candidate.orelse = []
+                if (dump(candidate) != dump(reviewed_owner_contract) or len(tail) != 1 or
+                        not isinstance(tail[0], ast.If)):
+                    raise AssertionError("unexpected schema-19 owner-manifest rejection routing")
+                restored = copy.deepcopy(reviewed_contracts)
+                restored.orelse = tail
+                self.owner_contract_route_count += 1
+                return self.visit(restored)
             return self.generic_visit(node)
 
     restorer = RestoreCheckoutIdentity()
     tree = restorer.visit(tree)
     if (restorer.assignment_count != 1 or restorer.projection_empty_count != 1 or
             restorer.projection_boundary_count != 1 or restorer.routed_count != 1 or
-            restorer.route_count != 1 or restorer.contract_route_count != 1):
-        raise AssertionError("expected exactly one reviewed schema-7/schema-16/schema-18 checkout route")
+            restorer.route_count != 1 or restorer.contract_route_count != 1 or
+            restorer.owner_contract_route_count != 1):
+        raise AssertionError("expected exactly one reviewed schema-7/schema-16/schema-18/schema-19 checkout route")
     return tree
 
 
@@ -291,7 +308,75 @@ def write_marker(root: Path, name: str) -> None:
     file.write_text("Presence chooses time only; the actual source audit authenticates the file.\n")
 
 
+SCHEMA19_ROUTE_PARENT = "fb49648d8b7f05310d0907381c364c2e11882645"
+SCHEMA19_ROUTE_FILES = (
+    "check-cdc-successor-source.py",
+    "check-increment-59i-local-enable-source-review.py",
+    "check-increment-59i-pr190-integration.py",
+    "check-increment-61-source-review.py",
+    "check-increment-62-wa08-source-overlay.py",
+    "check-pr190-pr189-source-sync.py",
+    "test-increment-59i-continuation.py",
+    "test-increment-59i-pr189-sync.py",
+    "test-increment-59i-pr190-integration.py",
+)
+
+
+def schema19_route_comparisons(raw: bytes, extend: bool = False):
+    """Compare schema predicates; extend only exact schema-18 routing to 19.
+
+    This is a synthetic routing control, not source or hardware qualification.
+    Immutable schema-18 predicates define every historical branch unchanged.
+    """
+    tree = ast.parse(raw)
+    count = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare) or len(node.ops) != 1:
+            continue
+        if "schema" not in ast.unparse(node.left):
+            continue
+        right = node.comparators[0]
+        if isinstance(node.ops[0], (ast.In, ast.NotIn)) and isinstance(right, ast.Tuple):
+            if (right.elts and all(isinstance(item, ast.Constant) and
+                    type(item.value) is int for item in right.elts) and
+                    right.elts[-1].value == 18):
+                count += 1
+                if extend:
+                    right.elts.append(ast.Constant(value=19))
+        elif isinstance(node.ops[0], ast.Eq) and isinstance(right, ast.Constant) and right.value == 18:
+            count += 1
+            if extend:
+                node.ops[0] = ast.In()
+                node.comparators[0] = ast.Tuple(elts=[ast.Constant(value=18), ast.Constant(value=19)], ctx=ast.Load())
+    return [dump(node) for node in ast.walk(tree) if isinstance(node, ast.Compare)
+            and "schema" in ast.unparse(node.left)], count
+
+
 class InheritedAuditBudgetTests(unittest.TestCase):
+    def test_schema19_routes_retain_all_schema18_predicates(self):
+        count = 0
+        for filename in SCHEMA19_ROUTE_FILES:
+            with self.subTest(filename=filename):
+                original = subprocess.check_output(["git", "show",
+                    SCHEMA19_ROUTE_PARENT + ":morphhdl/scripts/" + filename], cwd=ROOT)
+                expected, changed = schema19_route_comparisons(original, extend=True)
+                actual, stale = schema19_route_comparisons((SCRIPTS / filename).read_bytes())
+                self.assertEqual(actual, expected)
+                self.assertEqual(stale, 0)
+                count += changed
+        self.assertEqual(count, 26)
+
+    def test_schema19_route_control_rejects_missing_successor(self):
+        for raw in (b"schema in (17, 18)", b"schema not in (17, 18)", b"schema == 18"):
+            expected, count = schema19_route_comparisons(raw, extend=True)
+            self.assertEqual(count, 1)
+            self.assertNotEqual(schema19_route_comparisons(raw)[0], expected)
+
+    def test_schema19_route_control_rejects_historical_or_unbounded_changes(self):
+        expected, _ = schema19_route_comparisons(b"schema in (17, 18)", extend=True)
+        for raw in (b"schema in (18, 19)", b"schema >= 17", b"schema in (17, 18, 19, 20)"):
+            self.assertNotEqual(schema19_route_comparisons(raw)[0], expected)
+
     def test_joined_59g_budget_preserves_all_three_positive_cases(self):
         for present, expected in (((), 600), ((PARENT,), 900), ((SUCCESSOR,), 3600)):
             with self.subTest(present=present), tempfile.TemporaryDirectory() as directory:

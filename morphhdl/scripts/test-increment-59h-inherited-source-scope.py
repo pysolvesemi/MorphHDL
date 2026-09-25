@@ -230,11 +230,16 @@ def main() -> None:
                         relative not in (CONTRACT, JOIN_CONTRACT)):
                     expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
                 elif (mutation in ("suffix", "inside") and relative in successor_tree and
-                      relative not in (CONTRACT, JOIN_CONTRACT)):
+                      relative != JOIN_CONTRACT):
                     # Files inherited byte-for-byte from the schema predecessor
                     # are outside the successor span inventory, but remain part
-                    # of its authenticated checkout.  Preserve every negative
-                    # mutation and require that stronger first-owning rejection.
+                    # of its authenticated checkout.  This includes the older
+                    # owner manifest: schema 18 authenticates the complete
+                    # checkout before that older reviewer can issue its
+                    # path-specific diagnostic.  The joined 59i manifest is
+                    # still rejected by its own earlier exact hash check.
+                    # Preserve every negative mutation and require the proven
+                    # first-owning rejection.
                     expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
                 elif mutation == "hidden-index":
                     expected = "59i production successor: HEAD/index identity differs"

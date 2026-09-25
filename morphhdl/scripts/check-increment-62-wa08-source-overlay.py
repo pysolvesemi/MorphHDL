@@ -36,7 +36,7 @@ def integration_review(root: Path):
     require(len(re.findall(pattern, raw, re.M)) == 1,
             "59i target integration reviewer seal is ambiguous")
     normalized = re.sub(pattern, b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest() == "5bbc6f5b41a6bec798f7cecc2bf49ca7b45fd5c8b1d6192c5950bbe4d27ea59e",
+    require(hashlib.sha256(normalized).hexdigest() == "fbbf1989b13366a2201d8d09c3e29666e47311220586f9ed9f7dfe47b16ce86a",
             "59i target integration reviewer changed")
     # Share only authenticated code and its immutable-object caches. Every
     # caller still reads the current manifest and verifies live checkout bytes.
@@ -191,7 +191,7 @@ def verify(root: Path) -> dict:
             # expectation.
             if digest(projected) != entry["after_sha256"]:
                 successor = integration.successor_review(root)
-                if successor is not None and successor.contract(root)["schema_version"] == 18:
+                if successor is not None and successor.contract(root)["schema_version"] in (18, 19):
                     target = successor.frozen(root, successor.SCHEMA_COMBINED_TARGET, path)
                     if target is not None and digest(target) == entry["after_sha256"]:
                         projected = target
@@ -220,7 +220,7 @@ def verify(root: Path) -> dict:
     expected = set(records) | {HELPER, CONTRACT}
     if integration is not None:
         successor = integration.successor_review(root)
-        if successor is not None and successor.contract(root)["schema_version"] == 18:
+        if successor is not None and successor.contract(root)["schema_version"] in (18, 19):
             # The generic projection removes the whole substantive target.
             # Re-enroll only target-owned paths already sealed by this WA-08
             # manifest; every such path's exact bytes were checked above.
@@ -284,7 +284,7 @@ def restore_source(root: Path, path: str, source: bytes) -> bytes:
         # no caller-supplied or moving-target bytes authorize the projection.
         if source != before and digest(source) != entry["after_sha256"]:
             successor = integration.successor_review(root)
-            if successor is not None and successor.contract(root)["schema_version"] == 18:
+            if successor is not None and successor.contract(root)["schema_version"] in (18, 19):
                 target = successor.frozen(root, successor.SCHEMA_COMBINED_TARGET, path)
                 if target is not None and digest(target) == entry["after_sha256"]:
                     source = target
