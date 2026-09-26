@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-20 60f inventory-routing and complete inherited-routing qualification.
+# Exact byte-safe schema-20 60f inventory-routing and inherited-routing qualification.
 
 on:
   push:
@@ -21,14 +21,14 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 849c516827a9e6dbbfc40412be0d66dc2b40b81a
+      EXPECTED_SEAL: 549894f873cf492f9224125e0945b12291e81c6f
       EXPECTED_SOURCE: c0e85f6abab1765466def1e61e74aa66790db788
       EXPECTED_PREDECESSOR: d6b532f5dd8639649fea0434678de995ce573a62
       EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 849c516827a9e6dbbfc40412be0d66dc2b40b81a
+          ref: 549894f873cf492f9224125e0945b12291e81c6f
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
@@ -45,7 +45,7 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_PREDECESSOR"
           test "$(git rev-list --parents -n 1 "$EXPECTED_SOURCE")" = "$EXPECTED_SOURCE $EXPECTED_PREDECESSOR"
-          test "$(git rev-parse 'HEAD^{tree}')" = 4d9846e5a2cfec189458ba2c9502a56eadc84c66
+          test "$(git rev-parse 'HEAD^{tree}')" = 169207970edafc0f7e9d338d7b510e59cdf8aaec
           test "$(git rev-parse 'HEAD~1^{tree}')" = fcd059c9d2914d5447ceba71c5cc8e5b783160ad
           test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = d5dc4ed5f0eb0f5c950ce6f8f50143951e6454a1
           test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = ed73aee1ca0c667a1c32b181d95c431c22ea3719
