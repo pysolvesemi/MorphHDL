@@ -20,7 +20,7 @@ import types
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
-HELPER_SHA256 = "8afd49e4b3951acdfe604a0476805d5001838dd37c5d720fd9fad9d0f7c13431"
+HELPER_SHA256 = "aab02edfc010f25175b6abc46fc04816c731970236b73a481bb7820d3ce51348"
 LEFT = "58fb59773a2deebba0251b5b626c19a22453f0a4"
 TARGET = "4b8a86e25f5a1a3f0cb4c37dc537a8dd8aa7b097"
 BASE = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
@@ -125,7 +125,7 @@ def verify_ci_and_inventory(root: Path, review) -> None:
             require(expected is not None and expected.count(before) == 1,
                 "immutable regression-job budget anchor changed")
             budget = (b"timeout-minutes: 360\n" if
-                review.contract(root)["schema_version"] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19) else b"timeout-minutes: 240\n")
+                review.contract(root)["schema_version"] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20) else b"timeout-minutes: 240\n")
             expected = expected.replace(before,
                 before.replace(b"timeout-minutes: 120\n", budget), 1)
         require(review.regular(root, path) == expected,
@@ -148,12 +148,12 @@ def verify(root: Path = ROOT) -> dict:
     review = source_review(root)
     value = review.verify(root)
     schema = value["schema_version"]
-    require(schema in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19) and review.target_anchor(root) ==
-        (review.SCHEMA_COMBINED_TARGET if schema in (18, 19) else review.DOCUMENTATION_TARGET
+    require(schema in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20) and review.target_anchor(root) ==
+        (review.SCHEMA_COMBINED_TARGET if schema in (18, 19, 20) else review.DOCUMENTATION_TARGET
             if schema in (11, 12, 13, 14, 15, 16, 17) else review.CURRENT_TARGET
             if schema == 10 else review.SUBSTANTIVE_TARGET if schema in (8, 9) else TARGET),
         "wrong reviewed merge lifecycle")
-    if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19):
+    if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20):
         # The CDC-WIRE target legitimately supersedes the old PR190 runtime
         # merge. Authenticate the complete current checkout, then replay this
         # exact PR190 certificate at the immutable schema-7 seal where its
@@ -166,7 +166,7 @@ def verify(root: Path = ROOT) -> dict:
             hashlib.sha256(historical).hexdigest())
         return {"head": review.revision(root, "HEAD"), "source": value["source_commit"],
             "target": review.target_anchor(root), "checkpoint": (review.SCHEMA_COMBINED_CHECKPOINT
-                if schema in (18, 19) else review.DOCUMENTATION_CHECKPOINT
+                if schema in (18, 19, 20) else review.DOCUMENTATION_CHECKPOINT
                 if schema in (11, 12, 13, 14, 15, 16, 17) else review.CURRENT_CHECKPOINT if schema == 10 else review.SUBSTANTIVE_CHECKPOINT),
             "runtime_files": len({p for p in review.tree(root, "HEAD") if runtime(p)}),
             "target_records": len(value["target_integration"]["files"]),

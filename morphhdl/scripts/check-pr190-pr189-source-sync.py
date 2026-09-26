@@ -152,7 +152,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
             'missing, linked or executable current 59i integration reviewer')
         raw = path.read_bytes()
         require(hashlib.sha256(raw).hexdigest() ==
-            '2a95f1517d0b56c63f108a123928efc9aec3fac502f80163ce836ec341119a1d',
+            '39cb4d73cac4a02214082328412609c0a8e8e900b7556b6ba154b518d729d485',
             'current 59i integration reviewer changed')
         key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
         if key not in sys.modules:
@@ -164,7 +164,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
         # The current review authenticates the complete merge before this
         # compatibility result exposes the original PR190 obligation sets.
         schema = sys.modules[key].source_review(root).contract(root)['schema_version']
-        if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19):
+        if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20):
             retained = retained_schema7_sync(root)
             current = sys.modules[key].verify(root)
             compatibility = ('base', 'source', 'lane', 'production_files',

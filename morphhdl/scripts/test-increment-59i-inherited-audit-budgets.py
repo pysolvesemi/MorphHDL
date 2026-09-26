@@ -308,8 +308,8 @@ def write_marker(root: Path, name: str) -> None:
     file.write_text("Presence chooses time only; the actual source audit authenticates the file.\n")
 
 
-SCHEMA19_ROUTE_PARENT = "fb49648d8b7f05310d0907381c364c2e11882645"
-SCHEMA19_ROUTE_FILES = (
+SCHEMA20_ROUTE_PARENT = "d6b532f5dd8639649fea0434678de995ce573a62"
+SCHEMA20_ROUTE_FILES = (
     "check-cdc-successor-source.py",
     "check-increment-59i-local-enable-source-review.py",
     "check-increment-59i-pr190-integration.py",
@@ -322,11 +322,11 @@ SCHEMA19_ROUTE_FILES = (
 )
 
 
-def schema19_route_comparisons(raw: bytes, extend: bool = False):
-    """Compare schema predicates; extend only exact schema-18 routing to 19.
+def schema20_route_comparisons(raw: bytes, extend: bool = False):
+    """Compare schema predicates; extend only exact schema-19 routing to 20.
 
     This is a synthetic routing control, not source or hardware qualification.
-    Immutable schema-18 predicates define every historical branch unchanged.
+    Immutable schema-19 predicates define every historical branch unchanged.
     """
     tree = ast.parse(raw)
     count = 0
@@ -339,43 +339,43 @@ def schema19_route_comparisons(raw: bytes, extend: bool = False):
         if isinstance(node.ops[0], (ast.In, ast.NotIn)) and isinstance(right, ast.Tuple):
             if (right.elts and all(isinstance(item, ast.Constant) and
                     type(item.value) is int for item in right.elts) and
-                    right.elts[-1].value == 18):
+                    right.elts[-1].value == 19):
                 count += 1
                 if extend:
-                    right.elts.append(ast.Constant(value=19))
-        elif isinstance(node.ops[0], ast.Eq) and isinstance(right, ast.Constant) and right.value == 18:
+                    right.elts.append(ast.Constant(value=20))
+        elif isinstance(node.ops[0], ast.Eq) and isinstance(right, ast.Constant) and right.value == 19:
             count += 1
             if extend:
                 node.ops[0] = ast.In()
-                node.comparators[0] = ast.Tuple(elts=[ast.Constant(value=18), ast.Constant(value=19)], ctx=ast.Load())
+                node.comparators[0] = ast.Tuple(elts=[ast.Constant(value=19), ast.Constant(value=20)], ctx=ast.Load())
     return [dump(node) for node in ast.walk(tree) if isinstance(node, ast.Compare)
             and "schema" in ast.unparse(node.left)], count
 
 
 class InheritedAuditBudgetTests(unittest.TestCase):
-    def test_schema19_routes_retain_all_schema18_predicates(self):
+    def test_schema20_routes_retain_all_schema19_predicates(self):
         count = 0
-        for filename in SCHEMA19_ROUTE_FILES:
+        for filename in SCHEMA20_ROUTE_FILES:
             with self.subTest(filename=filename):
                 original = subprocess.check_output(["git", "show",
-                    SCHEMA19_ROUTE_PARENT + ":morphhdl/scripts/" + filename], cwd=ROOT)
-                expected, changed = schema19_route_comparisons(original, extend=True)
-                actual, stale = schema19_route_comparisons((SCRIPTS / filename).read_bytes())
+                    SCHEMA20_ROUTE_PARENT + ":morphhdl/scripts/" + filename], cwd=ROOT)
+                expected, changed = schema20_route_comparisons(original, extend=True)
+                actual, stale = schema20_route_comparisons((SCRIPTS / filename).read_bytes())
                 self.assertEqual(actual, expected)
                 self.assertEqual(stale, 0)
                 count += changed
         self.assertEqual(count, 26)
 
-    def test_schema19_route_control_rejects_missing_successor(self):
-        for raw in (b"schema in (17, 18)", b"schema not in (17, 18)", b"schema == 18"):
-            expected, count = schema19_route_comparisons(raw, extend=True)
+    def test_schema20_route_control_rejects_missing_successor(self):
+        for raw in (b"schema in (18, 19)", b"schema not in (18, 19)", b"schema == 19"):
+            expected, count = schema20_route_comparisons(raw, extend=True)
             self.assertEqual(count, 1)
-            self.assertNotEqual(schema19_route_comparisons(raw)[0], expected)
+            self.assertNotEqual(schema20_route_comparisons(raw)[0], expected)
 
-    def test_schema19_route_control_rejects_historical_or_unbounded_changes(self):
-        expected, _ = schema19_route_comparisons(b"schema in (17, 18)", extend=True)
-        for raw in (b"schema in (18, 19)", b"schema >= 17", b"schema in (17, 18, 19, 20)"):
-            self.assertNotEqual(schema19_route_comparisons(raw)[0], expected)
+    def test_schema20_route_control_rejects_historical_or_unbounded_changes(self):
+        expected, _ = schema20_route_comparisons(b"schema in (18, 19)", extend=True)
+        for raw in (b"schema in (19, 20)", b"schema >= 18", b"schema in (18, 19, 20, 21)"):
+            self.assertNotEqual(schema20_route_comparisons(raw)[0], expected)
 
     def test_joined_59g_budget_preserves_all_three_positive_cases(self):
         for present, expected in (((), 600), ((PARENT,), 900), ((SUCCESSOR,), 3600)):
