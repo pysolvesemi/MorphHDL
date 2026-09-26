@@ -186,6 +186,10 @@ jobs:
           successor_inventory="$output/increment-61-test-inventory.json"
           inherited_inventory="$output/inherited-test-inventory.json"
           complete_inventory="$output/test-inventory.json"
+          target_suite="spinal.core.internals.NativePureExpressionCopyTests"
+          target_report="$GITHUB_WORKSPACE/core/target/test-reports/TEST-$target_suite.xml"
+          target_report_copy="$output/TEST-$target_suite.xml"
+          target_inventory="$output/pr194-target-test-inventory.json"
 
           # The current Increment 61 bytes are already sealed independently.
           # Re-run that exact contract before projecting only its two new test
@@ -199,16 +203,30 @@ jobs:
           git merge-base --is-ancestor "$base" HEAD
           printf '%s\n' "$base" > "$output/inherited-source-head.txt"
           git worktree add --detach "$predecessor" "$base"
-          trap 'git worktree remove --force "$predecessor"' EXIT
+          cleanup() {
+            if test -f "$target_report_copy"; then
+              cp "$target_report_copy" "$target_report"
+            fi
+            git worktree remove --force "$predecessor" || true
+          }
+          trap cleanup EXIT
 
-          python3 - "$GITHUB_WORKSPACE" "$predecessor" "$successor_inventory" <<'PY'
+          # Pin the PR194-only suite source before projecting its authenticated
+          # report out of the frozen 59i catalog.
+          test "$(git rev-parse HEAD:core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala)" = \
+            cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c
+          test "$(git hash-object core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala)" = \
+            cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c
+
+          python3 - "$GITHUB_WORKSPACE" "$predecessor" "$successor_inventory" \
+            "$target_inventory" "$target_report_copy" <<'PY'
           from pathlib import Path
           import json
           import shutil
           import sys
           import xml.etree.ElementTree as ET
 
-          current, predecessor, output = map(Path, sys.argv[1:])
+          current, predecessor, output, target_inventory, target_report_copy = map(Path, sys.argv[1:])
           projects = (
               "paramrtl",
               "frontend",
@@ -227,6 +245,52 @@ jobs:
           def require(condition, detail):
               if not condition:
                   raise RuntimeError(detail)
+
+          target_suite = "spinal.core.internals.NativePureExpressionCopyTests"
+          target_cases = {
+              "shared operator edges clone independently while signal identity and widths survive",
+              "fixed-width shift copies preserve logical operator class, amount and source geometry",
+              "metadata, unrepresented subclasses, expression cycles and expansion fail closed",
+              "binary enum equality and inequality copy exact native authority into fresh trees",
+              "one-hot enum equality and inequality copy exact native authority into fresh trees",
+              "custom nonsequential enum equality and inequality copy exact native authority into fresh trees",
+              "unresolved, incompatible and case-equality enum observations fail closed",
+          }
+          target_report = current / "core/target/test-reports" / f"TEST-{target_suite}.xml"
+          require(target_report.is_file(), f"missing PR194 target suite report: {target_report.name}")
+          raw = target_report.read_bytes()
+          require(b"<!DOCTYPE" not in raw and b"<!ENTITY" not in raw,
+                  "XML declarations are not allowed in PR194 target report")
+          target = ET.fromstring(raw)
+          require(target.tag == "testsuite" and target.get("name") == target_suite,
+                  "wrong PR194 target suite identity")
+          require(target.get("tests") == str(len(target_cases)),
+                  "changed PR194 target testcase count")
+          require(all(target.get(key) == "0" for key in ("failures", "errors", "skipped")),
+                  "failed/error/skipped PR194 target suite")
+          require(not any(list(target.iter(tag)) for tag in ("failure", "error", "skipped")),
+                  "unsuccessful PR194 target testcase")
+          cases = target.findall("testcase")
+          names = [case.get("name") for case in cases]
+          require(len(cases) == len(target_cases) and set(names) == target_cases and
+                  len(set(names)) == len(target_cases),
+                  "missing/duplicate/changed PR194 target testcase identity")
+          require(all(case.get("classname") == target_suite for case in cases),
+                  "wrong PR194 target testcase owner")
+          shutil.copy2(target_report, target_report_copy)
+          require(target_report.read_bytes() == target_report_copy.read_bytes(),
+                  "PR194 target report copy differs")
+          target_report.unlink()
+          target_inventory.write_text(json.dumps({
+              "integration": "PR194-target",
+              "project": "core",
+              "source_blob": "cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c",
+              "suite": target_suite,
+              "tests": len(target_cases),
+              "cases": sorted(target_cases),
+              "skipped": 0,
+          }, indent=2) + "\n")
+          print("PR194 target inventory: 7 exact non-skipped cases / 1 suite")
 
           for project in projects:
               source = current / project / "target/test-reports"
@@ -323,6 +387,29 @@ jobs:
             # inventory. The original current-head XML is never edited.
             python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
               --combine-regressions "$complete_inventory" "$output/sequential-test-inventory.json"
+          fi
+          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
+            python3 - "$complete_inventory" "$target_inventory" <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+
+          complete_path, target_path = map(Path, sys.argv[1:])
+          complete = json.loads(complete_path.read_text())
+          target = json.loads(target_path.read_text())
+          core = complete["core"]
+          if target["suite"] in core["suites"]:
+              raise RuntimeError("PR194 target suite overlaps frozen 59i inventory")
+          if core["skipped"] != 0 or target["skipped"] != 0:
+              raise RuntimeError("complete PR194 target inventory contains skipped tests")
+          core["tests"] += target["tests"]
+          core["suites"] = sorted(core["suites"] + [target["suite"]])
+          complete_path.write_text(json.dumps(complete, indent=2, sort_keys=True) + "\n")
+          total = sum(record["tests"] for record in complete.values())
+          print(f"60f +61 +59i +PR194 target complete regressions: {total} non-skipped tests")
+          PY
+            cp "$target_report_copy" "$target_report"
+            cmp "$target_report_copy" "$target_report"
           fi
       - name: Retain inherited test and solver evidence
         if: always()
