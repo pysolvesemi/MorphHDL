@@ -162,10 +162,11 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          mkdir -p cdc-source-evidence
-          git rev-parse HEAD | tee cdc-source-evidence/head.txt
+          evidence="${RUNNER_TEMP:?}/cdc-source-evidence"
+          mkdir -p "$evidence"
+          git rev-parse HEAD | tee "$evidence/head.txt"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git rev-parse 'HEAD^{tree}' > cdc-source-evidence/tree.txt
+          git rev-parse 'HEAD^{tree}' > "$evidence/tree.txt"
           git merge-base --is-ancestor 27af65abbee0d2334d6be7a6e4e2408b8af32fd9 HEAD
           checks=(
             'git diff --check'
@@ -183,17 +184,17 @@ jobs:
           )
           failures=0
           index=0
-          : > cdc-source-evidence/results.tsv
+          : > "$evidence/results.tsv"
           for check in "${checks[@]}"; do
             index=$((index + 1))
             printf '\nCHECK %s: %s\n' "$index" "$check"
-            if bash -e -o pipefail -c "$check" > "cdc-source-evidence/check-$index.log" 2>&1; then
-              printf 'PASS\t%s\n' "$check" >> cdc-source-evidence/results.tsv
+            if bash -e -o pipefail -c "$check" > "$evidence/check-$index.log" 2>&1; then
+              printf 'PASS\t%s\n' "$check" >> "$evidence/results.tsv"
             else
               failures=$((failures + 1))
-              printf 'FAIL\t%s\n' "$check" >> cdc-source-evidence/results.tsv
+              printf 'FAIL\t%s\n' "$check" >> "$evidence/results.tsv"
             fi
-            cat "cdc-source-evidence/check-$index.log"
+            cat "$evidence/check-$index.log"
           done
           git diff --exit-code
           git diff --cached --exit-code
@@ -203,7 +204,7 @@ jobs:
         if: always()
         with:
           name: cdc-current-source-${{ github.event.pull_request.head.sha || github.sha }}
-          path: cdc-source-evidence/
+          path: ${{ runner.temp }}/cdc-source-evidence/
           if-no-files-found: error
           retention-days: 30
 

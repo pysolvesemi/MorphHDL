@@ -10,6 +10,7 @@ import spinal.core.{Component, SpinalConfig, SpinalReport, SystemVerilog, VHDL, 
 import spinal.core.internals.{
   ExternalParameterizedAutoResize,
   ExternalParameterizedHighBit,
+  ExternalParameterizedNativeGeometry,
   ExternalParameterizedNativeResize,
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
@@ -762,6 +763,7 @@ object MorphVerilog {
     phaseInserters += ExternalParameterizedNativeResize.install _
     phaseInserters += ExternalParameterizedAutoResize.install _
     phaseInserters += ExternalParameterizedHighBit.install _
+    phaseInserters += ExternalParameterizedNativeGeometry.install _
     phaseInserters += TypedBalancedReductionBackend.install _
     // Resolve the publication default on a private copy, never on the caller's
     // native configuration or the independent dual-factory witness path.

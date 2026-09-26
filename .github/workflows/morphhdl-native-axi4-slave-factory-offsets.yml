@@ -16,6 +16,9 @@ concurrency:
   group: morphhdl-native-axi4-factory-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   source-boundary:
     name: Real native AXI4 factory and audited native-source boundary
@@ -23,6 +26,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Prove component-specific recognizer retirement
         run: |
           python3 morphhdl/scripts/check-production-retirement.py --self-test
@@ -47,6 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
       - name: Exercise neutral typed expressions and hierarchy
         run: >-

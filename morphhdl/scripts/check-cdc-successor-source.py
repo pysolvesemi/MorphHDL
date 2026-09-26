@@ -85,15 +85,60 @@ def git(root: Path, *args: str) -> bytes:
 
 
 def load(root: Path, relative: str):
-    spec = importlib.util.spec_from_file_location("cdc_review_" + str(id(root)), root / relative)
-    require(spec is not None and spec.loader is not None, "cannot load source verifier")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    import types
+    path = root / relative
+    require(path.is_file() and not path.is_symlink(), "cannot load source verifier")
+    module = types.ModuleType("cdc_review_" + str(id(root)))
+    module.__file__ = str(path)
+    exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
     return module
+
+
+SYNC_HELPER_SHA256 = "8afd49e4b3951acdfe604a0476805d5001838dd37c5d720fd9fad9d0f7c13431"
+SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
+ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
+
+
+def sync_continuation(root: Path) -> bool:
+    import hashlib, re, stat, types
+    helper = "morphhdl/scripts/check-increment-59i-production-successor.py"
+    certificate = "morphhdl/contracts/increment-59i-production-successor.json"
+    path = root / helper
+    if not any(p.exists() or p.is_symlink() for p in (path, root / certificate)):
+        require(not git(root, "rev-list", "--full-history", "HEAD", "--", helper, certificate),
+                "59i synchronization certificate was removed")
+        return False
+    require(path.is_file() and not path.is_symlink() and
+            not path.stat().st_mode & 0o111, "missing, linked or executable 59i sync verifier")
+    raw = path.read_bytes()
+    normalized, count = re.subn(rb'^CONTRACT_SHA256 = "[^"\n]+"$',
+        b'CONTRACT_SHA256 = "MANIFEST_HASH"', raw, flags=re.M)
+    require(count == 1 and hashlib.sha256(normalized).hexdigest() == SYNC_HELPER_SHA256,
+            "unreviewed 59i synchronization verifier")
+    module = types.ModuleType("cdc_59i_sync")
+    module.__file__ = str(path)
+    exec(compile(raw, str(path), "exec"), module.__dict__)
+    value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
+    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19):
+        require(module.target_anchor(root) == (module.SCHEMA_COMBINED_TARGET
+                if value['schema_version'] in (18, 19) else module.DOCUMENTATION_TARGET
+                if value['schema_version'] in (11, 12, 13, 14, 15, 16, 17) else module.CURRENT_TARGET
+                if value['schema_version'] == 10 else module.SUBSTANTIVE_TARGET
+                if value['schema_version'] in (8, 9) else module.PR190_TARGET),
+                "unreviewed 59i PR190 synchronization target")
+        load(root, "morphhdl/scripts/check-increment-59i-pr190-integration.py").verify(root)
+    else:
+        require(module.target_anchor(root) == SYNC_TARGET, "unreviewed 59i synchronization target")
+    module.audit_immutable_certificate(root, SYNC_TARGET,
+        "morphhdl/scripts/check-cdc-successor-source.py", ORIGINAL_SYNC_CHECKER)
+    print("PR189_SUCCESSOR_SOURCE_PASS (complete current 59i seal and target review; original PR189 checker retained)")
+    return True
 
 
 def verify(root: Path = ROOT) -> None:
     root = root.resolve()
+    if sync_continuation(root):
+        return
     sync_path = root / "morphhdl/scripts/check-pr190-pr189-source-sync.py"
     if sync_path.exists():
         # Authenticate the complete current union before running any frozen
@@ -198,7 +243,8 @@ def self_test(root: Path = ROOT) -> None:
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
                 require(result.returncode != 0, "mutation accepted: " + label)
                 require("WA-08 source overlay:" in result.stderr or
-                        "PR189 successor source:" in result.stderr,
+                        "PR189 successor source:" in result.stderr or
+                        "59i production successor:" in result.stderr,
                         "mutation did not reach a source guard: " + label + "\n" + result.stderr)
                 controls += 1
             for path in candidates:

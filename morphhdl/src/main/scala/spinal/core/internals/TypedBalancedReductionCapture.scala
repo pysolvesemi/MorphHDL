@@ -77,6 +77,13 @@ private[spinal] object TypedBalancedReductionCapture {
   ): UnvalidatedBalancedReduction[T] =
     apply(vector, op, levelBridge, native, (_: UnvalidatedBalancedCallback) => ())
 
+  // Default arguments do not retain an old JVM descriptor after adding a flag.
+  def apply[T <: Data](
+      vector: Vec[T], op: (T, T) => T, levelBridge: (T, Int) => T,
+      native: ElabBalancedReduction.Native[T], onCallback: UnvalidatedBalancedCallback => Unit
+  ): UnvalidatedBalancedReduction[T] =
+    apply(vector, op, levelBridge, native, onCallback, false)
+
   /** Observe a completed callback before the native helper invokes another.
     * The observer must not construct RTL or replay the Scala callback. This
     * seam lets the closed-graph validator freeze mutable expression children
@@ -87,7 +94,8 @@ private[spinal] object TypedBalancedReductionCapture {
       op: (T, T) => T,
       levelBridge: (T, Int) => T,
       native: ElabBalancedReduction.Native[T],
-      onCallback: UnvalidatedBalancedCallback => Unit
+      onCallback: UnvalidatedBalancedCallback => Unit,
+      bridgeUsesNativeVecZero: Boolean = false
   ): UnvalidatedBalancedReduction[T] = {
     if (vector == null || op == null || levelBridge == null || native == null || onCallback == null)
       fail("CAPTURE-NULL", "vector, native callbacks and observer must be non-null")
@@ -122,9 +130,14 @@ private[spinal] object TypedBalancedReductionCapture {
     var ordinal = 0
     var pending: Option[UnvalidatedBalancedCallback] = None
 
-    def invoke(operands: Vector[Data])(body: => T): UnvalidatedBalancedCallback = {
+    def invoke(operands: Vector[Data], bridge: Boolean = false)(body: => T): UnvalidatedBalancedCallback = {
       val before = snapshot(owner)
-      val result = body
+      // The admitted bridge's construction requirement and retained element
+      // layout select this scope without traversing callback-created Data.
+      // Other bridges keep their existing native clone-factory contract.
+      val result = if (bridge && bridgeUsesNativeVecZero && shape.elementLayout.hasNestedVectors)
+        TypedBalancedReductionBridgeZero.withConstruction(operands.head, owner, before.declarations)(body)
+      else body
       if (result != null && !result.isInstanceOf[BaseType])
         TypedBalancedReductionCompositeReplay.requireAcyclicShape(result)
       if (result == null || result.flatten.isEmpty ||
@@ -176,7 +189,7 @@ private[spinal] object TypedBalancedReductionCapture {
         if (operation.result ne value)
           fail("NATIVE-ORDER", "the bridge did not consume the exact preceding operator result")
       }
-      val captured = invoke(Vector(value))(levelBridge(value, level))
+      val captured = invoke(Vector(value), bridge = true)(levelBridge(value, level))
       val index = rows.count(_.level == level)
       rows += UnvalidatedBalancedRow(level, index, pending, captured)
       pending = None

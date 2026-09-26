@@ -1,0 +1,97 @@
+name: Increment 59i composite widening publication focused proof
+
+on:
+  push:
+    branches: ['agent/increment-59i-*']
+    paths:
+      - '.github/workflows/increment-59i-composite-widening-publication-proof-development.yml'
+      - 'morphhdl/repair-59i-composite-widening-publication-proof/**'
+      - 'morphhdl/repair-59i-composite-widening-publication/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-composite-widening-publication-proof-development
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    name: Focused widening proof Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+      - name: Apply the exact transient publisher and focused proof sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-focused-proof"
+          mkdir -p "$output"
+          git rev-parse HEAD > "$output/staging-head.txt"
+          test "$(git merge-base HEAD df76262934b38516785fc7bf51595d918a20e7d2)" = df76262934b38516785fc7bf51595d918a20e7d2
+          python3 morphhdl/repair-59i-composite-widening-publication/apply.py
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-empty-schema.py
+          python3 morphhdl/repair-59i-composite-widening-publication/allow-audited-bundle-construction.py
+          cp morphhdl/repair-59i-composite-widening-publication-proof/NativeCompositeWideningReference.scala \
+            morphhdl/src/test/scala/nativeapplication/NativeCompositeWideningReference.scala
+          cp morphhdl/repair-59i-composite-widening-publication-proof/TypedBalancedReductionCompositeWideningProofArtifacts.scala \
+            morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeWideningProofArtifacts.scala
+          python3 morphhdl/repair-59i-composite-widening-publication-proof/check.py --self-test | tee "$output/self-test.log"
+          git diff --check
+          git diff --binary > "$output/applied.diff"
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-focused-proof"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$output/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$output/repositories"
+          cat > "$output/sbt.sh" <<'SH'
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-focused-proof"
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$output/repositories" -Dsbt.override.build.repos=true \
+            -jar "$output/sbt-launch.jar" "++$SCALA_VERSION" "$@"
+          SH
+      - name: Generate independent A/B RTL and prove one unequal odd-tail case
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$GITHUB_WORKSPACE/target/increment-59i-widening-focused-proof"
+          bash "$output/sbt.sh" 'morph/Test/compile' \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeWideningProofArtifacts $output/a" \
+            "morph/Test/runMain spinal.core.internals.TypedBalancedReductionCompositeWideningProofArtifacts $output/b" \
+            > "$output/generation.log" 2>&1 || { tail -n 260 "$output/generation.log"; exit 1; }
+          python3 morphhdl/repair-59i-composite-widening-publication-proof/check.py \
+            "$output/a" "$output/b" --case us5_up3_ss7_sp4_n5 | tee "$output/proof.log"
+      - name: Upload exact focused proof evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-composite-widening-focused-proof-${{ matrix.scala }}
+          path: target/increment-59i-widening-focused-proof
+          if-no-files-found: error
+          retention-days: 7

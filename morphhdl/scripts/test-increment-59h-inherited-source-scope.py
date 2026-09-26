@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BASE = "0018da2740645e0ac0c419ded7b67c01622d2bb7"
 CHECKER = "morphhdl/scripts/check-increment-60f-equivalence-closure.py"
 CONTRACT = "morphhdl/contracts/increment-59h-source-review.json"
+JOIN_CONTRACT = "morphhdl/contracts/increment-59i-source-review.json"
 DRIVER = """import importlib.util, sys
 from pathlib import Path
 spec = importlib.util.spec_from_file_location('closure_scope', sys.argv[2])
@@ -82,12 +83,32 @@ def frozen_inherited_fixture(root: Path, relative: str, output_relative: str,
     print(result.stdout, end="", flush=True)
 
 
+def current_positive_timeout(root: Path) -> int:
+    # The complete 60f traversal needs the same successor-only 3600s as
+    # its own inherited harness. The older 900/600s selections, all 180s
+    # negatives and historical checks, and all 120s Git limits are unchanged.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
+
+
+def current_negative_timeout(root: Path) -> int:
+    # Current schema-successor negatives authenticate the complete joined
+    # source before reaching their deliberate mutation.  Reserve the same
+    # bounded rejection headroom used by the inherited 60f harness only when
+    # that exact successor contract is present.  Historical/default 59h
+    # negatives retain their original 180-second contract.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 180
+
+
 def main() -> None:
     head = git(ROOT, "rev-parse", "HEAD")
     # The complete current traversal can exceed 180s under audit contention.
     # Match the bounded full-positive budget; historical/mutation calls stay 180s.
     records = [checked(ROOT, "current exact 59h delta and all inherited audits",
-                       timeout_seconds=600)]
+                       timeout_seconds=current_positive_timeout(ROOT))]
     prod = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     runtime = "morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala"
     spec = importlib.util.spec_from_file_location(
@@ -99,29 +120,52 @@ def main() -> None:
     # owns the changed file; independently replay frozen historical controls.
     rollout = review.rollout_scope(ROOT) if hasattr(review, "rollout_scope") else None
     register = getattr(review, "register_source_review", lambda root: None)(ROOT)
+    # A reviewed successor must reject its own mutations first. Keep the
+    # independent older diagnostics for files outside that exact inventory;
+    # this changes no production bytes, mutation actions or acceptance rules.
+    join = getattr(register, "join_source_review", lambda root: None)(ROOT) if register is not None else None
+    # New disjoint production spans are checked by the successor before the
+    # older inventory check. Preserve every mutation and require its exact
+    # successor diagnostic rather than accepting an arbitrary rejection.
+    joined_paths = set(getattr(join, "ALL_PATHS", join.PATHS)) if join is not None else set()
+    composition = (join.load_composition_review(ROOT)
+                   if join is not None and hasattr(join, "load_composition_review") else None)
+    if composition is not None:
+        # The exact composed bytes reject before older field-span reviewers.
+        # Retain the original mutations and independently replay frozen tests.
+        joined_paths |= set(composition.load_contract(ROOT)["entries"])
     cases = [("unreviewed suffix " + path, path, "suffix",
-              "or 60g publication spans: " + path
-              if rollout is not None and path in rollout.PATHS else
+              "unreviewed source change outside 59i spans" if path in joined_paths else
               "unreviewed source change outside reviewed 59g spans"
               if register is not None and path in register.PATHS else outside)
              for path in review.PATHS]
     cases += [
         ("changed reviewed owner span", runtime, "inside", "missing/changed 59h reviewed source span"),
-        ("missing owner implementation", prod, "remove", "59h reviewed source is missing"),
+        ("missing owner implementation", prod, "remove",
+         "59i reviewed source must be a regular non-executable file" if join is not None else "59h reviewed source is missing"),
         ("removed review", CONTRACT, "remove", "59h source-review checker or contract is missing"),
-        ("paired production and review mutation", prod, "paired", "59h reviewed source manifest changed"),
+        ("paired production and review mutation", prod, "paired",
+         "unreviewed source change outside 59i spans" if join is not None else "59h reviewed source manifest changed"),
         ("unreviewed production root", "foreign/src/main/Unreviewed.scala", "suffix",
-         "untracked production sources"),
-        ("staged hidden owner change", prod, "hidden-index", "staged production sources"),
+         "merged 59i/60g production inventory changed" if composition is not None else "untracked production sources"),
+        ("staged hidden owner change", prod, "hidden-index",
+         "composition HEAD/index/worktree identity changed" if composition is not None else "staged production sources"),
         ("changed native printer", "core/src/main/scala/spinal/core/internals/VerilogBase.scala", "suffix",
          "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed sealed oracle", "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala", "suffix",
          "sealed writer/checker changed"),
         ("changed inherited 59e source", "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala", "suffix",
-         "60g publication/serialization delta differs from the merged baseline"
-         if rollout is not None else
-         ("59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
+         "unreviewed source change outside 59i spans"
+         if "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala" in joined_paths
+         else ("59i" if join is not None else "59g" if register is not None else "59h") + " production delta differs from the complete reviewed inventory"),
     ]
+    if join is not None:
+        cases += [
+            ("changed inherited owner review alone", CONTRACT, "suffix", "59h reviewed source manifest changed"),
+            ("removed combined successor review", JOIN_CONTRACT, "remove", "59i source-review checker or contract is missing"),
+            ("changed combined successor review", JOIN_CONTRACT, "suffix", "59i reviewed source manifest changed"),
+            ("paired production and combined review mutation", prod, "paired-join", "59i reviewed source manifest changed"),
+        ]
     if (ROOT / "morphhdl/scripts/check-increment-62-wa08-source-overlay.py").is_file():
         # These worktree/index mutations now meet the verified outer inventory
         # first. Preserve the mutations and require that exact path diagnostic.
@@ -143,6 +187,68 @@ def main() -> None:
                 expected = "WA-08 source overlay: staged, unstaged or untracked governed content: " + repr([relative])
             adapted.append((label, relative, mutation, expected))
         cases = adapted
+    integration = (composition.integration_review(ROOT)
+                   if composition is not None and hasattr(composition, "integration_review") else None)
+    if integration is not None:
+        # Preserve every current mutation and every frozen historical replay.
+        # The reviewed parent union owns these exact first-rejection paths;
+        # older contracts outside that inventory retain their diagnostics.
+        integration_paths = {entry["path"] for entry in integration.contract(ROOT)["files"]}
+        adapted = []
+        for label, relative, mutation, expected in cases:
+            if mutation in ("suffix", "paired") and relative in integration_paths and relative not in (CONTRACT, JOIN_CONTRACT):
+                expected = "59i target integration: unreviewed bytes cannot enter parent projection: " + relative
+            elif mutation == "hidden-index":
+                expected = "59i target integration: HEAD/index identity differs"
+            elif relative.startswith("foreign/src/main/"):
+                expected = "59i target integration: staged, unstaged or untracked content: " + repr([relative])
+            elif mutation == "suffix" and relative == "core/src/main/scala/spinal/core/internals/VerilogBase.scala":
+                expected = "59i target integration: HEAD/index/worktree identity differs: " + relative
+            adapted.append((label, relative, mutation, expected))
+        cases = adapted
+        successor = getattr(integration, "successor_review", lambda root: None)(ROOT)
+        if successor is not None:
+            # This branch is reached only after a successful complete current
+            # source audit and authentication of the exact successor manifest.
+            # Preserve every mutation and require its first owning guard.
+            successor_paths = {entry["path"] for entry in successor.contract(ROOT)["files"]}
+            successor_tree = successor.tree(ROOT, "HEAD")
+            # The joined reviewer reaches its paths in contract order.  Once
+            # the first local-enable path is restored, that reviewer must
+            # authenticate the complete successor checkout before continuing.
+            # Later and disjoint mutations therefore retain the stronger
+            # checkout rejection; only the prefix through that exact boundary
+            # can reach the path-scoped predecessor projection first.
+            successor_path_rejections = set()
+            if join is not None and prod in join.PATHS:
+                boundary = join.PATHS.index(prod)
+                successor_path_rejections = set(join.PATHS[:boundary + 1])
+            adapted = []
+            for label, relative, mutation, expected in cases:
+                if (mutation in ("suffix", "paired", "inside") and
+                        relative in successor_paths and relative in successor_path_rejections and
+                        relative not in (CONTRACT, JOIN_CONTRACT)):
+                    expected = "59i production successor: unreviewed bytes cannot enter predecessor projection: " + relative
+                elif (mutation in ("suffix", "inside") and relative in successor_tree and
+                      relative != JOIN_CONTRACT):
+                    # Files inherited byte-for-byte from the schema predecessor
+                    # are outside the successor span inventory, but remain part
+                    # of its authenticated checkout.  This includes the older
+                    # owner manifest: schema 18 authenticates the complete
+                    # checkout before that older reviewer can issue its
+                    # path-specific diagnostic.  The joined 59i manifest is
+                    # still rejected by its own earlier exact hash check.
+                    # Preserve every negative mutation and require the proven
+                    # first-owning rejection.
+                    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+                elif mutation == "hidden-index":
+                    expected = "59i production successor: HEAD/index identity differs"
+                elif relative.startswith("foreign/src/main/"):
+                    expected = "59i production successor: staged, unstaged or untracked content: " + repr([relative])
+                elif mutation == "suffix" and relative == "core/src/main/scala/spinal/core/internals/VerilogBase.scala":
+                    expected = "59i production successor: HEAD/index/worktree identity differs: " + relative
+                adapted.append((label, relative, mutation, expected))
+            cases = adapted
     with tempfile.TemporaryDirectory(prefix="morphhdl-59h-source-scope-") as directory:
         for index, (label, relative, mutation, expected) in enumerate(cases):
             fixture = Path(directory) / ("negative-" + str(index))
@@ -161,14 +267,16 @@ def main() -> None:
                     path.write_bytes(original[:start] + bytes([original[start] ^ 1]) + original[start + 1:])
                 else:
                     marker = b"#" if path.suffix == ".py" else b"//"
-                    path.write_bytes(original + b"\n" + marker + b" isolated unreviewed 59h mutation\n")
-                    if mutation == "paired":
-                        contract = fixture / CONTRACT
+                    path.write_bytes(original + (b"\n" if relative in (CONTRACT, JOIN_CONTRACT) else
+                        b"\n" + marker + b" isolated unreviewed 59h mutation\n"))
+                    if mutation in ("paired", "paired-join"):
+                        contract = fixture / (JOIN_CONTRACT if mutation == "paired-join" else CONTRACT)
                         contract.write_bytes(contract.read_bytes() + b"\n")
                     elif mutation == "hidden-index":
                         git(fixture, "add", "--", relative)
                         path.write_bytes(original)
-                records.append(checked(fixture, label, expected))
+                records.append(checked(fixture, label, expected,
+                                       timeout_seconds=current_negative_timeout(fixture)))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
         historical = Path(directory) / "historical-59c"

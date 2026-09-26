@@ -48,16 +48,70 @@ def check(root: Path, label: str, rejection: str | None = None,
     return {"case": label, "expected_rejection": rejection, "exit_code": result.returncode}
 
 
+def current_positive_timeout(root: Path) -> int:
+    # The complete joined 60f traversal (including its repeated profile)
+    # passed in 1621.921s on the recovered 59i checkpoint. Reserve 3600s for
+    # that current positive only; historical/mutation checks and fixture Git
+    # commands keep their original 120s limit. No audit is omitted or cached.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
+
+
+def current_negative_timeout(root: Path) -> int:
+    # Schema-successor rejection checks now authenticate the complete joined
+    # source before reaching some deliberate mutations.  Reserve bounded
+    # headroom only for those current fixtures; historical negatives and the
+    # check() default retain their original 120-second contract.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 600
+    return 120
+
+
 def main() -> None:
     spec = importlib.util.spec_from_file_location("closure_scope", CHECKER)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     head = git(ROOT, "rev-parse", "HEAD")
-    # The exact 83-file overlay plus inherited source traversal took 127-154s
-    # locally. Only this full positive audit gets a larger finite wall budget;
-    # every historical/mutation check and Git command retains its 120s limit.
+    timeout = current_positive_timeout(ROOT)
     records = [check(ROOT, "current descendant with separately owned production changes",
-                     timeout_seconds=600)]
+                     timeout_seconds=timeout)]
+    ternary = module.boolean_ternary_review(ROOT)
+    adapter = getattr(ternary, "wa08_overlay", None)
+    overlay = adapter(ROOT) if adapter is not None else None
+    integration = overlay.integration_review(ROOT) if overlay is not None else None
+    integration_paths = ({entry["path"] for entry in integration.contract(ROOT)["files"]}
+                         if integration is not None else set())
+    successor = (getattr(integration, "successor_review", lambda root: None)(ROOT)
+                 if integration is not None else None)
+    successor_paths = ({entry["path"] for entry in successor.contract(ROOT)["files"]}
+                       if successor is not None else set())
+
+    def changed_successor(path: str) -> str:
+        # The positive audit authenticates the enclosing parent-union review.
+        # Keep the original attacks and require its exact path rejection only
+        # for source owned by that review. Index-only attacks remain unchanged.
+        if path in successor_paths:
+            return "59i production successor: unreviewed bytes cannot enter predecessor projection: " + path
+        if path in integration_paths:
+            return "59i target integration: unreviewed bytes cannot enter parent projection: " + path
+        return "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: " + path
+
+    def current_successor_rejection(path: str, state: str) -> str:
+        contract = ROOT / "morphhdl/contracts/increment-59i-production-successor.json"
+        schema = json.loads(contract.read_text()).get("schema_version", 0) if contract.is_file() else 0
+        if schema >= 7:
+            if state == "committed":
+                return "59i production successor: sealed route tree differs from immutable source plus exact seal"
+            if state == "uncommitted":
+                return "59i production successor: HEAD/index/worktree identity differs: " + path
+            if state == "staged":
+                return "59i production successor: HEAD/index identity differs"
+            raise RuntimeError("unknown current-successor fixture state: " + state)
+        if state == "staged":
+            return "WA-08 source overlay: HEAD/index/worktree identity differs: " + path
+        return changed_successor(path)
+
     production = "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBackend.scala"
     oracle = "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala"
     cases = (
@@ -89,24 +143,24 @@ def main() -> None:
          "native signed declaration/cast hooks changed after their frozen qualification"),
         ("changed-committed-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", True,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "committed")),
         ("changed-uncommitted-successor-emitter", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", False,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "uncommitted")),
         ("changed-staged-successor-emitter-restored-worktree", head,
          "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged",
-         "WA-08 source overlay: HEAD/index/worktree identity differs: "
-         "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala"),
+         current_successor_rejection(
+             "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala", "staged")),
         ("changed-committed-successor-pass-contracts", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", True,
-         "WA-08 source overlay: unreviewed production delta: current reviewed bytes differ: "
-         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+         current_successor_rejection(
+             "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "committed")),
         ("changed-staged-successor-pass-contracts-restored-worktree", head,
          "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged",
-         "WA-08 source overlay: HEAD/index/worktree identity differs: "
-         "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala"),
+         current_successor_rejection(
+             "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala", "staged")),
         ("unapproved-native-path", module.COMPLETED_60F,
          "core/src/main/scala/spinal/core/Increment60fUnauditedProbe.scala", True,
          "MORPH-NATIVE-AUDIT-UNAPPROVED-PATH"),
@@ -131,7 +185,8 @@ def main() -> None:
                             git(fixture, "-c", "user.name=Scope guard fixture",
                                 "-c", "user.email=scope-fixture@example.invalid", "commit", "--no-verify",
                                 "-m", "isolated 60f inherited source-scope fixture")
-                records.append(check(fixture, label, rejection))
+                records.append(check(fixture, label, rejection,
+                                     timeout_seconds=current_negative_timeout(fixture)))
             finally:
                 git(ROOT, "worktree", "remove", "--force", str(fixture))
     if git(ROOT, "rev-parse", "HEAD") != head:

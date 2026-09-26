@@ -7,6 +7,7 @@ infrastructure is reconciled, under the unchanged complete outer source seal.
 """
 from __future__ import annotations
 import argparse
+import functools
 import hashlib
 import importlib.util
 import json
@@ -25,6 +26,8 @@ OUTER = "morphhdl/scripts/check-increment-62-wa08-source-overlay.py"
 CONTRACT = "morphhdl/contracts/increment-62-wa08-source-overlay.json"
 SELF = "morphhdl/scripts/check-pr190-pr189-source-sync.py"
 REGISTRY = "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json"
+SCHEMA7_SEAL = "300bdf94bea5b0b32f9c8e32aa032c01689ebf5d"
+SCHEMA7_SYNC_SHA256 = "914b14ce0e31b430bddb4aadd88a0edf9945c1be162d3d75508195f13f5c5537"
 # Audit-only reconciliation. Every other tracked blob, mode, deletion, addition
 # and gitlink must be the strict union of the immutable parents.
 RECONCILED = frozenset((
@@ -112,18 +115,87 @@ def verify_layering(root: Path) -> None:
             'layering checker algorithm changed')
 
 
+@functools.lru_cache(maxsize=8)
+def _retained_schema7_sync(root: Path) -> dict:
+    raw = git(root, 'show', SCHEMA7_SEAL + ':' + SELF)
+    require(hashlib.sha256(raw).hexdigest() == SCHEMA7_SYNC_SHA256,
+        'immutable schema-7 PR190/PR189 sync reviewer changed')
+    with tempfile.TemporaryDirectory(prefix='59i-pr190-pr189-schema7-retained-') as temp:
+        retained_root = Path(temp) / 'source'
+        git(root, 'worktree', 'add', '--quiet', '--detach', str(retained_root), SCHEMA7_SEAL)
+        try:
+            result = load(retained_root, SELF).verify(retained_root)
+            require(not git(retained_root, 'status', '--porcelain', '--untracked-files=all'),
+                'immutable schema-7 PR190/PR189 sync review dirtied its checkout')
+        finally:
+            git(root, 'worktree', 'remove', '--force', str(retained_root))
+    return result
+
+
+def retained_schema7_sync(root: Path) -> dict:
+    # Only an immutable commit result is cached. Current HEAD/index/worktree
+    # authentication still runs before and after every compatibility replay.
+    return dict(_retained_schema7_sync(root.resolve()))
+
+
 def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root=root.resolve()
-    successor = 'morphhdl/scripts/check-cdc-wire-source-review.py'
-    if (root/successor).exists():
-        # The new increment is authorized by its exact current-source inventory
-        # and complete cumulative seal. This frozen PR190/PR189 union remains
-        # independently replayed on its immutable predecessor.
-        seal = sealed if sealed is not None else load(root, OUTER).verify(root)
-        return load(root, successor).verify(root, seal)
+    successor = root / 'morphhdl/scripts/check-increment-59i-production-successor.py'
+    certificate = root / 'morphhdl/contracts/increment-59i-production-successor.json'
+    if any(p.exists() or p.is_symlink() for p in (successor, certificate)):
+        import types
+        relative = Path('morphhdl/scripts/check-increment-59i-pr190-integration.py')
+        path = root / relative
+        require(path.is_file() and not path.stat().st_mode & 0o111 and
+            all(not root.joinpath(*relative.parts[:i]).is_symlink()
+                for i in range(1, len(relative.parts) + 1)),
+            'missing, linked or executable current 59i integration reviewer')
+        raw = path.read_bytes()
+        require(hashlib.sha256(raw).hexdigest() ==
+            '2a95f1517d0b56c63f108a123928efc9aec3fac502f80163ce836ec341119a1d',
+            'current 59i integration reviewer changed')
+        key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
+        if key not in sys.modules:
+            module = types.ModuleType(key)
+            module.__file__ = str(path)
+            exec(compile(raw, str(path), 'exec'), module.__dict__)
+            sys.modules[key] = module
+        current = sys.modules[key].verify(root)
+        # The current review authenticates the complete merge before this
+        # compatibility result exposes the original PR190 obligation sets.
+        schema = sys.modules[key].source_review(root).contract(root)['schema_version']
+        if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19):
+            retained = retained_schema7_sync(root)
+            current = sys.modules[key].verify(root)
+            compatibility = ('base', 'source', 'lane', 'production_files',
+                'production_paths', 'implementation_paths', 'review_paths', 'paths',
+                'left_implementation_files', 'target_implementation_files',
+                'formal_signatures')
+            return dict(current, **{name: retained[name] for name in compatibility})
+        sequential = load(root, 'morphhdl/scripts/check-sequential-wire-source-review.py')
+        implementation = lambda p: '/src/main/' in p or '/src/test/' in p or (
+            p.startswith('morphhdl-passes/examples/') and p.endswith('.scala'))
+        a = {p for p in changed(root, BASE, LEFT) if implementation(p)}
+        b = {p for p in changed(root, BASE, TARGET) if implementation(p)}
+        require(not a & b, 'qualified compiler/test deltas unexpectedly overlap')
+        for path in sequential.PRODUCTION_PATHS:
+            require((root/path).read_bytes() == git(root, 'show', LEFT+':'+path),
+                'sequential compiler changed: '+path)
+            require(not sequential.safety_failures(path, (root/path).read_text()),
+                'sequential safety proof changed')
+        verify_layering(root)
+        return dict(current, base=BASE, source=LEFT, lane=LEFT,
+            production_files=len(a|b), production_paths=sorted(sequential.PRODUCTION_PATHS),
+            implementation_paths=sorted(a|b), review_paths=sorted(RECONCILED),
+            paths=sorted(changed(root, BASE, 'HEAD')), left_implementation_files=len(a),
+            target_implementation_files=len(b), formal_signatures=98)
+    require(not git(root, 'rev-list', '--full-history', 'HEAD', '--',
+        'morphhdl/scripts/check-increment-59i-production-successor.py',
+        'morphhdl/contracts/increment-59i-production-successor.json'),
+        '59i integration certificate was removed')
     normalized=re.sub(rb'^CONTRACT_SHA256 = "[^"]+"$', b'CONTRACT_SHA256 = "MANIFEST_HASH"',
                       (root/OUTER).read_bytes(), count=1, flags=re.M)
-    require(hashlib.sha256(normalized).hexdigest()=="14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab",
+    require(hashlib.sha256(normalized).hexdigest()=="1593324f64df2351ece9f8c3d181fcf2f6ac72f4d1ebfbb44faf3730d27ec3bc",
             "outer verifier algorithm changed")
     outer=load(root,OUTER)
     seal=sealed if sealed is not None else outer.verify(root)

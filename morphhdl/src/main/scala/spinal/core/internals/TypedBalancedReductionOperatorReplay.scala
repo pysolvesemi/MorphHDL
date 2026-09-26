@@ -163,7 +163,15 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     * earlier opaque proof whose exact result identity must match this input.
     * No registry annotation is manufactured from equal default widths.
     */
-  def certify(callback: UnvalidatedBalancedCallback, inputEvidence: Vector[Evidence]): Proof = {
+  def certify(callback: UnvalidatedBalancedCallback, inputEvidence: Vector[Evidence]): Proof =
+    certify(callback, inputEvidence, Vector.empty)
+
+  /** Shape-changing composite leaves may additionally read exact, immutable
+    * runtime capture identities. Capture widths stay fixed while the two pair
+    * widths are substituted at every balanced stage.
+    */
+  def certify(callback: UnvalidatedBalancedCallback, inputEvidence: Vector[Evidence],
+      captureEvidence: Vector[Evidence]): Proof = {
     val operands = scalarOperands(callback)
     if (inputEvidence == null || inputEvidence.size != 2 || inputEvidence.exists(_ == null))
       fail("REPLAY-INPUT-EVIDENCE", "operator proof requires two complete native input certificates")
@@ -188,6 +196,20 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     }
     if (operands(0) eq operands(1))
       fail("REPLAY-BODY-OPERANDS", "a reduction pair must retain two distinct operand identities")
+    if (captureEvidence == null || captureEvidence.exists(_ == null))
+      fail("REPLAY-CAPTURE-EVIDENCE", "runtime capture proof requires complete native input certificates")
+    val captureInputs = new IdentityHashMap[BaseType, Int]()
+    captureEvidence.zipWithIndex.foreach { case (evidence, index) =>
+      evidence.requireValue(evidence.value)
+      val captureKind = evidence.kind
+      if ((evidence.owner ne owner) ||
+          !((captureKind eq TypeBool) || (captureKind eq TypeBits) ||
+            (captureKind eq TypeUInt) || (captureKind eq TypeSInt)))
+        fail("REPLAY-CAPTURE-SHAPE", "runtime capture must retain its exact owner and native scalar type")
+      if (operands.exists(_ eq evidence.value))
+        fail("REPLAY-CAPTURE-ALIAS", "runtime capture cannot alias either reduction operand")
+      if (!captureInputs.containsKey(evidence.value)) captureInputs.put(evidence.value, index)
+    }
 
     val declarations = callback.declarations
     val recordedAssignments = callback.assignments
@@ -209,6 +231,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     val visiting = new IdentityHashMap[BaseType, java.lang.Boolean]()
     val guards = ArrayBuffer.empty[() => Unit]
     inputEvidence.foreach { evidence => guards += (() => evidence.requireFreshness()) }
+    captureEvidence.foreach { evidence => guards += (() => evidence.requireFreshness()) }
 
     val firstWidth = inputEvidence(0).width
     val secondWidth = inputEvidence(1).width
@@ -259,6 +282,12 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
           Node(kind, ("input", index), Set(index),
             (a, b) => if (index == 0) a else b,
             (a, b, _, _) => if (index == 0) a else b)
+        case leaf: BaseType if captureInputs.containsKey(leaf) =>
+          val index = captureInputs.get(leaf)
+          val evidence = captureEvidence(index)
+          Node(evidence.kind, ("capture", index, leaf.getClass, evidence.width.verilog), Set.empty,
+            (_, _) => evidence.width,
+            (_, _, _, _) => { evidence.requireValue(leaf); leaf })
         case leaf: BaseType =>
           if (!seen.containsKey(leaf))
             fail("REPLAY-EXTERNAL-READ", "operator body reads a signal outside its operands and local declarations")
@@ -436,7 +465,7 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     }
 
     def root(expression: Expression, path: Vector[BaseType] = Vector.empty): Expression = expression match {
-      case value: BaseType if !operands.exists(_ eq value) =>
+      case value: BaseType if !operands.exists(_ eq value) && !captureInputs.containsKey(value) =>
         if (value.isReg) fail("REPLAY-BODY-STATE", "an operator result cannot contain native register state")
         val all = assignmentsOf(owner, value)
         if (!seen.containsKey(value)) fail("REPLAY-EXTERNAL-READ", "native root reads external data")
