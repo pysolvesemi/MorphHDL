@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authenticate the schema-19 source evidence and exact PR194 target integration."""
+"""Authenticate the schema-20 source evidence and exact PR194 target integration."""
 from __future__ import annotations
 
 import argparse
@@ -11,20 +11,20 @@ import re
 import subprocess
 import zipfile
 
-SEAL = "d6b532f5dd8639649fea0434678de995ce573a62"
-SEAL_TREE = "d5dc4ed5f0eb0f5c950ce6f8f50143951e6454a1"
-SOURCE = "3cd7e795893035c062f432e2d5c845c8c3a9cffe"
-SOURCE_TREE = "c52537a2c604c7b14d5971d0c0c84498fe63d1b1"
-FEATURE = "fb49648d8b7f05310d0907381c364c2e11882645"
-FEATURE_TREE = "eea3ee75833a9fa418c0da1ff47b0ba0c95ff7e2"
+SEAL = "e98e9d034ab91a791377e212bc0e4b37d8c44716"
+SEAL_TREE = "caf705b4e4b33ed27d1dec91257df79ffaccf24c"
+SOURCE = "2f6e86bebb8935a8bcb2493355fe33823af8ad00"
+SOURCE_TREE = "30d6ed7f400433ae08d62d2b1b53086091defc93"
+FEATURE = "d6b532f5dd8639649fea0434678de995ce573a62"
+FEATURE_TREE = "d5dc4ed5f0eb0f5c950ce6f8f50143951e6454a1"
 TARGET = "db54d01e5b21c7664f7a0de3795f061d77a3d259"
 TARGET_TREE = "ed73aee1ca0c667a1c32b181d95c431c22ea3719"
 COMMON_BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
 COMMON_BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
-SOURCE_CONTROLLER = "8062794d0ef6f6d595c65c125598f697bf175dd6"
-ARTIFACT_SHA256 = "cca5882db838d3c0328ed1296be50668471d6add9dd91b4e9a85c246afdc1a5f"
-CONTRACT_SHA256 = "920e52d51c293eb7bd3f614573dfaf1359617a90953bef3578238fbf020c56b3"
-HELPER_NORMALIZED_SHA256 = "8afd49e4b3951acdfe604a0476805d5001838dd37c5d720fd9fad9d0f7c13431"
+SOURCE_CONTROLLER = "50879dcf16d17af2d0f19030aa4c77f0848d0efb"
+ARTIFACT_SHA256 = "5f05a30730f86305d850197326bf5f9bf6bc6405036e063f4325b84af05dac48"
+CONTRACT_SHA256 = "fc002a7d4dde2173e5a1a3084f52f213e035b23c3b5c51df0b8cff666e63c690"
+HELPER_NORMALIZED_SHA256 = "aab02edfc010f25175b6abc46fc04816c731970236b73a481bb7820d3ce51348"
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
 
@@ -59,7 +59,7 @@ COMMANDS = (
 
 def require(ok: bool, detail: str) -> None:
     if not ok:
-        raise RuntimeError("59i schema-19 target reconciliation: " + detail)
+        raise RuntimeError("59i schema-20 target reconciliation: " + detail)
 
 
 def digest(raw: bytes) -> str:
@@ -179,14 +179,14 @@ def validate(repo: Path, artifact: bytes) -> dict:
     require(len(target_paths) == 26, "target composition path count changed")
 
     contract_raw = (repo / CONTRACT).read_bytes()
-    require(digest(contract_raw) == CONTRACT_SHA256, "schema-19 contract changed")
+    require(digest(contract_raw) == CONTRACT_SHA256, "schema-20 contract changed")
     contract = json.loads(contract_raw)
-    require(contract.get("schema_version") == 19 and
+    require(contract.get("schema_version") == 20 and
             contract.get("source_commit") == SOURCE and contract.get("source_tree") == SOURCE_TREE,
-            "schema-19 source binding changed")
+            "schema-20 source binding changed")
     require(len(contract.get("files", [])) == 427, "source record count changed")
     require(digest(normalized_helper((repo / HELPER).read_bytes())) ==
-            HELPER_NORMALIZED_SHA256, "schema-19 verifier algorithm changed")
+            HELPER_NORMALIZED_SHA256, "schema-20 verifier algorithm changed")
     validate_target_records(repo, contract, target_paths)
 
     require(git(repo, "merge-base", "--is-ancestor", TARGET, SEAL) == "",
@@ -195,7 +195,7 @@ def validate(repo: Path, artifact: bytes) -> dict:
     require(prospective == SEAL_TREE, "prospective merge is not tree-preserving")
     require(not git(repo, "status", "--porcelain", "--untracked-files=all"),
             "qualified checkout is not clean")
-    return {"schema": 19, "seal": SEAL, "source": SOURCE, "feature": FEATURE,
+    return {"schema": 20, "seal": SEAL, "source": SOURCE, "feature": FEATURE,
             "target": TARGET, "prospective_tree": prospective,
             "source_records": 427, "target_records": 26,
             "source_commands": len(COMMANDS), "artifact_sha256": ARTIFACT_SHA256}
@@ -209,7 +209,7 @@ def main() -> None:
     args = parser.parse_args()
     result = validate(args.repo, args.artifact.read_bytes())
     args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
-    print("SCHEMA19_TARGET_RECONCILIATION_PASS source=25 records=427 target_records=26 tree=" +
+    print("SCHEMA20_TARGET_RECONCILIATION_PASS source=25 records=427 target_records=26 tree=" +
           result["prospective_tree"])
 
 
