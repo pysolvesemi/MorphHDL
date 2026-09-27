@@ -1,0 +1,90 @@
+{
+  "schema": "increment-59i-schema22-local-enable-targeted-dispatch-intent-v1",
+  "created_at_utc": "2026-09-27T23:07:43Z",
+  "repository": "pysolvesemi/MorphHDL",
+  "pull_request": {
+    "number": 177,
+    "state": "open",
+    "draft": true,
+    "head_ref": "agent/increment-59i-combined-reduction-closure",
+    "head_sha": "9c88f5f75921e28aff329e3cff2d40132315e861",
+    "base_ref": "parameterized-verilog",
+    "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259"
+  },
+  "qualified_head": {
+    "commit": "9c88f5f75921e28aff329e3cff2d40132315e861",
+    "tree": "79df0c9df93f30ffcd94e4fe140b2b2f7e865c80",
+    "reviewed_source": "aef4ffdb13043226e633ad95e9902eb4adb549a5",
+    "source_tree": "e45e10beb0616fc74c7627cf3fa04945484b3605"
+  },
+  "qualification": {
+    "source": {
+      "run_id": 36332110651,
+      "job_id": 108655905896,
+      "artifact_id": 10942315960,
+      "artifact_sha256": "bbfa9a94228b9f7e7afb6acf38f34204fad88d6ef52e41965201fc540018b7b1",
+      "result": "25/25 PASS"
+    },
+    "target_reconciliation": {
+      "run_id": 36350885528,
+      "job_id": 108709212109,
+      "artifact_id": 10942017917,
+      "artifact_sha256": "a7d25eb7b0e86118bc4734d90c2ef2b565a37a856eda420a6af5312ebf65b724",
+      "result": "PASS"
+    }
+  },
+  "preserved_failure": {
+    "run_id": 36312354658,
+    "workflow_id": 358545233,
+    "head_sha": "90eb789ab8a955ffd4d3ef6a4dff575350aff771",
+    "conclusion": "cancelled",
+    "attempts": [
+      {
+        "attempt": 1,
+        "job_id": 108600614946,
+        "artifact_id": 10930546836,
+        "artifact_sha256": "7ded588695e08863d733a76e80ceccbe1406bc70150fd0c53304fed9e4159d74"
+      },
+      {
+        "attempt": 2,
+        "job_id": 108616721304,
+        "artifact_id": 10931852639,
+        "artifact_sha256": "8057afc1d782b3cc1234828e488ec097d54a632c24659a422a5869675dafcee1"
+      }
+    ],
+    "diagnosis": "Both unchanged 45-minute source jobs were cancelled after earlier controls passed; schema22 removes redundant complete-verifier replays while retaining all 48 rejection controls."
+  },
+  "recovery_parent": {
+    "branch": "recovery/increment-59i-history-20260914",
+    "commit": "cd0a2c1fb0606a3fafcdc75fa24b83fa611eab6e",
+    "tree": "0dc41c1c74d272fdacf239ae63c5d8190dac8154"
+  },
+  "deduplication": {
+    "endpoint": "GET /repos/pysolvesemi/MorphHDL/actions/runs?head_sha=9c88f5f75921e28aff329e3cff2d40132315e861&per_page=100&page=1",
+    "checked_at_utc": "2026-09-27T23:07:43Z",
+    "total_count": 0,
+    "pages_checked": 1,
+    "note": "No push, pull_request, or workflow_dispatch run exists on the exact qualified head after the later bounded snapshot."
+  },
+  "dispatch_ref": "agent/increment-59i-combined-reduction-closure",
+  "full_ci": false,
+  "workflows": [
+    {
+      "name": "Increment59i committed-head local-enable qualification",
+      "workflow_id": 358545233,
+      "path": ".github/workflows/increment-59i-local-enable-committed-head.yml",
+      "git_blob": "0b5b041215367c58b1fe9c481f5ca013cfc08ce2",
+      "sha256": "af61ce0d634c23b738146eef8dcd45c22fc667226f79f54ea849696d3f289369",
+      "inputs": {},
+      "reason": "Directly repaired requirement: schema21 attempts 1 and 2 exhausted the unchanged 45-minute source budget; schema22 retains all controls and removes only redundant recursive verifier replays."
+    }
+  ],
+  "safeguards": {
+    "dedupe_before_post": true,
+    "one_dispatch_only": true,
+    "preserve_active_and_passing_runs": true,
+    "do_not_cancel_unrelated_runs": true,
+    "do_not_merge": true,
+    "keep_pr_draft": true
+  }
+}

@@ -1,0 +1,45 @@
+name: Increment 59i schema-22 local-enable targeted dispatcher
+
+on:
+  push:
+    branches: [recovery/increment-59i-schema22-local-enable-9c88f5f7]
+    paths:
+      - .github/recovery/59i-schema22-local-enable-targeted/**
+      - .github/workflows/increment-59i-schema22-local-enable-targeted-dispatch.yml
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: increment-59i-schema22-local-enable-9c88f5f7
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      GITHUB_TOKEN: ${{ github.token }}
+      EXPECTED_CONTROLLER_SHA256: be6be8d2e25848ee9f3347c712f8b67df6fc9472fe516ba40af9b024af02a684
+      EXPECTED_INTENT_SHA256: 3d1d0969ac9a8ef2d1ad0f60490a58ab62b5ea5d2e10ccf451e4b12940e10847
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Dispatch only the schema-22 local-enable requirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B .github/recovery/59i-schema22-local-enable-targeted/controller.py \
+            --intent .github/recovery/59i-schema22-local-enable-targeted/intent.json \
+            --output "$GITHUB_WORKSPACE/targeted-receipts"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 59i-schema22-local-enable-targeted-dispatch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: targeted-receipts/
+          if-no-files-found: error
+          retention-days: 30
