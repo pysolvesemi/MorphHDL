@@ -143,6 +143,16 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     successor = root / 'morphhdl/scripts/check-increment-59i-production-successor.py'
     certificate = root / 'morphhdl/contracts/increment-59i-production-successor.json'
     if any(p.exists() or p.is_symlink() for p in (successor, certificate)):
+        # Mutation controls deliberately dirty one reviewed path at a time.
+        # Reject those ordinary worktree changes before recursively replaying
+        # the complete current and retained immutable-source certificates.
+        head = git(root, "rev-parse", "HEAD").decode().strip()
+        dirty = set()
+        for args in (("diff", "--name-only", "-z"),
+                ("diff", "--cached", "--name-only", "-z", head),
+                ("ls-files", "--others", "--exclude-standard", "-z")):
+            dirty |= {path.decode() for path in git(root, *args).split(b"\0") if path}
+        require(not dirty, "staged, unstaged or untracked combined source: " + repr(sorted(dirty)))
         import types
         relative = Path('morphhdl/scripts/check-increment-59i-pr190-integration.py')
         path = root / relative
@@ -152,7 +162,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
             'missing, linked or executable current 59i integration reviewer')
         raw = path.read_bytes()
         require(hashlib.sha256(raw).hexdigest() ==
-            'ba45d04e145dddbbf5ac4f94d8992a7a4e3283d67e4fa2e516cec6194624c6b4',
+            'e42957298ccf9e88d8fa8ee28ddea1e1a990dd792a3d15a9b30f4d4aa5019fd2',
             'current 59i integration reviewer changed')
         key = 'pr190_integration_' + hashlib.sha256(raw).hexdigest()
         if key not in sys.modules:
@@ -164,7 +174,7 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
         # The current review authenticates the complete merge before this
         # compatibility result exposes the original PR190 obligation sets.
         schema = sys.modules[key].source_review(root).contract(root)['schema_version']
-        if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21):
+        if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22):
             retained = retained_schema7_sync(root)
             current = sys.modules[key].verify(root)
             compatibility = ('base', 'source', 'lane', 'production_files',

@@ -499,6 +499,19 @@ class ProductionSuccessorTests(unittest.TestCase):
                 self.commit(self.root, "committed unreviewed mutation")
                 self.reject()
 
+    def test_dirty_checkout_rejects_before_complete_blob_scan(self):
+        self.append(self.legacy.shared)
+        original = self.review.regular
+        def unexpected_blob_read(*args, **kwargs):
+            raise AssertionError("dirty checkout reached complete per-file blob scan")
+        self.review.regular = unexpected_blob_read
+        try:
+            committed = self.review.tree(self.root, "HEAD")
+            self.reject(lambda: self.review.verify_checkout(self.root, committed),
+                "staged, unstaged or untracked content")
+        finally:
+            self.review.regular = original
+
     def test_missing_added_removed_and_unknown_sources_reject(self):
         for path in (self.added, HELPER, CONTRACT):
             with self.subTest(missing=path):

@@ -94,7 +94,7 @@ def load(root: Path, relative: str):
     return module
 
 
-SYNC_HELPER_SHA256 = "dcc0b4dd3a336ad0e1f8f7347071975775b56ebd777e40824c44c5ff559bbcc7"
+SYNC_HELPER_SHA256 = "c275bef6eab3b8c4e17b25e4e7abb30f5cbd7fd9f15c541d167c885cbec80026"
 SYNC_TARGET = "e0e9f1d7089d3aa513677a2b94c63eb4a7a7791d"
 ORIGINAL_SYNC_CHECKER = "69e1456b09f4e1b8c40a3afe405a271af1dd12aafeb1e5648f73f350c6e8a8f1"
 
@@ -119,9 +119,9 @@ def sync_continuation(root: Path) -> bool:
     module.__file__ = str(path)
     exec(compile(raw, str(path), "exec"), module.__dict__)
     value = module.verify(root)  # Fresh HEAD/index/worktree authorization, never a cached result.
-    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21):
+    if value['schema_version'] in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22):
         require(module.target_anchor(root) == (module.SCHEMA_COMBINED_TARGET
-                if value['schema_version'] in (18, 19, 20, 21) else module.DOCUMENTATION_TARGET
+                if value['schema_version'] in (18, 19, 20, 21, 22) else module.DOCUMENTATION_TARGET
                 if value['schema_version'] in (11, 12, 13, 14, 15, 16, 17) else module.CURRENT_TARGET
                 if value['schema_version'] == 10 else module.SUBSTANTIVE_TARGET
                 if value['schema_version'] in (8, 9) else module.PR190_TARGET),
