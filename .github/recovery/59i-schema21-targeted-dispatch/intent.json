@@ -1,0 +1,114 @@
+{
+  "schema": "increment-59i-schema21-targeted-dispatch-intent-v1",
+  "created_at_utc": "2026-09-27T10:12:52Z",
+  "repository": "pysolvesemi/MorphHDL",
+  "pull_request": {
+    "number": 177,
+    "state": "open",
+    "draft": true,
+    "head_ref": "agent/increment-59i-combined-reduction-closure",
+    "head_sha": "90eb789ab8a955ffd4d3ef6a4dff575350aff771",
+    "base_ref": "parameterized-verilog",
+    "base_sha": "db54d01e5b21c7664f7a0de3795f061d77a3d259"
+  },
+  "qualified_head": {
+    "commit": "90eb789ab8a955ffd4d3ef6a4dff575350aff771",
+    "tree": "b4deca446c1d043662d2f98627cd7ad3c4347c2c",
+    "reviewed_source": "aff0b4f2cfed941b2958157e48b14e5412b44aa1",
+    "source_tree": "5db76749029169c7d2c5fdd8ecc34985f6c17485"
+  },
+  "qualification": {
+    "source": {
+      "run_id": 36289367772,
+      "job_id": 108536353977,
+      "artifact_id": 10925708881,
+      "artifact_sha256": "50f9214f575834217f59e33888d23795e4610ad8f504459966c7972db39ffd76",
+      "result": "25/25 PASS"
+    },
+    "target_reconciliation": {
+      "run_id": 36305442960,
+      "job_id": 108581047973,
+      "artifact_id": 10926957812,
+      "artifact_sha256": "a823b932e1591e96a8d3e85b7bb1359badb17d4891dafefd3cb21de63516860d",
+      "result": "PASS"
+    }
+  },
+  "recovery_parent": {
+    "branch": "recovery/increment-59i-history-20260914",
+    "commit": "3877e0318738b28537fbf11158c443937d90d548",
+    "tree": "40beb3a146d337a3be041f3b5f3530ae8eee9bfd"
+  },
+  "deduplication": {
+    "endpoint": "GET /repos/pysolvesemi/MorphHDL/actions/runs?head_sha=90eb789ab8a955ffd4d3ef6a4dff575350aff771&per_page=100&page=1",
+    "checked_at_utc": "2026-09-27T10:12:52Z",
+    "total_count": 0,
+    "pages_checked": 1,
+    "note": "No push, pull_request, or workflow_dispatch run exists on the exact qualified head."
+  },
+  "dispatch_ref": "agent/increment-59i-combined-reduction-closure",
+  "full_ci": false,
+  "workflows": [
+    {
+      "name": "Increment60f equivalence closure",
+      "workflow_id": 351327055,
+      "path": ".github/workflows/increment-60f-equivalence-closure.yml",
+      "git_blob": "03b4fd45b5137ebda5a54648e62df713f0f1f456",
+      "sha256": "224c4bc93dfef8c278be8cf93088e12c64dc8fbc4c8cfdf09ccaf06373e350d6",
+      "inputs": {},
+      "reason": "Directly repaired requirement; schema20 run 36275378799 failed only the frozen emitter inventory."
+    },
+    {
+      "name": "Increment59i combined closure",
+      "workflow_id": 352827927,
+      "path": ".github/workflows/increment-59i-combined-closure.yml",
+      "git_blob": "acce6319fbbdfc39c645f425f304eb44159f59ed",
+      "sha256": "d183330757c8f3933679b40a418faed2240517668b482da45198bcd130fe5437",
+      "inputs": {},
+      "reason": "Directly affected retained integration requirement; schema20 exact-head push and PR runs were cancelled."
+    },
+    {
+      "name": "Increment59h nested owners",
+      "workflow_id": 351996892,
+      "path": ".github/workflows/increment-59h-nested-owners.yml",
+      "git_blob": "609b2606ba6076cae95f135a43e8eac0343bb776",
+      "sha256": "c29048bc747a6604e87e34bbf8e69e9991cc03732f3a2f0dabbdf2206698afab",
+      "inputs": {},
+      "reason": "Directly affected retained source-routing requirement on the new schema21 head."
+    },
+    {
+      "name": "Increment59f callback graphs",
+      "workflow_id": 351397918,
+      "path": ".github/workflows/increment-59f-callback-graphs.yml",
+      "git_blob": "bf63e979092e990e6389e8db72d32da52ee469a2",
+      "sha256": "bb47eaeca764e1c92b4c3d64e72d4137af4067bf15ff284cece3039873ca7266",
+      "inputs": {},
+      "reason": "Directly affected retained source-routing requirement on the new schema21 head."
+    },
+    {
+      "name": "Increment62 WA08 source overlay",
+      "workflow_id": 354645379,
+      "path": ".github/workflows/increment-62-wa08-source-overlay.yml",
+      "git_blob": "5ab92ecf5f588664c989c747f6d282d13b8fbee8",
+      "sha256": "250382848e77e10067f1ac5c9af7428e9a7727a1ec0053b6d5c7249e5fcbaa77",
+      "inputs": {},
+      "reason": "Directly affected retained overlay requirement; preserve the unchanged historical timeout limit."
+    },
+    {
+      "name": "Increment59i local-enable committed head",
+      "workflow_id": 358545233,
+      "path": ".github/workflows/increment-59i-local-enable-committed-head.yml",
+      "git_blob": "0b5b041215367c58b1fe9c481f5ca013cfc08ce2",
+      "sha256": "af61ce0d634c23b738146eef8dcd45c22fc667226f79f54ea849696d3f289369",
+      "inputs": {},
+      "reason": "Directly affected current-head gate; schema20 exact-head push and PR runs were cancelled."
+    }
+  ],
+  "safeguards": {
+    "dedupe_before_each_post": true,
+    "one_dispatch_per_workflow": true,
+    "preserve_active_and_passing_runs": true,
+    "do_not_cancel_unrelated_runs": true,
+    "do_not_merge": true,
+    "keep_pr_draft": true
+  }
+}
