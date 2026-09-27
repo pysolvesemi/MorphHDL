@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Authenticate the schema-20 source evidence and exact PR194 target integration."""
+"""Authenticate the schema-21 source evidence and exact PR194 target integration."""
 from __future__ import annotations
 
 import argparse
@@ -11,20 +11,20 @@ import re
 import subprocess
 import zipfile
 
-SEAL = "e98e9d034ab91a791377e212bc0e4b37d8c44716"
-SEAL_TREE = "caf705b4e4b33ed27d1dec91257df79ffaccf24c"
-SOURCE = "2f6e86bebb8935a8bcb2493355fe33823af8ad00"
-SOURCE_TREE = "30d6ed7f400433ae08d62d2b1b53086091defc93"
-FEATURE = "d6b532f5dd8639649fea0434678de995ce573a62"
-FEATURE_TREE = "d5dc4ed5f0eb0f5c950ce6f8f50143951e6454a1"
+SEAL = "90eb789ab8a955ffd4d3ef6a4dff575350aff771"
+SEAL_TREE = "b4deca446c1d043662d2f98627cd7ad3c4347c2c"
+SOURCE = "aff0b4f2cfed941b2958157e48b14e5412b44aa1"
+SOURCE_TREE = "5db76749029169c7d2c5fdd8ecc34985f6c17485"
+FEATURE = "e98e9d034ab91a791377e212bc0e4b37d8c44716"
+FEATURE_TREE = "caf705b4e4b33ed27d1dec91257df79ffaccf24c"
 TARGET = "db54d01e5b21c7664f7a0de3795f061d77a3d259"
 TARGET_TREE = "ed73aee1ca0c667a1c32b181d95c431c22ea3719"
 COMMON_BASE = "09880c538c4cf83022f4a1bb1dd16b43ea81a751"
 COMMON_BASE_TREE = "6216cf799cc51c5a5f815d08f16e435c6b48ddc7"
-SOURCE_CONTROLLER = "50879dcf16d17af2d0f19030aa4c77f0848d0efb"
-ARTIFACT_SHA256 = "5f05a30730f86305d850197326bf5f9bf6bc6405036e063f4325b84af05dac48"
-CONTRACT_SHA256 = "fc002a7d4dde2173e5a1a3084f52f213e035b23c3b5c51df0b8cff666e63c690"
-HELPER_NORMALIZED_SHA256 = "aab02edfc010f25175b6abc46fc04816c731970236b73a481bb7820d3ce51348"
+SOURCE_CONTROLLER = "2273acb47960d83a4f0e4d708bd6a7fd2a231a6b"
+ARTIFACT_SHA256 = "50f9214f575834217f59e33888d23795e4610ad8f504459966c7972db39ffd76"
+CONTRACT_SHA256 = "796270909be5e6e6e30ca7dc2a02dba72595d5de0811d65bff3031ca3516cd45"
+HELPER_NORMALIZED_SHA256 = "dcc0b4dd3a336ad0e1f8f7347071975775b56ebd777e40824c44c5ff559bbcc7"
 HELPER = "morphhdl/scripts/check-increment-59i-production-successor.py"
 CONTRACT = "morphhdl/contracts/increment-59i-production-successor.json"
 
@@ -59,7 +59,7 @@ COMMANDS = (
 
 def require(ok: bool, detail: str) -> None:
     if not ok:
-        raise RuntimeError("59i schema-20 target reconciliation: " + detail)
+        raise RuntimeError("59i schema-21 target reconciliation: " + detail)
 
 
 def digest(raw: bytes) -> str:
@@ -173,20 +173,20 @@ def validate(repo: Path, artifact: bytes) -> dict:
     seal_paths = git(repo, "diff", "--name-only", SOURCE, SEAL).splitlines()
     target_paths = git(repo, "diff", "--name-only", COMMON_BASE, TARGET).splitlines()
     require(files["audit-repair-paths.txt"].decode().splitlines() == repair_paths and
-            len(repair_paths) == 17, "repair path evidence changed")
+            len(repair_paths) == 18, "repair path evidence changed")
     require(files["seal-paths.txt"].decode().splitlines() == seal_paths == [CONTRACT, HELPER],
             "seal path evidence changed")
     require(len(target_paths) == 26, "target composition path count changed")
 
     contract_raw = (repo / CONTRACT).read_bytes()
-    require(digest(contract_raw) == CONTRACT_SHA256, "schema-20 contract changed")
+    require(digest(contract_raw) == CONTRACT_SHA256, "schema-21 contract changed")
     contract = json.loads(contract_raw)
-    require(contract.get("schema_version") == 20 and
+    require(contract.get("schema_version") == 21 and
             contract.get("source_commit") == SOURCE and contract.get("source_tree") == SOURCE_TREE,
-            "schema-20 source binding changed")
+            "schema-21 source binding changed")
     require(len(contract.get("files", [])) == 427, "source record count changed")
     require(digest(normalized_helper((repo / HELPER).read_bytes())) ==
-            HELPER_NORMALIZED_SHA256, "schema-20 verifier algorithm changed")
+            HELPER_NORMALIZED_SHA256, "schema-21 verifier algorithm changed")
     validate_target_records(repo, contract, target_paths)
 
     require(git(repo, "merge-base", "--is-ancestor", TARGET, SEAL) == "",
@@ -195,7 +195,7 @@ def validate(repo: Path, artifact: bytes) -> dict:
     require(prospective == SEAL_TREE, "prospective merge is not tree-preserving")
     require(not git(repo, "status", "--porcelain", "--untracked-files=all"),
             "qualified checkout is not clean")
-    return {"schema": 20, "seal": SEAL, "source": SOURCE, "feature": FEATURE,
+    return {"schema": 21, "seal": SEAL, "source": SOURCE, "feature": FEATURE,
             "target": TARGET, "prospective_tree": prospective,
             "source_records": 427, "target_records": 26,
             "source_commands": len(COMMANDS), "artifact_sha256": ARTIFACT_SHA256}
@@ -209,7 +209,7 @@ def main() -> None:
     args = parser.parse_args()
     result = validate(args.repo, args.artifact.read_bytes())
     args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
-    print("SCHEMA20_TARGET_RECONCILIATION_PASS source=25 records=427 target_records=26 tree=" +
+    print("SCHEMA21_TARGET_RECONCILIATION_PASS source=25 records=427 target_records=26 tree=" +
           result["prospective_tree"])
 
 
