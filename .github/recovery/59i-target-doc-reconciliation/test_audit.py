@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Focused rejection controls for the schema-21 target reconciliation."""
+"""Focused rejection controls for the schema-22 target reconciliation."""
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +11,7 @@ import unittest
 import zipfile
 
 HERE = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("schema21_target_audit", HERE / "audit.py")
+spec = importlib.util.spec_from_file_location("schema22_target_audit", HERE / "audit.py")
 A = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(A)
 
@@ -71,3 +71,4 @@ class AuditTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
