@@ -22,7 +22,7 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       GITHUB_TOKEN: ${{ github.token }}
-      EXPECTED_CONTROLLER_SHA256: be6be8d2e25848ee9f3347c712f8b67df6fc9472fe516ba40af9b024af02a684
+      EXPECTED_CONTROLLER_SHA256: 0ca5b087f8ca45b523efc1f6ac50ac9f73e588b6b31e54f1cd2443575e94f009
       EXPECTED_INTENT_SHA256: 3d1d0969ac9a8ef2d1ad0f60490a58ab62b5ea5d2e10ccf451e4b12940e10847
     steps:
       - uses: actions/checkout@v4

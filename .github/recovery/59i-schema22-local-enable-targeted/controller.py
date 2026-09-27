@@ -25,6 +25,7 @@ SOURCE = "aef4ffdb13043226e633ad95e9902eb4adb549a5"
 TARGET_REF = "parameterized-verilog"
 TARGET = "db54d01e5b21c7664f7a0de3795f061d77a3d259"
 CONTROL_REF = "recovery/increment-59i-schema22-local-enable-9c88f5f7"
+CONTROL_PARENT = "26ba3c051e8837c81e88f5bd0479d35888341d5c"
 RECOVERY_REF = "recovery/increment-59i-history-20260914"
 RECOVERY_INTENT = "0fb1136c9476d579d94b0e214c977248e71c23aa"
 SOURCE_RUN = 36332110651
@@ -117,8 +118,11 @@ def guard(api: Api) -> None:
     control = api.get("/git/ref/heads/" + CONTROL_REF)
     require(control["object"]["sha"] == controller_sha, "live controller ref changed")
     control_commit = api.get("/git/commits/" + controller_sha)
-    require([row["sha"] for row in control_commit["parents"]] == [TARGET],
-            "controller is not a direct child of the exact target")
+    require([row["sha"] for row in control_commit["parents"]] == [CONTROL_PARENT],
+            "controller repair parent changed")
+    control_parent = api.get("/git/commits/" + CONTROL_PARENT)
+    require([row["sha"] for row in control_parent["parents"]] == [TARGET],
+            "controller base is not a direct child of the exact target")
     feature = api.get("/git/ref/heads/" + FEATURE)
     target = api.get("/git/ref/heads/" + TARGET_REF)
     recovery = api.get("/git/ref/heads/" + RECOVERY_REF)
