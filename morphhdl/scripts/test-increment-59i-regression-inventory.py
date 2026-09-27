@@ -264,8 +264,12 @@ class Preservation(unittest.TestCase):
     def test_contract_hash_and_complete_inventory(self):
         raw=(ROOT/M.CONTRACT).read_bytes();self.assertEqual(hashlib.sha256(raw).hexdigest(),M.CONTRACT_SHA256)
         v=json.loads(raw)
-        self.assertEqual(sum(len(c) for p in v['projects'].values() for c in p.values()),2307)
+        self.assertEqual(sum(len(c) for p in v['projects'].values() for c in p.values()),2310)
         self.assertEqual(sum(len(p) for p in v['projects'].values()),230)
+        emitter='spinal.core.internals.VerilogEmitterExpressionInliningTests'
+        source=(ROOT/'core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala').read_text()
+        self.assertEqual(sorted(re.findall(r'\btest\("([^"\n]+)"\)',source)),v['projects']['core'][emitter])
+        self.assertEqual(len(v['projects']['core'][emitter]),28)
         self.assertEqual(sum(sum(p.values()) for p in v['historical_counts'].values()),2064)
         for project,suites in v['historical_counts'].items():
             self.assertTrue(set(suites)<=set(v['projects'][project]))
