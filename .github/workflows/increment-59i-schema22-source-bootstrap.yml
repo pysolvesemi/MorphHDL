@@ -1,0 +1,113 @@
+name: Increment 59i schema22 exact source bootstrap
+
+on:
+  push:
+    branches: [recovery/increment-59i-history-20260914]
+    paths:
+      - .github/workflows/increment-59i-schema22-source-bootstrap.yml
+      - .github/recovery/59i-schema22-source-bootstrap/**
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-schema22-source-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      EXPECTED_PARENT: 1799c6594d88f5ecb8e025ab919cbcff3a55a429
+      EXPECTED_FEATURE: 90eb789ab8a955ffd4d3ef6a4dff575350aff771
+      EXPECTED_FEATURE_TREE: b4deca446c1d043662d2f98627cd7ad3c4347c2c
+      EXPECTED_SOURCE: aef4ffdb13043226e633ad95e9902eb4adb549a5
+      EXPECTED_SOURCE_TREE: e45e10beb0616fc74c7627cf3fa04945484b3605
+      EXPECTED_SEAL: 9c88f5f75921e28aff329e3cff2d40132315e861
+      EXPECTED_SEAL_TREE: 79df0c9df93f30ffcd94e4fe140b2b2f7e865c80
+      EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
+      EXPECTED_TARGET_TREE: ed73aee1ca0c667a1c32b181d95c431c22ea3719
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false
+          persist-credentials: true
+      - name: Authenticate exact refs and publish ordered source controller
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="${RUNNER_TEMP:?}/59i-schema22-bootstrap"
+          mkdir -p "$evidence"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          test "$(git rev-parse "$EXPECTED_FEATURE^{tree}")" = "$EXPECTED_FEATURE_TREE"
+          test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = "$EXPECTED_TARGET_TREE"
+          feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
+          target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
+          recovery=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/recovery/increment-59i-history-20260914" --jq .object.sha)
+          pr_state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .state)
+          pr_draft=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .draft)
+          pr_merged=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq '.merged_at // ""')
+          pr_head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .head.sha)
+          pr_base=$(gh api "repos/$GITHUB_REPOSITORY/pulls/177" --jq .base.ref)
+          test "$feature" = "$EXPECTED_FEATURE"
+          test "$target" = "$EXPECTED_TARGET"
+          test "$recovery" = "$GITHUB_SHA"
+          test "$pr_state" = open
+          test "$pr_draft" = true
+          test -z "$pr_merged"
+          test "$pr_head" = "$EXPECTED_FEATURE"
+          test "$pr_base" = parameterized-verilog
+          git diff --name-only HEAD^ HEAD > "$evidence/bootstrap-paths.txt"
+          diff -u <(printf '%s\n' \
+            .github/recovery/59i-schema22-source-bootstrap/increment-59i-runtime-successor-source.yml \
+            .github/recovery/59i-schema22-source-bootstrap/schema22-exact.bundle.b64 \
+            .github/workflows/increment-59i-schema22-source-bootstrap.yml) \
+            "$evidence/bootstrap-paths.txt"
+          payload=.github/recovery/59i-schema22-source-bootstrap/schema22-exact.bundle.b64
+          workflow=.github/recovery/59i-schema22-source-bootstrap/increment-59i-runtime-successor-source.yml
+          test "$(sha256sum "$payload" | cut -d' ' -f1)" = 7bcf0bf0dc7ebdf742647a16a497a575a572fe0831f4149f5e7e7bde6b9260be
+          test "$(sha256sum "$workflow" | cut -d' ' -f1)" = 2005b5dd708901b08af847fe3679d6ed236e8e2a8826ed44714137b69bcb2027
+          bundle="$RUNNER_TEMP/schema22-exact.bundle"
+          base64 -d "$payload" > "$bundle"
+          test "$(wc -c < "$bundle")" = 37419
+          test "$(sha256sum "$bundle" | cut -d' ' -f1)" = c7e2176febfe76a6e7ac2b394dd702946dfcc4b2f30710aee5a6335de73ec37a
+          git bundle verify "$bundle" | tee "$evidence/bundle-verify.txt"
+          git fetch "$bundle" refs/schema22/seal:refs/schema22/seal
+          test "$(git rev-parse refs/schema22/seal)" = "$EXPECTED_SEAL"
+          test "$(git rev-parse "$EXPECTED_SEAL^")" = "$EXPECTED_SOURCE"
+          test "$(git rev-parse "$EXPECTED_SOURCE^")" = "$EXPECTED_FEATURE"
+          test "$(git rev-parse "$EXPECTED_SEAL^{tree}")" = "$EXPECTED_SEAL_TREE"
+          test "$(git rev-parse "$EXPECTED_SOURCE^{tree}")" = "$EXPECTED_SOURCE_TREE"
+          test "$(git diff --name-only "$EXPECTED_FEATURE" "$EXPECTED_SOURCE" | wc -l)" = 18
+          test "$(git diff --name-only "$EXPECTED_SOURCE" "$EXPECTED_SEAL" | wc -l)" = 2
+          git show "$EXPECTED_SEAL:morphhdl/contracts/increment-59i-production-successor.json" > "$RUNNER_TEMP/schema22-contract.json"
+          test "$(wc -c < "$RUNNER_TEMP/schema22-contract.json")" = 7619238
+          test "$(sha256sum "$RUNNER_TEMP/schema22-contract.json" | cut -d' ' -f1)" = 4d15b1f9488fb1556db1d0f383b59473b344d81fc5d11d251248aed549b77dd0
+          cp "$workflow" .github/workflows/increment-59i-runtime-successor-source.yml
+          git add .github/workflows/increment-59i-runtime-successor-source.yml
+          git diff --cached --name-only > "$evidence/controller-paths.txt"
+          test "$(cat "$evidence/controller-paths.txt")" = .github/workflows/increment-59i-runtime-successor-source.yml
+          tree=$(git write-tree)
+          controller=$(printf '%s\n' 'Qualify schema-22 audit rejection runtime repair' | \
+            git -c user.name=github-actions -c user.email=41898282+github-actions@users.noreply.github.com \
+              commit-tree "$tree" -p "$GITHUB_SHA" -p "$EXPECTED_SEAL")
+          test "$(git rev-list --parents -n 1 "$controller")" = "$controller $GITHUB_SHA $EXPECTED_SEAL"
+          test "$(git diff --name-only "$controller^1" "$controller")" = .github/workflows/increment-59i-runtime-successor-source.yml
+          git show -s --format='%H%n%T%n%P%n%s' "$controller" | tee "$evidence/controller.txt"
+          printf 'feature=%s\ntarget=%s\nrecovery=%s\npr_state=%s\npr_draft=%s\npr_head=%s\npr_base=%s\n' \
+            "$feature" "$target" "$recovery" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" \
+            > "$evidence/live-refs.txt"
+          git push origin "$controller:refs/heads/recovery/increment-59i-history-20260914"
+          printf 'INCREMENT_59I_SCHEMA22_SOURCE_BOOTSTRAP_PASS controller=%s\n' "$controller"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-schema22-source-bootstrap-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/59i-schema22-bootstrap/
+          if-no-files-found: error
+          retention-days: 30
