@@ -1,5 +1,5 @@
 name: Increment 59i runtime successor source qualification
-# Exact schema-21 PR194 emitter-inventory repair and closed routing authentication.
+# Exact schema-22 audit-rejection runtime repair and closed routing authentication.
 
 on:
   push:
@@ -21,18 +21,18 @@ jobs:
     timeout-minutes: 360
     env:
       PYTHONDONTWRITEBYTECODE: '1'
-      EXPECTED_SEAL: 90eb789ab8a955ffd4d3ef6a4dff575350aff771
-      EXPECTED_SOURCE: aff0b4f2cfed941b2958157e48b14e5412b44aa1
-      EXPECTED_PREDECESSOR: e98e9d034ab91a791377e212bc0e4b37d8c44716
+      EXPECTED_SEAL: 9c88f5f75921e28aff329e3cff2d40132315e861
+      EXPECTED_SOURCE: aef4ffdb13043226e633ad95e9902eb4adb549a5
+      EXPECTED_PREDECESSOR: 90eb789ab8a955ffd4d3ef6a4dff575350aff771
       EXPECTED_TARGET: db54d01e5b21c7664f7a0de3795f061d77a3d259
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 90eb789ab8a955ffd4d3ef6a4dff575350aff771
+          ref: 9c88f5f75921e28aff329e3cff2d40132315e861
           fetch-depth: 0
           submodules: recursive
           persist-credentials: false
-      - name: Authenticate exact schema21 successor and unchanged live refs
+      - name: Authenticate exact schema22 successor and unchanged live refs
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -45,9 +45,9 @@ jobs:
           test "$(git rev-parse HEAD^)" = "$EXPECTED_SOURCE"
           test "$(git rev-parse HEAD^^)" = "$EXPECTED_PREDECESSOR"
           test "$(git rev-list --parents -n 1 "$EXPECTED_SOURCE")" = "$EXPECTED_SOURCE $EXPECTED_PREDECESSOR"
-          test "$(git rev-parse 'HEAD^{tree}')" = b4deca446c1d043662d2f98627cd7ad3c4347c2c
-          test "$(git rev-parse 'HEAD~1^{tree}')" = 5db76749029169c7d2c5fdd8ecc34985f6c17485
-          test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = caf705b4e4b33ed27d1dec91257df79ffaccf24c
+          test "$(git rev-parse 'HEAD^{tree}')" = 79df0c9df93f30ffcd94e4fe140b2b2f7e865c80
+          test "$(git rev-parse 'HEAD~1^{tree}')" = e45e10beb0616fc74c7627cf3fa04945484b3605
+          test "$(git rev-parse "$EXPECTED_PREDECESSOR^{tree}")" = b4deca446c1d043662d2f98627cd7ad3c4347c2c
           test "$(git rev-parse "$EXPECTED_TARGET^{tree}")" = ed73aee1ca0c667a1c32b181d95c431c22ea3719
           feature=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/agent/increment-59i-combined-reduction-closure" --jq .object.sha)
           target=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/parameterized-verilog" --jq .object.sha)
