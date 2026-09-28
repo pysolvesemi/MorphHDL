@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      EXPECTED_PARENT: 0fb1136c9476d579d94b0e214c977248e71c23aa
+      EXPECTED_PARENT: 65f58a3689a825f7e3afe63b0762c0ebd22254d9
       EXPECTED_FEATURE: 9c88f5f75921e28aff329e3cff2d40132315e861
       EXPECTED_FEATURE_TREE: 79df0c9df93f30ffcd94e4fe140b2b2f7e865c80
       EXPECTED_SOURCE: b99750e40561c55d4fd4a0a6adda05d84788fff2
@@ -64,8 +64,6 @@ jobs:
           test "$pr_base" = parameterized-verilog
           git diff --name-only HEAD^ HEAD > "$evidence/bootstrap-paths.txt"
           diff -u <(printf '%s\n' \
-            .github/recovery/59i-schema23-source-bootstrap/increment-59i-runtime-successor-source.yml \
-            .github/recovery/59i-schema23-source-bootstrap/schema23-exact.bundle \
             .github/workflows/increment-59i-schema23-source-bootstrap.yml) \
             "$evidence/bootstrap-paths.txt"
           payload=.github/recovery/59i-schema23-source-bootstrap/schema23-exact.bundle
@@ -90,11 +88,8 @@ jobs:
             "$feature" "$target" "$recovery" "$pr_state" "$pr_draft" "$pr_head" "$pr_base" > "$evidence/live-refs.txt"
           object_branch=recovery/increment-59i-schema23-objects-66db5118
           object_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$object_branch" --jq .object.sha 2>/dev/null || true)
-          if test -z "$object_sha"; then
-            git push origin "$EXPECTED_SEAL:refs/heads/$object_branch"
-          else
-            test "$object_sha" = "$EXPECTED_SEAL"
-          fi
+          test "$object_sha" = "$EXPECTED_FEATURE"
+          git push origin "$EXPECTED_SEAL:refs/heads/$object_branch"
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$object_branch" --jq .object.sha)" = "$EXPECTED_SEAL"
           printf 'seal=%s\nobject_branch=%s\n' "$EXPECTED_SEAL" "$object_branch" > "$evidence/object-publication.txt"
           printf 'INCREMENT_59I_SCHEMA23_OBJECT_BOOTSTRAP_PASS seal=%s\n' "$EXPECTED_SEAL"
