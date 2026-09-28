@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Mutation checks of the actual combined HEAD, not either parent projection."""
 import importlib.util
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
@@ -9,6 +10,29 @@ ROOT=Path(__file__).resolve().parents[2]
 PATH='morphhdl/scripts/check-pr190-pr189-source-sync.py'
 s=importlib.util.spec_from_file_location('combined_source',ROOT/PATH)
 review=importlib.util.module_from_spec(s);s.loader.exec_module(review)
+
+CURRENT_SOURCE_RECEIPT_REVIEW = 'morphhdl/scripts/test-increment-59i-pr190-integration.py'
+CURRENT_SOURCE_RECEIPT_REVIEW_SHA256 = 'c63ec24ee613195828d9ed0720aad7032c8881027836c4058b52ce530bff0522'
+
+
+def authenticated_current_result():
+    """Reuse only an exact same-job receipt; standalone calls fully verify."""
+    path = ROOT / CURRENT_SOURCE_RECEIPT_REVIEW
+    if not path.is_file() or path.is_symlink():
+        raise RuntimeError('missing or linked current-source receipt reviewer')
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != CURRENT_SOURCE_RECEIPT_REVIEW_SHA256:
+        raise RuntimeError('current-source receipt reviewer changed')
+    spec = importlib.util.spec_from_file_location('current_source_receipt_review', path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError('cannot load current-source receipt reviewer')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    receipt = module.authenticated_current_source_receipt(ROOT)
+    if receipt is None:
+        return review.verify(ROOT)
+    retained = review.retained_schema7_sync(ROOT)
+    return {'head': receipt['head'], 'implementation_paths': retained['implementation_paths']}
 
 
 def cdc_shell_contract(source):
@@ -193,7 +217,7 @@ def ci_gate_controls():
 def main():
     shell_controls()
     ci_gate_controls()
-    result=review.verify(ROOT)
+    result=authenticated_current_result()
     paths=sorted(set(result['implementation_paths'])|review.RECONCILED)
     rejected=0
     with tempfile.TemporaryDirectory(prefix='pr190-pr189-mutations-') as td:

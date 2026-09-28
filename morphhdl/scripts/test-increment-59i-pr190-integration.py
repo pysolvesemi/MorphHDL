@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib.util
 import json
 import os
@@ -35,6 +36,133 @@ def git(root, *args, data=None):
     if result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace'))
     return result.stdout
+
+
+LOCAL_ENABLE_WORKFLOW = '.github/workflows/increment-59i-local-enable-committed-head.yml'
+LOCAL_ENABLE_WORKFLOW_SHA256 = 'af61ce0d634c23b738146eef8dcd45c22fc667226f79f54ea849696d3f289369'
+LOCAL_ENABLE_RECEIPT = 'target/increment-59i-local-enable-committed/pr190-source.log'
+LOCAL_ENABLE_REF = 'agent/increment-59i-combined-reduction-closure'
+
+
+def expected_current_source_receipt(root: Path) -> dict:
+    production = review.source_review(root)
+    value = production.contract(root)
+    contract_version = value['schema_version']
+    checkpoint = (production.SCHEMA_COMBINED_CHECKPOINT
+        if contract_version in (18, 19, 20, 21, 22, 23) else production.DOCUMENTATION_CHECKPOINT
+        if contract_version in (11, 12, 13, 14, 15, 16, 17) else production.CURRENT_CHECKPOINT
+        if contract_version == 10 else production.SUBSTANTIVE_CHECKPOINT)
+    return {
+        'checkpoint': checkpoint,
+        'expected_suites': 230,
+        'expected_testcases': 2307,
+        'head': git(root, 'rev-parse', 'HEAD').decode().strip(),
+        'qualification': 'source identity only; no runtime proof credit',
+        'runtime_files': len({path for path in production.tree(root, 'HEAD')
+            if review.runtime(path)}),
+        'source': value['source_commit'],
+        'target': production.target_anchor(root),
+        'target_records': len(value['target_integration']['files']),
+    }
+
+
+def authenticated_current_source_receipt(root: Path = ROOT, *, environment=None,
+        receipt_path: Path | None = None, workflow_raw: bytes | None = None) -> dict | None:
+    environment = os.environ if environment is None else environment
+    if environment.get('GITHUB_ACTIONS') != 'true':
+        return None
+    if environment.get('GITHUB_WORKFLOW') != \
+            'Increment 59i committed-head local-enable qualification':
+        return None
+    def require(condition, message):
+        if not condition:
+            raise RuntimeError(message)
+    require(environment.get('GITHUB_JOB') == 'source',
+        'current-source receipt used outside exact source job')
+    require(environment.get('GITHUB_EVENT_NAME') in ('push', 'pull_request', 'workflow_dispatch'),
+        'current-source receipt used for unsupported event')
+    require((environment.get('GITHUB_HEAD_REF') or environment.get('GITHUB_REF_NAME')) ==
+        LOCAL_ENABLE_REF, 'current-source receipt feature ref changed')
+    require(Path(environment.get('GITHUB_WORKSPACE', '')).resolve() == root.resolve(),
+        'current-source receipt workspace changed')
+    workflow = ((root / LOCAL_ENABLE_WORKFLOW).read_bytes()
+        if workflow_raw is None else workflow_raw)
+    require(hashlib.sha256(workflow).hexdigest() == LOCAL_ENABLE_WORKFLOW_SHA256,
+        'local-enable workflow changed')
+    source_command = b'python3 morphhdl/scripts/check-increment-59i-pr190-integration.py | tee "$out/pr190-source.log"'
+    test_command = b'python3 morphhdl/scripts/test-increment-59i-pr190-integration.py | tee "$out/pr190-integration-tests.log"'
+    require(workflow.count(source_command) == 1 and workflow.count(test_command) == 1 and
+        workflow.index(source_command) < workflow.index(test_command),
+        'current-source receipt producer order changed')
+    receipt = root / LOCAL_ENABLE_RECEIPT if receipt_path is None else receipt_path
+    require(receipt.is_file() and not receipt.is_symlink(),
+        'missing or linked current-source receipt')
+    lines = receipt.read_text().splitlines()
+    prefix = '59I_PR190_CURRENT_SOURCE_PASS '
+    require(len(lines) == 1 and lines[0].startswith(prefix),
+        'invalid current-source receipt framing')
+    try:
+        actual = json.loads(lines[0][len(prefix):])
+    except (json.JSONDecodeError, TypeError) as error:
+        raise RuntimeError('invalid current-source receipt JSON') from error
+    require(actual == expected_current_source_receipt(root),
+        'stale or forged current-source receipt')
+    require(not git(root, 'status', '--porcelain', '--untracked-files=all'),
+        'current-source receipt checkout became dirty')
+    return actual
+
+
+def current_source_receipt_controls() -> None:
+    expected = expected_current_source_receipt(ROOT)
+    prefix = '59I_PR190_CURRENT_SOURCE_PASS '
+    environment = {
+        'GITHUB_ACTIONS': 'true',
+        'GITHUB_WORKFLOW': 'Increment 59i committed-head local-enable qualification',
+        'GITHUB_JOB': 'source',
+        'GITHUB_EVENT_NAME': 'workflow_dispatch',
+        'GITHUB_REF_NAME': LOCAL_ENABLE_REF,
+        'GITHUB_WORKSPACE': str(ROOT),
+    }
+    rejected = 0
+    with tempfile.TemporaryDirectory(prefix='59i-current-source-receipt-') as temporary:
+        receipt = Path(temporary) / 'receipt.log'
+        receipt.write_text(prefix + json.dumps(expected, sort_keys=True) + '\n')
+        assert authenticated_current_source_receipt(
+            ROOT, environment=environment, receipt_path=receipt) == expected
+        assert authenticated_current_source_receipt(ROOT, environment=dict(environment,
+            GITHUB_WORKFLOW='Increment 59i runtime successor source qualification'),
+            receipt_path=receipt) is None
+        for key in ('head', 'source', 'target', 'checkpoint', 'runtime_files',
+                    'expected_testcases', 'target_records'):
+            changed = dict(expected)
+            changed[key] = ('0' * 40 if isinstance(changed[key], str) else changed[key] + 1)
+            receipt.write_text(prefix + json.dumps(changed, sort_keys=True) + '\n')
+            try:
+                authenticated_current_source_receipt(
+                    ROOT, environment=environment, receipt_path=receipt)
+            except RuntimeError:
+                rejected += 1
+            else:
+                raise AssertionError('accepted forged current-source receipt field: ' + key)
+        receipt.write_text(prefix + json.dumps(expected, sort_keys=True) + '\n')
+        linked = Path(temporary) / 'linked.log'
+        linked.symlink_to(receipt)
+        try:
+            authenticated_current_source_receipt(
+                ROOT, environment=environment, receipt_path=linked)
+        except RuntimeError:
+            rejected += 1
+        else:
+            raise AssertionError('accepted linked current-source receipt')
+        try:
+            authenticated_current_source_receipt(ROOT, environment=dict(environment,
+                GITHUB_REF_NAME='agent/unreviewed'), receipt_path=receipt)
+        except RuntimeError:
+            rejected += 1
+        else:
+            raise AssertionError('accepted current-source receipt from another ref')
+    assert rejected == 9, rejected
+    print('59i current-source receipt controls PASS rejected=9', flush=True)
 
 
 class Pr190IntegrationTests(unittest.TestCase):
@@ -323,7 +451,7 @@ class Schema6BudgetTests(unittest.TestCase):
         git(ROOT, 'worktree', 'add', '--quiet', '--detach', str(cls.root), cls.head)
         cls.addClassCleanup(git, ROOT, 'worktree', 'remove', '--force', str(cls.root))
         cls.production = review.source_review(cls.root)
-        if cls.production.contract(cls.root)['schema_version'] not in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22):
+        if cls.production.contract(cls.root)['schema_version'] not in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23):
             raise RuntimeError('current regression-budget controls require schema 6 or 7')
         cls.path = cls.root / '.github/workflows/increment-60f-equivalence-closure.yml'
         cls.original = cls.path.read_bytes()
@@ -365,9 +493,12 @@ def run_schema6_retained_tests():
     both sides.  The retained suite keeps testing its original target
     checkpoint fields without weakening or silently rewriting those tests.
     """
-    review.verify(ROOT)
+    current_source_receipt_controls()
+    receipt = authenticated_current_source_receipt(ROOT)
+    if receipt is None:
+        review.verify(ROOT)
     schema = review.source_review(ROOT).contract(ROOT)['schema_version']
-    if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22):
+    if schema in (8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23):
         raw = git(ROOT, 'show', SCHEMA7_SEAL + ':' + HISTORICAL_TEST)
         if __import__('hashlib').sha256(raw).hexdigest() != SCHEMA7_TEST_SHA256:
             raise RuntimeError('immutable schema-7 PR190 mutation suite changed')
@@ -384,7 +515,14 @@ def run_schema6_retained_tests():
                     raise RuntimeError('retained schema-7 PR190 mutation suite dirtied its checkout')
             finally:
                 git(ROOT, 'worktree', 'remove', '--force', str(root))
-        review.verify(ROOT)
+        if receipt is None:
+            review.verify(ROOT)
+        else:
+            # The retained suite runs in an isolated worktree. Reauthenticate
+            # the same fail-closed receipt, live HEAD and clean checkout after
+            # it, without replaying the complete current-tree verifier that the
+            # immediately preceding sealed command already completed.
+            authenticated_current_source_receipt(ROOT)
         print('59i PR190 schema-8/9 review plus exact retained schema-7 controls PASS',
             flush=True)
         return
@@ -413,7 +551,7 @@ def run_schema6_retained_tests():
 
 
 if __name__ == '__main__':
-    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22):
+    if review.source_review(ROOT).contract(ROOT)['schema_version'] in (6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23):
         run_schema6_retained_tests()
     else:
         unittest.main(defaultTest='Pr190IntegrationTests', verbosity=2)
