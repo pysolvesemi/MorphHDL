@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "8f6b7e8376be4278fcd91629b7f09b986e021926",
+  "final_source_commit": "2e32c16b27dd04687121fa03a102e4bcf42c4bfd",
   "helper_normalized_sha256": "63848a0970100b7bdd9153b30c9982a5a9e10dd4452c53c9a17d9e15f2700056",
   "files": [
     {
@@ -116,7 +116,7 @@
       "path": ".github/workflows/morphhdl-passes.yml",
       "mode": "100644",
       "before_sha256": "54beebeabbb2ae768ae22f86ed18f38e0fd2cf171dc33b81ac82a2ee5d5f4609",
-      "after_sha256": "dfd940a5c0d668e1bb5caef12dd2db4199dd1db41488bd35411e4ca59c2fa80b"
+      "after_sha256": "63c001ea36fb974f07ec3b945719e4c82c9638ef5371917d1b50e3a4c91d8800"
     },
     {
       "path": ".github/workflows/pr189-60b-source-repair.yml",
@@ -1436,7 +1436,7 @@
       "path": "morphhdl-passes/scripts/check-boundary.sh",
       "mode": "100755",
       "before_sha256": "0ab78917546654ac537dc345cfee8e0bfb29c5d08e9090f7b513069a6422322d",
-      "after_sha256": "3705894632f45c9a79f7a5f898f05bbd0a5154869cd9359db8823dd77d19f389"
+      "after_sha256": "2d4ebd16a95a6599055b7631d5ca78dae589cdbc7eddb56672e980c53638f0f9"
     },
     {
       "path": "morphhdl-passes/scripts/check-cdc-publication-cleanup.py",
@@ -1721,10 +1721,16 @@
       "after_sha256": "61e024190a05ae76bffbc3e32585ee169a2296acfd94a60f2ae7e38694dc1dd1"
     },
     {
+      "path": "morphhdl/contracts/parameter-extension-regression-cases.json",
+      "mode": "100644",
+      "before_sha256": null,
+      "after_sha256": "181c8797abec42e47fb539e698cbed9a606b146bb8203f32586e7eeafd6b58d0"
+    },
+    {
       "path": "morphhdl/contracts/parameter-extension-source-review.json",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "aa1539fcd4b3edc7c94ff4277fd1ce1cf0cbfe2fe5a3e815115e63b806786677"
+      "after_sha256": "e26b6f379504822d9035a5549feb3cdbf75b621e9eaec78ba2a09ce6f9c24d8a"
     },
     {
       "path": "morphhdl/contracts/wa10-source-scope.json",
@@ -1748,13 +1754,13 @@
       "path": "morphhdl/scripts/check-cdc-wire-regressions.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "ec113dade9824c530dd44beff34730eafb553e380a7d49bed52e4d4d38c9085a"
+      "after_sha256": "cf2c6678f9207a8634c393e3bcf866a1b42597eb82cd94b1abd6ed472d5cc93a"
     },
     {
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "1a0a4c076fc3bdea90d2ee107aa3d2c7a59e2041ff5f76a33e0b10359bd6cbb1"
+      "after_sha256": "aba2ee97fae9ce1fa63b1c916d2830c810217d1fffc74643f3e098b084e44ff7"
     },
     {
       "path": "morphhdl/scripts/check-contracts.sh",
@@ -1832,7 +1838,7 @@
       "path": "morphhdl/scripts/check-parameter-extension-source.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "55bed4108dca7040505c97925378fda4cf4d497624b4be63427ce42d24091978"
+      "after_sha256": "e2d7c262bd7d9534b050aa72f211975b253184289a0ebcddc6b8f9264aef9fce"
     },
     {
       "path": "morphhdl/scripts/check-pr190-pr189-source-sync.py",
