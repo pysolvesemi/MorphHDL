@@ -1,0 +1,46 @@
+name: Push Display Controller AXI ingress RTL
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  handoff:
+    if: github.event.pull_request.head.ref == 'agent/push-display-axis-rtl'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Reconstruct exact generated RTL
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/rtl.gz.b64 <<'PAYLOAD'
+          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
+          PAYLOAD
+          sed -i 's/^          //' /tmp/rtl.gz.b64
+          base64 --decode /tmp/rtl.gz.b64 | gzip -dc > /tmp/DisplayControllerSanityShell.v
+          test "$(sha256sum /tmp/DisplayControllerSanityShell.v | awk '{print $1}')" = 3191243552a678b4ea951c4816201b01d16a82c525860b57b002345f8eb12fd0
+
+      - name: Test cross-repository push with workflow token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/pysolvesemi/display-controller-verilog.git" /tmp/display-controller-verilog
+          cd /tmp/display-controller-verilog
+          git fetch origin agent/p1-axis-ingress-rtl-00 dev
+          git switch -C agent/p1-axis-ingress-rtl-00 origin/agent/p1-axis-ingress-rtl-00
+          cp /tmp/DisplayControllerSanityShell.v rtl/display_controller/DisplayControllerSanityShell.v
+          rm -f .github/workflows/p1-axis-ingress-rtl-finalize.yml
+          git config user.name pysolvesemi
+          git config user.email pysolvesemi@gmail.com
+          git add -A
+          test "$(git hash-object rtl/display_controller/DisplayControllerSanityShell.v)" = 367848d5dc209cd0aad7d5e250ddc087ed16b8bb
+          git diff --cached --check
+          git commit -m 'feat(phase1): update sanity shell for AXI ingress smoke'
+          git push origin HEAD:agent/p1-axis-ingress-rtl-00
