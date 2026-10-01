@@ -33,6 +33,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
   private final case class ClassifiedTrees(
       typedIfs: IdentityHashMap[Tree, java.lang.Boolean],
+      typedMatches: IdentityHashMap[Tree, java.lang.Boolean],
       typedGenerates: IdentityHashMap[Tree, java.lang.Boolean],
       typedRequires: IdentityHashMap[Tree, java.lang.Boolean],
       typedEqualities: IdentityHashMap[Tree, java.lang.Boolean]
@@ -181,6 +182,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     */
   private def classify(tree: Tree): ClassifiedTrees = {
     val typedIfs = new IdentityHashMap[Tree, java.lang.Boolean]()
+    val typedMatches = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedGenerates = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedRequires = new IdentityHashMap[Tree, java.lang.Boolean]()
     val typedEqualities = new IdentityHashMap[Tree, java.lang.Boolean]()
@@ -828,6 +830,10 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
             traverse(branch.body)
           }
 
+        case original: Match =>
+          if (isTypedBoolean(original.selector)) mark(typedMatches, original)
+          super.traverse(original)
+
         case original: If =>
           if (isTypedBoolean(original.cond)) mark(typedIfs, original)
           super.traverse(original)
@@ -862,6 +868,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     Classifier.traverse(tree)
     ClassifiedTrees(
       typedIfs,
+      typedMatches,
       typedGenerates,
       typedRequires,
       typedEqualities
@@ -1036,6 +1043,34 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
 
     private def function0(body: Tree): Tree = Function(Nil, body)
 
+    private def rewriteBooleanMatch(original: Match): Tree = {
+      def literal(tree: Tree): Option[Boolean] = tree match {
+        case Literal(Constant(value: Boolean)) => Some(value)
+        case _ => None
+      }
+      val branches = original.cases
+      val supported = branches.size == 2 && branches.forall(_.guard.isEmpty) &&
+        literal(branches.head.pat).nonEmpty &&
+        (literal(branches(1).pat).exists(_ != literal(branches.head.pat).get) ||
+          (branches(1).pat match {
+            case Ident(name) if name == termNames.WILDCARD => true
+            case _ => false
+          }))
+      if (!supported) {
+        reporter.error(original.pos,
+          "[MORPHDL-TYPED-BOOLEAN-MATCH-UNSUPPORTED] typed Boolean match requires two exhaustive unguarded true/false alternatives")
+        original
+      } else {
+        val firstTrue = literal(branches.head.pat).get
+        val whenTrue = if (firstTrue) branches.head.body else branches(1).body
+        val whenFalse = if (firstTrue) branches(1).body else branches.head.body
+        val result = Apply(Apply(Apply(helperMethod("selectSymbolic"), List(
+          condition(original.selector), Literal(Constant(sourceFile)), Literal(Constant(sourceLine(original))))),
+          List(transform(whenTrue))), List(transform(whenFalse)))
+        result.setPos(original.pos)
+      }
+    }
+
     private def rewriteIf(original: If): Tree = {
       val (alternatives, otherwise) = collectChain(original)
       val rewritten =
@@ -1126,6 +1161,8 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
     }
 
     override def transform(tree: Tree): Tree = tree match {
+      case original: Match if classified.typedMatches.containsKey(original) =>
+        rewriteBooleanMatch(original)
       case original: If if classified.typedIfs.containsKey(original) =>
         rewriteIf(original)
       case original @ Apply(Select(predicate, _), List(body))
@@ -1147,6 +1184,7 @@ final class MorphHdlTypedElaborationControlComponent(val global: Global)
       val classified = classify(unit.body)
       if (
         !classified.typedIfs.isEmpty ||
+        !classified.typedMatches.isEmpty ||
         !classified.typedGenerates.isEmpty ||
         !classified.typedRequires.isEmpty ||
         !classified.typedEqualities.isEmpty

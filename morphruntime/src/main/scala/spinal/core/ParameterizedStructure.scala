@@ -106,6 +106,8 @@ object ParameterizedStructure {
       ElaborationIntegerParameterRoot,
       StructuralPredicateRoot
     ]()
+    val jointPredicateRoots = mutable.HashMap.empty[
+      Vector[(ElaborationIntegerParameterRoot, Vector[BigInt])], StructuralPredicateRoot]
     val blocksByCaptureId = mutable.LinkedHashMap.empty[
       Long,
       ParameterizedStructuralBlock
@@ -133,7 +135,9 @@ object ParameterizedStructure {
       val id: Long,
       val ownerRoot: Option[ElaborationIntegerParameterRoot],
       val ownerAdmitted: Option[Set[BigInt]],
-      val parent: Option[CaptureState]
+      val parent: Option[CaptureState],
+      val ownerDomains: Vector[(ElaborationIntegerParameterRoot, Set[BigInt])] = Vector.empty,
+      val ownerJoint: Option[(ElaborationProductDomain.StructuralPredicate, Int)] = None
   ) {
     val slices = ArrayBuffer.empty[StructuralSlice]
     val vecIndices = ArrayBuffer.empty[StructuralVecIndex]
@@ -212,7 +216,8 @@ object ParameterizedStructure {
   private[core] final case class StructuralPredicateDomain(
       root: StructuralPredicateRoot,
       universe: Set[BigInt],
-      whenTrue: Set[BigInt]
+      whenTrue: Set[BigInt],
+      joint: Option[ElaborationProductDomain.StructuralPredicate] = None
   ) {
     require(root.minimum <= root.maximum)
     require(root.default >= root.minimum && root.default <= root.maximum)
@@ -370,6 +375,49 @@ object ParameterizedStructure {
 
   private val activeCapture = new ThreadLocal[CaptureState]()
 
+  /** A complete alternative is atomic, including a successfully captured
+    * first branch followed by a rejected second branch. Keep ordinal counters
+    * monotonic so an escaped failed handle cannot acquire a future identity.
+    */
+  private[core] def transaction[T](component: Component)(body: => T): T = {
+    if (component == null) return body
+    val storage = storageOf(component)
+    val statements = allStatementsOf(component)
+    val children = component.children.toVector
+    val regions = storage.regions.toVector
+    val pending = storage.pending.toVector
+    val labels = storage.labels.toVector
+    val blocks = storage.blocksByCaptureId.toVector
+    val jointRoots = storage.jointPredicateRoots.toVector
+    def snapshot[K, V](values: IdentityHashMap[K, V]): () => Unit = {
+      val before = new IdentityHashMap[K, V](values)
+      () => { values.clear(); values.putAll(before) }
+    }
+    val restoreIdentities = Vector(
+      snapshot(storage.typedPredicateRoots), snapshot(storage.lexicalOwners),
+      snapshot(storage.lexicalRegionOwners), snapshot(storage.finiteIndexOwners),
+      snapshot(storage.exactCaseCaptures), snapshot(storage.typedCaseRegions))
+    val enclosing = Option(activeCapture.get()).filter(_.component eq component)
+    val enclosingRegions = enclosing.map(_.regions.toVector)
+    NativeSymbolicLegality.transaction(component) {
+      try body catch {
+        case error: Throwable =>
+          rollbackNewStatements(component, statements)
+          rollbackNewChildren(component, children)
+          storage.regions.clear(); storage.regions ++= regions
+          storage.pending.clear(); storage.pending ++= pending
+          storage.labels.clear(); storage.labels ++= labels
+          storage.blocksByCaptureId.clear(); storage.blocksByCaptureId ++= blocks
+          storage.jointPredicateRoots.clear(); storage.jointPredicateRoots ++= jointRoots
+          restoreIdentities.foreach(_())
+          enclosing.foreach { value =>
+            value.regions.clear(); value.regions ++= enclosingRegions.get
+          }
+          throw error
+      }
+    }
+  }
+
   /** True only while constructing a component for parameterized Verilog. */
   def captureEnabled: Boolean =
     (Component.current ne null) &&
@@ -437,12 +485,43 @@ object ParameterizedStructure {
     block
   }
 
+  private[core] def captureJointBlock(component: Component,
+      proof: ElaborationProductDomain.StructuralPredicate, branch: Int,
+      sourceLocation: Option[String])(body: => Unit): ParameterizedStructuralBlock = {
+    val domains = proof.axes.map { case (root, _) =>
+      val schema = proof.parameters.find(parameter => root.isAuthoritativeSchema(parameter)).get
+      val universe = ElaborationExactDomain.boundedValues(schema.minimum, schema.maximum).toSet
+      root -> proof.admitted(root, universe, branch)
+    }
+    if (domains.exists(_._2.isEmpty))
+      fail("SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
+        "structural product alternative is empty", sourceLocation)
+    def enter(index: Int): ParameterizedStructuralBlock =
+      if (index == domains.size)
+        captureBlockWithOwnerRoot(component, sourceLocation, None, None, domains, Some(proof -> branch))(body)
+      else ElaborationDomainContext.withAdmitted(domains(index)._1, domains(index)._2, sourceLocation) {
+        enter(index + 1)
+      }
+    enter(0)
+  }
+
+  private[core] def jointPredicateDomainOf(component: Component,
+      proof: ElaborationProductDomain.StructuralPredicate): StructuralPredicateDomain = {
+    val root = storageOf(component).jointPredicateRoots.getOrElseUpdate(proof.axes,
+      new StructuralPredicateRoot("<exact typed product>", proof.defaultIndex, 0,
+        proof.tuples.size - 1, proof.parameters))
+    StructuralPredicateDomain(root, proof.tuples.indices.map(BigInt(_)).toSet,
+      proof.indices(0), Some(proof))
+  }
+
   private def captureBlockWithOwnerRoot(
       component: Component,
       sourceLocation: Option[String],
       ownerRoot: Option[ElaborationIntegerParameterRoot],
-      ownerAdmitted: Option[Set[BigInt]] = None
-  )(body: => Unit): ParameterizedStructuralBlock = {
+      ownerAdmitted: Option[Set[BigInt]] = None,
+      ownerDomains: Vector[(ElaborationIntegerParameterRoot, Set[BigInt])] = Vector.empty,
+      ownerJoint: Option[(ElaborationProductDomain.StructuralPredicate, Int)] = None
+  )(body: => Unit): ParameterizedStructuralBlock = transaction(component) {
     if (component eq null) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-COMPONENT-MISSING",
@@ -471,6 +550,7 @@ object ParameterizedStructure {
     val beforeStatements = component.dslBody.statementIterable.toVector
     val beforeHardwareStatements = allStatementsOf(component)
     val beforeChildren = component.children.toVector
+    val beforeLegality = NativeSymbolicLegality.checkpoint(component)
     val storage = storageOf(component)
     storage.nextCaptureId += 1
     val state = new CaptureState(
@@ -479,13 +559,15 @@ object ParameterizedStructure {
       storage.nextCaptureId,
       ownerRoot,
       ownerAdmitted,
-      Option(previousCapture).filter(_.component eq component)
+      Option(previousCapture).filter(_.component eq component),
+      ownerDomains,
+      ownerJoint
     )
     activeCapture.set(state)
 
     var accepted = false
     try {
-      try body
+      try NativeSymbolicLegality.withScope(() => NativeStructuralLegality.currentOwner())(body)
       finally {
         if (previousCapture eq null) activeCapture.remove()
         else activeCapture.set(previousCapture)
@@ -713,6 +795,7 @@ object ParameterizedStructure {
       result
     } finally {
       if (!accepted) {
+        NativeSymbolicLegality.rollback(component, beforeLegality)
         rollbackNewStatements(component, beforeHardwareStatements)
         rollbackNewChildren(component, beforeChildren)
       }
@@ -1000,6 +1083,44 @@ object ParameterizedStructure {
     }
   }
 
+  private[core] def jointPredicatesOfLexicalOwner(owner: ParameterizedStructuralLexicalOwner):
+      Vector[(ElaborationProductDomain.StructuralPredicate, Int)] = {
+    val storage = storageOf(owner.component)
+    if (!storage.lexicalOwners.containsKey(owner))
+      fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-IDENTITY-MISMATCH",
+        "legality classification requires its issued owner identity", owner.sourceLocation)
+    val result = ArrayBuffer.empty[(ElaborationProductDomain.StructuralPredicate, Int)]
+    var state = Option(storage.lexicalOwners.get(owner))
+    while (state.nonEmpty) {
+      val current = state.get
+      current.ownerJoint.foreach(result.prepend(_))
+      state = current.parent
+    }
+    result.toVector
+  }
+
+  /** Resolve activation only after validating the issued owner and every
+    * registered ancestor. Branch positions refer to exact block identities.
+    */
+  private[core] def pathOfLexicalOwner(
+      owner: ParameterizedStructuralLexicalOwner
+  ): Vector[(StructuralRegion, Int)] = {
+    val block = blockOfLexicalOwner(owner)
+    if (block.isEmpty) return Vector.empty
+    val matches = ArrayBuffer.empty[Vector[(StructuralRegion, Int)]]
+    def visit(regions: Vector[StructuralRegion], path: Vector[(StructuralRegion, Int)]): Unit =
+      regions.foreach { region =>
+        region.blocks.zipWithIndex.foreach { case (current, branch) =>
+          val next = path :+ (region -> branch)
+          if (current eq block.get) matches += next
+          visit(current.regions, next)
+        }
+      }
+    visit(regionsOf(owner.component), Vector.empty)
+    require(matches.size == 1, "legality owner needs one exact activation path")
+    matches.head
+  }
+
   /** Re-enter only the immutable exact branch domains which originally owned
     * this handle. Native graph freshness checks run after elaboration, when
     * the original dynamic domain stack has already been restored.
@@ -1022,20 +1143,17 @@ object ParameterizedStructure {
       lineage.prepend(current)
       state = current.parent
     }
-    def enter(index: Int): T = if (index == lineage.size) body else {
-      val current = lineage(index)
+    val domains = lineage.toVector.flatMap { current =>
       (current.ownerRoot, current.ownerAdmitted) match {
-        case (Some(root), Some(admitted)) =>
-          ElaborationDomainContext.withAdmitted(root, admitted, current.sourceLocation) {
-            enter(index + 1)
-          }
-        case (None, None) => enter(index + 1)
-        case _ =>
-          fail(
-            "SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-EVIDENCE-MISSING",
-            s"${owner.role} lost its exact captured branch-domain evidence",
-            owner.sourceLocation
-          )
+        case (Some(root), Some(admitted)) => Vector(root -> admitted) ++ current.ownerDomains
+        case (None, None) => current.ownerDomains
+        case _ => fail("SPINAL-PARAMETERIZED-VERILOG-STRUCTURAL-LEXICAL-DOMAIN-EVIDENCE-MISSING",
+          s"${owner.role} lost its captured branch-domain evidence", owner.sourceLocation)
+      }
+    }
+    def enter(index: Int): T = if (index == domains.size) body else {
+      ElaborationDomainContext.withAdmitted(domains(index)._1, domains(index)._2, owner.sourceLocation) {
+        enter(index + 1)
       }
     }
     enter(0)
@@ -2710,7 +2828,7 @@ object ParameterizedStructure {
     val matches = capturedDeclarations(regionsOf(component)).collect {
       case value if value.declaration eq declaration => value.path
     }
-    exactNativeObjectDomainOf(
+    val local = exactNativeObjectDomainOf(
       component,
       matches,
       allStatementsOf(component).exists(_ eq declaration),
@@ -2719,6 +2837,17 @@ object ParameterizedStructure {
       role,
       sourceLocation
     )
+    var values = local.values
+    var captured = local.captured
+    var child = component
+    while (child.parent != null) {
+      jointChildOwner(child.parent, child).foreach { owner =>
+        values = values intersect owner.admitted(root, universe, role, sourceLocation)
+        captured = true
+      }
+      child = child.parent
+    }
+    ExactNativeObjectDomain(values, captured)
   }
 
   /** Exact-assignment counterpart of [[exactDeclarationDomainOf]]. The
@@ -2782,6 +2911,59 @@ object ParameterizedStructure {
       role,
       sourceLocation
     )
+  }
+
+  /** Exact capability for inherited child axes below a certified product
+    * predicate. It does not authorize a formal remapping or a sliced wire.
+    */
+  private[core] final class JointChildOwner private[ParameterizedStructure] (
+      val parent: Component, val child: Component, private val path: Vector[AlternativeStep]) {
+    def validate(): Unit = {
+      val matches = capturedChildren(regionsOf(parent)).filter(_.child eq child)
+      val same = matches.size == 1 && matches.head.path.size == path.size &&
+        matches.head.path.zip(path).forall { case (left, right) =>
+          (left.region eq right.region) && left.branch == right.branch
+        }
+      if (!same || !parent.children.exists(_ eq child))
+        fail("SPINAL-ELAB-JOINT-CHILD-OWNER-MISMATCH", "joint child lost its exact captured instance path")
+      val storage = storageOf(parent)
+      path.zipWithIndex.foreach { case (step, index) =>
+        if (!storage.lexicalRegionOwners.containsKey(step.region))
+          fail("SPINAL-ELAB-JOINT-CHILD-OWNER-MISMATCH", "joint child has an unregistered structural region")
+        val registered = storage.lexicalRegionOwners.get(step.region)
+        val parentMatches = if (index == 0) registered == null else {
+          val previous = path(index - 1)
+          registered != null && storage.blocksByCaptureId.get(registered.id)
+            .exists(_ eq previous.region.blocks(previous.branch))
+        }
+        if (!parentMatches)
+          fail("SPINAL-ELAB-JOINT-CHILD-OWNER-MISMATCH", "joint child structural ancestry changed")
+        step.region match {
+          case value: StructuralIf => value.predicateDomain.flatMap(_.joint)
+            .foreach(_.requireCondition(value.condition))
+          case _ =>
+        }
+      }
+    }
+    def admitted(root: ElaborationIntegerParameterRoot, universe: Set[BigInt],
+        role: String, location: Option[String]): Set[BigInt] = {
+      validate()
+      exactChildDomainOf(parent, child, root, universe, role, location).values
+    }
+  }
+
+  private[core] def jointChildOwner(parent: Component, child: Component): Option[JointChildOwner] = {
+    if (parent == null || child == null) return None
+    val matches = capturedChildren(regionsOf(parent)).filter(_.child eq child)
+    if (matches.size != 1 || !matches.head.path.exists(_.region match {
+        case value: StructuralIf => value.predicateDomain.exists(_.joint.nonEmpty)
+        case _ => false
+      })) None
+    else {
+      val owner = new JointChildOwner(parent, child, matches.head.path)
+      owner.validate()
+      Some(owner)
+    }
   }
 
   /** Exact-child counterpart of [[exactDeclarationDomainOf]]. */
@@ -3136,6 +3318,11 @@ object ParameterizedStructure {
               sourceLocation.orElse(value.sourceLocation)
             )
           }
+          if (domain.joint.nonEmpty) {
+            val proof = domain.joint.get
+            proof.requireCondition(value.condition)
+            remaining intersect proof.admitted(root, universe, step.branch)
+          } else {
           val predicateRoot = domain.root.elaborationRoot.getOrElse {
             fail(
               "SPINAL-ELAB-PROJECTION-STRUCTURAL-DOMAIN-UNPROVEN",
@@ -3167,6 +3354,7 @@ object ParameterizedStructure {
             }
             remaining intersect allowed
           } else remaining
+          }
 
         case value: StructuralCase =>
           val domain = value.selector.exactDomain.getOrElse {
@@ -3653,6 +3841,7 @@ object ParameterizedStructure {
   ): Unit = {
     ElabInt.validateExpression(condition, "generate-if condition")
     val normalizedCondition = ElabInt.withCompleteParameterRoots(condition)
+    predicateDomain.flatMap(_.joint).foreach(_.requireCondition(normalizedCondition))
     val storage = storageOf(pending.component)
     requirePending(storage, pending)
     reserveName(storage, whenTrueLabel, "generate-if true label", sourceLocation)

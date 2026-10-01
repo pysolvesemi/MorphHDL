@@ -164,6 +164,35 @@ object ElabControl {
         "structural requirement is not universally proven: " + String.valueOf(message), rendered(sourceFile, sourceLine))
   }
 
+  private final class PredicateCapture(component: Component, condition: ElabBool,
+      source: Option[String]) {
+    val projected = condition.projectedExpression("typed conditional")
+    private val exact = condition.expression.exactDomain
+    private val joint = if (exact.nonEmpty) None else {
+      if (!ElaborationProductDomain.isRetained(projected))
+        ParameterizedVerilogException.fail("SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
+          "typed conditional lacks authenticated exact evidence", source)
+      Some(ElaborationProductDomain.structuralPredicate(projected))
+    }
+    private val alternatives = exact.map { value =>
+      val admitted = ElaborationDomainContext.admitted(value)
+      Vector(admitted.filter(n => value.evaluate(n).contains(true)),
+        admitted.filter(n => value.evaluate(n).contains(false)))
+    }
+    if (alternatives.exists(_.exists(_.isEmpty)) || joint.exists(value =>
+        value.indices(0).isEmpty || value.indices(1).isEmpty))
+      ParameterizedVerilogException.fail("SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
+        "typed conditional was captured although its active domain is constant", source)
+    val domain = joint.map(value => ParameterizedStructure.jointPredicateDomainOf(component, value))
+      .getOrElse(ParameterizedStructure.typedPredicateDomainOf(component, condition.expression))
+    def block(branch: Int, location: Option[String])(body: => Unit): ParameterizedStructuralBlock =
+      exact match {
+        case Some(value) => ParameterizedStructure.captureExactBlock(
+          component, value.root, alternatives.get(branch), location)(body)
+        case None => ParameterizedStructure.captureJointBlock(component, joint.get, branch, location)(body)
+      }
+  }
+
   private def captureOne[T](
       condition: ElabBool,
       sourceFile: String,
@@ -173,7 +202,7 @@ object ElabControl {
       continuation: Boolean,
       ifTrue: () => T,
       ifFalse: () => T
-  ): T = {
+  ): T = ParameterizedStructure.transaction(Component.current) {
     val component = Option(Component.current).getOrElse {
       fail(
         "SPINAL-ELAB-CONTROL-COMPONENT-MISSING",
@@ -182,35 +211,13 @@ object ElabControl {
       )
     }
     val source = Some(rendered(sourceFile, sourceLine))
-    val exact = condition.expression.exactDomain.getOrElse {
-      fail(
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
-        s"typed conditional '${condition.expression.verilog}' lacks exact single-root evidence",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val admitted = ElaborationDomainContext.admitted(exact)
-    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
-    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
-    if (trueValues.isEmpty || falseValues.isEmpty) {
-      fail(
-        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
-        s"typed conditional '${condition.expression.verilog}' was captured although its active domain is constant",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val projectedCondition = condition.projectedExpression("typed conditional")
+    val capture = new PredicateCapture(component, condition, source)
+    val projectedCondition = capture.projected
     val selectedWitness = condition.witness
-    val predicateDomain =
-      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
+    val predicateDomain = capture.domain
     var trueValue: Option[T] = None
     var falseValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      trueValues,
-      source
-    ) {
+    val trueBlock = capture.block(0, source) {
       trueValue = Some(ifTrue())
       ()
     }
@@ -219,12 +226,7 @@ object ElabControl {
       "typed-generate-if",
       Some(rendered(sourceFile, sourceLine))
     )
-    val falseBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      falseValues,
-      Some(rendered(falseFile, falseLine))
-    ) {
+    val falseBlock = capture.block(1, Some(rendered(falseFile, falseLine))) {
       falseValue = Some(ifFalse())
       ()
     }
@@ -247,7 +249,7 @@ object ElabControl {
       sourceFile: String,
       sourceLine: Int,
       body: () => T
-  ): T = {
+  ): T = ParameterizedStructure.transaction(Component.current) {
     val component = Option(Component.current).getOrElse {
       fail(
         "SPINAL-ELAB-CONTROL-COMPONENT-MISSING",
@@ -256,34 +258,12 @@ object ElabControl {
       )
     }
     val source = Some(rendered(sourceFile, sourceLine))
-    val exact = condition.expression.exactDomain.getOrElse {
-      fail(
-        "SPINAL-ELAB-DOMAIN-EVIDENCE-MISSING",
-        s"typed generate '${condition.expression.verilog}' lacks exact single-root evidence",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val admitted = ElaborationDomainContext.admitted(exact)
-    val trueValues = admitted.filter(value => exact.evaluate(value).contains(true))
-    val falseValues = admitted.filter(value => exact.evaluate(value).contains(false))
-    if (trueValues.isEmpty || falseValues.isEmpty) {
-      fail(
-        "SPINAL-ELAB-CONTROL-DOMAIN-CLASSIFICATION-INCONSISTENT",
-        s"typed generate '${condition.expression.verilog}' was captured although its active domain is constant",
-        rendered(sourceFile, sourceLine)
-      )
-    }
-    val projectedCondition = condition.projectedExpression("typed generate")
+    val capture = new PredicateCapture(component, condition, source)
+    val projectedCondition = capture.projected
     val selectedWitness = condition.witness
-    val predicateDomain =
-      ParameterizedStructure.typedPredicateDomainOf(component, condition.expression)
+    val predicateDomain = capture.domain
     var capturedValue: Option[T] = None
-    val trueBlock = ParameterizedStructure.captureExactBlock(
-      component,
-      exact.root,
-      trueValues,
-      source
-    ) {
+    val trueBlock = capture.block(0, source) {
       capturedValue = Some(body())
       ()
     }

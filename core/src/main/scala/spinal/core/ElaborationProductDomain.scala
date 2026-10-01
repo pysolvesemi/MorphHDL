@@ -688,6 +688,79 @@ private[spinal] object ElaborationProductDomain {
         val current = source(value)
         if (current.axes == original.axes) value else publishBoolean(value.verilog, current, value.sourceLocation).expression
     }
+  /** Exhaustive structural evidence is distinct from publication authority.
+    * Tuple indices are local proof coordinates, never synthetic HDL roots.
+    */
+  private[core] final class StructuralPredicate private[ElaborationProductDomain] (
+      val condition: ElaborationBooleanExpression,
+      private val proof: TrustedExpressionEvidence,
+      val tuples: Vector[Vector[BigInt]],
+      val results: Vector[Boolean]
+  ) {
+    val axes: Vector[(Root, Vector[BigInt])] = proof.axes.map(axis => axis.root -> axis.values)
+    val parameters: Vector[ElaborationIntegerParameter] = proof.axes.map(_.schema)
+    val defaultIndex: Int = tuples.indexOf(proof.axes.map(_.representative))
+    require(defaultIndex >= 0 && tuples.nonEmpty && tuples.size == results.size)
+    def requireCondition(value: ElaborationBooleanExpression): Unit = {
+      if (value ne condition)
+        fail(Missing, "structural predicate lost its exact typed condition identity", value.sourceLocation)
+      validateInventory(value.parameters, value.completedParameterRoots, proof, Role, value.sourceLocation)
+    }
+    def indices(branch: Int): Set[BigInt] = {
+      require(branch == 0 || branch == 1, "invalid structural alternative")
+      results.indices.filter(index => results(index) == (branch == 0)).map(BigInt(_)).toSet
+    }
+    def admitted(root: Root, universe: Set[BigInt], branch: Int): Set[BigInt] = {
+      val axis = proof.axes.indexWhere(_.root eq root)
+      if (axis < 0) universe
+      else {
+        if (proof.axes(axis).domain.get.universe != universe)
+          fail(Missing, "structural predicate root universe changed", condition.sourceLocation)
+        val selected = indices(branch)
+        tuples.indices.filter(index => selected(BigInt(index))).map(index => tuples(index)(axis)).toSet
+      }
+    }
+  }
+
+  private[core] def structuralPredicate(value: ElaborationBooleanExpression): StructuralPredicate = {
+    val original = source(value)
+    val proof = original.copy(axes = original.axes.sortBy(_.root.name))
+    if (proof.axes.size < 2 || proof.axes.exists(_.compact))
+      fail(Unsupported, "structural product capture needs at least two bounded exact roots", value.sourceLocation)
+    val tuples = Vector.newBuilder[Vector[BigInt]]
+    val results = Vector.newBuilder[Boolean]
+    foreachTuple(proof.axes, value.sourceLocation) { environment =>
+      tuples += proof.axes.map(axis => environment(axis.root))
+      results += (proof.form.evaluate(environment) != 0)
+    }
+    new StructuralPredicate(value, proof, tuples.result(), results.result())
+  }
+
+  /** This query may omit a diagnostic, but grants no integer/width authority.
+    * Large or compact products keep the conservative deferred result.
+    */
+  private[core] def truthUnderStructuralPredicates(value: ElaborationBooleanExpression,
+      constraints: Vector[(StructuralPredicate, Int)]): ElabBool.Truth = {
+    if (constraints.isEmpty) return publicationTruth(value)
+    val predicate = source(value)
+    val guards = constraints.map { case (guard, branch) =>
+      require(branch == 0 || branch == 1)
+      source(guard.condition) -> (branch == 0)
+    }
+    if (guards.exists { case (guard, selected) => selected && guard.form == predicate.form })
+      return ElabBool.AlwaysTrue
+    val axes = merge(predicate +: guards.map(_._1), value.sourceLocation)
+    if (axes.exists(_.compact) || domainSize(axes) > MaximumJointValues) return ElabBool.Unknown
+    var yes = false
+    var no = false
+    foreachTuple(axes, value.sourceLocation) { environment =>
+      if (guards.forall { case (guard, selected) => (guard.form.evaluate(environment) != 0) == selected }) {
+        if (predicate.form.evaluate(environment) != 0) yes = true else no = true
+      }
+    }
+    if (!no) ElabBool.AlwaysTrue else if (!yes) ElabBool.AlwaysFalse else ElabBool.Unknown
+  }
+
   private[core] def hasCompleteDomain(value: ElaborationIntegerExpression): Boolean =
     certificate(value).exists(_.axes.forall(axis => axis.compact || axis.values.toSet == axis.domain.get.universe))
   private[core] def equivalent(left: ElaborationIntegerExpression, right: ElaborationIntegerExpression): Boolean = {

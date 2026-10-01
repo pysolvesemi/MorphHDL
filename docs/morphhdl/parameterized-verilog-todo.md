@@ -1398,6 +1398,10 @@ planning dependency on merged 59i without waiving those interaction checks.
 
 - [ ] **Increment 65 — Targeted structural-parameter extensions**
 
+  Local implementation and qualification details are tracked in
+  [the Increment 65 handoff](increment-65-scoped-legality.md). Remote gates and
+  merge remain deferred under the batch plan; this checkbox remains open.
+
   Extend the existing typed structural-capture and native legality machinery,
   beginning with parameter-dependent `require` inside an optional hardware
   branch. This is not a proposal to add generate-if from scratch or to accept

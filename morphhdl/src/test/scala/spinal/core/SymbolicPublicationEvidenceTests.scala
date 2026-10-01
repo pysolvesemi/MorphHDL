@@ -130,14 +130,19 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
       } {val wire=Bits(3 bits); wire:=0}
     }))
   }
-  test("mixed branch-scoped obligations are explicitly rejected rather than made global") {
+  test("mixed branch-scoped obligations retain their exact activation") {
     val a=p("A"); val b=p("B")
-    failsWith("SPINAL-ELAB-REQUIRE-STRUCTURAL-SCOPE-UNSUPPORTED")(generate(new Component {
+    val verilog = generate(new Component {
+      val source = in Bits(3 bits)
+      val observed = out Bits(3 bits)
       ElabControl.selectSymbolic(a>1,"test",1) {
         legality(a>=b,"branch-local")
-        val wire=Bits(3 bits); wire:=0
-      } {val wire=Bits(3 bits); wire:=0}
-    }))
+        observed := RegNext(source)
+      } { observed := source }
+    })
+    assert(verilog.contains("G_PARAMETER_LEGALITY_ACTIVE"), verilog)
+    assert(verilog.contains("branch-local"), verilog)
+    assert(verilog.contains("(A) > (1)"), verilog)
   }
   test("checked nondefault arithmetic overflow is not relaxed by symbolic publication") {
     val a=p("A",1); val b=p("B",1)

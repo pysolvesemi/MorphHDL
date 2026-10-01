@@ -1366,7 +1366,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
 
   /** Passing the same typed declarations through a component constructor is
     * an identity binding, not an attempt to solve A+B from a concrete width.
-    * Admit it only on certified compound ports and exact, full parent wires.
+    * Admit it on certified compound ports or an exact bounded joint child owner,
+    * with identity-preserving parent connections.
     * Explicit formals retain their existing independent capability protocol.
     */
   private def inheritedCompoundBinding(
@@ -1384,11 +1385,14 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         ExternalFormalParameterRegistry.typedBindingsOf(canonical).nonEmpty ||
         ExternalFormalParameterRegistry.typedBindingsOf(child).nonEmpty)
       return None
+    val jointOwner = ParameterizedStructure.jointChildOwner(parent, child)
+    val canonicalJointOwner = ParameterizedStructure.jointChildOwner(canonical.parent, canonical)
+    val jointBinding = jointOwner.nonEmpty && canonicalJointOwner.nonEmpty
     val dependent = canonicalPorts.flatMap { case (name, port) =>
       ParameterizedWidth.expressionOf(port).filter(_.parameters.exists(_ eq parameter))
         .map(width => (name, port, width))
     }
-    if (dependent.isEmpty || dependent.exists(entry => !ElaborationProductDomain.isRetained(entry._3)))
+    if (dependent.isEmpty || (!jointBinding && dependent.exists(entry => !ElaborationProductDomain.isRetained(entry._3))))
       return None
     val role = s"inherited compound parameter '${parameter.name}' of '$instanceName'"
     def reject(detail: String): Nothing = fail(
@@ -1398,11 +1402,15 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       reject("does not retain its exact schema in the parent")
     def proof(component: Component, port: BaseType,
               width: ElaborationIntegerExpression): ElaborationProductDomain.OwnerProof = {
-      if ((port.component ne component) || !ElaborationProductDomain.isRetained(width))
+      if ((port.component ne component) || (!jointBinding && !ElaborationProductDomain.isRetained(width)))
         reject("does not retain a certified width on its exact native owner")
       ElaborationProductDomain.owner(width, role, width.sourceLocation) { (root, universe) =>
-        ParameterizedStructure.exactDeclarationDomainOf(
+        val declared = ParameterizedStructure.exactDeclarationDomainOf(
           component, port, root, universe, role, width.sourceLocation).values
+        val inherited = if (component eq canonical) canonicalJointOwner
+          else if (component eq child) jointOwner else None
+        inherited.map(owner => declared intersect owner.admitted(root, universe, role, width.sourceLocation))
+          .getOrElse(declared)
       }.get
     }
     var axis: Option[ElaborationIntegerParameterRoot] = None
@@ -1414,9 +1422,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       val root = expected.roots(index)
       if (axis.exists(_ ne root)) reject("uses different axes on dependent ports")
       axis = Some(root)
-      // This first bridge supports full declaration domains. A branch-local
-      // child binding requires a separate joint owner/capability proof.
-      if (expected.rootValues.zip(expected.schemas).exists { case (values, schema) =>
+      // Projected inherited axes require the exact joint child capability.
+      // The ordinary compound route still requires full declaration domains.
+      if (!jointBinding && expected.rootValues.zip(expected.schemas).exists { case (values, schema) =>
           BigInt(values.size) != schema.maximum - schema.minimum + 1 ||
             values.head != schema.minimum || values.last != schema.maximum
         }) reject("requires full, unprojected declaration domains")

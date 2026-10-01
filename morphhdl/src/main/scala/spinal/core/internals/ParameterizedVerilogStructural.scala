@@ -95,7 +95,8 @@ private[internals] object ParameterizedVerilogStructural {
     val lines = verilog.split("\n", -1).toVector
     val ports = component.getOrdredNodeIo.toVector.flatMap(p => Option(p.getName())).toSet
     val parameters = mergeParameters(ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
-      ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component))
+      ParameterizedVerilogVecs.parametersOf(component) ++ ParameterizedStructure.parametersOf(component) ++
+      NativeSymbolicLegality.parametersOf(component))
     val scalar = resolveScalarOperatorReplay(component, blocks, lines)
     val targets = blocks.flatMap(_.assignments.map(_.finalTarget.getName())).toSet
     val plans = blocks.map(b => planBlock(component, b, lines, pc, ports,
@@ -181,7 +182,8 @@ private[internals] object ParameterizedVerilogStructural {
         ExternalParameterizedValueRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component)
+        ParameterizedProcess.parametersOf(component) ++
+        NativeSymbolicLegality.parametersOf(component)
     )
     validateParameters(component, parameters, portNames, pc)
 

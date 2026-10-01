@@ -473,7 +473,8 @@ private[internals] object ParameterizedVerilogProcesses {
         ExternalParameterizedHierarchyResizeWidth.parametersOf(component) ++
           ParameterizedVerilogVecs.parametersOf(component) ++
           ParameterizedStructure.parametersOf(component) ++
-          ParameterizedProcess.parametersOf(component)
+          ParameterizedProcess.parametersOf(component) ++
+          NativeSymbolicLegality.parametersOf(component)
       ).map(_.name).toSet
 
     val allNames = loops.flatMap(loop =>

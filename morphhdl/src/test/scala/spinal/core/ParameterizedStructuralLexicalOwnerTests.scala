@@ -406,7 +406,8 @@ class ParameterizedStructuralLexicalOwnerTests extends AnyFunSuite {
       val error = intercept[IllegalArgumentException] {
         ParameterizedStructure.blockOfLexicalOwner(abandoned)
       }
-      assert(error.getMessage.contains("LEXICAL-CAPTURE-MISSING"))
+      // Rollback removes the issued identity itself, not just its block.
+      assert(error.getMessage.contains("LEXICAL-IDENTITY-MISMATCH"))
     }
   }
 
