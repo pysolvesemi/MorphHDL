@@ -14,6 +14,7 @@ import spinal.core.internals.{
   MorphHdlCanonicalIrProducer,
   MorphHdlExternalEnumLocalizer,
   MorphHdlExternalParameterizedVerilog,
+  MorphHdlEmitterParameterNames,
   MorphHdlRecursivePerComponentPublication,
   TypedBalancedReductionBackend
 }
@@ -775,7 +776,10 @@ object MorphVerilog {
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
     )), enabled = true)
-    MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(nativeConfig))
+    val publication = MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(nativeConfig))
+    val publicationInserters = publication.phasesInserters.clone()
+    publicationInserters += MorphHdlEmitterParameterNames.install _
+    publication.copy(phasesInserters = publicationInserters)
   }
 
   private def readSingleSourceParameters[T <: Component](

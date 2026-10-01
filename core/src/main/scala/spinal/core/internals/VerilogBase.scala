@@ -124,6 +124,7 @@ object VerilogBase {
     def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false
     def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None
     def functionRange(occurrence: DeclarationOccurrence): Option[String] = None
+    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None
   }
 }
 
@@ -320,8 +321,11 @@ trait VerilogBase extends VhdlVerilogBase{
     return struct.getTypeString
   }
 
-  def emitType(e: Expression): String =
-    declarationPrefix(e, ScalarDeclaration) + emitUnqualifiedType(e)
+  def emitType(e: Expression): String = {
+    val range = if (declarationPolicy == null) None else declarationPolicy.scalarRange(
+      new DeclarationOccurrence(this, e, ScalarDeclaration))
+    declarationPrefix(e, ScalarDeclaration) + range.getOrElse(emitUnqualifiedType(e))
+  }
 
   def emitFunctionType(e: BaseType): String = {
     val prefix = declarationPrefix(e, FunctionResultDeclaration)

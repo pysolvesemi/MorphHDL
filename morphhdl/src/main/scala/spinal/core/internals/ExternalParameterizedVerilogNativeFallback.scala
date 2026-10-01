@@ -126,7 +126,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       .foreach { name =>
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-DECLARATION-WIDTH-CONFLICT",
-          s"symbolic analysis inferred conflicting packed ranges for declaration '$name'"
+          s"symbolic analysis inferred conflicting packed ranges for declaration '$name': ${groupedWidths(name).map(_._2).distinct.mkString(", ")}"
         )
       }
     val widthsByName = groupedWidths.toVector
@@ -2826,6 +2826,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           expression: ElaborationIntegerExpression
       ): WidthExpr = {
         val value = retainedWidthExpression(expression)
+        value.publicationReference = NativeLocalParameters.reference(component, expression)
         retainedOrigins.put(value, expression)
         value
       }
@@ -3666,10 +3667,11 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     def parameterRoots: Vector[ElaborationIntegerParameterRoot]
     def precedence: Int
     def render: String
+    def publicationRender: String = render
 
     final def isSymbolic: Boolean = parameters.nonEmpty
     final def range: String =
-      if (precedence >= 100) s"[$render-1:0]" else s"[($render)-1:0]"
+      if (precedence >= 100) s"[$publicationRender-1:0]" else s"[($publicationRender)-1:0]"
   }
 
   private final case class WidthLiteral(value: BigInt) extends WidthExpr {
@@ -3692,6 +3694,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       exactDomain: Option[ElaborationExactDomain[BigInt]],
       projection: Option[WidthProjectionSignature]
   ) extends WidthExpr {
+    var publicationReference: Option[String] = None
+    override def publicationRender: String = publicationReference.getOrElse(render)
     override val precedence: Int = 100
   }
 

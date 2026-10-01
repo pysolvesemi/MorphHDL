@@ -77,30 +77,30 @@ final class ElabInt private[core] (
   ): ElaborationIntegerExpression =
     ElabInt.projectExpression(expression, role)
 
-  def +(that: ElabInt): ElabInt = ElabInt.add(this, that)
+  def +(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.add(this, that), "+", this, that)
   def +(that: Int): ElabInt = this + ElabInt.literal(that)
-  def -(that: ElabInt): ElabInt = ElabInt.subtract(this, that)
+  def -(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.subtract(this, that), "-", this, that)
   def -(that: Int): ElabInt = this - ElabInt.literal(that)
-  def *(that: ElabInt): ElabInt = ElabInt.multiply(this, that)
+  def *(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.multiply(this, that), "*", this, that)
   def *(that: Int): ElabInt = this * ElabInt.literal(that)
-  def /(that: ElabInt): ElabInt = ElabInt.divide(this, that)
+  def /(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.divide(this, that), "/", this, that)
   def /(that: Int): ElabInt = this / ElabInt.literal(that)
-  def %(that: ElabInt): ElabInt = ElabInt.modulo(this, that)
+  def %(that: ElabInt): ElabInt = NativeLocalParameters.calculated(ElabInt.modulo(this, that), "%", this, that)
   def %(that: Int): ElabInt = this % ElabInt.literal(that)
 
   /** Typed ceiling logarithm which retains this bounded expression. */
-  def log2Up: ElabInt = ElabInt.log2UpValue(this)
+  def log2Up: ElabInt = NativeLocalParameters.calculated(ElabInt.log2UpValue(this), "log2Up", this)
 
   /** Minimum positive packed width which can address every value below this
     * positive bound. Unlike [[log2Up]], a bound of one has width one.
     */
-  def addressWidth: ElabInt = ElabInt.addressWidthValue(this)
+  def addressWidth: ElabInt = NativeLocalParameters.calculated(ElabInt.addressWidthValue(this), "addressWidth", this)
 
   /** Typed power-of-two predicate over this bounded expression. */
   def isPow2: ElabBool = ElabInt.isPow2Value(this)
 
   /** Typed integer value `2 ^ this`. */
-  def pow2: ElabInt = ElabInt.pow2Value(this)
+  def pow2: ElabInt = NativeLocalParameters.calculated(ElabInt.pow2Value(this), "pow2", this)
 
   def <(that: ElabInt): ElabBool = ElabInt.compare("<", this, that)
   def <(that: Int): ElabBool = this < ElabInt.literal(that)
@@ -1386,7 +1386,7 @@ object ElabInt {
           expression.sourceLocation,
           role
         )
-        expression
+        NativeLocalParameters.projected(expression, expression
           .copy(
             default = projectedDefault,
             minimum = evaluated.min,
@@ -1399,7 +1399,7 @@ object ElabInt {
             representative,
             role,
             expression.sourceLocation
-          )
+          ))
       case None =>
         expression.parameterRoots.find(ElaborationDomainContext.constrains).foreach { root =>
           fail(

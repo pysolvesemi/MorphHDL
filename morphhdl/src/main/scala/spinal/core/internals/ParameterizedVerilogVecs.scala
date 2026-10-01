@@ -6394,6 +6394,45 @@ private[internals] object ParameterizedVerilogVecs {
     }
   }
 
+  /** Reject non-declarations before the exact declarator matcher. Generated
+    * expressions can be very long; trying an unanchored syntax prefix against
+    * every expression causes quadratic regex backtracking. Attributes are
+    * scanned lexically so keywords and delimiters inside strings have no role.
+    */
+  private[internals] def isDeclarationCandidate(line: String): Boolean = {
+    var offset = 0
+    def whitespace(): Unit = {
+      while (offset < line.length && line.charAt(offset).isWhitespace) offset += 1
+    }
+    whitespace()
+    var prefix = true
+    while (prefix && offset < line.length) {
+      if (line.startsWith("(*", offset)) {
+        offset += 2
+        var quoted = false
+        var closed = false
+        while (offset < line.length && !closed) {
+          if (quoted && line.charAt(offset) == '\\') offset += 2
+          else if (line.charAt(offset) == '"') { quoted = !quoted; offset += 1 }
+          else if (!quoted && line.startsWith("*)", offset)) { offset += 2; closed = true }
+          else offset += 1
+        }
+        if (!closed) return false
+        whitespace()
+      } else if (line.startsWith("/*", offset)) {
+        val end = line.indexOf("*/", offset + 2)
+        if (end < 0) return false
+        offset = end + 2
+        whitespace()
+      } else prefix = false
+    }
+    val start = offset
+    while (offset < line.length &&
+        (line.charAt(offset).isLetterOrDigit || line.charAt(offset) == '_' || line.charAt(offset) == '$'))
+      offset += 1
+    Set("input", "output", "inout", "wire", "reg", "logic").contains(line.substring(start, offset))
+  }
+
   private def parseDeclaration(
       lines: Vector[String],
       name: String,
@@ -6407,7 +6446,10 @@ private[internals] object ParameterizedVerilogVecs {
       ("^([ \\t]*)(.*?)(wire|reg|logic)\\s*" +
         "(?:signed\\s+)?(?:\\[[^\\]]+\\])?\\s*(" + Pattern.quote(name) + ")" +
         "\\s*;\\s*(?://.*)?$").r
-    val matches = lines.zipWithIndex.flatMap { case (line, index) =>
+    val matches = lines.zipWithIndex.filter { case (line, _) =>
+      line.contains(name) && isDeclarationCandidate(line)
+    }
+      .flatMap { case (line, index) =>
       port
         .findFirstMatchIn(line)
         .map { value =>
@@ -6984,7 +7026,8 @@ private[internals] object ParameterizedVerilogVecs {
     val pattern = identifierPattern(name)
     var count = 0
     mapReferenceCode(lines) { code =>
-      count += pattern.findAllMatchIn(code).count(value => isSignalReference(code, value.start, value.end))
+      if (code.contains(name))
+        count += pattern.findAllMatchIn(code).count(value => isSignalReference(code, value.start, value.end))
       code
     }
     count

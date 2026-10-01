@@ -92,6 +92,17 @@ final class MorphHdlSignedDeclarationPolicy private[spinal] (
     }
   }
 
+  override def scalarRange(occurrence: DeclarationOccurrence): Option[String] = {
+    if (occurrence == null || (occurrence.emitter ne emitter) || occurrence.role != ScalarDeclaration)
+      reject("scalar range needs its exact native declaration occurrence")
+    occurrence.subject match {
+      case value: BitVector =>
+        ParameterizedWidth.expressionOf(value).flatMap(expression =>
+          NativeLocalParameters.reference(value.component, expression)).map(name => s"[$name-1:0]")
+      case _ => None
+    }
+  }
+
   override def functionRange(occurrence: DeclarationOccurrence): Option[String] = {
     if (occurrence == null || (occurrence.emitter ne emitter) || occurrence.role != FunctionResultDeclaration)
       reject("function range needs its exact native declaration occurrence")

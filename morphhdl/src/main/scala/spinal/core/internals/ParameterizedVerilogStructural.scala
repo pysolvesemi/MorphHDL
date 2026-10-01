@@ -4881,7 +4881,8 @@ private[internals] object ParameterizedVerilogStructural {
     "[A-Za-z_][A-Za-z0-9_]*".r.findAllIn(value).toVector
 
   private def containsName(value: String, name: String): Boolean =
-    ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r.findFirstIn(value).nonEmpty
+    value.contains(name) &&
+      ("(?<![A-Za-z0-9_$])" + Pattern.quote(name) + "(?![A-Za-z0-9_$])").r.findFirstIn(value).nonEmpty
 
   private def replaceName(value: String, from: String, to: String): String =
     ("(?<![A-Za-z0-9_$])" + Pattern.quote(from) + "(?![A-Za-z0-9_$])").r

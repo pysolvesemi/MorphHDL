@@ -133,10 +133,16 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
   )
 
   private[internals] final class Plan private[ExternalParameterizedVerilogHierarchy] (
+      private val owner: Component,
       val parameters: Vector[ElaborationIntegerParameter],
       val hasParameterizedInstances: Boolean,
       private val instances: Vector[InstancePlan]
   ) {
+    private def renderActual(value: BindingExpr): String = value match {
+      case ExpressionBinding(expression) =>
+        NativeLocalParameters.reference(owner, expression).getOrElse(value.render)
+      case _ => value.render
+    }
     def rewrite(verilog: String): (String, Vector[(String, String)]) = {
       var current = verilog
       val declarationRanges = ArrayBuffer.empty[(String, String)]
@@ -230,9 +236,10 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
           }
           val matched = matches.head
           val signalName = matched.group(2)
+          val publishedRange = s"[${renderActual(port.width)}-1:0]"
           val replacement =
             matched.group(1) + signalName + matched.group(3) +
-              port.width.range + matched.group(4)
+              publishedRange + matched.group(4)
           block = block.updated(
             lineIndex,
             connectionPattern.replaceFirstIn(
@@ -240,7 +247,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               Matcher.quoteReplacement(replacement)
             )
           )
-          declarationRanges += signalName -> port.width.range
+          declarationRanges += signalName -> publishedRange
         }
 
         val rewrittenBlock =
@@ -268,14 +275,14 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               val matched = pattern.findFirstMatchIn(prefix(lineIndex)).get
               prefix = prefix.updated(
                 lineIndex,
-                matched.group(1) + expression.render + matched.group(3)
+                matched.group(1) + renderActual(expression) + matched.group(3)
               )
             }
             prefix ++ block
           } else if (instance.bindings.nonEmpty) {
             val bindingLines = instance.bindings.zipWithIndex.map { case ((name, expression), index) =>
               val comma = if (index == instance.bindings.size - 1) "" else ","
-              s"${indent}  .$name(${expression.render})$comma"
+              s"${indent}  .$name(${renderActual(expression)})$comma"
             }
             val header =
               Vector(s"$indent$attributes${instance.definitionName} #(") ++
@@ -341,6 +348,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         )
       }
     new Plan(
+      owner = component,
       parameters = grouped.toVector.map(_._2.head).sortBy(_.name),
       hasParameterizedInstances = instances.exists(instance => instance.bindings.nonEmpty || instance.ports.nonEmpty),
       instances = instances

@@ -97,10 +97,13 @@ the test harness. Default/minimum/maximum admitted widths are 64/3/2112. The
 realistic fixture preserves three independent parameters in
 `dataBits + 7 + generationBits + lanes + 16 + 1`.
 
-Automatic derived-localparam factoring is deliberately a follow-up. It would
-add declaration naming, dependency ordering and scope ownership through native
-canonicalization and child binding. Direct expressions already satisfy this
-repair without adding a separate factoring transformation or emitter text pass.
+Increment 64 now retains named module-member `ElabInt` calculations through
+native compiler binding callbacks and emits dependency-ordered integer
+localparams. Scalar widths and typed child actuals can reference those locals;
+names carry no domain authority. Anonymous and restricted branch calculations
+keep their direct expressions. The example above records the earlier direct
+publication behavior; see [the current implementation](increment-64-derived-localparams.md)
+for supported factoring and its local validation status.
 
 ## Child actuals
 

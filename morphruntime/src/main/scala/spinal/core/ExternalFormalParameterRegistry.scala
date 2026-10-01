@@ -604,13 +604,13 @@ object ExternalFormalParameterRegistry {
       sourceLocation = None,
       parameterRoots = distinctRoots(expression.completedParameterRoots)
     )
-    expression.preserveExactAuthorityOn(
+    NativeLocalParameters.projected(expression, expression.preserveExactAuthorityOn(
       expression.preserveProjectionOn(
         normalized,
         "formal actual normalization"
       ),
       "formal actual normalization"
-    )
+    ))
   }
 
   private def normalizedSchema(

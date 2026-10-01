@@ -116,6 +116,8 @@ final case class ElaborationIntegerExpression(
       ElaborationExactDomain[BigInt]
     ] = None
 ) {
+  @transient private[core] var localCalculation: Option[NativeLocalParameters.Calculation] = None
+  @transient private[core] var localCalculationOrigin: Option[ElaborationIntegerExpression] = None
   @transient private[this] var _projectionProvenance: ElaborationProjectionProvenance = null
   @transient private[this] var _exactAuthorityDomain: ElaborationExactDomain[BigInt] = null
 

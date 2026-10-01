@@ -152,7 +152,8 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
       child.din:=din; observed:=child.observed
     })
     assert(verilog.contains("parameter integer WIDTH"))
-    assert(verilog.contains(".WIDTH((((A + B) % (A + 1)) + 1))"))
+    assert(verilog.contains("localparam integer WIDTH = (((A + B) % (A + 1)) + 1);"))
+    assert(verilog.contains(".WIDTH(WIDTH)"))
   }
   test("separate legality obligations cannot collapse same-named declaration identities") {
     failsWith("SPINAL-ELAB-INT-INDEPENDENT-ROOTS-UNSUPPORTED") (generate(new Component {
