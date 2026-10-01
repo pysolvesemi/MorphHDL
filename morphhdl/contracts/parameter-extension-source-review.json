@@ -104,6 +104,10 @@
       "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
     },
     {
+      "path": "morphhdl/contracts/increment-62-wa08-source-overlay.json",
+      "reason": "Seal all current reviewed source identities and the two exact source relocations against immutable baseline and candidate commits; preserve dirty/index/ignored-source rejection."
+    },
+    {
       "path": "morphhdl/contracts/native-source-preservation.json",
       "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
     },

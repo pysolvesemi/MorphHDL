@@ -17,7 +17,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 BASE = 'db54d01e5b21c7664f7a0de3795f061d77a3d259'
 CONTRACT = 'morphhdl/contracts/parameter-extension-source-review.json'
-CONTRACT_SHA256 = '23ac8591ca1d4aa3fa29909045e904580f5eda004fc12c47fdb5a76008d31684'
+CONTRACT_SHA256 = 'aa1539fcd4b3edc7c94ff4277fd1ce1cf0cbfe2fe5a3e815115e63b806786677'
 OUTER = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
 REGISTRY = 'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json'
 
@@ -55,7 +55,7 @@ def validate_scope(paths, root=ROOT):
     approved = {entry['path'] for entry in contract(root)['files']}
     outer = load(root, OUTER)
     require({p for p in paths if outer.governed(p)} <= approved,
-            'unreviewed implementation paths: ' + repr(sorted(set(paths) - approved)))
+            'unreviewed implementation paths: ' + repr(sorted(p for p in set(paths) - approved if outer.governed(p))))
     require(all(not Path(p).is_absolute() and '..' not in Path(p).parts and
                 (p in approved or p.startswith('docs/morphhdl/')) for p in paths),
             'unreviewed path outside source/documentation scope')
