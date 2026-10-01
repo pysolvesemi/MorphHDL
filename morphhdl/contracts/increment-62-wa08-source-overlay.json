@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "6270d1c7bf63cc22e44065155e62cbcef5da47d1",
+  "final_source_commit": "8f6b7e8376be4278fcd91629b7f09b986e021926",
   "helper_normalized_sha256": "63848a0970100b7bdd9153b30c9982a5a9e10dd4452c53c9a17d9e15f2700056",
   "files": [
     {
@@ -1724,7 +1724,7 @@
       "path": "morphhdl/contracts/parameter-extension-source-review.json",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "23ac8591ca1d4aa3fa29909045e904580f5eda004fc12c47fdb5a76008d31684"
+      "after_sha256": "aa1539fcd4b3edc7c94ff4277fd1ce1cf0cbfe2fe5a3e815115e63b806786677"
     },
     {
       "path": "morphhdl/contracts/wa10-source-scope.json",
@@ -1832,7 +1832,7 @@
       "path": "morphhdl/scripts/check-parameter-extension-source.py",
       "mode": "100644",
       "before_sha256": null,
-      "after_sha256": "4489ef7c7492ed45c31bbb52c36a596304fd29816ef4d05e8d4f2b69b83d6c9d"
+      "after_sha256": "55bed4108dca7040505c97925378fda4cf4d497624b4be63427ce42d24091978"
     },
     {
       "path": "morphhdl/scripts/check-pr190-pr189-source-sync.py",
