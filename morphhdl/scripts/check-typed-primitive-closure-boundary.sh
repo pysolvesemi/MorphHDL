@@ -12,7 +12,7 @@ for required in \
   morphruntime/src/main/scala/spinal/core/ElabControl.scala \
   morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala \
   morphruntime/src/main/scala/spinal/core/ElabFormalComponent.scala \
-  morphruntime/src/main/scala/spinal/core/ElabValue.scala \
+  core/src/main/scala/spinal/core/ElabValue.scala \
   morphruntime/src/main/scala/spinal/core/ParameterizedStructure.scala \
   morphplugin/src/main/scala/morphhdl/compiler/MorphHdlTypedElaborationControlComponent.scala; do
   test -f "$required"

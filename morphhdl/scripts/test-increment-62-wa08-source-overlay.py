@@ -35,7 +35,7 @@ def main():
     count = 0
     for entry in entries:
         path = entry["path"]
-        raw = (ROOT / path).read_bytes()
+        raw = (ROOT / path).read_bytes() if entry["after_sha256"] is not None else b""
         before = overlay.frozen(ROOT, overlay.BASE, path) or b""
         assert overlay.restore_source(ROOT, path, raw) == before
         rejected("changed restoration " + path,
@@ -175,6 +175,17 @@ def main():
                 ("uninitialized submodule source", uninitialized_submodule, False),
             ):
                 attack(label, mutate, committed)
+            for entry in entries:
+                if entry["after_sha256"] is not None:
+                    continue
+                removed = fixture / entry["path"]
+                original = overlay.frozen(ROOT, overlay.BASE, entry["path"])
+                attack("untracked reintroduction " + entry["path"],
+                       lambda: removed.write_bytes(original))
+                attack("committed reintroduction " + entry["path"],
+                       lambda: removed.write_bytes(original), True)
+                attack("linked deleted source " + entry["path"],
+                       lambda: removed.symlink_to("/dev/null"))
             reset()
             overlay.verify(fixture)
         finally:

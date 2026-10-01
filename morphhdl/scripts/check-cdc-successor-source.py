@@ -168,7 +168,7 @@ def self_test(root: Path = ROOT) -> None:
             candidates = [
                 "core/src/main/scala/spinal/core/ElaborationPublicationValue.scala",
                 "core/src/main/scala/spinal/core/internals/ParameterizedBlackBoxGeneric.scala",
-                "morphruntime/src/main/scala/spinal/core/ElabValue.scala",
+                "core/src/main/scala/spinal/core/ElabValue.scala",
                 "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogHierarchy.scala",
                 "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala",
                 "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala",

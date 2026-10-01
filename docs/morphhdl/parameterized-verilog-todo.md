@@ -1535,6 +1535,13 @@ safety diagnostics outside its explicitly qualified replacement surface.
   workflows and full final-head CI, and verify combined interactions before merge.
   Implemented but unqualified work must remain unchecked.
 
+  **Local checkpoint, 2 October 2026:** all five internal feature steps are
+  implemented at `b6e83061d8c2b1ece94e76abadc956a2201a99dc`. Both Scala lanes pass
+  329 runtime, 35 native and 18 plugin tests, plus the legacy AXI4 formal suite.
+  See [supported APIs](increment-66-native-parameters.md) and
+  [retained local evidence](evidence/increment66/README.md). Inherited source-review
+  integration and remote qualification remain outstanding; this is not closure.
+
   **Shared implementation with Increment 64:** the explicit typed-local-constant
   API below and 64's automatic derived-binding retention should reuse declaration,
   dependency, ownership and emission machinery. Neither checkbox substitutes for

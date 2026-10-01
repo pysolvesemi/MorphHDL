@@ -1,0 +1,1 @@
+JVMABI_SELF_TEST_OK cases=21

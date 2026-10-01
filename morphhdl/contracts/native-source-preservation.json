@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "5962260c9654f9d102f107a258b78ae5b88d7f9f"
+      "approved_tree": "9c7eba7d80d5c95e4cfddd054909df1ee30b588f"
     },
     {
       "path": "idslpayload/src/main",
@@ -27,7 +27,7 @@
     {
       "path": "lib/src/main",
       "baseline_tree": "76cd20a58e83ff73404632aec84bb03f2dd4dea9",
-      "approved_tree": "93542b38503c93d75c9b4b270d4abafa981dc3dd"
+      "approved_tree": "901eb72987a7f4f29549da2d6cf2eb14fb453922"
     },
     {
       "path": "scalaplugin/src/main",
@@ -577,6 +577,23 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/ElabValue.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Relocate the existing typed unsigned hardware-value adapter unchanged into core so the public core U overload can delegate without a reverse module dependency.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ElabValue.scala",
+        "mode": "100644",
+        "blob": "5e6ba17ff1902318071444b2038b265d5630d347",
+        "sha256": "0fcfa49f1529b90a0c96abcaa74aac00842b103aa94c2f148b0b52f15553fb51"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -689,6 +706,23 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Relocate the existing exact value/leaf/assignment registry unchanged into core alongside its adapter. Preserve all freshness, owner and authority validation; this is not a new copyable proof mechanism.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/ExternalParameterizedValueRegistry.scala",
+        "mode": "100644",
+        "blob": "f627e809fa0f606bbeb1783a076138a03cc55974",
+        "sha256": "3d4dbee2b1c0279f2c215e5332b764278dd799ac6dceb2157ec5549a780b0b67"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/ExternalStructuralPredicatePermit.scala",
       "change": "added",
       "classification": "typed-support-file",
@@ -704,6 +738,52 @@
         "sha256": "77971adc2eccc122759e654c53d39837efe46d664ff04515bd5b53be5d57f0bd"
       },
       "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/Literal.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/Literal.scala",
+        "mode": "100644",
+        "blob": "10fd5995636d9460ce047e3135f60639f728a003",
+        "sha256": "eeacabaf407abd796f1d3f8f0bc20682cca719a3793921d9d691c8c3125e88c4"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/Literal.scala",
+        "mode": "100644",
+        "blob": "f4e58d640a38b60c429c51667910536e88326685",
+        "sha256": "ee622e63150feeaf2d9da58b686cc7f9c027dc985a6667f126f769f6378e1a94"
+      },
+      "edits": [
+        {
+          "id": "increment66-literal-1",
+          "kind": "overload",
+          "owner": "spinal.core.U.apply(ElabInt, BitCount)",
+          "reason": "Add the explicit fixed-width unsigned ElabInt value overload, delegating to the existing exact typed value registry. Existing literal overloads and native arithmetic remain unchanged.",
+          "baseline_span": {
+            "start": 8759,
+            "end": 8759,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 8759,
+            "end": 9032,
+            "sha256": "77da8fc3c7a5acab62f61a9a37abac6f3bf1b29d37540cfa79b3939c18664269"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.\n    * Width and value remain independent; unsupported values fail before emission.\n    */\n  def apply(value: ElabInt, width: BitCount): UInt =\n    ElabValue.uintLike(value, UInt(width), null)\n\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "path": "core/src/main/scala/spinal/core/Mem.scala",
@@ -1316,15 +1396,16 @@
       "change": "added",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 64: typed native derived local parameters"
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners.",
+      "reason": "Capture exact typed arithmetic operands and compiler-supplied member hints; select only live exact-owner uses, order declarations by operand identity, reject cycles, reserve collision-safe names, and render native local parameters without introducing proof authority. Restricted structural calculations retain direct expression publication. Component-owned state cannot leak names between generations or owners. Extend the existing component-local dependency graph with explicitly named packed unsigned declarations, exact owner checks, deterministic collision rejection and dependency ordering. Explicit names replace an automatic hint for the same expression; metadata never grants arithmetic authority.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeLocalParameters.scala",
         "mode": "100644",
-        "blob": "a642c5ed87caa91b045de411ef8d634d4a8f94d0",
-        "sha256": "4cb61c932d048fcd89e7600b099cbae0fd7c7309900557d70814bbc008c25d06"
+        "blob": "d87298c57bbbb9565dec1edb50303ab10730832f",
+        "sha256": "f77945ef81327fe6de4092ebc834d897ad5e5f58401703d065e83ce3e7858d31"
       },
       "edits": []
     },
@@ -1337,15 +1418,16 @@
         "PR188: one synthesis-guarded fatal for failed symbolic require",
         "PR189: authentic compact declaration and explicit publication authority",
         "CDC-LEG-01: product-neutral legality labels and user-only fatal messages",
-        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication. Retain validated declaration-domain guards for the explicit native formal API so downstream overrides cannot silently leave the proved domain. Existing user requirements retain their prior classification, scope, escaping and fatal semantics.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "ea35b8353ff7ff90a8e49e86a186a6352304bbdf",
-        "sha256": "f46a2e5553cb82f6d89417fd787b6caa20dcb7e2012bc3d5e3ccf17acd99bd5c"
+        "blob": "54ebb4e29f8818791dd2b8421ea26ad2d269cbdc",
+        "sha256": "aaac7bde4001fef69247bb06d0986098a9260ee53a6c20c3b2333dad29973acb"
       },
       "edits": []
     },
@@ -1467,15 +1549,16 @@
         "Increment 59d: generic symbolic result-width provenance and widening reductions",
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59f: certified callback graphs and captured inputs",
-        "Increment 64: typed native derived local parameters"
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field.",
+      "reason": "Own exact packed-width metadata and reviewed typed primitive adapters while retaining the historical deprecated factory aliases. Preserve recursive authored clone layout before copying metadata, retain exact native graph-derived scalar widths, and update fresh mux clone metadata only after the full native maximum-width proof. Retain private calculation and trusted projection-origin metadata on exact expression objects; public case-class copies deliberately inherit neither field. Add an internal typed-local owner marker to exact expression presentation metadata, preventing foreign constant dependencies without granting or changing width/domain authority.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedWidth.scala",
         "mode": "100644",
-        "blob": "a59ca757e7df1d889b6575195d9e615547f828f8",
-        "sha256": "03a87397908dfe22f316c4f37f64bcb2ed2971018d13a4ae27d6016904136c86"
+        "blob": "591d06a6987178058269f91d771b7761f57c4849",
+        "sha256": "ca2fb30de793e48dca37f205e8e23d23c69791bd6302fc874cbc175c10459d6e"
       },
       "edits": []
     },
@@ -1597,6 +1680,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/TypedLocalUInt.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Provide immutable exact-owner packed unsigned local constants, checked width/range, eager dependencies, fresh native reference nodes and full-domain switch disjointness validation. Named references are not literals and cannot be folded to their default witness.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/TypedLocalUInt.scala",
+        "mode": "100644",
+        "blob": "07c4a0b08c76d47576ffc168ecfda0a30fc2cc1a",
+        "sha256": "76f8757ff6bfcfb381b74cf3aa86167cec7d6cd2eccc9ec0cc98a1ba256d8afe"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/UInt.scala",
@@ -2635,9 +2735,10 @@
         "PR188: separate symbolic publication provenance from structural proof",
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
-        "Increment 64: typed native derived local parameters"
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
@@ -2647,8 +2748,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala",
         "mode": "100644",
-        "blob": "a679976241877b60d0932e0b5deb8ba2408b28ea",
-        "sha256": "fd5f7e478fe76708abd29a79bf67eb939518e49787ffdec1ab50fff6a7900e47"
+        "blob": "fc9d4a9667c7a1a75bb794c71d920219d888ed41",
+        "sha256": "bb0b50905afa3d8e63380eda491e8dae4721f431e67a3f88121d07f07ebf42d0"
       },
       "edits": [
         {
@@ -2754,6 +2855,52 @@
           ]
         },
         {
+          "id": "increment66-componentemitterverilog-5",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 28019,
+            "end": 28019,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 29329,
+            "end": 29508,
+            "sha256": "67940cd0d7789d4a7fa7c53e0606be78a432bef73f39fd9a64b4469b427ca177"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private def emitAssignmentSource(assignment: AssignmentStatement): String =\n    verilogBase.emitAssignmentSource(this, assignment).getOrElse(emitExpression(assignment.source))\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-6",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 28677,
+            "end": 28696,
+            "sha256": "4ee121f498e4827165e9028c9edf90054663fdba41906264f738982d30ea996b"
+          },
+          "approved_span": {
+            "start": 30166,
+            "end": 30184,
+            "sha256": "1c19b8be66ec38276767272a60fae35b8ab3d987e935adad409702923fd6b8b8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "AssignmentSource(s",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "signed-boundary-60e-componentemitterverilog-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -2764,8 +2911,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 30776,
-            "end": 30784,
+            "start": 30954,
+            "end": 30962,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
@@ -2787,14 +2934,106 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 31745,
-            "end": 31753,
+            "start": 31923,
+            "end": 31931,
             "sha256": "c803710302d5769d8fcd51958c516ff27f2a3c5ad9373c348d1d180c04a74624"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "Function",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-9",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 31429,
+            "end": 31524,
+            "sha256": "49ed5ac77f535fdd0429efc33547fb56e8b449725edc77c8ef7a228b07fcfb58"
+          },
+          "approved_span": {
+            "start": 32933,
+            "end": 33089,
+            "sha256": "0f07a6088d1d1c1c865295e5024ba5276ee58996e0b403b4c5a35eae521034ae"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-10",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 35842,
+            "end": 35842,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 37407,
+            "end": 37741,
+            "sha256": "36b9e0b4f3d2ef11456266eadf43547160c05439127da8ecc6c11a0333d66ed0"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,\n          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))\n        if (publishedScope.nonEmpty) {\n          statementIndex = publishedScope.get\n          lastWhen = null\n        } else ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-11",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 36829,
+            "end": 36829,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 38728,
+            "end": 38783,
+            "sha256": "6042b1972c4d763f5fd04c89b6a83c71df291ea0e06c5bbb99ae3c12c3f886a1"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "              case _: TypedLocalUInt.Reference => true\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-12",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 39955,
+            "end": 39955,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 41909,
+            "end": 41985,
+            "sha256": "f671cdd69a92da60879a9557acffbcdb5e06944433bfdc67901dea138f375ea7"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "                    case e: TypedLocalUInt.Reference => e.render(component)\n",
               "count": 1
             }
           ]
@@ -2810,8 +3049,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 72661,
-            "end": 73453,
+            "start": 73365,
+            "end": 74157,
             "sha256": "b9fc69c0973afef103a74d48dc94de8fe7b810b4709950e2f93cdf0fe2ba6f4a"
           },
           "required_exact_text": [
@@ -2843,8 +3082,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 73528,
-            "end": 73582,
+            "start": 74232,
+            "end": 74286,
             "sha256": "7b8cf8b9483505102e3024ea0f855cb7c5df2f0996c308f9978af698e45296bb"
           },
           "required_exact_text": [
@@ -2866,8 +3105,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 75232,
-            "end": 75572,
+            "start": 75936,
+            "end": 76276,
             "sha256": "03cdcd84ab2b2dcf5638cbe56746a634cc3ae101f8825d7b0198a6a6efd079e8"
           },
           "required_exact_text": [
@@ -2889,8 +3128,8 @@
             "sha256": "ca47fea6d8fe4bc58f1df50ee7561d0d009b5392895796780e725c8fe9027e70"
           },
           "approved_span": {
-            "start": 75666,
-            "end": 75744,
+            "start": 76370,
+            "end": 76448,
             "sha256": "2081c0d75cf652f45b4fe49b37a2b8d4063bafa35ee2fde26cbfb9129c5c19d5"
           },
           "required_exact_text": [
@@ -2912,8 +3151,8 @@
             "sha256": "5ab9cf83395528e05ec149d6439e8d00a22eb4da89d5e53c19ba9269c966e10b"
           },
           "approved_span": {
-            "start": 75850,
-            "end": 75885,
+            "start": 76554,
+            "end": 76589,
             "sha256": "326bf2045ad9d01e74b5f534adf9fd5b5029b0b8b8d14a0d4083c47e0229a7ad"
           },
           "required_exact_text": [
@@ -2935,8 +3174,8 @@
             "sha256": "89bc1fe93bb1cc8830095ff2a7a90cd0867955fef57f6b6d00f0afdc5de52bd1"
           },
           "approved_span": {
-            "start": 76413,
-            "end": 76448,
+            "start": 77117,
+            "end": 77152,
             "sha256": "e9ebbfd545de2822adbac4c549192adaca12ddcf7fb2e402b382df26c3cf81ca"
           },
           "required_exact_text": [
@@ -2958,8 +3197,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 76693,
-            "end": 78937,
+            "start": 77397,
+            "end": 79641,
             "sha256": "ccc9763e4e53eac1dcf03a233a9a206e6296e3efaf35875ba3177e4ecb1f9710"
           },
           "required_exact_text": [
@@ -2991,8 +3230,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 78992,
-            "end": 79176,
+            "start": 79696,
+            "end": 79880,
             "sha256": "d91223025168c929b1dce8d032b66bfcc770dd3ac606dd48f3bdc32271fe67c3"
           },
           "required_exact_text": [
@@ -3014,8 +3253,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 79496,
-            "end": 79547,
+            "start": 80200,
+            "end": 80251,
             "sha256": "610b6a0d6cab0ce9fc13c6efcd9a54bd25c0b5c24be5f6d734715b0118fc9573"
           },
           "required_exact_text": [
@@ -3037,8 +3276,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 80983,
-            "end": 81046,
+            "start": 81687,
+            "end": 81750,
             "sha256": "6883a57b205d14f99fda4bb6fb61a0b54cb6b2e1cc3bc38d6281dca30b10738f"
           },
           "required_exact_text": [
@@ -3060,8 +3299,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 81110,
-            "end": 81117,
+            "start": 81814,
+            "end": 81821,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -3083,8 +3322,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 81187,
-            "end": 81194,
+            "start": 81891,
+            "end": 81898,
             "sha256": "a7e394f7029082eb74696a89f0aa7eb78b10270ba0714adf19d82856a8636f04"
           },
           "required_exact_text": [
@@ -3106,8 +3345,8 @@
             "sha256": "f7abc3205d051f7730ed54a291d6ad88c6445e7413cceea90d441b2f453c2ae0"
           },
           "approved_span": {
-            "start": 83151,
-            "end": 83259,
+            "start": 83855,
+            "end": 83963,
             "sha256": "90812fa7b7dc334b7363ccbedb9e88c50958fd856d90a112673d1eb3a0399b15"
           },
           "required_exact_text": [
@@ -3129,14 +3368,37 @@
             "sha256": "532037b67254fdc3667581548e34a5dc9721c03ed606c6b8f37f4a16cde26e7d"
           },
           "approved_span": {
-            "start": 83475,
-            "end": 83584,
+            "start": 84179,
+            "end": 84288,
             "sha256": "441b7c2ede3369c775b1b82c5d115835aff9117619e016ad77810254958ae5b3"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "expressionSelect(e, e.source, e.hi, e.lo).getOrElse(",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-componentemitterverilog-27",
+          "kind": "backend-isolation",
+          "owner": "spinal.core.internals.ComponentEmitterVerilog",
+          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "baseline_span": {
+            "start": 78684,
+            "end": 78684,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 84581,
+            "end": 84641,
+            "sha256": "f020273bb7525f0220e1be119610447feaaafda59154e2ee21fb712d2f6992aa"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    case e: TypedLocalUInt.Reference => e.render(component)\n",
               "count": 1
             }
           ]
@@ -3305,9 +3567,10 @@
       "classification": "platform-integration-hook",
       "introduced_by": [
         "Increment 57a: typed StreamFifoCC architecture",
-        "Increment 60g: scheduler-owned registration lifecycle"
+        "Increment 60g: scheduler-owned registration lifecycle",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior.",
+      "reason": "Preserve structured parameterized-Verilog diagnostics across the inherited Verilog elaboration retry boundary. Expose read-only per-context execution state before any phase runs without altering native phase order or behavior. Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
@@ -3317,8 +3580,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/Phase.scala",
         "mode": "100644",
-        "blob": "2f9a94735b66196d07a484cc94747f2118cda504",
-        "sha256": "07f1edef284e5fad1a701d00bd813b2e85cdaac2262d84660b4273581bfb6200"
+        "blob": "735b87004ee5f4962148ac9c6d31f3b444d46138",
+        "sha256": "37f626e1cbc9bedb8762f6857dabf676ad2bedf268c1f397cd05c25c3979fb41"
       },
       "edits": [
         {
@@ -3368,6 +3631,52 @@
           ]
         },
         {
+          "id": "increment66-phase-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
+          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+          "baseline_span": {
+            "start": 69256,
+            "end": 69256,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 69558,
+            "end": 69648,
+            "sha256": "70ddb66f11770a5872a967e1cd053a52be5c86275e1494df0ab9175bef47371c"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "          case DataAssignmentStatement(_, local: TypedLocalUInt.Reference) => local.fresh\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-phase-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.internals.PhaseSimplifyNodes / PhaseCompletSwitchCases",
+          "reason": "Mechanically copy immutable named-constant reference tokens through ordinary anonymous carrier propagation and validate exact named-key disjointness before native parallel-case emission. Never fold a symbolic default witness or alter ordinary literal propagation and coverage checks.",
+          "baseline_span": {
+            "start": 91788,
+            "end": 91788,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 92180,
+            "end": 92221,
+            "sha256": "7334b71febdeb5b83547e284fe9042e6cd12046a1a82016baf11d06fac1c426e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        TypedLocalUInt.validateSwitch(s)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "spinal-verilog-parameterized-exception-01",
           "kind": "platform-integration",
           "owner": "spinal.core.internals.SpinalVerilogBoot.apply retry boundary",
@@ -3378,8 +3687,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 137213,
-            "end": 137276,
+            "start": 137344,
+            "end": 137407,
             "sha256": "3ffd3c3e02b062888955ce16b876cff12d26e738bbd612c9988d71285271c8a1"
           },
           "required_exact_text": [
@@ -3453,9 +3762,10 @@
         "Increment 60e: signedness boundaries, aggregates and hierarchy closure",
         "PR #187 qualification repair: preserve upstream VerilogBase JVM compatibility",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
-        "Increment 64: typed native derived local parameters"
+        "Increment 64: typed native derived local parameters",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission.",
+      "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. CDC-WIRE-01 qualification preserves the historical two-argument wrapper method and adds an internal owner-checked overload for retained unsigned symbolic carriers. The default backend remains on inherited concrete emission; signed declaration policy ranges retain precedence, with no new state in the historical interface. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission. Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
@@ -3465,15 +3775,15 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
         "mode": "100644",
-        "blob": "5bd7375815962823e1c1435e3b76725bf99dcb20",
-        "sha256": "14c1715186285d870011ac48b6017aa167f60ec3f80c3e1592ad8916aaaa8f4e"
+        "blob": "34481a7ab3fa545accec5ccd60c0109d3620cf12",
+        "sha256": "0ec104a053049ed93fc0a72bafda0882de2a4028d0d1d6d358369883c4f1e84c"
       },
       "edits": [
         {
-          "id": "signed-boundary-60e-verilogbase-1",
+          "id": "increment66-verilogbase-1",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. Add a default-disabled exact-occurrence scalar range callback so the native printer can reference module-local typed constants without changing ordinary concrete emission.",
+          "reason": "Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies.",
           "baseline_span": {
             "start": 1997,
             "end": 1997,
@@ -3481,36 +3791,36 @@
           },
           "approved_span": {
             "start": 1997,
-            "end": 5657,
-            "sha256": "fe4f48f0f25db56cebf2530299b9a407f7f98e3286bd9211b31be7e9f68a0b4a"
+            "end": 6707,
+            "sha256": "873824936726dc6a8f5ed7b997041d854a690f5e5cf83147f7f836a191117095"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
+              "text": "/** The native printer owns declaration occurrences. No occurrence contains an\n  * emitted identifier, source location or a guessed concrete-width type.\n  */\nobject VerilogBase {\n  sealed trait DeclarationRole\n  case object ScalarDeclaration extends DeclarationRole\n  case object FunctionResultDeclaration extends DeclarationRole\n  case object ExpressionWrapper extends DeclarationRole\n  case object MemoryElementDeclaration extends DeclarationRole\n\n  final class DeclarationOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val subject: AnyRef,\n      val role: DeclarationRole\n  )\n\n  /** Native cast site and the exact object that emitExpression will print.\n    * The reference classification comes from the real native wrapper plan,\n    * never from the resulting Verilog text or a caller-provided signed flag.\n    */\n  final class SignedCastOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val parent: Expression,\n      val slot: Int,\n      val operand: Expression\n  ) {\n    def component: Component = printer.component\n    def isSignedLiteral: Boolean = operand match {\n      case literal: BitVectorLiteral => emitter.literalIsSigned(literal)\n      case _ => false\n    }\n    def referenceRole: Option[DeclarationRole] = {\n      if (printer.wrappedExpressionToName.contains(operand)) Some(ExpressionWrapper)\n      else operand match {\n        case value: BaseType if (value.component eq component) && !value.isSuffix &&\n            !printer.referencesOverrides.contains(value) => Some(ScalarDeclaration)\n        case _ => None\n      }\n    }\n  }\n\n  final class SignedLiteralOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val literal: BitVectorLiteral\n  )\n\n  final class SignedResizeOccurrence private[VerilogBase] (\n      val emitter: VerilogBase,\n      val printer: ComponentEmitterVerilog,\n      val resize: Resize\n  ) {\n    def inputReferenceRole: Option[DeclarationRole] =\n      new SignedCastOccurrence(emitter, printer, resize, 0, resize.input).referenceRole\n    def inputText: String = printer.emitExpression(resize.input)\n  }\n\n  /** Exact native assignment callback for authenticated parameter publication.\n    * Concrete emission has no bound policy and keeps its historical path.\n    */\n  trait AssignmentPublicationPolicy {\n    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]\n    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None\n    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,\n        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None\n  }\n\n  /** Optional storage owned by the concrete emitter, not by the historical\n    * VerilogBase interface. A field in that interface would add abstract JVM\n    * accessors and break already-compiled implementations. The strong reference\n    * lives exactly as long as its owner; no global or thread-local registry is\n    * involved, even when a policy itself retains the emitter.\n    */\n  private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>\n    @volatile private var boundPolicy: DeclarationPolicy = null\n    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null\n    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy\n    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {\n      require(policy != null && assignmentPolicy == null, \"assignment publication must be bound exactly once\")\n      assignmentPolicy = policy\n    }\n\n    private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy\n\n    private[VerilogBase] final def installDeclarationPolicy(policy: DeclarationPolicy): Unit = synchronized {\n      require(policy != null && boundPolicy == null,\n        \"a Verilog declaration policy must be non-null and bound exactly once\")\n      boundPolicy = policy\n    }\n  }\n\n  trait DeclarationPolicy {\n    def signed(occurrence: DeclarationOccurrence): Boolean\n    def wrapperRange(occurrence: DeclarationOccurrence): Option[String]\n    def unsignedTransport(expression: Expression): Boolean\n    def elideSignedCast(occurrence: SignedCastOccurrence): Boolean = false\n    def signedLiteral(occurrence: SignedLiteralOccurrence): Boolean = false\n    def signedResize(occurrence: SignedResizeOccurrence): Option[String] = None\n    def functionRange(occurrence: DeclarationOccurrence): Option[String] = None\n    def scalarRange(occurrence: DeclarationOccurrence): Option[String] = None\n  }\n}\n\n",
               "count": 1
             }
           ]
         },
         {
-          "id": "signed-boundary-60e-verilogbase-2",
+          "id": "increment66-verilogbase-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
-          "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged. Keep the historical VerilogBase interface stateless: default accessors delegate only to an opt-in, instance-owned DeclarationPolicyOwner; concrete PhaseVerilog supplies that capability without changing printer results. A supplied opt-in unsigned logical range is used only when no signed-policy range exists; absent both policy and range, the exact inherited emitType path remains.",
+          "reason": "Add owner-checked optional assignment/source/target/scope callbacks with storage confined to DeclarationPolicyOwner. Keep the historical interface stateless, preserve existing declaration and signedness hooks, and retain default native printing when no policy applies.",
           "baseline_span": {
             "start": 2040,
             "end": 2040,
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 5700,
-            "end": 8710,
-            "sha256": "5b63db31429440b313e81a637f5da4efce06c761113194dbbe9d0689899e8394"
+            "start": 6750,
+            "end": 11460,
+            "sha256": "5d76c870239ac61b5ec6614bfd582c42310ed3f95d4387e04fac902d8bb52e1c"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {\n    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
+              "text": "  import VerilogBase._\n\n  // Concrete default accessors keep old VerilogBase implementations stateless\n  // and unsigned. Only an explicitly policy-capable emitter owns a policy slot.\n  private def declarationPolicy: DeclarationPolicy = this match {\n    case owner: DeclarationPolicyOwner => owner.currentDeclarationPolicy\n    case _ => null\n  }\n\n  private def declarationPolicy_=(policy: DeclarationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installDeclarationPolicy(policy)\n    case _ => throw new IllegalArgumentException(\n      \"binding a Verilog declaration policy requires DeclarationPolicyOwner\")\n  }\n\n  /** One generation-local opt-in; an ordinary native emitter has no policy. */\n  private[spinal] final def bindDeclarationPolicy(policy: DeclarationPolicy): Unit = {\n    require(policy != null && declarationPolicy == null,\n      \"a Verilog declaration policy must be non-null and bound exactly once\")\n    declarationPolicy = policy\n  }\n\n  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {\n    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)\n    case _ => throw new IllegalArgumentException(\"assignment publication requires a policy-capable emitter\")\n  }\n  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.source(printer, assignment)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,\n      assignment: AssignmentStatement): Option[String] = {\n    require(printer.usesVerilogBase(this), \"assignment must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.target(printer, assignment)\n      case _ => None\n    }\n  }\n  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,\n      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,\n      indentation: String, body: String => Int): Option[Int] = {\n    require(printer.usesVerilogBase(this), \"scope must belong to this native emitter\")\n    this match {\n      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>\n        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)\n      case _ => None\n    }\n  }\n\n  private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null\n\n  private[spinal] final def needsUnsignedTransport(expression: Expression): Boolean =\n    declarationPolicy != null && declarationPolicy.unsignedTransport(expression)\n\n  private[spinal] final def canElideSignedCast(printer: ComponentEmitterVerilog,\n      parent: Expression, slot: Int, operand: Expression): Boolean = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed cast occurrence must belong to this native emitter\")\n    declarationPolicy != null && declarationPolicy.elideSignedCast(\n      new SignedCastOccurrence(this, printer, parent, slot, operand))\n  }\n\n  private[spinal] final def literalIsSigned(literal: BitVectorLiteral): Boolean =\n    declarationPolicy != null && declarationPolicy.signedLiteral(new SignedLiteralOccurrence(this, literal))\n\n  private[spinal] final def emitSignedResize(printer: ComponentEmitterVerilog,\n      resize: Resize): Option[String] = {\n    require(printer != null && printer.usesVerilogBase(this),\n      \"a signed resize occurrence must belong to this native emitter\")\n    if (declarationPolicy == null) None\n    else declarationPolicy.signedResize(new SignedResizeOccurrence(this, printer, resize))\n  }\n\n  private def declarationPrefix(subject: AnyRef, role: DeclarationRole): String =\n    if (declarationPolicy != null && declarationPolicy.signed(\n        new DeclarationOccurrence(this, subject, role))) \"signed \" else \"\"\n\n  private def emitWrapperType(e: Expression, unsignedRange: Option[String] = None): String = {\n    if (declarationPolicy == null && unsignedRange.isEmpty) return emitType(e)\n    val nativeType = emitUnqualifiedType(e)\n    val section = if (declarationPolicy == null) unsignedRange.getOrElse(nativeType) else {\n      val occurrence = new DeclarationOccurrence(this, e, ExpressionWrapper)\n      declarationPolicy.wrapperRange(occurrence).orElse(unsignedRange).getOrElse(nativeType)\n    }\n    declarationPrefix(e, ExpressionWrapper) + section\n  }\n\n",
               "count": 1
             }
           ]
@@ -3526,8 +3836,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8961,
-            "end": 10374,
+            "start": 11711,
+            "end": 13124,
             "sha256": "2d41135f311ab8564ece2c7688e4bcdc012f6b643e34a2f269e6a53c1297f96b"
           },
           "required_exact_text": [
@@ -3549,8 +3859,8 @@
             "sha256": "4995bdcf0d9f5960331b04bf48fbff533aa6a66b3ce4dd57b8d4d85db6f8cc33"
           },
           "approved_span": {
-            "start": 10577,
-            "end": 10604,
+            "start": 13327,
+            "end": 13354,
             "sha256": "c70fd6a7674ec81222015fdc821028e3bcb7be71431bc189327f655a76ccdc4b"
           },
           "required_exact_text": [
@@ -3572,8 +3882,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10913,
-            "end": 10920,
+            "start": 13663,
+            "end": 13670,
             "sha256": "6245d2f0ea7a1d0460fbe86cbd208ad1d7d58d086f001ee42242e3e4499569c9"
           },
           "required_exact_text": [
@@ -3595,8 +3905,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14627,
-            "end": 15258,
+            "start": 17377,
+            "end": 18008,
             "sha256": "fc26d46a5429ccf3d8e6731ed52870cbd38dfc4b64a11e802f64d9eb385a3085"
           },
           "required_exact_text": [
@@ -3618,8 +3928,8 @@
             "sha256": "fa2bfa4f5ea95c799ebe96586a5315bb97aa17fd79c39ce7d33a6422dca7bb9b"
           },
           "approved_span": {
-            "start": 15948,
-            "end": 16130,
+            "start": 18698,
+            "end": 18880,
             "sha256": "31edf5ff0fe4d85d963b486b8f0ca15d3788400ac28b11334541e3fb299dac49"
           },
           "required_exact_text": [
@@ -3654,6 +3964,52 @@
         "sha256": "1cbcf5534dff958a987e0ce10b0040154c4c4adcc12c97934f5c90c538ae31d6"
       },
       "edits": []
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/when.scala",
+      "change": "modified",
+      "classification": "typed-overload",
+      "introduced_by": [
+        "Increment 66: native parameter and RTL readability extensions"
+      ],
+      "reason": "Accept an immutable owner-checked unsigned local constant as one native switch key, requiring an exact selector width. Existing key consumers and scope construction remain unchanged.",
+      "baseline": {
+        "path": "core/src/main/scala/spinal/core/when.scala",
+        "mode": "100644",
+        "blob": "c40f9926c872f81c09fd7b3fa40af17e3810e79d",
+        "sha256": "cd378e71b8d29e83938fea5f2f1b239e73f0ea73fa1828c58d2846461a90ee43"
+      },
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/when.scala",
+        "mode": "100644",
+        "blob": "80020ef4f62568f2c98a2c0f751620b34d709d11",
+        "sha256": "3e9f2431af5533de522e6a0923f22e0a0381e3e89a89ff68096bbae3b28de195"
+      },
+      "edits": [
+        {
+          "id": "increment66-when-1",
+          "kind": "overload",
+          "owner": "spinal.core.is.list",
+          "reason": "Accept an immutable owner-checked unsigned local constant as one native switch key, requiring an exact selector width. Existing key consumers and scope construction remain unchanged.",
+          "baseline_span": {
+            "start": 6960,
+            "end": 6960,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 6960,
+            "end": 7199,
+            "sha256": "c07f7c315af678f93cdf80735783993cd529948e2173e2b7c430bd5b5dcdf749"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "      case value: TypedLocalUInt => switchValue match {\n        case selector: UInt => switchElement.keys += value.reference(selector.getWidth)\n        case _ => SpinalError(\"typed unsigned local requires an UInt switch selector\")\n      }\n",
+              "count": 1
+            }
+          ]
+        }
+      ]
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",
@@ -6635,9 +6991,10 @@
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "reason": "Declare the native AXI4 masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
         "mode": "100644",
@@ -6647,10 +7004,125 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/bus/amba4/axi/Axi4SlaveFactory.scala",
         "mode": "100644",
-        "blob": "7e0168a66b18fa42546ebcd56215ca07936a746e",
-        "sha256": "a1841b5fa0831a5924f6ff402d0cd3770425e3a1f003ec4551799840c464ad6c"
+        "blob": "6f9a2ccef5893af6a8f3a14db786bbe6cbb38e7e",
+        "sha256": "2b0f3492e30622cb21e8edf45085055d6ce517ecd236bbf1ea4696317494eb87"
       },
       "edits": [
+        {
+          "id": "increment66-axi4slavefactory-1",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2216,
+            "end": 2216,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2216,
+            "end": 2248,
+            "sha256": "43415fcc076225ef780c870144a9fb3d14fb65a9729a98da7477c9a5629aa69a"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    validateNamedAddressCases()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-2",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2602,
+            "end": 2602,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2634,
+            "end": 2819,
+            "sha256": "d77aabccb264d0719ab37d08060fa67e8fdf60431c014d2192f4e0a9c61f0ee8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2721,
+            "end": 2721,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2938,
+            "end": 2988,
+            "sha256": "14de2a876ae4dbc519d5d12500d4f888bcfeb51e6b10c8fb59d1302072799d3e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 3202,
+            "end": 3202,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3469,
+            "end": 3645,
+            "sha256": "5e1170ef4fc7e0cc3f9cda970438e77a32af8e9fa67b2eb9d7489b27eee9837d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axi4slavefactory-5",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 3321,
+            "end": 3321,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3764,
+            "end": 3814,
+            "sha256": "14de2a876ae4dbc519d5d12500d4f888bcfeb51e6b10c8fb59d1302072799d3e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "axi4-typed-alignment-01",
           "kind": "mechanical-propagation",
@@ -6662,8 +7134,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 3577,
-            "end": 3666,
+            "start": 4070,
+            "end": 4159,
             "sha256": "a0ce0d236a9b8c52d8a524bef28a92c2592d8248454014be489335031ba26914"
           },
           "required_exact_text": [
@@ -6681,9 +7153,10 @@
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder.",
+      "reason": "Declare the native AXI4-Lite masked-address alignment for generic typed mappings without changing its transaction decoder. Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
         "mode": "100644",
@@ -6693,10 +7166,125 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/bus/amba4/axilite/AxiLite4SlaveFactory.scala",
         "mode": "100644",
-        "blob": "66ec3a9a7c77ed834b0f109c45016be151586817",
-        "sha256": "d60510817512a8d58c0c29d50649295177aeaf92c3c3268b93ffe76a94dd0ae9"
+        "blob": "b1f96dadc8dcbdf0d93d4bd333db55cabc8bc227",
+        "sha256": "af50765d8415564d56605a03c15f38210ed006c2605de65b6243db8bc92982db"
       },
       "edits": [
+        {
+          "id": "increment66-axilite4slavefactory-1",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 1589,
+            "end": 1589,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 1589,
+            "end": 1621,
+            "sha256": "43415fcc076225ef780c870144a9fb3d14fb65a9729a98da7477c9a5629aa69a"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    validateNamedAddressCases()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-2",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 1973,
+            "end": 1973,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2005,
+            "end": 2190,
+            "sha256": "d77aabccb264d0719ab37d08060fa67e8fdf60431c014d2192f4e0a9c61f0ee8"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedWriteElements(jobs, writeJoinEvent.valid, writeOccur, bus.writeData.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-3",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2092,
+            "end": 2092,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2309,
+            "end": 2359,
+            "sha256": "14de2a876ae4dbc519d5d12500d4f888bcfeb51e6b10c8fb59d1302072799d3e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-4",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2571,
+            "end": 2571,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 2838,
+            "end": 3014,
+            "sha256": "5e1170ef4fc7e0cc3f9cda970438e77a32af8e9fa67b2eb9d7489b27eee9837d"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        case address: TypedLocalSingleMapping =>\n          is(address.local) {\n            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)\n          }\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-axilite4slavefactory-5",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
+          "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
+          "baseline_span": {
+            "start": 2690,
+            "end": 2690,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 3133,
+            "end": 3183,
+            "sha256": "14de2a876ae4dbc519d5d12500d4f888bcfeb51e6b10c8fb59d1302072799d3e"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " && !address.isInstanceOf[TypedLocalSingleMapping]",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "axi4-lite-typed-alignment-01",
           "kind": "mechanical-propagation",
@@ -6708,8 +7296,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 2944,
-            "end": 3033,
+            "start": 3437,
+            "end": 3526,
             "sha256": "a0ce0d236a9b8c52d8a524bef28a92c2592d8248454014be489335031ba26914"
           },
           "required_exact_text": [
@@ -6796,9 +7384,10 @@
       "change": "modified",
       "classification": "mechanical-propagation",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm.",
+      "reason": "Add explicit typed single-address overloads and mechanical mapping propagation while retaining every ordinary concrete and bus-family transaction algorithm. Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
         "mode": "100644",
@@ -6808,8 +7397,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/bus/misc/BusSlaveFactory.scala",
         "mode": "100644",
-        "blob": "2098eca0f872901ea7db42fda926951abd4c3225",
-        "sha256": "e47a06061f8d348c0a7861da093020ce5023ccf52406f6dd2c5f8a8d2fba636a"
+        "blob": "490bb8671675fbd82da678ed65ed7ad46ab325fa",
+        "sha256": "9ad81eafc5aa41a125806a8e744ae88fdfe0d8d9f0c0187f5143a11ccea0f63a"
       },
       "edits": [
         {
@@ -6836,10 +7425,10 @@
           ]
         },
         {
-          "id": "bus-slave-typed-address-01",
-          "kind": "signature",
-          "owner": "spinal.lib.bus.misc.BusSlaveFactory typed address validation",
-          "reason": "Validate a complete exact typed address domain against the native bus shape before any concrete or symbolic mapping is admitted.",
+          "id": "increment66-busslavefactory-2",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory / BusSlaveFactoryDelayed",
+          "reason": "Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
           "baseline_span": {
             "start": 4735,
             "end": 4735,
@@ -6847,13 +7436,13 @@
           },
           "approved_span": {
             "start": 5018,
-            "end": 6146,
-            "sha256": "f4d299003ef641b0154807bd051b2cc16b9e83fa1ef414db8ef4860d09427eb3"
+            "end": 8727,
+            "sha256": "80b6d9f9636394290f22d1377a3138458d3e9315d64323b48d5ab4c789d16f24"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "requireProjectedExactExtrema = true",
+              "text": "  private def requireTypedAddress(address: ElabInt): Unit = {\n    require(address != null, \"typed bus-slave address requires a non-null ElabInt\")\n  }\n\n  private def validatedTypedAddress(\n      address: ElabInt,\n      busAddress: UInt\n  ): ElabIntSingleMapping = {\n    requireTypedAddress(address)\n    val addressWidth = ParameterizedWidth.expressionOf(busAddress) match {\n      case Some(expression) if expression.parameters.nonEmpty =>\n        ElabInt\n          .fromExpression(expression)\n          .authoritativeProjectedExpression(\n            role = \"typed bus-slave bus-address width\",\n            failureCode =\n              \"SPINAL-PARAMETERIZED-VERILOG-BUS-ADDRESS-WIDTH-EXACT-DOMAIN-REQUIRED\",\n            requireProjectedExactExtrema = true\n          )\n          .minimum\n          .toInt\n      case _ => widthOf(busAddress)\n    }\n    ElabIntSingleMapping(address).validateForBus(\n      // The smallest admitted address width is sufficient even when its\n      // parameter root is independent of the typed address root.\n      addressWidth = addressWidth,\n      alignmentBytes = typedAddressAlignmentBytes\n    )\n  }\n\n  private def validatedNamedAddress(address: TypedLocalUInt, busAddress: UInt): TypedLocalSingleMapping = {\n    require(address != null, \"named bus address must not be null\")\n    require(address.bitWidth == widthOf(busAddress), \"named bus address width must match the bus address width\")\n    new TypedLocalSingleMapping(address, validatedTypedAddress(address.elab, busAddress))\n  }\n\n  def read[T <: Data](that: T, address: TypedLocalUInt): T = read(that, address, 0, null)\n  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = read(that, address, bitOffset, null)\n  def read[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = read(that, address, 0, documentation)\n  def read[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {\n    readPrimitive(that, validatedNamedAddress(address, readAddress()), bitOffset, documentation)\n    that\n  }\n\n  def write[T <: Data](that: T, address: TypedLocalUInt): T = write(that, address, 0, null)\n  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int): T = write(that, address, bitOffset, null)\n  def write[T <: Data](that: T, address: TypedLocalUInt, documentation: String): T = write(that, address, 0, documentation)\n  def write[T <: Data](that: T, address: TypedLocalUInt, bitOffset: Int, documentation: String): T = {\n    writePrimitive(that, validatedNamedAddress(address, writeAddress()), bitOffset, documentation)\n    that\n  }\n\n  def onRead(address: TypedLocalUInt)(body: => Unit): Unit = onRead(address, null)(body)\n  def onRead(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =\n    onReadPrimitive(validatedNamedAddress(address, readAddress()), true, documentation)(body)\n\n  def onWrite(address: TypedLocalUInt)(body: => Unit): Unit = onWrite(address, null)(body)\n  def onWrite(address: TypedLocalUInt, documentation: String)(body: => Unit): Unit =\n    onWritePrimitive(validatedNamedAddress(address, writeAddress()), true, documentation)(body)\n\n  def readAndWrite(that: Data, address: TypedLocalUInt): Unit = readAndWrite(that, address, 0, null)\n  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int): Unit = readAndWrite(that, address, bitOffset, null)\n  def readAndWrite(that: Data, address: TypedLocalUInt, documentation: String): Unit = readAndWrite(that, address, 0, documentation)\n  def readAndWrite(that: Data, address: TypedLocalUInt, bitOffset: Int, documentation: String): Unit = {\n    write(that, address, bitOffset, documentation)\n    read(that, address, bitOffset, documentation)\n  }\n\n",
               "count": 1
             }
           ]
@@ -6869,8 +7458,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6863,
-            "end": 7818,
+            "start": 9444,
+            "end": 10399,
             "sha256": "56fe455992ad0f5fc20982d5cfb0800678c326479f160dbcaa1aeb89ec706a00"
           },
           "required_exact_text": [
@@ -6892,8 +7481,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 8295,
-            "end": 9184,
+            "start": 10876,
+            "end": 11765,
             "sha256": "a1ce0daf75914b5b97980075cf4db38b4ba3ff5e7a419362daf53daa5f6ef7c6"
           },
           "required_exact_text": [
@@ -6915,8 +7504,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 9493,
-            "end": 9978,
+            "start": 12074,
+            "end": 12559,
             "sha256": "b17dac23bd73f7e1748d86e482c4733d8e41a851cac685e2a777870eb0a78f74"
           },
           "required_exact_text": [
@@ -6938,8 +7527,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10294,
-            "end": 10773,
+            "start": 12875,
+            "end": 13354,
             "sha256": "c8186e2055ee265b1f6f45f5dd9adb3eaf3583dba67e31452962fc95b8145aae"
           },
           "required_exact_text": [
@@ -6961,8 +7550,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 10958,
-            "end": 11133,
+            "start": 13539,
+            "end": 13714,
             "sha256": "b48d15da3e37f5cab500d1f8c471e5b6b3abd4db71ce82cc325113a66c263fac"
           },
           "required_exact_text": [
@@ -6984,8 +7573,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 11311,
-            "end": 11484,
+            "start": 13892,
+            "end": 14065,
             "sha256": "a74401d99621b8a6a9f17599f4102533fb7cc1976ddb6d543f19cc228c3a9e27"
           },
           "required_exact_text": [
@@ -7007,14 +7596,37 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 11776,
-            "end": 12379,
+            "start": 14357,
+            "end": 14960,
             "sha256": "ea49ff35f6e72bc4ca8fd4c10eac9bf8fb35f2adf115f65e9f444d41fa149f4d"
           },
           "required_exact_text": [
             {
               "side": "approved",
               "text": "def readAndWrite(that: Data, address: ElabInt)",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "increment66-busslavefactory-10",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.BusSlaveFactory / BusSlaveFactoryDelayed",
+          "reason": "Add explicit named-address read/write/event/readAndWrite overloads through existing primitives and alignment checks. Prove promoted single-address cases disjoint over exact domains while preserving existing shared-address and double-read checks, concrete mappings and transaction algorithms.",
+          "baseline_span": {
+            "start": 32924,
+            "end": 32924,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "approved_span": {
+            "start": 40675,
+            "end": 41827,
+            "sha256": "1896f6c7c082792ce8c05d5801b940edb8376772261eb708077a8f5143cdfabd"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Only exact single-address mappings enter the native case. Generic ranges\n    * and masks keep their established independent matching/priority path.\n    */\n  protected def validateNamedAddressCases(): Unit = {\n    if (!elementsPerAddress.keys.exists(_.isInstanceOf[TypedLocalSingleMapping])) return\n    val singles = elementsPerAddress.keys.toVector.collect {\n      case named: TypedLocalSingleMapping => (named: AddressMapping, named.local.elab)\n      // Typed elaboration values are Int-bounded; larger fixed addresses\n      // cannot overlap a named address and retain their historical path.\n      case fixed: SingleMapping if fixed.address.isValidInt => (fixed: AddressMapping, ElabInt.fromBigInt(fixed.address))\n    }\n    for (i <- singles.indices; j <- 0 until i\n        if singles(i)._1.isInstanceOf[TypedLocalSingleMapping] || singles(j)._1.isInstanceOf[TypedLocalSingleMapping]) {\n      if (!singles(i)._2.elabEq(singles(j)._2).isAlwaysFalse)\n        throw new ParameterizedVerilogException(\"SPINAL-LOCALPARAM-BUS-ADDRESS-OVERLAP\",\n          \"named case addresses must be disjoint over their complete admitted domains\", None)\n    }\n  }\n\n\n",
               "count": 1
             }
           ]
@@ -7030,8 +7642,8 @@
             "sha256": "4968569619b433e196d4cee0de310e5824cf11abe6aecdf2185652ef016232f7"
           },
           "approved_span": {
-            "start": 38573,
-            "end": 38963,
+            "start": 42306,
+            "end": 42696,
             "sha256": "a3ce330ce5e738e987bb05ba7d4f6ff7f8b34dc372ba02b83e796832f2410ed2"
           },
           "required_exact_text": [
@@ -7053,8 +7665,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 47172,
-            "end": 48336,
+            "start": 50905,
+            "end": 52069,
             "sha256": "7508d4ebed44ecc75fefd65a0136fc3651ba41cb32f3c51d9e21b983471ff396"
           },
           "required_exact_text": [
@@ -7072,9 +7684,10 @@
       "change": "modified",
       "classification": "typed-support-file",
       "introduced_by": [
-        "Increment 57: broad native library migration and proof"
+        "Increment 57: broad native library migration and proof",
+        "Increment 66: native parameter and RTL readability extensions"
       ],
-      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping.",
+      "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping. Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged.",
       "baseline": {
         "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
         "mode": "100644",
@@ -7084,8 +7697,8 @@
       "approved": {
         "path": "lib/src/main/scala/spinal/lib/bus/misc/Misc.scala",
         "mode": "100644",
-        "blob": "926d16f327b0a535400bf898640dcea514edab78",
-        "sha256": "47f13935b4fa378cec20adb1f19eef019a6b12f3f1d291ab913e44925e20d028"
+        "blob": "2fb7f491bdd4645e507641dd08ee27a35d6ba775",
+        "sha256": "71c9a22ec0edc0e7f67b092cd5358cce1bae8d27aa1d54c3cd98885412d3397d"
       },
       "edits": [
         {
@@ -7112,10 +7725,10 @@
           ]
         },
         {
-          "id": "typed-single-address-mapping-02",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.lib.bus.misc.ElabIntSingleMapping source boundary",
-          "reason": "Record beside the inherited file terminator that the new helper remains generic rather than bus-family-specific.",
+          "id": "increment66-misc-2",
+          "kind": "overload",
+          "owner": "spinal.lib.bus.misc.TypedLocalSingleMapping",
+          "reason": "Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged.",
           "baseline_span": {
             "start": 19550,
             "end": 19550,
@@ -7123,13 +7736,13 @@
           },
           "approved_span": {
             "start": 26039,
-            "end": 26112,
-            "sha256": "72db7ed4e0135b0eb9e4fd65bdc01f7865b6e7dcf3bd61b25ec0b4e69037c480"
+            "end": 27268,
+            "sha256": "41a2402d2380c9924cef38caee0c3dc9cc0fedd423d25bb9c920727d18c303dc"
           },
           "required_exact_text": [
             {
               "side": "approved",
-              "text": "ElabIntSingleMapping intentionally remains a generic AddressMapping.",
+              "text": "\n// ElabIntSingleMapping intentionally remains a generic AddressMapping.\n\n/** One named, compile-time address. Equivalent exact address functions retain\n  * the factory's existing shared-address grouping and double-read checks.\n  */\nfinal class TypedLocalSingleMapping(val local: TypedLocalUInt,\n    private[misc] val underlying: ElabIntSingleMapping) extends AddressMapping {\n  override def hit(address: UInt): Bool = address === local.asUInt\n  override def hit(address: BigInt): Boolean = underlying.hit(address)\n  override def removeOffset(address: UInt): UInt = U(0)\n  override def lowerBound: BigInt = underlying.lowerBound\n  override def highestBound: BigInt = underlying.highestBound\n  override def randomPick(): BigInt = underlying.randomPick()\n  override def foreach(body: BigInt => Unit): Unit = underlying.foreach(body)\n  override def withOffset(offset: BigInt): AddressMapping =\n    if (offset == 0) this else underlying.withOffset(offset)\n  override def equals(that: Any): Boolean = that match {\n    case other: TypedLocalSingleMapping => underlying == other.underlying\n    case _ => false\n  }\n  override def hashCode(): Int = underlying.hashCode()\n  override def toString: String = s\"Named address ${local.name}\"\n}\n",
               "count": 1
             }
           ]

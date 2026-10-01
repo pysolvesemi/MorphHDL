@@ -87,7 +87,7 @@ def _cdc_successor(root: Path):
     path = root / "morphhdl/scripts/check-cdc-successor-source.py"
     if not path.exists():
         return None
-    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "c33b2d465d283bd2cc5f5088d73c47bb12cced6e83fa66bcb11ef88a508bef31":
+    if not path.is_file() or path.is_symlink() or sha256(path.read_bytes()) != "34ef1660a94fdd51d3b0e9b8064533d6020edd49aabd37a0f16980d85e55063e":
         raise RuntimeError("PR189 successor source: linked or changed integration checker")
     spec = importlib.util.spec_from_file_location("increment61_cdc_successor", path)
     require(spec is not None and spec.loader is not None, "missing CDC successor checker")

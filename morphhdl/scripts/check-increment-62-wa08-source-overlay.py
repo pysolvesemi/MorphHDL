@@ -79,7 +79,9 @@ def contract(root: Path) -> dict:
     for entry in value["files"]:
         require(set(entry) == {"path", "mode", "before_sha256", "after_sha256"} and
                 entry["mode"] in ("100644", "100755") and
-                re.fullmatch(r"[0-9a-f]{64}", entry["after_sha256"]) is not None and
+                (entry["after_sha256"] is None or
+                 re.fullmatch(r"[0-9a-f]{64}", entry["after_sha256"]) is not None) and
+                (entry["after_sha256"] is not None or entry["before_sha256"] is not None) and
                 (entry["before_sha256"] is None or
                  re.fullmatch(r"[0-9a-f]{64}", entry["before_sha256"]) is not None),
                 "invalid reviewed source entry")
@@ -121,6 +123,20 @@ def verify(root: Path) -> dict:
             require(stage == "0" and path.decode() not in indexed, "unmerged index")
             indexed[path.decode()] = (mode, blob)
     for path, entry in records.items():
+        if entry["after_sha256"] is None:
+            relative = Path(path)
+            require(not relative.is_absolute() and ".." not in relative.parts,
+                    "invalid deleted source path: " + path)
+            require(all(not (root / Path(*relative.parts[:i])).is_symlink()
+                        for i in range(1, len(relative.parts) + 1)),
+                    "linked deleted source: " + path)
+            require(not (root / path).exists() and
+                    path not in final and path not in committed and path not in indexed,
+                    "reviewed deletion was reintroduced: " + path)
+            old = frozen(root, BASE, path)
+            require(old is not None and digest(old) == entry["before_sha256"],
+                    "deleted source baseline differs: " + path)
+            continue
         raw = regular(root, path, entry["mode"])
         require(digest(raw) == entry["after_sha256"],
                 "unreviewed production delta: current reviewed bytes differ: " + path)
@@ -188,7 +204,8 @@ def restore_source(root: Path, path: str, source: bytes) -> bytes:
     if entry is None:
         return source
     before = frozen(root.resolve(), BASE, path) or b""
-    require(source == before or digest(source) == entry["after_sha256"],
+    require(source == before or
+            (source == b"" if entry["after_sha256"] is None else digest(source) == entry["after_sha256"]),
             "unreviewed bytes cannot enter historical projection: " + path)
     return before
 

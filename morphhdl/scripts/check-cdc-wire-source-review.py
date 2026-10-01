@@ -236,6 +236,10 @@ def load(root: Path, path: str):
 
 
 def validate_scope(paths: set[str]) -> None:
+    successor = 'morphhdl/scripts/check-parameter-extension-source.py'
+    if (ROOT/successor).exists():
+        load(ROOT, successor).validate_scope(paths, ROOT)
+        return
     require(paths <= PRODUCTION_PATHS | TEST_PATHS | REVIEW_PATHS,
             'unreviewed successor paths: ' + repr(sorted(paths - PRODUCTION_PATHS - TEST_PATHS - REVIEW_PATHS)))
     require(bool(paths & PRODUCTION_PATHS), 'missing generic compiler implementation')
@@ -270,6 +274,9 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     root = root.resolve()
     outer = load(root, OUTER)
     seal = sealed if sealed is not None else outer.verify(root)
+    successor = 'morphhdl/scripts/check-parameter-extension-source.py'
+    if (root/successor).exists():
+        return load(root, successor).verify(root, seal)
     require(hashlib.sha256(outer.normalized_helper((root/OUTER).read_bytes())).hexdigest() ==
             '14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab',
             'outer source verifier algorithm changed')
