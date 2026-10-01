@@ -158,7 +158,7 @@ class Bits extends BitVector with DataPrimitives[Bits] with BaseTypePrimitives[B
   override def asBits: Bits = {
     val ret = new Bits()
     ret := this
-    ret
+    NativeWidthProvenance.retainResult(ret, this)
   }
 
   /**

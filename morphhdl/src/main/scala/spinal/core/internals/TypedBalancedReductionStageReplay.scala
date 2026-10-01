@@ -163,9 +163,16 @@ private[spinal] object TypedBalancedReductionStageReplay {
       fail("PUBLICATION-UNVALIDATED", "native stage evidence is not post-phase parameterized publication permission")
   }
 
+  // Preserve linkage for callers compiled before the native Vec-zero flag.
   def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
       bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
-      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None): Certificate[T] = {
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema]): Certificate[T] =
+    capture(vector, op, bridge, native, schema, false)
+
+  def capture[T <: BaseType](vector: Vec[T], op: (T, T) => T,
+      bridge: (T, Int) => T, native: ElabBalancedReduction.Native[T],
+      schema: Option[TypedBalancedReductionCertifiedCallbackPolicy.CaptureSchema] = None,
+      bridgeUsesNativeVecZero: Boolean = false): Certificate[T] = {
     if (vector == null || op == null || bridge == null || native == null)
       fail("NULL", "Vec, callbacks and the authoritative native helper are required")
     val shape = ParameterizedVec.shapeOf(vector)
@@ -239,7 +246,7 @@ private[spinal] object TypedBalancedReductionStageReplay {
           val observed = TypedBalancedReductionClosedGraph.observe(callback)
           observations += (() => observed.requireUnchanged())
         }
-      })
+      }, bridgeUsesNativeVecZero)
     val stages = captured.plan.stages.map { geometry =>
       val rows = captured.rows.filter(_.level == geometry.level)
       val rowOperators = rows.flatMap(_.operator.map(record => operators(record.ordinal)))

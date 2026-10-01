@@ -23,46 +23,59 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
   private val checked = mutable.Set.empty[String]
   private val active = mutable.Set.empty[String]
   private val checkedCompanions = mutable.Set.empty[String]
-  private val inspectedValues = new java.util.IdentityHashMap[spinal.core.Data, java.lang.Boolean]()
+  private val inspectedValues =
+    new java.util.IdentityHashMap[spinal.core.Data, Vector[spinal.core.BaseType]]()
 
-  /** Native clone may dispatch through an object's actual class or hardtype,
-    * even when the callback signature says only Data/Bundle. Inspect those
-    * exact values before any callback or reflective constructor can execute.
+  /** Audit containment before following static-read evidence. A valid Vec
+    * wrapper can lead back to its containing record, but that metadata edge
+    * is not a containment cycle. No unaudited Data method or Assignable hook
+    * executes while deciding whether a callback input is safe.
     */
   def requireValue(value: spinal.core.Data): Unit = {
     val path = new java.util.IdentityHashMap[spinal.core.Data, java.lang.Boolean]()
-    def visit(data: spinal.core.Data, depth: Int): Unit = {
+    val redirects = mutable.ArrayBuffer.empty[spinal.core.Data]
+    def visit(data: spinal.core.Data, depth: Int): Vector[spinal.core.BaseType] = {
       if (data == null) fail("composite callback input contains null data")
       if (path.containsKey(data)) fail("composite callback input has a cyclic Data container")
-      if (inspectedValues.containsKey(data)) return
-      if (depth > 64 || inspectedValues.size() >= 32768)
+      if (inspectedValues.containsKey(data)) return inspectedValues.get(data)
+      if (depth > 64 || inspectedValues.size() + path.size() >= 32768)
         fail("composite callback input tree exceeds the inspection budget")
-      inspectedValues.put(data, java.lang.Boolean.TRUE)
       path.put(data, java.lang.Boolean.TRUE)
       val owner = data.getClass.getName.replace('.', '/')
-      if (scalarNames(owner)) ()
+      val leaves = if (scalarNames(owner)) Vector(data.asInstanceOf[spinal.core.BaseType])
       else if (owner == "spinal/core/Vec") {
-        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.foreach(child => visit(child, depth + 1))
+        data.asInstanceOf[spinal.core.Vec[spinal.core.Data]].vec.flatMap(child => visit(child, depth + 1))
       } else if (customBundle(owner)) {
         auditBundle(owner)
         val bundle = data.asInstanceOf[spinal.core.Bundle]
         if (bundle.hardtype != null)
           fail("composite callback Bundle has an opaque native clone factory: " + owner)
-        bundle.elements.foreach { case (_, child) => visit(child, depth + 1) }
+        bundle.elements.toVector.flatMap { case (_, child) => visit(child, depth + 1) }
       } else fail("composite callback input has an unsupported runtime Data class: " + owner)
-      // Even an exact native Data class can redirect assignment to an opaque
-      // per-instance Assignable. Such a hook can run host code without adding
-      // an IR assignment, so post-callback external-write checks cannot detect
-      // it. Read this inherited property only after the class audit above.
-      data.compositeAssign match {
-        case null =>
-        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign
-            if scalarNames(owner) && wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType]) =>
-        case _ => fail("composite callback input has an opaque native assignment redirect: " + owner)
-      }
       path.remove(data)
+      inspectedValues.put(data, leaves)
+      redirects += data
+      leaves
     }
     visit(value, 0)
+    var index = 0
+    while (index < redirects.size) {
+      val data = redirects(index)
+      val owner = data.getClass.getName.replace('.', '/')
+      // Read this inherited property only after the exact class audit. The
+      // inspected final wrapper exposes metadata, never application methods.
+      data.compositeAssign match {
+        case null =>
+        case wrapped: spinal.core.ParameterizedVecStaticAccessAssign if scalarNames(owner) =>
+          if (wrapped.vector != null && wrapped.vector.getClass == classOf[spinal.core.Vec[_]] &&
+              wrapped.elementIndex >= 0 && wrapped.elementIndex < wrapped.vector.vec.size)
+            visit(wrapped.vector.vec(wrapped.elementIndex).asInstanceOf[spinal.core.Data], 0)
+          if (!wrapped.isCertifiedReadOf(data.asInstanceOf[spinal.core.BaseType], inspectedValues))
+            fail("composite callback input has an opaque native assignment redirect: " + owner)
+        case _ => fail("composite callback input has an opaque native assignment redirect: " + owner)
+      }
+      index += 1
+    }
   }
 
   private def read(owner: String): ClassNode = classes.getOrElseUpdate(owner, {
@@ -87,6 +100,35 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     if (nativeData(owner)) true
     else if (customBundle(owner)) { auditBundle(owner); true }
     else false
+  }
+
+  /** A NEW instruction is hardware construction authority only for one exact
+    * audited custom Bundle runtime class. Native scalar and host classes never
+    * enter through this path. */
+  def constructionType(owner: String): Boolean = {
+    if (!customBundle(owner)) false
+    else { auditBundle(owner); true }
+  }
+
+  /** Companion MODULE$ reads are admitted only when the companion belongs to
+    * the same audited Bundle class and its initializer has no host state. */
+  def constructionModule(owner: String): Boolean = {
+    val result = owner.endsWith("$") && customBundle(owner.dropRight(1))
+    if (result) auditCompanion(owner)
+    result
+  }
+
+  /** The abstract interpreter may complete only the exact constructor of the
+    * uninitialized Bundle value it already observed. auditBundle recursively
+    * proves all constructor bodies and immutable shape arguments first. */
+  def constructionCall(call: MethodInsnNode): Boolean = {
+    val result = call.getOpcode == Opcodes.INVOKESPECIAL && call.name == "<init>" &&
+      customBundle(call.owner)
+    if (result) {
+      auditBundle(call.owner)
+      exact(call.owner, call.name, call.desc)
+    }
+    result
   }
 
   def dataDescriptor(descriptor: String): Boolean =
@@ -125,6 +167,16 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     }
   }
 
+  /** Only exact immutable Data-field getters inherit the receiver's access
+    * permission in the effect interpreter. A method name is never authority.
+    */
+  def dataAccessor(call: MethodInsnNode): Boolean =
+    call.getOpcode == Opcodes.INVOKEVIRTUAL && customBundle(call.owner) && {
+      auditBundle(call.owner)
+      dataDescriptor(Type.getReturnType(call.desc).getDescriptor) &&
+        accessor(call.owner, call.name, call.desc)
+    }
+
   private val modules = Set("spinal/core/cloneOf$", "spinal/core/Mux$", "spinal/core/U$",
     "spinal/core/S$", "spinal/core/B$", "spinal/core/package$", "spinal/core/RegNext$")
 
@@ -142,14 +194,24 @@ private[internals] final class TypedBalancedReductionCompositeCallbackPolicy(loa
     if (call.getOpcode != Opcodes.INVOKEVIRTUAL) return false
     // Bundle/Vec assignment uses the ordinary DataPimped conversion, whereas
     // scalar assignment is encoded directly on its BaseType class. The native
-    // wrapper only retains its exact Data receiver; admit just its assignment.
+    // wrapper only retains its exact Data receiver. Bridge initialization uses
+    // the same native DataPrimitives.init path as scalar initialization; its
+    // captured assignments, literal reset values and target ownership still
+    // require the independent closed bridge graph certificate.
     if (call.owner == "spinal/core/package$" && call.name == "DataPimped" &&
         call.desc == "(Lspinal/core/Data;)Lspinal/core/DataPimper;") return true
     if (call.owner == "spinal/core/DataPimper" && call.name == "$colon$eq" &&
         call.desc == "(Lspinal/core/Data;Lspinal/idslplugin/Location;)V") return true
+    if (bridge && call.owner == "spinal/core/DataPimper" && call.name == "init" &&
+        call.desc == "(Lspinal/core/Data;)Lspinal/core/Data;") return true
     if (customBundle(call.owner)) {
       auditBundle(call.owner)
       if (accessor(call.owner, call.name, call.desc)) return true
+      // A new overload with a native-looking name is still application code.
+      // Exact inherited hooks were checked by auditBundle; never authorize a
+      // method declared on the record solely through the allowlist below.
+      if (read(call.owner).methods.asScala.exists(m => m.name == call.name && m.desc == call.desc))
+        return false
     }
     if (call.owner == "spinal/core/cloneOf$")
       return call.name == "apply" && call.desc == "(Lspinal/core/Data;)Lspinal/core/Data;"

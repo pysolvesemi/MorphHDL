@@ -1,0 +1,137 @@
+name: Increment 59i apply reviewed declaration filter
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-apply-declaration-filter.yml'
+      - 'morphhdl/repair-59i-declaration-filter/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-declaration-filter-source-application
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.repository == 'pysolvesemi/MorphHDL' && github.ref == 'refs/heads/agent/increment-59i-combined-reduction-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply only the locally tested exact before/after source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, subprocess
+          from pathlib import Path
+          root = Path.cwd()
+          bundle = root / 'morphhdl/repair-59i-declaration-filter'
+          output = root / 'target/increment-59i-declaration-filter-application'
+          output.mkdir(parents=True, exist_ok=True)
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          def digest(value):
+              return hashlib.sha256(value).hexdigest()
+          metadata = json.loads((bundle / 'metadata.json').read_text())
+          assert set(metadata) == {'schema', 'source_parent', 'patch_sha256', 'patch_bytes', 'compressed_bytes', 'files'}
+          assert metadata['schema'] == 1
+          assert metadata['source_parent'] == '6fe8c5c463bfd5ca2dc83149679dfc59df777678'
+          assert metadata['patch_sha256'] == '8a41819691994b794178b07d58de4cc04eb39ec38c29a557e4791a4e8000455a'
+          assert metadata['patch_bytes'] == 20637 and metadata['compressed_bytes'] == 5808
+          assert git('rev-parse', 'HEAD') == os.environ['GITHUB_SHA']
+          subprocess.run(['git', 'merge-base', '--is-ancestor', metadata['source_parent'], 'HEAD'], check=True)
+          assert not git('status', '--porcelain', '--untracked-files=all')
+          paths = [entry['path'] for entry in metadata['files']]
+          assert paths == [
+              'docs/morphhdl/increment-59i-declaration-filter.md',
+              'morphhdl/contracts/increment-59i-source-review.json',
+              'morphhdl/scripts/check-increment-59i-source-review.py',
+              'morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedVerilogNativeFallback.scala',
+              'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionDeclarationFilterTests.scala']
+          for entry in metadata['files']:
+              assert set(entry) == {'path', 'before', 'after'}
+              source = root / entry['path']
+              if entry['before'] is None:
+                  assert not source.exists() and not source.is_symlink()
+              else:
+                  assert source.is_file() and not source.is_symlink()
+                  assert digest(source.read_bytes()) == entry['before'], entry['path']
+          compressed = base64.b64decode((bundle / 'patch.txt').read_bytes(), validate=True)
+          assert len(compressed) == metadata['compressed_bytes']
+          patch = lzma.decompress(compressed)
+          assert len(patch) == metadata['patch_bytes'] and digest(patch) == metadata['patch_sha256']
+          patch_file = output / 'reviewed.patch'
+          patch_file.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', '--index', str(patch_file)], check=True)
+          subprocess.run(['git', 'apply', '--index', '--whitespace=error', str(patch_file)], check=True)
+          assert set(git('diff', '--cached', '--name-only').splitlines()) == set(paths)
+          for entry in metadata['files']:
+              source = root / entry['path']
+              assert source.is_file() and not source.is_symlink() and not source.stat().st_mode & 0o111
+              assert digest(source.read_bytes()) == entry['after'], entry['path']
+              assert subprocess.check_output(['git', 'show', ':' + entry['path']]) == source.read_bytes()
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'commit', '-m', '59i: filter impossible native declaration matches without changing publication semantics',
+              '-m', 'Six differential tests passed on both Scala versions; all 12 generated candidate profiles preserve exact RTL bytes. Preserve every previous source-review span and add one exact parser-span review. This is not full 59i closure; no checkbox or merge.'], check=True)
+          (output / 'head.txt').write_text(git('rev-parse', 'HEAD') + '\n')
+          (output / 'base.txt').write_text(os.environ['GITHUB_SHA'] + '\n')
+          (output / 'files.json').write_text(json.dumps(metadata['files'], indent=2) + '\n')
+          PY
+      - name: Validate actual Git ancestry and unchanged inherited source gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=target/increment-59i-declaration-filter-application
+          python3 morphhdl/scripts/check-native-source-preservation.py > "$output/native-review.log" 2>&1 || { tail -n 100 "$output/native-review.log"; exit 1; }
+          for layer in 59i 59g 59h; do
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" --self-test > "$output/$layer-self-test.log" 2>&1 || { tail -n 100 "$output/$layer-self-test.log"; exit 1; }
+            python3 "morphhdl/scripts/check-increment-$layer-source-review.py" > "$output/$layer-review.log" 2>&1 || { tail -n 100 "$output/$layer-review.log"; exit 1; }
+          done
+          python3 morphhdl/scripts/test-increment-59h-inherited-source-scope.py > "$output/inherited-source-controls.log" 2>&1 || { tail -n 140 "$output/inherited-source-controls.log"; exit 1; }
+          python3 morphhdl/scripts/test-increment-59i-combined.py > "$output/checker-regressions.log" 2>&1 || { tail -n 100 "$output/checker-regressions.log"; exit 1; }
+          python3 morphhdl/scripts/check-increment-59i-combined.py --self-test > "$output/checker-self-test.log" 2>&1 || { tail -n 100 "$output/checker-self-test.log"; exit 1; }
+          git diff --exit-code
+          git diff --cached --exit-code
+      - name: Publish only if the task branch retains the expected starting head
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          askpass=$(mktemp)
+          trap 'rm -f "$askpass"' EXIT
+          cat > "$askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *Password*) printf '%s\n' "$GH_TOKEN" ;;
+            *) exit 1 ;;
+          esac
+          SH
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0
+          branch=agent/increment-59i-combined-reduction-closure
+          test "$(git ls-remote origin "refs/heads/$branch" | cut -f1)" = "$GITHUB_SHA"
+          git push origin "HEAD:refs/heads/$branch"
+          git rev-parse HEAD > target/increment-59i-declaration-filter-application/published-head.txt
+          printf '%s\n' 'Reviewed declaration filter published to the existing task branch. No merge or completion checkbox. Fresh exact-head Scala/HDL/formal and the full 59i integration scope remain required.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-declaration-filter-application
+          path: target/increment-59i-declaration-filter-application
+          if-no-files-found: error
+          retention-days: 14

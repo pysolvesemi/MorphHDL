@@ -26,6 +26,9 @@ INCREMENT_59E_BASE = "b25e367d99604e61b8f2c895b2c51ca1ab90d423"
 COMPLETED_59E = INCREMENT_59E_BASE
 INHERITED_TRACKS = {"60c": "60c-signed-declarations", "60d": "60d-pure-sint-casts",
                     "60e": "60e-signedness-boundaries"}
+ROLLOUT_COMPOSITION_CHECKER = "morphhdl/scripts/check-increment-59i-rollout-composition.py"
+ROLLOUT_COMPOSITION_CONTRACT = "morphhdl/contracts/increment-59i-rollout-composition.json"
+
 # Exact composite production delta qualified with 59f; it cannot select a profile without 59f.
 COMPOSITE_59E_PRODUCTION_SHA256 = {
     "core/src/main/scala/spinal/core/BitVector.scala": "4e75d8cbdf88f1dbe0e4632c2494648b7893b96a1cb6242797e55a6c89d31729",
@@ -331,6 +334,14 @@ def integration_59d59f(root: Path) -> dict[str, str]:
     entries = reviewed["files"]
     require([entry["path"] for entry in entries] == sorted(INTEGRATION_59D59F_PATHS),
             "59d/59f integration exceeds its two exact callback paths")
+    # The named-field layer owns the authenticated successor projection.
+    # Older combined checkpoints have no such layer and their 59f helper
+    # predates current_inherited_source; keep their original direct read.
+    project = None
+    if named_source_review(root) is not None:
+        publisher = load(root, "59f-source-scope")
+        project = getattr(publisher, "current_inherited_source", None)
+        require(callable(project), "missing exact 59d/59f inherited-source projector")
     hashes = {}
     for entry in entries:
         require(set(entry) == {"path", "before_sha256", "after_sha256", "edits"},
@@ -341,7 +352,7 @@ def integration_59d59f(root: Path) -> dict[str, str]:
         source_path = root / path
         require(source_path.is_file() and not source_path.is_symlink() and not source_path.stat().st_mode & 0o111,
                 "reviewed production source must be a regular non-executable file: " + path)
-        source = source_path.read_text()
+        source = source_path.read_text() if project is None else project(root, path)
         require(hashlib.sha256(source.encode()).hexdigest() == entry["after_sha256"],
                 "59d/59f reviewed integration source changed: " + path)
         edits = entry["edits"]
@@ -597,6 +608,58 @@ def restore_rollout(root: Path, path: str, source: str) -> str:
     return module.restore_60g_source(root, path, source)
 
 
+def rollout_composition(root: Path):
+    checker = root / ROLLOUT_COMPOSITION_CHECKER
+    contract = root / ROLLOUT_COMPOSITION_CONTRACT
+    present = checker.exists() or checker.is_symlink() or contract.exists() or contract.is_symlink()
+    if not present:
+        return None
+    require(checker.is_file() and not checker.is_symlink() and
+            contract.is_file() and not contract.is_symlink() and
+            not checker.stat().st_mode & 0o111 and not contract.stat().st_mode & 0o111,
+            "joined 59i native audit requires regular composition reviewer and contract")
+    spec = importlib.util.spec_from_file_location("increment_59i_rollout_native_scope", checker)
+    require(spec is not None and spec.loader is not None,
+            "cannot load exact 59i rollout-composition reviewer")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.verify(root)
+    require(all(re.fullmatch(r"[0-9a-f]{40}", revision) is not None
+                for revision in (module.FEATURE_PARENT, module.TARGET_PARENT)) and
+            module.FEATURE_PARENT != module.TARGET_PARENT,
+            "59i native parent anchors are invalid")
+    return module
+
+
+def verify_native_source_scope(root: Path) -> None:
+    # The current merged native tree must pass its own canonical audit; frozen
+    # parent checks below additionally preserve the historical certificates.
+    subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                   cwd=root, check=True)
+    composition = rollout_composition(root)
+    if composition is None:
+        return
+
+    for label, revision in (("feature", composition.FEATURE_PARENT),
+                            ("target", composition.TARGET_PARENT)):
+        with tempfile.TemporaryDirectory(prefix="morphhdl-60f-native-" + label + "-") as directory:
+            worktree = Path(directory) / "source"
+            subprocess.run(["git", "worktree", "add", "--quiet", "--detach",
+                            str(worktree), revision], cwd=root, check=True)
+            try:
+                subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"],
+                               cwd=worktree, check=True)
+                overlay = worktree / "morphhdl/scripts/check-typed-native-source-overlay.py"
+                require(overlay.is_file() and not overlay.is_symlink(),
+                        "missing exact typed-native overlay checker at " + label + " parent")
+                subprocess.run(["python3", "morphhdl/scripts/check-typed-native-source-overlay.py"],
+                               cwd=worktree, check=True)
+            finally:
+                subprocess.run(["git", "worktree", "remove", "--force", str(worktree)],
+                               cwd=root, check=True)
+    print("60f joined native source audits PASS at exact 59i feature and target parents", flush=True)
+
+
 def verify_native_hooks(root: Path) -> None:
     """Authenticate successor bytes before comparing the exact frozen hooks."""
     ternary = boolean_ternary_review(root)
@@ -671,7 +734,7 @@ def source_scope(root: Path) -> None:
         source = (root / "morphhdl/src/main/scala/spinal/core/internals" / name).read_text()
         for token in ("getName", "definitionName", "getScalaLocation", "ThreadLocal", "replaceAll", ".r\n"):
             require(token not in source, "signedness authority uses forbidden inference: " + token)
-    subprocess.run(["python3", "morphhdl/scripts/check-native-source-preservation.py"], cwd=root, check=True)
+    verify_native_source_scope(root)
     profile = regression_profile(root)
     if "59e" in profile_features(profile):
         # The current exact publisher audit above includes every D width seam.

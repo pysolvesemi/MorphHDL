@@ -966,6 +966,30 @@ object ParameterizedWidth {
     validated.foreach(retain(data, _))
   }
 
+  /** Begin a certified shape substitution on an unused native clone. Native
+    * Vec cloning may already have inspected its inherited concrete width;
+    * only this fresh value may clear that construction observation. The
+    * rollback restores exact metadata without projecting it to a live branch.
+    */
+  private[core] def beginFreshCloneWidthChange(data: BitVector): () => Unit = synchronized {
+    require(data != null && data.isDirectionLess && !data.isReg && !data.isAnalog &&
+      data.head == null && !data.globalData.nodeAreInferringWidth,
+      "SPINAL-NATIVE-FRESH-CLONE-WIDTH: only unused construction-time native clones may change shape")
+    val metadata = metadataOf(data)
+    val fixed = data.fixedWidth
+    val observed = data.widthWhenNotInferred
+    val inferred = data.inferredWidth
+    data.widthWhenNotInferred = -1
+    data.inferredWidth = -1
+    () => synchronized {
+      data.fixedWidth = fixed
+      data.widthWhenNotInferred = observed
+      data.inferredWidth = inferred
+      retained.remove(new RetainedWidthIdentityRef(data, null))
+      metadata.foreach(value => retained.update(new RetainedWidthIdentityRef(data, queue), value))
+    }
+  }
+
   /** Copy concrete and symbolic leaf geometry in deterministic data-model order.
     * This is the external replacement for the former native `BaseType.clone`
     * hook.

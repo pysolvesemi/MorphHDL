@@ -1,0 +1,291 @@
+diff --git a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+index 2042d868b8b25d9c2eb415d221801221a817938e..4c47f3e5719e6882f19cfee2f45ef60660d95a87 100644
+--- a/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
++++ b/morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionClosedGraph.scala
+@@ -79,7 +79,8 @@
+ 
+   final class Observation private[TypedBalancedReductionClosedGraph] (
+       private val callback: UnvalidatedBalancedCallback,
+-      private val frozen: Snapshot
++      private val frozen: Snapshot,
++      private val combinationalScopes: Boolean
+   ) {
+     val ordinal: Int = callback.ordinal
+     val nodeCount: Int = frozen.nodes.size
+@@ -89,7 +90,7 @@
+       * top-level assignment source pointer. Must run before normalization.
+       */
+     def requireUnchanged(): Unit = {
+-      val current = inspect(callback)
++      val current = inspect(callback, combinationalScopes)
+       if (current != frozen)
+         fail("CHANGED", "a captured callback's exact graph changed after observation")
+     }
+@@ -104,7 +105,14 @@
+   }
+ 
+   def observe(callback: UnvalidatedBalancedCallback): Observation =
+-    new Observation(callback, inspect(callback))
++    new Observation(callback, inspect(callback, false), false)
++
++  /** Observe a closed, exhaustive single-level native combinational when.
++    * This is still only closure/freshness evidence, never a replay permit.
++    * The default observer and its unconditional negative contract stay strict.
++    */
++  private[internals] def observeCombinational(callback: UnvalidatedBalancedCallback): Observation =
++    new Observation(callback, inspect(callback, true), true)
+ 
+   /** Invoke the native helper once and observe callbacks as they complete. */
+   def capture[T <: Data](
+@@ -121,7 +129,7 @@
+     new ReductionObservation(record, observed.toVector)
+   }
+ 
+-  private def inspect(callback: UnvalidatedBalancedCallback): Snapshot = {
++  private def inspect(callback: UnvalidatedBalancedCallback, combinationalScopes: Boolean): Snapshot = {
+     if (callback == null || callback.result == null || callback.operands == null ||
+         callback.declarations == null || callback.assignments == null ||
+         callback.operands.isEmpty || callback.operands.exists(_ == null))
+@@ -144,9 +152,31 @@
+       scope.foreachStatements(values += _)
+       values.toVector
+     }
++    val combinationalWhens = ArrayBuffer.empty[WhenStatement]
++    def conditionalOf(scope: ScopeStatement): Option[WhenStatement] = {
++      if (!combinationalScopes || (scope eq owner.dslBody)) return None
++      val statement = Option(scope).map(_.parentStatement).collect { case value: WhenStatement => value }
++        .getOrElse(fail("SCOPE", "a local combinational scope must be a captured native when arm"))
++      if ((statement.parentScope ne owner.dslBody) ||
++          ((scope ne statement.whenTrue) && (scope ne statement.whenFalse)) ||
++          statement.whenTrue.isEmpty || statement.whenFalse.isEmpty ||
++          !callback.statements.exists(_ eq statement))
++        fail("SCOPE", "only one-level exhaustive captured combinational when scopes are closed")
++      val children = directStatements(statement.whenTrue) ++ directStatements(statement.whenFalse)
++      if (children.exists {
++          case leaf: BaseType => !declarations.containsKey(leaf) || leaf.isReg || leaf.isIo || leaf.isAnalog
++          case data: DataAssignmentStatement => !recorded.containsKey(data) ||
++            !declarations.containsKey(data.finalTarget) || data.finalTarget.isReg || (data.target ne data.finalTarget)
++          case _ => true
++        }) fail("SCOPE-EFFECT", "conditional arms may contain only captured internal combinational data and full writes")
++      if (!combinationalWhens.exists(_ eq statement)) combinationalWhens += statement
++      if (!enables.exists(_ eq statement)) enables += statement
++      Some(statement)
++    }
+     def enableOf(value: AssignmentStatement): Option[WhenStatement] = {
+       if (value.parentScope eq owner.dslBody) return None
+       val scope = value.parentScope
++      if (combinationalScopes && !value.finalTarget.isReg) return conditionalOf(scope)
+       val statement = Option(scope).map(_.parentStatement).collect { case when: WhenStatement => when }
+         .getOrElse(fail("ASSIGNMENT-SHAPE", "only one native register-enable scope is admitted"))
+       if (!value.isInstanceOf[DataAssignmentStatement] || !value.finalTarget.isReg ||
+@@ -175,8 +205,9 @@
+     }
+     callback.declarations.foreach { value =>
+       if (!liveDeclarations.containsKey(value) || (value.component ne owner) ||
+-          (value.parentScope ne owner.dslBody) || value.isAnalog || value.isIo)
+-        fail("DECLARATION", "callback-local data must be live, root-scoped, digital and internal")
++          ((value.parentScope ne owner.dslBody) && (value.isReg || conditionalOf(value.parentScope).isEmpty)) ||
++          value.isAnalog || value.isIo)
++        fail("DECLARATION", "callback-local data must be live, in a proved scope, digital and internal")
+     }
+     assignments.foreach { value =>
+       if (!liveAssignments.containsKey(value) || !declarations.containsKey(value.finalTarget))
+@@ -199,12 +230,48 @@
+       val owned = assignments.filter(_.finalTarget eq value)
+       val data = owned.count(_.isInstanceOf[DataAssignmentStatement])
+       val init = owned.count(_.isInstanceOf[InitAssignmentStatement])
+-      if (data != 1 || init > 1 || (!value.isReg && init != 0))
++      val exhaustive = if (combinationalScopes && !value.isReg && data == 2 &&
++          (value.parentScope eq owner.dslBody) && init == 0) {
++        val arms = owned.map(driver => conditionalOf(driver.parentScope))
++        arms.forall(_.isDefined) && (arms(0).get eq arms(1).get) &&
++          owned.map(_.parentScope).exists(_ eq arms(0).get.whenTrue) &&
++          owned.map(_.parentScope).exists(_ eq arms(0).get.whenFalse)
++      } else false
++      if ((data != 1 && !exhaustive) || init > 1 || (!value.isReg && init != 0))
+         fail("DRIVERS", "each callback-local value needs one data driver and at most one register initializer")
+       if (value.isReg && value.clockDomain == null)
+         fail("CLOCK", "a callback register lost its native clock-domain identity")
++      if (!value.isReg && (value.parentScope ne owner.dslBody) &&
++          owned.exists(_.parentScope ne value.parentScope))
++        fail("SCOPE-ESCAPE", "branch-local data must be driven in its own exact lexical arm")
++      if (!value.isReg && (value.parentScope eq owner.dslBody) && data == 1 &&
++          (owned.head.parentScope ne owner.dslBody))
++        fail("DRIVERS", "a root combinational result requires both exhaustive arms, not an implicit latch")
+       drivers.put(value, owned)
+     }
++    if (resultLeaves.exists(value => declarations.containsKey(value) && (value.parentScope ne owner.dslBody)))
++      fail("SCOPE-ESCAPE", "a branch-local declaration cannot escape as the callback result")
++
++    // Check lexical visibility at every source use without following drivers:
++    // a root result may leave a when, but an arm-local temporary may not.
++    def checkVisible(expression: Expression, scope: ScopeStatement): Unit = {
++      val checked = new IdentityHashMap[Expression, java.lang.Boolean]()
++      def loop(value: Expression, depth: Int): Unit = {
++        if (value == null) fail("NULL", "native expression contains a null child")
++        if (depth > MaximumDepth || checked.size >= MaximumNodes)
++          fail("LIMIT", "lexical visibility traversal exceeds the reviewed graph bound")
++        if (checked.put(value, java.lang.Boolean.TRUE) == null) value match {
++          case leaf: BaseType =>
++            if (declarations.containsKey(leaf) && (leaf.parentScope ne owner.dslBody) &&
++                (leaf.parentScope ne scope))
++              fail("SCOPE-ESCAPE", "a branch-local declaration was read outside its exact lexical arm")
++          case _ => value.foreachExpression(child => loop(child, depth + 1))
++        }
++      }
++      loop(expression, 0)
++    }
++    assignments.foreach(value => checkVisible(value.source, value.parentScope))
++    combinationalWhens.foreach(value => checkVisible(value.cond, value.parentScope))
+ 
+     val state = new IdentityHashMap[Expression, java.lang.Integer]()
+     val expressions = ArrayBuffer.empty[Expression]
+@@ -231,7 +298,11 @@
+           }
+           else fail("EXTERNAL-READ", "callback expression reads data other than its operands or local declarations")
+         case _ =>
+-          if (!expressionClasses.contains(value.getClass))
++          val conditionalPrimitive = combinationalScopes && Set[Class[_]](
++            classOf[Operator.BitVector.orR], classOf[Operator.BitVector.andR], classOf[Operator.BitVector.xorR],
++            classOf[BitsRangedAccessFixed], classOf[UIntRangedAccessFixed], classOf[SIntRangedAccessFixed]
++          ).contains(value.getClass)
++          if (!expressionClasses.contains(value.getClass) && !conditionalPrimitive)
+             fail("EXPRESSION", s"native expression class '${value.getClass.getName}' is not in the reviewed closed-graph subset")
+           val children = ArrayBuffer.empty[Expression]
+           value.foreachExpression(children += _)
+@@ -276,6 +347,7 @@
+         Vector(literal.value, literal.poisonMask, literal.bitCount, literal.hasSpecifiedBitCount)
+       case literal: BoolLiteral => Vector(literal.value)
+       case resize: Resize => Vector(resize.size, ParameterizedWidth.resizeExpressionOf(resize).map(identity))
++      case access: BitVectorRangedAccessFixed => Vector(access.hi, access.lo)
+       case access: BitVectorBitAccessFixed => Vector(access.bitId, NativeWidthProvenance.isHighBit(access))
+       case _: Expression => Vector.empty
+     }
+diff --git a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala
+index 1429b50aaa0fc5d230977415fdb8217137bc0899..0d0dde8787ba9c4c1f7057dcc15c46111743dd73 100644
+--- a/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala
++++ b/morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionClosedGraphTests.scala
+@@ -246,4 +246,123 @@
+       assert(observerError.getMessage.contains("MORPH-REDUCE-BALANCED-CAPTURE-NULL"))
+     }
+   }
++  private def elaborate(body: => Unit): Unit = {
++    SpinalConfig(targetDirectory = Files.createTempDirectory("scoped-closed-graph-").toString,
++      headerWithDate = false, headerWithRepoHash = false).generateVerilog(new Component {
++      body
++      val anchor = out Bool()
++      anchor := False
++    })
++  }
++
++  private def unsignedCallback(body: (UInt, UInt) => UInt): UnvalidatedBalancedCallback = {
++    val width = HdlInt.param("SCOPED_WIDTH", 5, 2, 9)
++    val count = HdlInt.param("SCOPED_COUNT", 2, 2, 2)
++    val values = Vec(UInt(width bits), count)
++    values.foreach(_ := 0)
++    TypedBalancedReductionCapture(values, body, (x: UInt, _: Int) => x,
++      native[UInt]).rows.head.operator.get
++  }
++
++  test("explicit combinational observation closes the exact native unsigned saturation graph") {
++    elaborate {
++      val callback = unsignedCallback((a, b) => a +| b)
++      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      assert(observation.registerCount == 0)
++      assert(callback.declarations.exists(_.parentScope ne Component.current.dslBody))
++      assert(callback.statements.exists(_.isInstanceOf[WhenStatement]))
++      observation.requireUnchanged()
++    }
++  }
++
++  test("explicit combinational observation still rejects a missing else latch") {
++    elaborate {
++      val callback = unsignedCallback { (a, b) =>
++        val result = UInt(5 bits)
++        when(a(0)) { result := b }
++        result
++      }
++      assert(intercept[IllegalArgumentException] {
++        TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      }.getMessage.contains("SCOPE"))
++    }
++  }
++
++  test("explicit combinational observation rejects branch-local data escaping its arm") {
++    elaborate {
++      val callback = unsignedCallback { (a, b) =>
++        var escaped: UInt = null
++        val selected = UInt(5 bits)
++        when(a(0)) { selected := a } otherwise {
++          escaped = b ^ a
++          selected := escaped
++        }
++        selected ^ escaped
++      }
++      assert(intercept[IllegalArgumentException] {
++        TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      }.getMessage.contains("SCOPE-ESCAPE"))
++      // The intentionally illegal graph is an observation-only fixture.
++      callback.assignments.foreach(_.removeStatement())
++      callback.statements.collect { case value: WhenStatement => value }.foreach(_.removeStatement())
++      callback.declarations.foreach(_.removeStatement())
++    }
++  }
++
++  test("explicit combinational observation rejects conditional register state") {
++    elaborate {
++      val callback = unsignedCallback { (a, b) =>
++        val result = Reg(UInt(5 bits)) init(0)
++        when(a(0)) { result := a } otherwise { result := b }
++        result
++      }
++      assert(intercept[IllegalArgumentException] {
++        TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      }.getMessage.contains("ASSIGNMENT-SHAPE"))
++    }
++  }
++
++  test("explicit combinational observation rejects effects outside captured conditional data") {
++    elaborate {
++      val outside = UInt(5 bits)
++      val error = intercept[IllegalArgumentException] {
++        unsignedCallback { (a, b) =>
++          when(a(0)) { outside := b }
++          a +| b
++        }
++      }
++      assert(error.getMessage.contains("EXTERNAL-WRITE"))
++    }
++  }
++
++  test("explicit combinational observation freezes the native saturation condition") {
++    elaborate {
++      val callback = unsignedCallback((a, b) => a +| b)
++      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      val control = callback.statements.collectFirst { case value: WhenStatement => value }.get
++      val before = control.cond
++      control.cond = new BoolLiteral(false)
++      val error = intercept[IllegalArgumentException](observation.requireUnchanged())
++      assert(error.getMessage.contains("CHANGED") || error.getMessage.contains("UNREACHABLE"))
++      control.cond = before
++      observation.requireUnchanged()
++    }
++  }
++
++  test("explicit combinational observation freezes native saturation slice indices") {
++    elaborate {
++      val callback = unsignedCallback((a, b) => a +| b)
++      val observation = TypedBalancedReductionClosedGraph.observeCombinational(callback)
++      val access = callback.assignments.map(_.source).collectFirst {
++        case value: BitVectorRangedAccessFixed => value
++      }.get
++      val before = access.lo
++      access.lo = before + 1
++      val error = intercept[IllegalArgumentException](observation.requireUnchanged())
++      assert(error.getMessage.contains("CHANGED"))
++      access.lo = before
++      observation.requireUnchanged()
++    }
++  }
++
+ }

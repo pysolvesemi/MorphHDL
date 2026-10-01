@@ -1,5 +1,25 @@
 # MorphHDL IR simple-wire assignment passes roadmap
 
+## Deprecation notice — 2026-09-29
+
+The six optional wire-assignment optimizations and their associated emitter
+expression inlining are now **disabled by default**, including plain
+`MorphVerilog(config)` and `MorphWireAssignmentPasses(config)`. Explicit
+`enabled = true` remains a deprecated compatibility opt-in pending removal.
+Required parameterization, width/signedness checks and ordinary native backend
+correctness processing remain enabled. This decision is independent of the
+59i elaboration-time freshness-validation performance repair; disabling late
+wire passes is not evidence that the measured elaboration hotspot is fixed.
+
+- [ ] Remove the deprecated production wire-pass API, installers and optional
+  emitter inlining after identifying explicit callers and preserving hardware
+  equivalence, namespace and sizing coverage on the unoptimized path.
+- [ ] Retire obsolete wire-optimization publication contracts only through an
+  explicit migration; retain historical tests, proofs and failure artifacts.
+
+The completion records and enabled-pipeline contracts below describe historical
+or explicitly opted-in behavior, not the new production default.
+
 This is the controlling checklist for six optional, behavior-preserving
 passes over the canonical MorphHDL-owned IR after parameterization/capture
 and before Verilog-2001 emission:
