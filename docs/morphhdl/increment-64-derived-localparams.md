@@ -1,6 +1,6 @@
 # Increment 64 — Derived localparam implementation handoff
 
-## Status: implementation in progress; qualification deferred
+## Status: implemented and locally validated; remote qualification deferred
 
 Implementation began on 2 October 2026 on
 `work/remaining-parameterized-increments`, from integration baseline
@@ -14,8 +14,8 @@ The controlling contract remains
 [the Increment 64 roadmap entry](parameterized-verilog-todo.md#parameter-expression-and-structural-legality-follow-ups-increments-64-and-65).
 The source observations and checklist below originated in the 22 September
 review of `67d944fd6fa1bd7f3dc65bdc6439ce31e59283ca`; they are design inputs, not
-completion evidence. Implementation and acceptance validation are still in
-progress, and no remote qualification or merge is claimed.
+completion evidence. Local implementation evidence is recorded below; no
+remote qualification or merge is claimed.
 
 ## Current implementation surface
 
@@ -44,9 +44,8 @@ remain in Increment 66's separate contract.
 `NativeDerivedLocalParameterTests` contains the unchanged `RecordLink` source,
 same-file parameter overrides, independent native concrete specialization
 proofs, asymmetric live mutations, dependency chains, name collisions, identity
-and cycle controls, helpers, hierarchy and ordinary concrete behavior. Exact
-validation receipts are recorded after the active runs finish; this section does
-not assert remote qualification.
+and cycle controls, helpers, hierarchy and ordinary concrete behavior. The local validation receipt below distinguishes these results from remote
+qualification.
 
 Reproduce the standalone example with:
 
@@ -63,6 +62,46 @@ and absent identifiers in the existing Vec/structural publisher. A lexical
 declaration-prefix scan and literal absence prechecks avoid those scans while
 retaining exact identifier boundaries, comment/string handling and unique
 declaration/ownership checks. No matrix, proof or timeout was reduced.
+
+## Local validation receipt — 2 October 2026
+
+Implementation source: `0c2f07b4a49cacc918923663dbd0859f27b57c7d`, tree
+`04a70bb4898539a3e4854bb8d38f79dfec82eafa`, on
+`work/remaining-parameterized-increments`.
+
+- Final focused suite: **59/59 on Scala 2.12.18 and 59/59 on Scala 2.13.12**.
+  Includes native localparams, Vec declarations/structural lexical scanning,
+  parameterized Vecs and typed BlackBox generics.
+- Compatibility suite: **311/311 across 26 suites on Scala 2.13.12**, including
+  the full `TypedBalancedReduction*` set and widening repeat determinism.
+- Earlier targeted safety/legality/formal-boundary suite: **66/66 on Scala
+  2.12.18**; hierarchy, clone and typed-domain compatibility: **95/95 on Scala
+  2.13.12**. Native Counter and StreamFifoCC cases passed in the earlier broader
+  run; that entire run was interrupted and is not counted as a passing matrix.
+- RecordLink: both source publication modes and optional wire-pass settings;
+  five same-file parameter tuples per setting; Icarus X/Z/data simulations,
+  strict Verilog-2001 parsing, Verilator lint, Yosys synthesis and equivalence
+  against independently elaborated native concrete references. Alternate
+  defaults, chained locals, helpers, hierarchy, branch scope and external-only
+  generic uses are included. Six actual RTL mutations detect frozen defaults,
+  operator/root/binding mistakes and sign/carry loss.
+- Standalone generated RTL is byte-identical across Scala lanes. The source,
+  artifact and hashes are retained in [the evidence directory](evidence/increment64/README.md).
+- Native-source audit: **7 roots, 54 approved paths, 245 reviewed edits**;
+  self-test passed all **8 exact negative controls**. Production-retirement
+  audit passed **814 sources**, with all **17 retired paths** absent.
+
+Local logs are `/tmp/morphhdl-localparams-final-validation.log` and
+`/tmp/morphhdl-localparams-stable-head.log`. The latter contains two successful
+59-test tasks and both successful artifact writers, followed by a deliberately
+stopped redundant widening-only rerun. The original complete compatibility run
+passed its unchanged byte-determinism test; its widening artifact is header-free.
+No interrupted process is represented as a passing test suite.
+
+Restricted branch calculations and method-local values retain the documented
+direct-expression path. Remote qualification, integration with merged 59i and
+merge/closure remain deferred under the batch plan. The roadmap checkbox stays
+open.
 
 ## Reviewed implementation seams
 

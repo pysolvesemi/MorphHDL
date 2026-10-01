@@ -1386,6 +1386,16 @@ planning dependency on merged 59i without waiving those interaction checks.
   Verilog with source-bound evidence before checking this item. No generated-
   Verilog text rewriting or replacement library algorithm is permitted.
 
+  **Local implementation checkpoint, 2 October 2026:** Increment 64 is
+  implemented on `work/remaining-parameterized-increments` at source
+  `0c2f07b4a49cacc918923663dbd0859f27b57c7d`. Final focused validation passed
+  59 tests on each Scala lane; the Scala 2.13 compatibility run passed all
+  311 tests, including widening byte determinism. Native-source and retirement
+  audits passed. [Implementation boundaries and receipts](increment-64-derived-localparams.md)
+  and [actual generated RecordLink RTL](evidence/increment64/RecordLink.v) are
+  retained. Remote qualification and merge remain deferred; this checkbox is
+  intentionally open. No 59i source or old wire-roadmap item was implemented.
+
 - [ ] **Increment 65 — Targeted structural-parameter extensions**
 
   Extend the existing typed structural-capture and native legality machinery,
