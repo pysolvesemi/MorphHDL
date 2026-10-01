@@ -132,9 +132,9 @@ object NativeSymbolicLegality {
       case c => c.toString
     }
     val guards = values.zipWithIndex.map { case (value, index) =>
-      val label = allocate(s"g_morphhdl_parameter_legality_$index")
+      val label = allocate(s"G_PARAMETER_LEGALITY_$index")
       s"""    if (!(${value.condition.verilog})) begin : $label
-         |      initial $$fatal(1, "%s", "${quote("MorphHDL parameter legality failed: " + value.message)}");
+         |      initial $$fatal(1, "%s", "${quote(value.message)}");
          |    end
          |""".stripMargin
     }.mkString

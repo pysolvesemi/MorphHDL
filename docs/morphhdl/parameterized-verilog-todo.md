@@ -2396,5 +2396,21 @@ integration target. Wire-expression issues from the same report are tracked in
   compiled with the repository's SBT/Scala 2.12.18 plugins and generated in both
   pass modes; Icarus compiled both artifacts. On the enabled artifact, overrides
   1/4 exited successfully and 2/3 terminated nonzero with the current prefixed
-  message. The actual label is still `g_morphhdl_parameter_legality_0`.
-  This confirms the reproduction only; the requested presentation remains TODO.
+  message. That baseline used `g_morphhdl_parameter_legality_0`; it is historical
+  reproduction evidence, not the status of the implementation below.
+
+  **Local implementation checkpoint, 2 October 2026:** implemented on
+  `work/remaining-parameterized-increments`; remote qualification and merge are
+  pending the batch-wide CI phase. The native emitter allocates
+  `G_PARAMETER_LEGALITY_<index>` through its existing name scope and passes the
+  escaped original message directly to the unchanged guarded `$fatal` call.
+  `NativeLegalityPresentationTests` and `SymbolicPublicationEvidenceTests` pass
+  together on Scala 2.12.18 and 2.13.12 (22 tests per lane). Coverage includes
+  repeated emission, both existing pass modes, sibling scopes, collisions with
+  user names, obligation ordering, default/empty/escaped messages, Icarus
+  valid/invalid overrides and four-state passthrough, synthesis exclusion,
+  Verilog-2001 parsing, Verilator lint and Yosys synthesis. The existing Python
+  diagnostic checker now requires exactly one original diagnostic and rejects
+  the removed prefix; all 15 policy tests pass. Local run log:
+  `/tmp/morphhdl-cdc-legality-final.log`. These are local implementation receipts,
+  not remote CI or merge receipts.

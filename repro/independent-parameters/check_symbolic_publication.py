@@ -87,9 +87,19 @@ def failed_simulation(command: list[str], directory: Path, log: Path,
         raise RuntimeError(f"invalid tuple was not rejected by its legality diagnostic: {command}; {result.stdout}")
 
 
+def message_marker(item: SymbolicFixture) -> str:
+    if item.scenario == "difference":
+        return "must be greater than zero: (A - B)"
+    if item.scenario == "default-invalid-require":
+        return "A must be < B"
+    return "A must be >= B"
+
+
 def check_message(item: SymbolicFixture, output: str) -> None:
-    if output.count("MorphHDL parameter legality failed:") != 1:
+    if output.count(message_marker(item)) != 1:
         raise RuntimeError("failed require did not produce exactly one original diagnostic")
+    if "MorphHDL parameter legality failed:" in output:
+        raise RuntimeError("native legality diagnostic added a product prefix")
     if item.scenario == "message-format":
         for literal in ('100% literal %d %m', 'quoted "A"', 'backslash \\;', '\nnext line'):
             if literal not in output:
@@ -119,12 +129,12 @@ endmodule
                        "-o", str(executable), str(source), str(wrapper)]
     execute(compile_command, directory, directory / "icarus-compile.log", 180, commands)
     failed_simulation(["vvp", str(executable)], directory, directory / "icarus-run.log",
-                      "MorphHDL parameter legality failed: ", commands)
+                      message_marker(item), commands)
     check_message(item, (directory / "icarus-run.log").read_text())
     execute(compile_command[:1] + ["-DSYNTHESIS"] + compile_command[1:],
             directory, directory / "icarus-synthesis-compile.log", 180, commands)
     output = execute(["vvp", str(executable)], directory, directory / "icarus-synthesis-run.log", 180, commands)
-    if "SYNTHESIS_GUARD_BYPASS_PASS" not in output or "MorphHDL parameter legality failed" in output:
+    if "SYNTHESIS_GUARD_BYPASS_PASS" not in output or message_marker(item) in output:
         raise RuntimeError("SYNTHESIS did not remove the simulation diagnostic")
 
 
@@ -164,7 +174,7 @@ int main(int argc, char** argv) {{
             directory, directory / "build.log", 600, commands)
     command = [str(obj / "VPolicy")]
     if illegal:
-        marker = "MorphHDL parameter legality failed: "
+        marker = message_marker(item)
         failed_simulation(command, directory, directory / "run.log", marker, commands)
     else:
         result = execute(command, directory, directory / "run.log", 180, commands)

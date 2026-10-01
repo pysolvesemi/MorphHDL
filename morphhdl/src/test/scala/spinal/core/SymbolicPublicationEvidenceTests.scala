@@ -91,7 +91,10 @@ class SymbolicPublicationEvidenceTests extends AnyFunSuite {
     assert(start >= 0 && end > start && fatal > start && fatal < end)
     assert(verilog.indexOf("$fatal(", fatal + 1) == -1)
     assert(!verilog.contains("$error("))
-    assert(verilog.contains("""$fatal(1, "%s", "MorphHDL parameter legality failed: A must be >= B; 100% literal %d %m");"""))
+    assert(verilog.contains("begin : G_PARAMETER_LEGALITY_0"))
+    assert(!verilog.contains("g_morphhdl_parameter_legality_"))
+    assert(!verilog.contains("MorphHDL parameter legality failed:"))
+    assert(verilog.contains("""$fatal(1, "%s", "A must be >= B; 100% literal %d %m");"""))
   }
   test("concrete and universally false requires still reject immediately") {
     failsWith("concrete false")(generate(new Component {

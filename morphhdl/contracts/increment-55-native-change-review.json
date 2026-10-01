@@ -729,9 +729,10 @@
       "introduced_by": [
         "PR188: separate symbolic publication provenance from structural proof",
         "PR188: one synthesis-guarded fatal for failed symbolic require",
-        "PR189: authentic compact declaration and explicit publication authority"
+        "PR189: authentic compact declaration and explicit publication authority",
+        "CDC-LEG-01: product-neutral legality labels and user-only fatal messages"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged.",
       "edits": []
     },
     {
