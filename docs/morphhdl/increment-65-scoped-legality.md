@@ -79,5 +79,17 @@ activation, lost else priority, stale loop/child bindings, duplicate diagnostic
 sites and changed pipeline latency. Parser errors are never accepted as mutation
 detection. Two-state equivalence and four-state simulation are separate evidence.
 
-Final source-bound local receipts will be recorded after the source checkpoint;
-this document does not claim remote qualification or merge.
+## Local receipt — 2 October 2026
+
+Source `6350cbb5ec2e1122fbfd07548c0de70ea59a6c92`, tree
+`c956009aad8a21b066a2a125b1c6819f6362d715`: 15/15 compiler-plugin tests per Scala
+lane; 80/80 focused runtime tests on Scala 2.12 and 156/156 runtime/structural
+compatibility tests on Scala 2.13. Exact committed-source validation passed 80/80
+on Scala 2.12 and the full 16-test scoped suite on Scala 2.13. All 72 valid formal
+specializations passed, separately from invalid-tuple and X/Z simulation.
+
+Native audit passed 7 roots, 54 paths and 245 reviewed edits, including all eight
+negative controls. Retirement audit passed 815 production sources and 17 absent
+retired paths. Actual generated RTL, baseline rejection, tool receipts and hashes
+are retained in [the evidence directory](evidence/increment65/README.md).
+Remote qualification and merge remain deferred; this is local completion only.

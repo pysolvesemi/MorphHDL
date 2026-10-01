@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "8a21ee9d28ee08b03c123ebb50dcf17afd64a198"
+      "approved_tree": "5962260c9654f9d102f107a258b78ae5b88d7f9f"
     },
     {
       "path": "idslpayload/src/main",
@@ -583,15 +583,16 @@
       "introduced_by": [
         "Increment 53e: typed StreamFifo depth architecture (#128)",
         "Increment 53f: typed parameter-sensitive primitive closure (#129)",
-        "PR188: separate symbolic publication provenance from structural proof"
+        "PR188: separate symbolic publication provenance from structural proof",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
       ],
-      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged.",
+      "reason": "Provide exact finite-domain reasoning for parameter-sensitive native operations. Expose only a read-only active-restriction query so deferred requirements cannot escape captured branches; exact-domain authority and projection checks are unchanged. Expose a read-only admitted-root query so exact native captured owners can validate retained obligations after dynamic scope restoration.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationExactDomain.scala",
         "mode": "100644",
-        "blob": "9c43a036248c31313fa72cd8bbf272d7f0b98f56",
-        "sha256": "ef24218d3c40ac5c5a7e74ad079d05e58ee6829f9d837c379b21cc37a27c602c"
+        "blob": "345798451f575887ee3dbca3b6e38d1b40f9fc13",
+        "sha256": "1748c7a0943369baa94bd1ab4eaf220f46bb55a3ba73cb219e4bc76560e31960"
       },
       "edits": []
     },
@@ -602,15 +603,16 @@
       "introduced_by": [
         "Independent-parameter domain composition corrective repair (2026-09-14)",
         "PR188: separate symbolic publication provenance from structural proof",
-        "PR189: authentic compact declaration and explicit publication authority"
+        "PR189: authentic compact declaration and explicit publication authority",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
       ],
-      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "reason": "Private identity-bound compositional value-function proofs over authenticated declaration roots and schemas. Preserve all dependency axes including canceled and branch-restricted roots, join partially overlapping dependencies, compose attainable extrema for independent groups, and fail closed beyond bounded exact joint evaluation. Bind publication evidence to exact native owners without fabricating a single-root domain or enumerating large Cartesian products. Retain private expression-identity AST certificates and authentic root/schema/scope inventories independently of exact proof. Derive checked compositional publication enclosures without Cartesian calls; keep the existing stronger exact evaluator on demand and authenticate safe physical width as its own AST. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. Retain private, exact-condition-bound finite structural tuple evidence under the unchanged 65,536 tuple cap. Classify diagnostics under authenticated activation without granting integer or width authority; compact and oversized structural products remain rejected.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ElaborationProductDomain.scala",
         "mode": "100644",
-        "blob": "fd2aa0b0a7b51be67f0f7268c00b14496c9ae2ac",
-        "sha256": "74d0bf356b19011ad893c369008ac50e29fc5a3d988a82ded6a1aff6a32814e7"
+        "blob": "d2e120d0b986522e7ca47a49caaa7937b0f07c64",
+        "sha256": "f56829171f7dc8908322b30ec54520872a084862485e9f5c14f2d849712705a9"
       },
       "edits": []
     },
@@ -1334,15 +1336,16 @@
         "PR188: separate symbolic publication provenance from structural proof",
         "PR188: one synthesis-guarded fatal for failed symbolic require",
         "PR189: authentic compact declaration and explicit publication authority",
-        "CDC-LEG-01: product-neutral legality labels and user-only fatal messages"
+        "CDC-LEG-01: product-neutral legality labels and user-only fatal messages",
+        "Increment 65: exact activation-scoped symbolic legality and bounded structural products"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Originally reject mixed structural-scope obligations; now reject them without an exact activation owner, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged. Increment 65 replaces the structural-scope rejection only for exact runtime-issued owners: component-local records carry full activation, root inventories and transactional rollback. Scope classification can omit implied diagnostics; active false requirements stay deferred, while unconditionally false top-level requirements still reject. Validate finished owner identity before native synthesis-guarded fatal publication.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "4ddc8c517812bf3d08a77688468087bae2e7c43f",
-        "sha256": "dbd19df6336d2851e4e9d96fe263d1d07511243228768861462352624d42741a"
+        "blob": "ea35b8353ff7ff90a8e49e86a186a6352304bbdf",
+        "sha256": "f46a2e5553cb82f6d89417fd787b6caa20dcb7e2012bc3d5e3ccf17acd99bd5c"
       },
       "edits": []
     },
