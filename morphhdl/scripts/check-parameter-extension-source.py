@@ -17,7 +17,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 BASE = 'db54d01e5b21c7664f7a0de3795f061d77a3d259'
 CONTRACT = 'morphhdl/contracts/parameter-extension-source-review.json'
-CONTRACT_SHA256 = 'aa1539fcd4b3edc7c94ff4277fd1ce1cf0cbfe2fe5a3e815115e63b806786677'
+CONTRACT_SHA256 = 'e26b6f379504822d9035a5549feb3cdbf75b621e9eaec78ba2a09ce6f9c24d8a'
 OUTER = 'morphhdl/scripts/check-increment-62-wa08-source-overlay.py'
 REGISTRY = 'morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json'
 
@@ -104,6 +104,42 @@ def verify(root=ROOT, sealed=None):
             'source': seal['final_source_commit'], 'lane': BASE, 'paths': sorted(changed),
             'production_paths': sorted(production), 'implementation_paths': sorted(implementation),
             'review_paths': sorted(governed - implementation)}
+
+
+REGRESSION_CONTRACT = 'morphhdl/contracts/parameter-extension-regression-cases.json'
+REGRESSION_CONTRACT_SHA256 = '181c8797abec42e47fb539e698cbed9a606b146bb8203f32586e7eeafd6b58d0'
+
+
+def regression_specs(root=ROOT):
+    """Exact new testcase identities; copied-report projection never alters originals."""
+    import re
+    raw = (root/REGRESSION_CONTRACT).read_bytes()
+    require(hashlib.sha256(raw).hexdigest() == REGRESSION_CONTRACT_SHA256,
+            'regression contract digest differs')
+    value = json.loads(raw)
+    require(value['base'] == BASE and value['schema_version'] == 1,
+            'regression predecessor differs')
+    result = {}
+    for name, spec in value['suites'].items():
+        path = spec['source']
+        require(hashlib.sha256((root/path).read_bytes()).hexdigest() == spec['source_sha256'],
+                'test source differs from reviewed case inventory: ' + name)
+        cases, added = spec['cases'], spec['added_cases']
+        require(cases == sorted(set(cases)) and added == sorted(set(added)) and
+                set(added) <= set(cases) and len(cases)-len(added) == spec['inherited_tests'],
+                'invalid successor case inventory: ' + name)
+        old = subprocess.run(['git','cat-file','-e',BASE+':'+path],cwd=root,
+                             stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30)
+        if spec['inherited_tests']:
+            require(old.returncode == 0, 'missing inherited test source')
+            before = git(root, 'show', BASE+':'+path).decode()
+            inherited = re.findall(r'test\("([^"\n]+)"\)', before)
+            require(len(inherited) == len(set(inherited)) == spec['inherited_tests'] and
+                    set(cases)-set(added) == set(inherited), 'inherited testcase removed or renamed')
+        else:
+            require(old.returncode != 0, 'new suite replaces an inherited source')
+        result[name] = {key: spec[key] for key in ('project','cases','inherited_tests','added_cases')}
+    return result
 
 
 if __name__ == '__main__':

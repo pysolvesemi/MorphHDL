@@ -139,7 +139,8 @@ jobs:
               "$(git rev-parse HEAD)" "$audit_source"
           elif [[ "$SOURCE_HEAD_REF" == agent/wa-cdc-wire-01-fixed-point ||
                   "$SOURCE_HEAD_REF" == agent/cdc-wire-native-publication-cleanup ||
-                  "$SOURCE_HEAD_REF" == agent/enum-expression-recursive-cleanup ]]; then
+                  "$SOURCE_HEAD_REF" == agent/enum-expression-recursive-cleanup ||
+                  "$SOURCE_HEAD_REF" == work/remaining-parameterized-increments ]]; then
             # Authenticate the recursive-cleanup successor and its current
             # rejection controls before replaying immutable historical syntax
             # contracts. Scala, native generation and all formal jobs below

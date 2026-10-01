@@ -4,6 +4,10 @@
   "base_tree": "ed73aee1ca0c667a1c32b181d95c431c22ea3719",
   "files": [
     {
+      "path": ".github/workflows/morphhdl-passes.yml",
+      "reason": "Route only the dedicated batch branch through the existing authenticated current-source and frozen static-check path. Preserve every native generation, Scala, simulation, formal job, matrix and timeout."
+    },
+    {
       "path": "core/src/main/scala/spinal/core/Component.scala",
       "reason": "The normal native allocator must preserve explicit signal spellings when a propagated weak name occurs earlier. Move reservation before allocation; retain duplicate explicit-name diagnostics and the existing generated-name suffix allocator. This is a native backend naming correction, not an RTL expression change. The existing compiler member callback supplies ElabInt binding hints to exact component-owned local-parameter records; names do not confer identity or authority."
     },
@@ -96,6 +100,10 @@
       "reason": "Provide one generic exact typed single-address mapping for existing native bus decoders, with fail-closed complete-domain validation and identity-safe grouping. Retain the immutable public local-constant handle beside an existing exact typed address mapping. Exact-equivalent mappings preserve grouping. Nonzero address offsets keep the existing generic typed fallback; ordinary mapping classes are unchanged."
     },
     {
+      "path": "morphhdl-passes/scripts/check-boundary.sh",
+      "reason": "Recognize the dedicated batch branch only after its exact successor source seal and enumerated path inventory pass; preserve rejection of unreviewed cross-workspace paths."
+    },
+    {
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
       "reason": "Refresh actual source digests while retaining all 98 inherited formal identities, schema and algorithm; current proof jobs remain mandatory."
     },
@@ -112,12 +120,20 @@
       "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
     },
     {
+      "path": "morphhdl/contracts/parameter-extension-regression-cases.json",
+      "reason": "Explicitly enumerate 101 new testcase identities in 13 suites, their exact source hashes, and all 13 preserved plugin testcase identities. Old catalogs remain independently checked on copied reports."
+    },
+    {
       "path": "morphhdl/contracts/parameter-extension-source-review.json",
       "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
     },
     {
       "path": "morphhdl/scripts/check-cdc-successor-source.py",
       "reason": "Exact reviewed-source contract, audit adapter or validation utility for this batch. Retain immutable historical review, current-byte/ancestry checks, native audit and all rejection controls; explicitly authenticate the two core relocations as deletions."
+    },
+    {
+      "path": "morphhdl/scripts/check-cdc-wire-regressions.py",
+      "reason": "Add exact source-bound batch testcase identities to the inherited additive report adapter. Validate every original and copied report, preserve original XML, and reject missing, renamed, duplicated, failed or skipped cases."
     },
     {
       "path": "morphhdl/scripts/check-cdc-wire-source-review.py",

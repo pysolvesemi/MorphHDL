@@ -238,7 +238,9 @@ def load(root: Path, path: str):
 def validate_scope(paths: set[str]) -> None:
     successor = 'morphhdl/scripts/check-parameter-extension-source.py'
     if (ROOT/successor).exists():
-        load(ROOT, successor).validate_scope(paths, ROOT)
+        extension = load(ROOT, successor)
+        historical = set(git(ROOT, 'diff', '--no-renames', '--name-only', BASE, extension.BASE).decode().splitlines())
+        extension.validate_scope(paths - historical, ROOT)
         return
     require(paths <= PRODUCTION_PATHS | TEST_PATHS | REVIEW_PATHS,
             'unreviewed successor paths: ' + repr(sorted(paths - PRODUCTION_PATHS - TEST_PATHS - REVIEW_PATHS)))
@@ -276,7 +278,10 @@ def verify(root: Path = ROOT, sealed: dict | None = None) -> dict:
     seal = sealed if sealed is not None else outer.verify(root)
     successor = 'morphhdl/scripts/check-parameter-extension-source.py'
     if (root/successor).exists():
-        return load(root, successor).verify(root, seal)
+        result = load(root, successor).verify(root, seal)
+        result['paths'] = sorted(set(git(root, 'diff', '--no-renames', '--name-only', BASE, 'HEAD').decode().splitlines()))
+        result['production_paths'] = sorted(set(result['production_paths']) | PRODUCTION_PATHS)
+        return result
     require(hashlib.sha256(outer.normalized_helper((root/OUTER).read_bytes())).hexdigest() ==
             '14feb8286f32152b7c6881c73e0339e069bbeaaf07cdc1d51d84cc208fc39fab',
             'outer source verifier algorithm changed')
