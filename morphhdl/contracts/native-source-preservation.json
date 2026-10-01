@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "d716895d2db6e317b96f25767a0f63c7d93ce7f0"
+      "approved_tree": "d50465fa474cf26dd9840916c1e5ae6f7ecce5ff"
     },
     {
       "path": "idslpayload/src/main",
@@ -1291,15 +1291,16 @@
       "introduced_by": [
         "PR188: separate symbolic publication provenance from structural proof",
         "PR188: one synthesis-guarded fatal for failed symbolic require",
-        "PR189: authentic compact declaration and explicit publication authority"
+        "PR189: authentic compact declaration and explicit publication authority",
+        "CDC-LEG-01: product-neutral legality labels and user-only fatal messages"
       ],
-      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration.",
+      "reason": "Private exact-Component-owned legality obligations accept authenticated native typed ASTs, never fabricated exact-domain evidence. Preserve root/schema dependencies used only in require. Reject mixed structural-scope obligations, render escaped diagnostics inside synthesis guards, and pair safe physical-width publication with raw positivity diagnostics. Failed requirements emit one $fatal(1, \"%s\", message) with the original message treated literally, not a recoverable $error or duplicate report. PR189 adds a one-use analyzer-bound compact declaration; retains the exhaustive cap and rejects unsupported structural/owner enumeration. CDC-LEG-01 changes only native diagnostic presentation: allocate G_PARAMETER_LEGALITY_<index> in the existing component name scope and pass the escaped original message directly to $fatal(1, \"%s\", message). Domain classification, record ownership, ordering, fatal termination and synthesis guards are unchanged.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/NativeSymbolicLegality.scala",
         "mode": "100644",
-        "blob": "28b037b2ace82de88b405951a9172bf10ba14666",
-        "sha256": "140bf21ecc6ef16b2b02e9e8251f1f5cf3c553ba4ea16f8bbed4bfd251fdec0a"
+        "blob": "4ddc8c517812bf3d08a77688468087bae2e7c43f",
+        "sha256": "dbd19df6336d2851e4e9d96fe263d1d07511243228768861462352624d42741a"
       },
       "edits": []
     },
