@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base": "2ebaa2ef5561eab35aa0ba9caced5c5a314d59f6",
-  "final_source_commit": "2e32c16b27dd04687121fa03a102e4bcf42c4bfd",
+  "final_source_commit": "4ea58fd64c13c62c28360542cfe320a0247382c1",
   "helper_normalized_sha256": "63848a0970100b7bdd9153b30c9982a5a9e10dd4452c53c9a17d9e15f2700056",
   "files": [
     {
@@ -1640,7 +1640,7 @@
       "path": "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json",
       "mode": "100644",
       "before_sha256": "5280dd98cf796151c8ceb5ef5dd4f6ec337f6a517bd37af091edf53c3d752b41",
-      "after_sha256": "c60c5aaa213ad2eebe0a49a21e194a001b999af91c28580ada764a1ece3aa916"
+      "after_sha256": "430ab33f72d192f5a285011f833d5f08965e22510017842cd95f4ad2d4b53e92"
     },
     {
       "path": "morphhdl-passes/tests/wa10/general_expression_tb.v",
