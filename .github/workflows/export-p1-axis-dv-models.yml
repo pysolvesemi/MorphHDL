@@ -1,0 +1,36 @@
+name: Export P1 AXIS DV models
+
+on:
+  pull_request:
+    branches: [parameterized-verilog]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    if: github.event.pull_request.head.ref == 'agent/export-p1-axis-dv-models'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download and verify exact public source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly commit=2e8d3bc2d26ddc33d1881022a2a2b9d3f0c16b9b
+          readonly base=https://raw.githubusercontent.com/ZipCPU/wb2axip/${commit}/rtl
+          mkdir -p /tmp/P1-AXIS-DV-models
+          for file in axil2axis.v skidbuffer.v sfifo.v; do
+            curl -fsSL "${base}/${file}" -o "/tmp/P1-AXIS-DV-models/${file}"
+          done
+          test "$(git hash-object /tmp/P1-AXIS-DV-models/axil2axis.v)" = 011891a8c853166de929dd6d703899d410ce26f3
+          test "$(git hash-object /tmp/P1-AXIS-DV-models/skidbuffer.v)" = 0e567844d98a66fa489930a03bf214308faa8535
+          test "$(git hash-object /tmp/P1-AXIS-DV-models/sfifo.v)" = 3886872c8a0dc6b9d7f0479b0ba2ba35eb1d138c
+          sha256sum /tmp/P1-AXIS-DV-models/* > /tmp/P1-AXIS-DV-models/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: P1-AXIS-DV-models
+          path: /tmp/P1-AXIS-DV-models
+          if-no-files-found: error
