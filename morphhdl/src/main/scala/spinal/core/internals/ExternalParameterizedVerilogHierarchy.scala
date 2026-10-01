@@ -687,7 +687,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
             definitionName = definitionName,
             instanceName = instanceName
           ))
-          validateParameterBinding(expression, parameter, instanceName, pc)
+          validateParameterBinding(expression, parameter, instanceName, pc, scalar = true)
           parameter.name -> expression
         } else {
           parameterPorts.foreach { name =>
@@ -895,13 +895,39 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
               s"inherited compound port '$name' of '$instanceName' has no unique parent width")
             connected.head
           case None =>
-            instantiateDerivedPortWidth(
-              definitionWidth,
-              bindingMap,
-              definitionName,
-              instanceName,
-              name
-            )
+            // Compose the authenticated child table with its exact instance
+            // actual before reusing the parent declaration's localparam name.
+            // A rendered substitution is never sufficient proof of equality.
+            val scalarBinding = ExternalFormalParameterRegistry.bindingsOf(child).filter { binding =>
+              definitionWidth.parameters.size == 1 &&
+                definitionWidth.parameters.head == binding.formal
+            }
+            val composed = scalarBinding match {
+              case Vector(binding) if definitionWidth.exactDomain.nonEmpty &&
+                  (binding.actual.parameters.isEmpty || binding.actual.exactDomain.nonEmpty) =>
+                ExternalParameterizedHierarchyResizeWidth.instantiate(definitionWidth, binding, port)
+              case _ => None
+            }
+            composed match {
+              case Some(width) =>
+                val connected = distinctBindings(connectionEvidence(parent, child, actualByName(name),
+                  assignments, s"derived formal port '$name' of '$instanceName'", allowConcreteInternal = true))
+                val symbolic = connected.filter(_.isSymbolic)
+                val parentWidths = symbolic.filterNot(binding => port.isOutput &&
+                  sameFormalActualConnection(binding, ExpressionBinding(definitionWidth)))
+                if (parentWidths.exists(binding => !sameFormalActualConnection(binding, ExpressionBinding(width))))
+                  fail("SPINAL-PARAMETERIZED-VERILOG-FORMAL-ACTUAL-CONNECTION-CONFLICT",
+                    s"derived formal port '$name' of '$instanceName' does not match its exact parent width")
+                // Untagged concrete carriers are inferred by the established
+                // hierarchy rewrite, and an unused output has no carrier at all.
+                // Only an authenticated symbolic connection supplies a reusable
+                // parent localparam. Legacy native resized clones can retain
+                // the exact child definition width until that rewrite, too.
+                if (connected.size == 1 && parentWidths.nonEmpty) connected.head
+                else instantiateDerivedPortWidth(definitionWidth, bindingMap, definitionName, instanceName, name)
+              case None =>
+                instantiateDerivedPortWidth(definitionWidth, bindingMap, definitionName, instanceName, name)
+            }
         }
         if (expression.isSymbolic) Some(PortRewrite(name, expression)) else None
       }
@@ -976,7 +1002,12 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
                 s"derived width '${definition.verilog}' of port '$portName' on canonical child '$definitionName' uses formal '$identifier' as a function-call identifier for instance '$instanceName'"
               )
             } else {
-              rendered.append('(').append(actual.render).append(')')
+              // Parentheses protect compound substitution. An already-proved
+              // atomic identifier/literal needs none; retaining the native
+              // spelling also avoids duplicate presentation ranges.
+              val text = actual.render
+              if (text.matches("[A-Za-z_][A-Za-z0-9_]*|[0-9]+")) rendered.append(text)
+              else rendered.append('(').append(text).append(')')
               substituted += identifier
             }
           case None => rendered.append(identifier)
@@ -1068,7 +1099,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         ParameterizedBlackBoxGenericRegistry.parametersOf(component) ++
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
-        ParameterizedProcess.parametersOf(component)
+        ParameterizedProcess.parametersOf(component) ++
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters)
     val grouped = values.groupBy(_.name)
     grouped
       .collectFirst {
@@ -1124,8 +1156,13 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
         component: Component,
         role: String
     ): Vector[FormalBindingEvidence] = {
-      val typed = ExternalFormalParameterRegistry.typedBindingsOf(component)
-      if (typed.nonEmpty) {
+      val allTyped = ExternalFormalParameterRegistry.typedBindingsOf(component)
+      val typed = allTyped.filter { value =>
+        if (role == "canonical") value.binding.formal eq parameter
+        else value.binding.formal == parameter
+      }
+      if (allTyped.nonEmpty) {
+        if (typed.isEmpty) return Vector.empty
         if (typed.size != 1) {
           fail(
             "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-AGGREGATE-FORMAL-IDENTITY-CONFLICT",
@@ -1467,7 +1504,9 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       instanceName: String
   ): BindingExpr = {
     val canonicalTyped = ExternalFormalParameterRegistry.typedBindingsOf(canonical)
+      .filter(value => value.binding.formal eq parameter)
     val actualTyped = ExternalFormalParameterRegistry.typedBindingsOf(child)
+      .filter(value => value.binding.formal == parameter)
     val hasTyped = canonicalTyped.nonEmpty || actualTyped.nonEmpty
     val (canonicalBindings, actualBindings) =
       if (hasTyped) {
@@ -1554,7 +1593,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       expression: BindingExpr,
       parameter: ElaborationIntegerParameter,
       instanceName: String,
-      pc: PhaseContext
+      pc: PhaseContext,
+      scalar: Boolean = false
   ): Unit = {
     if (expression.default != parameter.default) {
       fail(
@@ -1565,8 +1605,8 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
     if (
       expression.minimum < parameter.minimum ||
       expression.maximum > parameter.maximum ||
-      expression.minimum < 1 ||
-      expression.maximum > BigInt(pc.config.bitVectorWidthMax)
+      expression.minimum < (if (scalar) 0 else 1) ||
+      expression.maximum > (if (scalar) BigInt(Int.MaxValue) else BigInt(pc.config.bitVectorWidthMax))
     ) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-HIERARCHY-BINDING-DOMAIN-UNSUPPORTED",
@@ -1596,7 +1636,7 @@ private[internals] object ExternalParameterizedVerilogHierarchy {
       )
     } else {
       val typedAll = ExternalFormalParameterRegistry.typedBindingsOf(component)
-      if (typedAll.size > 1) {
+      if (typedAll.size > 1 && !ExternalFormalParameterRegistry.supportsMultipleTypedFormals(component)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-FORMAL-SLOT-IDENTITY-CONFLICT",
           s"typed component on the $role side of instance '$instanceName' retains ${typedAll.size} opaque formal capabilities; ElabFormalComponent admits exactly one",

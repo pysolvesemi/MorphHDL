@@ -43,6 +43,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     eligibleGateFailures.contains(failure.code) &&
       (
         NativeSymbolicLegality.hasRequirements(component) ||
+        NativeLocalParameters.hasTyped(component) ||
+        ParameterizedProcess.hasConditionalLoops(component) ||
         ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
           ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
           ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -53,6 +55,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
           ParameterizedStructure.parametersOf(component).nonEmpty ||
           component.children.exists { child =>
             NativeSymbolicLegality.hasRequirements(child) ||
+            NativeLocalParameters.hasTyped(child) ||
+            ParameterizedProcess.hasConditionalLoops(child) ||
             ExternalParameterizedHierarchyResizeWidth.parametersOf(child).nonEmpty ||
             ExternalParameterizedAutoResize.parametersOf(child).nonEmpty ||
             ParameterizedMemory.parametersOf(child).nonEmpty ||
@@ -85,6 +89,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       pc: PhaseContext,
       canonicalOf: Component => Component
   ): String = {
+    NativeConditionalProcessEmitter.validate(component)
     val hierarchy = ExternalParameterizedVerilogHierarchy.analyze(component, pc, canonicalOf)
     MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(
       component,
@@ -99,7 +104,8 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
-        NativeSymbolicLegality.parametersOf(component),
+        NativeSymbolicLegality.parametersOf(component) ++
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters),
       hierarchy.hasParameterizedInstances
     )
     analysis.validate()
@@ -941,6 +947,39 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
     * emitted name is read from that object after normal Spinal naming. No port,
     * component or user signal name is used as a discovery key.
     */
+  private object NativeValueEmissions
+  private def nativeValueEmissions(component: Component): IdentityHashMap[DataAssignmentStatement, java.lang.Boolean] =
+    component.userCache.getOrElseUpdate(NativeValueEmissions,
+      new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
+      .asInstanceOf[IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]]
+
+  /** Publish the authenticated typed value at its exact native assignment.
+    * The retained UInt declaration supplies packed width and unsignedness in
+    * every surrounding hardware expression, including self-determined operands.
+    */
+  private[internals] def emitNativeValue(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = assignment match {
+    case data: DataAssignmentStatement =>
+      val component = printer.component
+      ExternalParameterizedValueRegistry.valuesOf(component).find { case (_, record) =>
+        record.assignment.exists(_ eq data)
+      }.map { case (value, record) =>
+        MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(component,
+          includeChildActuals = false)
+        val live = ArrayBuffer.empty[DataAssignmentStatement]
+        component.dslBody.walkStatements {
+          case statement: DataAssignmentStatement => live += statement
+          case _ =>
+        }
+        validateRetainedValueAssignmentLineage(component, value, record, live.toVector,
+          new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]())
+        validateRetainedValueProjection(component, value, record)
+        nativeValueEmissions(component).put(data, java.lang.Boolean.TRUE)
+        "(" + NativeLocalParameters.reference(component, record.expression).getOrElse(record.expression.verilog) + ")"
+      }
+    case _ => None
+  }
+
   private[internals] def rewriteRetainedValueAssignments(
       component: Component,
       verilog: String
@@ -966,6 +1005,14 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       )
       validateRetainedValueProjection(component, value, record)
       (value, record, witnessLiteral)
+    }
+
+    val published = nativeValueEmissions(component)
+    if (!published.isEmpty) {
+      if (!validated.forall { case (_, record, _) => record.assignment.exists(published.containsKey) })
+        fail("SPINAL-PARAMETERIZED-VERILOG-VALUE-EMITTED-LINEAGE-MISMATCH",
+          "only part of the retained value inventory passed through native emission")
+      return verilog
     }
 
     val named = validated.map { case (value, record, witnessLiteral) =>
@@ -2197,7 +2244,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
       // Native memories are validated and canonically lowered before this
       // generic declaration-width pass.
-      if (parameters.isEmpty && !hasParameterizedHierarchy) {
+      if (parameters.isEmpty && !hasParameterizedHierarchy && !ParameterizedProcess.hasConditionalLoops(component) && !NativeLocalParameters.hasTyped(component)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
           s"component '${component.definitionName}' has no retained or inferred symbolic packed widths"
@@ -2213,7 +2260,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
             component,
             ports.toVector
           )
-      if (!ordinaryPortSurface && !exactStructuralVecOutputSurface) {
+      val exactValueOutputSurface = hasNativeOutput && !hasNativeInput &&
+        !ports.exists(_.isInOut) && ExternalParameterizedValueRegistry.valuesOf(component).nonEmpty
+      if (!ordinaryPortSurface && !exactStructuralVecOutputSurface && !exactValueOutputSurface) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-PORT-DIRECTIONS-UNSUPPORTED",
           s"component '${component.definitionName}' must expose at least one native input and one native output, or one exact output-only finite structural typed-Vec surface"
@@ -3383,6 +3432,7 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
         case access: BitVectorRangedAccessFloating => inferFloatingRange(access)
         case access: BitVectorBitAccessFixed       => inferFixedBit(access)
         case _: BitVectorBitAccessFloating         => WidthLiteral(1)
+        case local: TypedLocalUInt.Reference => WidthLiteral(local.getWidth)
         case literal: BitVectorLiteral             => WidthLiteral(literal.getWidth)
         case _: BoolLiteral                        => WidthLiteral(1)
         case port: MemReadSync =>

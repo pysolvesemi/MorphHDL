@@ -32,7 +32,21 @@ object NativeSymbolicLegality {
       encoded: ElaborationIntegerExpression, message: String, location: Option[String],
       scope: Option[Scope])
   private object StorageKey
-  private final class Storage(val component: Component) { var obligations = Vector.empty[Obligation] }
+  private final class Storage(val component: Component) {
+    var obligations = Vector.empty[Obligation]
+    var declarationDomains = Vector.empty[ElaborationIntegerParameter]
+  }
+  /** The native publication phase supplies the validated parameter inventory
+    * for explicit formal APIs. These declaration contracts must also reject
+    * downstream overrides outside the domain used to prove the hardware.
+    */
+  private[spinal] def retainDeclarationDomains(component: Component,
+      parameters: Vector[ElaborationIntegerParameter]): Unit = {
+    val retained = storage(component)
+    require(retained.declarationDomains.isEmpty, "parameter domain publication prepared twice")
+    require(parameters.map(_.name).distinct.size == parameters.size, "ambiguous parameter domains")
+    retained.declarationDomains = parameters
+  }
   private def checked(component: Component, retained: Storage): Storage = {
     if (retained.component ne component)
       ParameterizedVerilogException.fail("SPINAL-ELAB-REQUIRE-OWNER-MISMATCH",
@@ -134,7 +148,8 @@ object NativeSymbolicLegality {
   /** Called by ComponentEmitterVerilog, not a generated-text post-processor. */
   private[core] def render(component: Component, allocate: String => String): String = {
     val values = records(component)
-    if (values.isEmpty) return ""
+    val domains = component.userCache.get(StorageKey).map(value => checked(component, value.asInstanceOf[Storage]).declarationDomains).getOrElse(Vector.empty)
+    if (values.isEmpty && domains.isEmpty) return ""
     values.foreach(value => validate(value))
     def quote(text: String): String = text.flatMap {
       case '\\' => "\\\\"
@@ -153,10 +168,17 @@ object NativeSymbolicLegality {
          |""".stripMargin
       value.scope.map(_.wrap(diagnostic, allocate)).getOrElse(diagnostic)
     }.mkString
+    val domainGuards = domains.map { parameter =>
+      val label = allocate(s"G_PARAMETER_DOMAIN_${parameter.name}")
+      s"""    if ((${parameter.name} < ${parameter.minimum}) || (${parameter.name} > ${parameter.maximum}) || (^${parameter.name} === 1'bx)) begin : $label
+         |      initial $$fatal(1, "%s", "${parameter.name} must be in ${parameter.minimum}..${parameter.maximum}");
+         |    end
+         |""".stripMargin
+    }.mkString
     // A failed require is fatal, not a recoverable simulation report. Use one
     // task carrying the original message, with a fixed format so user '%' text
     // is literal. The finish_number is 1; the simulator determines its nonzero
     // process status. This diagnostic is never synthesized hardware.
-    "\n`ifndef SYNTHESIS\n  generate\n" + guards + "  endgenerate\n`endif\n"
+    "\n`ifndef SYNTHESIS\n  generate\n" + guards + domainGuards + "  endgenerate\n`endif\n"
   }
 }

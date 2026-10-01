@@ -236,15 +236,17 @@ class HierarchyParameterBindingTests extends AnyFunSuite {
       assert(verilog.contains("module NativeHierarchyDerivedWidthTop #("))
       assert(verilog.contains("parameter integer TOP_DEPTH = 5"))
       assert(verilog.contains(".DEPTH(TOP_DEPTH)"))
+      val parentModule = verilog.substring(0, verilog.indexOf("endmodule"))
+      assert(!parentModule.contains("parameter integer DEPTH"), parentModule)
       assert(
         compact.contains(
-          "wire[clog2(((TOP_DEPTH)+1),1)-1:0]leaf_occupancy;"
+          "wire[clog2((TOP_DEPTH+1),1)-1:0]leaf_occupancy;"
         ),
         verilog
       )
       assert(
         compact.contains(
-          ".occupancy(leaf_occupancy[clog2(((TOP_DEPTH)+1),1)-1:0])"
+          ".occupancy(leaf_occupancy[clog2((TOP_DEPTH+1),1)-1:0])"
         ),
         verilog
       )

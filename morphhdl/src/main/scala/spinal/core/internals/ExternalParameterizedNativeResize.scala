@@ -1,6 +1,5 @@
 package spinal.core.internals
 
-import java.util.regex.Pattern
 import scala.collection.mutable.ArrayBuffer
 import spinal.core._
 
@@ -28,6 +27,7 @@ object ExternalParameterizedNativeResize {
     "SPINAL-PARAMETERIZED-VERILOG-NATIVE-RESIZE-LINEAGE-MISMATCH", detail)
 
   private final class Storage(val records: Vector[Record]) {
+    val emitted = new java.util.IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
     val byResize = new java.util.IdentityHashMap[Resize, Record]()
     val byTarget = new java.util.IdentityHashMap[BaseType, Record]()
     val byAssignment = new java.util.IdentityHashMap[DataAssignmentStatement, Record]()
@@ -278,54 +278,52 @@ object ExternalParameterizedNativeResize {
     }
   }
 
-  private[internals] def rewrite(component: Component, verilog: String): String = {
-    var lines = verilog.split("\n", -1).toVector
-    val claimed = scala.collection.mutable.HashSet.empty[String]
-    records(component).foreach { record =>
-      if (!valid(component, record)) fail("retained native resize assignment changed after capture")
-      val targetName = Option(record.target.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize target has no emitted name"))
-      val sourceName = Option(record.source.getName()).filter(_.nonEmpty)
-        .getOrElse(fail("retained native resize source has no emitted name"))
-      if (!claimed.add(targetName)) fail(s"multiple resize targets share emitted name '$targetName'")
-      val targetWidth = record.witnessTargetWidth
-      val sourceWidth = record.witnessSourceWidth
-      val signed = record.source.isInstanceOf[SInt]
-      val expected = if (targetWidth < sourceWidth) s"$sourceName[${targetWidth - 1}:0]"
-        else if (targetWidth == sourceWidth) sourceName
-        else if (signed) s"{{${targetWidth - sourceWidth}{$sourceName[${sourceWidth - 1}]}}, $sourceName}"
-        else s"{${targetWidth - sourceWidth}'d0, $sourceName}"
-      val assignment = ("^(\\s*assign\\s+" + Pattern.quote(targetName) +
-        "\\s*=\\s*)(.*?)(;\\s*)$").r
-      var targets = 0
-      var matches = 0
-      lines = lines.map {
-        case assignment(prefix, rhs, suffix) =>
-          targets += 1
-          if (rhs.trim == expected) {
-            matches += 1
-            val to = s"(${record.targetWidth.verilog})"
-            val from = s"(${record.sourceWidth.verilog})"
-            // Keep every part select positive/in range and every replication
-            // non-negative, including domains crossing narrowing and widening.
-            // The complete concat has exactly the native target width, so no
-            // assignment-context extension or truncation is left implicit.
-            val resized = if (record.targetWidth.maximum <= record.sourceWidth.minimum)
-              s"$sourceName[$to-1:0]"
-            else {
-              val selected = if (record.targetWidth.minimum >= record.sourceWidth.maximum) from
-                else s"(($to < $from) ? $to : $from)"
-              val extra = s"(($to > $from) ? ($to - $from) : 0)"
-              val extension = if (signed) s"$sourceName[$from-1]" else "1'b0"
-              s"{{$extra{$extension}}, $sourceName[$selected-1:0]}"
-            }
-            prefix + resized + suffix
-          } else prefix + rhs + suffix
-        case line => line
+  /** Render the exact captured assignment in the native emitter. The result
+    * remains a target-sized carrier, preserving nested expression sizing.
+    */
+  private[internals] def emitNative(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = assignment match {
+    case data: DataAssignmentStatement => storage(printer.component).flatMap { retained =>
+      Option(retained.byAssignment.get(data)).map { record =>
+        if (!valid(printer.component, record)) fail("native resize assignment changed before emission")
+        val input = printer.emitExpression(record.source)
+        val to = s"(${record.targetWidth.verilog})"
+        val from = s"(${record.sourceWidth.verilog})"
+        def optionalProof[T](body: => T): Option[T] = try Some(body) catch {
+          case error: ParameterizedVerilogException if error.code == "SPINAL-ELAB-DOMAIN-PRODUCT-CORRELATION-UNSUPPORTED" => None
+        }
+        val same = optionalProof(NativePublicationWidth.equivalentAtOwners(record.targetWidth, record.target,
+          record.sourceWidth, record.source, printer.component)).contains(true)
+        val widening = optionalProof(NativePublicationWidth.nonNegativeDifferenceAtOwners(record.targetWidth,
+          record.target, record.sourceWidth, record.source, printer.component)).flatten
+        val narrowing = optionalProof(NativePublicationWidth.nonNegativeDifferenceAtOwners(record.sourceWidth,
+          record.source, record.targetWidth, record.target, printer.component)).flatten
+        val signed = record.source.isInstanceOf[SInt]
+        val extension = if (signed) s"$input[$from-1]" else "1'b0"
+        val result = if (same) input
+          else if (widening.nonEmpty) s"{{${widening.get}{$extension}}, $input}"
+          else if (narrowing.nonEmpty) s"$input[$to-1:0]"
+          else {
+            val selected = s"(($to < $from) ? $to : $from)"
+            val extra = s"(($to > $from) ? ($to - $from) : 0)"
+            s"{{$extra{$extension}}, $input[$selected-1:0]}"
+          }
+        retained.emitted.put(data, java.lang.Boolean.TRUE)
+        result
       }
-      if (targets != 1 || matches != 1)
-        fail(s"resize target '$targetName' maps to $targets native assignments and $matches exact witness edges")
     }
-    lines.mkString("\n")
+    case _ => None
+  }
+
+  /** Keep final freshness validation, without reconstructing assignments from
+    * emitted names or replacing witness-sized Verilog text.
+    */
+  private[internals] def rewrite(component: Component, verilog: String): String = {
+    storage(component).foreach { retained => retained.records.foreach { record =>
+      if (!valid(component, record)) fail("retained native resize assignment changed after capture")
+      if (!retained.emitted.containsKey(record.assignment))
+        fail("retained native resize did not pass through its exact native emission site")
+    }}
+    verilog
   }
 }

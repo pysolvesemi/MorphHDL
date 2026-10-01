@@ -14,6 +14,18 @@ object MorphHdlEmitterParameterNames {
       require(allocation >= 0, "parameter publication needs native name allocation")
       phases.insert(allocation + 1, new MorphHdlEmitterParameterNames)
     }
+    phases.collect { case emitter: PhaseVerilog => emitter }.foreach { emitter =>
+        emitter.bindAssignmentPublication(new VerilogBase.AssignmentPublicationPolicy {
+          override def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
+            NativeConditionalProcessEmitter.target(printer, assignment)
+          override def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
+              output: StringBuilder, indentation: String, body: String => Int): Option[Int] =
+            NativeConditionalProcessEmitter.scope(printer, tree, scope, output, indentation, body)
+          def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] =
+            ExternalParameterizedNativeResize.emitNative(printer, assignment)
+              .orElse(ExternalParameterizedVerilogNativeFallback.emitNativeValue(printer, assignment))
+        })
+      }
   }
 }
 
@@ -24,6 +36,14 @@ object MorphHdlEmitterParameterNames {
   */
 final class MorphHdlEmitterParameterNames extends PhaseMisc {
   override def impl(pc: PhaseContext): Unit = pc.walkComponents { component =>
+    if (ExternalFormalParameterRegistry.supportsMultipleTypedFormals(component) ||
+        component.children.exists(ExternalFormalParameterRegistry.supportsMultipleTypedFormals)) {
+      MorphHdlExternalParameterizedVerilog.validateComponentParameterRootInventory(component, includeChildActuals = true)
+      val domains = MorphHdlExternalParameterizedVerilog.componentParameters(component) ++
+        component.children.toVector.flatMap(child => ExternalFormalParameterRegistry.bindingsOf(child)
+          .flatMap(_.actual.parameters))
+      spinal.core.NativeSymbolicLegality.retainDeclarationDomains(component, domains.distinct.sortBy(_.name))
+    }
     val names = scala.collection.mutable.HashSet.empty[String]
     MorphHdlExternalParameterizedVerilog.componentParameters(component)
       .foreach(parameter => names += parameter.name)
@@ -49,6 +69,8 @@ final class MorphHdlEmitterParameterNames extends PhaseMisc {
         case _ =>
       }
     }
+    spinal.core.ExternalParameterizedValueRegistry.valuesOf(component)
+      .foreach { case (_, record) => uses += record.expression }
     NativeLocalParameters.prepare(component, uses.toVector)
   }
 }

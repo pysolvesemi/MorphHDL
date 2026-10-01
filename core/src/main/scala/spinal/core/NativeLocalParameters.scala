@@ -11,7 +11,7 @@ import scala.collection.mutable.ArrayBuffer
 object NativeLocalParameters {
   private[core] final case class Calculation(operator: String,
       operands: Vector[ElaborationIntegerExpression])
-  private final case class Binding(expression: ElaborationIntegerExpression, hint: String)
+  private final case class Binding(expression: ElaborationIntegerExpression, hint: String, packedWidth: Option[Int] = None)
   private class State {
     val bindings = ArrayBuffer.empty[Binding]
     val names = new IdentityHashMap[ElaborationIntegerExpression, String]()
@@ -37,7 +37,7 @@ object NativeLocalParameters {
     Option(owner).flatMap(_.userCache.get(Key)).map(_.asInstanceOf[State])
 
   private[core] def calculated(result: ElabInt, operator: String, operands: ElabInt*): ElabInt = {
-    if (!result.isConcrete && !ElaborationDomainContext.hasActiveRestrictions)
+    if (!ElaborationDomainContext.hasActiveRestrictions)
       result.expression.localCalculation = Some(Calculation(operator, operands.map(_.expression).toVector))
     result
   }
@@ -53,6 +53,34 @@ object NativeLocalParameters {
     if (!retained.bindings.exists(_.expression eq value.expression))
       retained.bindings += Binding(value.expression, hint)
   }
+
+  private[core] def bindTyped(owner: Component, value: ElabInt, hint: String, width: Int): Unit = {
+    val retained = state(owner)
+    require(!retained.prepared, "typed locals must be declared before publication")
+    if (retained.bindings.exists(binding => binding.hint == hint && binding.packedWidth.nonEmpty))
+      ParameterizedVerilogException.fail("SPINAL-LOCALPARAM-NAME-DUPLICATE", s"local '$hint' is already declared", None)
+    if (retained.bindings.exists(binding => (binding.expression eq value.expression) && binding.packedWidth.nonEmpty))
+      ParameterizedVerilogException.fail("SPINAL-LOCALPARAM-IDENTITY-DUPLICATE", "one exact value already owns a local declaration; reuse its handle", None)
+    val visited = new IdentityHashMap[ElaborationIntegerExpression, java.lang.Boolean]()
+    def checkDependency(raw: ElaborationIntegerExpression): Unit = {
+      val expression = origin(raw)
+      if (visited.containsKey(expression)) return
+      visited.put(expression, true)
+      if (expression.typedLocalOwner != null && (expression.typedLocalOwner ne owner))
+        ParameterizedVerilogException.fail("SPINAL-LOCALPARAM-OWNER-MISMATCH", "typed local dependency belongs to another Component", None)
+      expression.localCalculation.foreach(_.operands.foreach(checkDependency))
+    }
+    checkDependency(value.expression)
+    value.expression.typedLocalOwner = owner
+    val explicit = Binding(value.expression, hint, Some(width))
+    val automatic = retained.bindings.indexWhere(_.expression eq value.expression)
+    if (automatic < 0) retained.bindings += explicit else retained.bindings.update(automatic, explicit)
+  }
+
+  private[spinal] def typedExpressions(owner: Component): Vector[ElaborationIntegerExpression] =
+    existing(owner).toVector.flatMap(_.bindings.filter(_.packedWidth.nonEmpty).map(_.expression))
+
+  private[spinal] def hasTyped(owner: Component): Boolean = typedExpressions(owner).nonEmpty
 
   private def name(hint: String): String = {
     val words = hint.replaceAll("([a-z0-9])([A-Z])", "$1_$2")
@@ -79,13 +107,17 @@ object NativeLocalParameters {
       retained.bindings.find(_.expression eq expression).foreach { binding =>
         ElaborationWidthAuthority.requireAuthoritative(expression, "native local parameter",
           "SPINAL-LOCALPARAM-AUTHORITY-MISSING")
-        retained.names.put(expression, owner.localNamingScope.allocateName(name(binding.hint)))
+        val requested = if (binding.packedWidth.nonEmpty) binding.hint else name(binding.hint)
+        val allocated = owner.localNamingScope.allocateName(requested)
+        if (binding.packedWidth.nonEmpty && allocated != requested)
+          ParameterizedVerilogException.fail("SPINAL-LOCALPARAM-NAME-COLLISION", s"local '$requested' collides with a native declaration", None)
+        retained.names.put(expression, allocated)
         retained.ordered += expression
       }
       visiting.remove(expression)
       visited.put(expression, true)
     }
-    uses.foreach(visit)
+    (uses ++ typedExpressions(owner)).foreach(visit)
     retained.prepared = true
   }
 
@@ -114,7 +146,9 @@ object NativeLocalParameters {
 
   private[core] def declarations(owner: Component): String = existing(owner).map { retained =>
     retained.ordered.map { expression =>
-      s"  localparam integer ${retained.names.get(expression)} = ${render(owner, expression, true)};\n"
+      val packed = retained.bindings.find(_.expression eq expression).flatMap(_.packedWidth)
+      val kind = packed.map(width => s"[${width - 1}:0]").getOrElse("integer")
+      s"  localparam $kind ${retained.names.get(expression)} = ${render(owner, expression, true)};\n"
     }.mkString
   }.getOrElse("")
 }

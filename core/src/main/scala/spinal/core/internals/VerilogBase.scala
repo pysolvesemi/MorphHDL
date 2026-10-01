@@ -98,6 +98,16 @@ object VerilogBase {
     def inputText: String = printer.emitExpression(resize.input)
   }
 
+  /** Exact native assignment callback for authenticated parameter publication.
+    * Concrete emission has no bound policy and keeps its historical path.
+    */
+  trait AssignmentPublicationPolicy {
+    def source(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String]
+    def target(printer: ComponentEmitterVerilog, assignment: AssignmentStatement): Option[String] = None
+    def scope(printer: ComponentEmitterVerilog, tree: TreeStatement, scope: ScopeStatement,
+        output: StringBuilder, indentation: String, body: String => Int): Option[Int] = None
+  }
+
   /** Optional storage owned by the concrete emitter, not by the historical
     * VerilogBase interface. A field in that interface would add abstract JVM
     * accessors and break already-compiled implementations. The strong reference
@@ -106,6 +116,12 @@ object VerilogBase {
     */
   private[spinal] trait DeclarationPolicyOwner { self: VerilogBase =>
     @volatile private var boundPolicy: DeclarationPolicy = null
+    @volatile private var assignmentPolicy: AssignmentPublicationPolicy = null
+    private[VerilogBase] final def assignmentPublication: AssignmentPublicationPolicy = assignmentPolicy
+    private[VerilogBase] final def installAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = synchronized {
+      require(policy != null && assignmentPolicy == null, "assignment publication must be bound exactly once")
+      assignmentPolicy = policy
+    }
 
     private[VerilogBase] final def currentDeclarationPolicy: DeclarationPolicy = boundPolicy
 
@@ -149,6 +165,40 @@ trait VerilogBase extends VhdlVerilogBase{
     require(policy != null && declarationPolicy == null,
       "a Verilog declaration policy must be non-null and bound exactly once")
     declarationPolicy = policy
+  }
+
+  private[spinal] final def bindAssignmentPublication(policy: AssignmentPublicationPolicy): Unit = this match {
+    case owner: DeclarationPolicyOwner => owner.installAssignmentPublication(policy)
+    case _ => throw new IllegalArgumentException("assignment publication requires a policy-capable emitter")
+  }
+  private[spinal] final def emitAssignmentSource(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    require(printer.usesVerilogBase(this), "assignment must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.source(printer, assignment)
+      case _ => None
+    }
+  }
+
+  private[spinal] final def emitAssignmentTarget(printer: ComponentEmitterVerilog,
+      assignment: AssignmentStatement): Option[String] = {
+    require(printer.usesVerilogBase(this), "assignment must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.target(printer, assignment)
+      case _ => None
+    }
+  }
+  private[spinal] final def emitPublicationScope(printer: ComponentEmitterVerilog,
+      tree: TreeStatement, scope: ScopeStatement, output: StringBuilder,
+      indentation: String, body: String => Int): Option[Int] = {
+    require(printer.usesVerilogBase(this), "scope must belong to this native emitter")
+    this match {
+      case owner: DeclarationPolicyOwner if owner.assignmentPublication != null =>
+        owner.assignmentPublication.scope(printer, tree, scope, output, indentation, body)
+      case _ => None
+    }
   }
 
   private[spinal] final def hasDeclarationPolicy: Boolean = declarationPolicy != null

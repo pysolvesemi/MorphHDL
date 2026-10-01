@@ -101,6 +101,7 @@ private[internals] object NativePublicationWidth {
   ): Option[String] = {
     val l = evidence(left, component, leftDeclaration, "native resize target width")
     val r = evidence(right, component, rightDeclaration, "native resize source width")
+    var constantDifference: Option[BigInt] = None
     val nonNegative = if (l.roots.isEmpty) {
       r.product.map(value => left.default >= value.maximum)
         .getOrElse(r.results.values.forall(left.default >= _))
@@ -109,7 +110,10 @@ private[internals] object NativePublicationWidth {
         .getOrElse(l.results.values.forall(_ >= right.default))
     } else if (l.product.nonEmpty || r.product.nonEmpty) {
       (l.product, r.product) match {
-        case (Some(a), Some(b)) if a.sameDomain(b) => a.nonNegativeDifference(b)
+        case (Some(a), Some(b)) if a.sameDomain(b) =>
+          val range = a.combine("-", b).publicationRange
+          if (range._1 == range._2) constantDifference = Some(range._1)
+          if (range._1 >= 0) true else a.nonNegativeDifference(b)
         case _ => return None
       }
     } else {
@@ -119,14 +123,18 @@ private[internals] object NativePublicationWidth {
           (l.schemas(leftIndex) ne r.schemas(rightIndex)) ||
             l.rootValues(leftIndex) != r.rootValues(rightIndex)
         }) return None
-      l.results.forall { case (leftKey, value) =>
+      val differences = l.results.toVector.map { case (leftKey, value) =>
         val rightKey = r.roots.indices.map { rightIndex =>
           leftKey(indexes.indexOf(rightIndex))
         }.toVector
-        r.results.get(rightKey).exists(value >= _)
+        r.results.get(rightKey).map(value - _)
       }
+      val distinct = differences.flatten.distinct
+      if (differences.forall(_.nonEmpty) && distinct.size == 1) constantDifference = distinct.headOption
+      differences.forall(_.exists(_ >= 0))
     }
-    if (nonNegative) Some("(" + left.verilog + " - " + right.verilog + ")")
+    if (nonNegative) Some(constantDifference.map(_.toString)
+      .getOrElse("(" + left.verilog + " - " + right.verilog + ")"))
     else None
   }
 

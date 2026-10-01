@@ -181,6 +181,12 @@ object B extends BitVectorLiteralFactory[Bits] {
   * Used to create a new UInt or cast to UInt
   */
 object U extends BitVectorLiteralFactory[UInt] {
+  /** Explicitly sized unsigned hardware value retaining its ElabInt authority.
+    * Width and value remain independent; unsupported values fail before emission.
+    */
+  def apply(value: ElabInt, width: BitCount): UInt =
+    ElabValue.uintLike(value, UInt(width), null)
+
   def apply(): UInt = new UInt()
   def apply(that: Bool): UInt = that.asUInt
   def apply(that: Bits): UInt = that.asUInt

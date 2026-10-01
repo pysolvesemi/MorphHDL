@@ -716,6 +716,9 @@ class ComponentEmitterVerilog(
     length.toString + "'d" + str
   }
 
+  private def emitAssignmentSource(assignment: AssignmentStatement): String =
+    verilogBase.emitAssignmentSource(this, assignment).getOrElse(emitExpression(assignment.source))
+
   def emitLocation(that : AssignmentStatement) : String = if(that.locationString != null) " // " + that.locationString else ""
 
   def emitAsynchronousAsAsign(process: AsyncProcess) = process.leafStatements.size == 1 && process.leafStatements.head.parentScope == process.nameableTargets.head.rootScopeStatement
@@ -726,7 +729,7 @@ class ComponentEmitterVerilog(
         process.leafStatements.head match {
           case s: AssignmentStatement =>
             if (!s.target.isInstanceOf[Suffixable]) {
-              logics ++= s"  assign ${emitAssignedExpression(s.target)} = ${emitExpression(s.source)};${emitLocation(s)}\n"
+              logics ++= s"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
             }
         }
       case _ =>
@@ -791,7 +794,7 @@ class ComponentEmitterVerilog(
         closeSubs()
 
         statement match {
-          case assignment: AssignmentStatement  => b ++= s"${tab}${emitAssignedExpression(assignment.target)} ${assignmentKind} ${emitExpression(assignment.source)};${emitLocation(assignment)}\n"
+          case assignment: AssignmentStatement  => b ++= s"${tab}${verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment)};${emitLocation(assignment)}\n"
           case assertStatement: AssertStatement => {
             val cond = emitExpression(assertStatement.cond)
 
@@ -881,7 +884,12 @@ class ComponentEmitterVerilog(
           closeSubs()
         }
 
-        treeStatement match {
+        val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,
+          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))
+        if (publishedScope.nonEmpty) {
+          statementIndex = publishedScope.get
+          lastWhen = null
+        } else treeStatement match {
           case treeStatement: WhenStatement =>
             if(scopePtr == treeStatement.whenTrue){
               b ++= s"${tab}if(${emitExpression(treeStatement.cond)}) begin\n"
@@ -899,6 +907,7 @@ class ComponentEmitterVerilog(
           case switchStatement : SwitchStatement =>
             def checkPure(o : Expression): Boolean = o match {
               case l: Literal => true
+              case _: TypedLocalUInt.Reference => true
               case k: SwitchStatementKeyBool => k.key != null
               case _ => false
             }
@@ -967,6 +976,7 @@ class ComponentEmitterVerilog(
 
                 case _ => {
                   def emitIsCond(that: Expression): String = that match {
+                    case e: TypedLocalUInt.Reference => e.render(component)
                     case e: BitVectorLiteral => emitBitVectorLiteral(e)
 //                    case e: BitVectorLiteral => s"${e.getWidth}'b${e.getBitsStringOn(e.getWidth, 'x')}"
                     case e: BoolLiteral => if (e.value) "1'b1" else "1'b0"
@@ -1870,6 +1880,7 @@ end
   def dispatchExpression(e: Expression): String = e match {
     case  e: BaseType                                 => refImpl(e)
 
+    case e: TypedLocalUInt.Reference => e.render(component)
     case  e: BoolLiteral                              => boolLiteralImpl(e)
     case  e: BitVectorLiteral                         => emitBitVectorLiteral(e)
     case  e: EnumLiteral[_]                           => emitEnumLiteralWrap(e)

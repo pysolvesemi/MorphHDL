@@ -37,6 +37,7 @@ object ParameterizedProcess {
 
   private final class Storage {
     val loops = ArrayBuffer.empty[ParameterizedProceduralFor]
+    val conditional = ArrayBuffer.empty[ConditionalLoop]
     val names = mutable.LinkedHashMap.empty[String, Option[String]]
     var nextMarkerId = 0L
   }
@@ -44,8 +45,11 @@ object ParameterizedProcess {
   private final class CaptureState(
       val component: Component,
       val indexName: String,
+      val count: ElaborationIntegerExpression,
+      val countProof: () => ElabInt,
       val sourceLocation: Option[String]
   ) {
+    var selection: Option[(WhenStatement, UInt, Bool, Expression)] = None
     val slices = ArrayBuffer.empty[ParameterizedStructure.StructuralSlice]
     val vecIndices =
       ArrayBuffer.empty[ParameterizedStructure.StructuralVecIndex]
@@ -54,6 +58,7 @@ object ParameterizedProcess {
   private val activeCapture = new ThreadLocal[CaptureState]()
 
   def captureActive: Boolean = activeCapture.get() ne null
+  private[spinal] def conditionalCaptureActive: Boolean = captureActive && activeCapture.get().selection.nonEmpty
 
   /** Capture and classify one representative range body without executing it
     * twice. The body stays in the caller's real DSL scope so ordinary child
@@ -85,7 +90,8 @@ object ParameterizedProcess {
       label: String,
       indexName: String,
       count: ElaborationIntegerExpression,
-      sourceLocation: Option[String]
+      sourceLocation: Option[String],
+      countProof: () => ElabInt = null
   )(body: => Unit): Unit =
     captureRangeImpl(
       component,
@@ -93,7 +99,8 @@ object ParameterizedProcess {
       indexName,
       count,
       sourceLocation,
-      requireExactDomain = false
+      requireExactDomain = false,
+      countProof = countProof
     )(body)
 
   private def captureRangeImpl(
@@ -102,7 +109,8 @@ object ParameterizedProcess {
       indexName: String,
       count: ElaborationIntegerExpression,
       sourceLocation: Option[String],
-      requireExactDomain: Boolean
+      requireExactDomain: Boolean,
+      countProof: () => ElabInt = null
   )(body: => Unit): Unit = {
     if (component eq null) {
       fail(
@@ -133,7 +141,7 @@ object ParameterizedProcess {
 
     val beforeStatements = originalScope.statementIterable.toVector
     val beforeChildren = component.children.toVector
-    val state = new CaptureState(component, indexName, sourceLocation)
+    val state = new CaptureState(component, indexName, count, countProof, sourceLocation)
     activeCapture.set(state)
 
     var bodyCompleted = false
@@ -215,13 +223,17 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
-    ParameterizedStructure.validateSliceCompleteDomain(
-      source,
-      offset,
-      width,
-      sourceLocation,
-      "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED"
-    )
+    if (state.selection.nonEmpty && state.countProof != null) {
+      val sourceWidth = ParameterizedWidth.expressionOf(source)
+        .getOrElse(ElabInt.literal(source.getBitsWidth).expression)
+      val required = state.countProof() * ElabInt.fromExpression(width)
+      if (ElabBool.projectedTruth(required <= ElabInt.fromExpression(sourceWidth)) != ElabBool.AlwaysTrue)
+        fail("SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED",
+          "contiguous conditional loop writes exceed the exact target domain", sourceLocation)
+    } else {
+      ParameterizedStructure.validateSliceCompleteDomain(source, offset, width, sourceLocation,
+        "SPINAL-PARAMETERIZED-VERILOG-PROCESS-SLICE-DOMAIN-UNSUPPORTED")
+    }
     val duplicate = state.slices.exists { value =>
       (value.source eq source) && (value.result eq result) &&
       value.offset == offset && value.width == width
@@ -291,7 +303,7 @@ object ParameterizedProcess {
 
   /** Public process-loop parameter inventory for MorphVerilog reports. */
   def parametersOf(component: Component): Vector[ElaborationIntegerParameter] = {
-    val expressions = loopsOf(component).map(_.count)
+    val expressions = loopsOf(component).map(_.count) ++ conditionalLoopsOf(component).map(_.count)
     ElabInt.validateParameterRootInventory(
       s"process-loop component '${component.definitionName}'",
       expressions
@@ -316,6 +328,104 @@ object ParameterizedProcess {
   ): Vector[ParameterizedProceduralFor] =
     storageOption(component).toVector.flatMap(_.loops).toVector
 
+  private[core] final class ConditionalLoop(
+      val tree: WhenStatement, val selector: UInt, val condition: Bool,
+      val conditionDriver: Expression, val count: ElaborationIntegerExpression,
+      val indexHint: String, val assignments: Vector[(DataAssignmentStatement, ParameterizedStructure.StructuralSlice)]) {
+    var emitting: Option[(ComponentEmitterVerilog, String)] = None
+    val emitted = new IdentityHashMap[DataAssignmentStatement, java.lang.Boolean]()
+  }
+
+  private[core] def conditionalLoopsOf(component: Component): Vector[ConditionalLoop] =
+    storageOption(component).toVector.flatMap(_.conditional)
+
+  def hasConditionalLoops(component: Component): Boolean = conditionalLoopsOf(component).nonEmpty
+
+  /** Explicit hardware selection of the currently captured unsigned index.
+    * The comparator is retained with its exact native WhenStatement, never
+    * reconstructed from an emitted name or a Scala witness.
+    */
+  def whenSelected(indexName: String, selector: UInt)(body: => Unit): Unit = {
+    val state = requireCapture("conditional index", None)
+    if (state.indexName != indexName || selector == null ||
+        (selector.component ne state.component) || selector.getWidth < 1 || selector.getWidth > 31 ||
+        state.count.maximum > (BigInt(1) << selector.getWidth) || state.selection.nonEmpty)
+      fail("SPINAL-PROCESS-CONDITIONAL-SELECTION-UNSUPPORTED",
+        "one unsigned owner-local selector must represent the complete captured loop domain", state.sourceLocation)
+    val condition = selector === U(0, selector.getWidth bits)
+    val driver = condition.head.asInstanceOf[DataAssignmentStatement].source
+    when(condition) {
+      val tree = DslScopeStack.get.parentStatement.asInstanceOf[WhenStatement]
+      state.selection = Some((tree, selector, condition, driver))
+      body
+    }
+  }
+
+  private[core] def conditionalReads(expression: Expression, target: BaseType): Boolean = {
+    val visited = new IdentityHashMap[Expression, java.lang.Boolean]()
+    def visit(value: Expression): Boolean = {
+      if (value eq target) return true
+      if (value == null || visited.containsKey(value)) return false
+      visited.put(value, true)
+      var found = false
+      value.foreachExpression(child => if (visit(child)) found = true)
+      value match {
+        case leaf: BaseType => leaf.foreachStatements {
+          case assignment: DataAssignmentStatement if visit(assignment.source) => found = true
+          case _ =>
+        }
+        case _ =>
+      }
+      found
+    }
+    visit(expression)
+  }
+
+  private def retainConditional(component: Component, statements: Vector[Statement],
+      children: Vector[Component], state: CaptureState, label: String, indexName: String,
+      count: ElaborationIntegerExpression, source: Option[String]): Unit = {
+    def reject(detail: String): Nothing = fail("SPINAL-PROCESS-CONDITIONAL-BODY-UNSUPPORTED", detail, source)
+    val (tree, selector, condition, driver) = state.selection.get
+    if (children.nonEmpty || state.vecIndices.nonEmpty || !statements.exists(_ eq tree) ||
+        tree.whenFalse.statementIterable.nonEmpty) reject("conditional loops require one direct whenSelected body without children, Vecs or else branches")
+    val all = ArrayBuffer.empty[Statement]
+    statements.foreach { statement =>
+      all += statement
+      statement match { case nested: TreeStatement => nested.walkStatements(all += _); case _ => }
+    }
+    val literals = all.collect { case value: BaseType if !value.isReg && value.hasOnlyOneStatement &&
+        value.head.isInstanceOf[DataAssignmentStatement] &&
+        value.head.asInstanceOf[DataAssignmentStatement].source.isInstanceOf[Literal] => value }.toVector
+    val witnesses = state.slices.map(_.result).toVector ++ literals :+ condition
+    val assignments = all.collect { case assignment: DataAssignmentStatement
+        if !witnesses.exists(_ eq assignment.finalTarget) => assignment }.toVector
+    if (assignments.isEmpty || assignments.map(_.finalTarget).distinct.size != assignments.size)
+      reject("conditional loops require one indexed write per distinct packed target")
+    all.foreach {
+      case value: BaseType if witnesses.exists(_ eq value) =>
+      case value: DataAssignmentStatement if witnesses.exists(_ eq value.finalTarget) =>
+      case value: DataAssignmentStatement if assignments.exists(_ eq value) =>
+      case value: WhenStatement if value eq tree =>
+      case value => reject(s"declarations, nested control and non-assignment side effects (${value.getClass.getSimpleName}) are unsupported in a conditional loop")
+    }
+    val writes = assignments.map { assignment =>
+      if ((assignment.parentScope ne tree.whenTrue) || (assignment.finalTarget.component ne component) ||
+          assignment.finalTarget.isReg || !hasOtherDataAssignment(assignment))
+        reject("conditional loops require combinational owner-local targets with an ordinary default outside the loop")
+      if (assignments.exists(other => conditionalReads(assignment.source, other.finalTarget)))
+        reject("cross-iteration target reads are unsupported")
+      val slices = state.slices.filter(matchesTargetSlice(assignment, _))
+      if (slices.size != 1 || !isContiguous(slices.head, indexName))
+        reject("each conditional write needs one contiguous indexed packed slice")
+      assignment -> slices.head
+    }
+    if (writes.size != state.slices.size) reject("conditional loops do not admit indexed reads or unused slice witnesses")
+    val storage = storageOf(component)
+    reserveName(storage, label, "conditional loop label", source)
+    reserveName(storage, indexName, "conditional loop index", source)
+    storage.conditional += new ConditionalLoop(tree, selector, condition, driver, count, indexName, writes)
+  }
+
   private def classify(
       component: Component,
       statements: Vector[Statement],
@@ -327,6 +437,10 @@ object ParameterizedProcess {
       requireExactDomain: Boolean,
       sourceLocation: Option[String]
   ): Unit = {
+    if (state.selection.nonEmpty) {
+      retainConditional(component, statements, children, state, label, indexName, count, sourceLocation)
+      return
+    }
     val declarations = statements.collect { case value: BaseType => value }
     val structuralDeclarations = declarations.filterNot { declaration =>
       state.slices.exists(slice => slice.result eq declaration) ||

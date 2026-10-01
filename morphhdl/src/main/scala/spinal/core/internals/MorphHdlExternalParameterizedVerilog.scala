@@ -451,6 +451,7 @@ object MorphHdlExternalParameterizedVerilog {
       }
     }
 
+    NativeLocalParameters.typedExpressions(component).foreach(retainInteger)
     ExternalParameterizedValueRegistry.valuesOf(component).foreach { case (_, record) =>
       retainInteger(record.expression)
     }
@@ -868,7 +869,8 @@ object MorphHdlExternalParameterizedVerilog {
         ParameterizedVerilogVecs.parametersOf(component) ++
         ParameterizedStructure.parametersOf(component) ++
         ParameterizedProcess.parametersOf(component) ++
-        NativeSymbolicLegality.parametersOf(component)
+        NativeSymbolicLegality.parametersOf(component) ++
+        NativeLocalParameters.typedExpressions(component).flatMap(_.parameters)
     val grouped = values.groupBy(_.name)
     grouped
       .collectFirst {
@@ -885,6 +887,8 @@ object MorphHdlExternalParameterizedVerilog {
 
   private def hasParameterizedMetadata(component: Component): Boolean =
     NativeSymbolicLegality.hasRequirements(component) ||
+    NativeLocalParameters.hasTyped(component) ||
+    ParameterizedProcess.hasConditionalLoops(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
@@ -913,6 +917,8 @@ object MorphHdlExternalParameterizedVerilog {
       component: Component
   ): Boolean =
     NativeSymbolicLegality.hasRequirements(component) ||
+    NativeLocalParameters.hasTyped(component) ||
+    ParameterizedProcess.hasConditionalLoops(component) ||
     ExternalParameterizedHierarchyResizeWidth.parametersOf(component).nonEmpty ||
       ExternalParameterizedAutoResize.parametersOf(component).nonEmpty ||
       ParameterizedMemory.parametersOf(component).nonEmpty ||
