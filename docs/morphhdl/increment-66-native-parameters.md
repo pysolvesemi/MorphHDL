@@ -121,3 +121,14 @@ Set `MORPHDL_INCREMENT66_EVIDENCE` to an absolute directory to retain tool comma
 source identity, input contents/hashes and complete output logs for the new suites.
 Remote targeted qualification, final full CI and merge receipts are separate
 requirements; local success alone does not complete this increment.
+
+## Local completion receipt
+
+Compiler/test checkpoint `b6e83061d8c2b1ece94e76abadc956a2201a99dc` passed both
+Scala lanes. Across focused and subsequent interaction runs, each lane passed
+447 distinct runtime, 35 native and 18 plugin tests, plus two legacy AXI4 formal
+tests. Binary and legacy source compatibility passed in both lanes. All 29
+representative RTL files match byte-for-byte across Scala versions. Native and
+inherited source audits, relocation controls and exact additive report-catalog
+controls pass. Actual inputs, logs and digests are retained in
+[the evidence directory](evidence/increment66/README.md). CI/merge remain pending.
