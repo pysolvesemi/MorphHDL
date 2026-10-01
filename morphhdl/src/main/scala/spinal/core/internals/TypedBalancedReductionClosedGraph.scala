@@ -122,7 +122,7 @@ private[spinal] object TypedBalancedReductionClosedGraph {
     /** Recheck in-place children, literals and initializers, not merely the
       * top-level assignment source pointer. Must run before normalization.
       */
-    def requireUnchanged(): Unit = {
+    def requireUnchanged(): Unit = TypedBalancedReductionFreshness.once(this) {
       val current = inspect(callback, combinationalScopes)
       if (current != frozen) {
         val changed = frozen.nodes.zip(current.nodes).collectFirst {

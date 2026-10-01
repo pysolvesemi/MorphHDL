@@ -22,26 +22,10 @@ private[spinal] object TypedBalancedReductionCompositeReplay {
       .getOrElse(ElabInt.literal(value.getBitsWidth).expression)
 
 
-  // Every leaf in a record shares its producing proof. Rechecking that proof
-  // recursively for every output field would grow exponentially with tree
-  // depth. This memo exists only during one synchronous validation traversal;
-  // no observation survives into another callback, replay or public check.
-  private val freshnessTraversal = new ThreadLocal[IdentityHashMap[AnyRef, java.lang.Boolean]]()
-  private def freshnessRead[A](body: => A): A = {
-    val previous = freshnessTraversal.get()
-    if (previous != null) body
-    else {
-      freshnessTraversal.set(new IdentityHashMap[AnyRef, java.lang.Boolean]())
-      try body finally freshnessTraversal.remove()
-    }
-  }
-  private def freshOnce(identity: AnyRef)(body: => Unit): Unit = freshnessRead {
-    val checks = freshnessTraversal.get()
-    if (!checks.containsKey(identity)) {
-      body
-      checks.put(identity, java.lang.Boolean.TRUE)
-    }
-  }
+  // All scalar/composite prerequisites share the same read-only traversal.
+  private def freshnessRead[A](body: => A): A = TypedBalancedReductionFreshness.read(body)
+  private def freshOnce(identity: AnyRef)(body: => Unit): Unit =
+    TypedBalancedReductionFreshness.once(identity)(body)
 
   /** Recursive container boundaries matter even when two layouts flatten to
     * the same names. Dynamic nested dimensions need their own publication

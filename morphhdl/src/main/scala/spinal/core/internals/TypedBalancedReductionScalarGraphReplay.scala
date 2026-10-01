@@ -183,14 +183,9 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
   }
   private def same[A <: AnyRef](a: Vector[A], b: Vector[A]): Boolean =
     a.size == b.size && a.zip(b).forall { case (left, right) => left eq right }
-  private def assignmentsOf(owner: Component, target: BaseType): Vector[AssignmentStatement] = {
-    val out = ArrayBuffer.empty[AssignmentStatement]
-    owner.dslBody.walkStatements {
-      case value: AssignmentStatement if value.finalTarget eq target => out += value
-      case _ =>
-    }
-    out.toVector
-  }
+  private def assignmentsOf(owner: Component, target: BaseType): Vector[AssignmentStatement] =
+    TypedBalancedReductionFreshness.assignmentsOf(owner, target)
+
 
   final class Proof private[TypedBalancedReductionScalarGraphReplay] (
       val nativeResult: BaseType,
@@ -204,7 +199,9 @@ private[spinal] object TypedBalancedReductionScalarGraphReplay {
   ) extends TypedBalancedReductionOperatorCertificate {
     val operationKey: Any = root.key
     val transferKey: Any = root.key
-    def validateFreshness(): Unit = guards.foreach(_.apply())
+    def validateFreshness(): Unit = TypedBalancedReductionFreshness.once(this) {
+      guards.foreach(_.apply())
+    }
     def resultWidthFor(left: Width, right: Width): Width = {
       validateFreshness()
       Vector(left, right).foreach { width =>

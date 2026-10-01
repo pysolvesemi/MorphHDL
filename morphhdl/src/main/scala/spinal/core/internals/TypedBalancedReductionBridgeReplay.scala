@@ -96,7 +96,7 @@ private[spinal] object TypedBalancedReductionBridgeReplay {
     val registerCount: Int = registers.size
     val hasLocalEnables: Boolean = registers.exists(_.enable.nonEmpty)
 
-    def validateFreshness(): Unit = {
+    def validateFreshness(): Unit = TypedBalancedReductionFreshness.once(this) {
       input.requireFreshness()
       controls.foreach(_.requireFreshness())
       localGuards.foreach(_.apply())

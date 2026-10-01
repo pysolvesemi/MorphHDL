@@ -83,10 +83,11 @@ object CdcPublicationCleanupFixtures {
 
   def zeroWidthControl(directory: Path): Unit = {
     val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-      oneFilePerComponent = true, headerWithDate = false, headerWithRepoHash = true))
+      oneFilePerComponent = true, headerWithDate = false, headerWithRepoHash = true), enabled = true)
     var inspected = false
     config.phasesInserters += { phases =>
       val index = phases.indexWhere(_.getClass.getSimpleName == "ProductionWireAssignmentPhase")
+      require(index >= 0, "zero-width retention observation requires the enabled pipeline")
       phases.insert(index + 1, new Phase {
         override def hasNetlistImpact: Boolean = false
         override def impl(pc: PhaseContext): Unit = {

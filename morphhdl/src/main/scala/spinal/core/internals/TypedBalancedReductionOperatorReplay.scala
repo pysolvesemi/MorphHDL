@@ -68,14 +68,9 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
     case _ => false
   }
 
-  private def assignmentsOf(owner: Component, target: BaseType): Vector[AssignmentStatement] = {
-    val values = ArrayBuffer.empty[AssignmentStatement]
-    owner.dslBody.walkStatements {
-      case assignment: AssignmentStatement if assignment.finalTarget eq target => values += assignment
-      case _ =>
-    }
-    values.toVector
-  }
+  private def assignmentsOf(owner: Component, target: BaseType): Vector[AssignmentStatement] =
+    TypedBalancedReductionFreshness.assignmentsOf(owner, target)
+
 
   private def checkOperand(value: BaseType, owner: Component, kind: AnyRef,
       width: ElaborationIntegerExpression): Unit = {
@@ -110,7 +105,9 @@ private[spinal] object TypedBalancedReductionOperatorReplay {
       */
     val operationKey: (Class[_], Option[Boolean]) = (operatorClass, minimum)
     val transferKey: Any = graph.key
-    def validateFreshness(): Unit = guards.foreach(_.apply())
+    def validateFreshness(): Unit = TypedBalancedReductionFreshness.once(this) {
+      guards.foreach(_.apply())
+    }
 
     def resultWidthFor(left: Width, right: Width): Width = {
       validateFreshness()

@@ -81,7 +81,7 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
       .filter(line => line.trim.startsWith("assign _zz_hTotal"))
       .toVector
 
-  test("public MorphVerilog inlines the fixed unsigned extended addition tree") {
+  test("public MorphVerilog defaults to wrappers and deprecated explicit opt-in inlines the fixed addition tree") {
     val default = withDirectory { directory =>
       val fileName = "fixed.v"
       val witnessWidth = HdlInt.param("WITNESS_WIDTH", default = 2, min = 1, max = 4)
@@ -91,10 +91,12 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
       read(directory, fileName)
     }
     val explicit = fixedMorph(enabled = true)
+    val disabled = fixedMorph(enabled = false)
 
-    assert(default == explicit)
-    assert(wrapperAssignments(default).isEmpty)
-    assert(default.contains(
+    assert(default == disabled)
+    assert(wrapperAssignments(default).size == 6)
+    assert(wrapperAssignments(explicit).isEmpty)
+    assert(explicit.contains(
       "assign hTotal = ((({2'd0, hActive} + {2'd0, hFrontPorch}) + {2'd0, hSyncWidth}) + {2'd0, hBackPorch});"
     ))
   }
@@ -235,10 +237,10 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
     }
   }
 
-  test("symbolic source widths preserve retained roots and permit valid shared-width inlining") {
+  test("deprecated explicit inlining preserves symbolic roots and permits valid shared-width inlining") {
     val generated = withDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 16)
-      MorphVerilog(config(directory, "source-boundary.v")) {
+      MorphVerilog(MorphWireAssignmentPasses(config(directory, "source-boundary.v"), enabled = true)) {
         new Component {
           setDefinitionName("SymbolicSourceBoundary")
           val a, b = in Bits(width bits)
@@ -272,7 +274,7 @@ class MorphVerilogExpressionInliningTests extends AnyFunSuite {
     val independent = withDirectory { directory =>
       val left = HdlInt.param("LEFT_WIDTH", default = 8, min = 1, max = 16)
       val right = HdlInt.param("RIGHT_WIDTH", default = 8, min = 1, max = 16)
-      MorphVerilog(config(directory, "independent.v")) {
+      MorphVerilog(MorphWireAssignmentPasses(config(directory, "independent.v"), enabled = true)) {
         new Component {
           setDefinitionName("IndependentSymbolicSources")
           val a = in UInt(left bits)

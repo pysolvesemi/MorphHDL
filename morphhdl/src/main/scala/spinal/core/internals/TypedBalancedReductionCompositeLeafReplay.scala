@@ -27,7 +27,9 @@ private[spinal] object TypedBalancedReductionCompositeLeafReplay {
     val resultWidths: Vector[Width] = leaves.map(_.resultWidth)
     val operationKey: Vector[(Any, Any)] = leaves.map(proof => proof.operationKey -> proof.transferKey)
 
-    def validateFreshness(): Unit = leaves.foreach(_.validateFreshness())
+    def validateFreshness(): Unit = TypedBalancedReductionFreshness.once(this) {
+      leaves.foreach(_.validateFreshness())
+    }
 
     def resultWidthsFor(left: Vector[Width], right: Vector[Width]): Vector[Width] = {
       validateFreshness()
