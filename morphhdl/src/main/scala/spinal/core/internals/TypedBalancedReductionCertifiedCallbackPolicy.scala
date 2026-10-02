@@ -52,7 +52,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
   private val scalars = Set("Bool", "Bits", "UInt", "SInt").map("spinal/core/" + _)
   private val data = scalars ++ Set("spinal/core/Data", "spinal/core/BaseType", "spinal/core/BitVector")
   private val nativeModules = Set("package", "U", "S", "B", "Mux", "when", "ElabInt",
-    "ParameterizedNative", "BitCount", "package$IntBuilder").map("spinal/core/" + _ + "$")
+    "ParameterizedNative", "RtlDocumentation", "BitCount", "package$IntBuilder").map("spinal/core/" + _ + "$")
   private val binary = Set("$amp", "$bar", "$up", "$plus", "$plus$up", "$plus$bar", "$minus", "$minus$up",
     "$times", "$less", "$greater", "$less$eq", "$greater$eq", "$eq$eq$eq", "$eq$div$eq",
     "min", "max", "$hash$hash")
@@ -162,7 +162,7 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
           node.superName != "java/lang/Object" || !node.interfaces.isEmpty ||
           node.fields.asScala.exists(field => field.name != "MODULE$" ||
             field.desc != "L" + owner + ";" || (field.access & Opcodes.ACC_STATIC) == 0))
-        fail("helper receiver must be a final field-free Scala module")
+        fail("helper receiver must be a final field-free Scala module: " + owner)
       def real(method: MethodNode): Vector[AbstractInsnNode] =
         method.instructions.toArray.toVector.filter(_.getOpcode >= 0)
       val constructor = node.methods.asScala.find(m => m.name == "<init>" && m.desc == "()V")
@@ -326,6 +326,15 @@ private[spinal] object TypedBalancedReductionCertifiedCallbackPolicy {
       def exact(descriptor: String): Boolean = call.desc == descriptor
       def hardware(value: Value): Boolean = hardwareValue(value)
       def integral(value: Value): Boolean = value == Integer || value == Configuration || value == Count
+      // Compiler-inserted declaration comments preserve the exact fresh value.
+      // Metadata attachment is a write: operands and captured hardware stay read-only.
+      if (call.getOpcode == Opcodes.INVOKEVIRTUAL && call.owner == "spinal/core/RtlDocumentation$" &&
+          receiver.contains(Module(call.owner)) && name == "attach" &&
+          exact("(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)Ljava/lang/Object;") &&
+          args.size == 5 && args.slice(1, 4).forall(_ == Text) && args(4) == Integer) {
+        if (!writableValue(args.head)) fail("documentation attachment to callback argument or captured hardware is forbidden")
+        return args.head
+      }
       if (composite && call.owner == "spinal/core/ElabInt$" &&
           receiver.contains(Module(call.owner)) && name == "widthOf" &&
           exact("(Lspinal/core/BaseType;)Lspinal/core/ElabInt;") &&

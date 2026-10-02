@@ -33,7 +33,10 @@ private[internals] final class HierarchyResizeWidthParent(actual: ElabInt, renam
     if (renamed) new QuartzWidthUnit(count) else new CedarWidthUnit(count)
   }
   child.enable := enable
-  observed := (if (late) child.lateOutput() else child.payload).resized
+  // Exercise surviving native carriers independently of retired optimizer retention.
+  val resizeSource = (if (late) child.lateOutput() else child.payload).resized
+  resizeSource.setName("resizeSource")
+  observed := resizeSource
   spare := 0
 }
 

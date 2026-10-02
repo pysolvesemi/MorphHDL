@@ -282,13 +282,12 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
         SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)
       }
       val disabled = read(directory.resolve("symbolic_data_shapes_disabled.v"))
-      // The public contract golden follows the enabled production pipeline.
-      // Keep the disabled oracle frozen independently at the pre-repair bytes.
+      // With hardware wire passes retired, publication retains native carriers.
+      // Both outputs must match the independent, pre-optimizer byte oracle.
       assert(verilog == read(contractGolden("symbolic_data_shapes.v")))
       assert(disabled == expectedDisabledSymbolicDataShapes)
 
-      // Recursive alias cleanup can remove aggregate leaf carriers. The
-      // public interface and sequential state retain the reviewed contract.
+      // Preserve the public interface, sequential state and native alias chain.
       def interface(source: String): String = source.take(source.indexOf(");") + 2)
       def registerDeclarations(source: String): Vector[String] =
         "(?m)^\\s*reg\\s+[^;]+;\\s*$".r.findAllIn(source)
@@ -300,8 +299,8 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       assert(registerDeclarations(verilog) == registerDeclarations(disabled))
       assert(sequentialStatements(verilog) == sequentialStatements(disabled))
       Vector("bits", "uint", "sint").foreach { leaf =>
-        assert(verilog.contains(s"assign bundle_out_$leaf = bundle_in_$leaf;"), verilog)
-        assert(!verilog.contains(s"internal_payload_$leaf"), verilog)
+        assert(verilog.contains(s"assign internal_payload_$leaf = bundle_in_$leaf;"), verilog)
+        assert(verilog.contains(s"assign bundle_out_$leaf = internal_payload_$leaf;"), verilog)
       }
       Vector(1, 8, 64).foreach { width =>
         NativeWireCompatibility.check(directory, verilog, disabled, "SymbolicDataShapes",

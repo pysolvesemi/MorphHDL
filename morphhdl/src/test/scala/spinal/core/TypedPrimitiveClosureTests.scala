@@ -835,20 +835,21 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
         assert(source.contains("assignstream_s2m_ready=(!stream_s2m_rValid);"), source)
       }
       // The half-pipe output aliases its retained WIDTH-wide payload state.
-      // Cleanup removes only that carrier, preserving the public connection.
+      // The native carrier remains after retirement of hardware wire cleanup.
       assert(disabled.contains("wire[WIDTH-1:0]stream_half_payload;"), disabled)
       assert(disabled.contains("assignstream_half_payload=stream_s2m_rData;"), disabled)
       assert(disabled.contains("assignstream_out_payload=stream_half_payload;"), disabled)
-      assert(!compact.contains("stream_half_payload"), verilog)
-      assert(compact.contains("assignstream_out_payload=stream_s2m_rData;"), verilog)
-      // WA-10 inlines this unprotected mux into its exact WIDTH-wide register
-      // receiver. The payload state and conditional NBA remain native shapes.
+      assert(compact.contains("wire[WIDTH-1:0]stream_half_payload;"), verilog)
+      assert(compact.contains("assignstream_half_payload=stream_s2m_rData;"), verilog)
+      assert(compact.contains("assignstream_out_payload=stream_half_payload;"), verilog)
+      // The retained mux carrier feeds the exact WIDTH-wide register receiver.
       val payloadMux = "(stream_m2s_rValidN?stream_m2s_payload:stream_m2s_rData)"
       assert(disabled.contains("wire[WIDTH-1:0]stream_s2m_payload;"), disabled)
       assert(disabled.contains(s"assignstream_s2m_payload=$payloadMux;"), disabled)
       assert(disabled.contains("if(stream_s2m_ready)beginstream_s2m_rData<=stream_s2m_payload;end"), disabled)
-      assert(!compact.contains("stream_s2m_payload"), verilog)
-      assert(compact.contains(s"if(stream_s2m_ready)beginstream_s2m_rData<=$payloadMux;end"), verilog)
+      assert(compact.contains("wire[WIDTH-1:0]stream_s2m_payload;"), verilog)
+      assert(compact.contains(s"assignstream_s2m_payload=$payloadMux;"), verilog)
+      assert(compact.contains("if(stream_s2m_ready)beginstream_s2m_rData<=stream_s2m_payload;end"), verilog)
     }
   }
 
