@@ -1,8 +1,9 @@
 # MorphHDL comment and documentation API roadmap
 
-Status: C01–C08b implemented and validated on Scala 2.12.18 and 2.13.12.
-C09/C10 source-manifest and closure receipts are being finalized. CI and hourly
-monitoring remain paused.
+Status: C01–C10 complete for local implementation and generated-comment
+validation. Both Scala versions passed all 35 focused tests. Source-review and
+validation receipts are recorded in [comments-api-validation.md](comments-api-validation.md).
+Remote CI, monitoring, publication and merge remain paused.
 
 ## Objective
 
@@ -279,24 +280,24 @@ construct or branch through lowering, without changing its expressions or scopes
 
 ## Increment C09 — Integration, documentation and generated-output validation
 
-- [ ] Document APIs, configuration defaults, supported targets, ownership rules,
+- [x] Document APIs, configuration defaults, supported targets, ownership rules,
   placement examples and limitations. Clearly distinguish implemented from deferred
   automatic capture cases.
-- [ ] Add an end-to-end fixture combining annotations, fluent docs, trailing and
+- [x] Add an end-to-end fixture combining annotations, fluent docs, trailing and
   preceding comments, regions, hierarchy, Vecs and parameterized loops.
-- [ ] Verify deterministic output across repeated generation and clean/incremental
+- [x] Verify deterministic output across repeated generation and clean/incremental
   builds on Scala 2.12.18 and 2.13.12.
-- [ ] Run focused Scala/plugin and generated-comment tests covering parameterized
+- [x] Run focused Scala/plugin and generated-comment tests covering parameterized
   publication and aggregate layouts; add cases to the relevant test inventories.
-- [ ] Compare representative generated output with capture enabled and disabled:
+- [x] Compare representative generated output with capture enabled and disabled:
   validate comment text, attachment, ordering, deduplication and layout, and
   require unchanged non-comment tokens.
-- [ ] Check that comments do not introduce declarations for otherwise removed
+- [x] Check that comments do not introduce declarations for otherwise removed
   signals or break publication matchers and source contracts. Use generated-output
   assertions only; no synthesis, simulation, formal proof or external HDL tools.
-- [ ] Update affected native-source reviews and exact source manifests without
+- [x] Update affected native-source reviews and exact source manifests without
   weakening their checks or historical evidence.
-- [ ] Record candidate source identity, commands, tool versions, test results and
+- [x] Record candidate source identity, commands, tool versions, test results and
   known limitations in a durable local receipt.
 
 Acceptance: the supported comment/API matrix passes generated-output validation.
@@ -305,18 +306,18 @@ these results as synthesis, simulation or full hardware qualification.
 
 ## Increment C10 — Review and closure
 
-- [ ] Review the supported comment/API matrix and retain generated examples and
+- [x] Review the supported comment/API matrix and retain generated examples and
   focused test results for the final source revision.
-- [ ] Confirm every implemented checklist item has comment-output evidence and
+- [x] Confirm every implemented checklist item has comment-output evidence and
   document any deferred or unsupported attachment cases.
-- [ ] Confirm non-comment output remains unchanged for paired fixtures and that
+- [x] Confirm non-comment output remains unchanged for paired fixtures and that
   documentation defaults and explicit opt-in settings match the contract.
-- [ ] Preserve the existing CI and hourly-monitoring pause. This roadmap does not
+- [x] Preserve the existing CI and hourly-monitoring pause. This roadmap does not
   authorize resuming monitoring, dispatching CI or merging.
-- [ ] If remote checks are separately requested, scope them to Scala compilation
+- [x] If remote checks are separately requested, scope them to Scala compilation
   and generated-comment validation. Do not run synthesis, simulation, formal
   proofs, external HDL tools or aggregate hardware qualification for this work.
-- [ ] Record implementation completion and output-validation receipts separately
+- [x] Record implementation completion and output-validation receipts separately
   from any later publication or merge status; do not imply a merge occurred.
 
 ## Recommended implementation order

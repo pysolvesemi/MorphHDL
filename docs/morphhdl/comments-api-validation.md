@@ -11,7 +11,8 @@ Implementation branch: `work/remaining-parameterized-increments`.
 Tests ran from base HEAD `d59747bc894ee8f8610a9283d00ae879da0ba291` with the comments
 implementation in the working tree. The exact tested build/Scala file hashes are
 retained in `~/.local/state/morphhdl/comments-api/evidence/tested-source-sha256.json`;
-closure verifies those bytes against the committed source. Integration target
+closure verifies those bytes against implementation commit
+`4f8ccf6b1d0ef273b859d3bffc35de14a822810a` and the final source snapshot. Integration target
 `parameterized-verilog` remains `db54d01e5b21c7664f7a0de3795f061d77a3d259`.
 
 Environment: OpenJDK 17.0.20.1, sbt 1.10.0, Scala 2.12.18 and 2.13.12.
@@ -70,3 +71,25 @@ methods and attachment boundaries are documented in
 [the contract](comments-api-contract.md); use `rtlDoc` for ambiguous regions.
 Ordinary Scala control flow is not converted into new hardware by this feature.
 Other HDL backends and dual-factory Morph generation are outside this contract.
+
+## Source review and closure
+
+The native source audit passed against the unchanged upstream baseline: seven
+roots, 66 approved paths and 275 reviewed byte-span edits. Its positive control,
+eight exact rejection controls and the production-retirement guard passed. The
+retained-regression inventory guard passed its positive/seven-rejection controls;
+the integration guard passed its edit/reintroduction/symlink controls. Checks and
+source sealing use:
+
+```bash
+python3 morphhdl/scripts/check-native-source-preservation.py
+python3 morphhdl/scripts/check-native-source-preservation.py --self-test
+python3 morphhdl/scripts/check-retained-parameterized-regressions.py --self-test
+python3 morphhdl/scripts/check-parameterized-integration-source.py --self-test
+python3 morphhdl/scripts/check-parameterized-integration-source.py
+```
+
+The source seal and durable local checkpoint record the final commit/tree after
+these documentation and manifest updates. All tested Scala/build hashes remain
+unchanged. The hourly systemd timer was verified disabled/inactive. There was no
+push, remote CI dispatch, target-branch change or merge.
