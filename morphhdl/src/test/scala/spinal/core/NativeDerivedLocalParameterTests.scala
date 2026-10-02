@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -11,8 +11,8 @@ class NativeDerivedLocalParameterTests extends AnyFunSuite {
   private val commandIndex = new java.util.concurrent.atomic.AtomicInteger()
   import morphhdl.examples.RecordLink
   private def emit(directory: Path, split: Boolean, passes: Boolean = true)(body: => Component): String = {
-    val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-      oneFilePerComponent = split, headerWithDate = false), enabled = passes)
+    val config = SpinalConfig(targetDirectory = directory.toString,
+      oneFilePerComponent = split, headerWithDate = false)
     MorphVerilog(config)(body)
     info(s"Generated local-parameter evidence: $directory")
     import scala.collection.JavaConverters._

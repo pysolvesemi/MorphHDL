@@ -1,5 +1,11 @@
 # Increment 66 local evidence
 
+> Historical evidence: these receipts precede the local 59i merge and hardware
+> wire-pass retirement. They do not qualify the combined candidate. Full local
+> qualification and hourly monitoring remain paused by the user. WA-11 remains
+> parameterized-Verilog work; see ../../wa11-boolean-width-normalization.md.
+
+
 Compiler/test source: `b6e83061d8c2b1ece94e76abadc956a2201a99dc`; tree:
 `77587de53911f687b97250f58fa7747ad39e6d40`. This is local validation, not remote
 qualification or increment closure. Integration remains untouched at

@@ -708,7 +708,7 @@ class GenericExpressionAndStreamTests extends AnyFunSuite {
       if (config == null) SpinalConfig(targetDirectory = directory.toString)
       else config
     useConfig.netlistFileName = filename
-    val selected = if (legacy) MorphWireAssignmentPasses(useConfig, enabled = false) else useConfig
+    val selected = if (legacy) useConfig else useConfig
     MorphVerilog(selected)(component)
     read(directory.resolve(filename))
   }

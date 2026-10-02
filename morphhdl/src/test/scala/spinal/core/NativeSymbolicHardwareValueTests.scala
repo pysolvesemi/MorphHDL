@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.file.{Files, Path}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -51,8 +51,8 @@ class NativeSymbolicHardwareValueTests extends AnyFunSuite {
   for (split <- Seq(false, true))
   test(s"unsigned symbolic values retain exact packed type through nested operations, split=$split") {
     val dir = Files.createTempDirectory("symbolic-hardware-values-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      oneFilePerComponent = split, headerWithDate = false), enabled = false)) {
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      oneFilePerComponent = split, headerWithDate = false)) {
       new ValueExpressions(HdlInt.param("BUS_LOG2_BYTES", 3, 2, 5).asElabInt.pow2)
     }
     val rtl = new String(Files.readAllBytes(dir.resolve("ValueExpressions.v")), UTF_8)
@@ -146,8 +146,8 @@ class NativeSymbolicHardwareValueTests extends AnyFunSuite {
   }
   test("zero and maximum values preserve exact explicit widths and concrete literal behavior") {
     val dir = Files.createTempDirectory("value-boundaries-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      headerWithDate = false), enabled = false))(new Component {
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      headerWithDate = false))(new Component {
       setDefinitionName("ValueBoundary")
       val root: ElabInt = HdlInt.param("VALUE", 0, 0, 15).asElabInt
       val observed = out UInt(4 bits)

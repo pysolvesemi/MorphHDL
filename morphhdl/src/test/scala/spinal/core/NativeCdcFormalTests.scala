@@ -3,9 +3,9 @@ package spinal.core
 import java.nio.file.{Files, Path}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlInt, formalParam}
-import spinal.lib._
+import spinal.lib.fromGray
 import org.scalatest.funsuite.AnyFunSuite
 
 class NativeCdcFormalTests extends AnyFunSuite {
@@ -65,9 +65,9 @@ class NativeCdcFormalTests extends AnyFunSuite {
   test(s"real CDC children preserve independent WIDTH/STAGES, reset, attributes and Gray logic, split=$split standalone=$standalone") {
     val dir = Files.createTempDirectory("native-cdc-formals-")
     def emit(destination: Path): Unit = {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = destination.toString,
+      MorphVerilog(SpinalConfig(targetDirectory = destination.toString,
         oneFilePerComponent = split, headerWithDate = false,
-        defaultConfigForClockDomains = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = LOW)), enabled = false))(new CdcParent(standalone))
+        defaultConfigForClockDomains = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = LOW)))(new CdcParent(standalone))
     }
     emit(dir)
     val repeated = Files.createTempDirectory("native-cdc-formals-repeat-")

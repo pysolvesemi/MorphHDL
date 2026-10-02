@@ -38,7 +38,7 @@ class NativeTypedLocalConstantTests extends AnyFunSuite {
       6 -> "OWNER-MISMATCH", 7 -> "SWITCH-OVERLAP", 8 -> "OWNER-MISMATCH", 9 -> "SWITCH-OVERLAP"))
   test(s"invalid named constants fail before publication, mode=$mode") {
     val error = intercept[Exception] {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=Files.createTempDirectory("invalid-typed-local-").toString),enabled=false)) {
+      MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("invalid-typed-local-").toString)) {
         new Component {
           val a = TypedLocalUInt(if(mode==0) "bad-name" else "ADDR_A",
             ElabInt.literal(if(mode==1) 256 else if(mode==2) -1 else 4),8 bits)
@@ -75,13 +75,13 @@ class NativeTypedLocalConstantTests extends AnyFunSuite {
   for (symbolic <- Seq(false,true))
   test(s"typed locals remain packed declarations and native case labels, symbolic=$symbolic") {
     val dir = Files.createTempDirectory("native-typed-local-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false),enabled=false))(new Decoder(symbolic))
+    MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false))(new Decoder(symbolic))
     val rtl = new String(Files.readAllBytes(dir.resolve("Decoder.v")),UTF_8)
     assert(rtl.contains("localparam [7:0] ADDR_CONTROL") && rtl.contains("localparam [7:0] ADDR_STATUS"),rtl)
     assert(rtl.contains("ADDR_CONTROL : begin") && rtl.contains("ADDR_STATUS : begin"),rtl)
     assert(rtl.contains("ADDR_CONTROL + 4"),rtl)
     val repeated=Files.createTempDirectory("native-typed-local-repeat-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=repeated.toString,headerWithDate=false),enabled=false))(new Decoder(symbolic))
+    MorphVerilog(SpinalConfig(targetDirectory=repeated.toString,headerWithDate=false))(new Decoder(symbolic))
     assert(rtl==new String(Files.readAllBytes(repeated.resolve("Decoder.v")),UTF_8))
     for (base <- (if(symbolic) Seq(0,1,14) else Seq(1))) {
       val overrideText=if(symbolic) s"#(.BASE_WORD($base))" else ""

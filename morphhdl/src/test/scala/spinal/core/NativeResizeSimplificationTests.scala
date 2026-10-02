@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.file.{Files, Path}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -61,8 +61,8 @@ class NativeResizeSimplificationTests extends AnyFunSuite {
   for (split <- Seq(false, true); derived <- Seq(false, true))
   test(s"native resize proves width relations while retaining nested type boundaries, split=$split derived=$derived") {
     val dir = Files.createTempDirectory("native-resize-simplification-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      oneFilePerComponent = split, headerWithDate = false), enabled = false)) {
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      oneFilePerComponent = split, headerWithDate = false)) {
       val width = if (derived) HdlInt.param("BUS_LOG2_BYTES", 3, 2, 5).asElabInt.pow2 * 8 / 8
         else HdlInt.param("WIDTH", 8, 1, 32).asElabInt
       new ResizeProbe(width)

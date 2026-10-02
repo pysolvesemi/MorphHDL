@@ -8,7 +8,6 @@
     "idslpayload/src/main",
     "idslplugin/src/main",
     "lib/src/main",
-    "morphhdl-passes/src/main",
     "morphhdl/src/main",
     "morphir/src/main",
     "morphplugin/src/main",
@@ -16,7 +15,6 @@
     "paramrtl/src/main",
     "repro/cdc-independent-parameters/src/main",
     "repro/independent-parameters/src/main",
-    "repro/remaining-wires/src/main",
     "scalaplugin/src/main",
     "sim/src/main",
     "tester/src/main"
@@ -388,7 +386,6 @@
         "idslpayload/src/main/",
         "idslplugin/src/main/",
         "lib/src/main/",
-        "morphhdl-passes/src/main/",
         "morphhdl/src/main/",
         "morphir/src/main/",
         "morphplugin/src/main/",
@@ -396,7 +393,6 @@
         "paramrtl/src/main/",
         "repro/cdc-independent-parameters/src/main/",
         "repro/independent-parameters/src/main/",
-        "repro/remaining-wires/src/main/",
         "scalaplugin/src/main/",
         "sim/src/main/",
         "tester/src/main/"

@@ -8,7 +8,7 @@ import scala.sys.process.{Process, ProcessLogger}
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlInt, HdlIntRangeStart}
 import spinal.lib.{CountOne, Counter, Flow, Stream, master, slave}
 
@@ -805,9 +805,7 @@ class TypedPrimitiveClosureTests extends AnyFunSuite {
       )
       val compact = compactWhitespace(verilog)
       val disabledDirectory = directory.resolve("disabled")
-      MorphVerilog(MorphWireAssignmentPasses(
-        config(disabledDirectory, "typed_data_paths.v"), enabled = false
-      ))(new TypedDataPaths(width))
+      MorphVerilog(config(disabledDirectory, "typed_data_paths.v"))(new TypedDataPaths(width))
       val disabled = compactWhitespace(read(disabledDirectory.resolve("typed_data_paths.v")))
 
       val retainedPayloads = Vector(

@@ -460,8 +460,7 @@ final class TypedSignednessAuthorityTests extends AnyFunSuite {
           assert(snapshot.facts.exists(_.value == SignedScalar))
           assert(snapshot.facts.exists(_.rule == MemoryElement))
         }
-        if (parameterized) MorphVerilog(morphhdl.MorphWireAssignmentPasses(
-          morphhdl.MorphSignedDeclarations.disable(config), enabled = false))(SIntSignedVerilogBaselineFixture.parameterized())
+        if (parameterized) MorphVerilog(morphhdl.MorphSignedDeclarations.disable(config))(SIntSignedVerilogBaselineFixture.parameterized())
         else SpinalVerilog(config)(SIntSignedVerilogBaselineFixture.fixed())
         def normalize(path: Path): String = {
           val text = new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
@@ -637,8 +636,7 @@ object TypedSignednessReplayArtifactWriter {
         require(snapshot.facts.nonEmpty, "analysis produced no facts")
         replay = snapshot.replay
       }
-      if (parameterized) MorphVerilog(morphhdl.MorphWireAssignmentPasses(
-        morphhdl.MorphSignedDeclarations.disable(config), enabled = false))(SIntSignedVerilogBaselineFixture.parameterized())
+      if (parameterized) MorphVerilog(morphhdl.MorphSignedDeclarations.disable(config))(SIntSignedVerilogBaselineFixture.parameterized())
       else SpinalVerilog(config)(SIntSignedVerilogBaselineFixture.fixed())
       require(replay != null, "pre-emission signedness observer did not run")
       Files.write(root.resolve(mode + ".signedness.txt"), replay.getBytes(StandardCharsets.UTF_8))

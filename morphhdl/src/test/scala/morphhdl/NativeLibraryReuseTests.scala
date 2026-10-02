@@ -89,7 +89,7 @@ class NativeLibraryReuseTests extends AnyFunSuite {
     inTemporaryDirectory { directory =>
       val width = HdlInt.param("WIDTH", default = 8, min = 1, max = 32)
       val parameterized = emitMorph(directory, "native_pipes.v", new NativePipes(width))
-      val legacyConfig = MorphWireAssignmentPasses(config(directory), enabled = false)
+      val legacyConfig = config(directory)
       legacyConfig.netlistFileName = "native_pipes_legacy.v"
       MorphVerilog(legacyConfig)(new NativePipes(width))
       val legacy = read(directory.resolve("native_pipes_legacy.v"))

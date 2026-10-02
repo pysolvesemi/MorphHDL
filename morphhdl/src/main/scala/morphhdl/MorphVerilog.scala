@@ -778,7 +778,7 @@ object MorphVerilog {
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
     )), enabled = true)
-    val publication = MorphWireAssignmentPasses.forPublication(MorphSignedDeclarations.forPublication(nativeConfig))
+    val publication = MorphSignedDeclarations.forPublication(nativeConfig)
     val publicationInserters = publication.phasesInserters.clone()
     publicationInserters += MorphHdlEmitterParameterNames.install _
     publication.copy(phasesInserters = publicationInserters)

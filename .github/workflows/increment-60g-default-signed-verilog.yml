@@ -5,7 +5,7 @@ on:
     branches: ['agent/increment-60g-*', agent/lane-when-expression-inlining, parameterized-verilog]
   pull_request:
     branches: [parameterized-verilog]
-    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/**', '.github/workflows/increment-60g-default-signed-verilog.yml']
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'docs/morphhdl/**', '.github/workflows/increment-60g-default-signed-verilog.yml']
   workflow_dispatch:
 
 permissions:

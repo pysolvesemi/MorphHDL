@@ -532,7 +532,7 @@ class NativeSymbolicMemoryTests extends AnyFunSuite {
     val current = read(directory.resolve(filename))
     compatibilityAddress.foreach { address =>
       val legacyName = "legacy_" + filename
-      MorphVerilog(MorphWireAssignmentPasses(config(directory, legacyName), enabled = false))(component)
+      MorphVerilog(config(directory, legacyName))(component)
       val legacy = read(directory.resolve(legacyName))
       // Preserve the historical exact direct-data expectation on its independently
       // generated legacy pipeline; the current pipeline is checked without rewriting RTL.

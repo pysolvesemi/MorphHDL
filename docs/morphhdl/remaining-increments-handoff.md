@@ -1,5 +1,60 @@
 # Remaining parameterized increments — local handoff
 
+## Current state: 59i integrated, hardware wire passes retired
+
+The local work branch contains the ancestry-preserving merge `bfed00f992281d83dde20dfabf319d8f1ea0bc57`
+of 59i head `6bb250972f06ca55c9cfbd7100126adad9e81569`. The
+`parameterized-verilog` integration target remains untouched.
+
+The old `morphhdl-passes` workspace, its roadmap, public wire-pass API, native
+wire-only emitter extensions, dedicated tests/repros and dedicated CI workflows
+are removed. Canonical IR publication and parameterized-Verilog features remain.
+WA-11 Boolean/integer normalization is retained, documented at
+[WA-11](wa11-boolean-width-normalization.md), with its checker under
+`morphhdl/scripts/`. Historical receipts and source-review contracts outside the
+retired workspace are preserved as historical evidence.
+
+The user stopped full local qualification and paused hourly monitoring. Both
+remain paused. Focused integration tests are separate repair evidence, not full
+qualification. No remote CI, remote PR merge or push has been performed for this
+retirement.
+
+Before future CI, reconcile the historical cumulative source-review entry points
+that still describe wire-pass registries with this explicitly authorized
+retirement. The new `check-parameterized-integration-source.py` records the exact
+integration delta, and `check-retained-parameterized-regressions.py` requires the
+retained test inventory. Neither replaces native preservation, behavioral proofs
+or remote qualification. Existing historical source checks have not been
+bypassed to claim a passing candidate.
+
+### Local integration checks (not full qualification)
+
+- Scala 2.12: 148 focused parameterization/59i/canonical-IR tests and 14 core
+  tests passed after removal. A final rerun after the wrapper/import cleanup
+  passed 20 WA-11/CDC tests and all 14 core tests.
+- Scala 2.13: 114 focused parameterization/canonical-IR tests and 14 core tests
+  passed. An ambiguous `spinal.lib._` import in the CDC fixture was replaced by
+  the specific `fromGray` import; all legality and simulation assertions remain.
+- The moved WA-11 checker compiled 30 generated artifacts and checked 76
+  parameter overrides and 1,216 data patterns. Two historical address-helper
+  negative fixtures still reject the missing portable `clog2` function and are
+  not counted as successful artifacts. This focused run did not regenerate the
+  historical reference.
+- Production retirement, typed layering and legacy-adapter retirement checks
+  pass. Native audit controls, exact report inventory controls, and modified
+  workflow YAML/shell syntax checks pass.
+
+Logs and the WA-11 JSON receipt are under
+`~/.local/state/morphhdl/qualification/23dc9248-resume/`, with names beginning
+`combined-retirement-`, `retirement-final-` and `retirement-wa11-`. The former full
+qualification logs remain historical; no wire-pass proof was run.
+
+## Historical pre-integration handoff
+
+The following describes the earlier, stopped run. Its SHA, counts and monitor
+status are historical and must not be credited to the combined candidate.
+
+
 Work branch: `work/remaining-parameterized-increments`.
 Integration target remains `parameterized-verilog` at
 `db54d01e5b21c7664f7a0de3795f061d77a3d259`, verified locally and remotely on

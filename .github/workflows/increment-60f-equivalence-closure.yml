@@ -3,10 +3,10 @@ name: Increment 60f equivalence closure
 on:
   push:
     branches: ['agent/increment-60f-*', parameterized-verilog]
-    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
   pull_request:
     branches: [parameterized-verilog]
-    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'morphhdl-passes/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
+    paths: ['core/**', 'lib/**', 'morphhdl/**', 'morphir/**', 'morphplugin/**', 'docs/morphhdl/increment-60*', '.github/workflows/increment-60f-equivalence-closure.yml']
   workflow_dispatch:
   workflow_call:
 
@@ -164,253 +164,20 @@ jobs:
         run: |
           set -euo pipefail
           output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
+          python3 morphhdl/scripts/check-retained-parameterized-regressions.py --begin \
+            --session "$output/session.json"
           sbt -batch "++${{ matrix.scala }}" \
             idslplugin/test morphplugin/test morphir/test paramrtl/test morphruntime/test \
             frontend/test verilogBackend/test morph/test \
-            'core/testOnly spinal.core.internals.SpinalVerilogPhasePlanTests spinal.core.internals.VerilogEmitterExpressionInliningTests spinal.core.internals.NativePureExpressionCopyTests spinal.core.internals.SequentialWireEmitterTests' \
+            core/test \
             > "$output/sbt-regressions.log" 2>&1 || { tail -n 250 "$output/sbt-regressions.log"; exit 1; }
-      - name: Run the inherited isolated pass workspace suites
-        shell: bash
-        working-directory: morphhdl-passes
-        run: |
-          set -euo pipefail
-          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
-          sbt -batch "++${{ matrix.scala }}" test \
-            > "$output/sbt-passes.log" 2>&1 || { tail -n 250 "$output/sbt-passes.log"; exit 1; }
-      - name: Require complete inherited and Increment 61 test inventories
+      - name: Require complete retained parameterized regression inventory
         shell: bash
         run: |
           set -euo pipefail
-          output="$GITHUB_WORKSPACE/target/increment-60f-regressions"
-          predecessor="$output/predecessor-source"
-          successor_inventory="$output/increment-61-test-inventory.json"
-          inherited_inventory="$output/inherited-test-inventory.json"
-          complete_inventory="$output/test-inventory.json"
-          target_suite="spinal.core.internals.NativePureExpressionCopyTests"
-          target_report="$GITHUB_WORKSPACE/core/target/test-reports/TEST-$target_suite.xml"
-          target_report_copy="$output/TEST-$target_suite.xml"
-          target_inventory="$output/pr194-target-test-inventory.json"
-
-          # The current Increment 61 bytes are already sealed independently.
-          # Re-run that exact contract before projecting only its two new test
-          # reports out of the frozen 60f inventory.
-          python3 morphhdl/scripts/check-increment-61-source-review.py
-          python3 morphhdl/scripts/check-increment-61-source-review.py --self-test
-          # The verified predecessor includes every already-qualified lane
-          # suite on the composed successor, or the original integrated target
-          # on Increment 61 alone. Only the two Increment 61 reports are removed.
-          base=$(python3 morphhdl/scripts/check-increment-61-source-review.py --print-regression-base)
-          git merge-base --is-ancestor "$base" HEAD
-          printf '%s\n' "$base" > "$output/inherited-source-head.txt"
-          git worktree add --detach "$predecessor" "$base"
-          cleanup() {
-            if test -f "$target_report_copy"; then
-              cp "$target_report_copy" "$target_report"
-            fi
-            git worktree remove --force "$predecessor" || true
-          }
-          trap cleanup EXIT
-
-          # Pin the PR194-only suite source before projecting its authenticated
-          # report out of the frozen 59i catalog.
-          test "$(git rev-parse HEAD:core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala)" = \
-            cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c
-          test "$(git hash-object core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala)" = \
-            cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c
-
-          python3 - "$GITHUB_WORKSPACE" "$predecessor" "$successor_inventory" \
-            "$target_inventory" "$target_report_copy" <<'PY'
-          from pathlib import Path
-          import json
-          import shutil
-          import sys
-          import xml.etree.ElementTree as ET
-
-          current, predecessor, output, target_inventory, target_report_copy = map(Path, sys.argv[1:])
-          projects = (
-              "paramrtl",
-              "frontend",
-              "backends/verilog",
-              "morphhdl",
-              "morphir",
-              "morphplugin",
-              "core",
-              "morphhdl-passes",
-          )
-          expected = {
-              "morphhdl.Increment61CompatibilityMatrixTests": 4,
-              "morphhdl.Increment61PerComponentPublicationTests": 16,
-          }
-
-          def require(condition, detail):
-              if not condition:
-                  raise RuntimeError(detail)
-
-          target_suite = "spinal.core.internals.NativePureExpressionCopyTests"
-          target_cases = {
-              "shared operator edges clone independently while signal identity and widths survive",
-              "fixed-width shift copies preserve logical operator class, amount and source geometry",
-              "metadata, unrepresented subclasses, expression cycles and expansion fail closed",
-              "binary enum equality and inequality copy exact native authority into fresh trees",
-              "one-hot enum equality and inequality copy exact native authority into fresh trees",
-              "custom nonsequential enum equality and inequality copy exact native authority into fresh trees",
-              "unresolved, incompatible and case-equality enum observations fail closed",
-          }
-          target_report = current / "core/target/test-reports" / f"TEST-{target_suite}.xml"
-          require(target_report.is_file(), f"missing PR194 target suite report: {target_report.name}")
-          raw = target_report.read_bytes()
-          require(b"<!DOCTYPE" not in raw and b"<!ENTITY" not in raw,
-                  "XML declarations are not allowed in PR194 target report")
-          target = ET.fromstring(raw)
-          require(target.tag == "testsuite" and target.get("name") == target_suite,
-                  "wrong PR194 target suite identity")
-          require(target.get("tests") == str(len(target_cases)),
-                  "changed PR194 target testcase count")
-          require(all(target.get(key) == "0" for key in ("failures", "errors", "skipped")),
-                  "failed/error/skipped PR194 target suite")
-          require(not any(list(target.iter(tag)) for tag in ("failure", "error", "skipped")),
-                  "unsuccessful PR194 target testcase")
-          cases = target.findall("testcase")
-          names = [case.get("name") for case in cases]
-          require(len(cases) == len(target_cases) and set(names) == target_cases and
-                  len(set(names)) == len(target_cases),
-                  "missing/duplicate/changed PR194 target testcase identity")
-          require(all(case.get("classname") == target_suite for case in cases),
-                  "wrong PR194 target testcase owner")
-          shutil.copy2(target_report, target_report_copy)
-          require(target_report.read_bytes() == target_report_copy.read_bytes(),
-                  "PR194 target report copy differs")
-          target_report.unlink()
-          target_inventory.write_text(json.dumps({
-              "integration": "PR194-target",
-              "project": "core",
-              "source_blob": "cc1fc85cba700fe5740f4e3d8bc22e3ee9c6608c",
-              "suite": target_suite,
-              "tests": len(target_cases),
-              "cases": sorted(target_cases),
-              "skipped": 0,
-          }, indent=2) + "\n")
-          print("PR194 target inventory: 7 exact non-skipped cases / 1 suite")
-
-          for project in projects:
-              source = current / project / "target/test-reports"
-              target = predecessor / project / "target/test-reports"
-              require(source.is_dir(), f"missing current test reports: {source}")
-              target.parent.mkdir(parents=True, exist_ok=True)
-              shutil.copytree(source, target)
-
-          reports = predecessor / "morphhdl/target/test-reports"
-          observed = {}
-          for name, count in expected.items():
-              path = reports / f"TEST-{name}.xml"
-              require(path.is_file(), f"missing Increment 61 suite report: {path.name}")
-              suite = ET.parse(path).getroot()
-              require(suite.tag == "testsuite" and suite.get("name") == name,
-                      f"wrong Increment 61 suite identity: {path}")
-              require(int(suite.get("tests", "0")) == count,
-                      f"changed Increment 61 test count: {name}")
-              require(all(int(suite.get(key, "0")) == 0
-                          for key in ("failures", "errors", "skipped")),
-                      f"failed or skipped Increment 61 suite: {name}")
-              require(not list(suite.iter("failure")) and
-                      not list(suite.iter("error")) and
-                      not list(suite.iter("skipped")),
-                      f"unsuccessful Increment 61 testcase: {name}")
-              cases = suite.findall("testcase")
-              case_names = [case.get("name") for case in cases]
-              require(len(cases) == count and all(case_names) and
-                      len(set(case_names)) == count,
-                      f"incomplete Increment 61 testcase identities: {name}")
-              observed[name] = count
-              path.unlink()
-
-          remaining = {
-              path.name
-              for path in reports.glob("TEST-morphhdl.Increment61*.xml")
-          }
-          require(not remaining,
-                  "unexpected Increment 61 suite report(s): " + str(sorted(remaining)))
-          output.write_text(json.dumps({
-              "increment": "61",
-              "tests": sum(observed.values()),
-              "suites": sorted(observed),
-              "counts": observed,
-              "skipped": 0,
-          }, indent=2) + "\n")
-          print("Increment 61 successor inventory: 20 tests / 2 suites, zero failures/errors/skips")
-          PY
-
-          # Authenticate the target's complete CDC-WIRE regression inventory
-          # before applying the current 59i inventory projection.  Neither
-          # review substitutes for the other on the integrated head.
-          python3 morphhdl/scripts/check-cdc-wire-regressions.py --self-test
-          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
-            python3 -B morphhdl/scripts/check-increment-59i-regression-inventory.py prepare \
-              --predecessor "$predecessor" --output "$output/increment-59i-test-inventory.json"
-          else
-            # Authenticate and validate all 37 added tests before removing only
-            # their copied reports from the frozen predecessor catalog.
-            python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
-              --project-regressions "$predecessor" "$output/sequential-test-inventory.json"
-          fi
-
-          (
-            cd "$predecessor"
-            python3 morphhdl/scripts/check-increment-60f-artifacts.py regressions \
-              . "$inherited_inventory"
-          )
-
-          python3 - "$inherited_inventory" "$successor_inventory" "$complete_inventory" <<'PY'
-          from pathlib import Path
-          import json
-          import sys
-
-          inherited_path, successor_path, output_path = map(Path, sys.argv[1:])
-          inherited = json.loads(inherited_path.read_text())
-          successor = json.loads(successor_path.read_text())
-          morphhdl = inherited["morphhdl"]
-          overlap = set(morphhdl["suites"]) & set(successor["suites"])
-          if overlap:
-              raise RuntimeError("Increment 61 suite overlaps inherited inventory: " + str(sorted(overlap)))
-          morphhdl["tests"] += successor["tests"]
-          morphhdl["suites"] = sorted(morphhdl["suites"] + successor["suites"])
-          if morphhdl["skipped"] != 0 or successor["skipped"] != 0:
-              raise RuntimeError("complete Increment 61 inventory contains skipped tests")
-          output_path.write_text(json.dumps(inherited, indent=2) + "\n")
-          total = sum(record["tests"] for record in inherited.values())
-          print(f"60f + Increment 61 complete regressions: {total} non-skipped tests")
-          PY
-          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
-            python3 -B morphhdl/scripts/check-increment-59i-regression-inventory.py finish --output "$output"
-          else
-            # Add validated new suites back to the already checked old + Inc61
-            # inventory. The original current-head XML is never edited.
-            python3 morphhdl/scripts/check-pr190-pr189-source-sync.py \
-              --combine-regressions "$complete_inventory" "$output/sequential-test-inventory.json"
-          fi
-          if test -f morphhdl/contracts/increment-59i-production-successor.json; then
-            python3 - "$complete_inventory" "$target_inventory" <<'PY'
-          from pathlib import Path
-          import json
-          import sys
-
-          complete_path, target_path = map(Path, sys.argv[1:])
-          complete = json.loads(complete_path.read_text())
-          target = json.loads(target_path.read_text())
-          core = complete["core"]
-          if target["suite"] in core["suites"]:
-              raise RuntimeError("PR194 target suite overlaps frozen 59i inventory")
-          if core["skipped"] != 0 or target["skipped"] != 0:
-              raise RuntimeError("complete PR194 target inventory contains skipped tests")
-          core["tests"] += target["tests"]
-          core["suites"] = sorted(core["suites"] + [target["suite"]])
-          complete_path.write_text(json.dumps(complete, indent=2, sort_keys=True) + "\n")
-          total = sum(record["tests"] for record in complete.values())
-          print(f"60f +61 +59i +PR194 target complete regressions: {total} non-skipped tests")
-          PY
-            cp "$target_report_copy" "$target_report"
-            cmp "$target_report_copy" "$target_report"
-          fi
+          python3 morphhdl/scripts/check-retained-parameterized-regressions.py \
+            --session target/increment-60f-regressions/session.json \
+            --output target/increment-60f-regressions/test-inventory.json
       - name: Retain inherited test and solver evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -425,7 +192,6 @@ jobs:
             frontend/target/test-reports
             backends/verilog/target/test-reports
             core/target/test-reports
-            morphhdl-passes/target/test-reports
             /tmp/morphhdl-typed-adapter-formal-*
             /tmp/morphhdl-typed-adapter-mutation-*
           if-no-files-found: error

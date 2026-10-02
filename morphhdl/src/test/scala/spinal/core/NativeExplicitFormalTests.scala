@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.file.{Files, Path}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlInt, formalParam}
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -56,8 +56,8 @@ class NativeExplicitFormalTests extends AnyFunSuite {
   test(s"explicit native child formals preserve derived actuals and scalar zero, kind=$kind split=$split") {
     val dir = Files.createTempDirectory("native-explicit-formal-")
     def emit(destination: Path): Unit = {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = destination.toString,
-        oneFilePerComponent = split, headerWithDate = false), enabled = false))(new Parent(kind))
+      MorphVerilog(SpinalConfig(targetDirectory = destination.toString,
+        oneFilePerComponent = split, headerWithDate = false))(new Parent(kind))
     }
     emit(dir)
     val repeated = Files.createTempDirectory("native-explicit-formal-repeat-")

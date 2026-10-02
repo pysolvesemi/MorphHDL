@@ -52,7 +52,7 @@ class NativeNamedFactoryTests extends AnyFunSuite {
   for (lite <- Seq(false,true); mode <- 0 to 3)
   test(s"named factory mappings reject invalid alignment, overlap and duplicate reads, lite=$lite mode=$mode") {
     val error=intercept[Exception] {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=Files.createTempDirectory("invalid-named-factory-").toString),enabled=false)) {
+      MorphVerilog(SpinalConfig(targetDirectory=Files.createTempDirectory("invalid-named-factory-").toString)) {
         new Component {
           val factory:BusSlaveFactory=if(lite) {
             val bus=slave(AxiLite4(AxiLite4Config(8,32))); bus.setName("bus"); AxiLite4SlaveFactory(bus)
@@ -83,12 +83,12 @@ class NativeNamedFactoryTests extends AnyFunSuite {
   for(lite<-Seq(false,true); symbolic<-Seq(false,true))
   test(s"real slave factory named case maps preserve the literal implementation, lite=$lite symbolic=$symbolic") {
     val dir=Files.createTempDirectory("native-named-factory-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false),enabled=false))(
+    MorphVerilog(SpinalConfig(targetDirectory=dir.toString,headerWithDate=false))(
       new Factory(lite,true,4,symbolic))
     val rtl=new String(Files.readAllBytes(dir.resolve("NamedFactory.v")),UTF_8)
     assert(rtl.contains("ADDR_CONTROL : begin") && rtl.contains("ADDR_EVENT : begin") && rtl.contains("ADDR_HIGH : begin"),rtl)
     val repeated=Files.createTempDirectory("native-named-factory-repeat-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory=repeated.toString,headerWithDate=false),enabled=false))(
+    MorphVerilog(SpinalConfig(targetDirectory=repeated.toString,headerWithDate=false))(
       new Factory(lite,true,4,symbolic))
     assert(rtl==new String(Files.readAllBytes(repeated.resolve("NamedFactory.v")),UTF_8))
     for(base<- (if(symbolic) Seq(0,4,56) else Seq(4))) {

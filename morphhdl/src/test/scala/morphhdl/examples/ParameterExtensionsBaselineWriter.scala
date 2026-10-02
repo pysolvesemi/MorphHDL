@@ -2,7 +2,7 @@ package morphhdl.examples
 
 import java.nio.file.{Files, Paths}
 import java.nio.charset.StandardCharsets.UTF_8
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlInt, formalParam}
 import spinal.core._
 
@@ -79,8 +79,8 @@ object ParameterExtensionsBaselineWriter {
       val dir = root.resolve(name)
       Files.createDirectories(dir)
       try {
-        MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-          oneFilePerComponent = true, headerWithDate = false), enabled = false))(body)
+        MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+          oneFilePerComponent = true, headerWithDate = false))(body)
         Files.write(dir.resolve("status.txt"), "EMITTED\n".getBytes(UTF_8))
         println(s"PROBE $name EMITTED")
       } catch { case error: Exception =>

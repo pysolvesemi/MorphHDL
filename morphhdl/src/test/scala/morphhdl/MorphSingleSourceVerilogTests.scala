@@ -276,9 +276,7 @@ class MorphSingleSourceVerilogTests extends AnyFunSuite {
       )
       assert(report.inheritedValidationPhaseIds == expectedPhaseIds)
       val verilog = read(output)
-      val disabledConfig = MorphWireAssignmentPasses(
-        SpinalConfig(targetDirectory = directory.toString), enabled = false
-      )
+      val disabledConfig = SpinalConfig(targetDirectory = directory.toString)
       disabledConfig.netlistFileName = "symbolic_data_shapes_disabled.v"
       MorphVerilog(disabledConfig) {
         SymbolicDataShapesContractFixture.component(reverseConstructionOrder = false)

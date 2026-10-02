@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.file.{Files, Path}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import morphhdl.examples.OptionalPipeline
 import org.scalatest.funsuite.AnyFunSuite
@@ -69,9 +69,9 @@ class NativeScopedLegalityTests extends AnyFunSuite {
   for (split <- Seq(false, true); defaultMode <- Seq(0, 1))
     test(s"OptionalPipeline retains scoped legality and latency, split=$split, default=$defaultMode") {
       val directory = Files.createTempDirectory("scoped-legality-pipeline-")
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(
+      MorphVerilog(SpinalConfig(
         targetDirectory = directory.toString, oneFilePerComponent = split,
-        headerWithDate = false), enabled = false)) {
+        headerWithDate = false)) {
         new OptionalPipeline(HdlInt.param("WIDTH", 16, 1, 64).asElabInt,
           HdlInt.param("USE_PIPELINE", defaultMode, 0, 1).asElabInt)
       }
@@ -119,8 +119,8 @@ class NativeScopedLegalityTests extends AnyFunSuite {
     }
   private def emit(name: String)(body: => Component): (Path, String) = {
     val directory = Files.createTempDirectory("scoped-legality-" + name + "-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-      headerWithDate = false), enabled = false)) {
+    MorphVerilog(SpinalConfig(targetDirectory = directory.toString,
+      headerWithDate = false)) {
       val result = body
       result.setDefinitionName(name)
       result
@@ -314,8 +314,8 @@ class NativeScopedLegalityTests extends AnyFunSuite {
         observed := data.msb
       }
       val dir = Files.createTempDirectory("scoped-child-")
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-        oneFilePerComponent = split, headerWithDate = false), enabled = false))(new Component {
+      MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+        oneFilePerComponent = split, headerWithDate = false))(new Component {
         setDefinitionName("SiblingLegality")
         val mode: ElabInt = HdlInt.param("MODE", 0, 0, 2).asElabInt
         val a: ElabInt = HdlInt.param("A", 8, 1, 16).asElabInt

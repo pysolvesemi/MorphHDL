@@ -2,7 +2,7 @@ package spinal.core
 
 import java.nio.file.Files
 import java.nio.charset.StandardCharsets.UTF_8
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.{HdlInt, formalParam}
 import org.scalatest.funsuite.AnyFunSuite
 import scala.sys.process.{Process, ProcessLogger}
@@ -30,8 +30,8 @@ class NativeFormalOwnershipTests extends AnyFunSuite {
   }
   test("equal-default sibling formals retain independent actual identities") {
     val dir = Files.createTempDirectory("native-formal-siblings-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      headerWithDate = false), enabled = false))(new Siblings)
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      headerWithDate = false))(new Siblings)
     val rtl = new String(Files.readAllBytes(dir.resolve("Siblings.v")), UTF_8)
     assert(rtl.contains(".WIDTH(WIDTH_A)") && rtl.contains(".WIDTH(WIDTH_B)"), rtl)
     for ((a,b) <- Seq((1,32),(32,1),(7,9),(8,8))) {
@@ -58,8 +58,8 @@ class NativeFormalOwnershipTests extends AnyFunSuite {
   for (zero <- Seq(false, true); legacy <- Seq(false, true))
   test(s"standalone scalar formals retain native and HdlInt literal declarations, zero=$zero legacy=$legacy") {
     val dir = Files.createTempDirectory("native-formal-standalone-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      headerWithDate = false), enabled = false))(new ScalarStandalone(zero, legacy))
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      headerWithDate = false))(new ScalarStandalone(zero, legacy))
     val parameter = if (zero) "PPC4" else "BUS_LOG2_BYTES"
     for (value <- (if (zero) 0 to 1 else 2 to 5)) {
       val log = new StringBuilder
@@ -76,7 +76,7 @@ class NativeFormalOwnershipTests extends AnyFunSuite {
   test(s"native formal rejects invalid declarations without guessing authority, mode=$mode") {
     val dir = Files.createTempDirectory("native-formal-invalid-")
     val error = intercept[Exception] {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString), enabled = false)) {
+      MorphVerilog(SpinalConfig(targetDirectory = dir.toString)) {
         new Component {
           @dontName val first = formalParam(ElabInt.literal(if (mode == 0) 3 else 1),
             if (mode == 1) "bad-name" else "WIDTH", 1, 2)

@@ -39,8 +39,8 @@ class NativeConditionalProcessTests extends AnyFunSuite {
   for (mode <- 1 to 5)
   test(s"unsupported conditional bodies fail closed, mode=$mode") {
     val error = intercept[Exception] {
-      MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(
-        targetDirectory = Files.createTempDirectory("native-conditional-negative-").toString), enabled = false))(
+      MorphVerilog(SpinalConfig(
+        targetDirectory = Files.createTempDirectory("native-conditional-negative-").toString))(
         new ConditionalLaneLoop(false, mode))
     }
     val messages = Iterator.iterate[Throwable](error)(_.getCause).takeWhile(_ != null)
@@ -62,16 +62,16 @@ class NativeConditionalProcessTests extends AnyFunSuite {
   for (parameterized <- Seq(false,true))
   test(s"conditional packed loops retain priority and four-state behavior, parameterized=$parameterized") {
     val dir = Files.createTempDirectory("native-conditional-loop-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = dir.toString,
-      headerWithDate = false), enabled = false))(new ConditionalLaneLoop(parameterized))
+    MorphVerilog(SpinalConfig(targetDirectory = dir.toString,
+      headerWithDate = false))(new ConditionalLaneLoop(parameterized))
     val rtl = new String(Files.readAllBytes(dir.resolve("ConditionalLaneLoop.v")), UTF_8)
     assert(rtl.contains("for (") && rtl.contains("+:"), rtl)
     val indices = "integer ([A-Za-z_][A-Za-z0-9_]*);".r.findAllMatchIn(rtl).map(_.group(1)).toVector
     assert(indices.size == 2 && indices.distinct.size == 2 && !indices.contains("selected"), rtl)
     assert("always @".r.findAllIn(rtl).size == 2 && rtl.contains("keep") && rtl.contains("assembled"), rtl)
     val repeated = Files.createTempDirectory("native-conditional-loop-repeat-")
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = repeated.toString,
-      headerWithDate = false), enabled = false))(new ConditionalLaneLoop(parameterized))
+    MorphVerilog(SpinalConfig(targetDirectory = repeated.toString,
+      headerWithDate = false))(new ConditionalLaneLoop(parameterized))
     assert(rtl == new String(Files.readAllBytes(repeated.resolve("ConditionalLaneLoop.v")), UTF_8))
     val lint = run(dir, Seq("verilator", "--lint-only", "-Wno-fatal", "--top-module", "ConditionalLaneLoop", "ConditionalLaneLoop.v"))
     assert(lint._1 == 0, lint._2)

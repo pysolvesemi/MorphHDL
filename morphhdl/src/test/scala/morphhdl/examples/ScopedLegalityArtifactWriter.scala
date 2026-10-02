@@ -1,7 +1,7 @@
 package morphhdl.examples
 
 import java.nio.file.{Files, Paths}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import spinal.core._
 
@@ -22,9 +22,9 @@ object ScopedLegalityArtifactWriter {
     require(args.length == 1, "provide an artifact directory")
     val directory = Paths.get(args(0)).toAbsolutePath.normalize()
     Files.createDirectories(directory)
-    MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(
+    MorphVerilog(SpinalConfig(
       targetDirectory = directory.toString, oneFilePerComponent = true,
-      headerWithDate = false), enabled = false)) {
+      headerWithDate = false)) {
       new OptionalPipeline(HdlInt.param("WIDTH", 16, 1, 64).asElabInt,
         HdlInt.param("USE_PIPELINE", 0, 0, 1).asElabInt)
     }

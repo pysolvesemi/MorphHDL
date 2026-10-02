@@ -24,7 +24,6 @@ EXPECTED_SOURCE_ROOTS = (
     "idslpayload/src/main",
     "idslplugin/src/main",
     "lib/src/main",
-    "morphhdl-passes/src/main",
     "morphhdl/src/main",
     "morphir/src/main",
     "morphplugin/src/main",
@@ -62,7 +61,7 @@ EXPECTED_RULE_IDS = (
     "emitted-name-recognition",
 )
 EXPECTED_RULES_SHA256 = (
-    "6f4456f583684b4fbac29a4e620233225d802cb7abe498171ec33649bd308966"
+    "0e16f1be25d033a0e90c36fc7f43544de89ac13a568c4f99b0e0abe0935cbe4b"
 )
 EXPECTED_PLUGIN_COMPONENTS = (
     "MorphHdlTypedElaborationControlComponent",

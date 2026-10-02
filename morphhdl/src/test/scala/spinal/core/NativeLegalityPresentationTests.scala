@@ -3,7 +3,7 @@ package spinal.core
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.{Files, Path}
 import scala.sys.process.{Process, ProcessLogger}
-import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+import morphhdl.{MorphVerilog}
 import morphhdl.frontend.HdlInt
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -20,8 +20,8 @@ class NativeLegalityPresentationTests extends AnyFunSuite {
     else require(lanes == 1 || lanes == 4, text)
   }
   private def emit(directory: Path, passes: Boolean, text: String = message): String = {
-    val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-      oneFilePerComponent = true, headerWithDate = false), enabled = passes)
+    val config = SpinalConfig(targetDirectory = directory.toString,
+      oneFilePerComponent = true, headerWithDate = false)
     MorphVerilog(config)(new Probe(text))
     new String(Files.readAllBytes(directory.resolve("NativeLegalityPresentationProbe.v")), UTF_8)
   }

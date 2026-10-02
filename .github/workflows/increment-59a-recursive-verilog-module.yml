@@ -252,24 +252,6 @@ jobs:
           sbt -batch "++${{ matrix.scala_version }}" \
             "morph/testOnly morphhdl.MorphCanonicalIrHandoffTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.ExternalHierarchyBoolLiteralBindingTests"
 
-      - name: Test the standalone read-only adapter and safety contracts
-        working-directory: morphhdl-passes
-        run: >-
-          sbt -batch "++${{ matrix.scala_version }}"
-          "testOnly morphhdl.passes.adapter.CanonicalIrPassAdapterSpec morphhdl.passes.api.PassContractsSpec morphhdl.passes.safety.WireAliasSafetyGateSpec"
-
-  strict-tools:
-    name: Recursive strict tools and formal Scala ${{ matrix.scala_version }}
-    needs: source-contract
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version: ['2.12.18', '2.13.12']
-    steps:
       - name: Check out exact head
         uses: actions/checkout@v4
         with:

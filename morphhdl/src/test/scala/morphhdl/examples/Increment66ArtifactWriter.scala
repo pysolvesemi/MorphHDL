@@ -18,7 +18,7 @@ object Increment66ArtifactWriter {
         oneFilePerComponent=true,headerWithDate=false,
         defaultConfigForClockDomains=ClockDomainConfig(resetKind=ASYNC,
           resetActiveLevel=if(cdc) LOW else HIGH))
-      MorphVerilog(MorphWireAssignmentPasses(config,enabled=false))(component)
+      MorphVerilog(config)(component)
     }
     val loops=new NativeConditionalProcessTests
     emit("loop-constant")(new loops.ConditionalLaneLoop(false))

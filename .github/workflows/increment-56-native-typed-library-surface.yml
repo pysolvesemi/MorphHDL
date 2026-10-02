@@ -110,8 +110,6 @@ jobs:
           bash -n morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
           bash -n morphhdl/scripts/check-typed-vec-boundary.sh
           bash -n morphhdl/scripts/check-external-structural-process-boundary.sh
-          bash -n morphhdl-passes/scripts/test-boundary-guard.sh
-          bash -n morphhdl-passes/scripts/check-boundary.sh
 
           bash morphhdl/scripts/check-native-int-shadow-provenance-boundary.sh
           bash morphhdl/scripts/check-external-formalization-boundary.sh
@@ -121,7 +119,6 @@ jobs:
           bash morphhdl/scripts/check-native-streamfifo-structure-boundary.sh
           bash morphhdl/scripts/check-typed-vec-boundary.sh
           bash morphhdl/scripts/check-external-structural-process-boundary.sh
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
 
       - name: Verify the sealed exact Increment 56 delta
         shell: bash

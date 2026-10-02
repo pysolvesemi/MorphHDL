@@ -157,15 +157,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n morphhdl-passes/scripts/test-boundary-guard.sh
-          bash morphhdl-passes/scripts/test-boundary-guard.sh
-          python3 -m py_compile \
-            morphhdl-passes/scripts/check-wa02-adapter-boundary.py \
-            morphhdl-passes/scripts/check-wa03-gates.py
-          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py --self-test
-          python3 morphhdl-passes/scripts/check-wa02-adapter-boundary.py
-          python3 morphhdl-passes/scripts/check-wa03-gates.py --self-test
-          python3 morphhdl-passes/scripts/check-wa03-gates.py
 
       - name: Verify the sealed exact Increment 59 delta
         shell: bash
@@ -295,26 +286,6 @@ jobs:
           sbt -batch "++${{ matrix.scala_version }}" \
             "morph/testOnly morphhdl.MorphCanonicalIrHandoffTests morphhdl.NativeTypedLibraryCallSurfaceTests morphhdl.ExternalHierarchyBoolLiteralBindingTests"
 
-      - name: Test the standalone read-only adapter and safety contracts
-        working-directory: morphhdl-passes
-        run: >-
-          sbt -batch "++${{ matrix.scala_version }}"
-          "testOnly morphhdl.passes.adapter.CanonicalIrPassAdapterSpec morphhdl.passes.api.PassContractsSpec morphhdl.passes.safety.WireAliasSafetyGateSpec"
-
-  compatibility:
-    name: Binary source and concrete parity Scala ${{ matrix.scala_version }}
-    needs:
-      - route
-      - source-contract
-    runs-on: ubuntu-latest
-    timeout-minutes: 300
-    container:
-      image: ghcr.io/spinalhdl/docker:v1.2.0
-    strategy:
-      fail-fast: false
-      matrix:
-        scala_version: ['2.12.18', '2.13.12']
-    steps:
       - name: Check out exact head with complete history
         uses: actions/checkout@v4
         with:
@@ -417,16 +388,12 @@ jobs:
           sbt -batch "++${{ matrix.scala_version }}" clean \
             frontend/package idslplugin/package morphir/package paramrtl/package \
             morphruntime/package morphplugin/package morph/package verilogBackend/package
-          (
-            cd morphhdl-passes
-            sbt -batch "++${{ matrix.scala_version }}" clean package
-          )
           mapfile -t jars < <(find \
             frontend idslplugin morphir paramrtl morphruntime morphplugin morphhdl \
-            backends/verilog morphhdl-passes \
+            backends/verilog \
             -regextype posix-extended -type f \
             -regex '.*/target/scala-[^/]+/[^/]+\.jar' | LC_ALL=C sort -u)
-          test "${#jars[@]}" -ge 9
+          test "${#jars[@]}" -ge 8
           arguments=()
           for jar in "${jars[@]}"; do
             arguments+=(--jar "$jar")

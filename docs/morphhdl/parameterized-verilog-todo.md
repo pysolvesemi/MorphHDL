@@ -13,7 +13,7 @@ and regression oracles; they are not constraints on the new implementation.
 
 ## Roadmap discipline
 
-**Current development plan, 1 October 2026:** implement the remaining standalone
+**Original development plan, 1 October 2026 (59i integration updated below):** implement the remaining standalone
 work (CDC-LEG-01 and Increments 64, 65 and 66) one increment at a time on
 `work/remaining-parameterized-increments`. Increment 59i remains on its existing
 branch; it is not an implementation prerequisite for this development batch.
@@ -24,7 +24,7 @@ records must distinguish implemented/locally validated work from remotely
 qualified and merged work; checkboxes remain open until the latter requirements
 are satisfied. Do not implement any item from
 `morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md` as part of this batch;
-that old work is slated for removal, not extension.
+that old work and its roadmap were removed on 2 October 2026.
 
 **Implementation status, 2 October 2026:** the unchecked boxes below track final
 qualification and merged closure, not whether implementation has been written.
@@ -35,15 +35,17 @@ qualification and merged closure, not whether implementation has been written.
 | Increment 64 | Complete; [receipts](increment-64-derived-localparams.md) | Expanded local validation, targeted CI, full CI and merge |
 | Increment 65 | Complete; [receipts](increment-65-scoped-legality.md) | Expanded local validation, targeted CI, full CI and merge |
 | Increment 66, including all five imported `~/prompt.txt` tasks | Complete; [receipts](evidence/increment66/README.md) | Expanded local validation, targeted CI, full CI and merge |
-| Increment 59i | Separate existing branch; excluded from this implementation batch | Existing PR qualification and merge |
+| Increment 59i | Merged into this work branch at `bfed00f992281d83dde20dfabf319d8f1ea0bc57` | Combined qualification and integration merge |
 
-**Current validation instruction, 2 October 2026:** run the expanded local suite,
-then targeted remote CI first. Do not run wire-pass formal proofs or wire-pass CI
-workflows: the user has explicitly excluded them because that work is intended
-for removal. Inspect aggregate workflows for indirect invocation of those proofs
-before dispatch. Record these exclusions explicitly; do not report excluded
-checks as passes. Retained compiler and library simulation/formal checks remain
-in scope. The expanded local run is in progress; remote CI has not been launched.
+**Current validation state, 2 October 2026:** full local qualification and the
+hourly monitor are paused by the user. 59i has been merged into the work branch;
+wire-pass removal and focused repair checks are local work. Remote CI has not
+been launched. Before resuming qualification, reconcile historical source-review
+contracts with the removal, qualify the combined source locally, then run
+targeted CI before full CI. Do not run wire-pass formal proofs or wire-pass CI;
+inspect aggregate workflows for indirect invocation. Retained compiler and
+library simulation/formal checks remain in scope. Excluded checks are not passes.
+WA-11 remains parameterized-Verilog work and is retained.
 
 - The first unchecked increment remains the default sequential integration
   target. Explicitly declared parallel successors may start once every listed
@@ -1187,125 +1189,16 @@ dependency chain is unchanged and may proceed independently.
 
 ### WA-08 inherited workflow compatibility track (Increment 62)
 
-- [x] **Increment 62 — WA-08 inherited source-audit and workflow closure**
+- **Increments 62 and 63 — retired wire-pass work.** The optional wire-assignment
+  pipeline and its native expression-inlining extensions were removed by user
+  request on 2 October 2026. Their old roadmap has also been deleted. Historical
+  receipts remain in Git; these are no longer production features or CI gates.
 
-  **Status:** `COMPLETED`. The exact overlay, inherited mutation controls and
-  profile compatibility are implemented and qualified with WA-08 in
-  [PR #178](https://github.com/pysolvesemi/MorphHDL/pull/178). The complete
-  reviewed inventory is recorded in
-  `morphhdl/contracts/increment-62-wa08-source-overlay.json`.
-
-  **Dependencies:** Increment 60 and WA-07b implemented and merged. This is the
-  qualification-repair companion for the open WA-08 production handoff. It is
-  independent of Increment 59i and Increment 61 and must be completed before
-  WA-08 merges.
-
-  Fix the inherited workflow failures caused when the intentional WA-08
-  canonical-IR and pass-adapter changes are presented to older closed
-  source-scope checkers. The observed Increment 60d failure is a source-review
-  rejection of the new `CanonicalIrPassAdapter.scala` bytes, not evidence that
-  pure-`SInt` cast behavior or signed-Verilog semantics failed.
-
-  Add one exact, immutable WA-08 source-overlay compatibility contract covering
-  every intended production, test, boundary, signature and canonical-IR handoff
-  file. Bind each path to reviewed SHA-256 bytes, file mode, HEAD/index/worktree
-  identity and immutable baseline/final anchors. Historical checkers may project
-  only that fully verified WA-08 delta out of their own historical inventory;
-  the outer WA-08 gate must still validate the real current bytes. Do not add
-  branch-name, PR-number, component-name or emitted-text exceptions.
-
-  Update the inherited WA-07b, 59x, 60d, 60f and 60g reviewers only through
-  exact reversible spans or one common generic overlay helper. Keep their
-  original source inventories and semantic checks intact. Reject partial
-  rollout, missing or extra files, changed hashes, symlinks, executable-bit
-  changes, staged or untracked content, mismatched profile/facet claims and any
-  unknown production delta. Add self-tests for each attack and prove the overlay
-  cannot hide a genuine historical-source mutation.
-
-  Preserve `SimpleWireAssignmentsV1` only for explicit legacy fixtures. The
-  WA-08 production handoff and pass adapter must require
-  `PureWireExpressionsV1` and the `PureExpressions` completeness facet. Do not
-  weaken or skip workflows, convert failures to allowed failures, or modify
-  SInt or parameterized RTL merely to satisfy a source audit.
-
-  Completion requires the previously failing inherited workflows, the WA-08
-  pass workspace, baseline and Mill, both Scala lanes and all applicable formal,
-  determinism, strict-Verilog and source-audit gates to pass on one exact final
-  head. Record the original failure classification and complete reviewed overlay
-  inventory. This increment changes qualification/source-audit compatibility
-  only and does not change generated Verilog.
-
-### WA-09 named-expression optimization track (Increment 63)
-
-- [x] **Increment 63 — Named expression-wire elimination and provenance-first alias preference**
-
-  **Status:** `COMPLETED`. The implementation candidate
-  `d48687d0cca4d5f8437b877e480ca4fe09ad20c4` passed every applicable workflow
-  with both Scala production lanes, cross-Scala byte identity, the exact
-  1,982-test/194-suite full inventory per lane, and the two-run 16-shard proof
-  over all 512 bindings for each of 11 pass identities (11,264 equivalence and
-  11,264 reachability proofs). The final completion-only commit remains subject
-  to the identical complete gate set before merge.
-
-  **Dependencies:** Increment 62 and WA-08 implemented and merged. This
-  successor is independent of unfinished Increments 59i and 61.
-
-  Extend the one-flag production wire pipeline from its frozen historical five
-  stages to six by adding bounded named continuous wire-expression inlining
-  after the unnamed expression stage and before constant/ternary
-  simplification. Reuse the canonical expression safety and rewrite engine,
-  capture the exact native RHS, and fail closed when the expression, naming,
-  type, scope, receiver or metadata inventory is incomplete. Preserve explicit
-  opt-out and exact historical three-, four- and five-stage artifacts.
-
-  Native validation must capture the actual source and receiver RHS with
-  `NativeWireExpressionCodec`, replace only whole-RHS continuous receivers and
-  represent `TypeBool` at width one; it must not fabricate a representative
-  XOR or another expression. Reverse source removal requires the canonical
-  preference decision over both actual direct edges and independent native
-  safety. Expression-driven sources retain pass ownership: true unnamed
-  provenance dispatches to `UnnamedWireExpressionNativePhase`, while
-  explicit/reflected/generated provenance dispatches to
-  `NamedWireExpressionNativePhase`.
-
-  Refine direct-alias planning with provenance before length. A non-removable
-  port, register, hierarchy/preservation identity or otherwise ineligible
-  declaration always survives. Among independently removable declarations,
-  `Explicit`/`Reflected` names beat `Unnamed`/`Generated`; only meaningful names
-  are compared by length, then by deterministic name and symbol identity.
-  Never infer provenance from `_zz` or any emitted spelling, rename a survivor,
-  transfer a removed name, or reverse an assignment without the full existing
-  removal proof.
-
-  Close the separately reproduced emitter boundary where
-  `fillExpressionToWrap` creates anonymous expression carriers only after all
-  pre-emission passes have finished. Permit emission-time wrapper elision solely
-  for an exact homogeneous fixed-width unsigned `UInt` addition tree feeding a
-  whole-object fixed-width unsigned receiver. Its leaves are same-width fixed
-  `UInt` values or exact unsigned widening resizes from narrower fixed `UInt`
-  values, and every synthetic expression node must be unannotated and uniquely
-  used. Fixed native 16-to-18 `ResizeUInt` wrappers inline completely. Tagged
-  parameterized resize carriers remain declared and may serve as proven fixed
-  18-bit leaves while only their surrounding `Add` wrappers inline. The
-  positive witness uses four 16-bit inputs in an 18-bit domain (`0..262140`),
-  and a same-width 18-bit companion proves unchanged modular-overflow tree
-  semantics. Retain wrappers for mixed widths, signed values, narrowing,
-  selections, direct symbolic-width expression nodes, other operators or
-  incomplete facts. This is a graph/type-proven emitter policy, not a seventh
-  pass or emitted-text cleanup. The exact source is
-  `morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala`;
-  run `sbt "morph/Test/runMain morphhdl.examples.NestedUnsignedExtendedSumProductionArtifactWriter target/wa09-nested-sum"`.
-
-  The public ordinary-alias fixture must reduce the chain through `bitSource`
-  and `bitCloneAlias` to `assign clonedResult = (a ^ b);`, while retaining the
-  output port. Add both alias orientations, generated-short and explicitly
-  named `_zz` controls, equal-length ties, fanout, symbolic-width/signedness,
-  four-state and all safety exclusions, plus the unsigned-add positive and
-  wrapper-retention controls above. Require dual-Scala deterministic and
-  idempotent results, strict Verilog-2001, lint, synthesis, simulation,
-  functional mutation, formal equivalence and every inherited final-head gate
-  before marking this increment complete. The bounded contract is recorded in
-  [`wa09-named-expression-and-name-preference.md`](../../morphhdl-passes/wa09-named-expression-and-name-preference.md).
+- [x] **WA-11 — Typed Boolean/integer parameter normalization.** This is retained
+  parameterized-Verilog functionality, independent of the removed hardware wire
+  passes. Its [implementation and historical qualification](wa11-boolean-width-normalization.md)
+  and `morphhdl/scripts/check-wa11-boolean-width.py` now belong to this workstream.
+  Preserve exact parameter identity, domains, integer sizing and child bindings.
 
 ### Parameter-expression and structural-legality follow-ups (Increments 64 and 65)
 
@@ -1321,7 +1214,7 @@ facilities on `parameterized-verilog`, retaining the merged PR #188/#189/#190
 behavior. Neither track requires unmerged 59i functionality to begin or to obtain
 local feature qualification. Work through 64 and then 65 on the development
 branch; 65's standalone scope does not require localparam factoring. Integrate
-59i after its merge and qualify combined scope/ownership and Vec/reduction
+59i into this work branch before targeted CI and qualify combined scope/ownership and Vec/reduction
 interactions before final integration of this batch. This replaces the earlier
 planning dependency on merged 59i without waiving those interaction checks.
 
@@ -1906,7 +1799,7 @@ native parameter control, and working explicit WIDTH bindings for HdlInt product
 ```scala
 package displaycontroller.diagnostics
 import spinal.core._
-import morphhdl.{MorphVerilog,MorphWireAssignmentPasses}
+import morphhdl.MorphVerilog
 import morphhdl.frontend.{HdlInt,formalParam}
 object DoubleCheck {
  class Child(width: ElabInt) extends Component {
@@ -1945,7 +1838,7 @@ object DoubleCheck {
   for(mode<-Seq("exact","direct","explicit-native","explicit-frontend")) {
    val config=SpinalConfig(targetDirectory=args(0)+"/"+mode,oneFilePerComponent=true,headerWithDate=false)
    try{
-    val report=MorphVerilog(MorphWireAssignmentPasses(config,enabled=false)) {
+    val report=MorphVerilog(config) {
      if(mode=="exact" || mode=="direct") new PlainTop(mode=="exact")
      else new ExplicitTop(mode=="explicit-native")
     }
@@ -2372,7 +2265,7 @@ This is a new, unchecked follow-up reported against compiler
 parameter domains, legality semantics, guard ownership or fatal termination.
 It does not reopen historical completion checkboxes or gate the existing next
 integration target. Wire-expression issues from the same report are tracked in
-[the existing wire-pass roadmap](../../morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md#september-20-cdc-report--recursive-expression-cleanup).
+the retired wire-pass work; its roadmap and implementation have been removed.
 
 - [ ] **CDC-LEG-01 — Product-neutral legality labels and user-only fatal messages.**
 
@@ -2399,15 +2292,15 @@ integration target. Wire-expression issues from the same report are tracked in
 
   import spinal.core._
   import spinal.lib._
-  import morphhdl.{MorphVerilog, MorphWireAssignmentPasses}
+  import morphhdl.MorphVerilog
   import morphhdl.frontend.HdlInt
 
   object CdcLegalityMessageRepro extends App {
-    require(args.length == 2, "Expected output-directory and passes-enabled")
-    val config = MorphWireAssignmentPasses(SpinalConfig(
+    require(args.length == 1, "Expected output-directory")
+    val config = SpinalConfig(
       targetDirectory = args(0), oneFilePerComponent = true,
       headerWithDate = false, headerWithRepoHash = true
-    ), enabled = args(1).toBoolean)
+    )
     MorphVerilog(config) {
       new Component {
         setDefinitionName("CdcLegalityMessageRepro")
@@ -2423,23 +2316,22 @@ integration target. Wire-expression issues from the same report are tracked in
 
   ```sh
   sbt 'set morph / Test / unmanagedSources := Seq(file("/tmp/CdcLegalityMessageRepro.scala"))' \
-    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-on true' \
-    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro-off false'
-  iverilog -g2012 -s CdcLegalityMessageRepro -o /tmp/CdcLegalityMessageRepro.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v
+    'morph/Test/runMain roadmap.CdcLegalityMessageRepro /tmp/CdcLegalityMessageRepro'
+  iverilog -g2012 -s CdcLegalityMessageRepro -o /tmp/CdcLegalityMessageRepro.vvp /tmp/CdcLegalityMessageRepro/CdcLegalityMessageRepro.v
   ```
 
   **Expected emitted form:** the mixed-domain guard is labelled
   `G_PARAMETER_LEGALITY_0` and its fatal message contains only the user text.
   Neither lowercase nor `morphhdl` occurs in generated legality labels.
   Exercise multiple requirements and hierarchy/sibling scopes before closure;
-  do not rename user-authored labels. Both enabled and disabled wire-pass modes
-  must use the requested presentation and deterministic indices.
+  do not rename user-authored labels. The parameterized-Verilog flow must use the requested presentation and
+  deterministic indices.
 
   **Runtime reproduction:** compile the same artifact with
-  `iverilog -g2012 -s CdcLegalityMessageRepro -P CdcLegalityMessageRepro.LIVE_LANES=2 -o /tmp/cdc-invalid.vvp /tmp/CdcLegalityMessageRepro-on/CdcLegalityMessageRepro.v`,
+  `iverilog -g2012 -s CdcLegalityMessageRepro -P CdcLegalityMessageRepro.LIVE_LANES=2 -o /tmp/cdc-invalid.vvp /tmp/CdcLegalityMessageRepro/CdcLegalityMessageRepro.v`,
   then run `vvp /tmp/cdc-invalid.vvp`. It must terminate nonzero and report the
   user message without the compiler-added prefix. Overrides 1 and 4 must remain
-  legal; override 3 must also fail. Repeat with the `-off` artifact. Preserve
+  legal; override 3 must also fail. Preserve
   quotes, newlines, percent signs and backslashes in further message controls,
   empty-message/default-message behavior, and synthesis exclusion. These are
   acceptance obligations, not claims that the requested change is implemented.
