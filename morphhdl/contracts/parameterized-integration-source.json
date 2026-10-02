@@ -1,0 +1,574 @@
+{
+  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work.",
+  "basis": "bfed00f992281d83dde20dfabf319d8f1ea0bc57",
+  "basis_tree": "67204ea39fb995d66f782da19f3c80dd11b6f832",
+  "files": {
+    ".github/workflows/cdc-wire-fixed-point.yml": null,
+    ".github/workflows/increment-54-typed-layering-ir.yml": {
+      "mode": "100644",
+      "sha256": "cd5732a99e9391b34aa4d2f846b687e2112511155e3784c59b82de5fd125c797"
+    },
+    ".github/workflows/increment-55-concrete-compatibility-audit.yml": {
+      "mode": "100644",
+      "sha256": "235ed75bbbffaea1d0a06d5e6b1531b546c302e2fba9195baaba0a97db9f0c63"
+    },
+    ".github/workflows/increment-56-native-typed-library-surface.yml": {
+      "mode": "100644",
+      "sha256": "72eef2d1e4913d339faf71b2f39988209beb55f1f2e346e17fe7b46765cacaf5"
+    },
+    ".github/workflows/increment-57-broad-native-library-migration.yml": {
+      "mode": "100644",
+      "sha256": "a0f783add5f6c6321b1db890a35460659b8a35d87d9f68dc1af95912b55b38a1"
+    },
+    ".github/workflows/increment-57a-typed-streamfifocc.yml": {
+      "mode": "100644",
+      "sha256": "c1197a78c209bda8f319efb767c57ffe7f0f1eb6026c45b33e86e7478d2b5a9d"
+    },
+    ".github/workflows/increment-58-legacy-retirement.yml": {
+      "mode": "100644",
+      "sha256": "6864f8a885c069344205572a6ed651b3427b561101fc02fc7e352cf6969573ea"
+    },
+    ".github/workflows/increment-59-typed-blackbox-generics.yml": {
+      "mode": "100644",
+      "sha256": "e14bb6f2c8553035612b2b48d774ec38610219a1f1608287afbadee0175a2bfa"
+    },
+    ".github/workflows/increment-59a-recursive-verilog-module.yml": {
+      "mode": "100644",
+      "sha256": "103918e524d0630a7dea5d98e95033290ee7e8e29e6a66f99bcbc79c28b7f337"
+    },
+    ".github/workflows/increment-60f-equivalence-closure.yml": {
+      "mode": "100644",
+      "sha256": "67d63dee4ded65787dae21f533ecf32d4f9b9bac57c558c32b9091a4fc0fffa7"
+    },
+    ".github/workflows/increment-60g-default-signed-verilog.yml": {
+      "mode": "100644",
+      "sha256": "27794cd9b2bad4f3a07289206ac3da831ec822a4b832fd3624ad56b3001b7a88"
+    },
+    ".github/workflows/increment-62-wa08-source-overlay.yml": null,
+    ".github/workflows/lane-when-expression-diagnostic.yml": null,
+    ".github/workflows/morphhdl-passes.yml": null,
+    ".github/workflows/sequential-source-review-targeted.yml": null,
+    ".github/workflows/sequential-wire-consumers.yml": null,
+    ".github/workflows/wa11-symbolic-boolean-width.yml": {
+      "mode": "100644",
+      "sha256": "8d08a127125690ce09e3b62522cef1aed43ad3da8f9d2a6321c8f5aabd92ac21"
+    },
+    "build.mill": {
+      "mode": "100644",
+      "sha256": "2a0ab720da477dd60ffc4c664b6cb85bb1560cf58f7338e9ecb388db0b0c5497"
+    },
+    "build.sbt": {
+      "mode": "100644",
+      "sha256": "ab99813a53a0b13774f0787e984832e48823f0d6ae91c4b74650a93d5978a1ae"
+    },
+    "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala": {
+      "mode": "100644",
+      "sha256": "cc45263053cd7ff6a32faaea92f47ab257e079c7e31961221f8e78348fc8305f"
+    },
+    "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala": {
+      "mode": "100644",
+      "sha256": "24db90865a0acc5c25827eb0fd998733eb4ce4cc6bd0518c8cbc4267011d58a5"
+    },
+    "core/src/main/scala/spinal/core/internals/NativePureExpressionCopy.scala": null,
+    "core/src/main/scala/spinal/core/internals/VerilogBase.scala": {
+      "mode": "100644",
+      "sha256": "62db7d6bd070bc62c0da96b8981ec556c1702eb856cacad61033dcb311eaf8af"
+    },
+    "core/src/main/scala/spinal/core/internals/VerilogEmitterExpressionInlining.scala": null,
+    "core/src/test/scala/spinal/core/internals/NativePureExpressionCopyTests.scala": null,
+    "core/src/test/scala/spinal/core/internals/SequentialWireEmitterTests.scala": null,
+    "core/src/test/scala/spinal/core/internals/VerilogEmitterExpressionInliningTests.scala": null,
+    "docs/morphhdl/evidence/increment66/README.md": {
+      "mode": "100644",
+      "sha256": "ebceaed983e8f9905d06e482233caf7b2e43e939f3d1864591def9e3d0fff088"
+    },
+    "docs/morphhdl/parameterized-verilog-todo.md": {
+      "mode": "100644",
+      "sha256": "c51a34dc747ba695965a02ca20044635b2521a793daccc4fd629ced652e81fa3"
+    },
+    "docs/morphhdl/remaining-increments-handoff.md": {
+      "mode": "100644",
+      "sha256": "e2411db92ab4ac7daa027d9c2669174e655ee7083177c80c4ec0f83ffb6ca44c"
+    },
+    "docs/morphhdl/wa11-boolean-width-normalization.md": {
+      "mode": "100644",
+      "sha256": "d46cc3c648f7e3c0f5da465378fada8b4f371fb527c0f45a82fb751a7df19a19"
+    },
+    "morphhdl-passes/.gitignore": null,
+    "morphhdl-passes/README.md": null,
+    "morphhdl-passes/WA07_SELECTED_USE_CONTRACT.md": null,
+    "morphhdl-passes/build.sbt": null,
+    "morphhdl-passes/evidence/wa10/baseline/diagnostics/general/native.tsv": null,
+    "morphhdl-passes/evidence/wa10/baseline/diagnostics/timing/native.tsv": null,
+    "morphhdl-passes/evidence/wa10/baseline/general/default/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/baseline/general/disabled/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/baseline/general/enabled/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/baseline/manifest.json": null,
+    "morphhdl-passes/evidence/wa10/baseline/timing/default/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/baseline/timing/disabled/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/baseline/timing/enabled/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/README.md": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/formal-rerun.log": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/formal-tools.json": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/full-morph-summary.log": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/log-identities.json": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/qualification.json": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/typed-primitive-ci-after.log": null,
+    "morphhdl-passes/evidence/wa10/ci-followup/typed-primitive-ci-before.log": null,
+    "morphhdl-passes/evidence/wa10/file-sha256.json": null,
+    "morphhdl-passes/evidence/wa10/final/cross-scala-validation.json": null,
+    "morphhdl-passes/evidence/wa10/final/diagnostics/general/diagnostic.v": null,
+    "morphhdl-passes/evidence/wa10/final/diagnostics/general/native.tsv": null,
+    "morphhdl-passes/evidence/wa10/final/diagnostics/timing/diagnostic.v": null,
+    "morphhdl-passes/evidence/wa10/final/diagnostics/timing/native.tsv": null,
+    "morphhdl-passes/evidence/wa10/final/general/default/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/final/general/disabled/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/final/general/enabled/GeneralExpressionInlining.v": null,
+    "morphhdl-passes/evidence/wa10/final/inherited-production-java-command.json": null,
+    "morphhdl-passes/evidence/wa10/final/inherited-production-qualification.json": null,
+    "morphhdl-passes/evidence/wa10/final/inherited-production-sbt-qualification.json": null,
+    "morphhdl-passes/evidence/wa10/final/logs/canonical-tests-2.13.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/canonical-tests.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/direct-fence-final-2.13-validation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/direct-fence-final-generation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/direct-fence-final-validation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/direct-fence-tests.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/final-2.13-generation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/final-2.13-validation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/final-cross-scala-generation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/final-focused-tests.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/final-validation.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/inherited-jar-diagnosis.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/inherited-runtime-check.log": null,
+    "morphhdl-passes/evidence/wa10/final/logs/inherited-sbt-repack.log": null,
+    "morphhdl-passes/evidence/wa10/final/manifest.json": null,
+    "morphhdl-passes/evidence/wa10/final/production-summary.md": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/default/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/default/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/default/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/default/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/default/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/disabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/disabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/disabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/disabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/disabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/enabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/enabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/enabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/enabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/enabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/equivalence.ys": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/formal.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/formal.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/mutation-compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/mutation-compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/mutation-rejection.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-0/mutation-rejection.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/default/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/default/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/default/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/default/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/default/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/disabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/disabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/disabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/disabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/disabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/enabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/enabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/enabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/enabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/enabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/equivalence.ys": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/formal.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/formal.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/mutation-compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/mutation-compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/mutation-rejection.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/general/PPC4-1/mutation-rejection.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/default/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/default/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/default/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/default/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/default/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/disabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/disabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/disabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/disabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/disabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/enabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/enabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/enabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/enabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/enabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/equivalence.ys": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/formal.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/formal.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/mutation-compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/mutation-compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/mutation-rejection.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-0/mutation-rejection.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/default/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/default/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/default/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/default/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/default/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/disabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/disabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/disabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/disabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/disabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/enabled/compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/enabled/compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/enabled/simulation.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/enabled/simulation.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/enabled/trace.txt": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/equivalence.ys": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/formal.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/formal.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/mutation-compile.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/mutation-compile.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/mutation-rejection.log": null,
+    "morphhdl-passes/evidence/wa10/final/proofs/timing/PPC4-1/mutation-rejection.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/timing/default/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/final/timing/disabled/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/final/timing/enabled/TimingExpressionExample.v": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/iverilog-version.log": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/iverilog-version.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/vvp-version.log": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/vvp-version.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/yosys-version.log": null,
+    "morphhdl-passes/evidence/wa10/final/tool-versions/yosys-version.log.command.json": null,
+    "morphhdl-passes/evidence/wa10/final/validation-results-2.13.json": null,
+    "morphhdl-passes/evidence/wa10/final/validation-results.json": null,
+    "morphhdl-passes/examples/AllWireAssignmentNativeBridge.scala": null,
+    "morphhdl-passes/examples/BooleanTernaryNativeBridge.scala": null,
+    "morphhdl-passes/examples/ConstantOperandNativeBridge.scala": null,
+    "morphhdl-passes/examples/NamedWireAliasNativeBridge.scala": null,
+    "morphhdl-passes/examples/NamedWireExpressionNativeBridge.scala": null,
+    "morphhdl-passes/examples/NativeWireExpressionCodec.scala": null,
+    "morphhdl-passes/examples/OrderedWireAliasNativeBridge.scala": null,
+    "morphhdl-passes/examples/ParameterizedStreamFifo.scala": null,
+    "morphhdl-passes/examples/UnnamedWireAliasNativeBridge.scala": null,
+    "morphhdl-passes/examples/UnnamedWireExpressionNativeBridge.scala": null,
+    "morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md": null,
+    "morphhdl-passes/project/build.properties": null,
+    "morphhdl-passes/scripts/aggregate_wire_assignment_equivalence.py": null,
+    "morphhdl-passes/scripts/check-boundary.sh": null,
+    "morphhdl-passes/scripts/check-cdc-publication-cleanup.py": null,
+    "morphhdl-passes/scripts/check-cdc-wire-cleanup.py": null,
+    "morphhdl-passes/scripts/check-enum-condition-cleanup.py": null,
+    "morphhdl-passes/scripts/check-wa02-adapter-boundary.py": null,
+    "morphhdl-passes/scripts/check-wa03-gates.py": null,
+    "morphhdl-passes/scripts/check-wa04-pass.py": null,
+    "morphhdl-passes/scripts/check-wa05-pass.py": null,
+    "morphhdl-passes/scripts/check-wa06-pipeline.py": null,
+    "morphhdl-passes/scripts/check-wa07-expression-pass.py": null,
+    "morphhdl-passes/scripts/check-wa07a-constant-pass.py": null,
+    "morphhdl-passes/scripts/check-wa07b-ternary-pass.py": null,
+    "morphhdl-passes/scripts/check-wa09-named-expression.py": null,
+    "morphhdl-passes/scripts/check-wa10-general-expression.py": null,
+    "morphhdl-passes/scripts/check-wa11-boolean-width.py": null,
+    "morphhdl-passes/scripts/prove_wire_assignment_cones.py": null,
+    "morphhdl-passes/scripts/run-wa06-regression.sh": null,
+    "morphhdl-passes/scripts/run-wa07-regression.sh": null,
+    "morphhdl-passes/scripts/run-wa07a-regression.sh": null,
+    "morphhdl-passes/scripts/run-wa07b-regression.sh": null,
+    "morphhdl-passes/scripts/run-wa09-regression.sh": null,
+    "morphhdl-passes/scripts/run-wa10-regression.sh": null,
+    "morphhdl-passes/scripts/test-boundary-guard.sh": null,
+    "morphhdl-passes/scripts/test_historical_native_reports.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_clock_model.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_cone_tools.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_cones.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_equivalence.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_shard_tools.py": null,
+    "morphhdl-passes/scripts/test_wire_assignment_shards.py": null,
+    "morphhdl-passes/scripts/validate-wa10-artifacts.py": null,
+    "morphhdl-passes/scripts/validate_wire_assignment_equivalence.py": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/adapter/CanonicalIrPassAdapter.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/api/PassContracts.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/pipeline/WireAliasPassPipeline.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/safety/WireAliasSafetyGate.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/BooleanTernarySimplificationPass.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/ConstantOperandSimplificationPass.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/NamedWireAliasEliminationPass.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPass.scala": null,
+    "morphhdl-passes/src/main/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPass.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/adapter/CanonicalIrPassAdapterSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/AllPassConfigurationSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/NativeRunnerSourceClosureSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/api/PassContractsSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAliasPassPipelineSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/pipeline/WireAssignmentAllPassPipelineSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/safety/WireAliasSafetyGateSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernaryFourStateSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/BooleanTernarySimplificationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFixedPointSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandFourStateSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/ConstantOperandSimplificationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireAliasEliminationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/NamedWireExpressionEliminationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireAliasEliminationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionAlgebraSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionEliminationPassSpec.scala": null,
+    "morphhdl-passes/src/test/scala/morphhdl/passes/transform/UnnamedWireExpressionSelectionSafetySpec.scala": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/boolean_ternary_native_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/constant_native_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_candidate.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_reference.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_combinational_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_candidate.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_reference.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/generic_sequential_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/manifest.json": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/named_expression_native_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/named_preference_native_tb.v": null,
+    "morphhdl-passes/tests/formal/wire_assignment_ir/parameterized_witness_tb.v": null,
+    "morphhdl-passes/tests/formal_model/wire_assignment_ir/expected-signatures.json": null,
+    "morphhdl-passes/tests/wa10/general_expression_tb.v": null,
+    "morphhdl-passes/tests/wa10/timing_expression_tb.v": null,
+    "morphhdl-passes/verification/wa07-proof-execution.md": null,
+    "morphhdl-passes/verification/wa10-regression-commands.md": null,
+    "morphhdl-passes/wa07a-completion-evidence.md": null,
+    "morphhdl-passes/wa07b-completion-evidence.md": null,
+    "morphhdl-passes/wa07b-implementation-notes.md": null,
+    "morphhdl-passes/wa07b-resume-evidence.md": null,
+    "morphhdl-passes/wa08-implementation-notes.md": null,
+    "morphhdl-passes/wa08-named-alias-fix.md": null,
+    "morphhdl-passes/wa09-named-expression-and-name-preference.md": null,
+    "morphhdl-passes/wa10-general-expression-inlining.md": null,
+    "morphhdl-passes/wa11-boolean-width-normalization.md": null,
+    "morphhdl/contracts/increment-53g-production-retirement.contract": {
+      "mode": "100644",
+      "sha256": "930ba7b427b260c1aa2623d56f1059e5f23f1c6d2f9e8e2c261d99d489b37538"
+    },
+    "morphhdl/contracts/increment-54-typed-layering-ir.contract": {
+      "mode": "100644",
+      "sha256": "beca8eda367e2ffb2bd99b130eb3c2ddbb0529cfb40fb431d8e1ebc0192ccf58"
+    },
+    "morphhdl/contracts/increment-55-native-change-review.json": {
+      "mode": "100644",
+      "sha256": "9f5e6cd0b6c2c3c17f58a36f774a34e27a6682293caf51d19a84d4eba9b3840a"
+    },
+    "morphhdl/contracts/increment-58-retirement.contract": {
+      "mode": "100644",
+      "sha256": "205f725870593f9a8ed80aa9d0e49afd4d2ccd006b6f7c1409653545699f2ee4"
+    },
+    "morphhdl/contracts/native-source-preservation.json": {
+      "mode": "100644",
+      "sha256": "cc7f025a1843268bf91a41118759e1d4f787a6340244caadf559da93dfd3b7f0"
+    },
+    "morphhdl/contracts/retained-parameterized-regressions.json": {
+      "mode": "100644",
+      "sha256": "a54d053f9575e00cf6ba4ddf6e78a32a275443d89b3a0f8332cfa01226a1c120"
+    },
+    "morphhdl/scripts/check-increment-58-retirement.py": {
+      "mode": "100755",
+      "sha256": "b8f3d3173b5669d609a1d15227363711cf5fb5aa01ebfdf6af900180ebddb043"
+    },
+    "morphhdl/scripts/check-production-retirement.py": {
+      "mode": "100755",
+      "sha256": "f7a673b8cf2d90331862e1230a98ab3a041528f05b0670230877a7ac5e46ac2d"
+    },
+    "morphhdl/scripts/check-retained-parameterized-regressions.py": {
+      "mode": "100644",
+      "sha256": "7aa4420c5300508f1a2d6d6239ce78e20fb1af49a2794f374b44fbcdde531a91"
+    },
+    "morphhdl/scripts/check-typed-layering-ir.py": {
+      "mode": "100644",
+      "sha256": "1a88cacbb767aba6a4e38cbada34aae15709b22a6b0847160412630c6068934b"
+    },
+    "morphhdl/scripts/check-wa11-boolean-width.py": {
+      "mode": "100644",
+      "sha256": "5eb81e534ae37cc4ef099dc165e52a6755dc686e5d4acf7cfd10a52cfe4ca63d"
+    },
+    "morphhdl/src/main/scala/morphhdl/MorphVerilog.scala": {
+      "mode": "100644",
+      "sha256": "f4c82badb0d5133685f9fe41e7541fe32a7eeb6176be99635f567f478f429964"
+    },
+    "morphhdl/src/main/scala/morphhdl/MorphWireAssignmentPasses.scala": null,
+    "morphhdl/src/main/scala/morphhdl/examples/WireAssignmentProductionBridge.scala": null,
+    "morphhdl/src/main/scala/spinal/core/internals/ExternalParameterizedAutoResize.scala": {
+      "mode": "100644",
+      "sha256": "6f21fa7eb23ab57f5f7e98a70936caaae24df0c9f9e7003b442afb8b4d59fc17"
+    },
+    "morphhdl/src/main/scala/spinal/core/internals/NativeWireAssignmentMetadata.scala": null,
+    "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": {
+      "mode": "100644",
+      "sha256": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01"
+    },
+    "morphhdl/src/test/scala/morphhdl/CapturedDomainWidthEquivalenceTests.scala": {
+      "mode": "100644",
+      "sha256": "5ce6ccac05c0f80ce9d476d65dec96692662092d477e3a7479a191d08088be8a"
+    },
+    "morphhdl/src/test/scala/morphhdl/CdcWireCleanupRegressionTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/CdcWireEmitterNamespaceTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala": null,
+    "morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala": null,
+    "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": {
+      "mode": "100644",
+      "sha256": "5b0752426ecfdc1149c33ddeee1f2b2f206fb9719af5055fd15bd13a6d8b0185"
+    },
+    "morphhdl/src/test/scala/morphhdl/LaneInliningRegressionWriter.scala": null,
+    "morphhdl/src/test/scala/morphhdl/LaneWhenInliningRegressionTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/MorphCanonicalIrHandoffTests.scala": {
+      "mode": "100644",
+      "sha256": "cb84ac7c3897cfc851b22e764fe074b4b438403583833874af41248eecd862b0"
+    },
+    "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala": {
+      "mode": "100644",
+      "sha256": "6e7c81ca74ff6baadf943c34f34236bd108cff4be16ae683ec72a89e4c52f821"
+    },
+    "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala": {
+      "mode": "100644",
+      "sha256": "99b03850006bd0879ae4e839112bf47d110ab2555bc5d8c7e9aec4344ee15466"
+    },
+    "morphhdl/src/test/scala/morphhdl/NativeLibraryReuseTests.scala": {
+      "mode": "100644",
+      "sha256": "790332776d2ba363de9557fc3de556a6fa6cac734c18ed3e5a43c9403abcd223"
+    },
+    "morphhdl/src/test/scala/morphhdl/NativeNamedFactoryTests.scala": {
+      "mode": "100644",
+      "sha256": "ff3a75b4edb6ec693a25cb5e5263b44c808c2db74a626c4b9bcd925a8e301f71"
+    },
+    "morphhdl/src/test/scala/morphhdl/NativeSymbolicMemoryTests.scala": {
+      "mode": "100644",
+      "sha256": "5ab364942154e945a600be2a97c956b6570c8a9b2d567908f035465538ef3de0"
+    },
+    "morphhdl/src/test/scala/morphhdl/NativeTypedLocalConstantTests.scala": {
+      "mode": "100644",
+      "sha256": "eee702d03a77016eb5d2c4d6ee0bea337a6ff2e51808beb7e39dc9303145bcd2"
+    },
+    "morphhdl/src/test/scala/morphhdl/SequentialWireNativeTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/TypedSignednessAuthorityTests.scala": {
+      "mode": "100644",
+      "sha256": "27b53a03a4f8ed0e69531d4db2eef73291acf3981a0e5137e811957dac27fb5c"
+    },
+    "morphhdl/src/test/scala/morphhdl/WireOptimizationDefaultOffTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/CdcPublicationCleanupFixtures.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/CdcWireCleanupArtifactWriter.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/DerivedLocalParameterArtifactWriter.scala": {
+      "mode": "100644",
+      "sha256": "6b30f5a2db964a2ae7fe6916ab2577c9cde6afaa977e6aed6d4db05f00912bdb"
+    },
+    "morphhdl/src/test/scala/morphhdl/examples/EnumConditionNativeIdentityTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/Increment66ArtifactWriter.scala": {
+      "mode": "100644",
+      "sha256": "4e8769ad10f574c0b2a46d522028fc456a38c9a0dd097602c1d7fe11e0b6c1ec"
+    },
+    "morphhdl/src/test/scala/morphhdl/examples/LaneWhenInliningArtifactWriter.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/NativeWireExpressionCodecTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/ParameterExtensionsBaselineWriter.scala": {
+      "mode": "100644",
+      "sha256": "74b8767156e7513d53d5d1bfa13473eed1835875d818d327377242cbeb3fa7d6"
+    },
+    "morphhdl/src/test/scala/morphhdl/examples/ScopedLegalityArtifactWriter.scala": {
+      "mode": "100644",
+      "sha256": "27ba95a2c934b153644a053a1f489cbf15b421ed80627b65b31456f39e00387d"
+    },
+    "morphhdl/src/test/scala/morphhdl/examples/SequentialWireRetentionTests.scala": null,
+    "morphhdl/src/test/scala/morphhdl/examples/SymbolicHardwareValueArtifactWriter.scala": {
+      "mode": "100644",
+      "sha256": "5ecda4d50bcf13257494e4c147dc4b9b829b94cde2b590731198769c0316a2f6"
+    },
+    "morphhdl/src/test/scala/nativeapplication/BooleanWidthNormalizationArtifactWriter.scala": {
+      "mode": "100644",
+      "sha256": "b5d035412512d1c2233392fd40fcc9d452db957644e84b4aacc3955cf58c0636"
+    },
+    "morphhdl/src/test/scala/nativeapplication/GeneralExpressionInliningArtifactWriter.scala": null,
+    "morphhdl/src/test/scala/nativeapplication/GenerateTimingExpressionExample.scala": null,
+    "morphhdl/src/test/scala/nativeapplication/NativeExpressionDiagnosticsWriter.scala": null,
+    "morphhdl/src/test/scala/nativeapplication/NestedUnsignedExtendedSumProductionArtifactWriter.scala": null,
+    "morphhdl/src/test/scala/nativeapplication/SIntSignedVerilogBaselineFixture.scala": {
+      "mode": "100644",
+      "sha256": "d235237a0def8bb1b9481727296c84dae53cb296e248419f24623cdf9750023c"
+    },
+    "morphhdl/src/test/scala/nativeapplication/WireAssignmentProductionArtifactWriter.scala": null,
+    "morphhdl/src/test/scala/spinal/core/MorphVerilogExpressionInliningTests.scala": null,
+    "morphhdl/src/test/scala/spinal/core/NativeCdcFormalTests.scala": {
+      "mode": "100644",
+      "sha256": "9e0879e446c0c87caf658381a116572eadcc0bb1acf0313aa76f9e584891b0ad"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeDerivedLocalParameterTests.scala": {
+      "mode": "100644",
+      "sha256": "7e7e79a925cf8e8a2ee084d5c8d382d05bafaa91af0c5d3c2129060c63e29738"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeExplicitFormalTests.scala": {
+      "mode": "100644",
+      "sha256": "7d7a118c3b8c3675fb6412ba4d07ff5bdfea6cceee8eaffcf046cd29d5b3b5da"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeFormalOwnershipTests.scala": {
+      "mode": "100644",
+      "sha256": "f365eb53e20d2bfffa0e4bf7e39b6dd4d8ec3cf1e6c40a537aa96575ca811606"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeLegalityPresentationTests.scala": {
+      "mode": "100644",
+      "sha256": "1e8c9093124b8bc0965872fc8b4a410f86e0d91adf063569162b39fde7a31f69"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeResizeSimplificationTests.scala": {
+      "mode": "100644",
+      "sha256": "41b602431f91d4a3bf96147af8d19c8e78730484e3c37bac12f189c759a92cfd"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeScopedLegalityTests.scala": {
+      "mode": "100644",
+      "sha256": "ccc577601637f3a11975472b6dba8638617a5a3a77fb80e0847027e7e3b88ce6"
+    },
+    "morphhdl/src/test/scala/spinal/core/NativeSymbolicHardwareValueTests.scala": {
+      "mode": "100644",
+      "sha256": "80e87a62ae7ae19b2bf4da72dc3553d0cb2ac821eebe9aaf7c04992beb795a25"
+    },
+    "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": {
+      "mode": "100644",
+      "sha256": "2fc897c59312bc1378bd6b5a44a8981bb06cf33f308b86fc0613a8493d759831"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/HierarchyResizeSourceWidthTests.scala": {
+      "mode": "100644",
+      "sha256": "1e26fc56f138b12010a6774d1e48c95eeafabfa9d7a253c58d9ab2499f6147f7"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala": null,
+    "repro/recursive-fill-cleanup/NativeCleanupTrace.scala": null,
+    "repro/recursive-fill-cleanup/README.md": null,
+    "repro/recursive-fill-cleanup/RecursiveFillCleanupRepro.scala": null,
+    "repro/recursive-fill-cleanup/ResizeTemporaryNamingRepro.scala": null,
+    "repro/recursive-fill-cleanup/baseline/baseline.log": null,
+    "repro/recursive-fill-cleanup/baseline/compiler-source.txt": null,
+    "repro/recursive-fill-cleanup/baseline/fill-off/RecursiveFillCleanupRepro.v": null,
+    "repro/recursive-fill-cleanup/baseline/fill-on/RecursiveFillCleanupRepro.v": null,
+    "repro/recursive-fill-cleanup/baseline/naming-off/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/baseline/naming-on/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/baseline/probe-source.txt": null,
+    "repro/recursive-fill-cleanup/baseline/provenance.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/cross-scala.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/fill-off/RecursiveFillCleanupRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/fill-on/RecursiveFillCleanupRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/fill-on/fixed-point.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-off/ResizeNamingHierarchy.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-off/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/ResizeNamingHierarchy.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/hierarchy-on/fixed-point.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/naming-off/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/naming-on/ResizeTemporaryNamingRepro.v": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/naming-on/fixed-point.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/provenance.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/publication-qualification.json": null,
+    "repro/recursive-fill-cleanup/qualified-fc61cad0/source.txt": null,
+    "repro/recursive-fill-cleanup/requirements.md": null,
+    "repro/remaining-wires/README.md": null,
+    "repro/remaining-wires/build.sbt": null,
+    "repro/remaining-wires/check.py": null,
+    "repro/remaining-wires/project/build.properties": null,
+    "repro/remaining-wires/src/main/scala/RemainingWireMatrix.scala": null,
+    "repro/remaining-wires/src/main/scala/RemainingWireRepro.scala": null,
+    "repro/remaining-wires/src/main/scala/RemainingWireTrace.scala": null
+  },
+  "parents": [
+    "23dc9248a09157c25030f6603fbdbd0d01f7ab6d",
+    "6bb250972f06ca55c9cfbd7100126adad9e81569"
+  ],
+  "schema": 1,
+  "verifier_sha256": "cfe25e53be916317dcd53e89f3216032f1b4f9e6620a7a34bc2e369deaffd3b2"
+}
