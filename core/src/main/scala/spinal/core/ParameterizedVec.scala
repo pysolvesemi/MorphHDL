@@ -652,7 +652,7 @@ object ParameterizedVec {
   ): Vec[T] = {
     if (
       vector != null && vector.vec.nonEmpty &&
-      containsSymbolicGeometry(vector.vec.head)
+      (containsSymbolicGeometry(vector.vec.head) || VerilogAggregateOptions.current.preserveConstantVecs)
     ) {
       val sourceLocation = vector.vec.head.flatten.iterator
         .flatMap(ParameterizedWidth.sourceLocationOf)
@@ -667,6 +667,12 @@ object ParameterizedVec {
       )
     }
     vector
+  }
+
+  /** A retained constant loop needs exact Vec geometry for its indexed operands. */
+  private[spinal] def retainConstantLoopOperand[T <: Data](vector: Vec[T]): Unit = {
+    if (shapeOf(vector).isEmpty && vector.vec.nonEmpty)
+      attach(vector, literal(vector.vec.size), vector.vec.size, vector.vec.size, None)
   }
 
   private def containsSymbolicGeometry(data: Data): Boolean = data match {

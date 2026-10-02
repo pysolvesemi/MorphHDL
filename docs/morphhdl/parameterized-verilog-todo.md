@@ -2232,6 +2232,29 @@ Verilog. Ordinary comparisons must also retain local constant references.
   after RTL and results. A later application task may replace the custom CSR's
   literals with named constants; a factory migration is NOT required for that use.
 
+## Constant aggregate and loop publication (October 2 request)
+
+This addition follows the merged 59i source and wire-pass retirement on
+`work/remaining-parameterized-increments`. Qualification and monitoring remain
+paused; the items below describe implementation, not remote increment closure.
+
+- [x] Add generation-local `MorphAggregateOptions` with independent, default-off
+  `preserveConstantVecs` and `preserveConstantLoops` switches.
+- [x] Preserve constant Vec dimension factors in packed declarations, including
+  nested dimensions; retain Verilog-2001 packed interfaces in both layouts.
+- [x] Add `PackedVector` (default) and `UnpackedArray` internal Vec layouts,
+  including multidimensional arrays and named-field record arrays. Preserve
+  scalar wire/register semantics and leave memory inference to synthesis.
+- [x] Retain constant typed structural and procedural ranges as loops when enabled.
+- [x] Complete focused local validation: 177 cases across 13 suites on Scala
+  2.12.18 and 2.13.12; new functional cases also compile as Verilog-2001,
+  simulate with Icarus and synthesize with Yosys. Receipt retained in the paused
+  local qualification checkpoint; this is not full qualification.
+- [ ] Reconcile remaining qualification contracts, then run targeted and full CI
+  only after the explicit qualification pause is lifted. No retired wire proofs.
+
+Usage and boundaries: [aggregate publication options](aggregate-publication.md).
+
 ## Completion target
 
 The roadmap is complete when parameter-sensitive SpinalHDL algorithms retain

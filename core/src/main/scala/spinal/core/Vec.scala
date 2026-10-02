@@ -59,7 +59,10 @@ trait VecFactory {
       Vec((0 until size).map(_ => dataType), HardType(dataType)).setElementsParents()
 
     def tabulate[T <: Data](size: Int)(gen: (Int) => T): Vec[T] = {
-      Vec((0 until size).map(gen(_))).setElementsParents()
+      val vector = Vec((0 until size).map(gen(_))).setElementsParents()
+      if (VerilogAggregateOptions.current.preserveConstantVecs)
+        ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)
+      else vector
     }
 
     def tabulate[T <: Data](n1: Int, n2: Int)(f: (Int, Int) => T): Vec[Vec[T]] =

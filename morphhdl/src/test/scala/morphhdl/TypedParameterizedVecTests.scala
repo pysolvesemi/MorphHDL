@@ -836,12 +836,11 @@ class TypedParameterizedVecTests extends AnyFunSuite {
         new DepthBitsBridge(depth)
       )
 
-      Vector(("input", "bits_in"), ("input", "unrelated_in"), ("output", "bits_out"))
-        .foreach { case (direction, signal) =>
-          assertPackedRangeAlgebra(verilog, direction, signal, "DEPTH - 1:0")
-        }
-      assertInternalRangeAlgebra(verilog, "values", "DEPTH - 1:0")
-      assertInternalRangeAlgebra(verilog, "packed_values", "DEPTH - 1:0")
+      assertPackedRangeAlgebra(verilog, "input", "bits_in", "(1 * DEPTH) - 1:0")
+      assertPackedRangeAlgebra(verilog, "input", "unrelated_in", "DEPTH - 1:0")
+      assertPackedRangeAlgebra(verilog, "output", "bits_out", "DEPTH - 1:0")
+      assertInternalRangeAlgebra(verilog, "values", "(1 * DEPTH) - 1:0")
+      assertInternalRangeAlgebra(verilog, "packed_values", "(1 * DEPTH) - 1:0")
       assert(continuousAssignmentRhs(verilog, "bits_out").contains("packed_values"), verilog)
 
       val unrelatedDriver = continuousAssignmentRhs(verilog, "unrelated_carrier")

@@ -10,6 +10,36 @@ import spinal.core._
   * conversions. These tests need no elaborator or Verilog renderer.
   */
 class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
+  // Independently evaluate retained arithmetic; formatting must not replace
+  // the exhaustive native-order/offset checks below.
+  private def evaluate(expression: String): Int = {
+    val tokens = "[0-9]+|[()+*]".r.findAllIn(expression).toVector
+    assert(tokens.mkString == expression.replaceAll("\\s", ""))
+    var cursor = 0
+    def atom(): Int = {
+      if (tokens(cursor) == "(") {
+        cursor += 1
+        val value = sum()
+        assert(tokens(cursor) == ")")
+        cursor += 1
+        value
+      } else { val value = tokens(cursor).toInt; cursor += 1; value }
+    }
+    def product(): Int = {
+      var value = atom()
+      while (cursor < tokens.size && tokens(cursor) == "*") { cursor += 1; value *= atom() }
+      value
+    }
+    def sum(): Int = {
+      var value = product()
+      while (cursor < tokens.size && tokens(cursor) == "+") { cursor += 1; value += product() }
+      value
+    }
+    val value = sum()
+    assert(cursor == tokens.size)
+    value
+  }
+
   private def literal(value: Int): ElaborationIntegerExpression = ElabInt.literal(value).expression
   private def parameter(name: String, default: Int, maximum: Int): ElaborationIntegerExpression =
     HdlInt.param(name, default, 1, maximum).bits.expression.get
@@ -91,15 +121,17 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
         expression => values.get(expression.verilog).map(_.toString).getOrElse(expression.verilog))
       assert(layout.fields.map(_.path) == Vector(tag, red, delta, valid, tail, checksum))
       val expectedElementWidth = 3 + inner * (width + lanes * (blue + 1) + 2) + 4
-      assert(layout.elementWidth == expectedElementWidth.toString)
-      assert(layout.totalWidth == (count * expectedElementWidth).toString)
+      assert(evaluate(layout.elementWidth) == expectedElementWidth)
+      assert(evaluate(layout.totalWidth) == count * expectedElementWidth)
       val fieldOffsets = mutable.Map.empty[Vector[String], Int].withDefaultValue(0)
       var packedOffset = 0
       def visit(path: Vector[String], outerIndex: Int, coordinates: Vector[Int], bits: Int): Unit = {
         val field = layout.fields.find(_.path == path).get
         val indices = outerIndex.toString +: coordinates.map(_.toString)
-        assert(layout.slice(field, indices) == s"${field.name}[(${fieldOffsets(path)}) +: $bits]")
-        assert(layout.packedSlice("packed", field, indices) == s"packed[($packedOffset) +: $bits]")
+        assert(evaluate(layout.fieldOffset(field, indices)) == fieldOffsets(path))
+        assert(layout.slice(field, indices) == s"${field.name}[(${layout.fieldOffset(field, indices)}) +: $bits]")
+        assert(evaluate(layout.packedOffset(field, indices)) == packedOffset)
+        assert(layout.packedSlice("packed", field, indices) == s"packed[(${layout.packedOffset(field, indices)}) +: $bits]")
         fieldOffsets(path) += bits
         packedOffset += bits
       }
@@ -116,7 +148,7 @@ class ParameterizedVerilogFieldLayoutTests extends AnyFunSuite {
         visit(checksum, outerIndex, Vector.empty, 4)
       }
       assert(packedOffset == count * expectedElementWidth)
-      layout.fields.foreach(field => assert(field.width == fieldOffsets(field.path).toString))
+      layout.fields.foreach(field => assert(evaluate(field.width) == fieldOffsets(field.path)))
     }
   }
 

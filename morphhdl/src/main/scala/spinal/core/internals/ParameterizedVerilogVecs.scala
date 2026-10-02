@@ -2019,6 +2019,29 @@ private[internals] object ParameterizedVerilogVecs {
     result
   }
 
+  /** Layout selection happens after every retained operation has been lowered. */
+  def rewriteUnpacked(component: Component, verilog: String, pc: PhaseContext): String = {
+    if (VerilogAggregateOptions.of(pc.config).vecLayout != VerilogAggregateOptions.UnpackedArray)
+      return verilog
+    val plans = analyze(component, publicationVectors(component), pc)
+    val arrays = plans.filter(p => p.projection.isEmpty && p.leaves.forall(!_.value.isIo)).flatMap { plan =>
+      plan.layout match {
+        case Some(layout) => layout.fields.map(field =>
+          ParameterizedVerilogUnpacked.ArrayShape(field.name, field.scalarWidth, field.dimensions))
+        case None =>
+          def axes(node: ParameterizedVecElementLayout.Node): (Vector[String], String) = node match {
+            case ParameterizedVecElementLayout.Dimension(depth, _, element) =>
+              val (dimensions, width) = axes(element)
+              (render(depth) +: dimensions, width)
+            case leaf => (Vector.empty, leaf.size.render(render _))
+          }
+          val (dimensions, width) = axes(plan.shape.elementLayout.root)
+          Vector(ParameterizedVerilogUnpacked.ArrayShape(plan.name, width, render(plan.shape.depth) +: dimensions))
+      }
+    }
+    ParameterizedVerilogUnpacked.rewrite(verilog, arrays)
+  }
+
   private def operationAssignmentEvidence(operation: ParameterizedVecOperation): Vector[DataAssignmentStatement] = operation match {
     case value: ParameterizedVecWholeAssignment => value.assignments
     case value: ParameterizedVecAutoConnect => value.assignments
@@ -2310,7 +2333,7 @@ private[internals] object ParameterizedVerilogVecs {
             ParameterizedVerilogFieldLayout.fromShape(shape, name, render _).elementWidth
           else renderElementWidth(shape)
         }
-        val totalWidth = multiplyTerms(elementWidth, render(shape.depth))
+        val totalWidth = s"${factor(elementWidth)} * ${factor(render(shape.depth))}"
         val totalRange = s"[${parenthesize(totalWidth)}-1:0]"
         Some(
           VecPlan(
@@ -2521,7 +2544,9 @@ private[internals] object ParameterizedVerilogVecs {
   ): Unit = {
     shape.geometryExpressions.foreach(expression => ElabInt.validateExpression(expression, "typed Vec publication geometry"))
     if (
-      shape.geometryExpressions.forall(_.parameters.isEmpty) ||
+      (shape.geometryExpressions.forall(_.parameters.isEmpty) &&
+        !VerilogAggregateOptions.current.preserveConstantVecs &&
+        !VerilogAggregateOptions.current.preserveConstantLoops) ||
       shape.depth.minimum < 1 ||
       shape.depth.maximum < shape.depth.minimum ||
       shape.depth.default != BigInt(shape.witnessDepth) ||
@@ -3680,6 +3705,20 @@ private[internals] object ParameterizedVerilogVecs {
     if (isContiguous && dynamicWrites.isEmpty && staticWrites.isEmpty) {
       return WholeAssignmentRewrite(rewriteAssignmentGroup(original, assignments,
         plan.aggregate, source.aggregate, "whole Vec assignment", sourceLocation, claimed, live), Vector.empty)
+    }
+    if (plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum)) {
+      // Constant geometry needs no regrouping across procedural control blocks.
+      // Replace only this invocation's proven assignments, keeping every native
+      // condition and its original assignment order in place.
+      claimAssignmentEvidence(assignments, live, claimed, "constant whole Vec assignment", sourceLocation)
+      val replacements = assignments.zip(parsed).map { case (assignment, emitted) =>
+        val targetLeaf = plan.leaves.find(_.value eq assignment.finalTarget).get
+        val sourceLeaf = source.leaves.find(_.value eq assignment.source).get
+        emitted.lineIndex -> (emitted.indentation + (if (emitted.continuous) "assign " else "") +
+          s"${plan.constantSlice(targetLeaf.elementIndex, targetLeaf.leafIndex)} ${emitted.operator} " +
+          s"${source.constantSlice(sourceLeaf.elementIndex, sourceLeaf.leafIndex)};")
+      }.toMap
+      return WholeAssignmentRewrite(original.zipWithIndex.map { case (line, index) => replacements.getOrElse(index, line) }, Vector.empty)
     }
     val kinds = parsed.map(value => value.continuous -> value.operator).distinct
     if (kinds.map(_._2).distinct.size != 1 || (dynamicWrites.isEmpty && staticWrites.isEmpty)) {
@@ -5840,6 +5879,19 @@ private[internals] object ParameterizedVerilogVecs {
       )
     }
 
+    if (plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum)) {
+      // Every native element exists for the entire (singleton) domain. Keep
+      // reset, enable, priority and event controls exactly as emitted; only
+      // replace the identity-certified leaf references, never their control.
+      return plan.leaves.foldLeft(original) { (lines, leaf) =>
+        lines.flatMap { line =>
+          if (isDeclarationCandidate(line)) Vector(line)
+          else replaceReferenceIdentifier(Vector(line), leaf.name,
+            plan.constantSlice(leaf.elementIndex, leaf.leafIndex))
+        }
+      }
+    }
+
     val allAssignments = parsedWrites.flatMap(_.assignments)
     val owners = allAssignments.map(_.owner).distinct.sortBy(_.start)
     val assignmentsByOwner = allAssignments.groupBy(_.owner)
@@ -6412,7 +6464,27 @@ private[internals] object ParameterizedVerilogVecs {
       }
     }
     val direction = declarations.map(_.direction).distinct
-    val net = declarations.map(_.net).distinct
+    val nativeNets = declarations.map(_.net).distinct
+    val promote = direction == Vector(None) && nativeNets.toSet == Set("wire", "reg") &&
+      plan.shape.geometryExpressions.forall(e => e.parameters.isEmpty && e.generateIndex.isEmpty && e.minimum == e.maximum)
+    val net = if (promote) Vector("reg") else nativeNets
+    val promotedDrivers = mutable.HashMap.empty[Int, Vector[String]]
+    if (promote) plan.leaves.zip(declarations).filter(_._2.net == "wire").foreach { case (leaf, _) =>
+      val driver = findAssignment(original, leaf.name, None, "constant Vec wire promotion", plan.sourceLocation)
+      if (!driver.continuous) fail("SPINAL-PARAMETERIZED-VERILOG-VEC-WIRE-DRIVER-MISMATCH",
+        "a promoted wire leaf must retain its exact continuous assignment", plan.sourceLocation)
+      var literal = false
+      leaf.value.foreachStatements {
+        case assignment: DataAssignmentStatement => assignment.source match {
+          case _: BitVectorLiteral | _: BoolLiteral => literal = true
+          case _ =>
+        }
+        case _ =>
+      }
+      val prefix = if (literal) "initial" else "always @(*)"
+      promotedDrivers(driver.lineIndex) = Vector(s"${driver.indentation}$prefix begin",
+        s"${driver.indentation}  ${leaf.name} = ${driver.rhs};", s"${driver.indentation}end")
+    }
     val syntax = declarations.map(_.syntax).distinct
     if (direction.size != 1 || net.size != 1 || syntax.size != 1) {
       fail(
@@ -6440,15 +6512,15 @@ private[internals] object ParameterizedVerilogVecs {
     val last = declarations.find(_.lineIndex == insertion).get
     val declaration = direction.head match {
       case Some(value) =>
-        last.indentation + last.syntax + s"$value ${last.net} ${plan.range} ${plan.name}" +
+        last.indentation + last.syntax + s"$value ${net.head} ${plan.range} ${plan.name}" +
           (if (last.comma) "," else "")
       case None =>
-        last.indentation + last.syntax + s"${last.net} ${plan.range} ${plan.name};"
+        last.indentation + last.syntax + s"${net.head} ${plan.range} ${plan.name};"
     }
     original.zipWithIndex.flatMap { case (line, index) =>
       if (index == insertion) Vector(declaration)
       else if (indexes.contains(index)) Vector.empty
-      else Vector(line)
+      else promotedDrivers.getOrElse(index, Vector(line))
     }
   }
 
@@ -7115,7 +7187,7 @@ private[internals] object ParameterizedVerilogVecs {
   /** A named-port formal is syntax, not a signal reference. Skip it even
     * when legal whitespace separates the dot and portable identifier.
     */
-  private def isSignalReference(
+  private[internals] def isSignalReference(
       code: String,
       start: Int,
       end: Int
@@ -7156,7 +7228,7 @@ private[internals] object ParameterizedVerilogVecs {
     * line comments and block comments are copied byte-for-byte, so a carrier
     * spelling there can neither authorize nor be changed by packed lowering.
     */
-  private def mapReferenceCode(
+  private[internals] def mapReferenceCode(
       lines: Vector[String]
   )(transform: String => String): Vector[String] = {
     var insideBlockComment = false

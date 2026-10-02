@@ -322,14 +322,14 @@ private[internals] object ParameterizedVerilogFieldLayout {
         fail("FIELD-CARRIER-DIMENSIONS-MISMATCH", s"Vec '$baseName' field '${field.path.mkString(".")}' has inconsistent native dimensions", shape.sourceLocation)
       val scalarWidth = normalized(field.width, renderExpr)
       val dimensions = normalized(shape.depth, renderExpr) +: field.dimensions.map(axis => normalized(axis.depth, renderExpr))
-      val width = product(scalarWidth +: dimensions)
+      val width = dimensionProduct(scalarWidth +: dimensions)
       Field(field, name, scalarWidth, dimensions, width, s"[($width)-1:0]")
     }
 
     def logicalWidth(node: ParameterizedVecLayoutNode): String = node match {
       case ParameterizedVecLayoutScalar(_, width, _) => normalized(width, renderExpr)
       case ParameterizedVecLayoutRecord(children) => sum(children.map(logicalWidth))
-      case ParameterizedVecLayoutArray(axis, element) => product(Vector(normalized(axis.depth, renderExpr), logicalWidth(element)))
+      case ParameterizedVecLayoutArray(axis, element) => dimensionProduct(Vector(logicalWidth(element), normalized(axis.depth, renderExpr)))
     }
     val packing = mutable.LinkedHashMap.empty[Vector[String], Packing]
     def capture(
@@ -381,7 +381,7 @@ private[internals] object ParameterizedVerilogFieldLayout {
       fail("FIELD-PACKING-CARRIER-ORDER-MISMATCH",
         s"Vec '$baseName' packing tree covers $nativeOrdinal native leaves, expected ${shape.elementLeaves.size}", shape.sourceLocation)
     val elementWidth = logicalWidth(shape.fieldLayout)
-    val totalWidth = product(Vector(elementWidth, normalized(shape.depth, renderExpr)))
+    val totalWidth = dimensionProduct(Vector(elementWidth, normalized(shape.depth, renderExpr)))
     new Layout(shape, baseName, fields, elementWidth, totalWidth, renderExpr, packing.toMap)
   }
 
@@ -405,6 +405,9 @@ private[internals] object ParameterizedVerilogFieldLayout {
     else if (meaningful.size == 1) meaningful.head
     else meaningful.map(factor).mkString(" + ")
   }
+
+  private def dimensionProduct(terms: Vector[String]): String =
+    terms.map(factor).mkString(" * ")
 
   private def product(terms: Vector[String]): String = {
     val meaningful = terms.filterNot(_ == "1")

@@ -105,6 +105,9 @@ final class ElabFiniteIndex private[core] (
   def apply[T <: Data](vector: Vec[T]): T = {
     if (vector == null)
       throw new IllegalArgumentException("finite-index Vec must not be null")
+    if (ParameterizedStructure.captureEnabled && expression.generateIndex.nonEmpty &&
+        VerilogAggregateOptions.current.preserveConstantLoops)
+      ParameterizedVec.retainConstantLoopOperand(vector)
     val selected = vector(witness)
     if (ParameterizedStructure.captureEnabled && expression.generateIndex.nonEmpty) {
       val vectorDepth = ParameterizedVec
@@ -469,7 +472,9 @@ object ElabFiniteRange {
       "SPINAL-ELAB-FINITE-RANGE-EXACT-DOMAIN-REQUIRED"
     )
 
-    if (expression.parameters.isEmpty) {
+    val preserveConstant = expression.parameters.isEmpty && expression.default > 0 &&
+      ParameterizedStructure.captureEnabled && VerilogAggregateOptions.current.preserveConstantLoops
+    if (expression.parameters.isEmpty && !preserveConstant) {
       var index = 0
       while (index < count.witness) {
         body(
@@ -505,7 +510,7 @@ object ElabFiniteRange {
           rootValue
       }
     }.toSet
-    if (positiveRootValues.isEmpty) {
+    if (positiveRootValues.isEmpty && !preserveConstant) {
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-RANGE-POSITIVE-WITNESS-REQUIRED",
         s"$role expression '${expression.verilog}' needs at least one exact positive-domain point to capture the index-zero representative body",
@@ -529,6 +534,15 @@ object ElabFiniteRange {
       generateIndex = Some(names._2),
       sourceLocation = expression.sourceLocation
     )
+    if (preserveConstant) {
+      val block = ParameterizedStructure.captureBlock(component, expression.sourceLocation) {
+        ParameterizedStructure.bindFiniteIndexToken(indexToken)
+        body(new ElabFiniteIndex(indexExpression, expression, indexToken))
+      }
+      ParameterizedStructure.registerExactFor(component, names._1, names._2,
+        expression, block, indexToken, expression.sourceLocation)
+      return
+    }
     val exactRoot = exactDomain.map(_._1.root).getOrElse {
       ParameterizedVerilogException.fail(
         "SPINAL-ELAB-FINITE-RANGE-EXACT-DOMAIN-REQUIRED",

@@ -2256,7 +2256,9 @@ private[internals] object ExternalParameterizedVerilogNativeFallback {
       }
       // Native memories are validated and canonically lowered before this
       // generic declaration-width pass.
-      if (parameters.isEmpty && !hasParameterizedHierarchy && !ParameterizedProcess.hasConditionalLoops(component) && !NativeLocalParameters.hasTyped(component)) {
+      if (parameters.isEmpty && !hasParameterizedHierarchy && !ParameterizedProcess.hasConditionalLoops(component) && !NativeLocalParameters.hasTyped(component) &&
+          !ParameterizedVerilogVecs.hasVectors(component) && !ParameterizedVerilogStructural.hasRegions(component) &&
+          !ParameterizedVerilogProcesses.hasLoops(component)) {
         fail(
           "SPINAL-PARAMETERIZED-VERILOG-NO-SYMBOLIC-PORTS",
           s"component '${component.definitionName}' has no retained or inferred symbolic packed widths"

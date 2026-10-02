@@ -592,7 +592,7 @@ object ParameterizedProcess {
         sourceLocation
       )
     }
-    if (count.parameters.isEmpty) {
+    if (count.parameters.isEmpty && !VerilogAggregateOptions.current.preserveConstantLoops) {
       fail(
         "SPINAL-PARAMETERIZED-VERILOG-PROCESS-LOOP-COUNT-NOT-PARAMETERIZED",
         s"procedural loop count '${count.verilog}' does not retain a public parameter",

@@ -575,12 +575,17 @@ object MorphVerilog {
         if (config.keepAll) {
           errors += "keepAll is not supported by the direct parameterized emitter"
         }
+        val aggregateOptions = config.flags.collect { case value: spinal.core.VerilogAggregateOptions => value }
+        if (aggregateOptions.size > 1 || aggregateOptions.exists(_.vecLayout == null))
+          errors += "aggregate publication requires one non-null layout configuration"
+        val generationFlags = if (allowSingleSourceFormal)
+          config.flags.filterNot(_.isInstanceOf[spinal.core.VerilogAggregateOptions]) else config.flags
         val supportedSingleSourceFormal =
           allowSingleSourceFormal &&
-            config.flags.size == 1 &&
-            config.flags.contains(spinal.core.GenerationFlags.formal) &&
+            generationFlags.size == 1 &&
+            generationFlags.contains(spinal.core.GenerationFlags.formal) &&
             config.formalAsserts
-        if (config.flags.nonEmpty && !supportedSingleSourceFormal) {
+        if (generationFlags.nonEmpty && !supportedSingleSourceFormal) {
           errors += "generation flags are not supported by the direct parameterized emitter"
         }
         if (

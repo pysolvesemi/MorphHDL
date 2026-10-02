@@ -2,7 +2,8 @@
 """Exact current regression inventory after user-authorized wire-pass retirement.
 
 The fixed catalog composes the 59i and 64/65/66 inventories, subtracting only
-retired wire suites and the two optimizer cases in the canonical handoff suite.
+retired wire suites and the two optimizer cases in the canonical handoff suite,
+and adds the user-requested constant aggregate/loop and unpacked-array cases.
 No missing, extra, duplicate, failed, skipped or old-source result is accepted.
 """
 import argparse,hashlib,json,subprocess,tempfile,time
@@ -10,7 +11,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 ROOT=Path(__file__).resolve().parents[2]
 CONTRACT='morphhdl/contracts/retained-parameterized-regressions.json'
-CONTRACT_SHA256='a54d053f9575e00cf6ba4ddf6e78a32a275443d89b3a0f8332cfa01226a1c120'
+CONTRACT_SHA256='09fcddf100f2eded91070f0056a75afba15d696352c9dbba5b6bf03e7330ffd8'
 def require(ok,detail):
  if not ok:raise RuntimeError('Retained parameterized regressions: '+detail)
 def project_reports(directory,expected,started_ns=0):

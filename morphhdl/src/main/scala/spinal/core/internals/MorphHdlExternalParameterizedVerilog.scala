@@ -269,7 +269,8 @@ object MorphHdlExternalParameterizedVerilog {
               canonicalOf
             )
           } else withStructure
-          TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf)
+          ParameterizedVerilogVecs.rewriteUnpacked(component,
+            TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
         }
         Some(name -> rewritten.split("\n", -1).toVector)
       } else None

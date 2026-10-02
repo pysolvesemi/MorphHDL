@@ -894,9 +894,10 @@
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "October 2 user request: opt-in constant aggregates and typed loops"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated.",
       "edits": []
     },
     {
@@ -1111,9 +1112,10 @@
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: exact composite static-read identity qualification",
-        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "October 2 user request: opt-in constant aggregates and typed loops"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged.",
       "edits": [
         {
           "id": "vec-nested-write-evidence-imports-59c",
@@ -1155,6 +1157,24 @@
             {
               "side": "approved",
               "text": "setElementsParents",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "vec-constant-tabulate-retention-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecFactory.Vec.tabulate(Int)",
+          "reason": "When the generation-local preserveConstantVecs flag is enabled, attach exact literal-depth geometry after unchanged native tabulation. The default returns the original native result.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (VerilogAggregateOptions.current.preserveConstantVecs)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)",
               "count": 1
             }
           ]
@@ -1614,6 +1634,17 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/VerilogAggregateOptions.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "October 2 user request: opt-in constant aggregates and typed loops"
+      ],
+      "reason": "Immutable generation-local aggregate publication choices. Both constant preservation flags default off; packed internal layout remains the default. Access reads only the current SpinalConfig flags and does not alter native algorithms or add a storage-inference policy.",
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/core.scala",
