@@ -31,7 +31,7 @@ bypassed to claim a passing candidate.
 
 - Scala 2.12: 148 focused parameterization/59i/canonical-IR tests and 14 core
   tests passed after removal. A final rerun after the wrapper/import cleanup
-  passed 20 WA-11/CDC tests and all 14 core tests.
+  passed 14 WA-11/CDC tests and all 14 core tests.
 - Scala 2.13: 114 focused parameterization/canonical-IR tests and 14 core tests
   passed. An ambiguous `spinal.lib._` import in the CDC fixture was replaced by
   the specific `fromGray` import; all legality and simulation assertions remain.
@@ -41,7 +41,8 @@ bypassed to claim a passing candidate.
   not counted as successful artifacts. This focused run did not regenerate the
   historical reference.
 - Production retirement, typed layering and legacy-adapter retirement checks
-  pass. Native audit controls, exact report inventory controls, and modified
+  pass. The regenerated native audit covers 7 roots, 58 changed paths and 260
+  individually recorded edits. Native audit controls, exact report inventory controls, and modified
   workflow YAML/shell syntax checks pass.
 
 Logs and the WA-11 JSON receipt are under

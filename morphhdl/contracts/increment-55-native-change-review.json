@@ -550,7 +550,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-19",
+          "id": "mem-typed-depth-07",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -563,7 +563,46 @@
           ]
         },
         {
-          "id": "mem-typed-depth-20",
+          "id": "mem-typed-depth-08",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-09",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "address.getWidth",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-10",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core Mem port normalization",
+          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "mem.parameterizedPortAddressWidthWitness",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "mem-typed-depth-11",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -589,7 +628,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-19",
+          "id": "mem-typed-depth-13",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -602,7 +641,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-20",
+          "id": "mem-typed-depth-14",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -615,46 +654,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-12",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core Mem port normalization",
-          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "address.getWidth",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "mem-typed-depth-19",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core Mem port normalization",
-          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "mem.parameterizedPortAddressWidthWitness",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "mem-typed-depth-20",
-          "kind": "mechanical-propagation",
-          "owner": "spinal.core Mem port normalization",
-          "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
-          "required_exact_text": [
-            {
-              "side": "approved",
-              "text": "parameterizedPortAddressWidthWitness",
-              "count": 1
-            }
-          ]
-        },
-        {
-          "id": "mem-typed-depth-21",
+          "id": "mem-typed-depth-15",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -667,7 +667,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-19",
+          "id": "mem-typed-depth-16",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -680,7 +680,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-20",
+          "id": "mem-typed-depth-17",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -693,7 +693,7 @@
           ]
         },
         {
-          "id": "mem-typed-depth-21",
+          "id": "mem-typed-depth-18",
           "kind": "mechanical-propagation",
           "owner": "spinal.core Mem port normalization",
           "reason": "Carry the reviewed typed address witness through each inherited read/write port normalization and diagnostic path.",
@@ -1749,7 +1749,7 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-componentemitterverilog-3",
+          "id": "signed-boundary-60e-componentemitterverilog-2",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
           "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
@@ -1905,7 +1905,7 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-componentemitterverilog-11",
+          "id": "signed-boundary-60e-componentemitterverilog-10",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
           "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
@@ -2204,7 +2204,7 @@
           ]
         },
         {
-          "id": "signed-boundary-60e-verilogbase-4",
+          "id": "signed-boundary-60e-verilogbase-4-span-4",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.VerilogBase",
           "reason": "Generation-scoped default-disabled signed declaration, same-atom cast, literal, exact symbolic resize and function-range callbacks. Ordinary native emission and intermediate-width wrapper planning remain unchanged.",
@@ -3052,7 +3052,7 @@
           ]
         },
         {
-          "id": "stream-typed-geometry-25",
+          "id": "stream-typed-geometry-12",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.StreamFifo storage algorithm",
           "reason": "Carry exact depth through native FIFO alternatives, pointers, trackers and RAM/Vec storage while concrete Scala branching stays byte-output compatible.",
@@ -4065,7 +4065,7 @@
           ]
         },
         {
-          "id": "increment66-axi4slavefactory-5",
+          "id": "increment66-axi4slavefactory-3",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.bus.amba4.axi.Axi4SlaveFactory.build",
           "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
@@ -4156,7 +4156,7 @@
           ]
         },
         {
-          "id": "increment66-axilite4slavefactory-5",
+          "id": "increment66-axilite4slavefactory-3",
           "kind": "mechanical-propagation",
           "owner": "spinal.lib.bus.amba4.axilite.AxiLite4SlaveFactory.build",
           "reason": "Route validated named single mappings through the existing native read/write case arms and exclude them from the generic fallback loop. Preserve every inherited bus handshake, response, strobe, masking, event, burst and ID operation.",
