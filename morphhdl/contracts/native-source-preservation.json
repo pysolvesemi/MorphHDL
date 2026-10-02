@@ -12,7 +12,7 @@
     {
       "path": "core/src/main",
       "baseline_tree": "b19302e3197a5c940227a2470e3170e275462f75",
-      "approved_tree": "4802a958c9511f46eb81d70fc8ab49b9aff45022"
+      "approved_tree": "1bc5b144ab0427bd2b74bd06e95415432df1502b"
     },
     {
       "path": "idslpayload/src/main",
@@ -1545,15 +1545,16 @@
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: combined recursive widening, captures and native saturation geometry",
-        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI"
+        "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
+        "October 2 user request: opt-in constant aggregates and typed loops"
       ],
-      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations.",
+      "reason": "Retain typed finite Vec geometry, operations and hierarchy evidence. During independently certified widening of a fresh unused clone only, validate exact source/target identities and empty journals, rebuild nested target metadata from descendants to ancestors with original depth/root/capacity, and restore exact target entries on rejection. Ordinary shape conflicts and copies remain unchanged. Own exact logical Vec geometry and captured indexed-access evidence. Retain recursive Bundle/Vec layouts, exact inner dimension identities, factorized logical packed widths and recursive clone checks. Construct transient native Cats only for audited retained composite packing, retaining the complete leaf/driver proof and factorized public geometry. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Record exact recursive static/dynamic write invocation trees with exception-safe capture, preserve original decoder lineage and final source/target identities, and avoid pinning pruned intra-Vec scalar copies. Keep an independent completed-write invocation journal so removing a forwarding operation cannot erase its exact assignment ownership evidence. CDC-WIRE-01 qualification exposes a read-only identity inventory from retained Vec operation and completed-write journals. Visit only the closed compiler-owned record families and their exact native expressions with identity-based cycle suppression, so optional late wrapper planning preserves the publisher's witness slices, carriers and assignment evidence. No native Vec algorithm, journal contents, parameter domain or public layout is changed. Packed-assignment support tracing follows only exact fixed slices, reviewed Bits casts, and same-component directionless combinational intermediates with one root-scope assignment; it stops at the recorded carrier or source identities. Supporting-driver traversal is read-only and cannot relax the publisher's existing proof obligations. The October 2 request adds explicitly opted-in constant geometry retention and exact literal-depth metadata for constant typed-loop Vec operands; no symbolic root or witness domain is fabricated.",
       "baseline": null,
       "approved": {
         "path": "core/src/main/scala/spinal/core/ParameterizedVec.scala",
         "mode": "100644",
-        "blob": "0dc18d4914432d128c2cc4600a05bb4088540d24",
-        "sha256": "0422ec46f0ac9993ef53b31f26e1efae735ba0c4e1d8c00dcf71006f502f9963"
+        "blob": "d4d171577f30d54eade22da141878bdf3d588ad7",
+        "sha256": "6920cbb267980c6bc9da15f0c89883cf332dc6cbcde01f0080c527cffe0b99fb"
       },
       "edits": []
     },
@@ -1899,9 +1900,10 @@
         "Increment 59e: composite and nested Bundle/Vec reductions",
         "Increment 59c: field-preserving Vec publication and exact nested packing/write evidence",
         "Increment 59i: exact composite static-read identity qualification",
-        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+        "Increment 59i: combined recursive widening, captures and native saturation geometry",
+        "October 2 user request: opt-in constant aggregates and typed loops"
       ],
-      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical.",
+      "reason": "Add typed Vec factories and mechanically retain logical geometry through the inherited Vec access and assignment algorithms. For retained recursive elements, preserve the complete native scalar carrier during packing until logical nested dimensions are applied by the exact transport. Route only retained recursive or multi-leaf packing through the exact carrier helper; ordinary scalar and untyped Vec reads keep the inherited packing path. Also retain exact field shape, indexed write evidence and unchanged native packing for Increment 59c. Extend read-only wrapper identity evidence to already-audited recursive Data; native assignment and source-hook behavior remains byte-identical. The October 2 opt-in flag additionally retains exact constant tabulation geometry; disabled native behavior is unchanged.",
       "baseline": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
@@ -1911,8 +1913,8 @@
       "approved": {
         "path": "core/src/main/scala/spinal/core/Vec.scala",
         "mode": "100644",
-        "blob": "cf35d60f8d3b7316f1c9771ff9252bdbe96a67b5",
-        "sha256": "0702d364e24106cb54488045955c5f118c0c435472120628fedba4d7d05d4fa8"
+        "blob": "bfe1f280879db36da178b871233ff13f17a9f9c8",
+        "sha256": "421ffb5076410ecbca8010b1fafe14d9f511908e7d481f1ff4765555124b3d0c"
       },
       "edits": [
         {
@@ -1990,6 +1992,34 @@
           ]
         },
         {
+          "id": "vec-constant-tabulate-retention-01",
+          "kind": "mechanical-propagation",
+          "owner": "spinal.core.VecFactory.Vec.tabulate(Int)",
+          "reason": "When the generation-local preserveConstantVecs flag is enabled, attach exact literal-depth geometry after unchanged native tabulation. The default returns the original native result.",
+          "baseline_span": {
+            "start": 2582,
+            "end": 2634,
+            "sha256": "d47514c488a2865448488dc30c42ef413b180fa3ca85b4f0851d4277e09188a4"
+          },
+          "approved_span": {
+            "start": 3237,
+            "end": 3460,
+            "sha256": "34d64cff24a10f531da479c8c1aa1d528df12853efa05204012545861b777402"
+          },
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "if (VerilogAggregateOptions.current.preserveConstantVecs)",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "ParameterizedVec.attachConcreteDepthIfSymbolicElement(vector, size)",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "vec-typed-geometry-03",
           "kind": "overload",
           "owner": "spinal.core Vec typed factories",
@@ -2000,8 +2030,8 @@
             "sha256": "ece0743c89bce37432d38747d38862ab984537cb047faffb7669ae534e73552d"
           },
           "approved_span": {
-            "start": 4038,
-            "end": 4425,
+            "start": 4209,
+            "end": 4596,
             "sha256": "26c459523ed96a9a027cdd5f4ffd4a202715a25df25dd44a847e1c7a2e0f6b57"
           },
           "required_exact_text": [
@@ -2023,8 +2053,8 @@
             "sha256": "fe10aef05329c0d6e7af4c11dae74cc1a49434a768965f4fa910694b5f745259"
           },
           "approved_span": {
-            "start": 5102,
-            "end": 5664,
+            "start": 5273,
+            "end": 5835,
             "sha256": "abb814801b1cd2bbd48e54723da4bd0256227528238c668e7cdff28193452c37"
           },
           "required_exact_text": [
@@ -2046,8 +2076,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 5774,
-            "end": 5962,
+            "start": 5945,
+            "end": 6133,
             "sha256": "2c6ea7c61fe7b78a4e59053c14153ed7a47d7d07bdac3769bf609608d57d4e77"
           },
           "required_exact_text": [
@@ -2069,8 +2099,8 @@
             "sha256": "bb91347a540fff9ac6f47a969ee7ae97506b927e46b447f79cb7368bbd7e753d"
           },
           "approved_span": {
-            "start": 6041,
-            "end": 6273,
+            "start": 6212,
+            "end": 6444,
             "sha256": "8109a2ab16ceb5d47616bd2263f89de3c5ee019b8524b64aa6e710e96190aff7"
           },
           "required_exact_text": [
@@ -2097,8 +2127,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6295,
-            "end": 6558,
+            "start": 6466,
+            "end": 6729,
             "sha256": "9d68d25fcda9ba6089eb8892919d85b63ff66436b3d16ba1a2074c6a361569e0"
           },
           "required_exact_text": [
@@ -2130,8 +2160,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 6566,
-            "end": 7501,
+            "start": 6737,
+            "end": 7672,
             "sha256": "1a37af4728ba3869ee0f6bdeec83a14a8d14be4175c60f370b559f29b7bacab9"
           },
           "required_exact_text": [
@@ -2158,8 +2188,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 7560,
-            "end": 11505,
+            "start": 7731,
+            "end": 11676,
             "sha256": "56cd54991cdd2b343b811564a8e58909a2ce4f5753b43bf8790b963ca5d2bf20"
           },
           "required_exact_text": [
@@ -2226,8 +2256,8 @@
             "sha256": "021059a6d0119b1b0c082a45dd571ff20c2db8fab0ca7ab87d665bc8a97dc1e6"
           },
           "approved_span": {
-            "start": 12520,
-            "end": 12882,
+            "start": 12691,
+            "end": 13053,
             "sha256": "2290091f1635c0d64f54cb4cab23c22ddd37412a4d914967118b3cc2bae44815"
           },
           "required_exact_text": [
@@ -2249,8 +2279,8 @@
             "sha256": "731e09325c9fd614c16641a47e98687719f95e3fb7974485b07d2ea70b3ddb79"
           },
           "approved_span": {
-            "start": 12886,
-            "end": 13359,
+            "start": 13057,
+            "end": 13530,
             "sha256": "4944687b87a1b4a6753ff91e26130682497ec238ea8345a87016f0b3d06cdfc7"
           },
           "required_exact_text": [
@@ -2272,8 +2302,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14371,
-            "end": 14423,
+            "start": 14542,
+            "end": 14594,
             "sha256": "c8574823978973b4218a0c837c9900d02f3bc7199d9660561e39854718ec402e"
           },
           "required_exact_text": [
@@ -2295,8 +2325,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 14607,
-            "end": 14675,
+            "start": 14778,
+            "end": 14846,
             "sha256": "f5c6f5a7672828e8de7badf73afe931c06281d23e57aec00c6469e0b8f0a2fdf"
           },
           "required_exact_text": [
@@ -2318,8 +2348,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 15190,
-            "end": 15779,
+            "start": 15361,
+            "end": 15950,
             "sha256": "c4e88f58cbda7b88b2fd44a4a5e66b174153b48b37692d3f274aa08a63d33556"
           },
           "required_exact_text": [
@@ -2341,8 +2371,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16112,
-            "end": 16126,
+            "start": 16283,
+            "end": 16297,
             "sha256": "21ae17512215b0defc78a4a521717861d0d05736fc66414e117f1924c7c64c98"
           },
           "required_exact_text": [
@@ -2364,8 +2394,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 16992,
-            "end": 17131,
+            "start": 17163,
+            "end": 17302,
             "sha256": "2ba7d0b8ba92065f33fe20598af0256b52d1375acfdf24b92903fc59d1165f93"
           },
           "required_exact_text": [
@@ -2387,8 +2417,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17415,
-            "end": 17421,
+            "start": 17586,
+            "end": 17592,
             "sha256": "4893f40e3781eb896c82d046a08067a11e35cdf2f1dfaf26fea90b8db6676413"
           },
           "required_exact_text": [
@@ -2410,8 +2440,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 17630,
-            "end": 17713,
+            "start": 17801,
+            "end": 17884,
             "sha256": "8ebe7ef227b0b3338ec745400d40b24dddd2c8f2f767b6923c823d9d7acd7b0f"
           },
           "required_exact_text": [
@@ -2433,8 +2463,8 @@
             "sha256": "46d25627884c64a8cc43f82941586929bb03d85b15090df268cfccc1af43ba84"
           },
           "approved_span": {
-            "start": 17978,
-            "end": 18627,
+            "start": 18149,
+            "end": 18798,
             "sha256": "2305044c31b0ffcd999d5474d3a5d16b260109b2a6cd76806957a8af5f693920"
           },
           "required_exact_text": [
@@ -2456,8 +2486,8 @@
             "sha256": "bc4873241c58715304245f013482dc5bd6ab2bb4cc1cf0ad6f249db6f7d7236f"
           },
           "approved_span": {
-            "start": 18638,
-            "end": 18915,
+            "start": 18809,
+            "end": 19086,
             "sha256": "8814fece3090adf450ba97bfd95e07d8b2f55f7202e537704670d52aeef96ff1"
           },
           "required_exact_text": [
@@ -2479,8 +2509,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 18923,
-            "end": 19006,
+            "start": 19094,
+            "end": 19177,
             "sha256": "58b63cc71b5462bb4fefd3a412676211a042123892a20ccb6961db644d9676f4"
           },
           "required_exact_text": [
@@ -2502,8 +2532,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19050,
-            "end": 19209,
+            "start": 19221,
+            "end": 19380,
             "sha256": "8bf740e649e967a9ad1f41e31a551909511832bca19abafb8ce9006168b7b193"
           },
           "required_exact_text": [
@@ -2525,8 +2555,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 19386,
-            "end": 19454,
+            "start": 19557,
+            "end": 19625,
             "sha256": "afc0517bccf2cd0434746447e3fb077cd3417b280d4989ed8cf999beff7ff96b"
           },
           "required_exact_text": [
@@ -2548,8 +2578,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20376,
-            "end": 20451,
+            "start": 20547,
+            "end": 20622,
             "sha256": "cec2541514ccd4475458f40f08b4705066e4cc02d9e1d5c0b9a31f3d4650a79c"
           },
           "required_exact_text": [
@@ -2571,8 +2601,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20565,
-            "end": 20604,
+            "start": 20736,
+            "end": 20775,
             "sha256": "6d707af76727ddb4f4182cd4a67d87b0ac5b7dd1875e80f897060fec2b74740a"
           },
           "required_exact_text": [
@@ -2594,8 +2624,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 20702,
-            "end": 21038,
+            "start": 20873,
+            "end": 21209,
             "sha256": "98d4dfa6ac6a2bde86b96216d91e99946f2dab7799fea733dc92282a5f3ff101"
           },
           "required_exact_text": [
@@ -2617,8 +2647,8 @@
             "sha256": "68cb46f564ca3eaabbff243723b9faa9e7e6f85836bb646c824ca643375537de"
           },
           "approved_span": {
-            "start": 21467,
-            "end": 21801,
+            "start": 21638,
+            "end": 21972,
             "sha256": "a35d65f983b126b4df6066b4f76235bb213e1b397175b7d0f610aee3d9b8ebe1"
           },
           "required_exact_text": [
@@ -2640,8 +2670,8 @@
             "sha256": "a86a14d83ec0d98f5e0d49e34725e09e92fb8b2395b44973e41a65ede5afc454"
           },
           "approved_span": {
-            "start": 21818,
-            "end": 24290,
+            "start": 21989,
+            "end": 24461,
             "sha256": "1f6be5bd0dd7a43d2608aada17c280ab9dcbfd78f1c7b5908b78237c8e7e013a"
           },
           "required_exact_text": [
@@ -2688,8 +2718,8 @@
             "sha256": "b9adcd4480b5932f33ea586ba0c095798ae2ffc8e81e0003a7502ba16bbc4883"
           },
           "approved_span": {
-            "start": 24620,
-            "end": 24722,
+            "start": 24791,
+            "end": 24893,
             "sha256": "bd11cdb8d1494d4bb60070d160a1d78d0c0bca39eff6dbeba41c503ec925087e"
           },
           "required_exact_text": [
@@ -2711,8 +2741,8 @@
             "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "approved_span": {
-            "start": 24790,
-            "end": 24933,
+            "start": 24961,
+            "end": 25104,
             "sha256": "1ea1892f1cc19acbe4d66278ced35290af6f69a9c5f9f09ec65d288634f54219"
           },
           "required_exact_text": [
@@ -2724,6 +2754,23 @@
           ]
         }
       ]
+    },
+    {
+      "path": "core/src/main/scala/spinal/core/VerilogAggregateOptions.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "October 2 user request: opt-in constant aggregates and typed loops"
+      ],
+      "reason": "Immutable generation-local aggregate publication choices. Both constant preservation flags default off; packed internal layout remains the default. Access reads only the current SpinalConfig flags and does not alter native algorithms or add a storage-inference policy.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/VerilogAggregateOptions.scala",
+        "mode": "100644",
+        "blob": "7a25dd3e3425b77f3b41937276c2b05c7c1b48b3",
+        "sha256": "d06a34486c60b3d0eb1de18bbc5788cbfa067b370e3b29b40af7a69323956ae8"
+      },
+      "edits": []
     },
     {
       "path": "core/src/main/scala/spinal/core/core.scala",
