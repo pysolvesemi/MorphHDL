@@ -1222,6 +1222,12 @@ private[internals] object ParameterizedVerilogStructural {
       }
     }
 
+    // Ownership comes from the exact statement/instance handed off by the
+    // native emitter, never from a nearby signal name or comment spelling.
+    RtlDocumentation.emissionRanges(component, lines).foreach { case (host, start, end) =>
+      if (block.assignments.exists(_ eq host) || block.children.exists(_ eq host))
+        ranges += LineRange(start, end)
+    }
     val mergedRanges = mergeRanges(ranges.toVector)
     val selectedLines = mergedRanges.flatMap(_.indices.map(lines))
     var body = stripCommonIndent(selectedLines.mkString("\n").trim)
@@ -4492,14 +4498,14 @@ private[internals] object ParameterizedVerilogStructural {
       region: ParameterizedStructure.StructuralRegion,
       plans: Map[ParameterizedStructuralBlock, BlockPlan],
       level: Int
-  ): String = region match {
+  ): String = RtlDocumentation.generatedLines(region, "  " * level) + (region match {
     case value: ParameterizedStructure.StructuralFor =>
       renderFor(value, plans, level)
     case value: ParameterizedStructure.StructuralIf =>
       renderIf(value, plans, level, includePrefix = true)
     case value: ParameterizedStructure.StructuralCase =>
       renderCase(value, plans, level)
-  }
+  })
 
   private def renderFor(
       value: ParameterizedStructure.StructuralFor,
@@ -4527,7 +4533,10 @@ private[internals] object ParameterizedVerilogStructural {
         s"${prefix}end else "
     chainedElseIf(value, plans) match {
       case Some(next) =>
-        start + renderIf(next, plans, level, includePrefix = false)
+        start + {
+          val notes = RtlDocumentation.generatedLines(value.whenFalse, prefix) + RtlDocumentation.generatedLines(next, prefix)
+          (if (notes.nonEmpty) "\n" + notes + prefix else "") + renderIf(next, plans, level, includePrefix = false)
+        }
       case None =>
         start + s"begin : ${value.whenFalseLabel}\n" +
           renderBlock(value.whenFalse, plans, level + 1) + "\n" +
@@ -4591,7 +4600,7 @@ private[internals] object ParameterizedVerilogStructural {
       .map(value => indent(value, level))
       .toVector
     val nested = block.regions.map(region => renderNestedRegion(region, plans, level))
-    (direct ++ nested).mkString("\n")
+    RtlDocumentation.generatedLines(block, "  " * level) + (direct ++ nested).mkString("\n")
   }
 
   private def ensureParameterHeader(

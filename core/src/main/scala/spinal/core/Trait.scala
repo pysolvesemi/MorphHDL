@@ -666,6 +666,10 @@ object ScalaLocated {
 
 trait SpinalTagReady {
 
+  /** Attach documentation without retaining or modifying hardware. */
+  def doc(message: String): this.type = RtlDocumentation.attach(this, message)
+
+
   var _spinalTags: mutable.LinkedHashSet[SpinalTag] =  null
 
   def spinalTags: mutable.LinkedHashSet[SpinalTag] = {

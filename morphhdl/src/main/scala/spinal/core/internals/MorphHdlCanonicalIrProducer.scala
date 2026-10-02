@@ -751,6 +751,13 @@ object MorphHdlCanonicalIrProducer {
 
   private def declarationComments(value: BaseType): Vector[IrComment] =
     value.getTags().toVector.collect {
+      case comment: spinal.core.RtlDocTag =>
+        val location = "(.*):([0-9]+):([0-9]+)".r
+        val source = comment.location match {
+          case location(path, line, column) => Some(morphhdl.ir.v1.SourceLocation(path, line.toInt, column.toInt))
+          case _ => None
+        }
+        IrComment(comment.comment, sourceLocation = source)
       case comment: CommentTag =>
         IrComment(comment.comment, sourceLocation = None)
     }

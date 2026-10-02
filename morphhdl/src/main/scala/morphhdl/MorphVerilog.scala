@@ -579,7 +579,7 @@ object MorphVerilog {
         if (aggregateOptions.size > 1 || aggregateOptions.exists(_.vecLayout == null))
           errors += "aggregate publication requires one non-null layout configuration"
         val generationFlags = if (allowSingleSourceFormal)
-          config.flags.filterNot(_.isInstanceOf[spinal.core.VerilogAggregateOptions]) else config.flags
+          config.flags.filterNot(v => v.isInstanceOf[spinal.core.VerilogAggregateOptions] || v.isInstanceOf[spinal.core.RtlDocumentationOptions]) else config.flags
         val supportedSingleSourceFormal =
           allowSingleSourceFormal &&
             generationFlags.size == 1 &&
@@ -783,6 +783,7 @@ object MorphVerilog {
       memBlackBoxers = config.memBlackBoxers.clone(),
       scopeProperties = config.scopeProperties.clone()
     )), enabled = true)
+    nativeConfig.flags += spinal.core.RtlDocumentation.Deferred
     val publication = MorphSignedDeclarations.forPublication(nativeConfig)
     val publicationInserters = publication.phasesInserters.clone()
     publicationInserters += MorphHdlEmitterParameterNames.install _
@@ -938,7 +939,16 @@ object MorphVerilog {
             )
           )
         } else {
-          Right(lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
+          // The native banner is discarded, but the first module's definition
+          // documentation belongs to its retained Component identity.
+          val definitionNotes = scala.collection.mutable.ArrayBuffer.empty[Vector[String]]
+          report.toplevel.walkComponents { component =>
+            if (component.definitionName == moduleNames.head)
+              definitionNotes += spinal.core.RtlDocumentation.comments(component.definition)
+          }
+          require(definitionNotes.distinct.size == 1, "first published module has ambiguous documentation ownership")
+          val prefix = spinal.core.RtlDocumentation.lines(definitionNotes.head)
+          Right(prefix + lines.slice(firstModule, lastEndmodule + 1).mkString("\n") + "\n")
         }
       }
     } catch {

@@ -2019,6 +2019,48 @@ private[internals] object ParameterizedVerilogVecs {
     result
   }
 
+  def documentationBindings(component: Component, pc: PhaseContext): Map[String, Vector[String]] = {
+    val plans = analyze(component, publicationVectors(component), pc).filter(_.projection.isEmpty)
+    val layoutLeaves = plans.flatMap(_.leaves.map(_.value)).toSet
+    val firstProjection = scala.collection.mutable.Map.empty[RtlDocTag, BaseType]
+    component.dslBody.walkStatements {
+      case leaf: BaseType if !leaf.isSuffix && leaf.component == component =>
+        leaf.getTags().foreach {
+          case note: RtlDocTag if note.projection && !firstProjection.contains(note) => firstProjection(note) = leaf
+          case _ =>
+        }
+      case _ =>
+    }
+    val deferredGroups = firstProjection.collect { case (tag, leaf) if layoutLeaves(leaf) => tag }.toSet
+    val documentedGroups = scala.collection.mutable.HashSet.empty[RtlDocTag] ++ deferredGroups
+    val result = scala.collection.mutable.Map.empty[String, Vector[String]] ++
+      RtlDocumentation.declarationBindings(component, layoutLeaves, documentedGroups)
+    documentedGroups --= deferredGroups
+    plans.foreach { plan =>
+      def containsLayout(data: Data): Boolean = (data eq plan.vector) || (data match {
+        case aggregate: MultiData => aggregate.elements.exists { case (_, field) => containsLayout(field) }
+        case _ => false
+      })
+      val aggregate = RtlDocumentation.comments(plan.vector, projections = false)
+      val fields = plan.layout.map(_.fields.map(_.name)).getOrElse(Vector(plan.name))
+      fields.zipWithIndex.foreach { case (name, ordinal) =>
+        val leaves = plan.leaves.filter(leaf => plan.layout.forall(_.fieldForLeaf(leaf.leafIndex).name == name))
+        val notes = leaves.flatMap { leaf =>
+          leaf.value.getTags().toVector.collect {
+            case t: RtlDocTag if !t.projection || ((t.aggregate ne plan.vector) && firstProjection.get(t).forall(_ eq leaf.value) && documentedGroups.add(t)) =>
+              val containsPlan = t.projection && t.aggregate != null && containsLayout(t.aggregate)
+              if (containsPlan) t.comment else s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}"
+            case t: CommentTag if !t.isInstanceOf[RtlDocTag] =>
+              s"Element ${leaf.elementIndex}, field ${leaf.leafIndex}: ${t.comment}"
+          }
+        }
+        val all = (if (ordinal == 0) aggregate else Vector.empty) ++ notes
+        if (all.nonEmpty) result(name) = all
+      }
+    }
+    result.toMap
+  }
+
   /** Layout selection happens after every retained operation has been lowered. */
   def rewriteUnpacked(component: Component, verilog: String, pc: PhaseContext): String = {
     if (VerilogAggregateOptions.of(pc.config).vecLayout != VerilogAggregateOptions.UnpackedArray)

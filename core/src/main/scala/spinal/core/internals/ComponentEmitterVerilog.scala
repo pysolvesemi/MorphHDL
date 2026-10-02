@@ -49,6 +49,13 @@ class ComponentEmitterVerilog(
 
   import verilogBase._
 
+  private val emittedRegionNotes = mutable.HashSet.empty[RtlDocumentation.RegionNote]
+  private def emitRegionNotes(host: RtlDocumentationAnchor, b: StringBuilder, indent: String): Unit = {
+    val notes = host.rtlDocumentation.filter(n => n.valid && (n.component eq component) && n.generatedOwners.isEmpty && emittedRegionNotes.add(n))
+    b ++= RtlDocumentation.lines(notes.map(_.content), indent)
+  }
+
+
   override def component = c
 
   val portMaps     = ArrayBuffer[String]()
@@ -59,12 +66,12 @@ class ComponentEmitterVerilog(
   val localparams = new StringBuilder()
   val logics       = new StringBuilder()
   val endModule = new StringBuilder()
-  def getTrace() = new ComponentEmitterTrace(definitionAttributes :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
+  def getTrace() = new ComponentEmitterTrace(new StringBuilder(RtlDocumentation.signature(component)) :: definitionAttributes :: beginModule :: endModule :: localparams :: declarations :: logics :: Nil, portMaps)
 
   def result: String = {
     val ports = portMaps.map{ portMap => s"${theme.porttab}${portMap}\n"}.mkString + s");"
     val definitionComments = commentTagsToString(component.definition, "//")
-    s"""
+    val rtl = s"""
       |${definitionComments}${definitionAttributes}module ${component.definitionName} (
       |${ports}
       |${beginModule}${localparams}
@@ -72,6 +79,8 @@ class ComponentEmitterVerilog(
       |${logics}${endModule}
       |endmodule
       |""".stripMargin
+    if (spinalConfig.flags.contains(RtlDocumentation.Deferred)) rtl
+    else RtlDocumentation.publish(rtl, RtlDocumentation.declarationBindings(component))
   }
 
 
@@ -406,7 +415,7 @@ class ComponentEmitterVerilog(
 
       val isTracingOff = child.hasTag(TracingOff)
 
-      logics ++= commentTagsToString(child, "  //")
+      logics ++= RtlDocumentation.envelope(component, child, commentTagsToString(child, "  //"))
 
       if(isTracingOff) {
         logics ++= s" ${emitCommentAttributes(List(Verilator.tracing_off))} \n"
@@ -528,6 +537,7 @@ class ComponentEmitterVerilog(
                          b                    : mutable.StringBuilder,
                          clockDomain          : ClockDomain,
                          withReset            : Boolean): Unit ={
+    emittedRegionNotes.clear()
 
     val clock       = component.pulledDataCache.getOrElse(clockDomain.clock, throw new Exception("???")).asInstanceOf[Bool]
     val reset       = if (null == clockDomain.reset || !withReset) null else component.pulledDataCache.getOrElse(clockDomain.reset, throw new Exception("???")).asInstanceOf[Bool]
@@ -714,11 +724,15 @@ class ComponentEmitterVerilog(
   def emitAsynchronousAsAsign(process: AsyncProcess) = process.leafStatements.size == 1 && process.leafStatements.head.parentScope == process.nameableTargets.head.rootScopeStatement
 
   def emitAsynchronous(process: AsyncProcess): Unit = {
+    emittedRegionNotes.clear()
     process match {
       case _ if emitAsynchronousAsAsign(process) =>
         process.leafStatements.head match {
           case s: AssignmentStatement =>
             if (!s.target.isInstanceOf[Suffixable]) {
+              val notes = new StringBuilder
+              emitRegionNotes(s, notes, "  ")
+              logics ++= RtlDocumentation.envelope(component, s, notes.toString)
               logics ++= s"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s)};${emitLocation(s)}\n"
             }
         }
@@ -783,6 +797,7 @@ class ComponentEmitterVerilog(
       if(targetScope == scope){
         closeSubs()
 
+        emitRegionNotes(statement, b, tab)
         statement match {
           case assignment: AssignmentStatement  => b ++= s"${tab}${verilogBase.emitAssignmentTarget(this, assignment).getOrElse(emitAssignedExpression(assignment.target))} ${assignmentKind} ${emitAssignmentSource(assignment)};${emitLocation(assignment)}\n"
           case assertStatement: AssertStatement => {
@@ -874,6 +889,7 @@ class ComponentEmitterVerilog(
           closeSubs()
         }
 
+        emitRegionNotes(treeStatement, b, tab)
         val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,
           indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))
         if (publishedScope.nonEmpty) {

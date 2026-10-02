@@ -940,6 +940,17 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/RtlDocumentation.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Define optional typed documentation metadata, configuration, identity-preserving APIs, exception-safe regions, declaration publication and exact relocation envelopes.",
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/SInt.scala",
       "baseline_path": "core/src/main/scala/spinal/core/SInt.scala",
       "change": "modified",
@@ -987,10 +998,24 @@
       "change": "modified",
       "classification": "backend-isolation-hook",
       "introduced_by": [
-        "Increment 53: permanent native StreamFifo structure repair"
+        "Increment 53: permanent native StreamFifo structure repair",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging.",
+      "reason": "Provide a narrow tag that prevents only reviewed parameter-sensitive registers from backend sync-process merging. Expose the fluent documentation API on existing tag hosts without changing the returned hardware value.",
       "edits": [
+        {
+          "id": "trait-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/Trait.scala documentation integration",
+          "reason": "Expose the fluent documentation API on existing tag hosts without changing the returned hardware value. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  /** Attach documentation without retaining or modifying hardware. */\n  def doc(message: String): this.type = RtlDocumentation.attach(this, message)\n\n\n",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "sync-merge-isolation-01",
           "kind": "backend-isolation",
@@ -1678,10 +1703,24 @@
       "classification": "backend-isolation-hook",
       "introduced_by": [
         "Increment 53: permanent native StreamFifo structure repair",
-        "Lane/when follow-up: typed lane extension and generated combinational condition repair"
+        "Lane/when follow-up: typed lane extension and generated combinational condition repair",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason.",
+      "reason": "Honor the reviewed per-register sync-process isolation tag inside the inherited emitter grouping algorithm. Add a default-false backend-specific hook for declining only proven redundant repeated-condition materialization. Preserve the original grouping, assignments, scopes, and every other wrapping reason. Normalize comment text newlines before the existing definition and instance comment renderer.",
       "edits": [
+        {
+          "id": "componentemitter-comments-01",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitter.scala documentation integration",
+          "reason": "Normalize comment text newlines before the existing definition and instance comment renderer. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "RtlDocumentation.text(t.comment)",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "component-emitter-sync-isolation-01",
           "kind": "backend-isolation",
@@ -1713,10 +1752,63 @@
         "CDC-WIRE-01: generic recursive unnamed/generated expression cleanup",
         "CDC-WIRE-01 qualification repair: retain scoped width authority and native wrapper ABI",
         "Increment 64: typed native derived local parameters",
-        "Increment 66: native parameter and RTL readability extensions"
+        "Increment 66: native parameter and RTL readability extensions",
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
       ],
-      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+      "reason": "Retain native symbolic-legality publication and the generation-scoped signed declaration, cast, literal, resize and unsigned-transport callbacks. The typed expression planner controls optional wrapper suppression; every mandatory wrapper present before depth cutting remains, and CDC-WIRE-01 suppresses new depth wrappers only when complete expansion and all receiving widths are proven. Approved unsigned expression slices use a deterministic Verilog-2001 function with the full authoritative source input width and exact constant result range, preserving truncation and four-state semantics. Helper and argument names are allocated in the same namespace after reserving component/width parameter identities, and functions are cached by symbolic width and range. Signed/unknown or otherwise unproven expressions and the ordinary backend keep inherited emission. Qualification repair reserves declaration-local width names without composing finished branch domains, and passes the exact emitter owner when preserving a retained unsigned wrapper's authoritative logical range. All old public wrapper entry points and ordinary backend behavior remain intact. Emit dependency-ordered typed local parameters through the native localparams buffer after the parameterized backend prepares exact live uses. Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative. Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements.",
       "edits": [
+        {
+          "id": "componentemitterverilog-comments-01",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "  private val emittedRegionNotes = mutable.HashSet.empty[RtlDocumentation.RegionNote]\n  private def emitRegionNotes(host: RtlDocumentationAnchor, b: StringBuilder, indent: String): Unit = {\n    val notes = host.rtlDocumentation.filter(n => n.valid && (n.component eq component) && n.generatedOwners.isEmpty && emittedRegionNotes.add(n))\n    b ++= RtlDocumentation.lines(notes.map(_.content), indent)\n  }\n\n\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-02",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "new StringBuilder(RtlDocumentation.signature(component)) :: ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-03",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "val rtl = ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-04",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    if (spinalConfig.flags.contains(RtlDocumentation.Deferred)) rtl\n    else RtlDocumentation.publish(rtl, RtlDocumentation.declarationBindings(component))\n",
+              "count": 1
+            }
+          ]
+        },
         {
           "id": "symbolic-legality-native-emission-01",
           "kind": "backend-isolation",
@@ -1754,6 +1846,32 @@
           ]
         },
         {
+          "id": "componentemitterverilog-comments-07",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "RtlDocumentation.envelope(component, child, commentTagsToString(child, \"  //\")",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-08",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    emittedRegionNotes.clear()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "increment66-componentemitterverilog-5",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -1767,14 +1885,32 @@
           ]
         },
         {
-          "id": "increment66-componentemitterverilog-6",
+          "id": "componentemitterverilog-comments-10",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "    emittedRegionNotes.clear()\n",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "componentemitterverilog-comments-11",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "AssignmentSource(s",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "val notes = new StringBuilder\n              emitRegionNotes(s, notes, \"  \")\n              logics ++= RtlDocumentation.envelope(component, s, notes.toString)\n              logics ++= s\"  assign ${emitAssignedExpression(s.target)} = ${emitAssignmentSource(s",
               "count": 1
             }
           ]
@@ -1806,6 +1942,19 @@
           ]
         },
         {
+          "id": "componentemitterverilog-comments-14",
+          "kind": "backend-isolation",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "        emitRegionNotes(statement, b, tab)\n",
+              "count": 1
+            }
+          ]
+        },
+        {
           "id": "increment66-componentemitterverilog-9",
           "kind": "backend-isolation",
           "owner": "spinal.core.internals.ComponentEmitterVerilog",
@@ -1819,14 +1968,19 @@
           ]
         },
         {
-          "id": "increment66-componentemitterverilog-10",
+          "id": "componentemitterverilog-comments-16",
           "kind": "backend-isolation",
-          "owner": "spinal.core.internals.ComponentEmitterVerilog",
-          "reason": "Delegate exact assignment sources, targets and captured procedural scopes through a default-disabled owner-bound publication policy. Render immutable typed local references as native expressions and case labels. Existing process partitioning, assignment order and concrete emission remain authoritative.",
+          "owner": "core/src/main/scala/spinal/core/internals/ComponentEmitterVerilog.scala documentation integration",
+          "reason": "Emit optional documentation from retained hardware identities, preserve distinct documented definitions, and transport free-standing comments through Morph relocation without changing HDL statements. Existing symbolic publication hooks in this span remain intact.",
           "required_exact_text": [
             {
               "side": "approved",
               "text": "val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,\n          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))\n        if (publishedScope.nonEmpty) {\n          statementIndex = publishedScope.get\n          lastWhen = null\n        } else ",
+              "count": 1
+            },
+            {
+              "side": "approved",
+              "text": "emitRegionNotes(treeStatement, b, tab)\n        val publishedScope = verilogBase.emitPublicationScope(this, treeStatement, scopePtr, b, tab,\n          indentation => emitLeafStatements(statements, statementIndex, scopePtr, assignmentKind, b, indentation))\n        if (publishedScope.nonEmpty) {\n          statementIndex = publishedScope.get\n          lastWhen = null\n        } else ",
               "count": 1
             }
           ]
@@ -2170,6 +2324,44 @@
       ]
     },
     {
+      "path": "core/src/main/scala/spinal/core/internals/Statement.scala",
+      "baseline_path": "core/src/main/scala/spinal/core/internals/Statement.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions.",
+      "edits": [
+        {
+          "id": "statement-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala documentation integration",
+          "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "extends RtlDocumentationAnchor ",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "statement-comments-02",
+          "kind": "mechanical-propagation",
+          "owner": "core/src/main/scala/spinal/core/internals/Statement.scala documentation integration",
+          "reason": "Snapshot optional region documentation at native statement/scope construction without modifying statement ownership or expressions. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": " with RtlDocumentationAnchor",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
       "path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "baseline_path": "core/src/main/scala/spinal/core/internals/VerilogBase.scala",
       "change": "modified",
@@ -2299,6 +2491,88 @@
           ]
         }
       ]
+    },
+    {
+      "path": "idslpayload/src/main/scala/spinal/idslplugin/RtlSourceDoc.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Embed source documentation metadata in compiled Scala declarations so generation never needs source files.",
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala",
+      "baseline_path": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala",
+      "change": "modified",
+      "classification": "backend-isolation-hook",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations.",
+      "edits": [
+        {
+          "id": "idslplugin-comments-01",
+          "kind": "mechanical-propagation",
+          "owner": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala documentation integration",
+          "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "{MainTransformer, DocumentationTransformer, SourceDocumentationTransformer}",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "id": "idslplugin-comments-02",
+          "kind": "mechanical-propagation",
+          "owner": "idslplugin/src/main/scala/spinal/idslplugin/IdslPlugin.scala documentation integration",
+          "reason": "Register pre-namer source-comment capture and post-typer explicit/automatic documentation transport before existing naming transformations. Existing symbolic publication hooks in this span remain intact.",
+          "required_exact_text": [
+            {
+              "side": "approved",
+              "text": "SourceDocumentationTransformer(global), new DocumentationTransformer(global), new ",
+              "count": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/DocumentationTransformer.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Translate supported annotations and exact hardware DSL call comments to typed identity-preserving runtime metadata calls.",
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentation.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Lex Scala comments with quoted literal and nested-block handling; determine attachment only at explicit lexical boundaries.",
+      "edits": []
+    },
+    {
+      "path": "idslplugin/src/main/scala/spinal/idslplugin/components/SourceDocumentationTransformer.scala",
+      "baseline_path": null,
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Comments API C01\u2013C09: user-requested explicit and automatic RTL documentation"
+      ],
+      "reason": "Capture declaration comments with compiler source ranges before namer and embed annotations with ambiguity and missing-range diagnostics.",
+      "edits": []
     },
     {
       "path": "lib/src/main/scala/spinal/lib.scala",

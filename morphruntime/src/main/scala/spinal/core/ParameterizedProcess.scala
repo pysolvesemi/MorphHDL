@@ -22,7 +22,7 @@ private[core] final case class ParameterizedProceduralFor(
     slices: Vector[ParameterizedStructure.StructuralSlice],
     marker: String,
     sourceLocation: Option[String]
-)
+) extends RtlDocumentationAnchor
 
 /** MorphHDL-owned Increment 34 classifier for parameter-bounded ranges.
   *
@@ -353,6 +353,9 @@ object ParameterizedProcess {
       fail("SPINAL-PROCESS-CONDITIONAL-SELECTION-UNSUPPORTED",
         "one unsigned owner-local selector must represent the complete captured loop domain", state.sourceLocation)
     val condition = selector === U(0, selector.getWidth bits)
+    // This index-zero comparator is a publication witness, not user hardware
+    // documentation. Its retained WhenStatement owns the loop's region notes.
+    condition.foreachStatements(_.rtlDocumentation = Vector.empty)
     val driver = condition.head.asInstanceOf[DataAssignmentStatement].source
     when(condition) {
       val tree = DslScopeStack.get.parentStatement.asInstanceOf[WhenStatement]
@@ -550,6 +553,7 @@ object ParameterizedProcess {
         Vector.empty,
         sourceLocation
       )
+      RtlDocumentation.captureGeneratedBody(block, statements)
       if (requireExactDomain)
         ParameterizedStructure.registerExactFor(
           component,
@@ -652,7 +656,7 @@ object ParameterizedProcess {
       .map(value => s"$value $marker")
       .getOrElse(marker)
 
-    storage.loops += ParameterizedProceduralFor(
+    val loop = ParameterizedProceduralFor(
       label,
       indexName,
       count,
@@ -661,6 +665,9 @@ object ParameterizedProcess {
       marker,
       sourceLocation
     )
+    RtlDocumentation.claimGenerated(assignment)
+    RtlDocumentation.claimGenerated(loop, Vector(assignment))
+    storage.loops += loop
   }
 
   private def hasOtherDataAssignment(

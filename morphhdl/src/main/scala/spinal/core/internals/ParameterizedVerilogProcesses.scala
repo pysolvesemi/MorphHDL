@@ -153,9 +153,9 @@ private[internals] object ParameterizedVerilogProcesses {
     PlannedLoop(
       lineIndex,
       processStart,
-      Vector(
+      RtlDocumentation.generatedLines(loop, indentation).split("\n").filter(_.nonEmpty).toVector ++ Vector(
         s"${indentation}for (${loop.indexName} = 0; ${loop.indexName} < ${loop.count.verilog}; ${loop.indexName} = ${loop.indexName} + 1) begin : ${loop.label}",
-        s"$indentation  $statement",
+        RtlDocumentation.generatedLines(loop.assignment, indentation + "  ") + s"$indentation  $statement",
         s"${indentation}end"
       )
     )

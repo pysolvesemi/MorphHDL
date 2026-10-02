@@ -272,7 +272,13 @@ object MorphHdlExternalParameterizedVerilog {
           ParameterizedVerilogVecs.rewriteUnpacked(component,
             TypedBalancedReductionBackend.rewrite(component, withExpressions, pc, canonicalOf), pc)
         }
-        Some(name -> rewritten.split("\n", -1).toVector)
+        val documented = RtlDocumentation.finishPublication(component, RtlDocumentation.publish(rewritten, ParameterizedVerilogVecs.documentationBindings(component, pc)))
+        Some(name -> documented.split("\n", -1).toVector)
+      } else if (RtlDocumentation.declarationBindings(component).nonEmpty || RtlDocumentation.emissions(component).nonEmpty) {
+        val publication = if (pc.config.oneFilePerComponent) splitPublications(name) else consolidated.get
+        val block = if (pc.config.oneFilePerComponent) publication.blocks.head else blockByName(name)
+        val text = publication.lines.slice(block.start, block.end + 1).mkString("\n")
+        Some(name -> RtlDocumentation.finishPublication(component, RtlDocumentation.publish(text, RtlDocumentation.declarationBindings(component))).split("\n", -1).toVector)
       } else None
     }.toMap
 

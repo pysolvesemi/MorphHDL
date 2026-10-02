@@ -25,7 +25,7 @@ final class ParameterizedStructuralBlock private[core] (
     private[core] var scalarOperators: Vector[ParameterizedStructure.StructuralScalarOperator],
     private[core] var regions: Vector[ParameterizedStructure.StructuralRegion],
     private[core] val sourceLocation: Option[String]
-) {
+) extends RtlDocumentationAnchor {
 
   /** Extend this exact captured owner with native statements elaborated later.
     * The supplement has already passed the same capture validator, and is
@@ -272,7 +272,7 @@ object ParameterizedStructure {
     require(results != null && results.map(_._1).toSet == rootValues)
   }
 
-  private[core] sealed trait StructuralRegion {
+  private[core] sealed trait StructuralRegion extends RtlDocumentationAnchor {
     def blocks: Vector[ParameterizedStructuralBlock]
     def parameters: Vector[ElaborationIntegerParameter]
     def parameterRoots: Vector[ElaborationIntegerParameterRoot]
@@ -782,6 +782,7 @@ object ParameterizedStructure {
         state.regions.toVector,
         sourceLocation
       )
+      RtlDocumentation.captureGeneratedBody(result, statements ++ state.regions)
       storage.blocksByCaptureId.get(state.id) match {
         case Some(existing) if existing ne result =>
           fail(
@@ -4106,6 +4107,7 @@ object ParameterizedStructure {
       }
       capture.regions += region
     }
+    RtlDocumentation.claimGenerated(region, region.blocks)
     storageOf(component).lexicalRegionOwners.put(region, capture)
   }
 

@@ -535,6 +535,16 @@
         "keeps the native symbolic for spelling alongside spinal.core imports"
       ]
     },
+    "idslplugin": {
+      "spinal.idslplugin.DocumentationPluginTests": [
+        "annotation plugin rejects unsupported targets with explicit diagnostics",
+        "annotation plugin evaluates initializers once and supports precompiled class annotations",
+        "source lexer distinguishes nested comments quoted literals and attachment boundaries",
+        "comment-only recompilation updates embedded metadata and requires no runtime source",
+        "missing range positions embed a precise automatic capture diagnostic",
+        "precompiled class comments survive source deletion without inheriting to unrelated classes"
+      ]
+    },
     "morphhdl": {
       "morphhdl.BackendSyncMergeIsolationTests": [
         "exact noBackendSyncMerge registers retain clock and synchronous-reset semantics in distinct processes",
@@ -1027,6 +1037,37 @@
         "ordered coverage N-minus-one operators and logarithmic depth hold across boundaries",
         "the concrete generic callback is not restricted to hardware data",
         "two elements invoke one operator and bridge at level zero"
+      ],
+      "morphhdl.RtlDocumentationTests": [
+        "fluent scalar documentation preserves all non-comment tokens",
+        "packed and unpacked publication retain aggregate and element ownership",
+        "documentation options copy flags and text validation is explicit",
+        "annotations attach to module ports and registers without changing initializer semantics",
+        "instance documentation stays local and removed signals leave no comment",
+        "named field record comments retain aggregate element and field ownership",
+        "definition documentation participates in deduplication without leaking instance notes",
+        "automatic trailing preceding and Scaladoc capture is independently opt in",
+        "hardware region documentation follows conditions and branches without changing tokens",
+        "generate headers and branch bodies retain exact documentation ownership",
+        "automatic hardware control flow comments obey the generation capture flag",
+        "nested arrays and mixed direction groups retain one aggregate note across publication plans",
+        "declaration comments coexist with attributes and trailing tool directives",
+        "retained procedural loops place header and assignment comments inside the process",
+        "automatic nested symbolic generate comments retain headers bodies and branch ownership",
+        "token comparison preserves synthesis attributes directives and quoted strings",
+        "partial assignment and instance comments relocate with their exact generated branch owners",
+        "automatic attachment respects multiline annotation detached and ambiguous boundaries",
+        "elsewhen switch multiple labels removed regions and exceptions preserve ownership",
+        "constant typed generate and symbolic zero specialization preserve documentation without inventing code",
+        "retained region documentation prevents deduplication of differently documented module bodies",
+        "repeated combined generation is deterministic",
+        "combined annotations fluent automatic aggregates hierarchy and generate regions publish together",
+        "nested retained finite loops keep each header and body note once",
+        "a documented region spanning sibling generate constructs retains each construct owner",
+        "documentation signatures distinguish punctuation from independently authored notes",
+        "conditional blocks inside retained loops keep payload comments inside the selected branch",
+        "region comments remain inside reset and clock enable structure",
+        "singleton record element documentation retains its element coordinate"
       ],
       "morphhdl.SpinalEnumLocalParameterTests": [
         "MorphVerilog replaces global enum macros with SCREAMING_SNAKE_CASE enum-qualified module-local parameters",
@@ -2730,6 +2771,7 @@
     "frontend/src/test/scala/morphhdl/frontend/SynchronousStreamM2sPipeFrontendTests.scala": "b25a6a5aeb3e23e0ead0b2a8c787c221f202f843d4f5d87e3c7f50094e3b91d5",
     "frontend/src/test/scala/morphhdl/frontend/TypedParameterFrontendTests.scala": "8eea2da94092bd0fdc712f880f8869bb68b0e5a32a76ead02d81cfa314ac972f",
     "frontend/src/test/scala/morphhdl/frontend/compatibility/SpinalImportCompatibilityTests.scala": "288f982de1dd671c5a6b348e31cbffd5798aa465b8caef47ea7a01e21eb12f14",
+    "idslplugin/src/test/scala/spinal/idslplugin/DocumentationPluginTests.scala": "0eec75d9369deaacecd90dfb4e0fb675cbd0cf231131e71ef47a285523065977",
     "morphhdl/src/test/scala/adversarial/vecfake/SInt.scala": "ed76ab7df5ae95a0f3eb7dd5ce05aca5dbf9f54ee72e067bfff004d79c02671d",
     "morphhdl/src/test/scala/morphhdl/AsynchronousEnabledRegisterContractFixture.scala": "bfe3aa719951fb82431a00211cbcdd7fbf58863016943dfa7910278221c2c9bb",
     "morphhdl/src/test/scala/morphhdl/AsynchronousRegisterContractFixture.scala": "679d2cb571a90115c1734c3b5744cd7f3b04f73ce6be2b7843c553aba1d9c816",
@@ -2793,6 +2835,7 @@
     "morphhdl/src/test/scala/morphhdl/ParameterizedWireContractFixture.scala": "72d5584335a3139ece5b6f936715322b32d8d37d6e5e343e7e9d6128d631fce6",
     "morphhdl/src/test/scala/morphhdl/PureSIntCastTests.scala": "c2d8d0eeaba13d3c41c19b7081c5a011f8030cc2eeb92e23dd2f4ace198b0ef6",
     "morphhdl/src/test/scala/morphhdl/ReduceBalancedTreeNativeContractTests.scala": "7ed02fcf5d40a383a13added7696622df6084a2e2b208967255576e82b981f4b",
+    "morphhdl/src/test/scala/morphhdl/RtlDocumentationTests.scala": "02bafabb0282f28b6fc50ef4a2893a82f945ae8b7b1cb7ea96557308c029e853",
     "morphhdl/src/test/scala/morphhdl/RuntimeMuxContractFixture.scala": "0db2014836a7c603af006ef34bdc9ca1571e94ea75c69aeaf9fe8e50d20a4939",
     "morphhdl/src/test/scala/morphhdl/SignedDeclarationPublicationTests.scala": "e7da32b0ea6aeb453fead0e5c7cba27ade392cea041abfd2a1ff3b1072502498",
     "morphhdl/src/test/scala/morphhdl/SignednessBoundaryTests.scala": "399180574c71d5ed7e5ea71dfb7520e599329061676e23d8ceaebc8c9b265364",
