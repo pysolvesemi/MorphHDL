@@ -753,6 +753,18 @@ object ElabInt {
     new ElabInt(withCompleteParameterRoots(expression))
   }
 
+  /** Read the retained width of one exact native leaf without exposing the
+    * mutable registry or its Option carrier to callback bytecode. This is a
+    * geometry query only; it cannot observe runtime hardware values. */
+  private[spinal] def widthOf(value: BaseType): ElabInt = {
+    if (value == null)
+      throw new IllegalArgumentException("typed width query target must not be null")
+    ParameterizedWidth.expressionOf(value) match {
+      case Some(expression) => fromExpression(expression)
+      case None             => literal(value.getBitsWidth)
+    }
+  }
+
   /** Test-only/internal constructor for malformed exact-domain fixtures which
     * need to exercise a deeper consumer diagnostic. Public callers must use
     * [[fromExpression]], where copied exact metadata is rejected.

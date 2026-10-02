@@ -306,18 +306,18 @@ object WireAssignmentProductionArtifactWriter {
     val disabled = MorphWireAssignmentPasses(default, enabled = false)
     require(original.phasesInserters.size == count)
     require(enabled.phasesInserters.size == count + 1)
-    require(default.phasesInserters == enabled.phasesInserters)
-    require(MorphWireAssignmentPasses(enabled).phasesInserters == enabled.phasesInserters)
+    require(default.phasesInserters == disabled.phasesInserters)
+    require(MorphWireAssignmentPasses(enabled, enabled = true).phasesInserters == enabled.phasesInserters)
     val withCustomInserter = enabled.copy(phasesInserters = enabled.phasesInserters.clone())
     withCustomInserter.phasesInserters += (_ => ())
-    require(MorphWireAssignmentPasses(withCustomInserter).phasesInserters == withCustomInserter.phasesInserters)
+    require(MorphWireAssignmentPasses(withCustomInserter, enabled = true).phasesInserters == withCustomInserter.phasesInserters)
     require(disabled.phasesInserters.size == count + 1)
     require(disabled.phasesInserters != enabled.phasesInserters)
-    require(MorphWireAssignmentPasses(disabled).phasesInserters == enabled.phasesInserters)
+    require(MorphWireAssignmentPasses(disabled, enabled = true).phasesInserters == enabled.phasesInserters)
     val copiedDisabled = disabled.copy()
     require(MorphWireAssignmentPasses.forPublication(copiedDisabled) eq copiedDisabled)
     require(MorphWireAssignmentPasses.forPublication(enabled) eq enabled)
-    require(MorphWireAssignmentPasses.forPublication(original).phasesInserters == enabled.phasesInserters)
+    require(MorphWireAssignmentPasses.forPublication(original).phasesInserters == disabled.phasesInserters)
     require(!(enabled.phasesInserters eq original.phasesInserters))
     require(!(disabled.phasesInserters eq default.phasesInserters))
     for (round <- Vector("first", "repeat")) {
@@ -344,6 +344,6 @@ object WireAssignmentProductionArtifactWriter {
       NestedUnsignedExtendedSumProductionArtifactWriter.writeRound(directory)
     }
     Files.write(output.resolve("configuration.txt"),
-      "default-on selection, explicit opt-out and configuration isolation PASS\n".getBytes(StandardCharsets.UTF_8))
+      "default-off selection, deprecated explicit opt-in and configuration isolation PASS\n".getBytes(StandardCharsets.UTF_8))
   }
 }

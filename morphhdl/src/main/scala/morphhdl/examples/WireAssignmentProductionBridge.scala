@@ -33,7 +33,7 @@ private[morphhdl] object WireAssignmentProductionBridge {
       throw new IllegalArgumentException("SpinalConfig must not be null")
     if (config.phasesInserters.contains(installer) ||
         config.phasesInserters.contains(disabledMarker)) config
-    else enable(config)
+    else disable(config)
   }
 
   def enable(config: SpinalConfig): SpinalConfig = configure(config, enabled = true)

@@ -116,29 +116,70 @@ class RegisterBridgeAuditBudgetTests(unittest.TestCase):
                 self.assertEqual(record['expected_rejection'], expected)
                 self.assertEqual(record['head'], 'checked-source-head')
 
-    def test_main_gives_only_complete_positive_audit_600_seconds(self):
+    def assert_complete_positive_budget(self, contracts, budget):
         module = self.load_audit()
 
         class StopBeforeMutationWorktrees(Exception):
             pass
 
-        with contextlib.redirect_stdout(io.StringIO()), \
-                patch.object(module, 'git', return_value='checked-source-head') as git, \
-                patch.object(module.importlib.util, 'spec_from_file_location',
-                             side_effect=StopBeforeMutationWorktrees) as load_review, \
-                patch.object(module.subprocess, 'run', return_value=types.SimpleNamespace(
-                    returncode=0, stdout=self.PASS)) as run:
-            with self.assertRaises(StopBeforeMutationWorktrees):
-                module.main()
-            self.assertEqual(run.call_count, 1)
-            self.assertEqual(run.call_args.kwargs['timeout'], 600)
-            self.assertEqual(run.call_args.args[0][:2], [sys.executable, '-c'])
-            self.assertEqual(run.call_args.args[0][3], str(self.ROOT))
-            self.assertEqual(run.call_args.args[0][4], str(self.ROOT / module.CHECKER))
-            self.assertEqual(git.call_count, 2)
-            self.assertTrue(all(call.args == (self.ROOT, 'rev-parse', 'HEAD')
-                                for call in git.call_args_list))
-            load_review.assert_called_once()
+        # Resource selection must not depend on whichever increment happens
+        # to be present in the test runner's checkout. These fixture files
+        # select only a timeout: the real wrapper's process result and marker
+        # checks are still executed. They do not authenticate any source.
+        with tempfile.TemporaryDirectory(prefix='independent-59g-budget-') as temporary:
+            root = Path(temporary)
+            for contract in contracts:
+                filename = root / 'morphhdl/contracts' / contract
+                filename.parent.mkdir(parents=True, exist_ok=True)
+                filename.write_text('{}\n')
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    patch.object(module, 'ROOT', root), \
+                    patch.object(module, 'git', return_value='checked-source-head') as git, \
+                    patch.object(module.importlib.util, 'spec_from_file_location',
+                                 side_effect=StopBeforeMutationWorktrees) as load_review, \
+                    patch.object(module.subprocess, 'run', return_value=types.SimpleNamespace(
+                        returncode=0, stdout=self.PASS)) as run:
+                with self.assertRaises(StopBeforeMutationWorktrees):
+                    module.main()
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(run.call_args.kwargs['timeout'], budget)
+                self.assertEqual(run.call_args.args[0][:2], [sys.executable, '-c'])
+                self.assertEqual(run.call_args.args[0][3], str(root))
+                self.assertEqual(run.call_args.args[0][4], str(root / module.CHECKER))
+                self.assertEqual(git.call_count, 2)
+                self.assertTrue(all(call.args == (root, 'rev-parse', 'HEAD')
+                                    for call in git.call_args_list))
+                load_review.assert_called_once()
+
+    def test_main_gives_only_complete_positive_audit_600_seconds(self):
+        self.assert_complete_positive_budget((), 600)
+
+    def test_main_gives_target_integration_positive_900_seconds(self):
+        self.assert_complete_positive_budget(
+            ('increment-59i-target-integration.json',), 900)
+
+    def test_main_gives_sealed_59i_positive_3600_seconds(self):
+        self.assert_complete_positive_budget(
+            ('increment-59i-target-integration.json',
+             'increment-59i-production-successor.json'), 3600)
+
+    def test_joined_positive_budgets_keep_exact_outcome_checks(self):
+        module = self.load_audit()
+        for budget in (900, 3600):
+            for code, output in ((1, self.PASS), (0, 'no marker'), (1, 'no marker')):
+                with self.subTest(budget=budget, code=code, output=output), \
+                        patch.object(module.subprocess, 'run', return_value=types.SimpleNamespace(
+                            returncode=code, stdout=output)), self.assertRaises(RuntimeError):
+                    module.check(self.ROOT, 'invalid joined outcome', timeout_seconds=budget)
+
+    def test_joined_timeout_cannot_count_as_positive(self):
+        module = self.load_audit()
+        for budget in (900, 3600):
+            with self.subTest(budget=budget), \
+                    patch.object(module.subprocess, 'run', side_effect=subprocess.TimeoutExpired(
+                        'source audit', budget, output=self.PASS)), \
+                    self.assertRaises(subprocess.TimeoutExpired):
+                module.check(self.ROOT, 'timed-out joined audit', timeout_seconds=budget)
 
     def test_positive_and_mutation_still_require_exact_outcomes(self):
         module = self.load_audit()

@@ -34,6 +34,9 @@ concurrency:
   group: increment-59b-publication-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   validate:
     if: >-
@@ -43,6 +46,7 @@ jobs:
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59b-') ||
       startsWith(github.head_ref || github.ref_name, 'agent/increment-59d-') ||
       (github.ref == 'refs/heads/parameterized-verilog' && contains(github.event.head_commit.message, '59d'))
+      || (github.event_name == 'pull_request' && github.base_ref == 'parameterized-verilog' && github.head_ref == 'agent/increment-59i-combined-reduction-closure')
     name: Parameterized publication Scala ${{ matrix.scala }}
     runs-on: ubuntu-latest
     timeout-minutes: 35

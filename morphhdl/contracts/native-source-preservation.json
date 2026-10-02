@@ -1432,6 +1432,23 @@
       "edits": []
     },
     {
+      "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+      "change": "added",
+      "classification": "typed-support-file",
+      "introduced_by": [
+        "Increment 59i: combined recursive widening, captures and native saturation geometry"
+      ],
+      "reason": "Provide a scoped observer interface around actual native clone events and the unchanged inherited Vec zero algorithm. Concrete Vec zero construction remains native; symbolic calls without a backend retain the original unsupported guard. Scope presence alone does not authorize a receiver: the Morph-owned bridge provider must prove exact clone ancestry and immutable owner/geometry/freshness per request. Restore the prior scope in finally; do not retain global clone lineage or implement a replacement zero or reduction algorithm.",
+      "baseline": null,
+      "approved": {
+        "path": "core/src/main/scala/spinal/core/NativeVecZeroConstruction.scala",
+        "mode": "100644",
+        "blob": "2fafdedfc8a1db528bc62cced4e36c4e58dea769",
+        "sha256": "974f2962ccd8f20eef684e71403a05252e242756f0042d339ed407d885ead3f2"
+      },
+      "edits": []
+    },
+    {
       "path": "core/src/main/scala/spinal/core/NativeWidthProvenance.scala",
       "change": "added",
       "classification": "typed-support-file",

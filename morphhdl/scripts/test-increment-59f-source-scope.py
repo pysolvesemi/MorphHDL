@@ -184,6 +184,15 @@ def packing_controls(fixture: Path, records: list[dict]) -> None:
                "59d/59e packing review is not uniquely tracked")
 
 
+def current_positive_timeout(root: Path) -> int:
+    # This caller runs the same complete 60f audit measured at 1621.921s.
+    # Presence selects only a finite resource budget; the audit must still
+    # authenticate every source byte. Historical/negative limits stay intact.
+    if (root / "morphhdl/contracts/increment-59i-production-successor.json").is_file():
+        return 3600
+    return 900 if (root / "morphhdl/contracts/increment-59i-target-integration.json").is_file() else 600
+
+
 def main() -> None:
     if (ROOT / "morphhdl/contracts/increment-59c-source-review.json").is_file():
         # Current 59c source audits remain mandatory. Replaced exact mutation
@@ -194,12 +203,12 @@ def main() -> None:
         spec.loader.exec_module(module)
         module.frozen_inherited_fixture(
             ROOT, "morphhdl/scripts/test-increment-59f-source-scope.py", "target/increment-59f/source-scope",
-            # The complete current overlay/inherited traversal exceeds 120s on
-            # CI. Only this positive audit gets 600s; historical/mutation
-            # checks and Git retain their existing limits.
+            # The integrated parent-union traversal exceeded 600s in CI.
+            # Match the 59h current-positive budget for that integration;
+            # historical/mutation checks and Git retain their limits.
             lambda: [check(ROOT, HELPER, "current restored publisher delta"),
                      check(ROOT, CLOSURE, "current complete 59c and inherited source audits",
-                           timeout_seconds=600)],
+                           timeout_seconds=current_positive_timeout(ROOT))],
             "exact negative 59f source-scope controls")
         return
     head = git(ROOT, "rev-parse", "HEAD")

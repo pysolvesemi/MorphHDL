@@ -13,7 +13,7 @@ class CdcWireEmitterNamespaceTests extends AnyFunSuite {
     val directory = Files.createTempDirectory("cdc-wire-emitter-namespace-")
     try {
       MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-        oneFilePerComponent = true, headerWithDate = false))) {
+        oneFilePerComponent = true, headerWithDate = false), enabled = true)) {
         new Component {
           setDefinitionName("CdcWireEmitterNamespace")
           val width: ElabInt = HdlInt.param("value", 48, 40, 80).asElabInt

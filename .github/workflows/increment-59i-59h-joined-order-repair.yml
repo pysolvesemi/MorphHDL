@@ -1,0 +1,77 @@
+name: Increment 59i 59h joined-source ordering repair
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-59h-joined-order-repair.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: increment-59i-59h-joined-order-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Publish exact 59h checker ordering repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BRANCH: agent/increment-59i-combined-reduction-closure
+      CHECKER: morphhdl/scripts/check-increment-59h-source-review.py
+      REPAIR: morphhdl/repair-59i-rollout-composition/patch-59h-order.py
+      EXPECTED_BLOB: 232ff70b9dcff471a450093f712996dd4ff20ac4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/increment-59i-combined-reduction-closure
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: true
+
+      - name: Apply one exact fail-closed ordering repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-59h-order-repair"
+          mkdir -p "$out"
+          git fetch origin "$BRANCH"
+          git checkout --detach "origin/$BRANCH"
+          predecessor=$(git rev-parse HEAD)
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$predecessor"
+          test "$(git hash-object "$CHECKER")" = "$EXPECTED_BLOB"
+          test -f "$REPAIR"
+          printf '%s\n' "$predecessor" > "$out/predecessor.txt"
+          cp "$CHECKER" "$out/before.py"
+
+          python3 "$REPAIR" | tee "$out/application.log"
+          python3 -m py_compile "$CHECKER" "$REPAIR"
+          git diff --check -- "$CHECKER"
+          test "$(git diff --name-only)" = "$CHECKER"
+          grep -q 'joined = None if register is None' "$CHECKER"
+          grep -q 'restore_reviewed(entry, baseline, current.encode())' "$CHECKER"
+          cp "$CHECKER" "$out/after.py"
+          git diff -- "$CHECKER" > "$out/patch.diff"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- "$CHECKER"
+          git diff --cached --check
+          test "$(git diff --cached --name-only)" = "$CHECKER"
+          git commit -m '59i: compose 59h owner audit after joined source view'
+          candidate=$(git rev-parse HEAD)
+          printf '%s\n' "$candidate" > "$out/candidate.txt"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$predecessor"
+          git push origin "HEAD:refs/heads/$BRANCH"
+          test "$(git ls-remote origin "refs/heads/$BRANCH" | awk '{print $1}')" = "$candidate"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: increment-59i-59h-order-repair-${{ github.sha }}
+          path: target/increment-59i-59h-order-repair
+          if-no-files-found: error
+          retention-days: 14

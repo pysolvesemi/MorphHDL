@@ -97,7 +97,7 @@ class CdcWireCleanupRegressionTests extends AnyFunSuite {
     withDirectory { directory =>
       var carrier: Bits = null
       MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-        oneFilePerComponent = true, headerWithDate = false))) {
+        oneFilePerComponent = true, headerWithDate = false), enabled = true)) {
         new Component {
           setDefinitionName("CdcWireBudgetControl")
           val width: ElabInt = HdlInt.param("WIDTH", 8, 6, 16).asElabInt
@@ -121,7 +121,7 @@ class CdcWireCleanupRegressionTests extends AnyFunSuite {
     withDirectory { directory =>
       var protectedNode: UInt = null
       MorphVerilog(MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-        oneFilePerComponent = true, headerWithDate = false))) {
+        oneFilePerComponent = true, headerWithDate = false), enabled = true)) {
         new Component {
           setDefinitionName("CdcSharedExpressionNodeControl")
           val width: ElabInt = HdlInt.param("WIDTH", 8, 4, 16).asElabInt
@@ -154,7 +154,7 @@ class CdcWireCleanupRegressionTests extends AnyFunSuite {
       var sharedNode, protectedNode, explicitlyNamedNode: UInt = null
       var inspected = false
       val config = MorphWireAssignmentPasses(SpinalConfig(targetDirectory = directory.toString,
-        oneFilePerComponent = true, headerWithDate = false))
+        oneFilePerComponent = true, headerWithDate = false), enabled = true)
       config.phasesInserters += { phases: ArrayBuffer[Phase] =>
         val index = phases.indexWhere(_.getClass.getName ==
           "morphhdl.examples.ProductionWireAssignmentPhase")

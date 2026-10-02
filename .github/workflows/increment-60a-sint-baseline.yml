@@ -24,6 +24,9 @@ concurrency:
   group: increment-60a-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  PYTHONDONTWRITEBYTECODE: '1'
+
 jobs:
   qualify:
     name: SInt baseline Scala ${{ matrix.scala }}

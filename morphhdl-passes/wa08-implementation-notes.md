@@ -1,8 +1,14 @@
 # WA-08 production handoff and Increment 62 source compatibility
 
-`MorphVerilog(config) { ... }` enables wire-assignment passes by default on the
-single-source production path. `MorphWireAssignmentPasses(config)` also defaults
-to enabled; pass `enabled = false` to select legacy generation explicitly.
+As of the Increment 59i performance repair (2026-09-29),
+`MorphVerilog(config) { ... }` and `MorphWireAssignmentPasses(config)` disable
+optional wire optimizations by default. Explicit `enabled = true` temporarily
+retains the deprecated optimization path, scheduled for removal. Associated
+Verilog expression inlining is disabled with those passes. Mandatory compiler
+validation and parameterized emission remain active.
+
+The qualification descriptions below are historical evidence for their stated
+revisions; they do not establish qualification of the new default-off policy.
 Enabled generation runs the existing five canonical passes to a fixed
 point before Verilog name allocation. The pass algorithms stay under
 `morphhdl-passes/`; SBT and Mill compile those shared source files directly.
@@ -60,7 +66,8 @@ eligibility limits, public-path regressions and actual before/after Verilog.
 The generic production artifact uses the same public flag:
 
 ```scala
-val config = MorphWireAssignmentPasses(SpinalConfig())
+// Deprecated opt-in, retained only for legacy optimization fixtures.
+val config = MorphWireAssignmentPasses(SpinalConfig(), enabled = true)
 SpinalVerilog(config) {
   new Component {
     val a, b = in Bool()

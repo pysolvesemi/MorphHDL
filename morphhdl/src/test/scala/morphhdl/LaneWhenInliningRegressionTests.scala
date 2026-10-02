@@ -9,7 +9,7 @@ import morphhdl.frontend.HdlBool
 
 /** Production API tests. HDL simulation/formal checks accompany these artifacts. */
 class LaneWhenInliningRegressionTests extends AnyFunSuite {
-  private def emit(mode: String = "default", customize: SpinalConfig => Unit = _ => ())(factory: ElabInt => Component): String = {
+  private def emit(mode: String = "enabled", customize: SpinalConfig => Unit = _ => ())(factory: ElabInt => Component): String = {
     val dir = Files.createTempDirectory("lane-when-regression-")
     try {
       val base = SpinalConfig(targetDirectory = dir.toString, oneFilePerComponent = false,
@@ -74,10 +74,11 @@ class LaneWhenInliningRegressionTests extends AnyFunSuite {
     }
     assert(lane.split("always @", -1).length == disabledLane.split("always @", -1).length)
   }
-  test("default and explicit enable are identical and repeated generation is deterministic") {
+  test("legacy opt-in remains deterministic and production default matches explicit disable") {
     assert(lane == emit("enabled")(new LaneExpressionExample(_)))
     assert(lane == emit()(new LaneExpressionExample(_)))
     assert(disabledLane == emit("disabled")(new LaneExpressionExample(_)))
+    assert(disabledLane == emit("default")(new LaneExpressionExample(_)))
   }
   test("disabled generation retains the legacy carrier forms and symbolic output geometry") {
     assert(disabledLane.contains("assign _zz_laneDe = {3'd0, laneX_0};"))

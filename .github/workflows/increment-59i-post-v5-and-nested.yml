@@ -1,0 +1,129 @@
+name: Increment 59i committed local-enable and nested-Vec gate
+
+on:
+  push:
+    branches: ['agent/increment-59i-combined-reduction-closure']
+    paths:
+      - '.github/workflows/increment-59i-post-v5-and-nested.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: increment-59i-post-v5-and-nested
+  cancel-in-progress: true
+
+jobs:
+  committed:
+    name: Committed head Scala ${{ matrix.scala }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scala: ['2.12.18', '2.13.12']
+    container:
+      image: ghcr.io/spinalhdl/docker:v1.2.0
+    env:
+      SCALA_VERSION: ${{ matrix.scala }}
+      COURSIER_REPOSITORIES: https://repo.maven.apache.org/maven2
+      COURSIER_CACHE: /sbt/.cache/coursier/v1
+      JAVA_TOOL_OPTIONS: '-Xmx5G -XX:ActiveProcessorCount=4'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Require the committed v5 successor
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-post-v5"
+          mkdir -p "$out"
+          git rev-parse HEAD > "$out/head.txt"
+          git rev-parse 'HEAD^{tree}' > "$out/tree.txt"
+          test -z "$(git status --porcelain)"
+          if test ! -f morphhdl/contracts/increment-59i-local-enable-successor-v5.json; then
+            test -f morphhdl/repair-59i-composite-local-enable/v5-last-failure.md && \
+              cp morphhdl/repair-59i-composite-local-enable/v5-last-failure.md "$out/" || true
+            echo 'Committed v5 local-enable successor is absent.' >&2
+            exit 1
+          fi
+          test -f morphhdl/scripts/check-increment-59i-local-enable-successor-v5.py
+          grep -q 'controlValues: Vector\[BaseType\]' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionBridgeReplay.scala
+          grep -q 'BRIDGE-CONTROL-REGISTER' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          grep -q 'callback.assignments ++ callback.statements' \
+            morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCompositeReplay.scala
+          test -f morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCompositeLocalEnableTests.scala
+
+      - name: Run exact committed-source boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-post-v5"
+          {
+            python3 morphhdl/scripts/check-increment-59i-local-enable-successor-v5.py --self-test
+            python3 morphhdl/scripts/check-native-source-preservation.py
+            python3 morphhdl/scripts/check-typed-native-source-overlay.py
+          } 2>&1 | tee "$out/source-audits.log"
+
+      - name: Add test-only nested-Vec widening probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-post-v5"
+          python3 morphhdl/repair-59i-nested-vec-widening/write-focused-test.py \
+            2>&1 | tee "$out/nested-application.log"
+          git diff --check
+          changed=$(git diff --name-only)
+          test "$changed" = 'morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedVecWideningTests.scala'
+          test -z "$(git diff --name-only | grep '/src/main/' || true)"
+
+      - name: Bootstrap pinned SBT
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-post-v5"
+          version=$(sed -n 's/^sbt.version=//p' project/build.properties)
+          test "$version" = '1.10.0'
+          base="https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$version/sbt-launch-$version.jar"
+          curl --fail --location --retry 5 --retry-all-errors "$base" -o "$out/sbt-launch.jar"
+          printf '[repositories]\nlocal\nmaven-central: https://repo.maven.apache.org/maven2\n' > "$out/repositories"
+
+      - name: Compile and execute combined focused suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$GITHUB_WORKSPACE/target/increment-59i-post-v5"
+          status=0
+          java -Xmx4G -Dsbt.log.noformat=true -Dsbt.supershell=false \
+            -Dsbt.boot.directory=/sbt/.sbt/boot -Dsbt.global.base=/sbt/.sbt \
+            -Dsbt.ivy.home=/sbt/.ivy2 -Duser.home=/sbt \
+            -Dsbt.repository.config="$out/repositories" -Dsbt.override.build.repos=true \
+            -jar "$out/sbt-launch.jar" "++$SCALA_VERSION" \
+            'morph/Test/compile' \
+            'morph/Test/testOnly spinal.core.internals.TypedBalancedReductionCompositeLocalEnableTests spinal.core.internals.TypedBalancedReductionNestedVecWideningTests spinal.core.internals.TypedBalancedReductionCompositeWideningTests spinal.core.internals.TypedBalancedReductionBridgeReplayTests spinal.core.internals.TypedBalancedReductionCompositeTests spinal.core.internals.TypedBalancedReductionCompositeCallbackPolicyTests spinal.core.internals.TypedBalancedReductionCompositeCaptureTests spinal.core.internals.TypedBalancedReductionCombinedTests spinal.core.internals.TypedBalancedReductionNestedOwnerTests spinal.core.internals.TypedBalancedReductionNestedResultTests' \
+            > "$out/tests.log" 2>&1 || status=$?
+          tail -n 420 "$out/tests.log"
+          test "$status" -eq 0
+          grep -q 'All tests passed' "$out/tests.log"
+          ! grep -q '\*\*\* FAILED \*\*\*' "$out/tests.log"
+          mkdir -p "$out/test-reports"
+          find morphhdl/target -type f -name '*.xml' -exec cp {} "$out/test-reports/" \; 2>/dev/null || true
+          cp morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionNestedVecWideningTests.scala "$out/"
+          sha256sum "$out/TypedBalancedReductionNestedVecWideningTests.scala" > "$out/nested-source-sha256.txt"
+
+      - name: Upload exact committed-head evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: increment-59i-post-v5-${{ matrix.scala }}-${{ github.sha }}
+          path: target/increment-59i-post-v5
+          if-no-files-found: error
+          retention-days: 21

@@ -633,7 +633,7 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
     }
   }
 
-  test("public wire passes retain exact named and unnamed Vec carriers beside an ordinary alias") {
+  test("deprecated explicit wire passes retain exact named and unnamed Vec carriers beside an ordinary alias") {
     withTemporaryDirectory { directory =>
       for (componentName <- Vector("RetainedCarrierProbe", "UnrelatedGeometryRouter")) {
         def generate(mode: String): String = {
@@ -662,8 +662,8 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
               }
             })
           }
-          val selected = if (mode == "enabled") MorphWireAssignmentPasses(config)
-            else config
+          val enabled = MorphWireAssignmentPasses(config, enabled = true)
+          val selected = if (mode == "copied") enabled.copy() else enabled
           val width = HdlInt.param("WIDTH", default = 4, min = 1, max = 8)
           val report = MorphVerilog(selected) {
             new Component {
@@ -701,9 +701,9 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           assert(verilog.contains("assign ordinaryResult = (choose ^ input_1[0]);"))
           verilog
         }
-        val default = generate("default")
-        assert(default == generate("enabled"))
-        assert(default == generate("repeated"))
+        val enabled = generate("enabled")
+        assert(enabled == generate("copied"))
+        assert(enabled == generate("repeated"))
       }
     }
   }
@@ -720,7 +720,7 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           val retainedSource = new AtomicReference[BaseType]()
           val retainedTag = new AtomicReference[SpinalTag]()
           val observed = new AtomicBoolean(false)
-          val expectRetained = mode == "disabled" || metadata.endsWith("subclass")
+          val expectRetained = mode != "enabled" || metadata.endsWith("subclass")
           config.phasesInserters += { phases =>
             val boundary = phases.indexWhere(_.isInstanceOf[PhasePropagateNames])
             assert(boundary >= 0)
@@ -788,8 +788,8 @@ final class MorphCanonicalIrHandoffTests extends AnyFunSuite {
           verilog
         }
         val default = generate("default")
-        assert(default == generate("enabled"))
-        generate("disabled")
+        assert(default == generate("disabled"))
+        generate("enabled")
       }
     }
   }
