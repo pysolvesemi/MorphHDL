@@ -1,5 +1,5 @@
 {
-  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused.",
+  "authorization": "User requested merging 59i into the work branch and deleting deprecated hardware wire passes and roadmap; WA-11 remains parameterized-Verilog work. User additionally requested opt-in constant Vec and typed-loop retention, internal unpacked arrays with packed ports, preserved dimension factors and synthesis-owned storage inference. User additionally requested the comments API roadmap: explicit annotation/fluent/region documentation, opt-in source-comment capture and generated-comment-only local validation, with CI and monitoring kept paused. The user explicitly resumed whole-branch qualification on 2 October 2026, superseding that pause. Qualification repairs admit exact fresh-hardware documentation attachments, preserve native post-retirement fixture carriers and reconcile the complete retained regression inventory.",
   "basis": "bfed00f992281d83dde20dfabf319d8f1ea0bc57",
   "basis_tree": "67204ea39fb995d66f782da19f3c80dd11b6f832",
   "files": {
@@ -430,7 +430,11 @@
     },
     "morphhdl/contracts/retained-parameterized-regressions.json": {
       "mode": "100644",
-      "sha256": "3bf6015dcf460ccd97c7152515a467d3efe6528e909f621faeb53fbf6687547c"
+      "sha256": "5a14938c33077bb263839ae4f4868ca2b10640f9e59889bfd73a80411e7a3f35"
+    },
+    "morphhdl/examples/contracts/symbolic_data_shapes.v": {
+      "mode": "100644",
+      "sha256": "b9a6fa929edeec0e4779d330d7b43bc1e048236a14d30792a24eebb83df542f3"
     },
     "morphhdl/scripts/check-increment-58-retirement.py": {
       "mode": "100755",
@@ -442,7 +446,7 @@
     },
     "morphhdl/scripts/check-retained-parameterized-regressions.py": {
       "mode": "100644",
-      "sha256": "0fcaffac9fd7e556142d641ec64649aa501bf16e4f494ce1f6fb7bd1edf07226"
+      "sha256": "cacd9007a7f8fe452db2bf02aac2626e039c9e50cdbec840133131ab770e2313"
     },
     "morphhdl/scripts/check-typed-layering-ir.py": {
       "mode": "100644",
@@ -499,6 +503,10 @@
       "mode": "100644",
       "sha256": "ec83f6df3c6a58c03fa41350b2516aad2593882fb6cabb5fef807edc49233804"
     },
+    "morphhdl/src/main/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicy.scala": {
+      "mode": "100644",
+      "sha256": "bbdc132e9197c71b0df1f3df2f1211a22f755b923637588ea24b507719a561e8"
+    },
     "morphhdl/src/test/scala/morphhdl/CapturedAssignmentNormalizationTests.scala": {
       "mode": "100644",
       "sha256": "178f28a885fd7e861f49b48f214358166c59f253f3dd56f15e4f224e67167f01"
@@ -516,6 +524,10 @@
     "morphhdl/src/test/scala/morphhdl/EnumConditionCoverage.scala": null,
     "morphhdl/src/test/scala/morphhdl/EnumConditionInliningRegressionTests.scala": null,
     "morphhdl/src/test/scala/morphhdl/EnumConditionRepro.scala": null,
+    "morphhdl/src/test/scala/morphhdl/FormalParameterClonePropagationTests.scala": {
+      "mode": "100644",
+      "sha256": "3ca7134dae20d0880bfc9df18bb1e4bd0615d21e387439672e2dc830813078c8"
+    },
     "morphhdl/src/test/scala/morphhdl/GenericExpressionAndStreamTests.scala": {
       "mode": "100644",
       "sha256": "5b0752426ecfdc1149c33ddeee1f2b2f206fb9719af5055fd15bd13a6d8b0185"
@@ -528,7 +540,7 @@
     },
     "morphhdl/src/test/scala/morphhdl/MorphSingleSourceVerilogTests.scala": {
       "mode": "100644",
-      "sha256": "6e7c81ca74ff6baadf943c34f34236bd108cff4be16ae683ec72a89e4c52f821"
+      "sha256": "9cc9300d3ff39061cc37a57fa06a6e6248b07d2912ba1730e94196e05f20ec64"
     },
     "morphhdl/src/test/scala/morphhdl/NativeConditionalProcessTests.scala": {
       "mode": "100644",
@@ -638,16 +650,20 @@
     },
     "morphhdl/src/test/scala/spinal/core/TypedPrimitiveClosureTests.scala": {
       "mode": "100644",
-      "sha256": "2fc897c59312bc1378bd6b5a44a8981bb06cf33f308b86fc0613a8493d759831"
+      "sha256": "208da1d30600561e11be8d382702d7bfbe723caa87f4a309d72976525fa7e201"
     },
     "morphhdl/src/test/scala/spinal/core/internals/HierarchyResizeSourceWidthTests.scala": {
       "mode": "100644",
-      "sha256": "1e26fc56f138b12010a6774d1e48c95eeafabfa9d7a253c58d9ab2499f6147f7"
+      "sha256": "02df02dc713bafb1336a7806e0611d8f864f6b7216da2c50f87fbfe02c39938d"
     },
     "morphhdl/src/test/scala/spinal/core/internals/LaneExpressionTraceWriter.scala": null,
     "morphhdl/src/test/scala/spinal/core/internals/ParameterizedVerilogFieldLayoutTests.scala": {
       "mode": "100644",
       "sha256": "6fa832b576222fcaa68e412072a5e248e5e800be1a7e519b94e15204dd8f0cb8"
+    },
+    "morphhdl/src/test/scala/spinal/core/internals/TypedBalancedReductionCertifiedCallbackPolicyTests.scala": {
+      "mode": "100644",
+      "sha256": "a96827a2ea67c42667a990a5623d6e1780c4899787b02aba7be38b709719c6b4"
     },
     "morphruntime/src/main/scala/spinal/core/ElabFiniteRange.scala": {
       "mode": "100644",
@@ -702,5 +718,5 @@
     "6bb250972f06ca55c9cfbd7100126adad9e81569"
   ],
   "schema": 1,
-  "verifier_sha256": "603f73362c83b750ed280bd5631c0bf2c5f12f419ad828b724b55005f14dc23c"
+  "verifier_sha256": "a239fdccaba6343db10c0576ad4619b2a84531cc3c3c51818a6d28b343894214"
 }
