@@ -24,8 +24,26 @@ records must distinguish implemented/locally validated work from remotely
 qualified and merged work; checkboxes remain open until the latter requirements
 are satisfied. Do not implement any item from
 `morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md` as part of this batch;
-that old work is slated for removal, not extension. Existing regression coverage
-is not removed by this planning instruction.
+that old work is slated for removal, not extension.
+
+**Implementation status, 2 October 2026:** the unchecked boxes below track final
+qualification and merged closure, not whether implementation has been written.
+
+| Work item | Implementation and focused local validation | Remaining closure work |
+| --- | --- | --- |
+| CDC-LEG-01 | Complete; [receipts](remaining-increments-handoff.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 64 | Complete; [receipts](increment-64-derived-localparams.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 65 | Complete; [receipts](increment-65-scoped-legality.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 66, including all five imported `~/prompt.txt` tasks | Complete; [receipts](evidence/increment66/README.md) | Expanded local validation, targeted CI, full CI and merge |
+| Increment 59i | Separate existing branch; excluded from this implementation batch | Existing PR qualification and merge |
+
+**Current validation instruction, 2 October 2026:** run the expanded local suite,
+then targeted remote CI first. Do not run wire-pass formal proofs or wire-pass CI
+workflows: the user has explicitly excluded them because that work is intended
+for removal. Inspect aggregate workflows for indirect invocation of those proofs
+before dispatch. Record these exclusions explicitly; do not report excluded
+checks as passes. Retained compiler and library simulation/formal checks remain
+in scope. The expanded local run is in progress; remote CI has not been launched.
 
 - The first unchecked increment remains the default sequential integration
   target. Explicitly declared parallel successors may start once every listed
@@ -1309,6 +1327,9 @@ planning dependency on merged 59i without waiving those interaction checks.
 
 - [ ] **Increment 64 — Derived `localparam` support**
 
+  **Implementation complete; focused local validation passed.** Final
+  qualification and merged closure remain pending; see the checkpoint below.
+
   Automatically retain and publish named, parameter-dependent typed calculations
   as non-overridable module-local constants through the normal MorphVerilog
   flow. This is distinct from the already-supported enum localparams and direct
@@ -1397,6 +1418,8 @@ planning dependency on merged 59i without waiving those interaction checks.
   intentionally open. No 59i source or old wire-roadmap item was implemented.
 
 - [ ] **Increment 65 — Targeted structural-parameter extensions**
+
+  **Implementation complete; focused local validation passed.**
 
   Local implementation and qualification details are tracked in
   [the Increment 65 handoff](increment-65-scoped-legality.md). Remote gates and
@@ -1517,6 +1540,9 @@ safety diagnostics outside its explicitly qualified replacement surface.
 ### Integrated native parameter and RTL readability extensions (Increment 66)
 
 - [ ] **Increment 66 — Native loops, symbolic values, child formals and named local constants**
+
+  **All five imported tasks are implemented and passed focused local validation.**
+  Their unchecked boxes below retain the outstanding qualification/closure gates.
 
   **Planning status, 1 October 2026:** the five unchecked tasks below are imported
   from the user's `~/prompt.txt` as one integrated compiler increment. Preserve
@@ -2349,6 +2375,9 @@ integration target. Wire-expression issues from the same report are tracked in
 [the existing wire-pass roadmap](../../morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md#september-20-cdc-report--recursive-expression-cleanup).
 
 - [ ] **CDC-LEG-01 — Product-neutral legality labels and user-only fatal messages.**
+
+  **Implementation complete; focused local validation passed.** Final
+  qualification and merged closure remain pending.
 
   Replace native generated `g_morphhdl_parameter_legality_0` with
   `G_PARAMETER_LEGALITY_0`, applying the same spelling to subsequent deterministic

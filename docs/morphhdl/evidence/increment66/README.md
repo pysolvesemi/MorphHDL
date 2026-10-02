@@ -53,7 +53,20 @@ report catalog passed 273 negative controls while retaining original XML and all
 inherited testcase identities. Branch routing passed 16 mutation controls and
 7 rejection cases. All 98 formal registry identities remain present.
 
-Remote targeted/full CI and merge receipts remain outstanding. No CI was launched:
-the required hourly scheduler is unavailable in this session. Integration remains
-paused until 59i merges. Roadmap boxes remain unchecked. See the
-[batch handoff](../../remaining-increments-handoff.md).
+Remote targeted/full CI and merge receipts remain outstanding. Expanded local
+qualification is running before targeted dispatch, with wire-pass formal proofs
+and wire-pass CI explicitly excluded by the user. A local hourly scheduling route
+is enabled as `morphhdl-remaining-increments.timer`; no remote CI has been
+launched. Integration remains paused until 59i merges. Roadmap boxes remain
+unchecked. See the [batch handoff](../../remaining-increments-handoff.md) for the
+current durable queue, recovery evidence and remaining qualification work.
+
+## User-directed integration and retirement, 2 October 2026
+
+The user stopped background qualification and explicitly paused the hourly
+monitor. The timer is disabled and inactive. Earlier running/enabled status above
+is historical. The new authorized work is to merge the latest 59i branch into
+`work/remaining-parameterized-increments`, then remove the wire-pass implementation
+tracked by `morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md`. Preserve
+existing evidence. Do not move `parameterized-verilog` or restart the hourly
+monitor as part of this local integration and retirement work.

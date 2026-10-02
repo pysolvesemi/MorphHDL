@@ -4,7 +4,7 @@ Work branch: `work/remaining-parameterized-increments`.
 Integration target remains `parameterized-verilog` at
 `db54d01e5b21c7664f7a0de3795f061d77a3d259`, verified locally and remotely on
 2 October 2026. No push, PR creation, remote CI or integration merge was performed
-for this batch. No hourly monitor exists.
+for this batch. The local hourly continuation monitor is enabled (details below).
 
 ## Implemented scope
 
@@ -43,16 +43,57 @@ not substitutes for running proofs.
 
 ## Pending qualification and closure
 
-Root AGENTS.md requires a real enabled hourly monitor immediately after targeted
-CI dispatch. This session exposes no general automation scheduler, so remote
-qualification has not been launched. This is an actual scheduling blocker; there
-is no background monitoring promise or fabricated monitor ID.
+Root AGENTS.md requires a real enabled hourly monitor through qualification and
+closure. On 2 October the local user-systemd timer
+`morphhdl-remaining-increments.timer` was enabled during local qualification,
+with `OnCalendar=hourly` (`RRULE:FREQ=HOURLY`). The scheduler reports `enabled` and
+`active`; its first service invocation succeeded and retained the active local
+queue without launching duplicate work. The next scheduled invocation at setup
+was 2 October 2026, 10:00 IST. The durable prompt and checkpoint are
+`~/.local/state/morphhdl/qualification/23dc9248-resume/monitor-prompt.txt` and
+`checkpoint.json`. Reuse this monitor after targeted dispatch, adding the real PR,
+final SHA/tree, workflow IDs and run links. No remote CI has been launched.
+
+The monitor invokes the authenticated local Codex CLI when continuation is needed;
+a file lock prevents overlapping monitor invocations. While the local queue holds
+its own lock, the monitor only records a snapshot. This machine and its user
+session must be available (`Linger=no`). The service and timer definitions are in
+`~/.config/systemd/user/`. Keep the timer enabled through blockers and remote
+qualification until verified closure or an explicit user stop.
+
+The user has now authorized expanded local validation followed by targeted CI,
+and explicitly excluded wire-pass formal proofs and wire-pass CI workflows.
+The expanded local run is in progress on compiler/test source at
+`23dc9248a09157c25030f6603fbdbd0d01f7ab6d`; only status documentation has changed
+during this run. The isolated `morphhdl-passes` workspace is excluded, as is the
+runtime cleanup suite that automatically invokes a wire proof. Retained compiler
+and library simulation/formal gates remain enabled. Aggregate remote workflows
+must be inspected for indirect invocation of excluded proofs before dispatch.
+This scoped run must not be represented as successful execution of excluded
+gates or as completed remote qualification.
+
+At the latest local checkpoint, Scala 2.12 compilation, 697 compiler/IR tests,
+1,347 runtime tests, 55 core tests and 296 upstream core simulation tests passed.
+The upstream core formal and PSL groups also passed. The PSL group first exposed
+missing local GHDL plugin/runtime setup; a user-local plugin installation and
+`GHDL_PREFIX=/usr/lib/ghdl/mcode/vhdl` resolved those environment failures without
+changing test or compiler source. Remaining upstream tester/library groups and
+the expanded Scala 2.13 lane are still pending. A machine restart removed the previous `/tmp/morphhdl-full-local-23dc9248`
+queue, raw logs and temporary proof workspaces. The recorded successful groups
+above describe the pre-restart run; they are not claims that its raw evidence
+survived. On resumption, 343 JUnit reports were preserved with SHA-256 hashes in
+`~/.local/state/morphhdl/qualification/23dc9248-resume/recovery.json`. The
+resumable queue and new per-attempt logs, reports and receipts now live in that
+durable directory. The interrupted Scala 2.12 tester simulation group resumes
+with only suites lacking a recovered successful nonempty report; remaining
+formal/PSL/library groups and the expanded Scala 2.13 lane follow. A group is
+complete only after its command succeeds and its receipt is written.
 
 [59i PR 177](https://github.com/pysolvesemi/MorphHDL/pull/177) was still open at the
 last live check. Preserve the user's integration freeze until it merges. Do not
 move `parameterized-verilog` merely to publish this batch.
 
-When scheduling is available, use the live final work-branch SHA/tree, inspect
+After the expanded local run passes, use the live final work-branch SHA/tree, inspect
 current integration movement and reconcile any changes before qualification.
 Publish a clean candidate with automatic CI suppressed, determine the affected
 workflow IDs and paths, dispatch targeted workflows on that exact head, and
@@ -62,3 +103,13 @@ targeted qualification. Any source repair requires a new head and fresh affected
 qualification. Merge only after the integration freeze, required qualification
 and completion gates are satisfied; preserve ancestry and suppress duplicate
 post-merge CI. Roadmap checkboxes intentionally remain unchecked until closure.
+
+## User-directed integration and retirement, 2 October 2026
+
+The user stopped background qualification and explicitly paused the hourly
+monitor. The timer is disabled and inactive. Earlier running/enabled status above
+is historical. The new authorized work is to merge the latest 59i branch into
+`work/remaining-parameterized-increments`, then remove the wire-pass implementation
+tracked by `morphhdl-passes/morphhdl-ir-wire-assignment-passes-todo.md`. Preserve
+existing evidence. Do not move `parameterized-verilog` or restart the hourly
+monitor as part of this local integration and retirement work.
